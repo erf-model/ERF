@@ -4,11 +4,16 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-/*
+/**
  * Impose boundary conditions using data read in from wrfbdy files
  *
- * @param[out] mfs  Vector of MultiFabs to be filled
- * @param[in] time  time at which the data should be filled
+ * @param[in,out] mfs         Vector of MultiFabs to be filled
+ * @param[in]     time        time at which the data should be filled
+ * @param[in]     cons_only   whether to fill only conserved variables
+ * @param[in]     icomp_cons  first conserved component to fill
+ * @param[in]     ncomp_cons  number of conserved components to fill
+ * @param[in]     ngvect_cons ghost-cell vector for conserved variables
+ * @param[in]     ngvect_vels ghost-cell vector for velocity variables
  */
 
 void
@@ -46,7 +51,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping
-    Vector<int> cons_read = {0, 1, 0, 0,
+    const bool read_wrf_density = solverChoice.use_wrf_bdy_density;
+    int rho_is_read = (read_wrf_density) ? 1 : 0;
+    Vector<int> cons_read = {rho_is_read, 1, 0, 0,
                              1, 0, 0,
                              0, 0, 0,
                              0, 0, 0,
@@ -58,11 +65,28 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     is_read.push_back( {0} ); // zvel
 
     // Real BC mapping (WRF/MetGrid)
-    Vector<int> cons_map = {Rho_comp, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
+    int rho_index = (read_wrf_density) ? RealBdyVars::R : Rho_comp;
+    const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+        wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+    Vector<int> cons_map = {rho_index, RealBdyVars::T, RhoKE_comp, RhoScalar_comp,
                             RealBdyVars::QV, RhoQ2_comp, RhoQ3_comp,
                             RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
                             RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
                             RhoQ10_comp, RhoQ11_comp};
+    if (solverChoice.use_wrf_bdy_qc_qi) {
+        for (int comp = RhoQ1_comp; comp < static_cast<int>(cons_read.size()); ++comp) {
+            cons_read[comp] = 0;
+        }
+    }
+    for (int comp = 0; comp < static_cast<int>(cons_read.size()); ++comp) {
+        const int bdy_var = wrf_bdy_var_for_moisture_component(
+            comp, solverChoice.moisture_indices, solverChoice.use_wrf_bdy_qc_qi,
+            separate_hydrometeors);
+        if (bdy_var >= 0) {
+            cons_read[comp] = 1;
+            cons_map[comp] = bdy_var;
+        }
+    }
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
     ind_map.push_back( {RealBdyVars::U} ); // xvel
@@ -132,6 +156,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
             {
                 int ivar    = ind_map[var_idx][comp_idx];
                 int bnd_var = bnd_ind_map[var_idx][comp_idx];
+                const bool clamp_wrf_moisture = solverChoice.use_wrf_bdy_qc_qi &&
+                    (comp_idx == solverChoice.moisture_indices.qv || ivar >= RealBdyVars::QC);
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -175,7 +201,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
                                                          + alpha * bdatxlo_np1(ii,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (clamp_wrf_moisture) {
+                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
+                        }
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -190,7 +221,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                                 dest_arr(i,j,k,comp_idx) = oma   * bdatxhi_n  (ii,jj,k,0)
                                                          + alpha * bdatxhi_np1(ii,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (clamp_wrf_moisture) {
+                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
+                        }
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     });
 
                     // y-faces (do not include exterior x ghost cells)
@@ -206,7 +242,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             dest_arr(i,j,k,comp_idx) = oma   * bdatylo_n  (i,jj,k,0)
                                                      + alpha * bdatylo_np1(i,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (clamp_wrf_moisture) {
+                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
+                        }
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -219,7 +260,12 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                             dest_arr(i,j,k,comp_idx) = oma   * bdatyhi_n  (i,jj,k,0)
                                                      + alpha * bdatyhi_np1(i,jj,k,0);
                         }
-                        if (var_idx == Vars::cons) dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        if (clamp_wrf_moisture) {
+                            dest_arr(i,j,k,comp_idx) = amrex::max(dest_arr(i,j,k,comp_idx), Real(0.0));
+                        }
+                        if (var_idx == Vars::cons && comp_idx != Rho_comp) {
+                            dest_arr(i,j,k,comp_idx) *= dest_arr(i,j,k,Rho_comp);
+                        }
                     });
                 } // mfi
 

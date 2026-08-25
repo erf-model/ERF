@@ -1,9 +1,24 @@
+/**
+ * \file ERF_TerrainPoisson_3D_K.H
+ */
 #ifndef ERF_TERRAINPOISSON_3D_K_H_
 #define ERF_TERRAINPOISSON_3D_K_H_
 
 #include <AMReX_FArrayBox.H>
 #include "ERF_Constants.H"
 
+/**
+ * Compute the x-face terrain Poisson flux.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the x-face
+ * @param j y-index of the x-face
+ * @param k z-index of the x-face
+ * @param sol Cell-centered solution field
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @return x-face flux for the terrain Poisson operator
+ */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_x (int i, int j, int k,
@@ -21,8 +36,8 @@ T terrpoisson_flux_x (int i, int j, int k,
     // On y-edges
     Real pz_lo_md_hi  = myhalf * ( sol(i,j,k+1) + sol(i-1,j,k+1)
                                      -sol(i,j,k  ) - sol(i-1,j,k  ) );
-         h_xi         = fourth * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
-                                      +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
+         h_xi         = fourth * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
+                                      +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
                                       +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
          pz_lo_md_hi *= h_xi / h_zeta;
@@ -31,8 +46,8 @@ T terrpoisson_flux_x (int i, int j, int k,
     Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  )
                                      -sol(i,j,k-1) - sol(i-1,j,k-1) );
 
-         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
-                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
@@ -42,6 +57,19 @@ T terrpoisson_flux_x (int i, int j, int k,
 
     return -px_lo;
 }
+
+/**
+ * Compute the y-face terrain Poisson flux.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the y-face
+ * @param j y-index of the y-face
+ * @param k z-index of the y-face
+ * @param sol Cell-centered solution field
+ * @param zp Node-centered physical height field
+ * @param dyinv Inverse y grid spacing
+ * @return y-face flux for the terrain Poisson operator
+ */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_y (int i, int j, int k,
@@ -58,8 +86,8 @@ T terrpoisson_flux_y (int i, int j, int k,
     // On x-edges
     Real pz_md_lo_hi  = myhalf * ( sol(i,j,k+1) + sol(i,j-1,k+1)
                                      -sol(i,j,k  ) - sol(i,j-1,k  ) );
-         h_eta        = fourth * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
-                                      +zp(i+1,j,k+1) - zp(i+1,j-2,k+1) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j-1,k+1)
+                                      +zp(i+1,j+1,k+1) - zp(i+1,j-1,k+1) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+2) - zp(i+1,j  ,k  ) );
          pz_md_lo_hi *= h_eta/ h_zeta;
@@ -68,8 +96,8 @@ T terrpoisson_flux_y (int i, int j, int k,
     Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  )
                                      -sol(i,j,k-1) - sol(i,j-1,k-1) );
 
-         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
-                                      +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;
@@ -79,6 +107,19 @@ T terrpoisson_flux_y (int i, int j, int k,
     return -py_lo;
 }
 
+/**
+ * Compute the z-face terrain Poisson flux.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the z-face
+ * @param j y-index of the z-face
+ * @param k z-index of the z-face
+ * @param sol Cell-centered solution field
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @param dyinv Inverse y grid spacing
+ * @return z-face flux for the terrain Poisson operator
+ */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_z (int i, int j, int k,
@@ -109,8 +150,8 @@ T terrpoisson_flux_z (int i, int j, int k,
     // On y-edges
     Real pz_hi_md_lo  = myhalf * ( sol(i+1,j,k  ) + sol(i,j,k  )
                                      -sol(i+1,j,k-1) - sol(i,j,k-1) );
-         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
-                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
+         h_xi         = fourth * ( zp(i+2,j  ,k  ) - zp(i  ,j  ,k  )
+                                      +zp(i+2,j+1,k  ) - zp(i  ,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_hi_md_lo *= h_xi / h_zeta;
@@ -118,8 +159,8 @@ T terrpoisson_flux_z (int i, int j, int k,
     // On y-edges
     Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  )
                                      -sol(i,j,k-1) - sol(i-1,j,k-1) );
-         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
-                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
@@ -127,8 +168,8 @@ T terrpoisson_flux_z (int i, int j, int k,
     // On x-edges
     Real pz_md_hi_lo  = myhalf * ( sol(i,j+1,k  ) + sol(i,j,k  )
                                      -sol(i,j+1,k-1) - sol(i,j,k-1) );
-         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
-                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+2,k  ) - zp(i  ,j  ,k  )
+                                      +zp(i+1,j+2,k  ) - zp(i+1,j  ,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_md_hi_lo *= h_eta/ h_zeta;
@@ -136,8 +177,8 @@ T terrpoisson_flux_z (int i, int j, int k,
     // On x-edges
     Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  )
                                      -sol(i,j,k-1) - sol(i,j-1,k-1) );
-         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
-                                      +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;
@@ -154,9 +195,19 @@ T terrpoisson_flux_z (int i, int j, int k,
     return -pz_lo;
 }
 
-/*
+/**
  * Simplified gradient calc with dirichlet BC (phi_zlo==0)
  * - compare with terrpoisson_flux_z
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the z-face
+ * @param j y-index of the z-face
+ * @param k z-index of the z-face
+ * @param sol Cell-centered solution field
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @param dyinv Inverse y grid spacing
+ * @return z-face flux with a low-z Dirichlet value
  */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -183,32 +234,32 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
 
     // On y-edges, one-sided
     Real pz_hi_md_lo  = myhalf * ( sol(i+1,j,k  ) + sol(i,j,k  ));
-         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
-                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
+         h_xi         = fourth * ( zp(i+2,j  ,k  ) - zp(i  ,j  ,k  )
+                                      +zp(i+2,j+1,k  ) - zp(i  ,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k  )
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On y-edges, one-sided
     Real pz_lo_md_lo  = myhalf * ( sol(i,j,k  ) + sol(i-1,j,k  ));
-         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
-                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k  )
                                       +zp(i,j+1,k+1) - zp(i  ,j+1,k  ) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-edges, one-sided
     Real pz_md_hi_lo  = myhalf * ( sol(i,j+1,k  ) + sol(i,j,k  ));
-         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
-                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+2,k  ) - zp(i  ,j  ,k  )
+                                      +zp(i+1,j+2,k  ) - zp(i+1,j  ,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k  )
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k  ) );
          pz_md_hi_lo *= h_eta/ h_zeta;
 
     // On x-edges, one-sided
     Real pz_md_lo_lo  = myhalf * ( sol(i,j,k  ) + sol(i,j-1,k  ));
-         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
-                                      +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k  ) );
          pz_md_lo_lo *= h_eta/ h_zeta;
@@ -223,6 +274,24 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
     return -pz_lo;
 }
 
+/**
+ * Apply the terrain Poisson matrix to a cell-centered field.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the cell
+ * @param j y-index of the cell
+ * @param k z-index of the cell
+ * @param y Destination operator result
+ * @param x Source solution field
+ * @param ax Terrain metric coefficient on x-faces
+ * @param ay Terrain metric coefficient on y-faces
+ * @param az Terrain metric coefficient on z-faces
+ * @param dJ Cell-centered Jacobian determinant
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @param dyinv Inverse y grid spacing
+ * @param dzinv Inverse z grid spacing
+ */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
@@ -246,20 +315,20 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     // On y-edges
     Real pz_hi_md_hi  = myhalf  * (  x(i+1,j  ,k+1) +  x(i  ,j  ,k+1)
-                                       -x(i+1,j  ,k  ) -  x(i  ,j  ,k  ) );
-         h_xi         = fourth * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
-                                      +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
+                                    -x(i+1,j  ,k  ) -  x(i  ,j  ,k  ) );
+         h_xi         = fourth * ( zp(i+2,j  ,k+1) - zp(i  ,j  ,k+1)
+                                  +zp(i+2,j+1,k+1) - zp(i  ,j+1,k+1) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+2) - zp(i+1,j  ,k  )
-                                      +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
+                                  +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
          pz_hi_md_hi *= h_xi / h_zeta;
 
     // On y-edges
     Real pz_hi_md_lo  = myhalf  *  ( x(i+1,j  ,k  ) +  x(i  ,j  ,k  )
-                                       -x(i+1,j  ,k-1) -  x(i  ,j  ,k-1) );
-         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
-                                      +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
+                                    -x(i+1,j  ,k-1) -  x(i  ,j  ,k-1) );
+         h_xi         = fourth * ( zp(i+2,j  ,k  ) - zp(i  ,j  ,k  )
+                                  +zp(i+2,j+1,k  ) - zp(i  ,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i+1,j  ,k+1) - zp(i+1,j  ,k-1)
-                                      +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
+                                  +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_hi_md_lo *= h_xi / h_zeta;
 
     // On x-face
@@ -272,20 +341,20 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
 
     // On y-edges
     Real pz_lo_md_hi  = myhalf  * (  x(i,j,k+1) + x(i-1,j,k+1)
-                                       -x(i,j,k  ) - x(i-1,j,k  ) );
-         h_xi         = fourth * ( zp(i,j  ,k+1) - zp(i-2,j  ,k+1)
-                                      +zp(i,j+1,k+1) - zp(i-2,j+1,k+1) ) * dxinv;
+                                    -x(i,j,k  ) - x(i-1,j,k  ) );
+         h_xi         = fourth * ( zp(i+1,j  ,k+1) - zp(i-1,j  ,k+1)
+                                  +zp(i+1,j+1,k+1) - zp(i-1,j+1,k+1) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+2) - zp(i  ,j  ,k  )
-                                      +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
+                                  +zp(i,j+1,k+2) - zp(i  ,j+1,k  ) );
          pz_lo_md_hi *= h_xi / h_zeta;
 
     // On y-edges
     Real pz_lo_md_lo  = myhalf  * (  x(i,j,k  ) + x(i-1,j,k  )
-                                       -x(i,j,k-1) - x(i-1,j,k-1) );
-         h_xi         = fourth * ( zp(i,j  ,k  ) - zp(i-2,j  ,k  )
-                                      +zp(i,j+1,k  ) - zp(i-2,j+1,k  ) ) * dxinv;
+                                    -x(i,j,k-1) - x(i-1,j,k-1) );
+         h_xi         = fourth * ( zp(i+1,j  ,k  ) - zp(i-1,j  ,k  )
+                                  +zp(i+1,j+1,k  ) - zp(i-1,j+1,k  ) ) * dxinv;
          h_zeta       = fourth * ( zp(i,j  ,k+1) - zp(i  ,j  ,k-1)
-                                      +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
+                                  +zp(i,j+1,k+1) - zp(i  ,j+1,k-1) );
          pz_lo_md_lo *= h_xi / h_zeta;
 
     // On x-face
@@ -300,8 +369,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // On x-edges
     Real pz_md_hi_hi  = myhalf  * (  x(i,j+1,k+1) + x(i,j,k+1)
                                        -x(i,j+1,k  ) - x(i,j,k  ) );
-         h_eta        = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j-1,k+1)
-                                      +zp(i+1,j+1,k+1) - zp(i+1,j-1,k+1) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+2,k+1) - zp(i  ,j  ,k+1)
+                                      +zp(i+1,j+2,k+1) - zp(i+1,j  ,k+1) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j+1,k+2) - zp(i  ,j+1,k  )
                                       +zp(i+1,j+1,k+2) - zp(i+1,j+1,k  ) );
          pz_md_hi_hi *= h_eta/ h_zeta;
@@ -309,8 +378,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // On x-edges
     Real pz_md_hi_lo  = myhalf  * (  x(i,j+1,k  ) + x(i,j,k  )
                                        -x(i,j+1,k-1) - x(i,j,k-1) );
-         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k)
-                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+2,k  ) - zp(i  ,j  ,k  )
+                                      +zp(i+1,j+2,k  ) - zp(i+1,j  ,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j+1,k-1)
                                       +zp(i+1,j+1,k+1) - zp(i+1,j+1,k-1) );
          pz_md_hi_lo *= h_eta/ h_zeta;
@@ -327,8 +396,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // On x-edges
     Real pz_md_lo_hi  = myhalf  * (  x(i  ,j,k+1) +  x(i  ,j-1,k+1)
                                        -x(i  ,j,k  ) -  x(i  ,j-1,k  ) );
-         h_eta        = fourth * ( zp(i  ,j,k+1) - zp(i  ,j-2,k+1)
-                                      +zp(i+1,j,k+1) - zp(i+1,j-2,k+1) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k+1) - zp(i  ,j-1,k+1)
+                                      +zp(i+1,j+1,k+1) - zp(i+1,j-1,k+1) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+2) - zp(i  ,j  ,k  )
                                       +zp(i+1,j,k+2) - zp(i+1,j  ,k  ) );
          pz_md_lo_hi *= h_eta/ h_zeta;
@@ -336,8 +405,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // On x-edges
     Real pz_md_lo_lo  = myhalf  * (  x(i  ,j,k  ) +  x(i  ,j-1,k  )
                                        -x(i  ,j,k-1) -  x(i  ,j-1,k-1) );
-         h_eta        = fourth * ( zp(i  ,j,k  ) - zp(i  ,j-2,k  )
-                                      +zp(i+1,j,k  ) - zp(i+1,j-2,k  ) ) * dyinv;
+         h_eta        = fourth * ( zp(i  ,j+1,k  ) - zp(i  ,j-1,k  )
+                                      +zp(i+1,j+1,k  ) - zp(i+1,j-1,k  ) ) * dyinv;
          h_zeta       = fourth * ( zp(i  ,j,k+1) - zp(i  ,j  ,k-1)
                                       +zp(i+1,j,k+1) - zp(i+1,j  ,k-1) );
          pz_md_lo_lo *= h_eta/ h_zeta;

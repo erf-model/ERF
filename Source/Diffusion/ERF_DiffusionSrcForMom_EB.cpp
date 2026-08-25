@@ -10,37 +10,72 @@
 using namespace amrex;
 
 /**
- * Compute orthonormal tangent vectors at an EB boundary given the normal vector.
- * Uses Gram-Schmidt orthogonalization against standard basis vectors.
+ * Compute the tangent directions at an EB boundary given the unit normal vector.
  *
- * @param[in]  nx, ny, nz  Components of the normal vector
- * @param[out] tbx_x, tbx_y, tbx_z  Components of first tangent vector (from e_x)
- * @param[out] tby_x, tby_y, tby_z  Components of second tangent vector (from e_y)
+ * t_bx and t_by are the unit vectors along the projections of e_x and e_y onto the
+ * tangent plane. They are the directions in which the stored EB surface stresses
+ * tau_eb13 and tau_eb23 act, since those are built from the x- and y-components of
+ * the tangential velocity (see ERF_EBMOSTStress.H). For a horizontal surface they are
+ * exactly e_x and e_y. Note that they are individually unit but are not orthogonal to
+ * each other unless nx*ny is zero -- t_bx . t_by = -nx*ny.
+ *
+ * e_x has no projection onto the tangent plane when n is parallel to e_x, and likewise
+ * for e_y, so one of the two is undefined for an axis-aligned normal such as (1,0,0)
+ * (issue #3533). That limit is genuinely two-sided -- approaching n = (1,0,0) from
+ * nz > 0 and from nz < 0 gives t_bx of -e_z and +e_z -- so there is no continuous
+ * choice, and the degenerate vector is returned as zero. That keeps the momentum RHS
+ * finite, and it keeps the component that does have a limit continuous: the x-component
+ * of t_bx is sqrt(1-nx*nx), which tends to zero here as well. It also avoids driving
+ * w-momentum with tau_eb13, an x-associated stress, along an arbitrarily signed
+ * direction. Only nx and ny can be degenerate, and never both at once.
+ *
+ * @param[in]  nx x-component of the normal vector
+ * @param[in]  ny y-component of the normal vector
+ * @param[in]  nz z-component of the normal vector
+ * @param[out] tbx_x x-component of first tangent vector
+ * @param[out] tbx_y y-component of first tangent vector
+ * @param[out] tbx_z z-component of first tangent vector
+ * @param[out] tby_x x-component of second tangent vector
+ * @param[out] tby_y y-component of second tangent vector
+ * @param[out] tby_z z-component of second tangent vector
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void compute_tangent_vectors (Real nx, Real ny, Real nz,
                                Real& tbx_x, Real& tbx_y, Real& tbx_z,
                                Real& tby_x, Real& tby_y, Real& tby_z)
 {
+    // Below this the projection is all round-off and its direction is meaningless.
+    // The squared norms are formed as ny^2+nz^2 and nx^2+nz^2 rather than as the
+    // algebraically equal 1-nx^2 and 1-ny^2 to avoid cancellation for a near-axis normal
+    constexpr Real tol = Real(1.e-12);
+
     // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
     // e_x = (1,0,0), so e_x · n = nx
-    tbx_x = one - nx * nx;
-    tbx_y = - nx * ny;
-    tbx_z = - nx * nz;
-    Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
-    tbx_x /= tbx_norm;
-    tbx_y /= tbx_norm;
-    tbx_z /= tbx_norm;
+    Real tbx_norm2 = ny*ny + nz*nz;
+    if (tbx_norm2 > tol) {
+        Real tbx_norm_inv = one / std::sqrt(tbx_norm2);
+        tbx_x = ( one - nx * nx) * tbx_norm_inv;
+        tbx_y = (     - nx * ny) * tbx_norm_inv;
+        tbx_z = (     - nx * nz) * tbx_norm_inv;
+    } else {
+        tbx_x = zero;
+        tbx_y = zero;
+        tbx_z = zero;
+    }
 
     // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
     // e_y = (0,1,0), so e_y · n = ny
-    tby_x = - ny * nx;
-    tby_y = one - ny * ny;
-    tby_z = - ny * nz;
-    Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
-    tby_x /= tby_norm;
-    tby_y /= tby_norm;
-    tby_z /= tby_norm;
+    Real tby_norm2 = nx*nx + nz*nz;
+    if (tby_norm2 > tol) {
+        Real tby_norm_inv = one / std::sqrt(tby_norm2);
+        tby_x = (     - ny * nx) * tby_norm_inv;
+        tby_y = ( one - ny * ny) * tby_norm_inv;
+        tby_z = (     - ny * nz) * tby_norm_inv;
+    } else {
+        tby_x = zero;
+        tby_y = zero;
+        tby_z = zero;
+    }
 }
 
 /**
@@ -54,15 +89,32 @@ void compute_tangent_vectors (Real nx, Real ny, Real nz,
  * @param[out] rho_u_rhs RHS for x-mom
  * @param[out] rho_v_rhs RHS for y-mom
  * @param[out] rho_w_rhs RHS for z-mom
+ * @param[in]  u_arr x-direction velocity
+ * @param[in]  v_arr y-direction velocity
+ * @param[in]  w_arr z-direction velocity
  * @param[in]  tau11 11 stress
  * @param[in]  tau22 22 stress
  * @param[in]  tau33 33 stress
  * @param[in]  tau12 12 stress
  * @param[in]  tau13 13 stress
  * @param[in]  tau23 23 stress
+ * @param[in]  u_tau_eb13 EB tangential stress for x-momentum on z-faces
+ * @param[in]  u_tau_eb23 EB tangential stress for x-momentum on y-faces
+ * @param[in]  v_tau_eb13 EB tangential stress for y-momentum on z-faces
+ * @param[in]  v_tau_eb23 EB tangential stress for y-momentum on x-faces
+ * @param[in]  w_tau_eb13 EB tangential stress for z-momentum on y-faces
+ * @param[in]  w_tau_eb23 EB tangential stress for z-momentum on x-faces
+ * @param[in]  dx_arr cell size array
  * @param[in]  dxInv inverse cell size array
- * @param[in]  mf_m map factor at cell center
+ * @param[in]  mf_mx x map factor at cell centers
+ * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_vx x map factor at y-faces
+ * @param[in]  mf_my y map factor at cell centers
+ * @param[in]  mf_uy y map factor at x-faces
+ * @param[in]  mf_vy y map factor at y-faces
+ * @param[in] solverChoice container with diffusion parameters
  * @param[in] ebfact EB factories for cell- and face-centered variables
+ * @param[in] d_bcrec_ptr boundary condition records on device
  */
 void
 DiffusionSrcForMom_EB (const MFIter& mfi,

@@ -23,8 +23,11 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_EB.H>
+#include "Prob/ERF_CloudChamberBudget.H"
+#include "Prob/ERF_CloudChamber.H"
 
 #ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
@@ -40,6 +43,7 @@
 #include <ERF_DataStruct.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
+#include <ERF_LargeScaleForcingData.H>
 #include <ERF_InputSpongeData.H>
 #include <ERF_SurfaceLayer.H>
 #include <ERF_Derive.H>
@@ -151,9 +155,97 @@ public:
     // explicitly or return the underlying MultiFab pointer/reference instead.
     void GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                        amrex::DistributionMapping& dm);
+    // Returns pointers to level-0 lon_m/lat_m coordinate MultiFabs (populated
+    // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
+    // used to build ocean->atmos remap weights. Sets both to nullptr if
+    // unavailable (e.g. idealized/non-WRF configurations).
+    //
+    // Staggering contract: both MultiFabs always carry CELL index type, but what
+    // they actually hold depends on the init path, and a caller building a corner
+    // mesh must account for the difference:
+    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
+    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
+    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
+    //     the south face -- nodal in j, cell-centred in i. The extra staggered
+    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
+    //     so a corner mesh must read one ghost beyond the valid box in the nodal
+    //     direction; ghosts further out are duplicates of that edge.
+    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
+    //     so both are genuinely cell-centred and there is no staggered edge.
+    void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
+                                           const amrex::MultiFab*& y_corner) const;
 
-    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time);
-    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
+    // Returns the level-0, current-time land mask (1 = land, 0 = water) used
+    // by the driver to exclude land cells from atmos->ocean remap stencils.
+    // Sets lmask to nullptr if unavailable.
+    void GetLandMask (const amrex::iMultiFab*& lmask) const;
+
+    // True when a radiation model is *configured* at level 0. A coupling driver
+    // needs this to know whether the SWrad/LWrad lanes it would hand an ocean
+    // model carry real values or just zeros: passing zeros is worse than passing
+    // nothing, because the ocean model then suppresses its own radiative forcing
+    // in favour of them.
+    //
+    // Note this is a configuration predicate, not a data-validity one. rad_fluxes
+    // is allocated and zero-filled as soon as solverChoice.rad_type != None, so
+    // this returns true from level-0 allocation onward - including before the
+    // first AdvanceRadiation, when the fluxes are still exactly zero. A caller
+    // that needs "the lanes hold real radiation" must additionally know that a
+    // radiation step has run.
+    [[nodiscard]] bool HasRadiation () const {
+        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
+    }
+
+    // Whether ERF can pack cloud fraction on the atmos->ocean Cloud lane. The
+    // pack fills that lane only when moisture is active AND the moisture model
+    // carries cloud liquid or ice, so this mirrors that condition exactly; a
+    // driver that handed the lane over regardless would be passing its own
+    // prefill as though it were an ERF value.
+    //
+    // Like HasRadiation, this is a configuration predicate rather than a
+    // data-validity one: it says the lane will be filled, not that any moisture
+    // step has run yet.
+    [[nodiscard]] bool HasCloudWater () const {
+        return (solverChoice.moisture_type != MoistureType::None) &&
+               (solverChoice.moisture_indices.qc != -1 ||
+                solverChoice.moisture_indices.qi != -1);
+    }
+
+    // weight_mf/index_mf are keyed by WeightFamily slot order
+    // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
+    // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
+    // lane below picks the pair matching its own destination stagger.
+    // dst_mskr/dst_msku/dst_mskv are REMORA wet/dry masks (1 = wet, 0 = land)
+    // on the rho/u-face/v-face destination layouts. dst_msku/dst_mskv are applied
+    // to the TauX/TauY lanes; dst_mskr is applied to the rho-centred *scalar* lanes
+    // (Patm, Tair, cloud, and the scalar flux lanes) but deliberately NOT to
+    // Uwind/Vwind, which are also rho-centred - so the wind lanes carry live
+    // atmospheric values over REMORA land while Patm/Tair carry fallbacks there.
+    // REMORA re-masks on its own side, so this asymmetry is currently harmless.
+    // Pass nullptr to skip masking.
+    void PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states, double time,
+                                const amrex::Vector<const amrex::MultiFab*>& weight_mf,
+                                const amrex::Vector<const amrex::iMultiFab*>& index_mf,
+                                int max_stencil_size,
+                                const amrex::MultiFab* dst_mskr = nullptr,
+                                const amrex::MultiFab* dst_msku = nullptr,
+                                const amrex::MultiFab* dst_mskv = nullptr);
+    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    //
+    // state[0] carries SST in Kelvin on the layout reported by
+    // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
+    // that same layout: nonzero where the driver's remap found at least one
+    // ocean donor for that ERF cell.
+    //
+    // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
+    // supplied nothing and state[0] holds the remap's zero fill, which is
+    // indistinguishable from a computed zero; ERF keeps its own wrflowinp SST
+    // there instead. Passing erf_coverage = nullptr therefore means "no cell is
+    // covered", not "every cell is covered" -- a driver that has coverage
+    // information must pass it.
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
+                                 double time,
+                                 const amrex::iMultiFab* erf_coverage = nullptr);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -254,7 +346,12 @@ public:
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
-    void compute_divergence (int lev, amrex::MultiFab& rhs, amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+    void compute_divergence (int lev, amrex::MultiFab& rhs,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+                             amrex::MultiFab const& mf_mx, amrex::MultiFab const& mf_my,
+                             amrex::MultiFab const& mf_vx, amrex::MultiFab const& mf_uy,
+                             amrex::MultiFab const& ax_in, amrex::MultiFab const& ay_in,
+                             amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
@@ -297,6 +394,10 @@ public:
     void check_for_low_temp       (amrex::MultiFab& S);
 
     void compute_max_pressure_gradient_diagnostic(int lev);
+
+    // Max of (buoyancy - vertical gradient of perturbational pressure);
+    //    this is identically zero if the state is in HSE and buoyancy_type = 1
+    void compute_max_buoyancy_gradp_diagnostic(int lev);
 
     void check_mesh_type(int lev);
 
@@ -385,6 +486,13 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+
+    void derive_forcing_profiles_stag(amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -596,9 +704,11 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations();
+    void ComputeAndWriteEnsemblePerturbations ();
 
-    void PerformDataAssimilation(int da_iter);
+    void PerformDataAssimilation (int da_iter);
+
+    void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
 
     void init_custom (int lev);
 
@@ -705,6 +815,17 @@ public:
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
+
+    // Coupled sea-surface temperature and its per-cell coverage flag, on the
+    // layout reported by GetOceanToAtmosSurfaceLayout. Allocated on the first
+    // ApplyOceanSurfaceState call and handed to the SurfaceLayer as borrowed
+    // pointers, so ERF must outlive the SurfaceLayer's use of them. Level 0
+    // only: the coupler exchanges on the base grid.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // One-shot latch so a misconfigured deck says so once rather than every step.
+    bool m_warned_coupled_sst_declined = false;
 
 private:
 
@@ -886,6 +1007,10 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
+
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
@@ -971,6 +1096,8 @@ private:
     amrex::Vector<amrex::MultiFab> zmom_crse_rhs;
 
     std::unique_ptr<Microphysics> micro;
+    std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
+    erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
 
     // Variables for wind farm parametrization models
@@ -991,6 +1118,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
+
+    LargeScaleForcingData lsf;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
@@ -1070,6 +1201,9 @@ private:
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_yface;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_zface;
 
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
@@ -1218,6 +1352,7 @@ private:
     double m_plot2d_per_1 = -1.0;
     double m_plot2d_per_2 = -1.0;
     bool m_plot_face_vels = false;
+    bool m_plot_face_terrain_blanking = false;
 
     bool plot_lsm = false;
 
@@ -1250,14 +1385,15 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "theta_hse", "qv_hse",
+                                                    "pres_hse", "dens_hse", "theta_hse", "pi_hse", "qv_hse",
                                                     "pressure", "pert_pres", "pert_dens",
                                                     "buoyancy", "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
                                                     "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
-                                                    "z_phys", "detJ", "mapfac", "lat_m", "lon_m",
+                                                    "z_phys", "detJ", "h_xi", "h_eta", "h_zeta",
+                                                    "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
@@ -1279,7 +1415,7 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
-                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng",
+                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
@@ -1482,6 +1618,14 @@ private:
     //
     static amrex::Vector<amrex::AMRErrorTag> ref_tags;
 
+    //
+    // Name of the refinement indicator that generated each entry of ref_tags.
+    // Not every indicator generates a ref_tag (e.g. "storm_tracker" does not),
+    // so this must be carried alongside ref_tags rather than re-deriving it
+    // from the positional index into erf.refinement_indicators.
+    //
+    static amrex::Vector<std::string> ref_tag_indicator_names;
+
     amrex::Vector<amrex::Vector<amrex::BoxArray>> subdomains;
 
     amrex::Vector<amrex::Real> dz_min;
@@ -1490,57 +1634,68 @@ private:
     int
     ComputeGhostCells (const SolverChoice& sc)
     {
-        int ngrow = 0;
+        // We never have fewer than 2 ghost cells
+        int ngrow = 2;
 
-        if (sc.use_num_diff)
-        {
+        // This sets the minimum to 3 if using num_diff but we might still need more
+        if (sc.use_num_diff) {
             ngrow = 3;
-        } else {
-            if (
-                 (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-              || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-              || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
-            { ngrow = 3; }
-            else if (
-                 (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-              || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-              || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
-            { ngrow = 3; }
-            else if (
-                  (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
-               || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
-            { ngrow = 3; }
-            else if (
-                  (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7)
-               || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
-               || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z)
-               || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
-               || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z) )
-            { ngrow = 4; }
-            else
-            {
-                if (sc.terrain_type == TerrainType::EB){
-                    ngrow = 4;
-                } else {
-                    ngrow = 2;
-                }
-            }
         }
+
+        // With EB we always have 4 so no need to do further tests
+        if (sc.terrain_type == TerrainType::EB) {
+            ngrow = 4;
+            return ngrow;
+        }
+
+        if (
+             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+        { ngrow = 3; }
+        else if (
+             (sc.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+          || (sc.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+          || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+          || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+          || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_5Z)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_5Z)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7) )
+        { ngrow = 3; }
+        else if (
+              (sc.advChoice.dycore_horiz_adv_type    == AdvType::Weno_7Z)
+           || (sc.advChoice.dycore_vert_adv_type     == AdvType::Weno_7Z)
+           || (sc.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_7Z)
+           || (sc.advChoice.dryscal_vert_adv_type    == AdvType::Weno_7Z)
+           || (sc.advChoice.moistscal_horiz_adv_type == AdvType::Weno_7Z)
+           || (sc.advChoice.moistscal_vert_adv_type  == AdvType::Weno_7Z) )
+        { ngrow = 4; }
 
         return ngrow;
     }

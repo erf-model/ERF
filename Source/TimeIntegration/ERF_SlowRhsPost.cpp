@@ -4,6 +4,8 @@
 #include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
+#include "ERF_ResolvedWallFlux.H"
+#include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
 
@@ -63,6 +65,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& /*zvel*/,
                         const MultiFab& source,
                               MultiFab* terrain_blank,
+                              MultiFab* terrain_blank_xface,
+                              MultiFab* terrain_blank_yface,
+                              MultiFab* terrain_blank_zface,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
@@ -90,7 +95,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                         ShocDriver* native_shoc_lev,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine,
-                        std::unique_ptr<ReadBndryPlanes>& m_r2d)
+                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
+                        const MultiFab* cloud_chamber_base_state,
+                        const erf_cloud_chamber::Config* cloud_chamber_config,
+                        CloudChamberBudget* cloud_budget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -108,10 +116,16 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_anelastic   = solverChoice.anelastic[level];
+
+    // Only add to the flux registers on the final RK stage.  The anelastic integrator
+    // takes two stages (nrk = 0,1) and the compressible one takes three (nrk = 0,1,2),
+    // so testing nrk == 2 alone would never reflux the scalar and moisture fluxes in an
+    // anelastic run.  This matches the condition used in erf_slow_rhs_pre.
+    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
+                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
@@ -156,8 +170,20 @@ void erf_slow_rhs_post (int level, int finest_level,
     // Pre-computed quantities
     // *************************************************************************
     int nvars                     = S_data[IntVars::cons].nComp();
+
+    // Total number of q state components.  This is n_qstate (the water species) plus
+    // any non-water species that the microphysics model appends after them, and is the
+    // count that the advection, diffusion, state update and reflux all work over.
+    const int n_qstate_total      = nvars - RhoQ1_comp;
+
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
+    const bool use_physical_chamber_wall_flux =
+        cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
+        cloud_chamber_config->physical_initialization;
+    const erf_wall_thermodynamics::Boundary chamber_walls =
+        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+                                         erf_wall_thermodynamics::Boundary{};
 
     std::unique_ptr<MultiFab> dflux_x;
     std::unique_ptr<MultiFab> dflux_y;
@@ -165,9 +191,23 @@ void erf_slow_rhs_post (int level, int finest_level,
 
     if (l_use_diff) {
         IntVect ng(0,0,1);
-        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, ng);
-        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, ng);
-        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 0);
+        // The physical chamber needs one persistent component for each moist
+        // state even when budgets are disabled: qv and qc are corrected and
+        // retained independently.  All other configurations retain ERF's
+        // established one-component reusable diffusion storage.
+        const int n_flux_components = use_physical_chamber_wall_flux ?
+            std::max(1, n_qstate_total) : 1;
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, n_flux_components, ng);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, n_flux_components, ng);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, n_flux_components, 0);
+        // Every physical wall override reads the old face flux before
+        // replacing it; make that read deterministic regardless of budget
+        // diagnostics.
+        if (use_physical_chamber_wall_flux) {
+            dflux_x->setVal(0.0);
+            dflux_y->setVal(0.0);
+            dflux_z->setVal(0.0);
+        }
     } else {
         dflux_x = nullptr;
         dflux_y = nullptr;
@@ -193,6 +233,13 @@ void erf_slow_rhs_post (int level, int finest_level,
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
+
+    // EB Anelastic: Copy projected momentum with ghost-cell synchronization
+    if (l_anelastic && l_use_eb) {
+        avg_xmom.ParallelCopy(S_data[IntVars::xmom], 0, 0, 1, 0, 1, geom.periodicity());
+        avg_ymom.ParallelCopy(S_data[IntVars::ymom], 0, 0, 1, 0, 1, geom.periodicity());
+        avg_zmom.ParallelCopy(S_data[IntVars::zmom], 0, 0, 1, 0, 1, geom.periodicity());
+    }
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -262,6 +309,12 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<const Real>& t_blank_arr = (terrain_blank) ? terrain_blank->const_array(mfi) :
                                                                 Array4<const Real>{};
+        const Array4<const Real>& t_blank_xface_arr = (terrain_blank_xface) ? terrain_blank_xface->const_array(mfi) :
+                                                                              Array4<const Real>{};
+        const Array4<const Real>& t_blank_yface_arr = (terrain_blank_yface) ? terrain_blank_yface->const_array(mfi) :
+                                                                              Array4<const Real>{};
+        const Array4<const Real>& t_blank_zface_arr = (terrain_blank_zface) ? terrain_blank_zface->const_array(mfi) :
+                                                                              Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -290,10 +343,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
 
-        // We have projected the velocities stored in S_data but we will use
-        //    the velocities stored in {avg_xmom,avg_ymom,avg_zmom} to update the scalars,
-        //    so we need to copy from S_data (projected) into these
-        if (l_anelastic) {
+        // Non-EB Anelastic: Per-tile copy of projected momentum (EB done above)
+        if (l_anelastic && !l_use_eb) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
@@ -408,7 +459,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    num_comp = n_qstate;
+                    // Every state component from RhoQ1_comp to the end of the state, not
+                    // just the n_qstate water species: a microphysics model may append
+                    // non-water species after those (SuperDropletsMoist does), and they
+                    // are advanced by the state update below and included in the reflux.
+                    // Computing residuals for only the first n_qstate would leave the
+                    // rest to be updated with a residual nothing ever wrote.
+                    num_comp = n_qstate_total;
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
@@ -462,10 +519,31 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
+                    // Only the physical chamber needs separate qv/qc calls:
+                    // its wall correction must be applied to distinct flux
+                    // components.  Generic moisture models retain the
+                    // established multi-component diffusion call.
+                    const bool componentwise_moisture =
+                        use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
+                    const int n_diff_calls = componentwise_moisture ? n_qstate_total : 1;
+                    for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
+                        const int state_comp = componentwise_moisture ?
+                            RhoQ1_comp + qstate : start_comp;
+                        const int diffusion_start = state_comp;
+                        const int diffusion_num = componentwise_moisture ? 1 : num_comp;
+                        const int flux_comp = componentwise_moisture ? qstate : 0;
+                        AMREX_ALWAYS_ASSERT(state_comp >= 0 && state_comp < nvars);
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_x->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_y->nComp());
+                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_z->nComp());
+                        const Array4<Real> diffusion_x = dflux_x->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_y = dflux_y->array(mfi, flux_comp);
+                        const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
+
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                stretched_dz_d, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
@@ -473,9 +551,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, l_rotate, u, v,
+                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z,
+                                               diffusion_x, diffusion_y, diffusion_z,
                                                z_nd, z_cc, ax_arr, ay_arr, az_arr,
                                                detJ_arr, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
@@ -484,9 +562,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
                     } else if (l_use_eb) {
-                        DiffusionSrcForState_EB(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
-                                                diffflux_x, diffflux_y, diffflux_z,
+                                                diffusion_x, diffusion_y, diffusion_z,
                                                 cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
                                                 barea_arr, bcent_arr,
                                                 dx, dxInv,
@@ -494,14 +572,30 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                 mu_turb, solverChoice, level,
                                                 bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z, dxInv, SmnSmn_a,
+                                               diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_z, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                    }
+                    if (use_physical_chamber_wall_flux) {
+                        // Apply the physical wall correction immediately to
+                        // the flux component just computed.  This keeps the
+                        // q-state diffusion path identical with budgets on
+                        // and off and guarantees no stale flux is consumed.
+                        // The diffusion views are component-shifted; the
+                        // wall helper receives the unshifted views and the
+                        // explicit flux component index.
+                        erf_resolved_wall_flux::apply(
+                            tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
+                            cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                            diffflux_x, diffflux_y, diffflux_z, dxInv,
+                            chamber_walls, dc.alpha_T, dc.alpha_C,
+                            solverChoice.rdOcp);
+                    }
                     }
                 } // use_diff
 
@@ -529,7 +623,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 start_comp = ivar;
                 num_comp = 1;
                 if (ivar == RhoQ1_comp) {
-                    num_comp = nvars - RhoQ1_comp;
+                    num_comp = n_qstate_total;
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;
                 }
@@ -606,7 +700,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
             ParallelFor(xtbx, ytbx, ztbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i-1, j, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
                 if (t_blank == one) {
                     new_xmom(i,j,k) = zero;
                 } else {
@@ -614,7 +710,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf* (t_blank_arr(i, j, k  ) + t_blank_arr(i, j-1, k  ));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
                 if (t_blank == one) {
                     new_ymom(i,j,k) = zero;
                 } else {
@@ -622,7 +720,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real t_blank       = myhalf * (t_blank_arr(i, j, k  ) + t_blank_arr(i, j, k-1));
+                // Use face-centered terrain_blanking if available, otherwise average from cell centers
+                Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                               myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
                 if (t_blank == one) {
                     new_zmom(i,j,k) = zero;
                 } else {
@@ -677,4 +777,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         } // end profile
       } // mfi
     } // OMP
+    if (cloud_budget && l_use_diff && n_qstate > 0) {
+        for (int qstate = 0; qstate < n_qstate; ++qstate) {
+            MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
+            MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
+            MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
+            cloud_budget->capture_stage(
+                qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
+                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom);
+        }
+    }
 }

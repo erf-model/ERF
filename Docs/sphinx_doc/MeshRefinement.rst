@@ -30,7 +30,55 @@ individual grids.
 
 See the `Gridding`_ section of the AMReX documentation for details of how individual grids are created.
 
+By default the boxes covering a tagged region span the full vertical extent of
+that region, i.e. the grids are not decomposed in the z direction; see
+:ref:`subsec:no-vertical-decomposition` for the parameters that control this.
+
 .. _`Gridding`: https://amrex-codes.github.io/amrex/docs_html/ManagingGridHierarchy_Chapter.html
+
+.. note::
+
+   Three different things are easily conflated when talking about the vertical
+   direction, and they are controlled by three different sets of parameters.
+
+   **Refining in z** means changing the grid spacing: the finer level has
+   :math:`dz_{fine} = dz_{coarse} / r_z`, where :math:`r_z` is the refinement
+   ratio in the z direction.  Creating a level greater than 0 over some region
+   does *not* by itself imply that dz changes there.  We nevertheless say that
+   such a region is "refined", so the word is used for both ideas; whether the
+   vertical spacing actually changes is a separate question, decided only by the
+   refinement ratio.  ``amr.ref_ratio`` sets one ratio per level which is then
+   applied in all three directions, so using it always refines in z as well.  To
+   create finer levels without changing dz, use ``amr.ref_ratio_vect`` with 1 in
+   the third slot, for example
+
+   ::
+
+          amr.max_level = 1
+          amr.ref_ratio_vect = 2 2 1
+
+   which refines by a factor of 2 horizontally while leaving the vertical grid
+   spacing of the fine level equal to that of the coarse level.  Initialization
+   from WRF input files requires exactly this: ERF aborts if the refinement ratio
+   in z is not 1, and asks the user to specify ``amr.ref_ratio_vect`` rather than
+   ``amr.ref_ratio``.
+
+   **The vertical extent of the refined region** -- how much of the depth of the
+   domain the finer level covers -- is a property of the region being tagged, not
+   of the refinement ratio.  It is set by the refinement box for static
+   refinement (see :ref:`subsec:full-depth-refinement`) and by the tagging
+   criterion, optionally buffered in z, for dynamic refinement (see
+   :ref:`subsec:dynamic-full-depth`).
+
+   **The vertical decomposition of that region into individual grids** -- whether
+   the region is chopped in z into several boxes so that they can be distributed
+   across processors -- is yet another question, controlled by
+   ``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``; see
+   :ref:`subsec:no-vertical-decomposition`.
+
+   A level can therefore be created with the same dz as its parent, spanning the
+   full depth of the domain, in boxes that are not split vertically -- and each of
+   those three statements is arranged by a different parameter.
 
 Static Mesh Refinement
 ----------------------
@@ -46,7 +94,7 @@ one level of refinement.
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2 2 2
+          amr.ref_ratio = 2
 
           erf.refinement_indicators = box1 box2
 
@@ -63,7 +111,7 @@ It is possible to refine the box by multiple levels, and to have different level
 ::
 
           amr.max_level = 2
-          amr.ref_ratio = 2 2 2
+          amr.ref_ratio = 2 2
 
           erf.refinement_indicators = box1 box2
 
@@ -90,7 +138,7 @@ factor 2 refinement, and the domain has 32x64x8 cells at level 0 covering the do
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2 2 2
+          amr.ref_ratio = 2
 
           erf.refinement_indicators = box1
 
@@ -106,7 +154,7 @@ indices to create a valid box at the finer level.
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2 2 2
+          amr.ref_ratio = 2
 
           erf.refinement_indicators = box1
 
@@ -117,9 +165,73 @@ indices to create a valid box at the finer level.
 
 The lo_indices should be divisible by the refinement ratio, and the hi_indices should be one less than a number divisible by the refinement ratio.
 There are no such requirements for the coarse level indices, since the code will adjust them as needed to create a valid box at the finer level.
-The PBL models compute the height of the boundary layer and require that each box goes from the bottom of the domain to the top of the domain.
-The lo/hi indices in the vertical direction should therefore be 0 and (number of cells in z direction - 1) respectively,
-and the number of cells in the z direction should be divisible by the refinement ratio in the vertical direction.
+
+.. _subsec:full-depth-refinement:
+
+Refining the Full Depth of the Domain
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It is very common to want a refined region that covers the full depth of the
+domain, either because a physics package needs entire columns or simply because
+there is no reason to limit the refinement vertically.  Rather than spelling out
+the vertical extent, the user may specify **only the x and y values** for any of
+the three forms of the box specification, in which case ERF fills in the vertical
+extent with the full extent of the domain:
+
+-  for ``in_box_lo`` / ``in_box_hi``, the vertical extent is set to
+   ``geometry.prob_lo`` and ``geometry.prob_hi`` in z
+
+-  for ``in_box_lo_indices`` / ``in_box_hi_indices``, it is set to the full range
+   of cells in z in the domain at the level being created
+
+-  for ``in_box_lo_indices_crse`` / ``in_box_hi_indices_crse``, it is set to the
+   full range of cells in z in the domain at the next coarser level
+
+So the first example above could equivalently have been written as
+
+::
+
+          amr.max_level = 1
+          amr.ref_ratio = 2
+
+          erf.refinement_indicators = box1 box2
+
+          erf.box1.in_box_lo = 1200 1400
+          erf.box1.in_box_hi = 3000 2400
+          erf.box1.max_level = 1
+
+          erf.box2.in_box_lo = 3200 3400
+          erf.box2.in_box_hi = 4000 4000
+          erf.box2.max_level = 1
+
+if the domain runs from 0 to 2048 in z.  This form has the advantage that the
+inputs file does not have to be edited if the vertical extent of the domain or
+the number of cells in z is changed.  Each of ``in_box_lo`` and ``in_box_hi``
+(and their index-space counterparts) should be given either two or three values,
+and the lo and hi specifications for a given indicator must have the same number
+of values.
+
+Some options **require** a refinement region that spans the full depth of the
+domain.  The PBL models -- MYJ, MYNN2.5, MYNN-EDMF, YSU and MRF -- compute the
+height of the boundary layer by working up each column, so every box must go from
+the bottom of the domain to the top.  If a refinement box is specified that does
+not, ERF prints a message telling the user how to correct the inputs file, then
+aborts.  Using the two-value form above is the simplest way to guarantee this.
+Similarly, the SHOC PBL model requires that no box be split in the vertical
+direction; see :ref:`subsec:no-vertical-decomposition`.
+
+The two-value form applies to statically specified boxes.  For dynamically
+created grids there is a separate, blunter mechanism based on the vertical
+tagging buffer; see :ref:`subsec:dynamic-full-depth`.
+
+If the vertical extent *is* given explicitly, note that the number of cells in the
+z direction should be divisible by the refinement ratio in the vertical direction,
+and that the specified indices are snapped outward to the nearest indices aligned
+with the refinement ratio (a message is printed whenever this snapping changes the
+box).
+
+Moving Refinement Regions
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We can also adapt this static refinement paradigm to specify rectangular regions whose locations
 are a prescribed function of time.   Following the WRF paradigm for moving nested grids, we specify
@@ -131,7 +243,7 @@ then move north at 1 m/2 from 20 minutes to 80 minutes after the start time.
 ::
 
           amr.max_level = 1
-          amr.ref_ratio = 2 2 2
+          amr.ref_ratio = 2
 
           erf.refinement_indicators = box1 box2
 
@@ -193,3 +305,40 @@ computed by dividing the variable named rhotheta by the variable named density.
           erf.advdiff.field_name = rhoadv_0
           erf.advdiff.start_time = 0.001
           erf.advdiff.end_time = 0.002
+
+.. _subsec:dynamic-full-depth:
+
+Full-Depth Refinement with Dynamic Tagging
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Note that when ``in_box_lo`` / ``in_box_hi`` are combined with a field-based
+criterion, as in ``lo_theta`` above, the box only restricts the region in which
+cells may be tagged; it does not force the resulting fine grids to fill that
+region.  Left to itself, the vertical extent of a dynamically created grid simply
+follows the cells that satisfy the criterion.
+
+The full depth of the domain can nonetheless be enforced by using the vertical
+buffer ``amr.n_error_buf_z``.  Before the grids are generated, the set of tagged
+cells is grown by ``amr.n_error_buf`` cells in each direction, and that buffer
+may be set per direction.  If the vertical buffer is at least as large as the
+number of cells in the z direction at the level being tagged, then every tagged
+cell is grown into a full column and the resulting boxes reach from the bottom of
+the domain to the top.  For a domain with 64 cells in the vertical, for example,
+
+::
+
+          amr.n_error_buf_x = 2
+          amr.n_error_buf_y = 2
+          amr.n_error_buf_z = 64
+
+This is not the most efficient way to obtain full-depth refinement -- the tag
+arrays are allocated with ``n_error_buf`` ghost cells and the buffering is redone
+at every regrid, so a large vertical buffer costs both memory and time -- but it
+requires no advance knowledge of where the criterion will trigger, which is
+exactly the situation in which dynamic refinement is used.
+
+This technique applies only to dynamic refinement: ERF aborts with
+``Don't use n_error_buf > 0 when setting the box explicitly`` if a nonzero
+``n_error_buf`` is combined with an explicitly specified refinement box.  For
+static refinement, use the two-value form described in
+:ref:`subsec:full-depth-refinement` instead.

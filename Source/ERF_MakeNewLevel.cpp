@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -189,6 +193,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
 
+            input_sounding_data.set_start_time(start_time);
+
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
             if (solverChoice.sounding_type == SoundingType::Ideal) {
@@ -238,6 +244,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -325,7 +335,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
@@ -387,6 +401,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -615,7 +633,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     remake_zphys(lev, temp_zphys_nd);
@@ -719,6 +741,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -730,6 +758,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);

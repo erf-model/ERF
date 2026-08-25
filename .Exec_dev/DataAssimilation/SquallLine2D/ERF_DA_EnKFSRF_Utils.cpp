@@ -3,16 +3,17 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
 #include "ERF_DA_EnKFSRF.H"
 
 #include <vector>
 #include <stdexcept>
 #include <cassert>
 #include <filesystem>
+#include <string>
 
 using namespace amrex;
 namespace fs = std::filesystem;
-
 
 // Simple matrix multiplication
 Matrix
@@ -189,6 +190,7 @@ compute_ensemble_mean(int Nens,
 
     for (int n = 0; n < Nens; ++n)
     {
+        std::cout << "Reading ensembles for compute_ensemble_mean = " << n << std::endl;
         MultiFab mf_tmp = read_member_multifab(n, pf_name, varnames);
 
         if (!initialized) {
@@ -280,7 +282,7 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
         if (n==0) {
             mean_H_xf.define(xf_i.boxArray(),
                              xf_i.DistributionMap(),
-                             2,
+                             8,
                              xf_i.nGrow());
             mean_H_xf.setVal(0.0);
         }
@@ -532,8 +534,7 @@ compute_Xf_prime_times_vector (const int Nens,
 
     for (int n = 0; n < Nens; ++n)
     {
-        MultiFab xf_n =
-            read_member_multifab(n, last_pf_name, varnames);
+        MultiFab xf_n = read_member_multifab(n, last_pf_name, varnames);
 
         AMREX_ALWAYS_ASSERT(xf_n.boxArray() == result.boxArray());
         AMREX_ALWAYS_ASSERT(xf_n.DistributionMap() == result.DistributionMap());
@@ -613,4 +614,28 @@ update_ensemble (const int Nens,
         T_colvec[i] = T(i,n);
     }
     compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
+}
+
+// da_iter : DA iteration number
+// ens_no  : Ensemble number
+
+std::string
+MakeEnsembleCheckpointName (int da_iter, int ens_no)
+{
+    // Create CheckpointAfterDA if needed
+    const std::string base_dir = "CheckpointAfterDA";
+    fs::create_directories(base_dir);
+
+    // Create CheckpointAfterDA/DACycle_<da_iter>
+    const std::string da_dir =
+        base_dir + "/DACycle_" + std::to_string(da_iter);
+    fs::create_directories(da_dir);
+
+    std::ostringstream chk_name;
+    chk_name << da_dir
+             << "/chk_"
+             << std::setw(2) << std::setfill('0') << ens_no
+             << "_";
+
+    return chk_name.str();
 }

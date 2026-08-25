@@ -21,12 +21,15 @@
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max (NDRY + NSCALARS + NMOIST_max)
+// Full moist state with no additional non-moist species
+#define NVAR_MOIST_max (NDRY + NSCALARS + NMOIST_max)
+
+#define NVAR_max ((NDRY + NSCALARS + NMOIST_max) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same bc's
 // We also assume (the final "+1" that the base state components have the same bcs)
-#define NBCVAR_max (NDRY + 1 + NMOIST_max + 1)
+#define NBCVAR_max ((NDRY + 1 + NMOIST_max + 1) + 2*5) // allow up to 5 non-moist species
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same diffusion coefficients
@@ -124,6 +127,21 @@ namespace RealBdyVars {
         V  = 1,
         T  = 2,
         QV = 3,
+        R  = 4,
+        QC = 5,
+        QI = 6,
+        NumTypes
+    };
+}
+
+// Additional runtime boundary slots used when all precipitating
+// hydrometeors are represented as separate ERF state components.  Keep the
+// compact QC/QI indices above unchanged for aggregate-boundary compatibility.
+namespace RealBdyHydrometeorVars {
+    enum {
+        QR = RealBdyVars::NumTypes,
+        QS,
+        QG,
         NumTypes
     };
 }
@@ -138,9 +156,30 @@ namespace WRFBdyVars {
         PH    , // Perturbational geopotential
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
         PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
+        QC    , // cloud water
+        QI    , // cloud ice
+        NumTypes
+    };
+
+    constexpr int LegacyNumTypes = PC + 1;
+}
+
+// Additional serialized/cache slots used when all precipitating hydrometeors
+// are retained separately.  The legacy and aggregate layouts remain unchanged.
+namespace WRFBdyHydrometeorVars {
+    enum {
+        QR = WRFBdyVars::NumTypes,
+        QS,
+        QG,
         NumTypes
     };
 }
+
+static_assert(WRFBdyVars::U  == 0 && WRFBdyVars::V  == 1 &&
+              WRFBdyVars::T  == 2 && WRFBdyVars::QV == 3 &&
+              WRFBdyVars::R  == 4 && WRFBdyVars::PH == 5 &&
+              WRFBdyVars::MU == 6 && WRFBdyVars::PC == 7,
+              "The serialized legacy WRF boundary layout must not change");
 
 namespace MetGridBdyVars {
     enum {
@@ -213,10 +252,15 @@ namespace EddyDiff {
         Scalar_v,
         Q_v,
         Turb_lengthscale,
-        HGAMT_v,  // MRF countergradient for heat (HGAMT/h, units K/m), zero outside PBL
-        HGAMQ_v,  // MRF countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
-        HGAMU_v,  // YSU countergradient for x-momentum (units m/s/m), zero outside PBL
-        HGAMV_v,  // YSU countergradient for y-momentum (units m/s/m), zero outside PBL
+        // Nonlocal (countergradient) terms.  All four are stored *normalized by the
+        // PBL height*, i.e. as a gradient of the transported quantity, so that the
+        // implicit vertical diffusion solvers form the countergradient flux as
+        //     F_cg = +rho*alpha*gamma
+        // with no further metric or grid-spacing factors.
+        HGAMT_v,  // MRF/YSU countergradient for heat (HGAMT/h, units K/m), zero outside PBL
+        HGAMQ_v,  // MRF/YSU countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
+        HGAMU_v,  // YSU countergradient for x-momentum (HGAMU/h, units 1/s), zero outside PBL
+        HGAMV_v,  // YSU countergradient for y-momentum (HGAMV/h, units 1/s), zero outside PBL
         NumDiffs
     };
 }

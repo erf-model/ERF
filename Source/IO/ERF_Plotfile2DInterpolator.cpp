@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DInterpolator.cpp
+ */
 #include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DFill.H"
 
@@ -116,7 +119,9 @@ SampledBracket find_sampled_bracket (SampledCoordinate coordinate,
                                      const Array4<const Real>& cons_arr,
                                      const Array4<const Real>& z_phys_cc_arr,
                                      const Array4<const Real>& z_phys_nd_arr,
+                                     const Array4<const Real>& p_hse_arr,
                                      bool have_z_phys_cc,
+                                     bool use_hse_pressure,
                                      const MoistureComponentIndices& moisture_indices) noexcept
 {
     SampledBracket bracket;
@@ -134,8 +139,8 @@ SampledBracket find_sampled_bracket (SampledCoordinate coordinate,
             : (coordinate == SampledCoordinate::HeightAGL)
                 ? SampledFieldID::HeightAGL
                 : SampledFieldID::Pressure;
-        return sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                   have_z_phys_cc, i, j, kk, moisture_indices);
+        return sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                   have_z_phys_cc, use_hse_pressure, i, j, kk, moisture_indices);
     };
 
     const Real c0 = coordinate_value(klo);
@@ -174,7 +179,8 @@ fill_sampled_level_component (MultiFab& dst,
                               const MoistureComponentIndices& moisture_indices,
                               int klo,
                               int khi,
-                              const SampledWindSources& wind_sources)
+                              const SampledWindSources& wind_sources,
+                              const MultiFab* p_hse)
 {
     const auto* sampled = descriptor.sampled_level ? &*descriptor.sampled_level : nullptr;
     if (sampled == nullptr) {
@@ -194,6 +200,9 @@ fill_sampled_level_component (MultiFab& dst,
     const Real missing_value = descriptor.missing_value;
     const bool is_wind_field = sampled_field_is_wind(field_id);
     const bool have_rotation = (wind_sources.cos_alpha != nullptr) || (wind_sources.sin_alpha != nullptr);
+    // The caller passes the base state pressure only for an anelastic run, in which case
+    //    that -- not the compressible EOS -- is the pressure of the system
+    const bool use_hse_pressure = (p_hse != nullptr);
 
     if (is_wind_field) {
         if (wind_sources.xvel == nullptr || wind_sources.yvel == nullptr || wind_sources.zvel == nullptr) {
@@ -216,6 +225,7 @@ fill_sampled_level_component (MultiFab& dst,
         const auto& z_phys_cc_arr = have_z_phys_cc && z_phys_cc != nullptr
             ? z_phys_cc->const_array(mfi)
             : cons.const_array(mfi);
+        const auto& p_hse_arr = use_hse_pressure ? p_hse->const_array(mfi) : cons.const_array(mfi);
         const auto& xvel_arr = is_wind_field ? wind_sources.xvel->const_array(mfi) : cons.const_array(mfi);
         const auto& yvel_arr = is_wind_field ? wind_sources.yvel->const_array(mfi) : cons.const_array(mfi);
         const auto& zvel_arr = is_wind_field ? wind_sources.zvel->const_array(mfi) : cons.const_array(mfi);
@@ -236,15 +246,15 @@ fill_sampled_level_component (MultiFab& dst,
                     dst_arr(i, j, k, dst_comp) = wind_field_from_earth_wind(field_id, wind, missing_value);
                 } else {
                     dst_arr(i, j, k, dst_comp) =
-                        sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                            have_z_phys_cc, i, j, target_k, moisture_indices);
+                        sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                            have_z_phys_cc, use_hse_pressure, i, j, target_k, moisture_indices);
                 }
                 return;
             }
 
             const auto bracket = find_sampled_bracket(coordinate, target, klo, khi, i, j,
-                                                      cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                                      have_z_phys_cc, moisture_indices);
+                                                      cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                                      have_z_phys_cc, use_hse_pressure, moisture_indices);
             if (!bracket.found) {
                 dst_arr(i, j, k, dst_comp) = missing_value;
                 return;
@@ -256,16 +266,16 @@ fill_sampled_level_component (MultiFab& dst,
                                         : (coordinate == SampledCoordinate::HeightAGL)
                                             ? SampledFieldID::HeightAGL
                                             : SampledFieldID::Pressure,
-                                    cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                    have_z_phys_cc, i, j, bracket.klo, moisture_indices);
+                                    cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                    have_z_phys_cc, use_hse_pressure, i, j, bracket.klo, moisture_indices);
             const Real coord_hi =
                 sampled_field_value((coordinate == SampledCoordinate::HeightMSL)
                                         ? SampledFieldID::HeightMSL
                                         : (coordinate == SampledCoordinate::HeightAGL)
                                             ? SampledFieldID::HeightAGL
                                             : SampledFieldID::Pressure,
-                                    cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                    have_z_phys_cc, i, j, bracket.khi, moisture_indices);
+                                    cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                    have_z_phys_cc, use_hse_pressure, i, j, bracket.khi, moisture_indices);
             if (is_wind_field) {
                 const SampledEarthWind wind_lo = earth_wind_at_cell_center(
                     i, j, bracket.klo, xvel_arr, yvel_arr, zvel_arr, cos_alpha_arr, sin_alpha_arr,
@@ -285,16 +295,16 @@ fill_sampled_level_component (MultiFab& dst,
                 dst_arr(i, j, k, dst_comp) = wind_field_from_earth_wind(field_id, wind_interp, missing_value);
             } else {
                 const Real field_lo =
-                    sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                        have_z_phys_cc, i, j, bracket.klo, moisture_indices);
+                    sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                        have_z_phys_cc, use_hse_pressure, i, j, bracket.klo, moisture_indices);
                 if (bracket.klo == bracket.khi) {
                     dst_arr(i, j, k, dst_comp) = field_lo;
                     return;
                 }
 
                 const Real field_hi =
-                    sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr,
-                                        have_z_phys_cc, i, j, bracket.khi, moisture_indices);
+                    sampled_field_value(field_id, cons_arr, z_phys_cc_arr, z_phys_nd_arr, p_hse_arr,
+                                        have_z_phys_cc, use_hse_pressure, i, j, bracket.khi, moisture_indices);
                 dst_arr(i, j, k, dst_comp) =
                     linear_interpolate(field_lo, field_hi, coord_lo, coord_hi, target);
             }

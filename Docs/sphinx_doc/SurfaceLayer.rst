@@ -234,6 +234,7 @@ The following options are available:
 
    erf.most.include_wstar       = true
    erf.most.include_subgrid_vel = true
+   erf.most.pblh_calc           = MYNN25
 
 These correspond to a mean surface velocity of
 
@@ -242,7 +243,10 @@ These correspond to a mean surface velocity of
    |\bar{\mathbf{u}}| = \sqrt{u^2 + v^2 + (\beta w_*)^2 + V_{sg}^2}
 
 where :math:`w_*` is the (Deardorff) convective velocity scale and
-:math:`\beta=1.2` (Beljaars 1995, QJRMS). The subgrid velocity scale
+:math:`\beta=1.2` (Beljaars 1995, QJRMS). Because :math:`w_*` is computed from the
+boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc`` to
+name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
+boundary layer depth would ever be diagnosed. The subgrid velocity scale
 :math:`V_{sg}` handles weak large-scale flow that is underresolved (Mahrt & Sun
 1995, MWR). This is parameterized as
 
@@ -251,3 +255,53 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
    V_{sg} = 0.32 \left(\frac{\Delta x}{5000} - 1 \right)^{0.33}
 
 which vanishes for grid spacings of :math:`\Delta x < 5` km.
+
+
+Prescribed time-varying surface forcing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Instead of computing fluxes directly through MOST, the surface land/ocean fluxes can be prescribed over time from a text file.
+
+Additionally, the sea-surface temperature can be prescribed while allowing MOST to compute the surface fluxes.
+
+**For prescribing surface fluxes from H, LE, and TAU:**
+
+.. code-block:: text
+
+   erf.most.use_sfc_fluxes = true     # flag for prescribing surface fluxes
+   erf.most.sfc_file       = sfc.txt  # path to file containing surface data
+
+where ``erf.most.sfc_file`` is the path to a text file with the following example format:
+
+.. code-block:: text
+
+   day sst(K) H(W/m2) LE(W/m2) TAU(m2/s2)
+   205.500 293.65   4.43  22.73 0.00
+   205.542 295.63  43.55  88.67 0.00
+   205.583 298.40 104.08 154.39 0.00
+
+This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model or EB.
+
+
+**For prescribing sea-surface temperature:**
+
+.. code-block:: text
+
+   erf.most.use_sfc_sst = true     # flag for prescribing sea-surface temperature
+   erf.most.sfc_file    = sfc.txt  # path to file containing surface data
+
+where ``erf.most.sfc_file`` is the path to a text file with the same format as above,
+or purely time and SST information, such as:
+
+.. code-block:: text
+
+   day sst(K)
+   203.000000  292.800
+   204.000000  294.580
+
+Notes
+^^^^^
+
+- For both flux and sst modes, the time column is reset relative to the simulation elapsed time (t=0s). This might cause issues with simulations initialized with real data, such as WRFInput.
+- The sst mode only applies the surface temperature where there are ocean cells (landmask=0). This can be forced with ``erf.is_land = 0``.
+- The surface fluxes are currently applied regardless of land mask (both ocean and land).

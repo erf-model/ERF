@@ -457,18 +457,26 @@ public:
         amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
 
-        int nz = nx * ny;
+        AMREX_ALWAYS_ASSERT(nx > 0 && ny > 0);
+        if (is_usgs) {
+            // The usgs branch below always uses a full 2x2 stencil
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nx > 1 && ny > 1,
+                "USGS terrain file must have at least two points in each direction");
+        }
 
-        m_xterrain.resize(nx);
+        int nz = nx * ny;
+        int nx_vals = is_usgs ? (nx * ny) : nx;
+
+        m_xterrain.resize(nx_vals);
         m_yterrain.resize(ny);
         m_zterrain.resize(nz);
 
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx,amrex::ParallelDescriptor::IOProcessorNumber());
+        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx_vals,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
         amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
 
         // Copy data to the GPU
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx),d_yterrain(ny),d_zterrain(nz);
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx_vals),d_yterrain(ny),d_zterrain(nz);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
@@ -509,22 +517,35 @@ public:
             // *******************************************************************
             if (is_usgs) {
 
-                for (int it = 0; it < ny && jindex_terrain == -1; it++) {
+                // NOTE: the searches below must distinguish "the node is below the first
+                //       table value" (bracket index -1) from "no table value exceeds the
+                //       node" (search never triggered), so we can not use the initial
+                //       value of -1 as the not-found flag
+                bool jfound = false;
+                for (int it = 0; it < ny && !jfound; it++) {
                     if (d_yt[it] > y) {
-                        jindex_terrain = it-1;
+                        jindex_terrain = it-1; jfound = true;
                     }
                 }
-                if (jindex_terrain == -1) {
+                if (!jfound) {
                     jindex_terrain = ny-1;
                 }
+                // Keep the 2x2 stencil inside the table
+                jindex_terrain = amrex::min(amrex::max(jindex_terrain,0), ny-2);
 
                 int gstart = (jindex_terrain  )*nx;
                 int gend   = (jindex_terrain+1)*nx-1;
-                for (int it = gstart; it <= gend && iindex_terrain == -1; it++) {
+                bool ifound = false;
+                for (int it = gstart; it <= gend && !ifound; it++) {
                     if (d_xt[it] > x) {
-                        iindex_terrain = it-gstart;
+                        iindex_terrain = it-gstart-1; ifound = true;
                     }
                 }
+                if (!ifound) {
+                    iindex_terrain = nx-1;
+                }
+                // Keep the 2x2 stencil inside the table
+                iindex_terrain = amrex::min(amrex::max(iindex_terrain,0), nx-2);
 
                 // Define the four values to interpolate between
                 ind11 = jindex_terrain*nx + iindex_terrain; // (x1,y1)
@@ -538,73 +559,94 @@ public:
                 y2 = d_yt[jindex_terrain+1];
 
                 amrex::Real denom = (x2-x1)*(y2-y1);
-                amrex::Real  w_11 = (x2-x)*(y2-y)/denom; // (x1,y1)
-                amrex::Real  w_12 = (x2-x)*(y-y1)/denom; // (x1,y2)
-                amrex::Real  w_21 = (x-x1)*(y2-y)/denom; // (x2,y1)
-                amrex::Real  w_22 = (x-x1)*(y-y1)/denom; // (x2,y2)
 
-                // Do bilinear interpolation
-                z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+                if (denom == amrex::Real(0.0)) {
+                    // Degenerate cell (repeated x or y in the table) -- use the corner value
+                    z_arr(i,j,klo) = d_zt[ind11];
+                } else {
+                    amrex::Real  w_11 = (x2-x)*(y2-y)/denom; // (x1,y1)
+                    amrex::Real  w_12 = (x2-x)*(y-y1)/denom; // (x1,y2)
+                    amrex::Real  w_21 = (x-x1)*(y2-y)/denom; // (x2,y1)
+                    amrex::Real  w_22 = (x-x1)*(y-y1)/denom; // (x2,y2)
+
+                    // Do bilinear interpolation
+                    z_arr(i,j,klo) = w_11*d_zt[ind11] + w_12*d_zt[ind12] + w_21*d_zt[ind21] + w_22*d_zt[ind22];
+                }
 
             } else {
 
-                for (int it = 0; it < ny && jindex_terrain == -1; it++) {
+                bool jfound = false;
+                for (int it = 0; it < ny && !jfound; it++) {
                     if (d_yt[it] > y) {
-                        jindex_terrain = it-1;
+                        jindex_terrain = it-1; jfound = true;
                     }
                 }
-                if (jindex_terrain == -1) {
+                if (!jfound) {
+                    // No table value exceeds y -- fall back to the last row
                     jindex_terrain = ny-1;
                 }
+                jindex_terrain = amrex::max(jindex_terrain,0);
 
-                for (int it = 0; it < nx && iindex_terrain == -1; it++) {
+                bool ifound = false;
+                for (int it = 0; it < nx && !ifound; it++) {
                     if (d_xt[it] > x) {
-                        iindex_terrain = it-1;
+                        iindex_terrain = it-1; ifound = true;
                     }
                 }
-                if (iindex_terrain == -1) {
+                if (!ifound) {
+                    // No table value exceeds x -- fall back to the last column
                     iindex_terrain = nx-1;
                 }
+                iindex_terrain = amrex::max(iindex_terrain,0);
+
+                // NOTE: these must be clamped since the fallbacks above can leave
+                //       iindex_terrain = nx-1 (jindex_terrain = ny-1)
+                int ip1 = amrex::min(iindex_terrain+1,nx-1);
+                int jp1 = amrex::min(jindex_terrain+1,ny-1);
 
                 // Define the four values to interpolate between
                 x1 = d_xt[iindex_terrain];
-                x2 = d_xt[iindex_terrain+1];
+                x2 = d_xt[ip1];
                 y1 = d_yt[jindex_terrain];
-                y2 = d_yt[jindex_terrain+1];
+                y2 = d_yt[jp1];
 
 #if 1
                 // *******************************************************************
                 // NOTE: this format is contiguous in y to match the AMR-Wind read
                 // *******************************************************************
-                ind11 =           iindex_terrain         * ny + jindex_terrain;                   // (x1,y1)
-                ind21 =  std::min(iindex_terrain+1,nx-1) * ny + jindex_terrain;                   // (x2,y1)
+                ind11 = iindex_terrain * ny + jindex_terrain;  // (x1,y1)
+                ind21 = ip1            * ny + jindex_terrain;  // (x2,y1)
 
-                ind12 =           iindex_terrain         * ny + std::min(jindex_terrain+1,ny-1);  // (x1,y2)
-                ind22  = std::min(iindex_terrain+1,nx-1) * ny + std::min(jindex_terrain+1,ny-1);  // (x1,y2)
+                ind12 = iindex_terrain * ny + jp1;             // (x1,y2)
+                ind22 = ip1            * ny + jp1;             // (x2,y2)
 #else
                 // *******************************************************************
                 // NOTE: this format is contiguous in x as an alternative
                 // *******************************************************************
 
-                ind11 =           jindex_terrain         * nx + iindex_terrain;                   // (x1,y1)
-                ind12 =  std::min(jindex_terrain+1,ny-1) * nx + iindex_terrain;                   // (x1,y2)
+                ind11 = jindex_terrain * nx + iindex_terrain;  // (x1,y1)
+                ind12 = jp1            * nx + iindex_terrain;  // (x1,y2)
 
-                ind21 =           jindex_terrain         * nx + std::min(iindex_terrain+1,nx-1);  // (x2,y1)
-                ind22  = std::min(jindex_terrain+1,ny-1) * nx + std::min(iindex_terrain+1,nx-1);  // (x2,y2)
+                ind21 = jindex_terrain * nx + ip1;             // (x2,y1)
+                ind22 = jp1            * nx + ip1;             // (x2,y2)
 #endif
 
-                if (iindex_terrain == nx-1 && jindex_terrain == ny-1)
+                // Only interpolate in a direction if we have a non-degenerate interval there
+                bool interp_x = (ip1 != iindex_terrain) && (x2 != x1);
+                bool interp_y = (jp1 != jindex_terrain) && (y2 != y1);
+
+                if (!interp_x && !interp_y)
                 {
                     z_arr(i,j,klo) = d_zt[ind11];
                 }
-                else if (iindex_terrain != nx-1 && jindex_terrain == ny-1)
+                else if (interp_x && !interp_y)
                 {
                     amrex::Real  w_11 = (x2-x); // (x1,y1)
                     amrex::Real  w_21 = (x-x1); // (x2,y1)
                     amrex::Real denom = (x2-x1);
                     z_arr(i,j,klo) = (w_11*d_zt[ind11] + w_21*d_zt[ind21])/denom;
                 }
-                else if (iindex_terrain == nx-1 && jindex_terrain != ny-1)
+                else if (!interp_x && interp_y)
                 {
                     amrex::Real  w_11 = (y2-y); // (x1,y1)
                     amrex::Real  w_12 = (y-y1); // (x1,y2)

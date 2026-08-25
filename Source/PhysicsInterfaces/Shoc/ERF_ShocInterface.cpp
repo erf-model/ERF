@@ -253,9 +253,9 @@ SHOCInterface::alloc_buffers ()
     // Tracer data structures
     //=======================================================
     // NOTE: Use layoutright format
-    Kokkos::LayoutStride layout(m_num_cols   , m_num_cols*m_num_layers,   // stride for dim0
-                                m_num_layers , m_num_layers,              // stride for dim1
-                                m_num_tracers, 1                          // stride for dim2
+    Kokkos::LayoutStride layout(m_num_cols   , m_num_tracers*m_num_layers, // stride for dim0
+                                m_num_tracers, m_num_layers,               // stride for dim1
+                                m_num_layers , 1                           // stride for dim2
                                 );
     qtracers             = view_3d_strided("Qtracers"  , layout);
 
@@ -450,7 +450,7 @@ SHOCInterface::mf_to_kokkos_buffers ()
 
             // W at cc (cannot be 0?; inspection of shoc code...)
             Real w_cc = Real(0.5) * (w_arr(i,j,k) + w_arr(i,j,k+1));
-            w_cc += (w_sub) ? w_sub[k] : Real(0.);
+            w_cc += (w_sub) ? Real(0.5) * (w_sub[k] + w_sub[k+1]) : Real(0.);
             Real w_limited = std::copysign(std::max(std::fabs(w_cc),Real(1.0e-6)),w_cc);
 
             // Input/Output data structures
@@ -474,11 +474,13 @@ SHOCInterface::mf_to_kokkos_buffers ()
                 // No unit conversion to W/m^2 (ERF_ShocInterface.H L224)
                 surf_sens_flux_d(icol)   = hfx3_arr(ii,jj,k);
                 surf_evap_d(icol)        = (moist) ? qfx3_arr(ii,jj,k) : Real(0.);
-                // Back out the drag coeff
+                // EAMxx TMS expects rho * Cd * |U| [kg/(m^2 s)]. Back it out
+                // from the conservative surface-stress and wind magnitudes.
                 Real wsp = std::sqrt( horiz_wind_d(icol,0,ilay)[0]*horiz_wind_d(icol,0,ilay)[0]
                                + horiz_wind_d(icol,1,ilay)[0]*horiz_wind_d(icol,1,ilay)[0] );
-                surf_drag_coeff_tms_d(icol) = surf_mom_flux_d(icol,0) /
-                                              (-r * wsp * horiz_wind_d(icol,0,ilay)[0]);
+                Real stress_mag = std::sqrt( surf_mom_flux_d(icol,0)*surf_mom_flux_d(icol,0)
+                                           + surf_mom_flux_d(icol,1)*surf_mom_flux_d(icol,1) );
+                surf_drag_coeff_tms_d(icol) = (wsp > Real(1.0e-8)) ? stress_mag / wsp : Real(0.);
             }
             T_mid_d(icol,ilay)          = getTgivenRandRTh(r, rt, qv);
             qv_d(icol,ilay)             = qv;
@@ -558,6 +560,8 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
         const Array4<Real>& u_tend_arr     = u_tend.array(mfi);
         const Array4<Real>& v_tend_arr     = v_tend.array(mfi);
 
+        // Interpolate SHOC cell-centered wind increments to faces. Reconstructing the
+        // face winds first would apply a horizontal filter even for a zero increment.
         ParallelFor(vbx_cc, vbx_x, vbx_y,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -589,8 +593,11 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
             const int ilay   = kmax - k;
 
             int icolim = (j-jmin)*nx + (i-1-imin) + offset;
-            Real uvel  = Real(0.5) * (horiz_wind_d(icol,0,ilay)[0] + horiz_wind_d(icolim,0,ilay)[0]);
-            u_tend_arr(i,j,k) = ( uvel - u_arr(i,j,k) ) / dt;
+            Real du_cc = horiz_wind_d(icol,0,ilay)[0]
+                       - Real(0.5) * (u_arr(i,j,k) + u_arr(i+1,j,k));
+            Real du_cc_im = horiz_wind_d(icolim,0,ilay)[0]
+                          - Real(0.5) * (u_arr(i-1,j,k) + u_arr(i,j,k));
+            u_tend_arr(i,j,k) = Real(0.5) * (du_cc_im + du_cc) / dt;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -600,8 +607,11 @@ SHOCInterface::kokkos_buffers_to_mf (const double dt)
             const int ilay   = kmax - k;
 
             int icoljm = (j-1-jmin)*nx + (i-imin) + offset;
-            Real vvel  = Real(0.5) * (horiz_wind_d(icol,1,ilay)[0] + horiz_wind_d(icoljm,1,ilay)[0]);
-            v_tend_arr(i,j,k) = ( vvel - v_arr(i,j,k) ) / dt;
+            Real dv_cc = horiz_wind_d(icol,1,ilay)[0]
+                       - Real(0.5) * (v_arr(i,j,k) + v_arr(i,j+1,k));
+            Real dv_cc_jm = horiz_wind_d(icoljm,1,ilay)[0]
+                          - Real(0.5) * (v_arr(i,j-1,k) + v_arr(i,j,k));
+            v_tend_arr(i,j,k) = Real(0.5) * (dv_cc_jm + dv_cc) / dt;
         });
     }
 }
@@ -640,7 +650,8 @@ SHOCInterface::set_eddy_diffs ()
         const int kminv  = vbx_cc.smallEnd(2);
         const int kmaxv  = vbx_cc.bigEnd(2);
 
-        const Array4<Real>& mu_arr = m_mu->array(mfi);
+        const Array4<Real>&       mu_arr   = m_mu->array(mfi);
+        const Array4<const Real>& cons_arr = m_cons->const_array(mfi);
 
         ParallelFor(gbx_cc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -654,8 +665,10 @@ SHOCInterface::set_eddy_diffs ()
             const int icol   = (jj-jmin)*nx + (ii-imin) + offset;
             const int ilay   = kmax - kk;
 
-            // NOTE: Set mom_v for tau_33, all other vertical comps are 0
-            mu_arr(i,j,k,EddyDiff::Mom_v)   = tk_d(icol,ilay)[0];
+            // NOTE: SHOC provides kinematic diffusivity, while eddyDiffs stores
+            //       density-weighted diffusivity. Set mom_v for tau_33; all
+            //       other vertical components are 0.
+            mu_arr(i,j,k,EddyDiff::Mom_v)   = cons_arr(ii,jj,kk,Rho_comp) * tk_d(icol,ilay)[0];
             mu_arr(i,j,k,EddyDiff::Theta_v) = Real(0.);
             mu_arr(i,j,k,EddyDiff::KE_v)    = Real(0.);
             mu_arr(i,j,k,EddyDiff::Q_v)     = Real(0.);
@@ -724,11 +737,15 @@ SHOCInterface::add_fast_tend (Vector<MultiFab>& S_rhs)
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            ru_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * u_tend_arr(i,j,k);
+            Real rho_on_u_face = Real(0.5) * (c_arr(i-1,j,k,Rho_comp)
+                                              + c_arr(i,j,k,Rho_comp));
+            ru_rhs_arr(i,j,k) += rho_on_u_face * u_tend_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            rv_rhs_arr(i,j,k) += c_arr(i,j,k,Rho_comp) * v_tend_arr(i,j,k);
+            Real rho_on_v_face = Real(0.5) * (c_arr(i,j-1,k,Rho_comp)
+                                              + c_arr(i,j,k,Rho_comp));
+            rv_rhs_arr(i,j,k) += rho_on_v_face * v_tend_arr(i,j,k);
         });
     }
 }
@@ -774,9 +791,7 @@ SHOCInterface::requested_buffer_size_in_bytes() const
 
     // Number of Reals needed by the WorkspaceManager passed to shoc_main
     const auto policy        = TPF::get_default_team_policy(m_num_cols, nlev_packs);
-    const int n_wind_slots   = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
-    const int n_trac_slots   = ekat::npack<Spack>(m_num_tracers) *Spack::n;
-    const size_t wsm_request = WSM::get_total_bytes_needed(nlevi_packs, 14+(n_wind_slots+n_trac_slots), policy);
+    const size_t wsm_request = WSM::get_total_bytes_needed(nlevi_packs, wsm_num_slots(), policy);
 
     return ( (interface_request + wsm_request)/sizeof(Real) );
 }
@@ -977,10 +992,20 @@ SHOCInterface::initialize_impl ()
     using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
     const auto nlev_packs  = ekat::npack<Spack>(m_num_layers);
     const auto nlevi_packs = ekat::npack<Spack>(m_num_layers+1);
-    const int n_wind_slots = ekat::npack<Spack>(m_num_vel_comp)*Spack::n;
-    const int n_trac_slots = ekat::npack<Spack>(m_num_tracers)*Spack::n;
     const auto default_policy = TPF::get_default_team_policy(m_num_cols, nlev_packs);
-    workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, 14+(n_wind_slots+n_trac_slots), default_policy);
+    const Int  num_slots      = wsm_num_slots();
+
+    // The WSM data sits at the tail of the contiguous buffer, so the slots we
+    // hand it here must not exceed what requested_buffer_size_in_bytes() set aside.
+    const size_t wsm_offset = static_cast<size_t>(reinterpret_cast<Real*>(m_buffer.wsm_data)
+                                                  - tot_buff_view.data());
+    const size_t wsm_reals  = WSM::get_total_bytes_needed(nlevi_packs, num_slots,
+                                                          default_policy)/sizeof(Real);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wsm_offset + wsm_reals <= tot_buff_view.size(),
+                                     "SHOC WSM slots exceed the reserved buffer; "
+                                     "wsm_num_slots() and requested_buffer_size_in_bytes() disagree");
+
+    workspace_mgr.setup(m_buffer.wsm_data, nlevi_packs, num_slots, default_policy);
 
     // NOTE: Vertical indices were permuted, so top and bottom are correct
     // Maximum number of levels in pbl from surface

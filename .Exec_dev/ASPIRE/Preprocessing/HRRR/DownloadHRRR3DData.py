@@ -155,7 +155,7 @@ def DownloadHRRR3DData(inputs_file,
 
         ymdh = dt.strftime("%Y%m%d_%H")
 
-        fname = f"HRRRFiles/hrrr_{ymdh}.grib2"
+        fname = f"HRRRFiles/3D/hrrr_{ymdh}.grib2"
 
         url = build_hrrr_url(dt)
 

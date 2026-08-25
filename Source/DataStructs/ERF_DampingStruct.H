@@ -8,6 +8,9 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * @brief Time integration treatment used for Rayleigh damping.
+ */
 enum struct RayleighDampingType {
     None, SlowExplicit, FastExplicit, FastImplicit
 };
@@ -18,6 +21,10 @@ enum struct RayleighDampingType {
 
 struct DampingChoice {
   public:
+    /**
+     * @brief Read damping options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
@@ -58,6 +65,9 @@ struct DampingChoice {
         }
     }
 
+    /**
+     * @brief Print the configured damping options.
+     */
     void display()
     {
         amrex::Print() << "Rayleigh damping            :";
@@ -100,4 +110,31 @@ struct DampingChoice {
     // Molecular transport model
     RayleighDampingType rayleigh_damping_type = RayleighDampingType::SlowExplicit;
 };
+
+/**
+ * @var DampingChoice::rayleigh_damp_U
+ * @brief Whether Rayleigh damping is applied to x-momentum.
+ * @var DampingChoice::rayleigh_damp_V
+ * @brief Whether Rayleigh damping is applied to y-momentum.
+ * @var DampingChoice::rayleigh_damp_W
+ * @brief Whether Rayleigh damping is applied to vertical momentum.
+ * @var DampingChoice::rayleigh_damp_T
+ * @brief Whether Rayleigh damping is applied to potential temperature.
+ * @var DampingChoice::rayleigh_dampcoef
+ * @brief Rayleigh damping inverse time scale [1/s].
+ * @var DampingChoice::rayleigh_zdamp
+ * @brief Rayleigh damping layer depth [m].
+ * @var DampingChoice::rayleigh_ztop
+ * @brief Top of the Rayleigh damping layer [m].
+ * @var DampingChoice::w_damping
+ * @brief Whether vertical-velocity damping is enabled.
+ * @var DampingChoice::w_damping_cfl
+ * @brief CFL threshold used by vertical-velocity damping.
+ * @var DampingChoice::w_damping_const
+ * @brief Constant vertical damping coefficient.
+ * @var DampingChoice::w_damping_coeff
+ * @brief Grid-dependent vertical damping coefficient multiplier.
+ * @var DampingChoice::rayleigh_damping_type
+ * @brief Selected Rayleigh damping time-integration treatment.
+ */
 #endif

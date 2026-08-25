@@ -28,6 +28,7 @@ namespace
 using namespace amrex::literals;
 
 using amrex::Box;
+using amrex::BoxArray;
 using amrex::DistributionMapping;
 using amrex::Geometry;
 using amrex::GpuArray;
@@ -459,7 +460,8 @@ expect_face_overlap_matches (const MultiFab& mf,
 
     for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
-        const auto arr = mf.const_array(mfi);
+        const auto arr_host = shoc_test::copy_fab_to_host(mf[mfi]);
+        const auto arr = arr_host.const_array();
 
         if (seam_dir == 0) {
             if (bx.smallEnd(0) == domain.smallEnd(0) &&
@@ -822,7 +824,8 @@ TEST(ShocPreprocess, UsesFourNodeAveragedTerrainGeometry)
         const auto dz = workspace.col.dz.const_array();
         const auto dse = workspace.col.host_dse.const_array();
         const auto tabs = workspace.col.tabs.const_array();
-        const auto zarr = z_phys_nd.const_array(mfi);
+        const auto zarr_host = shoc_test::copy_fab_to_host(z_phys_nd[mfi]);
+        const auto zarr = zarr_host.const_array();
         const auto layout = workspace.col.layout;
 
         for (int j = 0; j < layout.ny; ++j) {
@@ -1492,6 +1495,162 @@ TEST(ShocDriver, SecondAdvanceIgnoresHostDiffSeedsAfterCarryStateIsEstablished)
                                   0, "second-advance wthv_sec diagnostics");
     expect_component_minmax_match(driver_a.pblh_diagnostics(), driver_b.pblh_diagnostics(),
                                   0, "second-advance pblh diagnostics");
+}
+void
+initialize_exported_eddy_diffs (MultiFab& mf, int comp, int ncomp)
+{
+    mf.setVal(-7.0_rt);
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto arr = mf.array(mfi);
+        ParallelFor(bx, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            arr(i,j,k,comp+n) = 1000.0_rt * static_cast<Real>(n) +
+                                100.0_rt * static_cast<Real>(i) +
+                                10.0_rt * static_cast<Real>(j) +
+                                static_cast<Real>(k);
+        });
+    }
+}
+
+
+TEST(ShocDriver, PhysicalBoundaryGhostsPreserveGlobalTangentialIndices)
+{
+    const Box domain(IntVect(0,0,0), IntVect(3,3,1));
+    amrex::RealBox real_box(0.0_rt, 0.0_rt, 0.0_rt,
+                            400.0_rt, 400.0_rt, 200.0_rt);
+    int nonperiodic[AMREX_SPACEDIM] = {0, 0, 0};
+    Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, nonperiodic);
+
+    BoxArray split_ba(domain);
+    split_ba.maxSize(IntVect(domain.length(0), 2, domain.length(2)));
+    DistributionMapping split_dm(split_ba);
+    BoxArray single_ba(domain);
+    DistributionMapping single_dm(single_ba);
+
+    constexpr int comp = EddyDiff::Mom_v;
+    constexpr int ncomp = EddyDiff::Q_v - EddyDiff::Mom_v + 1;
+    MultiFab split(split_ba, split_dm, EddyDiff::NumDiffs, 1);
+    MultiFab single(single_ba, single_dm, EddyDiff::NumDiffs, 1);
+
+    shoc_test::run_and_sync([&] {
+        initialize_exported_eddy_diffs(split, comp, ncomp);
+        initialize_exported_eddy_diffs(single, comp, ncomp);
+    });
+
+    shoc_test::run_and_sync([&] {
+        shoc_fill_physical_boundary_ghosts(split, geom, comp, ncomp);
+        shoc_fill_physical_boundary_ghosts(single, geom, comp, ncomp);
+    });
+
+    int seam_j = -1;
+    amrex::Vector<Real> split_ghost(ncomp);
+    amrex::Vector<Real> split_expected(ncomp);
+    amrex::Vector<Real> split_local(ncomp);
+    amrex::Vector<Real> single_ghost(ncomp);
+    bool found_split = false;
+    bool found_expected = false;
+    bool found_single = false;
+
+    for (MFIter mfi(split, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto host = shoc_test::copy_fab_to_host(split[mfi]);
+        const auto arr = host.const_array();
+        if (bx.smallEnd(1) > domain.smallEnd(1)) {
+            seam_j = bx.smallEnd(1);
+            for (int n = 0; n < ncomp; ++n) {
+                split_ghost[n] = arr(domain.smallEnd(0) - 1, seam_j - 1,
+                                     domain.smallEnd(2), comp+n);
+                split_local[n] = arr(domain.smallEnd(0), seam_j,
+                                     domain.smallEnd(2), comp+n);
+            }
+            found_split = true;
+        }
+    }
+
+    ASSERT_GT(seam_j, domain.smallEnd(1));
+    for (MFIter mfi(split, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        if (bx.contains(IntVect(domain.smallEnd(0), seam_j - 1,
+                                domain.smallEnd(2)))) {
+            const auto host = shoc_test::copy_fab_to_host(split[mfi]);
+            const auto arr = host.const_array();
+            for (int n = 0; n < ncomp; ++n) {
+                split_expected[n] = arr(domain.smallEnd(0), seam_j - 1,
+                                         domain.smallEnd(2), comp+n);
+            }
+            found_expected = true;
+        }
+    }
+
+    for (MFIter mfi(single, false); mfi.isValid(); ++mfi) {
+        const auto host = shoc_test::copy_fab_to_host(single[mfi]);
+        const auto arr = host.const_array();
+        for (int n = 0; n < ncomp; ++n) {
+            single_ghost[n] = arr(domain.smallEnd(0) - 1, seam_j - 1,
+                                  domain.smallEnd(2), comp+n);
+        }
+        found_single = true;
+    }
+
+    ASSERT_TRUE(found_split);
+    ASSERT_TRUE(found_expected);
+    ASSERT_TRUE(found_single);
+    for (int n = 0; n < ncomp; ++n) {
+        EXPECT_NEAR(split_ghost[n], split_expected[n], tol)
+            << "split physical/inter-box ghost component " << n;
+        EXPECT_NE(split_ghost[n], split_local[n])
+            << "split ghost incorrectly used the local tangential cell, component " << n;
+        EXPECT_NEAR(single_ghost[n], split_expected[n], tol)
+            << "single-box decomposition mismatch, component " << n;
+    }
+
+    int periodic_y[AMREX_SPACEDIM] = {0, 1, 0};
+    Geometry periodic_geom(domain, &real_box, amrex::CoordSys::cartesian, periodic_y);
+    MultiFab periodic(split_ba, split_dm, EddyDiff::NumDiffs, 1);
+    shoc_test::run_and_sync([&] {
+        initialize_exported_eddy_diffs(periodic, comp, ncomp);
+        shoc_fill_physical_boundary_ghosts(periodic, periodic_geom, comp, ncomp);
+    });
+
+    amrex::Vector<Real> periodic_ghost(ncomp);
+    amrex::Vector<Real> periodic_expected(ncomp);
+    amrex::Vector<Real> periodic_local(ncomp);
+    bool found_periodic = false;
+    bool found_periodic_expected = false;
+    for (MFIter mfi(periodic, false); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const auto host = shoc_test::copy_fab_to_host(periodic[mfi]);
+        const auto arr = host.const_array();
+        if (bx.smallEnd(1) == domain.smallEnd(1)) {
+            for (int n = 0; n < ncomp; ++n) {
+                periodic_ghost[n] = arr(domain.smallEnd(0) - 1,
+                                        domain.smallEnd(1) - 1,
+                                        domain.smallEnd(2), comp+n);
+                periodic_local[n] = arr(domain.smallEnd(0),
+                                        domain.smallEnd(1),
+                                        domain.smallEnd(2), comp+n);
+            }
+            found_periodic = true;
+        }
+        if (bx.bigEnd(1) == domain.bigEnd(1)) {
+            for (int n = 0; n < ncomp; ++n) {
+                periodic_expected[n] = arr(domain.smallEnd(0),
+                                           domain.bigEnd(1),
+                                           domain.smallEnd(2), comp+n);
+            }
+            found_periodic_expected = true;
+        }
+    }
+
+    ASSERT_TRUE(found_periodic);
+    ASSERT_TRUE(found_periodic_expected);
+    for (int n = 0; n < ncomp; ++n) {
+        EXPECT_NEAR(periodic_ghost[n], periodic_expected[n], tol)
+            << "periodic tangential ghost component " << n;
+        EXPECT_NE(periodic_ghost[n], periodic_local[n])
+            << "periodic tangential ghost was clamped locally, component " << n;
+    }
 }
 
 TEST(ShocDriver, HostDiffusionModeExportsDiffusivitiesWithoutInternalTransport)

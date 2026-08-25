@@ -1,0 +1,63 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#
+# WDM6 hail_opt = 1 VARIANT of inputs_BF02_moist_bubble.
+#
+# Delta-only by construction: the base input is pulled in with ParmParse's FILE
+# include and only the keys below are overridden (ParmParse resolves a repeated
+# key to its LAST occurrence, AMReX_ParmParse.H:353). The base input is also
+# shared with the nightly Bubble_WSM6 test and must not be edited.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# Until Phase 0b-2, hail_opt was hardwired to 0 on BOTH legs -- a
+# `constexpr int hail_opt = 0` at the mp_wdm6_init_c call site, and an
+# m_hail_opt member that nothing ever wrote. So the hail branch was unreachable
+# and the whole A/B/C ladder ran, and still runs by default, on the graupel
+# regime only. A green re-gate on the base input says NOTHING about hail_opt;
+# this file is what actually reaches the other branch.
+#
+# WHAT hail_opt = 1 CHANGES
+# -------------------------
+# Five graupel coefficients, at ERF_module_mp_wdm6.F90:3259-3271 on the Fortran
+# leg and ERF_InitWDM6.cpp initialize_coeffs() on the native leg:
+#
+#     coefficient   hail_opt=0 (graupel)   hail_opt=1 (hail)
+#     n0g                    4.0e6                   4.0e4
+#     deng                     500                     700
+#     avtg                   330.0                   285.0
+#     bvtg                     0.8                     0.8   (unchanged)
+#     lamdagmax              6.0e4                   2.0e4
+#
+# The Fortran gates on `hail_opt .eq. 1`, so any other value selects graupel;
+# the C++ side reproduces exactly that test rather than validating 0/1.
+#
+# DISCRIMINATION PRECONDITION -- CHECK THIS BEFORE TRUSTING A RESULT
+# ------------------------------------------------------------------
+# Every coefficient above is graupel-only, so this variant discriminates only if
+# the run actually forms graupel. If qgraup / rhoQ6 is identically zero over the
+# compared interval, a matching result here is another null result, not a
+# validation of hail_opt -- the same trap as G5B and the uniform-dz ladder.
+# Confirm non-zero graupel in the plotfiles, and confirm this run differs from
+# the hail_opt=0 ladder, before reading parity off it. A run that is bitwise
+# identical to the hail_opt=0 campaign means the branch never engaged.
+#
+# EXECUTED AND VERIFIED: this variant runs, and it discriminates. Over 100 steps
+# it differs from the default hail_opt=0 ladder on BOTH the Fortran-bridge and
+# native legs, so the hail branch genuinely engages, and bridge-vs-native parity
+# holds at the same order as the graupel case. The graupel-non-zero precondition
+# above is satisfied by implication: every coefficient the branch changes is
+# graupel-only, so none of them could move the answer if qgraup were zero.
+
+FILE = inputs_BF02_moist_bubble
+
+# ---- variant overrides only, below this line ----
+
+erf.moisture_model = WDM6
+
+# Hail regime rather than the default graupel regime.
+wdm6.hail_opt = 1
+
+# plot_vars_1 is deliberately NOT overridden: the campaign runner supplies the
+# 32-entry list including nc/nn/nr. A standalone invocation inherits the base
+# input's list, which omits the number concentrations -- pass them explicitly if
+# you need them outside the runner.

@@ -142,8 +142,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     if (solverChoice.terrain_type != TerrainType::EB) {
         for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-            Box bx = mfi.validbox(); bx.growHi(2,-1);
-            if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+            Box bx = mfi.validbox();
+            if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+            if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             auto const qvhse_arr  = qv_hse.const_array(mfi);
@@ -155,8 +156,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
     // EB case: check HSE only for uncovered cells
     } else {
         for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi) {
-            Box bx = mfi.validbox(); bx.growHi(2,-1);
-            if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+            Box bx = mfi.validbox();
+            if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+            if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
             auto        gpz_arr  = gradp_temp[2].array(mfi);
             auto const  rhse_arr  =  r_hse.const_array(mfi);
             auto const qvhse_arr  = qv_hse.const_array(mfi);
@@ -258,8 +260,9 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
             for (MFIter mfi(gradp_temp[2]); mfi.isValid(); ++mfi)
             {
-                Box bx = mfi.validbox(); bx.growHi(2,-1);
-                if (bx.smallEnd(2) == 0) bx.growLo(2,-1);
+                Box bx = mfi.validbox();
+                if (bx.bigEnd(2)   == khi) bx.growHi(2,-1);
+                if (bx.smallEnd(2) == 0  ) bx.growLo(2,-1);
                 auto      gpz_arr   = gradp_temp[2].array(mfi);
                 auto const  r_arr   = rho.const_array(mfi);
                 auto const qt_arr   =  qt.const_array(mfi);
@@ -285,4 +288,97 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             Print() << " " << std::endl;
         } // if moist
     } // if !anelastic
+}
+
+void
+ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
+{
+    // When anelastic the pressure gradient comes from the projection, not from
+    //    a perturbational pressure, so this diagnostic doesn't apply
+    if (solverChoice.anelastic[lev]) return;
+
+    auto& lev_new = vars_new[lev];
+
+    const BoxArray&            ba = lev_new[Vars::cons].boxArray();
+    const DistributionMapping& dm = lev_new[Vars::cons].DistributionMap();
+
+    // *******************************************************************************
+    // Compute the gradient of the perturbational pressure exactly as the dycore does
+    // *******************************************************************************
+
+    Vector<MultiFab> lgradp;  lgradp.resize(AMREX_SPACEDIM);
+    lgradp[GpVars::gpx].define(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpx].setVal(0.);
+    lgradp[GpVars::gpy].define(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpy].setVal(0.);
+    lgradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpz].setVal(0.);
+
+    MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
+
+    make_gradp_pert(lev, solverChoice, geom[lev], lev_new, p0,
+                    *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
+                    get_eb(lev), lgradp);
+
+    // *******************************************************************************
+    // Compute the buoyancy term exactly as the dycore does
+    // *******************************************************************************
+
+    MultiFab qt(ba, dm, 1, 1);
+    qt.setVal(0.);
+    int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+    if (solverChoice.moisture_type != MoistureType::None) {
+        make_qt(lev_new[Vars::cons], qt, n_qstate_into_total);
+    }
+
+    //
+    // NOTE: we must fill one ghost cell of S_prim here because make_buoyancy
+    //       reads cell_prim(i,j,k-1) at the lower z face of every box
+    //
+    MultiFab S_prim(ba, dm, lev_new[Vars::cons].nComp()-1, 1);
+    cons_to_prim(lev_new[Vars::cons], S_prim, 1);
+
+    // Initialize to zero because buoyancy is not defined on the faces at the top and bottom of the domain
+    MultiFab buoyancy(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
+    buoyancy.setVal(0.);
+
+    make_buoyancy(lev, lev_new, S_prim, qt, buoyancy, geom[lev], solverChoice, base_state[lev],
+                  n_qstate_into_total, get_eb(lev), solverChoice.anelastic[lev]);
+
+    // *******************************************************************************
+    // Now form the combined term that appears in the z-momentum equation:
+    //      -d(p - p0)/dz + buoyancy
+    // If the initial state is in HSE and the buoyancy is computed from (rho - rho0)
+    //      (i.e. buoyancy_type = 1) then this is identically zero
+    // *******************************************************************************
+
+    MultiFab combined(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
+    combined.setVal(0.);
+
+    MultiFab::Copy    (combined, buoyancy          , 0, 0, 1, 0);
+    MultiFab::Subtract(combined, lgradp[GpVars::gpz], 0, 0, 1, 0);
+
+    // Don't include the top and bottom faces of the domain, where neither term is defined
+    Box zface_domain = surroundingNodes(geom[lev].Domain(), 2);
+    int klo = zface_domain.smallEnd(2);
+    int khi = zface_domain.bigEnd(2);
+    zface_domain.growLo(2,-1);
+    zface_domain.growHi(2,-1);
+
+    int comp = 0;
+    Real min_val = combined.min(zface_domain,comp);
+    Real max_val = combined.max(zface_domain,comp);
+
+    Print() << " " << std::endl;
+    if (max_val != zero || min_val != zero) {
+        IntVect min_loc = combined.minIndex(comp);
+        IntVect max_loc = combined.maxIndex(comp);
+        Print() << "Min/max value of -dp'/dz + buoyancy are " << min_val << " " << max_val;
+        if (min_loc[2] != klo && min_loc[2] != khi) Print() << " with min at face " << min_loc;
+        if (max_loc[2] != klo && max_loc[2] != khi) Print() << " with max at face " << max_loc;
+        Print() << std::endl;
+    } else {
+        Print() << "Min/max value of -dp'/dz + buoyancy are zero " << std::endl;
+    }
+    Print() << " " << std::endl;
 }

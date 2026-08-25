@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteScalarProfiles.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
@@ -62,7 +65,7 @@ ERF::sum_integrated_quantities (double time)
         if (solverChoice.moisture_type != MoistureType::None) {
             int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
-                mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
+                mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
     }
@@ -309,7 +312,7 @@ ERF::sum_derived_quantities (double time)
 
       } // if IOProcessor
 #ifdef AMREX_LAZY
-    }
+    });
 #endif
 }
 
@@ -449,7 +452,7 @@ ERF::sum_energy_quantities (double time)
 
       } // if IOProcessor
 #ifdef AMREX_LAZY
-    }
+    });
 #endif
 }
 
@@ -493,6 +496,9 @@ ERF::cloud_fraction (double /*time*/)
         Gpu::streamSynchronize();
         ParallelDescriptor::ReduceIntMax(hv.data(),static_cast<int>(numpts));
         Gpu::copyAsync(Gpu::hostToDevice, hv.data(), hv.data()+numpts, p);
+        // We must synchronize before hv goes out of scope and its pinned memory
+        //    is returned to the arena, since the copy above may still be reading it
+        Gpu::streamSynchronize();
     }
 
     // Sum over component 0

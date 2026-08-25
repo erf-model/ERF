@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Write1DProfiles.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
@@ -32,6 +35,8 @@ ERF::write_1D_profiles (double time)
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
+        Gpu::HostVector<Real> h_avg_ttend, h_avg_qtend, h_avg_wsub, h_avg_tnudge, h_avg_qnudge, h_avg_unudge, h_avg_vnudge;
+        Gpu::HostVector<Real> h_avg_thtend, h_avg_qhtend, h_avg_tvtend, h_avg_qvtend, h_avg_qcvtend;
         if (NumDataLogs() > 1) {
             derive_diag_profiles(time,
                                  h_avg_u, h_avg_v, h_avg_w,
@@ -52,6 +57,13 @@ ERF::write_1D_profiles (double time)
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                    h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
                                    h_avg_sgsdiss);
+        }
+
+        if (NumDataLogs() > 4 && time > 0.) {
+            derive_forcing_profiles_stag(h_avg_ttend, h_avg_qtend, h_avg_wsub,
+                                         h_avg_thtend, h_avg_qhtend, h_avg_tvtend,
+                                         h_avg_qvtend, h_avg_qcvtend, h_avg_tnudge,
+                                         h_avg_qnudge, h_avg_unudge, h_avg_vnudge);
         }
 
         int hu_size =  h_avg_u.size();
@@ -158,6 +170,27 @@ ERF::write_1D_profiles (double time)
                   } // loop over z
                 } // if good
             } // if (NumDataLogs() > 3)
+
+            if (NumDataLogs() > 4 && time > 0.) {
+                std::ostream& data_log4 = DataLog(4);
+                if (data_log4.good()) {
+                    for (int k = 0; k < hu_size; k++) {
+                        Real z;
+                        if (zlevels_stag[0].size() > 1) {
+                            z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
+                        } else {
+                            z = (k + myhalf)* dx[2];
+                        }
+                        data_log4 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                                  << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                                  << h_avg_ttend[k]  << " " << h_avg_qtend[k]   << " " << h_avg_wsub[k]   << " "
+                                  << h_avg_thtend[k] << " " << h_avg_qhtend[k]  << " " << h_avg_tvtend[k] << " "
+                                  << h_avg_qvtend[k] << " " << h_avg_qcvtend[k] << " " << h_avg_tnudge[k] << " "
+                                  << h_avg_qnudge[k] << " " << h_avg_unudge[k]  << " " << h_avg_vnudge[k]
+                                  << std::endl;
+                  } // loop over z
+                }
+            }
         } // if IOProcessor
     } // if (NumDataLogs() > 1)
 }
@@ -165,12 +198,24 @@ ERF::write_1D_profiles (double time)
 /**
  * Computes the profiles for diagnostic quantities.
  *
+ * @param time Current simulation time
  * @param h_avg_u Profile for x-velocity on Host
  * @param h_avg_v Profile for y-velocity on Host
  * @param h_avg_w Profile for z-velocity on Host
  * @param h_avg_rho Profile for density on Host
  * @param h_avg_th Profile for potential temperature on Host
  * @param h_avg_ksgs Profile for Kinetic Energy on Host
+ * @param h_avg_Kmv Profile for vertical turbulent viscosity on Host
+ * @param h_avg_Khv Profile for vertical scalar diffusivity on Host
+ * @param h_avg_qv Profile for water vapor on Host
+ * @param h_avg_qc Profile for cloud water on Host
+ * @param h_avg_qr Profile for rain water on Host
+ * @param h_avg_wqv Profile for vertical velocity * water vapor on Host
+ * @param h_avg_wqc Profile for vertical velocity * cloud water on Host
+ * @param h_avg_wqr Profile for vertical velocity * rain water on Host
+ * @param h_avg_qi Profile for cloud ice on Host
+ * @param h_avg_qs Profile for snow on Host
+ * @param h_avg_qg Profile for graupel on Host
  * @param h_avg_uu Profile for x-velocity squared on Host
  * @param h_avg_uv Profile for x-velocity * y-velocity on Host
  * @param h_avg_uw Profile for x-velocity * z-velocity on Host
@@ -178,13 +223,18 @@ ERF::write_1D_profiles (double time)
  * @param h_avg_vw Profile for y-velocity * z-velocity on Host
  * @param h_avg_ww Profile for z-velocity squared on Host
  * @param h_avg_uth Profile for x-velocity * potential temperature on Host
- * @param h_avg_uiuiu Profile for u_i*u_i*u triple product on Host
- * @param h_avg_uiuiv Profile for u_i*u_i*v triple product on Host
- * @param h_avg_uiuiw Profile for u_i*u_i*w triple product on Host
+ * @param h_avg_vth Profile for y-velocity * potential temperature on Host
+ * @param h_avg_wth Profile for z-velocity * potential temperature on Host
+ * @param h_avg_thth Profile for potential temperature squared on Host
+ * The definition also carries u_i*u_i velocity triple-product accumulators.
+ * @param h_avg_ku Profile for resolved x-momentum kinetic-energy flux on Host
+ * @param h_avg_kv Profile for resolved y-momentum kinetic-energy flux on Host
+ * @param h_avg_kw Profile for resolved z-momentum kinetic-energy flux on Host
  * @param h_avg_p Profile for pressure perturbation on Host
  * @param h_avg_pu Profile for pressure perturbation * x-velocity on Host
  * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
+ * @param h_avg_wthv Profile for vertical velocity * virtual potential temperature on Host
  */
 void
 ERF::derive_diag_profiles(double /*time*/,

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteSubvolume.cpp
+ */
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <ERF_EpochTime.H>
@@ -283,10 +286,15 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     {
         if (containerHasElement(subvol_var_names, der_name)) {
             MultiFab dmf(src_mf.boxArray(), src_mf.DistributionMap(), 1, 0);
+            //
+            // NOTE: we must not tile in z here because some of the derived quantities
+            //       ("precipitable", "mucape") are whole-column operations and require
+            //       the full column in each box
+            //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
             {
                 const Box& tbx = mfi.tilebox();
                 auto& dfab = dmf[mfi];

@@ -68,6 +68,10 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | potential        |
 |                             | temperature [K]  |
 +-----------------------------+------------------+
+| **pi_hse**                  | Hydrostatic      |
+|                             | Exner function   |
+|                             | [-]              |
++-----------------------------+------------------+
 | **qv_hse**                  | Base-state water |
 |                             | vapor mixing     |
 |                             | ratio [kg/kg]    |
@@ -123,11 +127,13 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | [kg K/m^3]       |
 |                             |                  |
 +-----------------------------+------------------+
-| **KE**                      | SGS turbulent    |
-|                             | kinetic energy   |
-|                             | (from Deardorff  |
-|                             | or MYNN)         |
-|                             | [m^2/s^2]        |
+| **KE**                      | Prognostic       |
+|                             | turbulent kinetic|
+|                             | energy when      |
+|                             | populated by the |
+|                             | active closure,  |
+|                             | including native |
+|                             | SHOC [m^2/s^2]   |
 +-----------------------------+------------------+
 | **rhoKE**                   | Density * KE     |
 |                             | [kg/(m s^2)]     |
@@ -215,6 +221,21 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 | **detJ**                    | Jacobian         |
 |                             | determinant [1]  |
 |                             |                  |
++-----------------------------+------------------+
+| **h_xi**                    | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/dxi [1]       |
++-----------------------------+------------------+
+| **h_eta**                   | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/deta [1]      |
++-----------------------------+------------------+
+| **h_zeta**                  | Cell-centered    |
+|                             | average of the   |
+|                             | metric term      |
+|                             | dz/dzeta [1]     |
 +-----------------------------+------------------+
 | **mapfac**                  | Map scale factor |
 |                             | [1]              |
@@ -449,6 +470,10 @@ concentration and ``A`` the corresponding accumulation field.
      - qv, qc, qi, qr, qs, qg
      - none
      - rain, snow, graupel
+   * - ``WDM6``
+     - qv, qc, qi, qr, qs, qg
+     - nn, nc, nr
+     - rain, snow, graupel
    * - ``SuperDroplets``
      - qv, qc, qr
      - none
@@ -474,6 +499,33 @@ For the fixed mixed-phase layouts, ``qi`` is read from ``RhoQ3`` and
 ``qrain`` from ``RhoQ4``. Warm-rain layouts have no ice component and place
 ``qrain`` in ``RhoQ3``. Selection checks the exact source component used by
 the writer.
+
+Terrain metric restrictions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The mesh geometry diagnostics ``z_phys``, ``detJ``, ``h_xi``, ``h_eta``, and
+``h_zeta`` are selected only when the mesh is terrain-fitted, that is when
+``erf.terrain_type = StaticFittedMesh`` or
+``erf.terrain_type = MovingFittedMesh``. A request for one of these names under
+any other terrain type is ignored rather than treated as an error, and the name
+does not reserve a plotfile component.
+
+``h_xi``, ``h_eta``, and ``h_zeta`` are the cell-centered averages of the
+terrain metric terms
+
+.. math::
+
+   h_\xi = \frac{\partial z}{\partial \xi}, \qquad
+   h_\eta = \frac{\partial z}{\partial \eta}, \qquad
+   h_\zeta = \frac{\partial z}{\partial \zeta},
+
+where :math:`z` is the physical height stored at mesh nodes and
+:math:`(\xi, \eta, \zeta)` are the computational coordinates. Each value is
+formed by averaging the four nodal differences that bracket the cell, so
+``h_xi`` and ``h_eta`` vanish on a mesh with no horizontal terrain variation and
+``h_zeta`` reduces to the ratio of the physical to the computational cell height.
+Because ``detJ`` equals ``h_zeta`` for the terrain-fitted mapping used by ERF,
+these three fields together give the full metric Jacobian of the mapping.
 
 Optional storage restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -535,12 +587,80 @@ are conditional or specialized and remain part of the same source-defined
 inventory. A requested name is still subject to the runtime selection
 conditions in ``setPlotVariables``.
 
-* ``pblh`` is the native SHOC planetary-boundary-layer height in metres.
-* ``shoc_cldfrac``, ``shoc_ql``, ``shoc_ql2``, ``shoc_cond``, ``wqls_sec``,
-  ``wthv_sec``, ``w_sec``, ``thl_sec``, ``qw_sec``, ``qwthl_sec``, ``wthl_sec``,
-  ``wqw_sec``, ``w3``, ``brunt``, ``isotropy``, ``shear_prod``, ``buoy_prod``,
-  and ``diss_tke`` are native SHOC diagnostics. Their units and availability
-  follow the active native SHOC implementation.
+The following fixed fields are supplied by the native SHOC driver. The
+native-only fields are written as ``-999`` when native SHOC diagnostics are not
+available.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 20 56
+
+   * - Variable
+     - Units
+     - Native SHOC meaning
+   * - ``pblh``
+     - m
+     - Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+   * - ``shoc_cldfrac``
+     - 1
+     - Subgrid cloud fraction diagnosed by the native SHOC PDF.
+   * - ``shoc_ql``
+     - kg/kg
+     - Cloud-liquid mixing ratio diagnosed by the native SHOC PDF.
+   * - ``shoc_ql2``
+     - (kg/kg)^2
+     - Variance of the diagnosed cloud-liquid mixing ratio.
+   * - ``shoc_cond``
+     - kg/kg/s
+     - Positive PDF condensate-change rate. It is zero unless ``erf.shoc.extra_shoc_diags = true``.
+   * - ``wqls_sec``
+     - (kg/kg) m/s
+     - Turbulent vertical flux of the diagnosed SHOC cloud-liquid quantity.
+   * - ``wthv_sec``
+     - K m/s
+     - Turbulent vertical flux of virtual potential temperature.
+   * - ``w_sec``
+     - m^2/s^2
+     - Vertical-velocity variance.
+   * - ``thl_sec``
+     - K^2
+     - Liquid-water potential-temperature variance.
+   * - ``qw_sec``
+     - (kg/kg)^2
+     - Total-water variance.
+   * - ``qwthl_sec``
+     - K kg/kg
+     - Covariance of total water and liquid-water potential temperature.
+   * - ``wthl_sec``
+     - K m/s
+     - Turbulent vertical flux of liquid-water potential temperature.
+   * - ``wqw_sec``
+     - (kg/kg) m/s
+     - Turbulent vertical flux of total water.
+   * - ``w3``
+     - m^3/s^3
+     - Third central moment of vertical velocity.
+   * - ``brunt``
+     - s^-2
+     - Squared Brunt-Vaisala frequency, :math:`N^2`.
+   * - ``isotropy``
+     - s
+     - Native SHOC isotropy timescale.
+   * - ``shear_prod``
+     - m^2/s^3
+     - Shear-production contribution to the native SHOC TKE budget.
+   * - ``buoy_prod``
+     - m^2/s^3
+     - Buoyancy production or destruction contribution to the native SHOC TKE budget.
+   * - ``diss_tke``
+     - m^2/s^3
+     - Dissipation contribution diagnosed for the native SHOC TKE budget.
+
+When native SHOC diagnostics are available, the standard turbulence fields use
+the native SHOC coefficients: ``Kmv`` is :math:`\rho K_m`, ``Khv`` is
+:math:`\rho K_h`, ``Lturb`` is the native SHOC mixing length, and ``nut`` is
+the kinematic momentum diffusivity ``Kmv / density``.
+
 * ``nc``, ``ni``, ``nr``, ``ns``, and ``ng`` are moisture number
   concentrations. They are available when the active moisture model provides
   the corresponding conserved component; the output units follow that model's
@@ -722,6 +842,9 @@ additional plot names. There is no universal static list for these fields.
 The current providers expose the following families:
 
 * Morrison exposes the 19 ``micro_*`` names listed in the section above.
+* WDM6 exposes number concentration fields: ``nn`` (CCN number concentration),
+  ``nc`` (cloud droplet number concentration), and ``nr`` (rain drop number concentration).
+  To output these, add them to your plot variables list (e.g., ``erf.plot_vars_1 = nn nc nr``).
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.

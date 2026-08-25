@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromMetgrid.cpp
+ */
 #include <ERF_NCWpsFile.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_IArrayBox.H>
@@ -158,11 +161,18 @@ read_from_metgrid (int lev, int itime,
 
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
+
+    // Default values
+    flag_psfc = 0;
+    flag_sst  = 0;
+    flag_tsk  = 0;
+    flag_msf  = 0;
+
     for (int i = 0; i < success.size(); i++) {
-        flag_psfc = (NC_fnames[i] == "PSFC"     && success[i] == 1) ? 1 : 0;
-        flag_sst  = (NC_fnames[i] == "SST"      && success[i] == 1) ? 1 : 0;
-        flag_tsk  = (NC_fnames[i] == "SKINTEMP" && success[i] == 1) ? 1 : 0;
-        flag_msf  = (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) ? 1 : 0;
+        if (NC_fnames[i] == "PSFC"     && success[i] == 1) { flag_psfc = 1; }
+        if (NC_fnames[i] == "SST"      && success[i] == 1) { flag_sst  = 1; }
+        if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) { flag_tsk  = 1; }
+        if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) { flag_msf  = 1; }
     }
 
     // Read the netcdf file and fill these IABs

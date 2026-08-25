@@ -4,18 +4,19 @@
 
 using namespace amrex;
 
-/*
+/**
  * Fill valid and ghost data with the "state data" at the given time
  *
- * @param[in] fba    BoxArray of data to be filled at fine level
- * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry information at fine level
- * @param[in] cba    BoxArray of data to be filled at coarse level
- * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry information at coarse level
- * @param[in] nghost number of ghost cells to be filled
- * @param[in] ncomp  number of components to be filled
- * @param[in] interp interpolation operator to be used
+ * @param[in] fba        BoxArray of data to be filled at fine level
+ * @param[in] fdm        DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom      container of geometry information at fine level
+ * @param[in] cba        BoxArray of data to be filled at coarse level
+ * @param[in] cdm        DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom      container of geometry information at coarse level
+ * @param[in] nghost     number of ghost cells to be filled
+ * @param[in] nghost_set number of ghost cells in the set region
+ * @param[in] ncomp      number of components to be filled
+ * @param[in] interp     interpolation operator to be used
  */
 
 ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& fdm,
@@ -41,18 +42,19 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
 }
 
 
-/*
+/**
  * Redefine the coarse and fine patch MultiFabs.
  *
- * @param[in] fba    BoxArray of data to be filled at fine level
- * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry information at fine level
- * @param[in] cba    BoxArray of data to be filled at coarse level
- * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry information at coarse level
- * @param[in] nghost number of ghost cells to be filled
- * @param[in] ncomp  number of components to be filled
- * @param[in] interp interpolation operator to be used
+ * @param[in] fba        BoxArray of data to be filled at fine level
+ * @param[in] fdm        DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom      container of geometry information at fine level
+ * @param[in] cba        BoxArray of data to be filled at coarse level
+ * @param[in] cdm        DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom      container of geometry information at coarse level
+ * @param[in] nghost     number of ghost cells to be filled
+ * @param[in] nghost_set number of ghost cells in the set region
+ * @param[in] ncomp      number of components to be filled
+ * @param[in] interp     interpolation operator to be used
  */
 void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm,
                              Geometry const& fgeom,
@@ -116,6 +118,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     }
 }
 
+/**
+ * Build the coarse-fine mask for set and relax regions.
+ *
+ * @param[in] fba      BoxArray of data to be filled at fine level
+ * @param[in] nghost   number of ghost cells defining the region width
+ * @param[in] mask_val value assigned to selected mask cells
+ */
 void ERFFillPatcher::BuildMask (BoxArray const& fba,
                                 int nghost,
                                 int mask_val)
@@ -132,22 +141,39 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         BoxList bl_mf = fba.boxList();
         BoxList bl_mf_new;
         for (auto& b : bl_mf) {
+            Box bcc(b); bcc.enclosedCells();
+
+            // Per direction, collect the periodic shifts that can bring this box back
+            // into the bounding box.  A box only has an image across a face it actually
+            // touches, and a box that spans the domain in a direction touches both.
+            int shift[AMREX_SPACEDIM][3];
+            int nshift[AMREX_SPACEDIM];
             for (int dim = 0; dim < AMREX_SPACEDIM; dim++) {
+                int ns = 0;
+                shift[dim][ns++] = 0;                       // the box where it already is
                 if (m_fgeom.isPeriodic(dim)) {
                     int n = domain_cc.length(dim);
-                    if (b.smallEnd(dim) == fdomain.smallEnd(dim)) {
-                        Box bb_lo(b); bb_lo.enclosedCells(); bb_lo.shift(dim,n); bb_lo.setType(b.ixType());
-                        bb_lo &= fba_bnd;
-                        bl_mf_new.push_back(bb_lo);
-                    }
-                    Box bb_hi(b); bb_hi.enclosedCells();
-                    if (bb_hi.bigEnd(dim) == fdomain.bigEnd(dim)) {
-                        bb_hi.shift(dim,-n); bb_hi.setType(b.ixType());
-                        bb_hi &= fba_bnd;
-                        bl_mf_new.push_back(bb_hi);
-                    }
-               } // periodic
-            } // dim
+                    if (bcc.smallEnd(dim) == domain_cc.smallEnd(dim)) { shift[dim][ns++] =  n; }
+                    if (bcc.bigEnd(dim)   == domain_cc.bigEnd(dim)  ) { shift[dim][ns++] = -n; }
+                }
+                nshift[dim] = ns;
+            }
+
+            // Every *combination* of those shifts, not one direction at a time.  In a
+            // multiply periodic domain a fine patch sitting in a periodic corner also
+            // has diagonal images, e.g. (+Lx,+Ly); shifting along single axes alone
+            // never generates those, and complementIn then reports the corner cells as
+            // uncovered coarse-fine boundary.
+            for (int kk(0); kk < nshift[2]; ++kk) {
+            for (int jj(0); jj < nshift[1]; ++jj) {
+            for (int ii(0); ii < nshift[0]; ++ii) {
+                if (ii == 0 && jj == 0 && kk == 0) { continue; }  // already in bl_mf
+                Box bb(bcc);
+                bb.shift(IntVect(shift[0][ii],shift[1][jj],shift[2][kk]));
+                bb.setType(b.ixType());
+                bb &= fba_bnd;
+                if (bb.ok()) { bl_mf_new.push_back(bb); }
+            }}} // shift combinations
         } // bl_mf
 
         for (auto& b : bl_mf_new) {
@@ -212,7 +238,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     }
 }
 
-/*
+/**
  * Register the coarse data to be used by the ERFFillPatcher
  *
  * @param[in] crse_data data at old and new time at coarse level
@@ -243,6 +269,13 @@ void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_dat
     m_dt_crse = crse_time[1] - crse_time[0];
 }
 
+/**
+ * Interpolate coarse data to fine face-centered data selected by the mask.
+ *
+ * @param[in,out] fine     fine-level data to fill
+ * @param[in]     crse     coarse-level data to interpolate from
+ * @param[in]     mask_val mask value selecting cells to fill
+ */
 void ERFFillPatcher::InterpFace (MultiFab& fine,
                                  MultiFab const& crse,
                                  int mask_val)
@@ -361,6 +394,14 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
     } // MFiter
 }
 
+/**
+ * Interpolate coarse data to fine cell-centered data selected by the mask.
+ *
+ * @param[in,out] fine     fine-level data to fill
+ * @param[in]     crse     coarse-level data to interpolate from
+ * @param[in]     bcr      boundary-condition records used by the interpolater
+ * @param[in]     mask_val mask value selecting cells to fill
+ */
 void ERFFillPatcher::InterpCell (MultiFab& fine,
                                  MultiFab const& crse,
                                  Vector<BCRec> const& bcr,

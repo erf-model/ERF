@@ -30,6 +30,44 @@ shoc_boxarray_spans_full_height (const BoxArray& ba, const Box& domain)
     return true;
 }
 
+void
+shoc_fill_physical_boundary_ghosts (MultiFab& mf,
+                                    const Geometry& geom,
+                                    int comp,
+                                    int ncomp)
+{
+    mf.FillBoundary(comp, ncomp, geom.periodicity());
+
+    const Box domain = geom.Domain();
+    const bool nonperiodic_x = !geom.isPeriodic(0);
+    const bool nonperiodic_y = !geom.isPeriodic(1);
+    const bool nonperiodic_z = !geom.isPeriodic(2);
+
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box gbx = mfi.growntilebox();
+        auto data = mf.array(mfi);
+        ParallelFor(gbx, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            const int ii = nonperiodic_x
+                ? ((i < domain.smallEnd(0)) ? domain.smallEnd(0)
+                   : ((i > domain.bigEnd(0)) ? domain.bigEnd(0) : i))
+                : i;
+            const int jj = nonperiodic_y
+                ? ((j < domain.smallEnd(1)) ? domain.smallEnd(1)
+                   : ((j > domain.bigEnd(1)) ? domain.bigEnd(1) : j))
+                : j;
+            const int kk = nonperiodic_z
+                ? ((k < domain.smallEnd(2)) ? domain.smallEnd(2)
+                   : ((k > domain.bigEnd(2)) ? domain.bigEnd(2) : k))
+                : k;
+
+            if (ii != i || jj != j || kk != k) {
+                data(i,j,k,comp+n) = data(ii,jj,kk,comp+n);
+            }
+        });
+    }
+}
+
 namespace
 {
     constexpr int k_shoc_vertical_diff_comp = EddyDiff::Mom_v;
@@ -326,7 +364,23 @@ ShocDriver::ensure_storage (const MultiFab& cons,
                             const MultiFab& yvel,
                             const MultiFab& eddy_diffs)
 {
-    if (!m_theta_tend_cc.isDefined()) {
+    const bool storage_changed =
+        !m_theta_tend_cc.isDefined() ||
+        !m_u_tend_fc.isDefined() ||
+        !m_v_tend_fc.isDefined() ||
+        !m_eddy_coeffs_cc.isDefined() ||
+        m_theta_tend_cc.boxArray() != cons.boxArray() ||
+        m_theta_tend_cc.DistributionMap() != cons.DistributionMap() ||
+        m_u_tend_fc.boxArray() != xvel.boxArray() ||
+        m_u_tend_fc.DistributionMap() != xvel.DistributionMap() ||
+        m_v_tend_fc.boxArray() != yvel.boxArray() ||
+        m_v_tend_fc.DistributionMap() != yvel.DistributionMap() ||
+        m_eddy_coeffs_cc.boxArray() != eddy_diffs.boxArray() ||
+        m_eddy_coeffs_cc.DistributionMap() != eddy_diffs.DistributionMap();
+
+    if (storage_changed) {
+        m_column_workspaces.clear();
+        m_prev_turb_valid = false;
         m_theta_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qv_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qc_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
@@ -485,6 +539,7 @@ ShocDriver::advance (MultiFab& cons,
     m_tau13_ptr = tau13;
     m_tau23_ptr = tau23;
     m_eddy_diffs_ptr = eddy_diffs;
+    m_geom_ptr = &geom;
 
     sync_face_multifab_impl(xvel, geom);
     sync_face_multifab_impl(yvel, geom);
@@ -671,6 +726,25 @@ ShocDriver::advance (MultiFab& cons,
                     tke_tend(i,j,k) = col_tke_tend(ic,kk,0);
                     u_tend_cc(i,j,k) = col_u_tend(ic,kk,0);
                     v_tend_cc(i,j,k) = col_v_tend(ic,kk,0);
+                }
+                // Motivation: Native SHOC state_update consumes SurfaceLayer
+                // fluxes before the host diffusion path clears the overlapping
+                // SFS arrays. Preserve the consumed conservative fluxes here
+                // so 2D diagnostics report the surface forcing SHOC actually
+                // used, not the cleared host arrays.
+                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
+                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
+                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
+                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
+            });
+
+            // Keep diagnostic writeback in a separate launch so the kernel
+            // argument block fits CUDA's 4 KiB limit on pre-Volta devices.
+            ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                const int ic = shoc_column_index(layout, i, j);
+                for (int kk = 0; kk < layout.nlev; ++kk) {
+                    const int k = layout.kmin + kk;
                     // Native SHOC pblh is diagnosed as meters AGL and is
                     // copied directly into the plotfile diagnostic field.
                     pblh_arr(i,j,k) = pblh(ic,0,0);
@@ -705,16 +779,7 @@ ShocDriver::advance (MultiFab& cons,
                     buoy_prod_arr(i,j,k) = buoy_prod(ic,kk,0);
                     diss_tke_arr(i,j,k) = diss_tke(ic,kk,0);
                 }
-                // Motivation: Native SHOC state_update consumes SurfaceLayer
-                // fluxes before the host diffusion path clears the overlapping
-                // SFS arrays. Preserve the consumed conservative fluxes here
-                // so 2D diagnostics report the surface forcing SHOC actually
-                // used, not the cleared host arrays.
-                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
-                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
-                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
-                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
-                });
+            });
         }
 
     }
@@ -799,6 +864,18 @@ ShocDriver::set_eddy_diffs () const
         MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
                        EddyDiff::Mom_v, EddyDiff::Mom_v, 1, 0);
     }
+    const bool export_host_diff =
+        uses_host_diffusion() || uses_momentum_host_diffusion();
+    if (!export_host_diff) {
+        return;
+    }
+
+    AMREX_ALWAYS_ASSERT(m_geom_ptr != nullptr);
+    const Geometry& geom = *m_geom_ptr;
+    const int comp = uses_host_diffusion() ? k_shoc_vertical_diff_comp : EddyDiff::Mom_v;
+    const int ncomp = uses_host_diffusion() ? k_shoc_vertical_diff_count : 1;
+
+    shoc_fill_physical_boundary_ghosts(*m_eddy_diffs_ptr, geom, comp, ncomp);
 }
 
 void

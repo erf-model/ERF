@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DSampledField.H
+ */
 #ifndef ERF_PLOTFILE2DSAMPLED_FIELD_H_
 #define ERF_PLOTFILE2DSAMPLED_FIELD_H_
 
@@ -84,12 +87,18 @@ bool sampled_field_is_scalar_state (SampledFieldID field_id) noexcept
     return !sampled_field_is_wind(field_id);
 }
 
+// NOTE: p_hse_arr holds the base state pressure and is used for the pressure field only
+//       when use_hse_pressure is true, i.e. when the run is anelastic -- see the comment
+//       at SampledFieldID::Pressure below.  When use_hse_pressure is false the array is
+//       not read, so the caller may pass any valid array.
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real sampled_field_value (SampledFieldID field_id,
                                  const amrex::Array4<const amrex::Real>& cons_arr,
                                  const amrex::Array4<const amrex::Real>& z_phys_cc_arr,
                                  const amrex::Array4<const amrex::Real>& z_phys_nd_arr,
+                                 const amrex::Array4<const amrex::Real>& p_hse_arr,
                                  bool have_z_phys_cc,
+                                 bool use_hse_pressure,
                                  int i, int j, int k,
                                  const MoistureComponentIndices& moisture_indices) noexcept
 {
@@ -109,7 +118,12 @@ amrex::Real sampled_field_value (SampledFieldID field_id,
     case SampledFieldID::Temp:
         return getTgivenRandRTh(rho, cons_arr(i, j, k, RhoTheta_comp), qv_for_eos);
     case SampledFieldID::Pressure:
-        return getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_for_eos);
+        // In an anelastic run the compressible EOS does not give the pressure of the
+        //    system -- rho is the (frozen) base state density, so getPgivenRTh would
+        //    respond to theta perturbations.  We use the base state pressure instead,
+        //    just as the 3-D plotfile path does.
+        return use_hse_pressure ? p_hse_arr(i, j, k)
+                                : getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_for_eos);
     case SampledFieldID::HeightMSL:
         if (have_z_phys_cc) {
             return z_phys_cc_arr(i, j, k);

@@ -8,12 +8,12 @@ using namespace amrex;
 /*! \brief Advance the moisture model for a timestep
  *
  * Evolve the super-droplet particles for a timestep - this includes:
- * one Injection of new particles if configured
- * two Phase change (condensation/evaporation) if enabled
- * three Advection if enabled
- * Real(4.) Coalescence if enabled
- * Real(5.) Recycling of particles
- * Real(6.) Computing diagnostics at specified intervals
+ * 1. Injection of new particles if configured
+ * 2. Phase change (condensation/evaporation) if enabled
+ * 3. Advection if enabled
+ * 4. Coalescence if enabled
+ * 5. Recycling of particles
+ * 6. Computing diagnostics at specified intervals
  *
  * \param[in] a_dt Timestep size
  * \param[in] a_iter Current iteration number
@@ -104,10 +104,32 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
 
     // Coalescence of super-droplets
     if (m_flag_coalescence) {
+        // Compute moist density
+        MultiFab mf_moist_density(  m_mic_fab_vars[lev][MicVar_SD::rho]->boxArray(),
+                                    m_mic_fab_vars[lev][MicVar_SD::rho]->DistributionMap(),
+                                    1,
+                                    m_mic_fab_vars[lev][MicVar_SD::rho]->nGrowVect() );
+        for ( MFIter mfi(mf_moist_density); mfi.isValid(); ++mfi) {
+
+            Box bx = mfi.tilebox();
+            bx.grow(mf_moist_density.nGrowVect());
+
+            auto qv_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->const_array(mfi);
+            auto rho_arr = m_mic_fab_vars[lev][MicVar_SD::rho]->const_array(mfi);
+            auto rhom_arr = mf_moist_density.array(mfi);
+
+            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                         { rhom_arr(i,j,k) = (1.0+qv_arr(i,j,k)) * rho_arr(i,j,k); } );
+        }
+        mf_moist_density.FillBoundary();
+
         m_super_droplets->Coalescence(  current_lev,
                                         a_dt,
                                         *m_mic_fab_vars[lev][MicVar_SD::pressure],
-                                        *m_mic_fab_vars[lev][MicVar_SD::temperature] );
+                                        mf_moist_density,
+                                        *m_mic_fab_vars[lev][MicVar_SD::temperature],
+                                        *m_mic_fab_vars[lev][MicVar_SD::q_v],
+                                        a_z );
     }
 
     // Recycle super-droplets
@@ -115,7 +137,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt,
 
     // Diagnostics on level 0 only (avoids double-counting)
     if (current_lev == 0) {
-        m_super_droplets->Diagnostics(a_iter, current_lev, a_time, (((a_iter+1)%m_diagnostics_iter==0) && (m_diagnostics_iter>0)));
+        m_super_droplets->Diagnostics(a_iter, current_lev, a_time, ((m_diagnostics_iter>0) && ((a_iter+1)%m_diagnostics_iter==0)));
     }
 }
 

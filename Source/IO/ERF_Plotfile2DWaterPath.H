@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DWaterPath.H
+ */
 #ifndef ERF_PLOTFILE2DWATERPATH_H_
 #define ERF_PLOTFILE2DWATERPATH_H_
 
