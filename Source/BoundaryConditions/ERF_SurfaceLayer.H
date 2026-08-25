@@ -990,6 +990,55 @@ public:
   }
 
   /**
+   * Return whether the MOST averages are filtered in time.
+   */
+  bool mac_avg_is_time_averaged () const { return m_ma.do_time_averaging(); }
+
+  /**
+   * Return the number of MOST-average components.
+   */
+  int get_num_mac_avg () const { return m_ma.get_navg(); }
+
+  /**
+   * Return whether the time filter at this level holds meaningful history.
+   *
+   * @param[in] lev level index
+   */
+  bool mac_avg_is_initialized (const int& lev) const { return m_ma.time_avg_is_initialized(lev); }
+
+  /**
+   * Declare the time filter at this level to hold meaningful history (restart).
+   *
+   * @param[in] lev level index
+   */
+  void set_mac_avg_initialized (const int& lev) { m_ma.set_time_avg_initialized(lev); }
+
+  /**
+   * Return a MOST-average field for modification (restart).
+   *
+   * @param[in] lev  level index
+   * @param[in] comp component index
+   */
+  amrex::MultiFab* get_mac_avg_ptr (const int& lev, int comp) { return m_ma.get_average(lev, comp); }
+
+  /**
+   * Return the filtered plane averages, which hold the filter state for the
+   * plane and EB averaging policies.
+   *
+   * @param[in] lev level index
+   */
+  amrex::Vector<amrex::Real> get_mac_plane_avg (const int& lev) const { return m_ma.get_plane_average(lev); }
+
+  /**
+   * Restore the filtered plane averages from a checkpoint; returns false if the
+   * checkpoint does not hold what this run expects.
+   *
+   * @param[in] lev  level index
+   * @param[in] pavg filtered plane averages, one per average component
+   */
+  bool set_mac_plane_avg (const int& lev, const amrex::Vector<amrex::Real>& pavg) { return m_ma.set_plane_average(lev, pavg); }
+
+  /**
    * Return the surface-temperature field.
    *
    * @param[in] lev level index

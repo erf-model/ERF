@@ -235,6 +235,77 @@ public:
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
     /**
+     * Return one 2D average MultiFab for modification (used to restore the
+     * exponential filter state from a checkpoint).
+     *
+     * @param[in] lev  level index
+     * @param[in] comp average component index
+     */
+    [[nodiscard]] amrex::MultiFab* get_average (const int& lev, const int& comp) { return m_averages[lev][comp].get(); }
+
+    /**
+     * Return whether the averages are filtered in time (erf.most.time_average).
+     */
+    [[nodiscard]] bool do_time_averaging () const { return m_t_avg; }
+
+    /**
+     * Return the number of average components.
+     */
+    [[nodiscard]] int get_navg () const { return m_navg; }
+
+    /**
+     * Return whether the time filter at this level holds meaningful history.
+     * Until it does, the next average is taken to be the instantaneous one.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] bool time_avg_is_initialized (const int& lev) const
+    {
+        return ( m_t_avg && (lev < static_cast<int>(m_t_init.size())) && (m_t_init[lev] == 1) );
+    }
+
+    /**
+     * Declare the time filter at this level to hold meaningful history.  This is
+     * used on restart, once the filter state has been read back in.
+     *
+     * @param[in] lev level index
+     */
+    void set_time_avg_initialized (const int& lev)
+    {
+        if (m_t_avg) { m_t_init[lev] = 1; }
+    }
+
+    /**
+     * Return the filtered plane averages, which hold the filter state for the
+     * plane and EB policies.  The region policy holds its state in m_averages
+     * instead and never allocates these, in which case this is empty.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] amrex::Vector<amrex::Real> get_plane_average (const int& lev) const
+    {
+        if (lev < static_cast<int>(m_plane_average.size())) { return m_plane_average[lev]; }
+        return amrex::Vector<amrex::Real>{};
+    }
+
+    /**
+     * Restore the filtered plane averages from a checkpoint.  Returns false if the
+     * checkpoint does not hold what this run expects, e.g. because the averaging
+     * policy changed, in which case nothing is restored.
+     *
+     * @param[in] lev  level index
+     * @param[in] pavg filtered plane averages, one per average component
+     */
+    bool set_plane_average (const int& lev, const amrex::Vector<amrex::Real>& pavg)
+    {
+        const int n_have = (lev < static_cast<int>(m_plane_average.size())) ?
+                            static_cast<int>(m_plane_average[lev].size()) : 0;
+        if (n_have != static_cast<int>(pavg.size())) { return false; }
+        if (n_have > 0) { m_plane_average[lev] = pavg; }
+        return true;
+    }
+
+    /**
      * Return z_ref, which may be computed from a specified k-index.
      *
      * @param[in] lev level index
