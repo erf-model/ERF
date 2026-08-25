@@ -182,8 +182,11 @@ init_which_terrain_grid (int lev,
     int terrain_smoothing = 0;
     pp.query("terrain_smoothing", terrain_smoothing);
 
+    // For fine levels with STF/Sullivan TF, we rely on interpolated coordinates
+    // from the coarse level. The z_phys_nd has already been interpolated in
+    // ERF_MakeNewArrays.cpp, so we skip the terrain transformation here.
     if (lev > 0 && terrain_smoothing != 0) {
-        Abort("Must use terrain_smoothing = 0 when doing multilevel");
+        return; // Early return: use interpolated z_phys_nd from coarse level
     }
 
     // Number of ghost cells
