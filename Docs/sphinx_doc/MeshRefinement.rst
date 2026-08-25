@@ -30,6 +30,10 @@ individual grids.
 
 See the `Gridding`_ section of the AMReX documentation for details of how individual grids are created.
 
+By default the boxes covering a tagged region span the full vertical extent of
+that region, i.e. the grids are not decomposed in the z direction; see
+:ref:`subsec:no-vertical-decomposition` for the parameters that control this.
+
 .. _`Gridding`: https://amrex-codes.github.io/amrex/docs_html/ManagingGridHierarchy_Chapter.html
 
 Static Mesh Refinement
