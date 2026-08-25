@@ -12,10 +12,71 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
+#include <filesystem>
+#include <sstream>
+
 #include "ERF_NCInterface.H"
 #include "ERF_Radiation.H"
 
 using namespace amrex;
+
+namespace {
+/**
+ * Verify that the directory named by erf.rrtmgp_file_path exists and holds the four
+ * netCDF lookup tables RRTMGP needs. Without this check, a missing directory or file
+ * surfaces as a bare "NetCDF: No such file or directory" from deep inside the netCDF
+ * layer, with no indication of which file was wanted or which input controls it.
+ *
+ * @param[in] path   value of erf.rrtmgp_file_path
+ * @param[in] files  (input parameter name, file name) pairs for the required data files
+ */
+void
+check_rrtmgp_data_files (const std::string& path,
+                         const std::vector<std::pair<std::string,std::string>>& files)
+{
+    namespace fs = std::filesystem;
+
+    // Report the absolute path as well, since a relative erf.rrtmgp_file_path is
+    // resolved against the run directory and not against the inputs file.
+    std::error_code ec;
+    const fs::path dir(path);
+    const fs::path abs_dir = fs::absolute(dir, ec);
+    const std::string resolved = ec ? path : abs_dir.string();
+
+    std::ostringstream problem;
+
+    if (!fs::exists(dir, ec) || !fs::is_directory(dir, ec)) {
+        problem << "The RRTMGP data directory does not exist:\n"
+                << "    erf.rrtmgp_file_path = " << path << "\n"
+                << "    (resolved to " << resolved << ")\n";
+    } else {
+        std::ostringstream missing;
+        int nmissing = 0;
+        for (const auto& [param, file] : files) {
+            if (!fs::is_regular_file(dir / file, ec)) {
+                missing << "    " << file << "  (set by erf." << param << ")\n";
+                ++nmissing;
+            }
+        }
+        if (nmissing == 0) { return; }
+        problem << "The RRTMGP data directory\n"
+                << "    erf.rrtmgp_file_path = " << path << "\n"
+                << "    (resolved to " << resolved << ")\n"
+                << "exists, but " << nmissing << " of the required data file(s) were not found there:\n"
+                << missing.str();
+    }
+
+    Abort("RRTMGP radiation was requested, but its lookup data could not be found.\n"
+          + problem.str()
+          + "Set erf.rrtmgp_file_path in the inputs file to the directory that holds the\n"
+            "RRTMGP netCDF lookup tables. The k-distribution files are shipped with the\n"
+            "RRTMGP submodule in Submodules/RRTMGP/rrtmgp/data and the cloud optics files\n"
+            "in Submodules/RRTMGP/extensions/cloud_optics (run\n"
+            "'git submodule update --init --recursive' if those directories are empty);\n"
+            "the full data package may also be downloaded from\n"
+            "https://doi.org/10.22002/ppv8a-4q131 .\n");
+}
+} // namespace
 
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
@@ -118,6 +179,16 @@ Radiation::Radiation (const int& lev,
     pp.query("rrtmgp_coeffs_lw"      , rrtmgp_coeffs_lw  );
     pp.query("rrtmgp_cloud_optics_sw", rrtmgp_cloud_optics_sw);
     pp.query("rrtmgp_cloud_optics_lw", rrtmgp_cloud_optics_lw);
+
+    // Fail early, and with a message that names the missing files and the inputs that
+    // control them, rather than letting netCDF report a bare "No such file or directory"
+    // when the coefficients are opened just below (or, for the cloud optics files, much
+    // later inside rrtmgp_initialize). Every rank does this so that all of them abort.
+    check_rrtmgp_data_files(rrtmgp_file_path,
+                            {{"rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw      },
+                             {"rrtmgp_coeffs_lw"      , rrtmgp_coeffs_lw      },
+                             {"rrtmgp_cloud_optics_sw", rrtmgp_cloud_optics_sw},
+                             {"rrtmgp_cloud_optics_lw", rrtmgp_cloud_optics_lw}});
 
     // Append file names to path
     rrtmgp_coeffs_file_sw       = rrtmgp_file_path + "/" + rrtmgp_coeffs_sw;
