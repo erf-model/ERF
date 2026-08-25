@@ -81,7 +81,7 @@ TEST(IntervalMeansRestart, BoxArrayMismatchIsRejectedButProcessorMapIsNotAConstr
 
 TEST(IntervalMeansRestart, RejectsMalformedAndTruncatedHeaders)
 {
-    for (const std::string text : {
+    for (const std::string& text : {
              std::string("ERF interval means checkpoint v0\n1 10\n"),
              std::string("ERF interval means checkpoint v1\n1 10\n0 1.0 0\n"),
              std::string("ERF interval means checkpoint v1\n1 10\n0 -1.0 0\n")}) {
