@@ -814,7 +814,9 @@ public:
       //       done earlier in update_fluxes. Coupled SST is applied after this
       //       call and therefore still wins on the water cells it covers.
       if (surf_heating_rate != 0) {
-          int nlevs = static_cast<int>(m_geom.size());
+          // Use actual size of t_surf array, not m_geom.size()
+          // This avoids out-of-bounds when called before init() resizes arrays
+          int nlevs = static_cast<int>(t_surf.size());
           for (int lev = 0; lev < nlevs; lev++) {
               t_surf[lev]->setVal(surf_temp + surf_heating_rate * static_cast<amrex::Real>(time));
               amrex::Print() << "Surface temp at t=" << time << ": "
