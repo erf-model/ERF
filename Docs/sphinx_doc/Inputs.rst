@@ -828,13 +828,14 @@ Diagnostic Outputs
 If ``erf.v`` is set then one or more additional output files may be requested.
 These are **useful for idealized, horizontally homogeneous simulation domains**
 and include (1) a surface time history file, (2) a history of mean profiles,
-(3) a history of vertical flux profiles (i.e., variances and covariances), and
-(4) a history of modeled subgrid stresses. The profiles are calculated from
-planar averages.
+(3) a history of vertical flux profiles (i.e., variances and covariances),
+(4) a history of modeled subgrid stresses, and (5) a history of large scale
+forcing and nudging data. The profiles are calculated from planar averages.
 
 The number of output filenames specified through ``erf.data_log`` dictates the
-level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3).
-Data files are only written if ``erf.profile_int > 0``.
+level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3);
+specifying 5 filenames will also include output (5). Data files are only written
+if ``erf.profile_int > 0``.
 
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
@@ -849,7 +850,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.data_log**              | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to five     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.der_data_log**          | Output           | Up to four     | NONE           |
@@ -993,6 +994,41 @@ The requested output files have the following columns:
   #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+* Large scale forcing and nudging profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. Total applied temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Total applied water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Large-scale subsidence velocity, :math:`w_{sub}` (m/s)
+
+  #. Horizontal temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Horizontal water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Vertical water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical cloud water tendency, :math:`\partial q_c / \partial t` (kg/kg/s)
+
+  #. Temperature nudging tendency, :math:`\theta_{nudge}` (K/s)
+
+  #. Water vapor nudging tendency, :math:`q_{v,nudge}` (kg/kg/s)
+
+  #. X-velocity nudging tendency, :math:`u_{nudge}` (m/s2)
+
+  #. Y-velocity nudging tendency, :math:`v_{nudge}` (m/s2)
+
+.. note::
+
+   The vertical tendency columns are only populated for interior cells between
+   the bottom and top boundaries; they are zero at the domain edges.
 
 
 Data Sampling Outputs
@@ -1728,6 +1764,64 @@ with an ``erf.abl_geo_wind_table``.
 - Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
+
+
+Large Scale Forcing
+--------------------
+
+Large-scale forcing can be used to prescribe time-varying vertical profiles for
+temperature, water vapor, horizontal wind, and vertical subsidence.
+To enable it, set::
+
+  erf.large_scale_forcing      = true
+  erf.large_scale_forcing_file = lsf.txt
+  erf.forcing_timescale        = 3600.0
+
+where ``erf.large_scale_forcing_file`` is the path to a text file containing the
+large scale forcing data and ``erf.forcing_timescale`` is the relaxation timescale
+(in seconds) for nudging velocities. The file contains one or more time blocks, where each time
+block is denoted with a header containing the day, number of levels in the block, and reference
+pressure for that time. Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls``
+corresponding to level height, pressure, large scale temperature and moisture tendency, large scale
+zonal and meridional velocity, and large scale vertical subsidence velocity.
+
+- Either a height grid ``z[m]`` or pressure grid ``p[mb]`` can be provided, where one can be a negative number
+  to indicate the other grid type should be used (e.g. if the ``z`` values are negative, the file is
+  interpreted as pressure-level data instead of height-level data). If both grids are provided, then the ``z`` grid is used.
+
+- The large scale forcing grid is interpolated to the ERF grid, similar to the input sounding.
+
+- ``erf.forcing_timescale`` is the relaxation time scale used when nudging the
+  horizontal velocities toward the ``uls`` and ``vls`` profiles. The
+  temperature, moisture, and subsidence tendencies are applied directly and
+  are not scaled by this option.
+
+- Times are converted to elapsed seconds relative to the first timestamp in the file.
+
+- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
+  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+
+- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
+  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
+  sounding ``tau_nudging`` timescale.
+
+Example file format for large scale forcing:
+
+.. code-block:: text
+
+   z[m] p[mb]  tls[K/s] qls[kg/kg/s] uls  vls  wls[m/s]
+   0.0,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.0  0.0  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.5  0.2  0.000e+00
+   1000.0   900.00 -5.000e-06  0.000e+00  2.0  1.0  0.000e+00
+   5000.0   500.00 -1.000e-05  0.000e+00  6.0  3.0  0.000e+00
+   0.5,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.2  0.1  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.7  0.3  0.000e+00
+   1000.0   900.00 -2.500e-06  0.000e+00  2.5  1.2  0.000e+00
+   5000.0   500.00 -8.000e-06  0.000e+00  6.5  3.2  0.000e+00
+
 
 Boundary Plane I/O (Coupling Support)
 =====================================
