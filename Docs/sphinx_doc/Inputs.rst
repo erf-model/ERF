@@ -745,13 +745,14 @@ Diagnostic Outputs
 If ``erf.v`` is set then one or more additional output files may be requested.
 These are **useful for idealized, horizontally homogeneous simulation domains**
 and include (1) a surface time history file, (2) a history of mean profiles,
-(3) a history of vertical flux profiles (i.e., variances and covariances), and
-(4) a history of modeled subgrid stresses. The profiles are calculated from
-planar averages.
+(3) a history of vertical flux profiles (i.e., variances and covariances),
+(4) a history of modeled subgrid stresses, and (5) a history of large scale
+forcing and nudging data. The profiles are calculated from planar averages.
 
 The number of output filenames specified through ``erf.data_log`` dictates the
-level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3).
-Data files are only written if ``erf.profile_int > 0``.
+level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3);
+specifying 5 filenames will also include output (5). Data files are only written
+if ``erf.profile_int > 0``.
 
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
@@ -766,7 +767,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.data_log**              | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to five     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.der_data_log**          | Output           | Up to four     | NONE           |
@@ -910,6 +911,36 @@ The requested output files have the following columns:
   #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+* Large scale forcing and nudging profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. Large-scale temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Large-scale water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Large-scale subsidence velocity, :math:`w_{sub}` (m/s)
+
+  #. Horizontal temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Horizontal water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Vertical water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical cloud water tendency, :math:`\partial q_c / \partial t` (kg/kg/s)
+
+  #. Temperature nudging tendency, :math:`\theta_{nudge}` (K/s)
+
+  #. Water vapor nudging tendency, :math:`q_{v,nudge}` (kg/kg/s)
+
+  #. X-velocity nudging tendency, :math:`u_{nudge}` (m/s2)
+
+  #. Y-velocity nudging tendency, :math:`v_{nudge}` (m/s2)
 
 
 Data Sampling Outputs
