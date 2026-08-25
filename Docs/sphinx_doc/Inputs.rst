@@ -1677,6 +1677,53 @@ with an ``erf.abl_geo_wind_table``.
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
 
+
+Large Scale Forcing
+--------------------
+
+Large-scale forcing can be used to prescribe time-varying vertical profiles for
+temperature, water vapor, horizontal wind, and vertical subsidence.
+A text file containing the large scale forcing data is provided using the ``erf.large_scale_forcing_file``
+option. The file contains one or more time blocks, where each time block is denoted with
+a header containing the day, number of levels in the block, and reference pressure for that time.
+Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls`` corresponding to level
+height, pressure, large scale temperature and moisture tendency, large scale zonal and meridonal velocity,
+and large scale vertical subsidence velocity.
+
+- Either a height grid ``z[m]`` or pressure grid ``p[mb]`` can be provided, where one can be a negative number
+  to indicate the other grid type should be used (e.g. if the ``z`` values are negative, the file is
+  interpreted as pressure-level data instead of height-level data). If both grids are provided, then the ``z`` grid is used.
+
+- The large scale forcing grid is interpolated to the ERF grid, similar to the input sounding.
+
+- Large scale tendencies are applied based on a time period in seconds specified by the ``erf.forcing_timescale`` option.
+
+- Times are converted to elapsed seconds relative to the first timestamp in the file.
+
+- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
+  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+
+- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding (using the lsf forcing timescale).
+  Temperature and moisture are nudged from input sounding as normal (using the input sounding tau_nudging timescale).
+
+Example file format for large scale forcing:
+
+.. code-block:: text
+
+   z[m] p[mb]  tls[K/s] qls[kg/kg/s] uls  vls  wls[m/s]
+   0.0,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.0  0.0  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.5  0.2  0.000e+00
+   1000.0   900.00 -5.000e-06  0.000e+00  2.0  1.0  0.000e+00
+   5000.0   500.00 -1.000e-05  0.000e+00  6.0  3.0  0.000e+00
+   0.5,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.2  0.1  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.7  0.3  0.000e+00
+   1000.0   900.00 -2.500e-06  0.000e+00  2.5  1.2  0.000e+00
+   5000.0   500.00 -8.000e-06  0.000e+00  6.5  3.2  0.000e+00
+
+
 Boundary Plane I/O (Coupling Support)
 =====================================
 
