@@ -637,7 +637,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                  var_name == "QSNOW"   ||
                  var_name == "QGRAUP" )
             {
-                int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
                 int icomp = -1;
@@ -1530,8 +1529,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                             ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes);
         }
         auto repack_runtime_bdy = [&] (const int itime) {
-            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
             repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
             repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
             repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
