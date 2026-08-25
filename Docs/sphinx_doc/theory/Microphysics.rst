@@ -327,8 +327,9 @@ interactions and warm-rain precipitation processes. Ice-phase species (cloud ice
 graupel/hail) retain the single-moment treatment from WSM6.
 
 ERF's WDM6 implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_ and supports both
-the Fortran-C++ bridge and native C++ execution. The scheme transports six water species
-(including water vapor) and three number concentration fields.
+CPU execution through the Fortran-C++ bridge and GPU execution through the native C++
+implementation. The scheme transports six water species (including water vapor) and three
+number concentration fields.
 
 .. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/v4.7.1/phys/module_mp_wdm6.F
 
@@ -383,8 +384,8 @@ Future WRF updates can be assessed by visually diffing ``ERF_module_mp_wdm6.F90`
 corresponding upstream ``phys/module_mp_wdm6.F`` and reviewing the documented ERF-specific
 changes as a separate patch.
 
-**Native C++ execution:** A native C++ implementation of all WDM6 microphysical processes
-supports execution on both CPUs and GPUs.
+**GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
+enables efficient execution on GPUs. The native implementation can also run on CPUs.
 
 The implementation handles both graupel and hail regimes via the ``hail_opt`` parameter, which
 modifies fall speed coefficients and size distribution parameters for the graupel/hail category.
