@@ -177,14 +177,14 @@ List of Parameters
 | **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
 |                                   | to fine grid       | (one per level) | levels      |
 |                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | subsequent levels, |                 |             |
+|                                   | in every direction |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
-|                                   | to fine grid       | (one per dir)   | directions  |
-|                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | to fine grid       | per level, one  | levels and  |
+|                                   | spacing between    | per coordinate  | directions  |
+|                                   | subsequent levels, | direction       |             |
+|                                   | per direction      |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
 |                                   | regrid             | (if negative,   |             |
@@ -235,9 +235,18 @@ Examples of Usage
      may appear in that line and they will be ignored).
 
 -  | **amr.ref_ratio_vect** = 2 4 3
-   | would set factor {2 in x-dir, 4 in y-dir, 3 in z-dir} refinement between
-     all adjacent levels.    Note that you must specify 3 values, one for
-     each coordinate direction.
+   | with **amr.max_level** = 1, this would set factor {2 in x-dir, 4 in y-dir,
+     3 in z-dir} refinement between levels 0 and 1.  Note that you must specify
+     3 values for every refined level, i.e. 3 :math:`\times` **amr.max_level**
+     values in all, ordered (x,y,z) for level 0, then (x,y,z) for level 1, and
+     so on.  **amr.ref_ratio** and **amr.ref_ratio_vect** may not both be given.
+
+-  | **amr.ref_ratio_vect** = 2 2 1
+   | refines by a factor of 2 in x and y but not at all in z, so the fine level
+     has the same vertical grid spacing as the coarse level.  Note that
+     **amr.ref_ratio** cannot express this, since it applies a single ratio in
+     all three directions; see :ref:`MeshRefinement` for the distinction between
+     refining in z and creating a finer level over a region.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new
@@ -331,6 +340,15 @@ List of Parameters
 | **amr.n_error_buf**          | radius of additional tagging     | Integer >= 0    | 0                   |
 |                              | around already tagged cells      |                 |                     |
 +------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_x**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the x-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_y**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the y-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_z**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the z-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
 | **amr.n_proper**             | minimum number of coarse cells   | Integer > 0     | 2                   |
 |                              | between coarse-fine boundaries   |                 |                     |
 +------------------------------+----------------------------------+-----------------+---------------------+
@@ -387,8 +405,9 @@ Notes
    **amr.blocking_factor** can be read in as a single value which is
    assigned to every level, or as multiple values, one for each level
 
--  **amr.max_grid_size** and **amr.blocking_factor** apply to all coordinate
-   directions; the per-direction forms **amr.max_grid_size_x/_y/_z** and
+-  **amr.n_error_buf**, **amr.max_grid_size** and **amr.blocking_factor** apply
+   to all coordinate directions; the per-direction forms
+   **amr.n_error_buf_x/_y/_z**, **amr.max_grid_size_x/_y/_z** and
    **amr.blocking_factor_x/_y/_z** override them in the specified direction
    only, and may also be specified per level
 
