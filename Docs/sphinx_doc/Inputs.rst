@@ -318,49 +318,79 @@ refinement.
 List of Parameters
 ------------------
 
-+----------------------------+----------------+----------------+----------------+
-| Parameter                  | Definition     | Acceptable     | Default        |
-|                            |                | Values         |                |
-+============================+================+================+================+
-| **amr.regrid_file**        | name of file   | text           | no file        |
-|                            | from which to  |                |                |
-|                            | read the grids |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.grid_eff**           | grid           | Real > 0, < 1  | 0.7            |
-|                            | efficiency at  |                |                |
-|                            | coarse level   |                |                |
-|                            | at which grids |                |                |
-|                            | are created    |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.n_error_buf**        | radius of      | Integer >= 0   | 1              |
-|                            | additional     |                |                |
-|                            | tagging around |                |                |
-|                            | already tagged |                |                |
-|                            | cells          |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer > 0    | 32             |
-|                            | of a grid in   |                |                |
-|                            | any direction  |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.blocking_factor**    | grid size must | Integer > 0    | 2              |
-|                            | be a multiple  |                |                |
-|                            | of this        |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.refine_grid_layout** | refine grids   | 0 if false, 1  | 1              |
-|                            | more if # of   | if true        |                |
-|                            | processors     |                |                |
-|                            | :math:`>` # of |                |                |
-|                            | grids          |                |                |
-+----------------------------+----------------+----------------+----------------+
++------------------------------+----------------------------------+-----------------+---------------------+
+| Parameter                    | Definition                       | Acceptable      | Default             |
+|                              |                                  | Values          |                     |
++==============================+==================================+=================+=====================+
+| **amr.regrid_file**          | name of file from which to read  | text            | no file             |
+|                              | the grids                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.grid_eff**             | grid efficiency at coarse level  | Real > 0, < 1   | 0.7                 |
+|                              | at which grids are created       |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf**          | radius of additional tagging     | Integer >= 0    | 0                   |
+|                              | around already tagged cells      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_proper**             | minimum number of coarse cells   | Integer > 0     | 2                   |
+|                              | between coarse-fine boundaries   |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size**        | maximum size of a grid in every  | Integer > 0     | 2048                |
+|                              | direction                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_x**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | x-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_y**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | y-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_z**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | z-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor**      | grid size must be a multiple of  | Integer > 0     | 1                   |
+|                              | this in every direction          |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_x**    | grid size in x must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_y**    | grid size in y must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_z**    | grid size in z must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout**   | chop grids further if # of       | 0 if false, 1   | 1                   |
+|                              | processors > # of grids          | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_x** | chop in x when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_y** | chop in y when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_z** | chop in z when refining the grid | 0 if false, 1   | 0                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
 
 .. _notes-2:
 
 Notes
 -----
 
+-  ERF changes several of the AMReX gridding defaults; the values in the table
+   above are the ERF defaults, and they are set in ``add_par`` in
+   ``Source/main.cpp``.  In particular **amr.max_grid_size** defaults to a very
+   large value (so that grids are chopped only when there are more processors
+   than grids), **amr.blocking_factor** defaults to 1, and
+   **amr.refine_grid_layout_z** defaults to 0 (the AMReX default is 1).
+
 -  **amr.n_error_buf**, **amr.max_grid_size** and
    **amr.blocking_factor** can be read in as a single value which is
    assigned to every level, or as multiple values, one for each level
+
+-  **amr.max_grid_size** and **amr.blocking_factor** apply to all coordinate
+   directions; the per-direction forms **amr.max_grid_size_x/_y/_z** and
+   **amr.blocking_factor_x/_y/_z** override them in the specified direction
+   only, and may also be specified per level
 
 -  **amr.max_grid_size** at every level must be even
 
@@ -371,6 +401,10 @@ Notes
 
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
+
+-  **amr.refine_grid_layout** is a single flag that sets all three of
+   **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
+   specified it takes precedence in that direction
 
 .. _examples-of-usage-4:
 
@@ -407,6 +441,55 @@ Examples of Usage
 -  | **amr.blocking_factor** = 32 16 8
    | The dimensions of all the final grids will be multiples of 32 at
      level 0, multiples of 16 at level 1, and multiples of 8 at level 2.
+
+-  | **amr.max_grid_size_x** = 64
+   | **amr.max_grid_size_y** = 64
+   | The final grids will be no longer than 64 cells in the x and y
+     directions, but will not be limited in the z direction.  This is the
+     way to limit the horizontal box size without decomposing the grids
+     vertically.
+
+-  | **amr.refine_grid_layout_z** = 1
+   | Allow the grids to be chopped in the vertical direction as well as
+     horizontally when there are more processors than grids.  This is *not*
+     the ERF default.
+
+.. _subsec:no-vertical-decomposition:
+
+Avoiding Decomposition in the Vertical Direction
+------------------------------------------------
+
+Many ERF workflows want each box to span the full vertical extent of the domain
+or of the refined region -- for example because a physics package operates on
+entire columns.  (Native SHOC requires this and will abort if any box is split
+in z.)  ERF is set up so that this is the default behavior, in both places where
+grids are created:
+
+-  **When the level 0 grids are created**, ERF decomposes the domain across the
+   processors itself (see ``ERFPostProcessBaseGrids``).  It decomposes in the
+   vertical direction only if **amr.max_grid_size_z** is smaller than
+   **amr.n_cell** in the z direction.  Since **amr.max_grid_size** defaults to a
+   very large value, no vertical decomposition is done unless it is requested.
+
+-  **When grids are chopped to give at least one grid per processor**, either
+   during regridding at a finer level or when regridding level 0 on restart,
+   AMReX only chops in the directions for which the corresponding
+   **amr.refine_grid_layout_x/_y/_z** flag is set.  Because ERF defaults
+   **amr.refine_grid_layout_z** to 0, this load-balancing step never splits a
+   box in the vertical direction.
+
+The usual way to *accidentally* introduce a vertical decomposition is to set
+**amr.max_grid_size** as a single value, since that limits the box size in all
+three directions.  To limit the box size horizontally only, use the
+per-direction forms, e.g.
+
+::
+
+     amr.max_grid_size_x = 64
+     amr.max_grid_size_y = 64
+
+and leave **amr.max_grid_size_z** at its (large) default.  The same holds for
+**amr.blocking_factor** versus **amr.blocking_factor_x/_y**.
 
 .. _subsec:grid-generation:
 
