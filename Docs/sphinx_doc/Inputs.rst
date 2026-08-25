@@ -177,14 +177,14 @@ List of Parameters
 | **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
 |                                   | to fine grid       | (one per level) | levels      |
 |                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | subsequent levels, |                 |             |
+|                                   | in every direction |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
-|                                   | to fine grid       | (one per dir)   | directions  |
-|                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | to fine grid       | per level, one  | levels and  |
+|                                   | spacing between    | per coordinate  | directions  |
+|                                   | subsequent levels, | direction       |             |
+|                                   | per direction      |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
 |                                   | regrid             | (if negative,   |             |
@@ -235,9 +235,18 @@ Examples of Usage
      may appear in that line and they will be ignored).
 
 -  | **amr.ref_ratio_vect** = 2 4 3
-   | would set factor {2 in x-dir, 4 in y-dir, 3 in z-dir} refinement between
-     all adjacent levels.    Note that you must specify 3 values, one for
-     each coordinate direction.
+   | with **amr.max_level** = 1, this would set factor {2 in x-dir, 4 in y-dir,
+     3 in z-dir} refinement between levels 0 and 1.  Note that you must specify
+     3 values for every refined level, i.e. 3 :math:`\times` **amr.max_level**
+     values in all, ordered (x,y,z) for level 0, then (x,y,z) for level 1, and
+     so on.  **amr.ref_ratio** and **amr.ref_ratio_vect** may not both be given.
+
+-  | **amr.ref_ratio_vect** = 2 2 1
+   | refines by a factor of 2 in x and y but not at all in z, so the fine level
+     has the same vertical grid spacing as the coarse level.  Note that
+     **amr.ref_ratio** cannot express this, since it applies a single ratio in
+     all three directions; see :ref:`MeshRefinement` for the distinction between
+     refining in z and creating a finer level over a region.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new
@@ -318,49 +327,89 @@ refinement.
 List of Parameters
 ------------------
 
-+----------------------------+----------------+----------------+----------------+
-| Parameter                  | Definition     | Acceptable     | Default        |
-|                            |                | Values         |                |
-+============================+================+================+================+
-| **amr.regrid_file**        | name of file   | text           | no file        |
-|                            | from which to  |                |                |
-|                            | read the grids |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.grid_eff**           | grid           | Real > 0, < 1  | 0.7            |
-|                            | efficiency at  |                |                |
-|                            | coarse level   |                |                |
-|                            | at which grids |                |                |
-|                            | are created    |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.n_error_buf**        | radius of      | Integer >= 0   | 1              |
-|                            | additional     |                |                |
-|                            | tagging around |                |                |
-|                            | already tagged |                |                |
-|                            | cells          |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer > 0    | 32             |
-|                            | of a grid in   |                |                |
-|                            | any direction  |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.blocking_factor**    | grid size must | Integer > 0    | 2              |
-|                            | be a multiple  |                |                |
-|                            | of this        |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.refine_grid_layout** | refine grids   | 0 if false, 1  | 1              |
-|                            | more if # of   | if true        |                |
-|                            | processors     |                |                |
-|                            | :math:`>` # of |                |                |
-|                            | grids          |                |                |
-+----------------------------+----------------+----------------+----------------+
++------------------------------+----------------------------------+-----------------+---------------------+
+| Parameter                    | Definition                       | Acceptable      | Default             |
+|                              |                                  | Values          |                     |
++==============================+==================================+=================+=====================+
+| **amr.regrid_file**          | name of file from which to read  | text            | no file             |
+|                              | the grids                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.grid_eff**             | grid efficiency at coarse level  | Real > 0, < 1   | 0.7                 |
+|                              | at which grids are created       |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf**          | radius of additional tagging     | Integer >= 0    | 0                   |
+|                              | around already tagged cells      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_x**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the x-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_y**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the y-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_z**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the z-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_proper**             | minimum number of coarse cells   | Integer > 0     | 2                   |
+|                              | between coarse-fine boundaries   |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size**        | maximum size of a grid in every  | Integer > 0     | 2048                |
+|                              | direction                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_x**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | x-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_y**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | y-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_z**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | z-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor**      | grid size must be a multiple of  | Integer > 0     | 1                   |
+|                              | this in every direction          |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_x**    | grid size in x must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_y**    | grid size in y must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_z**    | grid size in z must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout**   | chop grids further if # of       | 0 if false, 1   | 1                   |
+|                              | processors > # of grids          | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_x** | chop in x when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_y** | chop in y when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_z** | chop in z when refining the grid | 0 if false, 1   | 0                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
 
 .. _notes-2:
 
 Notes
 -----
 
+-  ERF changes several of the AMReX gridding defaults; the values in the table
+   above are the ERF defaults, and they are set in ``add_par`` in
+   ``Source/main.cpp``.  In particular **amr.max_grid_size** defaults to a very
+   large value (so that grids are chopped only when there are more processors
+   than grids), **amr.blocking_factor** defaults to 1, and
+   **amr.refine_grid_layout_z** defaults to 0 (the AMReX default is 1).
+
 -  **amr.n_error_buf**, **amr.max_grid_size** and
    **amr.blocking_factor** can be read in as a single value which is
    assigned to every level, or as multiple values, one for each level
+
+-  **amr.n_error_buf**, **amr.max_grid_size** and **amr.blocking_factor** apply
+   to all coordinate directions; the per-direction forms
+   **amr.n_error_buf_x/_y/_z**, **amr.max_grid_size_x/_y/_z** and
+   **amr.blocking_factor_x/_y/_z** override them in the specified direction
+   only, and may also be specified per level
 
 -  **amr.max_grid_size** at every level must be even
 
@@ -371,6 +420,10 @@ Notes
 
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
+
+-  **amr.refine_grid_layout** is a single flag that sets all three of
+   **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
+   specified it takes precedence in that direction
 
 .. _examples-of-usage-4:
 
@@ -407,6 +460,55 @@ Examples of Usage
 -  | **amr.blocking_factor** = 32 16 8
    | The dimensions of all the final grids will be multiples of 32 at
      level 0, multiples of 16 at level 1, and multiples of 8 at level 2.
+
+-  | **amr.max_grid_size_x** = 64
+   | **amr.max_grid_size_y** = 64
+   | The final grids will be no longer than 64 cells in the x and y
+     directions, but will not be limited in the z direction.  This is the
+     way to limit the horizontal box size without decomposing the grids
+     vertically.
+
+-  | **amr.refine_grid_layout_z** = 1
+   | Allow the grids to be chopped in the vertical direction as well as
+     horizontally when there are more processors than grids.  This is *not*
+     the ERF default.
+
+.. _subsec:no-vertical-decomposition:
+
+Avoiding Decomposition in the Vertical Direction
+------------------------------------------------
+
+Many ERF workflows want each box to span the full vertical extent of the domain
+or of the refined region -- for example because a physics package operates on
+entire columns.  (Native SHOC requires this and will abort if any box is split
+in z.)  ERF is set up so that this is the default behavior, in both places where
+grids are created:
+
+-  **When the level 0 grids are created**, ERF decomposes the domain across the
+   processors itself (see ``ERFPostProcessBaseGrids``).  It decomposes in the
+   vertical direction only if **amr.max_grid_size_z** is smaller than
+   **amr.n_cell** in the z direction.  Since **amr.max_grid_size** defaults to a
+   very large value, no vertical decomposition is done unless it is requested.
+
+-  **When grids are chopped to give at least one grid per processor**, either
+   during regridding at a finer level or when regridding level 0 on restart,
+   AMReX only chops in the directions for which the corresponding
+   **amr.refine_grid_layout_x/_y/_z** flag is set.  Because ERF defaults
+   **amr.refine_grid_layout_z** to 0, this load-balancing step never splits a
+   box in the vertical direction.
+
+The usual way to *accidentally* introduce a vertical decomposition is to set
+**amr.max_grid_size** as a single value, since that limits the box size in all
+three directions.  To limit the box size horizontally only, use the
+per-direction forms, e.g.
+
+::
+
+     amr.max_grid_size_x = 64
+     amr.max_grid_size_y = 64
+
+and leave **amr.max_grid_size_z** at its (large) default.  The same holds for
+**amr.blocking_factor** versus **amr.blocking_factor_x/_y**.
 
 .. _subsec:grid-generation:
 
@@ -745,13 +847,14 @@ Diagnostic Outputs
 If ``erf.v`` is set then one or more additional output files may be requested.
 These are **useful for idealized, horizontally homogeneous simulation domains**
 and include (1) a surface time history file, (2) a history of mean profiles,
-(3) a history of vertical flux profiles (i.e., variances and covariances), and
-(4) a history of modeled subgrid stresses. The profiles are calculated from
-planar averages.
+(3) a history of vertical flux profiles (i.e., variances and covariances),
+(4) a history of modeled subgrid stresses, and (5) a history of large scale
+forcing and nudging data. The profiles are calculated from planar averages.
 
 The number of output filenames specified through ``erf.data_log`` dictates the
-level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3).
-Data files are only written if ``erf.profile_int > 0``.
+level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3);
+specifying 5 filenames will also include output (5). Data files are only written
+if ``erf.profile_int > 0``.
 
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
@@ -766,7 +869,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.data_log**              | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to five     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.der_data_log**          | Output           | Up to four     | NONE           |
@@ -910,6 +1013,41 @@ The requested output files have the following columns:
   #. *SGS cloud water flux*, :math:`\tau_{q_c w}` (K m/s) -- *staggered*
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+* Large scale forcing and nudging profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. Total applied temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Total applied water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Large-scale subsidence velocity, :math:`w_{sub}` (m/s)
+
+  #. Horizontal temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Horizontal water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Vertical water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical cloud water tendency, :math:`\partial q_c / \partial t` (kg/kg/s)
+
+  #. Temperature nudging tendency, :math:`\theta_{nudge}` (K/s)
+
+  #. Water vapor nudging tendency, :math:`q_{v,nudge}` (kg/kg/s)
+
+  #. X-velocity nudging tendency, :math:`u_{nudge}` (m/s2)
+
+  #. Y-velocity nudging tendency, :math:`v_{nudge}` (m/s2)
+
+.. note::
+
+   The vertical tendency columns are only populated for interior cells between
+   the bottom and top boundaries; they are zero at the domain edges.
 
 
 Data Sampling Outputs
@@ -1646,6 +1784,64 @@ with an ``erf.abl_geo_wind_table``.
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
 
+
+Large Scale Forcing
+--------------------
+
+Large-scale forcing can be used to prescribe time-varying vertical profiles for
+temperature, water vapor, horizontal wind, and vertical subsidence.
+To enable it, set::
+
+  erf.large_scale_forcing      = true
+  erf.large_scale_forcing_file = lsf.txt
+  erf.forcing_timescale        = 3600.0
+
+where ``erf.large_scale_forcing_file`` is the path to a text file containing the
+large scale forcing data and ``erf.forcing_timescale`` is the relaxation timescale
+(in seconds) for nudging velocities. The file contains one or more time blocks, where each time
+block is denoted with a header containing the day, number of levels in the block, and reference
+pressure for that time. Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls``
+corresponding to level height, pressure, large scale temperature and moisture tendency, large scale
+zonal and meridional velocity, and large scale vertical subsidence velocity.
+
+- Either a height grid ``z[m]`` or pressure grid ``p[mb]`` can be provided, where one can be a negative number
+  to indicate the other grid type should be used (e.g. if the ``z`` values are negative, the file is
+  interpreted as pressure-level data instead of height-level data). If both grids are provided, then the ``z`` grid is used.
+
+- The large scale forcing grid is interpolated to the ERF grid, similar to the input sounding.
+
+- ``erf.forcing_timescale`` is the relaxation time scale used when nudging the
+  horizontal velocities toward the ``uls`` and ``vls`` profiles. The
+  temperature, moisture, and subsidence tendencies are applied directly and
+  are not scaled by this option.
+
+- Times are converted to elapsed seconds relative to the first timestamp in the file.
+
+- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
+  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+
+- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
+  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
+  sounding ``tau_nudging`` timescale.
+
+Example file format for large scale forcing:
+
+.. code-block:: text
+
+   z[m] p[mb]  tls[K/s] qls[kg/kg/s] uls  vls  wls[m/s]
+   0.0,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.0  0.0  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.5  0.2  0.000e+00
+   1000.0   900.00 -5.000e-06  0.000e+00  2.0  1.0  0.000e+00
+   5000.0   500.00 -1.000e-05  0.000e+00  6.0  3.0  0.000e+00
+   0.5,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.2  0.1  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.7  0.3  0.000e+00
+   1000.0   900.00 -2.500e-06  0.000e+00  2.5  1.2  0.000e+00
+   5000.0   500.00 -8.000e-06  0.000e+00  6.5  3.2  0.000e+00
+
+
 Boundary Plane I/O (Coupling Support)
 =====================================
 
@@ -2220,6 +2416,15 @@ Notes
   is honored independently, so specifying one does not change how the others are obtained.
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
+The k-distribution files are also shipped with the RRTMGP submodule in
+``Submodules/RRTMGP/rrtmgp/data``, and the cloud optics files in
+``Submodules/RRTMGP/extensions/cloud_optics``.
+
+All four files are expected in the single directory named by ``erf.rrtmgp_file_path``, which
+is resolved relative to the run directory (not to the location of the inputs file). ERF checks
+for them while constructing the radiation interface and aborts with a message listing the
+directory and any missing file, so a mis-set path is reported at startup rather than as a
+netCDF "No such file or directory" error.
 
 .. note::
 

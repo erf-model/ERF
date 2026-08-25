@@ -1430,9 +1430,13 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // NOTE: This is the set of derived variables that WriteSubvolume knows how to fill; it
+    //       is an unordered allow-list, since setSubVolVariables walks "derived_names" and
+    //       keeps the entries found here.  That means the names are selected in
+    //       "derived_names" order, which is the order WriteSubvolume must compute them in.
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar",
+                                                           "precipitable", "mucape"};
 
     // algorithm choices
     static SolverChoice solverChoice;

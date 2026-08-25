@@ -160,8 +160,11 @@ ERF::ERF_shared ()
             Abort("Don't know this radiation model!");
         }
     }
+    // NOTE: these must come after initializeMicrophysics() -- the conserved-state
+    //       layout they select against is owned by the microphysics interface.
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
+    setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);

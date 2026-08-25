@@ -907,9 +907,11 @@ ERF::InitData_post ()
     {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
                                          "erf.forcing_timescale must be positive when nudging with large-scale forcing");
+        if (verbose) {
+            lsf.verbose_print = true;
+        }
         lsf.read_forcing_file();
         lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
-        lsf.start_time = start_time;
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
@@ -1293,7 +1295,14 @@ ERF::InitData_post ()
     }
 
     // Fill time averaged velocities before first plot file
-    if (solverChoice.time_avg_vel) {
+    //
+    // NOTE: only when starting from scratch.  On restart the running sum and its
+    //       normalizer have just been read back in, and that sum already includes
+    //       the state at the checkpoint time (ERF::Advance accumulates after each
+    //       step).  Accumulating it again here would count that state twice, so a
+    //       restarted run would not match the equivalent continuous run, and the
+    //       bias would compound over a chain of restarts.
+    if (solverChoice.time_avg_vel && restart_chkfile.empty()) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
                               vars_new[lev][Vars::xvel],
@@ -2327,7 +2336,10 @@ ERF::ReadParameters ()
             }
         }
 
-        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
+        // NOTE: the subvolume variable list is *not* selected here.  Choosing which
+        //       "rhoQn" components exist needs the microphysics interface, and that
+        //       is constructed after ReadParameters() returns, so setSubVolVariables
+        //       is called alongside setPlotVariables in the ERF constructor.
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
