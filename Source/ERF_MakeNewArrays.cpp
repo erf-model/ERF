@@ -734,16 +734,32 @@ ERF::init_zphys (int lev, double elapsed_time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
 
-        // Check if we should skip terrain reading for fine levels with STF
+        // Check terrain handling for fine levels with non-BTF smoothing
         ParmParse pp("erf");
         int terrain_smoothing = 0;
         pp.query("terrain_smoothing", terrain_smoothing);
-        bool skip_terrain_read = (lev > 0 && terrain_smoothing != 0);
 
-        // For fine levels with STF/Sullivan, skip reading terrain from file
-        // The interpolated z_phys_nd from coarse level (line 729) already has
-        // consistent terrain at ALL levels including k=0
-        if (!skip_terrain_read) {
+        // Options: "interpolate" (default) or "transform"
+        std::string amr_terrain_refinement = "interpolate";
+        pp.query("amr_terrain_refinement", amr_terrain_refinement);
+
+        bool use_interpolated_terrain = (lev > 0 && terrain_smoothing != 0 &&
+                                          amr_terrain_refinement == "interpolate");
+        bool use_transformed_terrain = (lev > 0 && terrain_smoothing != 0 &&
+                                         amr_terrain_refinement == "transform");
+
+        // Save the interpolated z_phys_nd BEFORE reading high-res terrain
+        // This is needed for transform mode to compute the correction
+        MultiFab* z_phys_interp = nullptr;
+        if (use_transformed_terrain) {
+            z_phys_interp = new MultiFab(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
+                                         1, z_phys_nd[lev]->nGrowVect());
+            MultiFab::Copy(*z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0); // Don't copy ghost cells
+        }
+
+        // For fine levels with STF/Sullivan and interpolate mode:
+        // Skip reading terrain from file - use fully interpolated z_phys_nd
+        if (!use_interpolated_terrain) {
             int ngrow = ComputeGhostCells(solverChoice) + 2;
             Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
             FArrayBox terrain_fab(makeSlab(bx,2,0),1);
@@ -775,9 +791,71 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
 
-        // For fine levels with non-BTF terrain smoothing, fill ghost cells below terrain
+        // Apply simplified transformation for fine levels with transform mode
+        if (use_transformed_terrain) {
+            const Box& domain = geom[lev].Domain();
+            int domlo_z = domain.smallEnd(2);
+            int domhi_z = domain.bigEnd(2) + 1;
+
+            // Get z_levels and compute z_top for decay factor
+            int nz = static_cast<int>(zlevels_stag[lev].size());
+            Real z_top = zlevels_stag[lev][nz-1];
+
+            // Copy z_levels to device
+            Gpu::DeviceVector<Real> z_lev_d(zlevels_stag[lev].size());
+            Gpu::copy(Gpu::hostToDevice, zlevels_stag[lev].begin(), zlevels_stag[lev].end(), z_lev_d.begin());
+            const auto z_lev_ptr = z_lev_d.data();
+
+            for (MFIter mfi(*z_phys_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.validbox();
+                int k0 = bx.smallEnd()[2];
+                int khi = bx.bigEnd()[2];
+
+                if (k0 == domlo_z) {
+                    Array4<Real> const& z_arr = z_phys_nd[lev]->array(mfi);
+                    Array4<Real const> const& z_interp = z_phys_interp->const_array(mfi);
+
+                    // Use the top of this patch for decay, not domain top
+                    // This ensures decay goes to zero at the coarse-fine boundary
+                    // Access from host-side array, not device pointer
+                    Real z_patch_top = zlevels_stag[lev][khi];
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        if (k > k0 && k < nz) {
+                            // Compute terrain difference at k=0
+                            Real delta_terrain = z_arr(i,j,k0) - z_interp(i,j,k0);
+
+                            // Compute decay factor (linear decay to zero at patch top)
+                            Real z_k = z_lev_ptr[k];
+                            Real z_k0 = z_lev_ptr[k0];
+                            Real decay = (z_patch_top - z_k) / (z_patch_top - z_k0);
+                            decay = amrex::max(Real(0.0), amrex::min(Real(1.0), decay));
+
+                            // Apply correction that decays with height
+                            z_arr(i,j,k) = z_interp(i,j,k) + decay * delta_terrain;
+                        }
+                    });
+
+                    // Fill ghost cell below surface separately (only on CPU or with proper bounds)
+                    if (k0 > 0) {
+                        Box ghost_box = makeSlab(bx, 2, k0-1);
+                        ParallelFor(ghost_box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                        {
+                            z_arr(i,j,k) = Real(2.0)*z_arr(i,j,k+1) - z_arr(i,j,k+2);
+                        });
+                    }
+                }
+            }
+
+            // Clean up
+            delete z_phys_interp;
+        }
+
+        // For fine levels with interpolate mode, fill ghost cells below terrain
         // (BTF handles this internally, but STF/Sullivan return early for lev > 0)
-        if (skip_terrain_read) {
+        if (use_interpolated_terrain) {
             const Box& domain = geom[lev].Domain();
             int domlo_z = domain.smallEnd(2);
 
@@ -793,7 +871,7 @@ ERF::init_zphys (int lev, double elapsed_time)
                     // Fill lateral boundaries below the bottom surface
                     ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
                     {
-                        z_arr(i,j,-1) = two*z_arr(i,j,0) - z_arr(i,j,1);
+                        z_arr(i,j,-1) = Real(2.0)*z_arr(i,j,0) - z_arr(i,j,1);
                     });
                 }
             }
