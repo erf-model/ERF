@@ -47,16 +47,18 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     Vector<std::string> tmp_plot_names;
     erf_plotfile::Plot3DSelectionCapabilities capabilities;
     // This is called before vars_new is allocated, so the microphysics interface
-    // is the source of truth for the dry state width; Get_Qstate_Size() is the
-    // post-construction production width.
+    // is the source of truth for the conserved-state layout.
     //
-    // NOTE: this width bounds the *dry* state names only.  Every moisture
-    //       variable is selected from solverChoice.moisture_indices instead,
+    // NOTE: the allocated width bounds the dry names and the non-water species
+    //       that sit above the moist window, but *not* the moist components
+    //       themselves: those are selected from solverChoice.moisture_indices,
     //       because a scheme may allocate moist components it never integrates
     //       (see the MoistureComponentIndices class comment) and those must not
     //       reach a plotfile.
-    capabilities.conserved_state_size = NDRY + NSCALARS + micro->Get_Qstate_Size();
-    capabilities.moisture_indices = solverChoice.moisture_indices;
+    erf_plotfile::plot3d_set_state_capabilities(capabilities,
+                                                solverChoice.moisture_indices,
+                                                micro->Get_Qstate_Moist_Size(),
+                                                micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
     capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
     capabilities.eddy_diffusivity_storage = true;

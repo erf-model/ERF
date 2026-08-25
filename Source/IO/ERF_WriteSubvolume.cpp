@@ -4,6 +4,7 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <ERF_EpochTime.H>
+#include <ERF_PlotfileSelection.H>
 #include <AMReX_ParmParse.H>
 
 using namespace amrex;
@@ -43,16 +44,23 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
-    // NOTE: cons_names is in conserved-state component order, so index i **is** the
-    //       component index.  Rather than enumerating moisture models, we ask the
-    //       active model's component map whether it allocates that component; a
-    //       "rhoQn" the model does not carry would otherwise be read out of bounds
-    //       when we ParallelCopy component i below.
+    // NOTE: raw state names are selected with exactly the same predicate the 3D
+    //       plotfile uses, so the two output paths cannot drift.  It answers from
+    //       the allocated width for the dry components and for the non-water
+    //       species some schemes carry above the moist window, and from the
+    //       moisture map inside that window -- a "rhoQn" the model does not carry
+    //       would otherwise be read out of bounds when we ParallelCopy it below.
     const MoistureComponentIndices& mi = solverChoice.moisture_indices;
+
+    erf_plotfile::Plot3DSelectionCapabilities capabilities;
+    erf_plotfile::plot3d_set_state_capabilities(capabilities,
+                                                mi,
+                                                micro->Get_Qstate_Moist_Size(),
+                                                micro->Get_Qstate_Size());
 
     for (int i = 0; i < cons_names.size(); ++i) {
         if ( containerHasElement(subvol_var_names, cons_names[i]) ) {
-            if ( (i < RhoQ1_comp) || mi.has_comp(i) ) {
+            if ( erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities) ) {
                 tmp_plot_names.push_back(cons_names[i]);
             }
         }
@@ -78,27 +86,22 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     //       "derived_names" order.  "derived_subvol_names" is the unordered allow-list of
     //       the derived quantities WriteSubvolume knows how to fill.
     //
+    // NOTE: there are no terrain-dependent names to gate here -- "z_phys", "detJ" and
+    //       "terrain_IB_mask" are not in "derived_subvol_names", so WriteSubvolume
+    //       cannot fill them and they never reach this loop.
+    //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(subvol_var_names,     derived_names[i]) &&
              containerHasElement(derived_subvol_names, derived_names[i]) ) {
-            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) ||
-                               (derived_names[i] != "terrain_IB_mask") );
-            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                               (derived_names[i] != "detJ") );
-            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                               (derived_names[i] != "z_phys") );
             // NOTE: WriteSubvolume only computes "mucape" for a moist run, so it must not be
-            //       named for a dry one even though the kernel itself is dry-safe
-            ok_to_add     &= ( mi.has_moisture() || (derived_names[i] != "mucape") );
-            if (ok_to_add)
+            //       named for a dry one even though the kernel itself is dry-safe.  The
+            //       moisture map does not govern that name -- the 3D plotfile writes it for
+            //       dry runs too -- so it is gated here rather than in has_derived_var().
+            const bool ok_to_add = ( mi.has_moisture() || (derived_names[i] != "mucape") );
+            if (ok_to_add && mi.has_derived_var(derived_names[i]))
             {
-                if (mi.has_derived_var(derived_names[i]))
-                {
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            } // use_terrain?
+                tmp_plot_names.push_back(derived_names[i]);
+            }
         } // hasElement
     }
 

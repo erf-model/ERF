@@ -2329,7 +2329,10 @@ ERF::ReadParameters ()
             }
         }
 
-        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
+        // NOTE: the subvolume variable list is *not* selected here.  Choosing which
+        //       "rhoQn" components exist needs the microphysics interface, and that
+        //       is constructed after ReadParameters() returns, so setSubVolVariables
+        //       is called alongside setPlotVariables in the ERF constructor.
 
         pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 

@@ -61,8 +61,9 @@ void add_moist_nudging_terms (const MultiFab& S_data,
     const GpuArray<int,6> moisture_comps = {
         moisture_indices.qv, moisture_indices.qc, moisture_indices.qi,
         moisture_indices.qr, moisture_indices.qs, moisture_indices.qg};
+    const bool has_cloud_ice = (moisture_indices.qi >= 0);
     const int n_moisture_targets = separate_hydrometeors
-        ? 6 : (moisture_indices.qi >= 0 ? 3 : 2);
+        ? 6 : (has_cloud_ice ? 3 : 2);
 
     // Temporary MF so we can nudge qv + qc to the bdy data
     //
@@ -91,8 +92,12 @@ void add_moist_nudging_terms (const MultiFab& S_data,
 
         MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, 1, ng);
         MultiFab::Add (S_tmp, S_data, RhoQ2_comp, RhoQ1_comp, 1, ng);
-        if (n_qstate > 3) { // n_qstate > 3 guarantees that RhoQ3 is ice
-            MultiFab::Add (S_tmp, S_data, RhoQ3_comp, RhoQ1_comp, 1, ng);
+        // NOTE: the width of the moist state does not tell us whether there is ice --
+        //       SAM_NoIce allocates six moist components and Morrison_NoIce eleven,
+        //       neither of which integrates RhoQ3.  Ask the moisture map, which is the
+        //       same test the interpolation below uses.
+        if (has_cloud_ice) {
+            MultiFab::Add (S_tmp, S_data, moisture_indices.qi, RhoQ1_comp, 1, ng);
         }
 
     } else if (bdy_moist_nudge_type == 2) {
@@ -105,7 +110,7 @@ void add_moist_nudging_terms (const MultiFab& S_data,
        //
        // NOTE: the relaxation reads qv and qc, plus qi when there is an ice
        //       species; it does not touch the precipitating species.
-        int ncomp_q = (n_qstate > 3) ? 3 : 2;
+        int ncomp_q = has_cloud_ice ? 3 : 2;
         MultiFab::Copy(S_tmp, S_data, RhoQ1_comp, RhoQ1_comp, ncomp_q, ng);
 
     } else if (bdy_moist_nudge_type == 3) {
@@ -299,7 +304,6 @@ void add_moist_nudging_terms (const MultiFab& S_data,
                                 ng_vect, true);
 
         // Populate with interpolation (protect from ghost cells)
-        const bool has_cloud_ice = moisture_indices.qi >= 0;
         ParallelFor(tbx_xlo, tbx_xhi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

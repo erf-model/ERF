@@ -17,18 +17,33 @@ namespace erf_plotfile
 /**
  * @brief What the active run can supply to a 3D plotfile.
  *
- * Moisture availability is not described here: it comes from the active scheme's
- * MoistureComponentIndices, which is the single source of truth for which
- * moisture variables exist (see the class comment on that struct).  What remains
- * in this struct is the optional non-moisture storage, which a plot variable can
- * only be selected against if it was actually allocated.
+ * Availability of the *moist* components is not described here: it comes from
+ * the active scheme's MoistureComponentIndices, which is the single source of
+ * truth for which moisture variables exist (see the class comment on that
+ * struct).  What remains in this struct is the conserved-state layout -- needed
+ * to know where the moist window ends and the non-water species begin -- and the
+ * optional non-moisture storage, which a plot variable can only be selected
+ * against if it was actually allocated.
  */
 struct Plot3DSelectionCapabilities
 {
-    //! Width of the conserved state.  Used only for the dry components: a
-    //! "rhoQn" request is gated by moisture_indices, not by allocation, because
-    //! several schemes allocate moist slots they never integrate.
+    //! Width of the allocated conserved state, i.e. NDRY + NSCALARS plus every
+    //! component the microphysics interface adds.  This bounds the dry
+    //! components and the non-water species some schemes carry above the moist
+    //! window; it is deliberately *not* what gates the moist components.
     int conserved_state_size = 0;
+
+    //! Number of conserved components in the moist window that starts at
+    //! RhoQ1_comp.  Inside that window a component is gated by moisture_indices
+    //! rather than by allocation, because several schemes allocate moist slots
+    //! they never integrate.  Above the window sit the non-water species a
+    //! scheme may add (SuperDroplets), which are allocated *and* integrated and
+    //! so are gated by conserved_state_size like the dry components.
+    //!
+    //! The default is the full RhoQ1..RhoQ11 window, i.e. "let the moisture map
+    //! decide about every rhoQn slot", which is the conservative answer for a
+    //! caller that does not know the scheme's width.
+    int moist_state_size = NMOIST_max;
 
     //! The active moisture scheme's component/diagnostic map.
     MoistureComponentIndices moisture_indices;
@@ -39,6 +54,31 @@ struct Plot3DSelectionCapabilities
     bool dissipation_storage = false;
     bool wall_distance_storage = false;
 };
+
+/**
+ * @brief Record the conserved-state layout of a run on its capabilities.
+ *
+ * Every output path that selects raw state names must describe the state the
+ * same way, so the three fields are filled here rather than at each call site.
+ *
+ * @param caps              Capabilities to fill in.
+ * @param mi                The active scheme's component/diagnostic map.
+ * @param qstate_moist_size Conserved components in the moist window
+ *                          (Microphysics::Get_Qstate_Moist_Size()).
+ * @param qstate_size       All conserved components the microphysics adds,
+ *                          moist window plus non-water species
+ *                          (Microphysics::Get_Qstate_Size()).
+ */
+inline void
+plot3d_set_state_capabilities (Plot3DSelectionCapabilities& caps,
+                               const MoistureComponentIndices& mi,
+                               const int qstate_moist_size,
+                               const int qstate_size)
+{
+    caps.moisture_indices     = mi;
+    caps.moist_state_size     = qstate_moist_size;
+    caps.conserved_state_size = NDRY + NSCALARS + qstate_size;
+}
 
 /**
  * @brief Conserved-state component holding the q-th moist variable, or -1 if
@@ -121,14 +161,19 @@ plot3d_fixed_variable_available (const std::string& name,
 {
     const MoistureComponentIndices& mi = caps.moisture_indices;
 
-    // Raw conserved-state components.  Below RhoQ1_comp the state is always
-    // allocated dry-or-moist, so a bounds check is the right test; at or above
-    // it the moisture map decides, since allocated-but-never-integrated slots
-    // must not be published as data.
+    // Raw conserved-state components.  Inside the moist window the moisture map
+    // decides, since allocated-but-never-integrated slots must not be published
+    // as data.  Below the window the state is always allocated dry-or-moist, and
+    // above it are the non-water species a scheme may add -- both of those are
+    // real data whenever they were allocated, so a bounds check is the right
+    // test for them.
     const int cons_comp = plot3d_conserved_component_index(name);
     if (cons_comp >= 0) {
-        return (cons_comp >= RhoQ1_comp) ? mi.has_comp(cons_comp)
-                                         : (cons_comp < caps.conserved_state_size);
+        if ( (cons_comp >= RhoQ1_comp) &&
+             (cons_comp <  RhoQ1_comp + caps.moist_state_size) ) {
+            return mi.has_comp(cons_comp);
+        }
+        return (cons_comp < caps.conserved_state_size);
     }
 
     // Every moisture variable -- species, aggregates and moist diagnostics --
