@@ -309,6 +309,70 @@ TEST(Plotfile3DSelection, RawStateNamesUseTheMoistureMapAboveRhoQ1)
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ1", truncated));
 }
 
+// Motivation: The conserved state does not end at the moist species.
+// SuperDroplets places each non-water species' qt/qv above the moist window, at
+// RhoQ1_comp + qstate_moist_size + 2*k, and those components are allocated,
+// integrated data that the moisture map deliberately does not describe.  Gating
+// every "rhoQn" by the map alone silently drops them from both output paths, so
+// the split between "map decides" and "allocated width decides" is pinned here.
+TEST(Plotfile3DSelection, NonWaterSpeciesAboveTheMoistWindowUseTheAllocatedWidth)
+{
+    // SuperDroplets: qv, qc, qi, qrain, qsnow, qgraup, then two components per
+    // non-water species.
+    constexpr int moist_size   = 6;
+    constexpr int per_species  = 2;
+
+    const auto sdm_indices =
+        MoistureComponentIndices::from_moisture_model(MoistureType::SuperDroplets);
+
+    Plot3DSelectionCapabilities with_species;
+    erf_plotfile::plot3d_set_state_capabilities(with_species, sdm_indices,
+                                                moist_size, moist_size + per_species);
+
+    // Inside the moist window the map is still the authority
+    for (const char* name : {"rhoQ1", "rhoQ2", "rhoQ3", "rhoQ4", "rhoQ5", "rhoQ6"}) {
+        EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available(name, with_species))
+            << "moist component " << name << " was dropped";
+    }
+
+    // The one non-water species occupies the next two slots and is real data
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ7", with_species));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ8", with_species));
+
+    // ... and the state stops there
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ9", with_species));
+
+    // The same scheme without a non-water species stops at the moist window
+    Plot3DSelectionCapabilities no_species;
+    erf_plotfile::plot3d_set_state_capabilities(no_species, sdm_indices,
+                                                moist_size, moist_size);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ6", no_species));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ7", no_species));
+
+    // The allocated width must never *widen* the moist window: Morrison_NoIce
+    // allocates all eleven moist components but integrates only some of them,
+    // and the ones it skips stay unselectable however wide the state is.
+    Plot3DSelectionCapabilities no_ice;
+    erf_plotfile::plot3d_set_state_capabilities(
+        no_ice, MoistureComponentIndices::from_moisture_model(MoistureType::Morrison_NoIce),
+        11, 11);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ4", no_ice));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ3", no_ice));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ8", no_ice));
+
+    // A caller that does not describe the layout gets the conservative answer:
+    // the map decides about every rhoQn slot, so nothing unintegrated leaks out.
+    Plot3DSelectionCapabilities undescribed;
+    undescribed.moisture_indices = sdm_indices;
+    undescribed.conserved_state_size = NDRY + NSCALARS + moist_size + per_species;
+    EXPECT_EQ(undescribed.moist_state_size, NMOIST_max);
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("rhoQ7", undescribed));
+
+    // The dry names are bounded by the allocated width in every case
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("density", with_species));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoadv_0", with_species));
+}
+
 // Motivation: A dry run must select no moisture variable at all, whatever the
 // allocated state width happens to be.
 TEST(Plotfile3DSelection, DryRunSelectsNoMoistureVariables)
