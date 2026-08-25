@@ -907,7 +907,7 @@ ERF::InitData_post ()
     {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
                                          "erf.forcing_timescale must be positive when nudging with large-scale forcing");
-        if (erf.Verbose()) {
+        if (verbose) {
             lsf.verbose_print = true;
         }
         lsf.read_forcing_file();
