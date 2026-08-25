@@ -9,15 +9,16 @@
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
 
-#include <ERF_Constants.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_AdvStruct.H>
-#include <ERF_DampingStruct.H>
-#include <ERF_DiffStruct.H>
-#include <ERF_EBStruct.H>
-#include <ERF_SpongeStruct.H>
-#include <ERF_TurbStruct.H>
-#include <ERF_TurbPertStruct.H>
+#include "ERF_Constants.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_AdvStruct.H"
+#include "ERF_DampingStruct.H"
+#include "ERF_DiffStruct.H"
+#include "ERF_EBStruct.H"
+#include "ERF_SpongeStruct.H"
+#include "ERF_TurbStruct.H"
+#include "ERF_TurbPertStruct.H"
+#include "ERF_ShocTransportStruct.H"
 
 /**
  * @brief Indices for map scale factors on mass and face grids.
@@ -868,17 +869,50 @@ struct SolverChoice {
             }
             if (turbChoice[lev].uses_native_shoc()) {
                 use_native_shoc = true;
+                amrex::ParmParse pp_shoc("erf.shoc");
+                std::string transport_mode_string;
+                if (pp_shoc.query("transport_mode", transport_mode_string)) {
+                    std::string error_message;
+                    if (!parse_shoc_transport_mode_string(transport_mode_string,
+                                                          shoc_transport_mode,
+                                                          error_message)) {
+                        amrex::Abort(error_message.c_str());
+                    }
+                }
+                std::string momentum_transport_string;
+                if (pp_shoc.query("momentum_transport", momentum_transport_string)) {
+                    std::string error_message;
+                    if (!parse_shoc_momentum_transport_string(momentum_transport_string,
+                                                              shoc_momentum_transport,
+                                                              error_message)) {
+                        amrex::Abort(error_message.c_str());
+                    }
+                }
             }
         }
 
         // Implicit vertical diffusion (not available with SHOC family)
         if (uses_shoc_family()) {
-            amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC family PBL scheme." << std::endl;
-            for (int lev = 0; lev <= max_level; lev++) {
-               vert_implicit_fac[lev][0] = zero;
-               vert_implicit_fac[lev][1] = zero;
-               vert_implicit_fac[lev][2] = zero;
-            }
+            bool uses_host_diffusion = ( host_owns_vertical_scalar_diffusion() ||
+                                         host_owns_vertical_momentum_diffusion() );
+            if (use_native_shoc && uses_host_diffusion) {
+                for (int lev = 0; lev <= max_level; lev++) {
+                    vert_implicit_fac[lev][0] = one;
+                    vert_implicit_fac[lev][1] = one;
+                    vert_implicit_fac[lev][2] = zero;
+                }
+                implicit_momentum_diffusion = host_owns_vertical_momentum_diffusion();
+                implicit_thermal_diffusion  = host_owns_vertical_scalar_diffusion();
+                implicit_moisture_diffusion = host_owns_vertical_scalar_diffusion();
+                implicit_ke_diffusion       = host_owns_vertical_scalar_diffusion();
+            } else {
+                amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC family PBL scheme." << std::endl;
+                for (int lev = 0; lev <= max_level; lev++) {
+                    vert_implicit_fac[lev][0] = zero;
+                    vert_implicit_fac[lev][1] = zero;
+                    vert_implicit_fac[lev][2] = zero;
+                }
+            } // eamxx shoc
         } else {
             // This controls the time-centering of the vertical differences in the diffusive term
             bool do_vert_implicit = true;
@@ -1598,6 +1632,10 @@ struct SolverChoice {
     bool use_eamxx_shoc = false;
     bool use_native_shoc = false;
 
+    // Native shoc transport mode
+    ShocTransportMode     shoc_transport_mode     = ShocTransportMode::StateUpdate;
+    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::HostDiffusion;
+
     // Transport the passive scalar?
     bool transport_scalar = true;
 
@@ -1656,6 +1694,28 @@ struct SolverChoice {
     bool uses_shoc_family () const noexcept
     {
         return use_eamxx_shoc || use_native_shoc;
+    }
+
+    /**
+     * @brief Test whether the host owns momentum diffusion.
+     * @return True if ERF dycore does vertical diffusion of momentum.
+     */
+    bool host_owns_vertical_momentum_diffusion () const noexcept
+    {
+        if (use_eamxx_shoc)   { return false; }
+        if (!use_native_shoc) { return true;  }
+        return shoc_uses_momentum_host_diffusion(shoc_momentum_transport);
+    }
+
+    /**
+     * @brief Test whether the host owns scalar diffusion.
+     * @return True if ERF dycore does vertical diffusion of scalars.
+     */
+    bool host_owns_vertical_scalar_diffusion () const noexcept
+    {
+        if (use_eamxx_shoc)   { return false; }
+        if (!use_native_shoc) { return true;  }
+        return shoc_uses_host_diffusion(shoc_transport_mode);
     }
 
     /**
