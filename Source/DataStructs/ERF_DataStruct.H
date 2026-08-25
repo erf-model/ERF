@@ -161,28 +161,89 @@ enum Sponge {
 };
 
 /**
- * @brief Component indices for moisture species in the conserved state.
+ * @brief The moisture data carried by the active microphysics scheme.
+ *
+ * This struct is the single source of truth for the question "which moisture
+ * quantities does this run actually have?".  Everything downstream of the
+ * microphysics -- source terms, turbulence closures, and every output path
+ * (3D plotfiles, 2D plotfiles, subvolumes) -- answers that question by querying
+ * this struct instead of enumerating MoistureType values, so a newly added
+ * scheme only has to declare its layout once, in from_moisture_model() below.
+ *
+ * Two kinds of index live here:
+ *
+ *   1. Conserved-state components (qv ... nn).  Absolute component indices into
+ *      the conserved state array, i.e. one of RhoQ1_comp ... RhoQ11_comp.  They
+ *      name the *rho-weighted* species: state(i,j,k,qv) is rho*qv, so an output
+ *      path must divide by Rho_comp to recover the mixing ratio.
+ *
+ *   2. qmoist diagnostic slots (rain_accum ... cond_rate).  Indices into the
+ *      per-level qmoist vector that is filled from
+ *      Microphysics::Get_Qmoist_Ptr(lev,idx).  Each scheme chooses that
+ *      layout independently, so the slot numbers differ between schemes and are
+ *      recorded per scheme below.
+ *
+ * In both cases the value is `absent` when the active scheme does not carry the
+ * quantity, so `index >= 0` is the criterion for "this exists and is meaningful
+ * to write".  That is deliberately *not* the same test as "the storage is
+ * allocated": several schemes allocate a wider state than they integrate (the
+ * Morrison class always allocates eleven moist components, so Morrison_NoIce
+ * owns ice slots it never fills), and writing those slots to a plotfile would
+ * publish untouched memory as if it were data.
  */
 struct MoistureComponentIndices {
-    int qv = -1;  // Water vapor
-    int qc = -1;  // Cloud liquid water
-    int qi = -1;  // Cloud ice
-    int qr = -1;  // Rain
-    int qs = -1;  // Snow
-    int qg = -1;  // Graupel
-    int nc = -1;  // number concentration for cloud liquid water
-    int ni = -1;  // number concentration for cloud ice
-    int nr = -1;  // number concentration for rain
-    int ns = -1;  // number concentration for snow
-    int ng = -1;  // number concentration for graupel
+
+    // Sentinel values shared by both kinds of index above.
+    static constexpr int absent = -1;              //!< not carried by the active scheme
+    static constexpr int computed_from_state = -2; //!< carried, but derived at output
+                                                   //!< time from the conserved state
+                                                   //!< rather than read from a qmoist slot
+
+    // ---------------------------------------------------------------------
+    // Conserved-state components: mass mixing ratios (rho-weighted)
+    // ---------------------------------------------------------------------
+    int qv = absent;  //!< water vapor
+    int qc = absent;  //!< cloud liquid water
+    int qi = absent;  //!< cloud ice
+    int qr = absent;  //!< rain
+    int qs = absent;  //!< snow
+    int qg = absent;  //!< graupel
+
+    // ---------------------------------------------------------------------
+    // Conserved-state components: number concentrations (rho-weighted)
+    // ---------------------------------------------------------------------
+    int nc = absent;  //!< cloud liquid water number
+    int ni = absent;  //!< cloud ice number
+    int nr = absent;  //!< rain number
+    int ns = absent;  //!< snow number
+    int ng = absent;  //!< graupel number
     // CCN / total aerosol number. Unlike every other number concentration above,
     // this has no companion mass species: it is an aerosol reservoir that
     // exchanges number with nc and nr through activation and evaporation rather
-    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number.
-    int nn = -1;  // number concentration for CCN / total aerosol
+    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number,
+    // even though some schemes place the two in the same conserved-state slot.
+    int nn = absent;  //!< CCN / total aerosol number
+
+    // ---------------------------------------------------------------------
+    // qmoist diagnostic slots
+    //
+    // These are *not* conserved-state components; they index the qmoist vector
+    // handed out by the microphysics interface.  Slot numbers are scheme
+    // specific, which is exactly why they belong in this per-scheme map.
+    // ---------------------------------------------------------------------
+    int rain_accum  = absent;  //!< accumulated surface rain
+    int snow_accum  = absent;  //!< accumulated surface snow
+    int graup_accum = absent;  //!< accumulated surface graupel
+    int rel_hum     = absent;  //!< relative humidity
+    int cond_rate   = absent;  //!< condensation rate
 
     /**
-     * @brief Construct moisture component indices from conserved-state component numbers.
+     * @brief Construct the conserved-state component map.
+     *
+     * Prefer from_moisture_model() for production code: it fills in the qmoist
+     * diagnostic slots as well.  This constructor exists for the callers -- unit
+     * tests and kernels exercised in isolation -- that only need the state map.
+     *
      * @param qv_comp Water vapor component index.
      * @param qc_comp Cloud liquid water component index.
      * @param qi_comp Cloud ice component index.
@@ -194,52 +255,376 @@ struct MoistureComponentIndices {
      * @param nr_comp Rain number concentration component index.
      * @param ns_comp Snow number concentration component index.
      * @param ng_comp Graupel number concentration component index.
+     * @param nn_comp CCN / total aerosol number concentration component index.
      */
     MoistureComponentIndices (int qv_comp, int qc_comp,
-                              int qi_comp=-1,
-                              int qr_comp=-1,
-                              int qs_comp=-1,
-                              int qg_comp=-1,
-                              int nc_comp=-1,
-                              int ni_comp=-1,
-                              int nr_comp=-1,
-                              int ns_comp=-1,
-                              int ng_comp=-1,
-                              int nn_comp=-1)
+                              int qi_comp=absent,
+                              int qr_comp=absent,
+                              int qs_comp=absent,
+                              int qg_comp=absent,
+                              int nc_comp=absent,
+                              int ni_comp=absent,
+                              int nr_comp=absent,
+                              int ns_comp=absent,
+                              int ng_comp=absent,
+                              int nn_comp=absent)
         : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
                        nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp),
                        nn(nn_comp) {}
 
     /**
-     * @brief Construct an empty set of moisture component indices.
+     * @brief Construct an empty map, i.e. a dry run.
      */
     MoistureComponentIndices() = default;
-};
 
-/**
- * @var MoistureComponentIndices::qv
- * @brief Water vapor component index.
- * @var MoistureComponentIndices::qc
- * @brief Cloud liquid water component index.
- * @var MoistureComponentIndices::qi
- * @brief Cloud ice component index.
- * @var MoistureComponentIndices::qr
- * @brief Rain component index.
- * @var MoistureComponentIndices::qs
- * @brief Snow component index.
- * @var MoistureComponentIndices::qg
- * @brief Graupel component index.
- * @var MoistureComponentIndices::nc
- * @brief Cloud liquid water number concentration component index.
- * @var MoistureComponentIndices::ni
- * @brief Cloud ice number concentration component index.
- * @var MoistureComponentIndices::nr
- * @brief Rain number concentration component index.
- * @var MoistureComponentIndices::ns
- * @brief Snow number concentration component index.
- * @var MoistureComponentIndices::ng
- * @brief Graupel number concentration component index.
- */
+    /**
+     * @brief Build the complete index map -- conserved-state components and
+     *        qmoist diagnostic slots -- for a moisture model.
+     *
+     * This is the one place a scheme declares what it carries.  The conserved
+     * layout must match the component the scheme reads and writes in its
+     * Copy_State_to_Micro / Copy_Micro_to_State pair, and the qmoist slots must
+     * match the order the scheme installs in its MicVarMap.  A slot that a
+     * scheme allocates but never fills is left `absent` on purpose: see the
+     * class comment for why allocation is not the criterion here.
+     *
+     * @param moisture_type Active moisture/microphysics model.
+     */
+    static MoistureComponentIndices
+    from_moisture_model (const MoistureType moisture_type)
+    {
+        MoistureComponentIndices mi;
+
+        switch (moisture_type) {
+
+        case MoistureType::None:
+            // Dry: no moisture data of any kind.
+            break;
+
+        case MoistureType::MoistNoCondensation:
+        case MoistureType::SAM_NoPrecip_NoIce:
+        case MoistureType::Kessler_NoRain:
+            // Vapor plus suspended cloud water, no precipitation and no
+            // accumulation diagnostics.
+            mi.qv = RhoQ1_comp;
+            mi.qc = RhoQ2_comp;
+            break;
+
+        case MoistureType::SatAdj:
+            // As above, but relative humidity is recovered from the state at
+            // output time rather than stored: SatAdj publishes no qmoist arrays.
+            mi.qv      = RhoQ1_comp;
+            mi.qc      = RhoQ2_comp;
+            mi.rel_hum = computed_from_state;
+            break;
+
+        case MoistureType::Kessler:
+            // Warm rain in three moist components; qmoist is {rain_accum}.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ3_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::SAM_NoIce:
+            // The SAM class always allocates six moist components, so rain sits
+            // in the fourth slot even with the ice species switched off.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::SAM:
+        case MoistureType::WSM6:
+            // Single-moment mixed phase; qmoist is
+            // {rain_accum, snow_accum, graup_accum}.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::Morrison:
+            // Two-moment mixed phase: six mass species followed by five number
+            // concentrations.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.nc          = RhoQ7_comp;
+            mi.ni          = RhoQ8_comp;
+            mi.nr          = RhoQ9_comp;
+            mi.ns          = RhoQ10_comp;
+            mi.ng          = RhoQ11_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::Morrison_NoIce:
+            // Liquid-only Morrison: the class still allocates all eleven moist
+            // components, but only vapor, cloud water and rain -- and the cloud
+            // and rain numbers -- are integrated, so the frozen species and
+            // their numbers stay absent here.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.nc         = RhoQ7_comp;
+            mi.nr         = RhoQ9_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::WDM6:
+            // Double-moment warm phase on top of single-moment ice: nn is the
+            // aerosol reservoir and takes the slot Morrison uses for ice number,
+            // and there are no snow or graupel numbers.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.nc          = RhoQ7_comp;
+            mi.nn          = RhoQ8_comp;
+            mi.nr          = RhoQ9_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::SuperDroplets:
+            // Lagrangian microphysics that still carries the six Eulerian mass
+            // species.  Its qmoist layout is its own (see the MicVarMap in
+            // SuperDropletsMoist::Init): the graupel accumulation slot exists
+            // but is never filled, so it stays absent.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qi         = RhoQ3_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.qs         = RhoQ5_comp;
+            mi.qg         = RhoQ6_comp;
+            mi.cond_rate  = 3;
+            mi.rel_hum    = 7;
+            mi.rain_accum = 8;
+            mi.snow_accum = 10;
+            break;
+
+        default:
+            amrex::Abort("Unknown MoistureType in MoistureComponentIndices::from_moisture_model");
+        }
+
+        return mi;
+    }
+
+    /**
+     * @brief An ordered list of conserved-state components forming an aggregate
+     *        moisture output variable (qt, qn, qp, moist_density).
+     *
+     * Only the species the active scheme carries are appended, so a consumer can
+     * sum the list without first asking which ones exist.
+     */
+    struct CompList {
+        static constexpr int max_size = 6; //!< qv, qc, qi, qr, qs, qg
+        int comp[max_size] = {absent, absent, absent, absent, absent, absent};
+        int size = 0;
+
+        //! Append a component, ignoring the ones the scheme does not carry.
+        void append (int c) {
+            if ( (c >= 0) && (size < max_size) ) { comp[size++] = c; }
+        }
+        [[nodiscard]] bool empty () const { return (size == 0); }
+    };
+
+    /**
+     * @brief Components summed for total water, "qt": every mass mixing ratio.
+     *
+     * Number concentrations are excluded -- they are counts, not masses.
+     */
+    [[nodiscard]] CompList total_water_comps () const {
+        CompList list;
+        list.append(qv); list.append(qc); list.append(qi);
+        list.append(qr); list.append(qs); list.append(qg);
+        return list;
+    }
+
+    /**
+     * @brief Components summed for non-precipitating water, "qn": vapor plus the
+     *        suspended condensate.  Also the moist part of "moist_density".
+     */
+    [[nodiscard]] CompList nonprecipitating_comps () const {
+        CompList list;
+        list.append(qv); list.append(qc); list.append(qi);
+        return list;
+    }
+
+    /**
+     * @brief Components summed for precipitating water, "qp": the falling species.
+     */
+    [[nodiscard]] CompList precipitating_comps () const {
+        CompList list;
+        list.append(qr); list.append(qs); list.append(qg);
+        return list;
+    }
+
+    /**
+     * @brief Test whether a conserved-state component holds one of the moisture
+     *        variables this scheme carries.
+     *
+     * Use this rather than enumerating moisture models when deciding whether a
+     * "rhoQn" state component is meaningful for the active scheme.
+     *
+     * @param comp Absolute component index into the conserved state array.
+     */
+    [[nodiscard]] bool has_comp (int comp) const {
+        return ( (comp >= 0) &&
+                 ( (comp == qv) || (comp == qc) || (comp == qi) ||
+                   (comp == qr) || (comp == qs) || (comp == qg) ||
+                   (comp == nc) || (comp == ni) || (comp == nr) ||
+                   (comp == ns) || (comp == ng) || (comp == nn) ) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries rain, snow and graupel in the
+     *        RhoQ4/RhoQ5/RhoQ6 slots assumed by erf_derreflectivity and
+     *        erf_dermaxreflectivity.
+     *
+     * Those kernels read the precipitating species by hardcoded component, so this
+     * checks the layout and not just the presence of the species.
+     */
+    [[nodiscard]] bool has_reflectivity_species () const {
+        return ( (qr == RhoQ4_comp) && (qs == RhoQ5_comp) && (qg == RhoQ6_comp) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries any moisture at all.
+     *
+     * Every moist scheme allocates water vapor, so this is equivalent to testing
+     * moisture_type != MoistureType::None without needing the enum.
+     */
+    [[nodiscard]] bool has_moisture () const { return (qv >= 0); }
+
+    /**
+     * @brief The conserved-state component behind a single-species output name,
+     *        or `absent` if the name is not a single species or the scheme does
+     *        not carry it.
+     *
+     * An output path can use this to copy a species without repeating the
+     * name-to-component mapping.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] int comp_for_var (const std::string& name) const {
+        if (name == "qv")     { return qv; }
+        if (name == "qc")     { return qc; }
+        if (name == "qi")     { return qi; }
+        if (name == "qrain")  { return qr; }
+        if (name == "qsnow")  { return qs; }
+        if (name == "qgraup") { return qg; }
+        if (name == "nc")     { return nc; }
+        if (name == "ni")     { return ni; }
+        if (name == "nr")     { return nr; }
+        if (name == "ns")     { return ns; }
+        if (name == "ng")     { return ng; }
+        if (name == "nn")     { return nn; }
+        return absent;
+    }
+
+    /**
+     * @brief The qmoist slot behind a moist diagnostic output name.
+     *
+     * Returns `absent` when the scheme does not provide the diagnostic, and
+     * `computed_from_state` when it does provide it but not through a qmoist
+     * array -- in that case the caller must derive it from the conserved state.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] int qmoist_index_for_var (const std::string& name) const {
+        if (name == "rain_accum")        { return rain_accum; }
+        if (name == "snow_accum")        { return snow_accum; }
+        if (name == "graup_accum")       { return graup_accum; }
+        if (name == "rel_humidity")      { return rel_hum; }
+        if (name == "condensation_rate") { return cond_rate; }
+        return absent;
+    }
+
+    /**
+     * @brief Whether this map decides a variable's availability, and if so
+     *        whether the variable is available.
+     */
+    struct VarAvailability {
+        bool governed  = false; //!< the name is a moisture output variable
+        bool available = false; //!< the active scheme carries the data behind it
+    };
+
+    /**
+     * @brief Classify an output variable name against this index map.
+     *
+     * This is the one table pairing output names with the data behind them.  It
+     * is driven off the scheme's index map rather than an enumerated list of
+     * moisture models, so it stays correct as schemes are added.  Names with no
+     * moisture dependence come back not-governed, which lets a caller walk a
+     * mixed list of variable names and only defer to this map where it applies.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] VarAvailability query_var (const std::string& name) const {
+
+        // Single species, taken straight from the conserved state
+        if ( (name == "qv") || (name == "qc") || (name == "qi") ||
+             (name == "qrain") || (name == "qsnow") || (name == "qgraup") ||
+             (name == "nc") || (name == "ni") || (name == "nr") ||
+             (name == "ns") || (name == "ng") || (name == "nn") ) {
+            return {true, comp_for_var(name) >= 0};
+        }
+
+        // Moist diagnostics, either from a qmoist array or derived at output time
+        if ( (name == "rain_accum") || (name == "snow_accum") ||
+             (name == "graup_accum") || (name == "rel_humidity") ||
+             (name == "condensation_rate") ) {
+            return {true, qmoist_index_for_var(name) != absent};
+        }
+
+        // Aggregates over several species
+        if (name == "qt") { return {true, !total_water_comps().empty()}; }
+        if (name == "qp") { return {true, !precipitating_comps().empty()}; }
+
+        // Non-precipitating water is vapor plus the suspended condensate, and
+        // moist density adds that same sum to the dry density
+        if ( (name == "qn") || (name == "moist_density") ) {
+            return {true, (qv >= 0) && (qc >= 0)};
+        }
+
+        // Column and thermodynamic diagnostics that read vapor only
+        if ( (name == "qsat") || (name == "precipitable") ) {
+            return {true, has_moisture()};
+        }
+
+        return {false, false};
+    }
+
+    /**
+     * @brief Test whether the moist species behind a derived/plot variable name is
+     *        carried by the active scheme.
+     *
+     * Names this map does not govern return true, so this can be used directly as
+     * a filter over a mixed list of variable names.  Use query_var() instead when
+     * the caller needs to distinguish "not a moisture variable" from "available".
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] bool has_derived_var (const std::string& name) const {
+        const VarAvailability status = query_var(name);
+        return (!status.governed) || status.available;
+    }
+};
 
 /**
  * Container holding many of the algorithmic options and parameters
@@ -285,78 +670,13 @@ struct SolverChoice {
         }
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if (moisture_type == MoistureType::Morrison) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp,  // graupel
-                RhoQ7_comp,  // number concentration of cloud water
-                RhoQ8_comp,  // number concentration of cloud ice
-                RhoQ9_comp,  // number concentration of rain
-                RhoQ10_comp,  // number concentration of snow
-                RhoQ11_comp  // number concentration of graupel
-            );
-        } else if ( (moisture_type == MoistureType::WSM6) ||
-                    (moisture_type == MoistureType::SAM) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp   // graupel
-            );
-        } else if (moisture_type == MoistureType::WDM6) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor (qv)
-                RhoQ2_comp,  // cloud water (qc)
-                RhoQ3_comp,  // cloud ice (qi)
-                RhoQ4_comp,  // rain (qr)
-                RhoQ5_comp,  // snow (qs)
-                RhoQ6_comp,  // graupel (qg)
-                RhoQ7_comp,  // cloud droplet number concentration (nc)
-                -1,          // ice number (ni) not used - WDM6 uses nn for total aerosol
-                RhoQ9_comp,  // rain number concentration (nr)
-                -1,          // snow number (ns) not used
-                -1,          // graupel number (ng) not used
-                RhoQ8_comp   // CCN / total aerosol number (nn)
-            );
-        } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
-                    (moisture_type == MoistureType::SAM_NoIce) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ4_comp   // rain
-            );
-        } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain)     ||
-                    (moisture_type == MoistureType::SatAdj)             ||
-                    (moisture_type == MoistureType::MoistNoCondensation) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp   // cloud water
-            );
-        } else if (moisture_type == MoistureType::Kessler) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ3_comp   // rain
-            );
-        } else if (moisture_type == MoistureType::SuperDroplets) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp   // graupel
-            );
-        }
+
+        // Register the moisture data this scheme carries: conserved-state
+        // components and qmoist diagnostic slots alike.  MoistureComponentIndices
+        // is the one place that mapping lives, and every consumer -- source terms,
+        // turbulence closures, and the plotfile/subvolume writers -- queries it
+        // instead of testing moisture_type.
+        moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         // Set a default for both dry and moist
         buoyancy_type.resize(max_level+1);
@@ -1956,7 +2276,8 @@ struct SolverChoice {
  * @var SolverChoice::ave_plane
  * @brief Averaging plane index used by diagnostics.
  * @var SolverChoice::moisture_indices
- * @brief Conserved-state component indices for active moisture species.
+ * @brief Index map of the moisture data carried by the active scheme: conserved-state
+ *        components for the species and qmoist slots for the moist diagnostics.
  * @var SolverChoice::moisture_tight_coupling
  * @brief Whether moisture updates use tight coupling.
  * @var SolverChoice::windfarm_loc_table
