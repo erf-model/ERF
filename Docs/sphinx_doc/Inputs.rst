@@ -918,9 +918,9 @@ The requested output files have the following columns:
 
   #. Height (m)
 
-  #. Large-scale temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+  #. Total applied temperature tendency, :math:`\partial \theta / \partial t` (K/s)
 
-  #. Large-scale water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+  #. Total applied water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
 
   #. Large-scale subsidence velocity, :math:`w_{sub}` (m/s)
 
@@ -941,6 +941,11 @@ The requested output files have the following columns:
   #. X-velocity nudging tendency, :math:`u_{nudge}` (m/s2)
 
   #. Y-velocity nudging tendency, :math:`v_{nudge}` (m/s2)
+
+.. note::
+
+   The vertical tendency columns are only populated for interior cells between
+   the bottom and top boundaries; they are zero at the domain edges.
 
 
 Data Sampling Outputs
@@ -1683,12 +1688,19 @@ Large Scale Forcing
 
 Large-scale forcing can be used to prescribe time-varying vertical profiles for
 temperature, water vapor, horizontal wind, and vertical subsidence.
-A text file containing the large scale forcing data is provided using the ``erf.large_scale_forcing_file``
-option. The file contains one or more time blocks, where each time block is denoted with
-a header containing the day, number of levels in the block, and reference pressure for that time.
-Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls`` corresponding to level
-height, pressure, large scale temperature and moisture tendency, large scale zonal and meridonal velocity,
-and large scale vertical subsidence velocity.
+To enable it, set::
+
+  erf.large_scale_forcing      = true
+  erf.large_scale_forcing_file = lsf.txt
+  erf.forcing_timescale        = 3600.0
+
+where ``erf.large_scale_forcing_file`` is the path to a text file containing the
+large scale forcing data and ``erf.forcing_timescale`` is the relaxation timescale
+(in seconds) for nudging velocities. The file contains one or more time blocks, where each time
+block is denoted with a header containing the day, number of levels in the block, and reference
+pressure for that time. Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls``
+corresponding to level height, pressure, large scale temperature and moisture tendency, large scale
+zonal and meridional velocity, and large scale vertical subsidence velocity.
 
 - Either a height grid ``z[m]`` or pressure grid ``p[mb]`` can be provided, where one can be a negative number
   to indicate the other grid type should be used (e.g. if the ``z`` values are negative, the file is
@@ -1696,7 +1708,10 @@ and large scale vertical subsidence velocity.
 
 - The large scale forcing grid is interpolated to the ERF grid, similar to the input sounding.
 
-- Large scale tendencies are applied based on a time period in seconds specified by the ``erf.forcing_timescale`` option.
+- ``erf.forcing_timescale`` is the relaxation time scale used when nudging the
+  horizontal velocities toward the ``uls`` and ``vls`` profiles. The
+  temperature, moisture, and subsidence tendencies are applied directly and
+  are not scaled by this option.
 
 - Times are converted to elapsed seconds relative to the first timestamp in the file.
 
@@ -1704,8 +1719,9 @@ and large scale vertical subsidence velocity.
   ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
 
 - **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
-  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding (using the lsf forcing timescale).
-  Temperature and moisture are nudged from input sounding as normal (using the input sounding tau_nudging timescale).
+  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
+  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
+  sounding ``tau_nudging`` timescale.
 
 Example file format for large scale forcing:
 

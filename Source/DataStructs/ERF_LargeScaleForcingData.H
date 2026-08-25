@@ -194,17 +194,14 @@ public:
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
 
         // debugging print
-        if (verbose_print) {
-            for (int i = 0; i < times_lsf.size(); i++)
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
+            amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
+            for (int lev = 0; lev < nz_lsf + 1; lev++)
             {
-                amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
-                for (int lev = 0; lev < nz_lsf + 1; lev++)
-                {
-                    amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = "
-                                   << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = "
-                                   << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
-                }
-                break; // print only the first time block
+                amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = "
+                               << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = "
+                               << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
             }
         }
     }
@@ -308,24 +305,21 @@ public:
         }
 
         // debugging print
-        if (verbose_print) {
-            for (int i = 0; i < times_lsf.size(); i++)
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
+            amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
+            for (int k = 0; k <= Nz; k++)
             {
-                amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
-                for (int k = 0; k <= Nz; k++)
-                {
-                    amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k]
-                                   << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = "
-                                   << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
-                }
-                break; // print only the first time block
+                amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k]
+                               << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = "
+                               << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
             }
         }
     }
 
     /**
-     * @brief Determine the two forcing times that bracket a simulation time.
-     * @param time Simulation time, either elapsed or absolute.
+     * @brief Determine interpolation coefficients to apply tendencies for the given time
+     * @param time Elapsed simulation time in seconds.
      * @param curr Index of the lower bracketing forcing time.
      * @param next Index of the upper bracketing forcing time.
      * @param coeff_curr Interpolation weight for the lower time slice.
@@ -339,19 +333,16 @@ public:
                             amrex::Real& coeff_next)
     {
         // helper function to get the current time indices of forcing data to use and
-        // coefficients based on the current simulation time. Historical callers
-        // pass elapsed time, while datetime-aware paths may pass total/epoch
-        // time, so normalize to elapsed time relative to the simulation start.
+        // coefficients based on the current simulation time.
         curr = 0;
         next = 0;
         coeff_curr = one;
         coeff_next = zero;
-        const amrex::Real rel_time = (time >= start_time) ? (time - start_time) : time;
 
         // find the time index of forcing data to use
         for (int nt = 1; nt < num_times; nt++)
         {
-            if (rel_time > times_lsf[nt])
+            if (time > times_lsf[nt])
             {
                 curr = nt;
             }
@@ -365,7 +356,7 @@ public:
             coeff_next = zero;
         } else {
             next = curr + 1;
-            coeff_next = (rel_time - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
+            coeff_next = (time - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
             coeff_curr = (one - coeff_next);
         }
     }
@@ -404,10 +395,6 @@ public:
                          w_int_lsf_d[itime].begin());
     }
 
-    /**
-     * Simulation start time used when forcing timestamps are absolute.
-     */
-    amrex::Real start_time = zero;
     /**
      * Relaxation time scale used by the large-scale forcing and nudging terms.
      */
