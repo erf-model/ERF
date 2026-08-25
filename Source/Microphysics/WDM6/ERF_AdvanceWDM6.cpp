@@ -1876,7 +1876,9 @@ void WDM6::Advance(const Real& dt_advance,
                     const Real qim = qi_arr(i,j,k);  // preserve old ice amount
 
                     qc_arr(i,j,k)   += qim;                           // qci(:,:,1) += qci(:,:,2)
-                    nc_arr(i,j,k)   += xni_arr(i,j,k);                // ncr(:,:,2) += xni
+                    if (qim > Real(qmin)) {
+                        nc_arr(i,j,k) += xni_arr(i,j,k);               // ncr(:,:,2) += xni
+                    }
                     t_arr(i,j,k)    -= xlf / cpm_arr(i,j,k) * qim;    // latent heat release
                     qi_arr(i,j,k)    = Real(0.0);                     // zero out ice
                 }
@@ -2217,6 +2219,10 @@ void WDM6::Advance(const Real& dt_advance,
                             nn_arr(i,j,k) = nn_arr(i,j,k) + nr_arr(i,j,k);
                             nr_arr(i,j,k) = Real(0.0);
                         }
+                    } else if (prevp_arr(i,j,k) == Real(0.0)) {
+                        // A zero kinetic rate must not become evaporation
+                        // through a negative saturation-rate limiter.
+                        prevp_arr(i,j,k) = Real(0.0);
                     } else {
                         prevp_arr(i,j,k) = amrex::min(prevp_arr(i,j,k), satdt / Real(2.0));
                     }
