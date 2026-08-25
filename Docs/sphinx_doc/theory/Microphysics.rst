@@ -326,11 +326,12 @@ number concentration (:math:`n_n`), enabling improved representation of cloud-ae
 interactions and warm-rain precipitation processes. Ice-phase species (cloud ice, snow, and
 graupel/hail) retain the single-moment treatment from WSM6.
 
-ERF's WDM6 implementation is derived from WRF's `module_mp_wdm6.F`_ and supports both CPU
-(via Fortran-C++ bridge) and GPU (native C++ implementation) execution. The scheme transports
-six water species (including water vapor) and three number concentration fields.
+ERF's WDM6 implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_ and supports both
+CPU execution through the Fortran-C++ bridge and GPU execution through the native C++
+implementation. The scheme transports six water species (including water vapor) and three
+number concentration fields.
 
-.. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_wdm6.F
+.. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/v4.7.1/phys/module_mp_wdm6.F
 
 Prognostic Variables
 ~~~~~~~~~~~~~~~~~~~~
@@ -358,12 +359,33 @@ Implementation
 
 ERF provides two execution paths for WDM6:
 
-**CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
-Fortran-C interface. This path ensures reproducibility with WRF results and serves
-as a reference implementation.
+**CPU execution (Fortran bridge):** ERF calls a locally maintained version of the WRF Fortran
+implementation through a Fortran-C interface. The source was verified against WRF v4.7.1 and
+serves as the reference implementation for validation of the native C++ path.
+
+ERF applies two numerical consistency safeguards to both implementations:
+
+- **Cloud-droplet number tendency from cloud-ice melting:** Cloud-ice mass is still transferred
+  to cloud water, and the associated latent-heat tendency is unchanged. The diagnosed ice number
+  ``xni`` is transferred to cloud-droplet number only when the pre-melt cloud-ice mixing ratio
+  exceeds ``qmin``. This prevents numerically negligible ice mass from producing a finite
+  cloud-droplet-number tendency.
+
+- **Rain evaporation/condensation tendency (``prevp``):** An exactly zero kinetic rain
+  phase-change tendency remains zero. This prevents a negative saturation limiter (``satdt/2``)
+  from turning a zero-rate state into artificial rain evaporation and thereby changing the vapor,
+  rain-mass, and latent-heating tendencies.
+
+These safeguards differ from upstream WRF v4.7.1 when either condition is encountered. The
+Fortran bridge is therefore ERF's reference for native C++ validation but is not unconditionally
+bit-for-bit reproducible with upstream WRF.
+
+Future WRF updates can be assessed by visually diffing ``ERF_module_mp_wdm6.F90`` against the
+corresponding upstream ``phys/module_mp_wdm6.F`` and reviewing the documented ERF-specific
+changes as a separate patch.
 
 **GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
-enables efficient execution on GPUs.
+enables efficient execution on GPUs. The native implementation can also run on CPUs.
 
 The implementation handles both graupel and hail regimes via the ``hail_opt`` parameter, which
 modifies fall speed coefficients and size distribution parameters for the graupel/hail category.
@@ -373,9 +395,9 @@ Configuration
 
 **Build Configuration**
 
-The default build uses native C++ code that can run on both CPU and GPU.
-For validation against WRF or reproducibility testing, the Fortran bridge
-can be enabled:
+The default build uses native C++ code that can run on both CPU and GPU. The Fortran bridge can
+be enabled for validation of the native implementation and comparison with the WRF v4.7.1
+baseline:
 
 .. code-block:: bash
 
@@ -448,7 +470,7 @@ The WDM6 scheme is documented in:
 
 - Hong, S.-Y., and J.-O. J. Lim, 2006: The WRF single-moment 6-class microphysics scheme (WSM6). J. Korean Meteor. Soc., 42, 129-151.
 
-The ERF implementation is derived from WRF's `module_mp_wdm6.F`_ (version 4.x).
+The ERF implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_.
 
 Example Cases
 ~~~~~~~~~~~~~
