@@ -535,7 +535,9 @@ every AMR level in the plotfile:
 
 * ``u_t_avg``, ``v_t_avg``, ``w_t_avg``, and ``umag_t_avg`` require
   ``erf.time_avg_vel = true``. If no samples have been accumulated yet, the
-  output value is defined as zero rather than dividing by zero.
+  output value is defined as zero rather than dividing by zero. The running
+  sum and its normalizer are saved in checkpoint files, so the averaging
+  window survives a restart; see :ref:`sec:Checkpoint`.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.

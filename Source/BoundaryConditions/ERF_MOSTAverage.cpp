@@ -264,6 +264,14 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         // None of the averages are initialized
         m_t_init.resize(m_maxlev,0);
+
+        // We have just (re)built the average containers at this level, so whatever
+        // filter history this level held is gone: m_averages holds bogus_large_value
+        // and set_plane_normalization has zeroed m_plane_average.  Note that resize
+        // above does not touch existing entries, so this must be set explicitly or a
+        // regrid would blend the bogus values into the filtered average.  On restart
+        // ReadCheckpointFileSurfaceLayer restores the state and sets this back to 1.
+        m_t_init[lev] = 0;
     }
 
     // Correction to the mean surface velocity at this level

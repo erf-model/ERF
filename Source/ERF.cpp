@@ -1295,7 +1295,14 @@ ERF::InitData_post ()
     }
 
     // Fill time averaged velocities before first plot file
-    if (solverChoice.time_avg_vel) {
+    //
+    // NOTE: only when starting from scratch.  On restart the running sum and its
+    //       normalizer have just been read back in, and that sum already includes
+    //       the state at the checkpoint time (ERF::Advance accumulates after each
+    //       step).  Accumulating it again here would count that state twice, so a
+    //       restarted run would not match the equivalent continuous run, and the
+    //       bias would compound over a chain of restarts.
+    if (solverChoice.time_avg_vel && restart_chkfile.empty()) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
                               vars_new[lev][Vars::xvel],
