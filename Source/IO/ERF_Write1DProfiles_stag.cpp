@@ -516,8 +516,6 @@ ERF::derive_diag_profiles_stag (double /*time*/,
 
     if (use_moisture)
     {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
@@ -529,7 +527,13 @@ ERF::derive_diag_profiles_stag (double /*time*/,
             const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
+            // The moisture map is the authority on which species this scheme
+            // carries; a slot the scheme allocates but never integrates must not
+            // be reported as a profile of data.
             int rhoqr_comp = solverChoice.moisture_indices.qr;
+            int rhoqi_comp = solverChoice.moisture_indices.qi;
+            int rhoqs_comp = solverChoice.moisture_indices.qs;
+            int rhoqg_comp = solverChoice.moisture_indices.qg;
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -546,15 +550,12 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 fab_arr(i, j, k,16) = qv;  // qv
                 fab_arr(i, j, k,17) = qc;  // qc
                 fab_arr(i, j, k,18) = qr;  // qr
-                if (n_qstate_moist > 3) { // SAM model
-                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
-                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
-                    fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
-                } else {
-                    fab_arr(i, j, k,19) = zero;  // qi
-                    fab_arr(i, j, k,20) = zero;  // qs
-                    fab_arr(i, j, k,21) = zero;  // qg
-                }
+                fab_arr(i, j, k,19) = (rhoqi_comp > -1) ?
+                    cons_arr(i,j,k,rhoqi_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qi
+                fab_arr(i, j, k,20) = (rhoqs_comp > -1) ?
+                    cons_arr(i,j,k,rhoqs_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qs
+                fab_arr(i, j, k,21) = (rhoqg_comp > -1) ?
+                    cons_arr(i,j,k,rhoqg_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qg
             });
 
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
