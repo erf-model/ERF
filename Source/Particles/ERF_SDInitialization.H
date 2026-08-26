@@ -226,6 +226,10 @@ class SDInitProperties
 
         /*!< Initial number of super-droplets per cell */
         int m_ppc = 1;
+        /*!< Whether particles_per_cell came from the input file. Published by
+             readInputs so callers do not have to read the key a second time --
+             a second read would find the default this one recorded. */
+        bool m_ppc_from_inputs = false;
 
         /*! Initial distribution type */
         SDInitShape m_type = SDInitShape::uniform;

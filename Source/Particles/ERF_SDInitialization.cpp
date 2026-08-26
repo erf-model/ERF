@@ -88,7 +88,7 @@ void SDInitProperties::readInputs ( SDInputs& a_in,
     a_in.query("multiplicity_type", m_mult_type);
     a_in.query("ice_apparent_density", m_ice_app_density);
 
-    a_in.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
+    m_ppc_from_inputs = a_in.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
 
     if (m_type == SDInitShape::uniform) {
 
@@ -262,11 +262,11 @@ void SDInjection::readInputs ( SDInputs& a_in,
     // Injection mode: an explicit particles_per_cell selects the legacy per-cell
     // path; otherwise inject in per-box high-multiplicity mode. The effective SD
     // injection rate is taken from sd_rate or rate/min_multiplicity; if both are
-    // specified, the one giving fewer super-droplets (lower SD rate) is used. The
-    // injection is read twice (non-indexed defaults then indexed overrides), so
-    // "specified" is tracked stickily across both calls.
-    int ppc_tmp = m_ppc;
-    m_ppc_specified = a_in.query("particles_per_cell", ppc_tmp);
+    // specified, the one giving fewer super-droplets (lower SD rate) is used.
+    // SDInitProperties::readInputs already read this key and published whether it
+    // came from the input file; reading it again here would find the default that
+    // read recorded and report it as user-specified.
+    m_ppc_specified = m_ppc_from_inputs;
     m_perbox = !m_ppc_specified;
     if (m_perbox) {
         if (m_sd_specified && m_mm_specified) {
