@@ -140,7 +140,7 @@ ERF::init_custom (int lev)
     // Should we initialize the velocities from a checkpoint file?
     static std::string init_vels_from_checkpoint;
     ParmParse pp("erf");
-    if (pp.query("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
+    if (pp.queryAdd("init_vels_from_checkpoint",init_vels_from_checkpoint)) {
         ReadVelsOnlyFromCheckpointFile(lev,init_vels_from_checkpoint);
     } else {
         MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());

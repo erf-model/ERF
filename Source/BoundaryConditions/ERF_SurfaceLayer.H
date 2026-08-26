@@ -89,7 +89,7 @@ public:
       } else {
           std::string flux_string_in;
           std::string flux_string{"moeng"};
-          auto read_flux = pp.query("surface_layer.flux_type", flux_string_in);
+          auto read_flux = pp.queryAdd("surface_layer.flux_type", flux_string_in);
           if (read_flux) {
               flux_string = amrex::toLower(flux_string_in);
           }
@@ -113,7 +113,7 @@ public:
 
       std::string pblh_string_in;
       std::string pblh_string{"none"};
-      auto read_pblh = pp.query("most.pblh_calc", pblh_string_in);
+      auto read_pblh = pp.queryAdd("most.pblh_calc", pblh_string_in);
       if (read_pblh) {
           pblh_string = amrex::toLower(pblh_string_in);
       }
@@ -140,13 +140,22 @@ public:
                        "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
       }
 
-      // Get surface temperature
-      auto erf_st = pp.query("most.surf_temp", surf_temp);
+      // Get surface temperature.  surf_temp and surf_moist are declared with negative
+      // sentinels (see below) so that "did the user set this" is a property of the
+      // value rather than of the queryAdd return value, which only reports whether the
+      // key existed before the call and so stops being meaningful once anything has
+      // parsed the key.  Both most.surf_temp and most.surf_moist are also parsed by
+      // ERF_InputSoundingData.H, so the two sites would poison each other otherwise.
+      pp.queryAdd("most.surf_temp", surf_temp);
+      const bool erf_st = (surf_temp > amrex::Real(0));
       if (erf_st) { default_land_surf_temp  = surf_temp; }
 
       // Get surface moisture
       bool erf_sq = false;
-      if (use_moisture) { erf_sq = pp.query("most.surf_moist", surf_moist); }
+      if (use_moisture) {
+          pp.queryAdd("most.surf_moist", surf_moist);
+          erf_sq = (surf_moist >= amrex::Real(0));
+      }
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
@@ -224,7 +233,7 @@ public:
 
       // Make sure the inputs file doesn't try to use most.roughness_type
       std::string bogus_input;
-      if (pp.query("most.roughness_type", bogus_input) > 0) {
+      if (pp.queryAdd("most.roughness_type", bogus_input) > 0) {
           amrex::Abort("most.roughness_type is deprecated; use "
                        "most.roughness_type_land and/or most.roughness_type_sea");
       }
@@ -233,7 +242,7 @@ public:
       std::string rough_land_string_in;
       std::string rough_land_string{"constant"};
       auto read_rough_land =
-          pp.query("most.roughness_type_land", rough_land_string_in);
+          pp.queryAdd("most.roughness_type_land", rough_land_string_in);
       if (read_rough_land) {
           rough_land_string = amrex::toLower(rough_land_string_in);
       }
@@ -246,7 +255,7 @@ public:
       // Specify how to compute the surface flux over sea (if there is any)
       std::string rough_sea_string_in;
       std::string rough_sea_string{"charnock"};
-      auto read_rough_sea = pp.query("most.roughness_type_sea", rough_sea_string_in);
+      auto read_rough_sea = pp.queryAdd("most.roughness_type_sea", rough_sea_string_in);
       if (read_rough_sea) {
           rough_sea_string = amrex::toLower(rough_sea_string_in);
       }
@@ -1237,11 +1246,16 @@ private:
   bool m_include_wstar = false;
   amrex::Real z0_const{amrex::Real(0.1)};
   amrex::Real default_land_surf_temp{amrex::Real(300.)};
-  amrex::Real surf_temp;
+  // Negative sentinels: a surface temperature is absolute and a surface moisture is a
+  // mixing ratio, so neither can legitimately be negative.  The constructor probes
+  // most.surf_temp / most.surf_moist with these and tests the resulting value to decide
+  // whether the user supplied them.  They were previously left uninitialized, which was
+  // safe only because a plain query() leaves them untouched on a miss.
+  amrex::Real surf_temp{amrex::Real(-1.)};
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
   amrex::Real default_land_surf_moist{zero};
-  amrex::Real surf_moist;
+  amrex::Real surf_moist{amrex::Real(-1.)};
   amrex::Real surf_moist_flux{0};
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};
