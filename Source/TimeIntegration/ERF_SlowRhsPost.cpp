@@ -88,7 +88,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* detJ_new,
                         Gpu::DeviceVector<Real>& stretched_dz_d,
                         Vector<std::unique_ptr<MultiFab>>& mapfac,
-                        amrex::EBFArrayBoxFactory const& ebfact,
+                        const eb_& ebfact,
 #ifdef ERF_USE_EAMXX_SHOC
                         SHOCInterface* eamxx_shoc_lev,
 #endif
@@ -378,20 +378,21 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<const Real> bcent_arr{};
 
         if (l_use_eb) {
-            EBCellFlagFab const& cfg = ebfact.getMultiEBCellFlagFab()[mfi];
+            EBFArrayBoxFactory const& ebfact_cc = *(ebfact.get_const_factory());
+            EBCellFlagFab const& cfg = ebfact_cc.getMultiEBCellFlagFab()[mfi];
             cfg_arr  = cfg.const_array();
             if (cfg.getType(tbx) == FabType::singlevalued) {
                 l_eb_terrain_cc = true;
-                ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
-                ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
-                az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-                fcx_arr  = ebfact.getFaceCent()[0]->const_array(mfi);
-                fcy_arr  = ebfact.getFaceCent()[1]->const_array(mfi);
-                fcz_arr  = ebfact.getFaceCent()[2]->const_array(mfi);
-                detJ_arr = ebfact.getVolFrac().const_array(mfi);
+                ax_arr   = ebfact_cc.getAreaFrac()[0]->const_array(mfi);
+                ay_arr   = ebfact_cc.getAreaFrac()[1]->const_array(mfi);
+                az_arr   = ebfact_cc.getAreaFrac()[2]->const_array(mfi);
+                fcx_arr  = ebfact_cc.getFaceCent()[0]->const_array(mfi);
+                fcy_arr  = ebfact_cc.getFaceCent()[1]->const_array(mfi);
+                fcz_arr  = ebfact_cc.getFaceCent()[2]->const_array(mfi);
+                detJ_arr = ebfact_cc.getVolFrac().const_array(mfi);
                 mask_arr = physbnd_mask.const_array(mfi);
-                barea_arr = ebfact.getBndryArea().const_array(mfi);
-                bcent_arr = ebfact.getBndryCent().const_array(mfi);
+                barea_arr = ebfact_cc.getBndryArea().const_array(mfi);
+                bcent_arr = ebfact_cc.getBndryCent().const_array(mfi);
             } else {
                 ax_arr   = ax->const_array(mfi);
                 ay_arr   = ay->const_array(mfi);
