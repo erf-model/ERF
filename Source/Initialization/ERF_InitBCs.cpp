@@ -73,7 +73,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
         {
             pp_text = bcid;
             pp = ParmParse(pp_text);
-            pp.query("type", bc_type_in);
+            pp.queryAdd("type", bc_type_in);
         }
 
         std::string bc_type = amrex::toLower(bc_type_in);
@@ -138,7 +138,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 std::string dirichlet_file;
                 auto file_exists = pp.query("dirichlet_file", dirichlet_file);
                 if (file_exists) {
-                    pp.query("read_prim_theta", read_prim_theta);
+                    pp.queryAdd("read_prim_theta", read_prim_theta);
                     init_Dirichlet_bc_data(dirichlet_file);
                 } else {
                     pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
@@ -174,7 +174,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             // This lets upstream-propagating acoustic waves exit the domain
             // instead of reflecting off the rigid Dirichlet boundary.
             bool nonreflecting = false;
-            pp.query("nonreflecting", nonreflecting);
+            pp.queryAdd("nonreflecting", nonreflecting);
             m_bc_nonreflecting[ori] = nonreflecting;
 
             Real scalar_in = zero_d;

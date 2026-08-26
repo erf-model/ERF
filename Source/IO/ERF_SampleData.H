@@ -186,7 +186,7 @@ struct LineSampler
 
             // Write outputs to text files, one file per variable, with all
             // times appended to the same file
-            pp.query("line_sampling_text_output",m_write_ascii);
+            pp.queryAdd("line_sampling_text_output",m_write_ascii);
             if (m_write_ascii && amrex::ParallelDescriptor::IOProcessor()) {
                 int nvar = static_cast<int>(m_varnames.size());
                 m_datastream.resize(nline * nvar);
@@ -631,7 +631,7 @@ struct PlaneSampler
             }
 
             // Optional cap on the finest level written (-1 => all intersecting levels)
-            pp.query("plane_sampling_max_level", m_max_level);
+            pp.queryAdd("plane_sampling_max_level", m_max_level);
 
             // Allocate per-plane vectors of per-level MF pointers
             m_ps_mf.resize(n_plane_lo);

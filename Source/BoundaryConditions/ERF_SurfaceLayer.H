@@ -81,7 +81,7 @@ public:
 
       // Get roughness
       amrex::ParmParse pp("erf");
-      pp.query("most.z0", z0_const);
+      pp.queryAdd("most.z0", z0_const);
 
       // Specify how to compute the flux
       if (use_rot_surface_flux) {
@@ -109,7 +109,7 @@ public:
       }
 
       // Include w* to handle free convection (Beljaars 1995, QJRMS)
-      pp.query("most.include_wstar", m_include_wstar);
+      pp.queryAdd("most.include_wstar", m_include_wstar);
 
       std::string pblh_string_in;
       std::string pblh_string{"none"};
@@ -157,7 +157,7 @@ public:
           pp.get("most.ustar", custom_ustar);
           pp.get("most.tstar", custom_tstar);
           pp.get("most.qstar", custom_qstar);
-          pp.query("most.rhosurf", custom_rhosurf);
+          pp.queryAdd("most.rhosurf", custom_rhosurf);
           if (custom_qstar != 0) {
               AMREX_ASSERT_WITH_MESSAGE(use_moisture,
               "Specified custom MOST qv flux without moisture model!");
@@ -181,7 +181,7 @@ public:
       } else {
           if (erf_st) {
               theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-              pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
+              pp.queryAdd("most.surf_heating_rate", surf_heating_rate); // [K/h]
 
               // Modify rate to be in units of K / s rather than K / hr
               surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
@@ -190,7 +190,7 @@ public:
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
           } else {
-              pp.query("most.surf_temp_flux", surf_temp_flux);
+              pp.queryAdd("most.surf_temp_flux", surf_temp_flux);
 
               if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
@@ -206,7 +206,7 @@ public:
           if (erf_sq) {
               moist_type = MoistCalcType::SURFACE_MOISTURE;
           } else {
-              pp.query("most.surf_moist_flux", surf_moist_flux);
+              pp.queryAdd("most.surf_moist_flux", surf_moist_flux);
               if (std::abs(surf_moist_flux) >
                   std::numeric_limits<amrex::Real>::epsilon()) {
                   moist_type = MoistCalcType::MOISTURE_FLUX;
@@ -218,8 +218,8 @@ public:
 
       if (flux_type == FluxCalcType::RICO)
       {
-          pp.query("most.rico.theta_z0", rico_theta_z0);
-          pp.query("most.rico.qsat_z0", rico_qsat_z0);
+          pp.queryAdd("most.rico.theta_z0", rico_theta_z0);
+          pp.queryAdd("most.rico.qsat_z0", rico_qsat_z0);
       }
 
       // Make sure the inputs file doesn't try to use most.roughness_type
@@ -252,8 +252,8 @@ public:
       }
       if (rough_sea_string == "charnock") {
           rough_type_sea = RoughCalcType::CHARNOCK;
-          pp.query("most.charnock_constant", cnk_a);
-          pp.query("most.charnock_viscosity", cnk_visc);
+          pp.queryAdd("most.charnock_constant", cnk_a);
+          pp.queryAdd("most.charnock_viscosity", cnk_visc);
           if (cnk_a > 0) {
               amrex::Print() << "If there is water, Charnock relation with C_a="
                              << cnk_a << (cnk_visc ? " and viscosity" : "")
@@ -275,7 +275,7 @@ public:
           rough_type_sea = RoughCalcType::DONELAN;
       } else if (rough_sea_string == "modified_charnock") {
           rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
-          pp.query("most.modified_charnock_depth", depth);
+          pp.queryAdd("most.modified_charnock_depth", depth);
       } else if (rough_sea_string == "wave_coupled") {
           rough_type_sea = RoughCalcType::WAVE_COUPLED;
       } else if (rough_sea_string == "constant") {
@@ -286,7 +286,7 @@ public:
 
       // use skin temperature instead of sea-surface temperature
       // (wrfinput data may have lower resolution SST data)
-      pp.query("most.ignore_sst", m_ignore_sst);
+      pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
       // If we're using the RANS k model, then we need to update the dirichlet
       // BC based on the instantaneous u* and θ*; the turbulence modeling
@@ -359,7 +359,7 @@ public:
           m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
           if (m_var_z0) {
               std::string rough_sea_string{"charnock"};
-              pp.query("most.roughness_type_sea", rough_sea_string);
+              pp.queryAdd("most.roughness_type_sea", rough_sea_string);
               amrex::Print() << "Variable sea roughness (type " << rough_sea_string
                              << ")" << std::endl;
           }
@@ -417,8 +417,8 @@ public:
 
       // Text-file driven surface forcing modes. The file always contains at
       // least time(day) and sst(K); prescribed-flux mode also uses H, LE, USTAR.
-      pp.query("most.use_sfc_fluxes", m_use_sfc_fluxes);
-      pp.query("most.use_sfc_sst", m_use_sfc_sst);
+      pp.queryAdd("most.use_sfc_fluxes", m_use_sfc_fluxes);
+      pp.queryAdd("most.use_sfc_sst", m_use_sfc_sst);
       if (m_use_sfc_fluxes && m_use_sfc_sst) {
           amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
       }
@@ -429,7 +429,7 @@ public:
 
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
-          pp.query("most.sfc_file", sfc_file);
+          pp.queryAdd("most.sfc_file", sfc_file);
           if (sfc_file.empty()) {
               amrex::Abort("most.sfc_file must be set when using text-file surface forcing");
           }
@@ -510,7 +510,7 @@ public:
               read_z0 = true;
           } else if (count == 1) {
               if (lev == 0) {
-                  pp.query("most.roughness_file_name", fname);
+                  pp.queryAdd("most.roughness_file_name", fname);
               } else {
                   // we will interpolate from the coarsest level
                   fname = "";

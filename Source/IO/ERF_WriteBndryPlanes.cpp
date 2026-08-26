@@ -60,7 +60,7 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     ParmParse pp("erf");
 
     // Get the radius inside the domain
-    pp.query("in_rad",m_in_rad);
+    pp.queryAdd("in_rad",m_in_rad);
 
     // User-specified region is given in physical coordinates, not index space
     std::vector<Real> box_lo(3), box_hi(3);

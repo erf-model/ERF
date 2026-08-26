@@ -652,17 +652,17 @@ struct SolverChoice {
         }
 
         // Do we set map scale factors to myhalf instead of 1 for testing?
-        pp.query("test_mapfactor", test_mapfactor);
+        pp.queryAdd("test_mapfactor", test_mapfactor);
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
         // 0: dp/dx with dp/dz correction (default)
         // 1: gradient of vertically interpolated p, see Klemp 2011
-        pp.query("gradp_type", gradp_type);
+        pp.queryAdd("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
-        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+        pp.queryAdd("use_pert_pres_gradient", use_pert_pres_gradient);
 
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
@@ -686,7 +686,7 @@ struct SolverChoice {
         }
 
         if (moisture_type != MoistureType::None) {
-            pp.query("moisture_tight_coupling",moisture_tight_coupling);
+            pp.queryAdd("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
@@ -719,7 +719,7 @@ struct SolverChoice {
         // has run yet. The surface layer needs it at Define time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
-        pp.query("use_coupled_sst", use_coupled_sst);
+        pp.queryAdd("use_coupled_sst", use_coupled_sst);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -746,7 +746,7 @@ struct SolverChoice {
 
         // Is the terrain none, static or moving?
         std::string terrain_type_temp = "";
-        pp.query("terrain_type", terrain_type_temp);
+        pp.queryAdd("terrain_type", terrain_type_temp);
         if (terrain_type_temp == "Moving") {
             amrex::Warning("erf.terrain_type = Moving is deprecated; please replace Moving by MovingFittedMesh");
             terrain_type = TerrainType::MovingFittedMesh;
@@ -759,7 +759,7 @@ struct SolverChoice {
 
         // Get buildings type
         std::string buildings_type_temp = "";
-        pp.query("buildings_type", buildings_type_temp);
+        pp.queryAdd("buildings_type", buildings_type_temp);
         if (buildings_type_temp == "ImmersedForcing") {
             buildings_type = BuildingsType::ImmersedForcing;
         }
@@ -803,7 +803,7 @@ struct SolverChoice {
             if (!has_bdy) use_real_bcs = false;
 
             bool use_real_bcs_temp = use_real_bcs;
-            pp.query("use_real_bcs", use_real_bcs_temp);
+            pp.queryAdd("use_real_bcs", use_real_bcs_temp);
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
@@ -834,7 +834,7 @@ struct SolverChoice {
             amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
-        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        pp.queryAdd("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
                                       "The grid stretching ratio must be greater than 1");
@@ -846,7 +846,7 @@ struct SolverChoice {
             if (mesh_type == MeshType::ConstantDz) {
                 mesh_type = MeshType::StretchedDz;
             }
-            pp.query("zsurface", zsurf);
+            pp.queryAdd("zsurface", zsurf);
             if (zsurf != zero) {
                 amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
                     << std::endl;
@@ -866,13 +866,13 @@ struct SolverChoice {
         }
 
         // Use lagged_delta_rt in the fast integrator?
-        pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+        pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
         // Keep the default wrf grid or remake our own
-        pp.query("use_wrf_height_grid",use_wrf_height_grid);
+        pp.queryAdd("use_wrf_height_grid",use_wrf_height_grid);
 
         // Rebalance wrf state?
-        pp.query("rebalance_wrf_input", rebalance_wrf_input);
+        pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
         // Must rebalance if not using WRF grid
         if (!use_wrf_height_grid && !rebalance_wrf_input) {
@@ -881,7 +881,7 @@ struct SolverChoice {
         }
 
         // These default to true but are used for unit testing
-        pp.query("use_gravity", use_gravity);
+        pp.queryAdd("use_gravity", use_gravity);
 
         // Initializing from Metgrid or WRFInput without gravity makes no sense
         if ( !use_gravity && ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) ) {
@@ -891,7 +891,7 @@ struct SolverChoice {
 
         gravity = use_gravity? CONST_GRAV: zero;
 
-        pp.query("c_p", c_p);
+        pp.queryAdd("c_p", c_p);
         rdOcp = R_d / c_p;
 
         // *******************************************************************************
@@ -942,9 +942,9 @@ struct SolverChoice {
                 pp, "substepping_type", substepping_type[i], i, max_level);
         }
 
-        pp.query("substepping_diag", substepping_diag);
+        pp.queryAdd("substepping_diag", substepping_diag);
 
-        pp.query("beta_s", beta_s);
+        pp.queryAdd("beta_s", beta_s);
 
 
 
@@ -958,9 +958,9 @@ struct SolverChoice {
 
         // *******************************************************************************
 
-        pp.query("ncorr", ncorr);
-        pp.query("poisson_abstol", poisson_abstol);
-        pp.query("poisson_reltol", poisson_reltol);
+        pp.queryAdd("ncorr", ncorr);
+        pp.queryAdd("poisson_abstol", poisson_abstol);
+        pp.queryAdd("poisson_reltol", poisson_reltol);
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
@@ -972,37 +972,37 @@ struct SolverChoice {
             }
         }
 
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+        pp.queryAdd("force_stage1_single_substep", force_stage1_single_substep);
 
         // Include Coriolis forcing?
-        pp.query("use_coriolis", use_coriolis);
-        pp.query("variable_coriolis", variable_coriolis);
+        pp.queryAdd("use_coriolis", use_coriolis);
+        pp.queryAdd("variable_coriolis", variable_coriolis);
 
         // Include four stream radiation approximation
-        pp.query("four_stream_radiation", four_stream_radiation);
+        pp.queryAdd("four_stream_radiation", four_stream_radiation);
 
         // flags for whether to apply other source terms in substep only
-        pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
-        pp.query("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
+        pp.queryAdd("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
+        pp.queryAdd("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
         // immersed forcing parameters
-        pp.query("if_Cd_momentum", if_Cd_momentum);
-        pp.query("if_Cd_scalar", if_Cd_scalar);
-        pp.query("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
-        pp.query("if_z0", if_z0);
-        pp.query("if_surf_temp_flux", if_surf_temp_flux);
-        pp.query("if_init_surf_temp", if_init_surf_temp);
+        pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
+        pp.queryAdd("if_Cd_scalar", if_Cd_scalar);
+        pp.queryAdd("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
+        pp.queryAdd("if_z0", if_z0);
+        pp.queryAdd("if_surf_temp_flux", if_surf_temp_flux);
+        pp.queryAdd("if_init_surf_temp", if_init_surf_temp);
 
-        pp.query("if_surf_heating_rate", if_surf_heating_rate);
+        pp.queryAdd("if_surf_heating_rate", if_surf_heating_rate);
 
         // Modify rate to be in units of K / s rather than K / hr
         if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
 
-        pp.query("if_Olen", if_Olen_in);
-        pp.query("if_use_most",if_use_most);
-        pp.query("if_stability_correction",if_stability_correction);
-        pp.query("if_ws_floor",if_ws_floor);
-        pp.query("if_damp_alpha",if_damp_alpha);
+        pp.queryAdd("if_Olen", if_Olen_in);
+        pp.queryAdd("if_use_most",if_use_most);
+        pp.queryAdd("if_stability_correction",if_stability_correction);
+        pp.queryAdd("if_ws_floor",if_ws_floor);
+        pp.queryAdd("if_damp_alpha",if_damp_alpha);
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
             (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
@@ -1012,7 +1012,7 @@ struct SolverChoice {
         }
 
         // Flag to do MOST rotations with terrain
-        pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
+        pp.queryAdd("use_rotate_surface_flux",use_rotate_surface_flux);
         if (use_rotate_surface_flux) {
             AMREX_ASSERT_WITH_MESSAGE(terrain_type != TerrainType::None,"MOST stress rotations are only valid with terrain!");
         }
@@ -1020,11 +1020,11 @@ struct SolverChoice {
         // Which external forcings?
         abl_driver_type = ABLDriverType::None; // Default: no ABL driver for simulating classical fluid dynamics problems
         pp.query_enum_case_insensitive("abl_driver_type",abl_driver_type);
-        pp.query("const_massflux_u", const_massflux_u);
-        pp.query("const_massflux_v", const_massflux_v);
-        pp.query("const_massflux_tau", const_massflux_tau);
-        pp.query("const_massflux_layer_lo", const_massflux_layer_lo);
-        pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
+        pp.queryAdd("const_massflux_u", const_massflux_u);
+        pp.queryAdd("const_massflux_v", const_massflux_v);
+        pp.queryAdd("const_massflux_tau", const_massflux_tau);
+        pp.queryAdd("const_massflux_layer_lo", const_massflux_layer_lo);
+        pp.queryAdd("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
         pert_type.resize(max_level+1);
@@ -1053,33 +1053,33 @@ struct SolverChoice {
             build_coriolis_forcings_const_lat(pp_prefix);
         }
 
-        pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
-        pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
-        pp.query("add_custom_w_subsidence", custom_w_subsidence);
-        pp.query("add_do_theta_advection", do_theta_advection);  // If true, apply custom subsidence to (rho*theta) when add_custom_w_subsidence is used
-        pp.query("add_do_mom_advection", do_mom_advection);      // If true, apply custom subsidence to momentum when add_custom_w_subsidence is used
-        pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
-        pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
-        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
-        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
+        pp.queryAdd("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
+        pp.queryAdd("add_custom_moisture_forcing", custom_moisture_forcing);
+        pp.queryAdd("add_custom_w_subsidence", custom_w_subsidence);
+        pp.queryAdd("add_do_theta_advection", do_theta_advection);  // If true, apply custom subsidence to (rho*theta) when add_custom_w_subsidence is used
+        pp.queryAdd("add_do_mom_advection", do_mom_advection);      // If true, apply custom subsidence to momentum when add_custom_w_subsidence is used
+        pp.queryAdd("add_custom_geostrophic_profile", custom_geostrophic_profile);
+        pp.queryAdd("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.queryAdd("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.queryAdd("spatial_moisture_forcing", spatial_moisture_forcing);
 
-        pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
+        pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
-        pp.query("nudging_q_z1", nudging_q_z1);
-        pp.query("nudging_q_z2", nudging_q_z2);
-        pp.query("nudging_t_z1", nudging_t_z1);
-        pp.query("nudging_t_z2", nudging_t_z2);
+        pp.queryAdd("nudging_q_z1", nudging_q_z1);
+        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+        pp.queryAdd("nudging_t_z1", nudging_t_z1);
+        pp.queryAdd("nudging_t_z2", nudging_t_z2);
 
-        pp.query("large_scale_forcing", large_scale_forcing);
+        pp.queryAdd("large_scale_forcing", large_scale_forcing);
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
             "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
 
-        pp.query("Ave_Plane", ave_plane);
+        pp.queryAdd("Ave_Plane", ave_plane);
 
         // Use numerical diffusion?
-        pp.query("num_diff_coeff",num_diff_coeff);
+        pp.queryAdd("num_diff_coeff",num_diff_coeff);
         AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= zero) && (num_diff_coeff <= one) ),
                                   "Numerical diffusion coefficient must be between 0 & one");
         use_num_diff = (num_diff_coeff > 0);
@@ -1136,22 +1136,22 @@ struct SolverChoice {
         }
 
         // What's the strength of the bdy nudging?
-        pp.query("bdy_nudge_factor",bdy_nudge_factor);
+        pp.queryAdd("bdy_nudge_factor",bdy_nudge_factor);
 
         // Optionally use the dry-air density reconstructed from wrfbdy.
-        pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+        pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
         // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
-        pp.query("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
+        pp.queryAdd("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
 
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
 
-        pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
+        pp.queryAdd("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
-        pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+        pp.queryAdd("bdy_moist_nudge_type",bdy_moist_nudge_type);
         if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
             amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
         }
@@ -1181,7 +1181,7 @@ struct SolverChoice {
         }
 
         // Are me transporting the scalar component?
-        pp.query("transport_scalar",transport_scalar);
+        pp.queryAdd("transport_scalar",transport_scalar);
 
         for (int lev = 0; lev <= max_level; ++lev) {
             if (turbChoice[lev].uses_eamxx_shoc()) {
@@ -1236,7 +1236,7 @@ struct SolverChoice {
         } else {
             // This controls the time-centering of the vertical differences in the diffusive term
             bool do_vert_implicit = true;
-            pp.query("vert_implicit", do_vert_implicit);
+            pp.queryAdd("vert_implicit", do_vert_implicit);
 
             if (!do_vert_implicit) {
                 for (int lev = 0; lev <= max_level; lev++) {
@@ -1279,24 +1279,24 @@ struct SolverChoice {
 
                 // If true (default), include implicit contributions to vertical
                 // thermal diffusion
-                pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+                pp.queryAdd("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
                 // If true (default), include implicit contributions to vertical
                 // moisture diffusion
-                pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
+                pp.queryAdd("implicit_moisture_diffusion", implicit_moisture_diffusion);
 
                 // If true (default), include implicit contributions to vertical
                 // KE diffusion
-                pp.query("implicit_ke_diffusion", implicit_ke_diffusion);
+                pp.queryAdd("implicit_ke_diffusion", implicit_ke_diffusion);
 
                 // If true (default), include implicit contributions in tau13, tau23,
                 // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-                pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+                pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
                 // This controls when the vertical implicit solve for the diffusive terms will happen relative to
                 //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
                 // The default is true (i.e. that it happens before the acoustic substepping).
-                pp.query("implicit_before_substep", implicit_before_substep);
+                pp.queryAdd("implicit_before_substep", implicit_before_substep);
                 for (int lev = 0; lev <= max_level; lev++) {
                     if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
                         amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
@@ -1347,44 +1347,44 @@ struct SolverChoice {
         windfarm_loc_type = WindFarmLocType::None;
         pp.query_enum_case_insensitive("windfarm_loc_type",windfarm_loc_type);
 
-        pp.query("windfarm_loc_table",  windfarm_loc_table);
-        pp.query("windfarm_spec_table", windfarm_spec_table);
-        pp.query("windfarm_blade_table", windfarm_blade_table);
-        pp.query("windfarm_airfoil_tables", windfarm_airfoil_tables);
-        pp.query("windfarm_spec_table_extra", windfarm_spec_table_extra);
+        pp.queryAdd("windfarm_loc_table",  windfarm_loc_table);
+        pp.queryAdd("windfarm_spec_table", windfarm_spec_table);
+        pp.queryAdd("windfarm_blade_table", windfarm_blade_table);
+        pp.queryAdd("windfarm_airfoil_tables", windfarm_airfoil_tables);
+        pp.queryAdd("windfarm_spec_table_extra", windfarm_spec_table_extra);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
         // turbine. ie. the sampling distance will be this number multiplied
         // by the diameter of the turbine
-        pp.query("sampling_distance_by_D", sampling_distance_by_D);
-        pp.query("turb_disk_angle_from_x", turb_disk_angle);
+        pp.queryAdd("sampling_distance_by_D", sampling_distance_by_D);
+        pp.queryAdd("turb_disk_angle_from_x", turb_disk_angle);
 
-        pp.query("windfarm_x_shift",windfarm_x_shift);
-        pp.query("windfarm_y_shift",windfarm_y_shift);
+        pp.queryAdd("windfarm_x_shift",windfarm_x_shift);
+        pp.queryAdd("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
-        pp.query("time_avg_vel",time_avg_vel);
+        pp.queryAdd("time_avg_vel",time_avg_vel);
 
-        pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
+        pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
         if (hindcast_lateral_forcing) {
-            pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+            pp.queryAdd("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
 
             if(hindcast_boundary_data_dir.empty()) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
-            pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
+            pp.queryAdd("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
             if(hindcast_data_interval_in_hrs < zero) {
                 amrex::Error("ERROR: Input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
                              "data files is either missing or set to less than zero");
             }
-            pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
-            pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
+            pp.queryAdd("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
+            pp.queryAdd("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
 
-            pp.query("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
-            pp.query("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
+            pp.queryAdd("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
+            pp.queryAdd("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
 
-            pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
+            pp.queryAdd("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
 
             if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
@@ -1403,15 +1403,15 @@ struct SolverChoice {
             }
         }
 
-        pp.query("hindcast_surface_bcs", hindcast_surface_bcs);
+        pp.queryAdd("hindcast_surface_bcs", hindcast_surface_bcs);
         if(hindcast_surface_bcs) {
-            pp.query("hindcast_surface_data_dir", hindcast_surface_data_dir);
+            pp.queryAdd("hindcast_surface_data_dir", hindcast_surface_data_dir);
         }
 
-        pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
+        pp.queryAdd("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
         if (io_hurricane_eye_tracker) {
-            pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
-            pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
+            pp.queryAdd("hurricane_eye_latitude", hurricane_eye_latitude);
+            pp.queryAdd("hurricane_eye_longitude", hurricane_eye_longitude);
             if(hurricane_eye_latitude == amrex::Real(-1e10) or hurricane_eye_longitude == amrex::Real(-1e10)) {
                 amrex::Error("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
@@ -1420,28 +1420,28 @@ struct SolverChoice {
             }
         }
 
-        pp.query("is_init_for_ensemble", is_init_for_ensemble);
+        pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
             amrex::ParmParse pp_ens("ensemble");
-            pp_ens.query("n_members", n_ensemble);
+            pp_ens.queryAdd("n_members", n_ensemble);
             if(n_ensemble < 2) {
                 amrex::Abort("You are using an ensemble run. There needs to be at least 2 ensemble members. "
                              "erf.n_ensemble must be >=2.");
             }
-            pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
+            pp_ens.queryAdd("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
             if (coarse_bckgnd_data_file.empty()) {
                 amrex::Abort("coarse_bckgnd_data_file is empty! For ensmeble simulations, there needs to be a coarse background file which "
                              "contains the data which will be interpolated onto the fine mesh. There has to a entry ensemble.coarse_bckgnd_data_file "
                              "which contains the filename in the inputs.");
             }
-            pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
+            pp_ens.queryAdd("ens_pert_amplitude", ens_pert_amplitude);
             if(ens_pert_amplitude <= 0.0) {
                 amrex::Error("You are using initialization for ensemble simulations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
                              "ensemble.ens_pert_amplitude which is the value of the amplitude of the perturbation  "
                              "to be added to the background state and has to be greater than 0.0");
             }
-            pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
+            pp_ens.queryAdd("ens_pert_correlated_radius", ens_pert_correlated_radius);
             if(ens_pert_correlated_radius <= 0.0) {
                 amrex::Error("You are using initialization with spatially correlated perturbations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
@@ -1727,15 +1727,15 @@ struct SolverChoice {
 
         // Read the rotational time period (in seconds)
         double rot_time_period = 86400.0;
-        pp.query("rotational_time_period", rot_time_period);
+        pp.queryAdd("rotational_time_period", rot_time_period);
 
         coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
-        pp.query("coriolis_3d", coriolis_3d);
+        pp.queryAdd("coriolis_3d", coriolis_3d);
 
         // Convert to radians
         amrex::Real latitude_for_coriolis = amrex::Real(90.0);
-        pp.query("latitude", latitude_for_coriolis);
+        pp.queryAdd("latitude", latitude_for_coriolis);
         latitude_for_coriolis *= (PI/amrex::Real(180.));
         sinphi = std::sin(latitude_for_coriolis);
 

@@ -92,19 +92,19 @@ struct TurbulentPerturbation {
         pp.get("perturbation_offset",tpi_offset);
 
         tpi_nonDim = zero;
-        pp.query("perturbation_nondimensional",tpi_nonDim);
+        pp.queryAdd("perturbation_nondimensional",tpi_nonDim);
 
         tpi_Tinf = amrex::Real(300.);
-        pp.query("perturbation_T_infinity",tpi_Tinf);
+        pp.queryAdd("perturbation_T_infinity",tpi_Tinf);
 
         tpi_Ti = zero;
-        pp.query("perturbation_T_intensity",tpi_Ti);
+        pp.queryAdd("perturbation_T_intensity",tpi_Ti);
 
         input_Ug = zero;
-        pp.query("perturbation_Ug",input_Ug);
+        pp.queryAdd("perturbation_Ug",input_Ug);
 
         input_w_amp = zero;
-        pp.query("perturbation_w_amp",input_w_amp);
+        pp.queryAdd("perturbation_w_amp",input_w_amp);
 
         perturbation_klo = 0;
         bool have_klo = pp.query("perturbation_klo", perturbation_klo);
@@ -307,7 +307,7 @@ struct TurbulentPerturbation {
         // Seed the random generator at 1024UL for regression testing
         int fix_random_seed = 0;
         amrex::ParmParse pp("erf");
-        pp.query("fix_random_seed", fix_random_seed);
+        pp.queryAdd("fix_random_seed", fix_random_seed);
         if (fix_random_seed) {
             // We need this one for the ParalleForRNG used in calc_tpi
             amrex::InitRandom(1024UL, amrex::ParallelDescriptor::NProcs(), 1024UL);

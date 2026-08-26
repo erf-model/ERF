@@ -688,7 +688,7 @@ void WDM6::Advance(const Real& dt_advance,
     std::vector<int> micro_diag_target_column;
     {
         amrex::ParmParse pp("erf");
-        pp.query("microphysics_debug", microphysics_debug);
+        pp.queryAdd("microphysics_debug", microphysics_debug);
         pp.queryarr("micro_diag_target_column", micro_diag_target_column);
     }
     microphysics_debug = std::max(0, std::min(2, microphysics_debug));
@@ -696,7 +696,7 @@ void WDM6::Advance(const Real& dt_advance,
     bool use_wdm6_cpp_answer = false;
     {
         amrex::ParmParse pp("erf");
-        pp.query("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
+        pp.queryAdd("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
     }
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
 #endif

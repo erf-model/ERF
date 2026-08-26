@@ -27,7 +27,7 @@ public:
     InputSoundingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("tau_nudging", tau_nudging);
+        pp.queryAdd("tau_nudging", tau_nudging);
 
         // Read in input_sounding filename
         n_sounding_files = pp.countval("input_sounding_file");

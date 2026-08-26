@@ -681,7 +681,7 @@ public:
                          const double& time)
     {
         std::string custom_terrain_type = "None";
-        amrex::ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type",custom_terrain_type);
+        amrex::ParmParse pp_prob("prob"); pp_prob.queryAdd("custom_terrain_type",custom_terrain_type);
 
         if (custom_terrain_type != "None")
         {

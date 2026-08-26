@@ -31,17 +31,17 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // Get basic info
     //--------------------------------------------------------
     ParmParse pp(m_pp_prefix);
-    pp.query("most.radius",m_radius);
-    pp.query("most.time_average",m_t_avg);
-    pp.query("most.terrain_rotate",m_rotate);
-    pp.query("most.use_interpolation",m_interp);
-    pp.query("most.use_normal_vector",m_norm_vec);
+    pp.queryAdd("most.radius",m_radius);
+    pp.queryAdd("most.time_average",m_t_avg);
+    pp.queryAdd("most.terrain_rotate",m_rotate);
+    pp.queryAdd("most.use_interpolation",m_interp);
+    pp.queryAdd("most.use_normal_vector",m_norm_vec);
 
     // m_time_window is normalized by the time-step "dt"
-    pp.query("most.time_window", m_time_window);
+    pp.queryAdd("most.time_window", m_time_window);
 
     // Corrections to the mean surface velocity
-    pp.query("most.include_subgrid_vel", include_subgrid_vel);
+    pp.queryAdd("most.include_subgrid_vel", include_subgrid_vel);
 
     auto specified_policy = pp.query("most.average_policy",m_policy);
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {

@@ -36,8 +36,8 @@ public:
     LargeScaleForcingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("forcing_timescale", tau_lsf);
-        pp.query("large_scale_forcing_file", lsf_file);
+        pp.queryAdd("forcing_timescale", tau_lsf);
+        pp.queryAdd("large_scale_forcing_file", lsf_file);
     }
 
     /**
