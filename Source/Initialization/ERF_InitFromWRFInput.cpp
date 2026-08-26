@@ -574,7 +574,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // Invert exactly the region that received data from the file: the copy
+                    // of "ALB" and the plus of "AL" both act on cons_fab.box() & var_fab.box(),
+                    // which includes the ghost cells lying inside the region read from the file.
+                    Box vbx = cons_fab.box() & var_fab.box();
 
                     // Add "AL" to "ALB" before inverting
                     cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
@@ -590,7 +594,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // See the note in the ALB/AL branch above: invert exactly the region
+                    // the copy below writes, so the in-domain ghost cells hold density
+                    // rather than specific volume, and the cells still holding zero are skipped.
+                    Box vbx = cons_fab.box() & var_fab.box();
 
                     // "ALT" holds the full 1/density so we can invert here
                     cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
@@ -1459,15 +1467,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
         MultiFab rho (lev_new[Vars::cons], make_alias, Rho_comp, 1);
 
-        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 1);
-        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 1);
-        MultiFab::Divide(theta, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
-        amrex::Print() << "FINISHED MAKING THETA " << std::endl;
+        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 0);
+        MultiFab::Divide(theta, lev_new[Vars::cons], Rho_comp , 0, 1, 0);
 
-        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 1);
-        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 1);
-        amrex::Print() << "FINISHED COPYIGN QV " << std::endl;
-        MultiFab::Divide(qv, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 0);
+        MultiFab::Divide(qv, lev_new[Vars::cons], Rho_comp , 0, 1, 0);
 
         MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
@@ -1477,12 +1483,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update (rho qv) in the state
-        MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
-        MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 1);
+        MultiFab::Multiply(qv, rho, 0, 0, 1, 0);
+        MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 0);
 
         // Update (rho theta) in the state
-        MultiFab::Multiply(theta, rho, 0, 0, 1, 1);
-        MultiFab::Copy(lev_new[Vars::cons], theta, 0, RhoTheta_comp, 1, 1);
+        MultiFab::Multiply(theta, rho, 0, 0, 1, 0);
+        MultiFab::Copy(lev_new[Vars::cons], theta, 0, RhoTheta_comp, 1, 0);
     }
 
     // **************************************************************************
