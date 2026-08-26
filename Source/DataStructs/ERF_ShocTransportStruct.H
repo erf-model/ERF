@@ -1,6 +1,8 @@
 #ifndef ERF_SHOC_TRANSPORT_STRUCT_H_
 #define ERF_SHOC_TRANSPORT_STRUCT_H_
 
+#include <AMReX_ParmParse.H>
+
 #include <algorithm>
 #include <cctype>
 #include <string>
@@ -122,5 +124,40 @@ parse_shoc_momentum_transport_string (std::string value,
 
     error_message = "erf.shoc.momentum_transport must be 'none', 'state_update', or 'host_diffusion'";
     return false;
+}
+
+/**
+ * @brief Read the native SHOC transport modes from the erf.shoc input namespace.
+ *
+ * This is the single parse point shared by SolverChoice and the SHOC runtime
+ * options, so the dycore and the SHOC driver can never disagree about which
+ * component owns transport. Values that are absent from the inputs leave the
+ * incoming modes untouched.
+ */
+inline void
+read_shoc_transport_modes (ShocTransportMode& transport_mode,
+                           ShocMomentumTransport& momentum_transport)
+{
+    amrex::ParmParse pp("erf.shoc");
+
+    std::string transport_mode_string;
+    if (pp.query("transport_mode", transport_mode_string)) {
+        std::string error_message;
+        if (!parse_shoc_transport_mode_string(transport_mode_string,
+                                              transport_mode,
+                                              error_message)) {
+            amrex::Abort(error_message.c_str());
+        }
+    }
+
+    std::string momentum_transport_string;
+    if (pp.query("momentum_transport", momentum_transport_string)) {
+        std::string error_message;
+        if (!parse_shoc_momentum_transport_string(momentum_transport_string,
+                                                  momentum_transport,
+                                                  error_message)) {
+            amrex::Abort(error_message.c_str());
+        }
+    }
 }
 #endif

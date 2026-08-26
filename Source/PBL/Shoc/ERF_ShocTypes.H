@@ -199,6 +199,11 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     pp.query("debug_disable_theta_state_update", opts.debug_disable_theta_state_update);
     pp.query("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
     pp.query("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
+
+    // SolverChoice parses these too, since the dycore must know which component
+    // owns vertical diffusion before any SHOC driver exists. Both go through the
+    // same reader so the two views of the inputs cannot diverge.
+    read_shoc_transport_modes(opts.transport_mode, opts.momentum_transport);
 }
 
 inline void

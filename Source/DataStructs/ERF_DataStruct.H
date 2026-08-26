@@ -1189,25 +1189,7 @@ struct SolverChoice {
             }
             if (turbChoice[lev].uses_native_shoc()) {
                 use_native_shoc = true;
-                amrex::ParmParse pp_shoc("erf.shoc");
-                std::string transport_mode_string;
-                if (pp_shoc.query("transport_mode", transport_mode_string)) {
-                    std::string error_message;
-                    if (!parse_shoc_transport_mode_string(transport_mode_string,
-                                                          shoc_transport_mode,
-                                                          error_message)) {
-                        amrex::Abort(error_message.c_str());
-                    }
-                }
-                std::string momentum_transport_string;
-                if (pp_shoc.query("momentum_transport", momentum_transport_string)) {
-                    std::string error_message;
-                    if (!parse_shoc_momentum_transport_string(momentum_transport_string,
-                                                              shoc_momentum_transport,
-                                                              error_message)) {
-                        amrex::Abort(error_message.c_str());
-                    }
-                }
+                read_shoc_transport_modes(shoc_transport_mode, shoc_momentum_transport);
             }
         }
 
@@ -2020,7 +2002,7 @@ struct SolverChoice {
      */
     bool uses_shoc_family () const noexcept
     {
-        return use_eamxx_shoc || use_native_shoc;
+        return (use_eamxx_shoc || use_native_shoc);
     }
 
     /**
@@ -2031,7 +2013,8 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return shoc_uses_momentum_host_diffusion(shoc_momentum_transport);
+        return (shoc_uses_momentum_host_diffusion(shoc_momentum_transport) ||
+                shoc_disables_momentum_transport (shoc_momentum_transport));
     }
 
     /**
