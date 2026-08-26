@@ -100,6 +100,10 @@ ERF::init_from_metgrid (int lev)
     if (metgrid_force_sfc_k > 0)
         AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
 
+    // Base state parameters from WRF and the layer interfaces derived from them.
+    MetgridBaseStateParams bsp;
+    bsp.set_layer_interfaces();
+
     // Size the SST and LANDMASK
       sst_lev[lev].resize(ntimes);
       tsk_lev[lev].resize(ntimes);
@@ -518,11 +522,7 @@ ERF::init_from_metgrid (int lev)
                                     bdy_data_xlo, bdy_data_xhi,
                                     bdy_data_ylo, bdy_data_yhi,
                                     mask_c_arr, mask_u_arr, mask_v_arr);
-        } // mf
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
+        } // mfi
 
         if (itime == 0) {
 
@@ -564,7 +564,8 @@ ERF::init_from_metgrid (int lev)
                 init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
                                              valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                             qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab);
+                                             qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab,
+                                             bsp);
             } // mf
 
         } // itime==0
@@ -1249,6 +1250,7 @@ init_state_from_metgrid (const int  lev,
  * @param z_phys_nd_fab FArrayBox object holding node-centered z heights for terrain
  * @param z_phys_cc_fab FArrayBox object holding cell center z heights for terrain
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
+ * @param bsp WRF base state parameters and the layer interfaces derived from them
  */
 void
 init_base_state_from_metgrid (const bool use_moisture,
@@ -1263,50 +1265,21 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& qv_hse_fab,
                               FArrayBox& z_phys_nd_fab,
                               FArrayBox& z_phys_cc_fab,
-                              const FArrayBox& NC_psfc_fab)
+                              const FArrayBox& NC_psfc_fab,
+                              const MetgridBaseStateParams& bsp)
 {
-    // Base state params from WRF
-    Real T00 = Real(290.0);
-    Real P00 = p_0;
-    Real TLP = Real(50.0);
-    Real TISO = Real(200.0);
-    Real TLP_STRAT = Real(-11.0);
-    Real P_STRAT   = zero;
-
-    // **************************************************************************
-    // The base state is piecewise in log-pressure:
-    //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
-    //   (2) isothermal layer T = TISO                       P_STRAT < p <= P_iso
-    //   (3) stratosphere     T = TISO + TLP_STRAT * ln(p/P_STRAT)     p <= P_STRAT
-    // Each piece inverts to p(z) in closed form under dp/dz = -rho g; here we
-    // precompute the two interface heights so the inversion can branch on z.
-    // **************************************************************************
-    const Real x_iso = (TISO - T00) / TLP;
-    const Real P_iso = P00 * std::exp(x_iso);
-    const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
-
-    // The upper stratospheric layer is optional (P_STRAT == 0 or TLP_STRAT == 0
-    // disables it) and is only meaningful if it begins above the isothermal layer,
-    // i.e. if P_STRAT is below the pressure at which the isothermal layer starts.
-    const bool want_strat = ((P_STRAT > zero) && (TLP_STRAT != zero));
-    const bool use_strat  = (want_strat && (P_STRAT < P_iso));
-    const Real z_strat    = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
-                                        : z_iso;
-
-    // A configured stratospheric layer that lies at or below the isothermal
-    // transition cannot be represented, so say so rather than dropping it quietly.
-    if (want_strat && !use_strat) {
-        Print() << "WARNING: the base stratospheric layer is being ignored: P_STRAT = "
-                << P_STRAT << " Pa is not below the pressure at the base of the "
-                << "isothermal layer, P_iso = " << P_iso << " Pa.\n";
-        Print() << "         TLP_STRAT = " << TLP_STRAT << " will have no effect and "
-                << "the atmosphere above z_iso will be isothermal at TISO = "
-                << TISO << " K.\n";
-    }
-
-    Print() << "Base state layer interfaces: z_iso = " << z_iso << " m";
-    if (use_strat) Print() << ", z_strat = " << z_strat << " m";
-    Print() << "\n";
+    // Base state parameters and the layer interfaces derived from them. These are
+    // set once by the caller; see MetgridBaseStateParams for the profile they define.
+    const Real T00       = bsp.T00;
+    const Real P00       = bsp.P00;
+    const Real TLP       = bsp.TLP;
+    const Real TISO      = bsp.TISO;
+    const Real TLP_STRAT = bsp.TLP_STRAT;
+    const Real P_STRAT   = bsp.P_STRAT;
+    const Real P_iso     = bsp.P_iso;
+    const Real z_iso     = bsp.z_iso;
+    const Real z_strat   = bsp.z_strat;
+    const bool use_strat = bsp.use_strat;
 
     //***********************************************************************************
     // Set the base state columns
@@ -1556,9 +1529,9 @@ init_base_state_from_metgrid (const bool use_moisture,
             } else if (flag_psfc == 1) {
                 psurf = orig_psfc(i,j,0);
             } else {
-                Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
-                Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_sfc/(a*R_d)));
+                // Same closed-form inversion as the troposphere branch of the base
+                // state above, evaluated at the height of the ground.
+                psurf = P00*std::exp(-T00/TLP + std::sqrt(std::pow(T00/TLP, two)-two*grav*z_sfc/(TLP*R_d)));
             }
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
