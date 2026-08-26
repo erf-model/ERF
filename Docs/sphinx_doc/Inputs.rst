@@ -3107,7 +3107,21 @@ Implicit Vertical Diffusion
 These parameters control the time-centering of the vertical differences in the
 diffusive terms.  The implicit solve is turned off automatically if there is no
 molecular or turbulent diffusion, if the level is anelastic, if ``terrain_type``
-= ``EB``, or if a SHOC-family PBL scheme is active.
+= ``EB``, or if the active PBL scheme owns *all* of the vertical diffusion
+itself.  That last case covers ``erf.pbl_type = EAMXX_SHOC`` (which always owns
+both scalar and momentum diffusion) and ``erf.pbl_type = NATIVE_SHOC`` when
+``erf.shoc.transport_mode = state_update`` *and*
+``erf.shoc.momentum_transport`` is ``state_update`` or ``none``.
+
+When a SHOC-family scheme is active, the ``erf.implicit_*_diffusion`` flags are
+additionally restricted to the components that SHOC hands back to the host:
+``erf.shoc.momentum_transport = host_diffusion`` (the native default) keeps
+``erf.implicit_momentum_diffusion``, and ``erf.shoc.transport_mode =
+host_diffusion`` keeps ``erf.implicit_thermal_diffusion``,
+``erf.implicit_moisture_diffusion``, and ``erf.implicit_ke_diffusion``.
+Requesting a component that SHOC owns is ignored, with a message in the run
+log.  ``erf.vert_implicit`` and ``erf.vert_implicit_fac`` are always honored,
+so the solve can still be disabled entirely from the inputs file.
 
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | Parameter                                      | Definition                                             | Acceptable Values              | Default                |
