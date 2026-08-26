@@ -216,8 +216,8 @@ void SuperDropletPC::readInputs (const double a_dt)
 
         char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string prefix = m_name + "." + std::string(i_str);
-        m_initializations[i]->readInputs(m_name, Geom(0), m_species_mat, m_aerosol_mat);
-        m_initializations[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat);
+        SDInputs in(m_name, prefix);
+        m_initializations[i]->readInputs(in, Geom(0), m_species_mat, m_aerosol_mat);
         m_num_sd_per_cell += m_initializations[i]->numSDPerCell(cell_volume);
     }
 
@@ -230,8 +230,8 @@ void SuperDropletPC::readInputs (const double a_dt)
         char i_str[12]; snprintf(i_str, sizeof(i_str), "%d", i);
         std::string str = m_name + ".injection";
         std::string prefix = str + "." + std::string(i_str);
-        m_injections[i]->readInputs(str, Geom(0), m_species_mat, m_aerosol_mat, a_dt);
-        m_injections[i]->readInputs(prefix, Geom(0), m_species_mat, m_aerosol_mat, a_dt);
+        SDInputs in(str, prefix);
+        m_injections[i]->readInputs(in, Geom(0), m_species_mat, m_aerosol_mat, a_dt);
     }
 
     return;
