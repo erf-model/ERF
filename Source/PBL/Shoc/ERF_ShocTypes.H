@@ -13,70 +13,6 @@
 #include <cctype>
 #include <string>
 
-enum class ShocTransportMode
-{
-    StateUpdate,
-    HostDiffusion
-};
-
-enum class ShocMomentumTransport
-{
-    None,
-    StateUpdate,
-    HostDiffusion
-};
-
-inline const char*
-shoc_transport_mode_name (ShocTransportMode mode)
-{
-    switch (mode) {
-    case ShocTransportMode::StateUpdate:   return "state_update";
-    case ShocTransportMode::HostDiffusion:return "host_diffusion";
-    }
-    return "unknown";
-}
-
-inline const char*
-shoc_momentum_transport_name (ShocMomentumTransport mode)
-{
-    switch (mode) {
-    case ShocMomentumTransport::None:         return "none";
-    case ShocMomentumTransport::StateUpdate:   return "state_update";
-    case ShocMomentumTransport::HostDiffusion: return "host_diffusion";
-    }
-    return "unknown";
-}
-
-inline bool
-shoc_uses_state_update (ShocTransportMode mode)
-{
-    return mode == ShocTransportMode::StateUpdate;
-}
-
-inline bool
-shoc_uses_host_diffusion (ShocTransportMode mode)
-{
-    return mode == ShocTransportMode::HostDiffusion;
-}
-
-inline bool
-shoc_uses_momentum_state_update (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::StateUpdate;
-}
-
-inline bool
-shoc_uses_momentum_host_diffusion (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::HostDiffusion;
-}
-
-inline bool
-shoc_disables_momentum_transport (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::None;
-}
-
 struct ShocRuntimeOptions
 {
     amrex::Real lambda_low    = amrex::Real(0.001);
@@ -119,61 +55,6 @@ struct ShocRuntimeOptions
     bool debug_disable_moisture_state_update = false;
     bool debug_disable_tke_state_update = false;
 };
-
-inline std::string
-shoc_lower_copy (std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [] (unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return value;
-}
-
-inline bool
-parse_shoc_transport_mode_string (std::string value,
-                                 ShocTransportMode& mode,
-                                 std::string& error_message)
-{
-    value = shoc_lower_copy(value);
-    if (value == "state_update") {
-        mode = ShocTransportMode::StateUpdate;
-        return true;
-    }
-    if (value == "host_diffusion") {
-        mode = ShocTransportMode::HostDiffusion;
-        return true;
-    }
-    if (value == "tendencies") {
-        error_message =
-            "erf.shoc.transport_mode = tendencies has been removed for native SHOC. Use erf.shoc.transport_mode = state_update. Native SHOC now applies its coupled column increment before the dycore to avoid splitting theta and momentum from moisture.";
-        return false;
-    }
-
-    error_message = "erf.shoc.transport_mode must be 'state_update' or 'host_diffusion'";
-    return false;
-}
-
-inline bool
-parse_shoc_momentum_transport_string (std::string value,
-                                      ShocMomentumTransport& mode,
-                                      std::string& error_message)
-{
-    value = shoc_lower_copy(value);
-    if (value == "none") {
-        mode = ShocMomentumTransport::None;
-        return true;
-    }
-    if (value == "state_update") {
-        mode = ShocMomentumTransport::StateUpdate;
-        return true;
-    }
-    if (value == "host_diffusion") {
-        mode = ShocMomentumTransport::HostDiffusion;
-        return true;
-    }
-
-    error_message = "erf.shoc.momentum_transport must be 'none', 'state_update', or 'host_diffusion'";
-    return false;
-}
 
 inline bool
 validate_shoc_runtime_options_message (const ShocRuntimeOptions& opts,
@@ -284,65 +165,45 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
 {
     amrex::ParmParse pp("erf.shoc");
 
-    pp.queryAdd("lambda_low", opts.lambda_low);
-    pp.queryAdd("lambda_high", opts.lambda_high);
-    pp.queryAdd("lambda_slope", opts.lambda_slope);
-    pp.queryAdd("lambda_thresh", opts.lambda_thresh);
-    pp.queryAdd("thl2tune", opts.thl2tune);
-    pp.queryAdd("qw2tune", opts.qw2tune);
-    pp.queryAdd("qwthl2tune", opts.qwthl2tune);
-    pp.queryAdd("w2tune", opts.w2tune);
-    pp.queryAdd("length_fac", opts.length_fac);
-    pp.queryAdd("c_diag_3rd_mom", opts.c_diag_3rd_mom);
-    pp.queryAdd("coeff_kh", opts.coeff_kh);
-    pp.queryAdd("coeff_km", opts.coeff_km);
-    pp.queryAdd("top_taper_depth", opts.top_taper_depth);
-    pp.queryAdd("top_taper_min_factor", opts.top_taper_min_factor);
-    pp.queryAdd("shoc_1p5tke", opts.shoc_1p5tke);
-    pp.queryAdd("extra_shoc_diags", opts.extra_shoc_diags);
-    pp.queryAdd("apply_tms", opts.apply_tms);
-    pp.queryAdd("check_flux_state", opts.check_flux_state);
-    pp.queryAdd("column_conservation_check", opts.column_conservation_check);
-    pp.queryAdd("debug_summary", opts.debug_summary);
-    pp.queryAdd("allow_tendency_microphysics_overlap", opts.allow_tendency_microphysics_overlap);
-    pp.queryAdd("signed_tke_production", opts.signed_tke_production);
-    pp.queryAdd("debug_bad_column", opts.debug_bad_column);
-    pp.queryAdd("debug_bad_column_abort", opts.debug_bad_column_abort);
-    pp.queryAdd("debug_bad_column_max_reports", opts.debug_bad_column_max_reports);
-    pp.queryAdd("debug_bad_column_theta_tend_threshold", opts.debug_bad_column_theta_tend_threshold);
-    pp.queryAdd("debug_bad_column_q_tend_threshold", opts.debug_bad_column_q_tend_threshold);
-    pp.queryAdd("debug_bad_column_brunt_threshold", opts.debug_bad_column_brunt_threshold);
-    pp.queryAdd("debug_bad_column_min_dz", opts.debug_bad_column_min_dz);
-    pp.queryAdd("debug_bad_column_scalar_moment_threshold", opts.debug_bad_column_scalar_moment_threshold);
-    pp.queryAdd("debug_disable_pdf_cloud_increment", opts.debug_disable_pdf_cloud_increment);
-    pp.queryAdd("debug_disable_theta_state_update", opts.debug_disable_theta_state_update);
-    pp.queryAdd("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
-    pp.queryAdd("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
+    pp.query("lambda_low", opts.lambda_low);
+    pp.query("lambda_high", opts.lambda_high);
+    pp.query("lambda_slope", opts.lambda_slope);
+    pp.query("lambda_thresh", opts.lambda_thresh);
+    pp.query("thl2tune", opts.thl2tune);
+    pp.query("qw2tune", opts.qw2tune);
+    pp.query("qwthl2tune", opts.qwthl2tune);
+    pp.query("w2tune", opts.w2tune);
+    pp.query("length_fac", opts.length_fac);
+    pp.query("c_diag_3rd_mom", opts.c_diag_3rd_mom);
+    pp.query("coeff_kh", opts.coeff_kh);
+    pp.query("coeff_km", opts.coeff_km);
+    pp.query("top_taper_depth", opts.top_taper_depth);
+    pp.query("top_taper_min_factor", opts.top_taper_min_factor);
+    pp.query("shoc_1p5tke", opts.shoc_1p5tke);
+    pp.query("extra_shoc_diags", opts.extra_shoc_diags);
+    pp.query("apply_tms", opts.apply_tms);
+    pp.query("check_flux_state", opts.check_flux_state);
+    pp.query("column_conservation_check", opts.column_conservation_check);
+    pp.query("debug_summary", opts.debug_summary);
+    pp.query("allow_tendency_microphysics_overlap", opts.allow_tendency_microphysics_overlap);
+    pp.query("signed_tke_production", opts.signed_tke_production);
+    pp.query("debug_bad_column", opts.debug_bad_column);
+    pp.query("debug_bad_column_abort", opts.debug_bad_column_abort);
+    pp.query("debug_bad_column_max_reports", opts.debug_bad_column_max_reports);
+    pp.query("debug_bad_column_theta_tend_threshold", opts.debug_bad_column_theta_tend_threshold);
+    pp.query("debug_bad_column_q_tend_threshold", opts.debug_bad_column_q_tend_threshold);
+    pp.query("debug_bad_column_brunt_threshold", opts.debug_bad_column_brunt_threshold);
+    pp.query("debug_bad_column_min_dz", opts.debug_bad_column_min_dz);
+    pp.query("debug_bad_column_scalar_moment_threshold", opts.debug_bad_column_scalar_moment_threshold);
+    pp.query("debug_disable_pdf_cloud_increment", opts.debug_disable_pdf_cloud_increment);
+    pp.query("debug_disable_theta_state_update", opts.debug_disable_theta_state_update);
+    pp.query("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
+    pp.query("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
 
-    // Parse unconditionally rather than only when the key was found: the default
-    // string comes from shoc_transport_mode_name(), so it always round-trips back
-    // to the same enum.  This keeps the routine idempotent -- it runs once per
-    // ShocDriver, i.e. once per level -- whereas branching on the queryAdd return
-    // value would see "specified" on every call after the first.
-    std::string transport_mode = shoc_transport_mode_name(opts.transport_mode);
-    pp.queryAdd("transport_mode", transport_mode);
-    {
-        std::string error_message;
-        if (!parse_shoc_transport_mode_string(transport_mode, opts.transport_mode, error_message)) {
-            amrex::Abort(error_message.c_str());
-        }
-    }
-
-    std::string momentum_transport = shoc_momentum_transport_name(opts.momentum_transport);
-    pp.queryAdd("momentum_transport", momentum_transport);
-    {
-        std::string error_message;
-        if (!parse_shoc_momentum_transport_string(momentum_transport,
-                                                  opts.momentum_transport,
-                                                  error_message)) {
-            amrex::Abort(error_message.c_str());
-        }
-    }
+    // SolverChoice parses these too, since the dycore must know which component
+    // owns vertical diffusion before any SHOC driver exists. Both go through the
+    // same reader so the two views of the inputs cannot diverge.
+    read_shoc_transport_modes(opts.transport_mode, opts.momentum_transport);
 }
 
 inline void

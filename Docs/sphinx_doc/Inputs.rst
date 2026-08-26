@@ -789,13 +789,46 @@ Additional Plotfile Controls
 List of Parameters
 ~~~~~~~~~~~~~~~~~~
 
-+-------------------------------------+------------------------------+---------------------+---------+
-| Parameter                           | Definition                   | Acceptable Values   | Default |
-+=====================================+==============================+=====================+=========+
-| **erf.expand_plotvars_to_unif_rr**  | Expand plot variables to a   | Boolean             | false   |
-|                                     | uniform refinement ratio     |                     |         |
-|                                     | for mixed-refinement cases   |                     |         |
-+-------------------------------------+------------------------------+---------------------+---------+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 40 18 10
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - **erf.expand_plotvars_to_unif_rr**
+     - Expand plot variables to a uniform refinement ratio for mixed-refinement cases
+     - Boolean
+     - false
+   * - **erf.compute_mean_vars**
+     - Accumulate interval first and second moments for resolved plot diagnostics
+     - Boolean
+     - false
+   * - **erf.mean_vars_reset_mode**
+     - Reset moments after a complete 3-D plotfile batch or once at a specified time
+     - ``plotfile`` or ``time``
+     - ``plotfile``
+   * - **erf.mean_vars_reset_time**
+     - Reset time when reset mode is ``time``
+     - Real [s], >= 0
+     - -1.0
+
+When ``erf.compute_mean_vars = true``, ERF makes the interval fields
+``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, the corresponding second
+moments, resolved variances/covariances, and resolved ``tke_resolved`` available to
+``erf.plot_vars_1`` and ``erf.plot_vars_2``. See
+:ref:`sec:Plotfile3DReference` for definitions. In ``time`` reset mode, the
+accumulator is reset once, at the first step whose start time is at or beyond
+``erf.mean_vars_reset_time``.
+In ``plotfile`` mode, a reset occurs only after all 3-D streams due at the
+same output event have been written and at least one emitted stream contains
+an interval diagnostic; a density-only stream does not close the shared
+averaging window.
+In either mode, regridding a level rebuilds that level's accumulator, so the
+averaging window restarts on the regridded level while the other levels keep
+accumulating. A plotfile written shortly after a regrid can therefore mix
+per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
 
 
 Screen Output
@@ -890,7 +923,7 @@ List of Parameters
 |                               | heights          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 
-By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
+All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
 that are destaggered by interpolating to cell centers where appropriate.
 Setting ``erf.destag_profiles = false`` will
 keep vertically staggered quantities on z faces -- quantities already at cell
@@ -1101,10 +1134,18 @@ the entire requested sampling line; velocities are also destaggered.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
-"density", "x_velocity", "y_velocity", "z_velocity",
-"magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
-The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
-Pressure is calculated from rho*theta and will account for moisture if qv is requested.
+``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
+``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
+``sgs_tke``, ``sgs_tau13``, ``sgs_tau23``, and ``sgs_hfx3``. The SGS stress and
+heat-flux values are averaged from their native edge/face locations to cell
+centers; if their diffusion storage is unavailable, ERF writes zero. Velocities
+are output at cell centers only. The water vapor mixing ratio ``qv`` will only
+output valid values if a moisture model is used. Pressure is calculated from
+rho*theta and will account for moisture if ``qv`` is requested.
+``sgs_tke`` is zero unless the selected level has a prognostic TKE closure
+(``Deardorff``, k-equation RANS, MYJ/MYNN, or a SHOC-family PBL); Smagorinsky
+and ``les_type = None`` do not provide prognostic TKE and their unused state
+slot is never sampled.
 
 .. _list-of-parameters-10b:
 
@@ -1156,7 +1197,9 @@ List of Parameters
 |                                   | plotfiles        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
-|                                   | variables        |                |                |
+|                                   | variables; SGS   |                |                |
+|                                   | fields are line- |                |                |
+|                                   | only             |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
@@ -1515,6 +1558,105 @@ initialization are applied.
 Parameters for PBL schemes can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+Forest Canopy
+=============
+
+Forest drag can be configured either with the existing discrete-patch text file
+or with gridded NetCDF fields. The two modes are mutually exclusive. A complete
+file configuration enables forest drag automatically; if ``erf.do_forest_drag``
+is specified explicitly, its value must agree with the presence or absence of
+that configuration. See :ref:`sec:Forest` for the LAD profiles and the scoped
+fixed-leaf-temperature exchange equations.
+
+The gridded mode requires NetCDF support and both ``forest_lai_file`` and
+``forest_height_file``. Supply exactly one of ``forest_cd_file`` and the
+constant ``forest_cd``. The LAI, height, and optional drag-coefficient files
+must share the same horizontal grid. ERF reads variables named ``LAI``,
+``height``, and ``cd``; each may be two-dimensional or have a leading time
+dimension, in which case the first time record is used. Coordinates must be
+projected Cartesian ``x``/``y``; raw ``lon``/``lat`` coordinates are rejected
+because ERF does not silently reinterpret degrees as meters. Each horizontal direction must contain
+at least two finite, strictly increasing, uniformly spaced coordinates. All
+forest fields must match the LAI dimensions, spacing, and horizontal origin;
+ERF rejects misregistered fields before interpolation. A coordinate pair is
+required; ERF does not assume a unit-spacing grid when metadata is absent.
+
+.. list-table:: Forest canopy parameters
+   :header-rows: 1
+   :widths: 28 45 17 12
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - **erf.do_forest_drag**
+     - Optional consistency switch for forest drag
+     - Boolean
+     - false
+   * - **erf.forest_file**
+     - Discrete-patch canopy text file
+     - String
+     - None
+   * - **erf.forest_lai_file**
+     - Gridded NetCDF file containing ``LAI``
+     - String
+     - None
+   * - **erf.forest_height_file**
+     - Gridded NetCDF file containing canopy ``height`` [m]
+     - String
+     - None
+   * - **erf.forest_cd_file**
+     - Gridded NetCDF file containing ``cd``
+     - String
+     - None
+   * - **erf.forest_cd**
+     - Spatially constant drag coefficient; mutually exclusive with ``forest_cd_file``
+     - Real
+     - None
+   * - **erf.forest_tree_type**
+     - Vertical LAD profile: uniform or Lalic--Mihailovic
+     - 1 or 2
+     - 1
+   * - **erf.forest_laimax**
+     - Fraction of canopy height at maximum LAD for tree type 2; must satisfy ``0 <= laimax < 1``
+     - Real
+     - 0.8
+   * - **erf.forest_substep**
+     - Apply canopy momentum source during fast substeps
+     - Boolean
+     - false
+   * - **erf.forest_biophysics**
+     - Master switch for the scoped canopy exchange path
+     - Boolean
+     - false
+   * - **erf.forest_biophysics_heat**
+     - Apply fixed-leaf-temperature sensible and latent exchange
+     - Boolean
+     - false
+   * - **erf.forest_leaf_theta_fixed**
+     - Prescribed leaf potential temperature [K]; required and positive when heat exchange is enabled
+     - Real [K]
+     - None
+
+``erf.forest_biophysics_heat = true`` requires
+``erf.forest_biophysics = true`` and a positive
+``erf.forest_leaf_theta_fixed``.
+
+For example, a gridded canopy with fixed leaf potential temperature can be
+configured as follows:
+
+::
+
+   erf.do_forest_drag          = true
+   erf.forest_lai_file         = canopy_lai.nc
+   erf.forest_height_file      = canopy_height.nc
+   erf.forest_cd               = 0.15
+   erf.forest_tree_type        = 2
+   erf.forest_laimax           = 0.6
+   erf.forest_biophysics       = true
+   erf.forest_biophysics_heat  = true
+   erf.forest_leaf_theta_fixed = 301.0
+
 Forcing Terms
 =============
 
@@ -1675,9 +1817,6 @@ List of Parameters
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
 |                                     | input sounding file(s) |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.forest_file**                 | Name(s) of the         | String            | None                |
-|                                     | canopy forest file     |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | 0.0                 |
 |                                     | input sounding file(s) |                   |                     |
@@ -2155,8 +2294,41 @@ with an embedded boundary / cut cell representation.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
 
-The height at the surface nodes can be defined analytically or read from a text file
-specified by ``erf.terrain_file_name``.  The ordering of data in the file is first
+The height at the surface nodes can be defined analytically, read from a text file
+specified by ``erf.terrain_file_name``, or read from a NetCDF file specified by
+``erf.terrain_file_name_nc``. The NetCDF option requires NetCDF support and takes
+precedence when both inputs are present. The explicit Cartesian format uses a
+height variable named ``height``, ``z``, ``terrain``, ``HGT_M``, or ``AGL`` with
+dimensions ``(y,x)`` or ``(time,y,x)`` (time must be the leading dimension).
+It must also provide one-dimensional, finite, strictly increasing, uniformly
+spaced ``x`` and ``y`` coordinate variables matching the height dimensions;
+ERF reads the first time record when one is present.
+
+A genuine WPS ``geo_em`` file may instead provide
+``HGT_M(Time,south_north,west_east)`` without Cartesian ``x``/``y`` variables.
+It must provide matching first-time-record ``XLAT_M`` and ``XLONG_M`` fields and
+the WPS global attributes ``MAP_PROJ``, ``CEN_LAT``, ``CEN_LON``, ``STAND_LON``,
+``DX``, ``DY``, ``WEST-EAST_GRID_DIMENSION``, and
+``SOUTH-NORTH_GRID_DIMENSION``. ERF supports Lambert (1), polar (2), and
+Mercator (3) WPS projections; Lambert additionally requires ``TRUELAT1`` and
+``TRUELAT2``, while the other two require ``TRUELAT1``. The latitude/longitude
+projection (6) is rejected, because WPS writes ``DX``/``DY`` in degrees for it
+while ERF consumes them as metres. ``HGT_M``, ``XLAT_M``, and ``XLONG_M`` must
+have the exact ``(Time,south_north,west_east)`` order, and the first time
+record is selected.
+The WPS grid dimensions, ``DX``/``DY``, and domain extent must match the ERF
+level-0 Cartesian geometry.
+
+WPS fields are mass-point fields. ERF maps their logical mass-point locations
+to terrain nodes using ``x_mass = x_lo + (i+1/2) DX`` and
+``y_mass = y_lo + (j+1/2) DY``. At the four outer node edges, where no WPS mass
+point exists, ERF holds the nearest mass-point value (an explicit one-sided
+mass-to-node conversion); this is not general extrapolation. For both formats,
+bilinear interpolation includes the final coordinate. Explicit Cartesian
+terrain nodes genuinely outside the file grid are assigned zero, and malformed
+or nonfinite WPS metadata, coordinates, or heights are rejected.
+
+For the text format, the ordering of data in the file is first
 nx, ny (where nx is the number of values specified in the x-direction and
 ny is the number of values specified in the y-direction; note that these need not match
 the resolution of the problem).  Then nx x-values are read followed by ny y-values.   Finally,
@@ -2181,6 +2353,9 @@ List of Parameters
 |                             |                    | 2                  |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_file_name**   | filename           | String             | NONE       |
++-----------------------------+--------------------+--------------------+------------+
+| **erf.terrain_file_name_nc**| NetCDF terrain     | String             | NONE       |
+|                             | filename           |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
 
 Examples of Usage
@@ -2932,7 +3107,21 @@ Implicit Vertical Diffusion
 These parameters control the time-centering of the vertical differences in the
 diffusive terms.  The implicit solve is turned off automatically if there is no
 molecular or turbulent diffusion, if the level is anelastic, if ``terrain_type``
-= ``EB``, or if a SHOC-family PBL scheme is active.
+= ``EB``, or if the active PBL scheme owns *all* of the vertical diffusion
+itself.  That last case covers ``erf.pbl_type = EAMXX_SHOC`` (which always owns
+both scalar and momentum diffusion) and ``erf.pbl_type = NATIVE_SHOC`` when
+``erf.shoc.transport_mode = state_update`` *and*
+``erf.shoc.momentum_transport`` is ``state_update`` or ``none``.
+
+When a SHOC-family scheme is active, the ``erf.implicit_*_diffusion`` flags are
+additionally restricted to the components that SHOC hands back to the host:
+``erf.shoc.momentum_transport = host_diffusion`` (the native default) keeps
+``erf.implicit_momentum_diffusion``, and ``erf.shoc.transport_mode =
+host_diffusion`` keeps ``erf.implicit_thermal_diffusion``,
+``erf.implicit_moisture_diffusion``, and ``erf.implicit_ke_diffusion``.
+Requesting a component that SHOC owns is ignored, with a message in the run
+log.  ``erf.vert_implicit`` and ``erf.vert_implicit_fac`` are always honored,
+so the solve can still be disabled entirely from the inputs file.
 
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | Parameter                                      | Definition                                             | Acceptable Values              | Default                |

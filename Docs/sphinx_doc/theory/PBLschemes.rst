@@ -310,7 +310,10 @@ Horizontal momentum is controlled independently:
 
 ``erf.shoc.momentum_transport = host_diffusion``
   Export the native SHOC vertical momentum diffusivity to ERF's host diffusion
-  path. This is the default.
+  path. This is the default. Because ERF's dycore then owns vertical momentum
+  diffusion, this mode leaves ERF's vertical implicit diffusion solve active for
+  momentum (``erf.implicit_momentum_diffusion``); see
+  :ref:`sec:Inputs` for the ``erf.vert_implicit*`` controls.
 
 ``erf.shoc.momentum_transport = state_update``
   Apply the native SHOC horizontal-velocity column increment directly to the

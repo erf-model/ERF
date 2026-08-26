@@ -675,6 +675,13 @@ add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+if(ERF_ENABLE_NETCDF)
+  # Distributed terrain ownership and gridded forest interpolation are both
+  # exercised by this one-step, two-rank regression.  The NetCDF files are
+  # static fixtures so CI does not require ncgen.
+  add_test_r(BellForest                       ""  "erf_exec" "plt00001"
+      FCOMPARE_RTOL "2.0e-9" FCOMPARE_ATOL "2.0e-9")
+endif()
 if(ERF_ENABLE_PARTICLES)
   # Production regression: protect the fixed SuperDroplets water-field
   # contract against confusing the constructor sentinel with state width.

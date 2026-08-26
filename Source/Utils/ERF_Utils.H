@@ -284,6 +284,25 @@ Time_Avg_Vel_atCC (double dt,
                    amrex::MultiFab& zvel);
 
 /**
+ * Accumulate time-weighted cell-centered velocity/theta first and second moments.
+ * @param[in] dt accumulation interval
+ * @param[in,out] t_mean_cnt accumulated time
+ * @param[in,out] interval_means ten-component moment storage
+ * @param[in] xvel x-face velocity
+ * @param[in] yvel y-face velocity
+ * @param[in] zvel z-face velocity
+ * @param[in] cons conserved cell-centered state
+ */
+void
+Accumulate_Interval_Means (double dt,
+                           double& t_mean_cnt,
+                           amrex::MultiFab* interval_means,
+                           amrex::MultiFab& xvel,
+                           amrex::MultiFab& yvel,
+                           amrex::MultiFab& zvel,
+                           amrex::MultiFab& cons);
+
+/**
  * Compute the nudging relaxation
  *
  * @param[in] delta_t time step

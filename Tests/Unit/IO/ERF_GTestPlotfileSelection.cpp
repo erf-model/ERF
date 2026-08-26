@@ -459,17 +459,24 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
 {
     auto caps = make_capabilities(MoistureType::None);
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("u_t_avg", caps));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("u_mean", caps));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("wtheta_fluct", caps));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("tke_resolved", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("Kmv", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("diss", caps));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 
     caps.time_average_storage = true;
+    caps.interval_mean_storage = true;
     caps.radiation_heating_storage = true;
     caps.eddy_diffusivity_storage = true;
     caps.dissipation_storage = true;
     caps.wall_distance_storage = true;
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("u_t_avg", caps));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("u_mean", caps));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("wtheta_fluct", caps));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("tke_resolved", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("Lturb", caps));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("diss", caps));
@@ -503,4 +510,29 @@ TEST(Plotfile3DSelection, ParticleCountsHandleUnknownAndDuplicateNames)
     const auto selected = erf_plotfile::plot3d_selected_particle_count_names(requested, configured);
     ASSERT_EQ(selected.size(), 1);
     EXPECT_EQ(selected[0], "aerosols");
+}
+
+// Motivation: interval moments are shared by both 3-D streams. A batch with
+// two writes must therefore reset once after both writers have consumed the
+// same completed window, while an event with no 3-D output must preserve it.
+TEST(Plotfile3DSelection, IntervalMeansResetOncePerCompleted3DBatch)
+{
+    EXPECT_TRUE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, true, true, "plotfile"));
+    EXPECT_TRUE(erf_plotfile::plot3d_batch_resets_interval_means(
+        1, true, true, "plotfile"));
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        0, true, true, "plotfile"));
+
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, false, true, "plotfile"));
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, true, true, "time"));
+    EXPECT_FALSE(erf_plotfile::plot3d_batch_resets_interval_means(
+        2, true, false, "plotfile"));
+
+    EXPECT_FALSE(erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(
+        {"density", "u"}));
+    EXPECT_TRUE(erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(
+        {"density", "u_mean"}));
 }

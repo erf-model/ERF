@@ -181,6 +181,22 @@ struct LineSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
+                if (containerHasElement(requested_vars, "sgs_tke")) {
+                    m_varnames.push_back("sgs_tke");
+                    amrex::Print() << " " << "sgs_tke";
+                }
+                if (containerHasElement(requested_vars, "sgs_tau13")) {
+                    m_varnames.push_back("sgs_tau13");
+                    amrex::Print() << " " << "sgs_tau13";
+                }
+                if (containerHasElement(requested_vars, "sgs_tau23")) {
+                    m_varnames.push_back("sgs_tau23");
+                    amrex::Print() << " " << "sgs_tau23";
+                }
+                if (containerHasElement(requested_vars, "sgs_hfx3")) {
+                    m_varnames.push_back("sgs_hfx3");
+                    amrex::Print() << " " << "sgs_hfx3";
+                }
                 amrex::Print() << std::endl;
             }
 
@@ -277,7 +293,11 @@ struct LineSampler
 
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
-                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new)
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                     const amrex::Vector<amrex::MultiFab*>& tau13_lev = {},
+                     const amrex::Vector<amrex::MultiFab*>& tau23_lev = {},
+                     const amrex::Vector<amrex::MultiFab*>& hfx3_lev = {},
+                     const amrex::Vector<int>& prognostic_tke_available = {})
     {
         int nlev  = static_cast<int>(vars_new.size());
         int nline = static_cast<int>(m_bnd_bx.size());
@@ -442,7 +462,96 @@ struct LineSampler
                     mf_comp += 1;
                 }
 
-                  m_lev[iline] = ilev;
+                if (containerHasElement(m_varnames, "sgs_tke")) {
+                    const bool tke_available =
+                        ilev < static_cast<int>(prognostic_tke_available.size()) &&
+                        prognostic_tke_available[ilev] != 0;
+                    if (!tke_available) {
+                        mf_cc_data.setVal(amrex::Real(0.0), mf_comp, 1, 0);
+                    } else {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const amrex::Box& tbx = mfi.tilebox();
+                        const auto& out = mf_cc_data.array(mfi);
+                        const auto& state = vars_new[ilev][Vars::cons].const_array(mfi);
+                        amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            out(i,j,k,mf_comp) = state(i,j,k,RhoKE_comp) / state(i,j,k,Rho_comp);
+                            });
+                        }
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "sgs_tau13")) {
+                    amrex::MultiFab* tau13 = ilev < static_cast<int>(tau13_lev.size())
+                        ? tau13_lev[ilev] : nullptr;
+                    if (tau13 != nullptr) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            const auto& out = mf_cc_data.array(mfi);
+                            const auto& tau = tau13->const_array(mfi);
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                                out(i,j,k,mf_comp) = amrex::Real(0.25) *
+                                    (tau(i,j,k) + tau(i+1,j,k) +
+                                     tau(i,j,k+1) + tau(i+1,j,k+1));
+                            });
+                        }
+                    } else {
+                        mf_cc_data.setVal(0.0, mf_comp, 1, 0);
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "sgs_tau23")) {
+                    amrex::MultiFab* tau23 = ilev < static_cast<int>(tau23_lev.size())
+                        ? tau23_lev[ilev] : nullptr;
+                    if (tau23 != nullptr) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            const auto& out = mf_cc_data.array(mfi);
+                            const auto& tau = tau23->const_array(mfi);
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                                out(i,j,k,mf_comp) = amrex::Real(0.25) *
+                                    (tau(i,j,k) + tau(i,j+1,k) +
+                                     tau(i,j,k+1) + tau(i,j+1,k+1));
+                            });
+                        }
+                    } else {
+                        mf_cc_data.setVal(0.0, mf_comp, 1, 0);
+                    }
+                    mf_comp += 1;
+                }
+
+                if (containerHasElement(m_varnames, "sgs_hfx3")) {
+                    amrex::MultiFab* hfx3 = ilev < static_cast<int>(hfx3_lev.size())
+                        ? hfx3_lev[ilev] : nullptr;
+                    if (hfx3 != nullptr) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                            const amrex::Box& tbx = mfi.tilebox();
+                            const auto& out = mf_cc_data.array(mfi);
+                            const auto& hfx = hfx3->const_array(mfi);
+                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                                out(i,j,k,mf_comp) = amrex::Real(0.5) * (hfx(i,j,k) + hfx(i,j,k+1));
+                            });
+                        }
+                    } else {
+                        mf_cc_data.setVal(0.0, mf_comp, 1, 0);
+                    }
+                    mf_comp += 1;
+                }
+
+                m_lev[iline] = ilev;
                 m_ls_mf[iline] = get_line_data(mf_cc_data, dir, cell, bnd_bx);
 
                 // We can stop if we got the entire line

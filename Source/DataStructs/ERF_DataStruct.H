@@ -9,15 +9,16 @@
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
 
-#include <ERF_Constants.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_AdvStruct.H>
-#include <ERF_DampingStruct.H>
-#include <ERF_DiffStruct.H>
-#include <ERF_EBStruct.H>
-#include <ERF_SpongeStruct.H>
-#include <ERF_TurbStruct.H>
-#include <ERF_TurbPertStruct.H>
+#include "ERF_Constants.H"
+#include "ERF_IndexDefines.H"
+#include "ERF_AdvStruct.H"
+#include "ERF_DampingStruct.H"
+#include "ERF_DiffStruct.H"
+#include "ERF_EBStruct.H"
+#include "ERF_SpongeStruct.H"
+#include "ERF_TurbStruct.H"
+#include "ERF_TurbPertStruct.H"
+#include "ERF_ShocTransportStruct.H"
 
 /**
  * @brief Indices for map scale factors on mass and face grids.
@@ -984,6 +985,22 @@ struct SolverChoice {
         pp.queryAdd("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
         pp.queryAdd("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
+        // Fixed-leaf-temperature canopy heat exchange
+        pp.query("forest_biophysics",       forest_biophysics);
+        pp.query("forest_biophysics_heat",  forest_biophysics_heat);
+        pp.query("forest_leaf_theta_fixed", forest_leaf_theta_fixed);
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !forest_biophysics_heat || forest_biophysics,
+            "forest_biophysics_heat requires forest_biophysics = true");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(forest_biophysics && forest_biophysics_heat) ||
+                forest_leaf_theta_fixed > zero,
+            "forest_biophysics_heat requires a positive forest_leaf_theta_fixed");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            forest_leaf_theta_fixed <= zero || forest_biophysics_heat,
+            "forest_leaf_theta_fixed requires forest_biophysics_heat = true");
+
         // immersed forcing parameters
         pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
         pp.queryAdd("if_Cd_scalar", if_Cd_scalar);
@@ -1188,114 +1205,136 @@ struct SolverChoice {
             }
             if (turbChoice[lev].uses_native_shoc()) {
                 use_native_shoc = true;
+                read_shoc_transport_modes(shoc_transport_mode, shoc_momentum_transport);
             }
         }
 
-        // Implicit vertical diffusion (not available with SHOC family)
-        if (uses_shoc_family()) {
-            amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC family PBL scheme." << std::endl;
+        // Set up the vertical implicit diffusion solve
+        int n_impfac = pp.countval("vert_implicit_fac");
+        AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
+        if (n_impfac == 1) {
+            amrex::Real fac_in;
+            pp.get("vert_implicit_fac", fac_in);
             for (int lev = 0; lev <= max_level; lev++) {
-               vert_implicit_fac[lev][0] = zero;
-               vert_implicit_fac[lev][1] = zero;
-               vert_implicit_fac[lev][2] = zero;
+                for (int i=0; i<3; ++i) {
+                    vert_implicit_fac[lev][i] = fac_in;
+                }
             }
-        } else {
-            // This controls the time-centering of the vertical differences in the diffusive term
-            bool do_vert_implicit = true;
-            pp.queryAdd("vert_implicit", do_vert_implicit);
+        } else if (n_impfac == 3) {
+            for (int lev = 0; lev <= max_level; lev++) {
+                pp.getarr("vert_implicit_fac", vert_implicit_fac[lev]);
+            }
+        }
 
-            if (!do_vert_implicit) {
-                for (int lev = 0; lev <= max_level; lev++) {
-                   amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag at level " << lev << std::endl;
-                   vert_implicit_fac[lev][0] = zero;
-                   vert_implicit_fac[lev][1] = zero;
-                   vert_implicit_fac[lev][2] = zero;
-                }
+        // Record whether the user explicitly requested these
+        const bool user_set_imp_thermal  = pp.contains("implicit_thermal_diffusion");
+        const bool user_set_imp_moisture = pp.contains("implicit_moisture_diffusion");
+        const bool user_set_imp_ke       = pp.contains("implicit_ke_diffusion");
+        const bool user_set_imp_momentum = pp.contains("implicit_momentum_diffusion");
+
+        // If true (default), include implicit contributions to vertical thermal diffusion
+        pp.queryAdd("implicit_thermal_diffusion", implicit_thermal_diffusion);
+
+        // If true (default), include implicit contributions to vertical moisture diffusion
+        pp.queryAdd("implicit_moisture_diffusion", implicit_moisture_diffusion);
+
+        // If true (default), include implicit contributions to vertical KE diffusion
+        pp.queryAdd("implicit_ke_diffusion", implicit_ke_diffusion);
+
+        // If true (default), include implicit contributions in tau13, tau23,
+        pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+        // The default is true (i.e. that it happens before the acoustic substepping).
+        pp.queryAdd("implicit_before_substep", implicit_before_substep);
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
+                amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
+                implicit_before_substep = true;
+            }
+        }
+
+        // Handle shoc case -- SHOC owns whatever vertical diffusion the host does not
+        if (uses_shoc_family()) {
+            const bool host_owns_scalars  = host_owns_vertical_scalar_diffusion();
+            const bool host_owns_momentum = host_owns_vertical_momentum_diffusion();
+            if (!host_owns_scalars &&
+                ( (user_set_imp_thermal  && implicit_thermal_diffusion ) ||
+                  (user_set_imp_moisture && implicit_moisture_diffusion) ||
+                  (user_set_imp_ke       && implicit_ke_diffusion      ) ) ) {
+                amrex::Print() << "Ignoring erf.implicit_{thermal,moisture,ke}_diffusion = true; "
+                               << "SHOC owns vertical scalar diffusion." << "\n";
+            }
+            if (!host_owns_momentum && user_set_imp_momentum && implicit_momentum_diffusion) {
+                amrex::Print() << "Ignoring erf.implicit_momentum_diffusion = true; "
+                               << "SHOC owns vertical momentum diffusion." << "\n";
+            }
+
+            implicit_thermal_diffusion  = (implicit_thermal_diffusion  && host_owns_scalars);
+            implicit_moisture_diffusion = (implicit_moisture_diffusion && host_owns_scalars);
+            implicit_ke_diffusion       = (implicit_ke_diffusion       && host_owns_scalars);
+            implicit_momentum_diffusion = (implicit_momentum_diffusion && host_owns_momentum);
+
+            // Make the resulting configuration visible in the run log
+            if (!host_owns_scalars && !host_owns_momentum) {
+                amrex::Print() << "Turning off vertical implicit solve for all components since SHOC owns diffusion." << "\n";
             } else {
-
-                for (int lev = 0; lev <= max_level; lev++) {
-                   if (anelastic[lev]) {
-                       amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev << std::endl;
-                       vert_implicit_fac[lev][0] = zero;
-                       vert_implicit_fac[lev][1] = zero;
-                       vert_implicit_fac[lev][2] = zero;
-                    }
-                }
-
-                // This may be one value for all RK stages or a different value in each stage
-                int n_impfac = pp.countval("vert_implicit_fac");
-                AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
-                if (n_impfac > 0 && do_vert_implicit) {
-                    amrex::Print() << "Overriding defaults with specified implicit factor(s)" << std::endl;
-                }
-
-                if (n_impfac == 1) {
-                    amrex::Real fac_in;
-                    pp.get("vert_implicit_fac", fac_in);
-                    for (int lev = 0; lev <= max_level; lev++) {
-                        for (int i=0; i<3; ++i) {
-                            vert_implicit_fac[lev][i] = fac_in;
-                        }
-                    }
-                } else if (n_impfac == 3) {
-                    for (int lev = 0; lev <= max_level; lev++) {
-                        pp.getarr("vert_implicit_fac", vert_implicit_fac[lev]);
-                    }
-                }
-
-                // If true (default), include implicit contributions to vertical
-                // thermal diffusion
-                pp.queryAdd("implicit_thermal_diffusion", implicit_thermal_diffusion);
-
-                // If true (default), include implicit contributions to vertical
-                // moisture diffusion
-                pp.queryAdd("implicit_moisture_diffusion", implicit_moisture_diffusion);
-
-                // If true (default), include implicit contributions to vertical
-                // KE diffusion
-                pp.queryAdd("implicit_ke_diffusion", implicit_ke_diffusion);
-
-                // If true (default), include implicit contributions in tau13, tau23,
-                // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-                pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
-
-                // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-                //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
-                // The default is true (i.e. that it happens before the acoustic substepping).
-                pp.queryAdd("implicit_before_substep", implicit_before_substep);
-                for (int lev = 0; lev <= max_level; lev++) {
-                    if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
-                        amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
-                        implicit_before_substep = true;
-                    }
-                }
-
-                // Do not allow implicit vertical diff with EB
-
-                if (terrain_type == TerrainType::EB) {
-                    for (int lev = 0; lev <= max_level; lev++) {
-                        if (do_vert_implicit) {
-                            amrex::Print() << "Implicit diffusion is not supported with EB; turning off at level " << lev << "\n";
-                            vert_implicit_fac[lev][0] = zero;
-                            vert_implicit_fac[lev][1] = zero;
-                            vert_implicit_fac[lev][2] = zero;
-                        }
-                    }
-                }
-
-                if (!implicit_thermal_diffusion  &&
-                    !implicit_moisture_diffusion &&
-                    !implicit_ke_diffusion       &&
-                    !implicit_momentum_diffusion) {
-                    amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are all turned off; turning off vertical implicit solve." << std::endl;
-                    for (int lev = 0; lev <= max_level; lev++) {
-                        vert_implicit_fac[lev][0] = zero;
-                        vert_implicit_fac[lev][1] = zero;
-                        vert_implicit_fac[lev][2] = zero;
-                    }
-                }
-            } // do_vert_implicit
+                amrex::Print() << "SHOC hands vertical diffusion of"
+                               << (host_owns_scalars  ? " scalars"  : "")
+                               << (host_owns_momentum ? " momentum" : "")
+                               << " to the host; keeping the vertical implicit solve on (theta = "
+                               << implicit_thermal_diffusion
+                               << ", moisture = " << implicit_moisture_diffusion
+                               << ", tke = "      << implicit_ke_diffusion
+                               << ", momenta = "  << implicit_momentum_diffusion << ")." << "\n";
+            }
         } // uses_shoc_family
+
+        // Do not allow implicit vertical diff if user turns it off
+        bool do_vert_implicit = true;
+        pp.queryAdd("vert_implicit", do_vert_implicit);
+        if (!do_vert_implicit) {
+            for (int lev = 0; lev <= max_level; lev++) {
+                amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag at level " << lev << std::endl;
+                vert_implicit_fac[lev][0] = zero;
+                vert_implicit_fac[lev][1] = zero;
+                vert_implicit_fac[lev][2] = zero;
+            }
+        }
+
+        // Do not allow implicit vertical diff with anelastic
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (anelastic[lev]) {
+                amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev << std::endl;
+                vert_implicit_fac[lev][0] = zero;
+                vert_implicit_fac[lev][1] = zero;
+                vert_implicit_fac[lev][2] = zero;
+            }
+        }
+
+        // Do not allow implicit vertical diff with EB
+        if (terrain_type == TerrainType::EB) {
+            for (int lev = 0; lev <= max_level; lev++) {
+                if (do_vert_implicit) {
+                    amrex::Print() << "Implicit diffusion is not supported with EB; turning off at level " << lev << "\n";
+                    vert_implicit_fac[lev][0] = zero;
+                    vert_implicit_fac[lev][1] = zero;
+                    vert_implicit_fac[lev][2] = zero;
+                }
+            }
+        }
+
+        // Do not allow implicit vertical diff when all the components are false
+        if (!implicit_thermal_diffusion  &&
+            !implicit_moisture_diffusion &&
+            !implicit_ke_diffusion       &&
+            !implicit_momentum_diffusion) {
+            amrex::Print() << "Thermal, moisture, KE, and momentum diffusion are all turned off; turning off vertical implicit solve." << std::endl;
+            for (int lev = 0; lev <= max_level; lev++) {
+                vert_implicit_fac[lev][0] = zero;
+                vert_implicit_fac[lev][1] = zero;
+                vert_implicit_fac[lev][2] = zero;
+            }
+        }
 
         // Which type of multilevel coupling
         coupling_type = CouplingType::TwoWay; // Default
@@ -1330,6 +1369,21 @@ struct SolverChoice {
         pp.queryAdd("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
         pp.queryAdd("time_avg_vel",time_avg_vel);
+
+        // Interval means and resolved turbulent moments for plotfile output
+        pp.queryAdd("compute_mean_vars", compute_mean_vars);
+        pp.queryAdd("mean_vars_reset_mode", mean_vars_reset_mode);
+        pp.queryAdd("mean_vars_reset_time", mean_vars_reset_time);
+
+        if (compute_mean_vars &&
+            mean_vars_reset_mode != "plotfile" && mean_vars_reset_mode != "time") {
+            amrex::Error("erf.mean_vars_reset_mode must be either 'plotfile' or 'time'");
+        }
+        if (compute_mean_vars && mean_vars_reset_mode == "time" &&
+            mean_vars_reset_time < zero) {
+            amrex::Error("erf.mean_vars_reset_time must be non-negative when "
+                         "erf.mean_vars_reset_mode = 'time'");
+        }
 
         pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
@@ -1918,11 +1972,22 @@ struct SolverChoice {
     bool use_eamxx_shoc = false;
     bool use_native_shoc = false;
 
+    // Native shoc transport mode
+    ShocTransportMode     shoc_transport_mode     = ShocTransportMode::StateUpdate;
+    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::HostDiffusion;
+
     // Transport the passive scalar?
     bool transport_scalar = true;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
+
+    // User wishes to output interval means and resolved turbulent moments
+    bool compute_mean_vars = false;
+
+    // Reset interval means after each plotfile or once at a requested time
+    std::string mean_vars_reset_mode = "plotfile";
+    amrex::Real mean_vars_reset_time = -one;
 
     /**
      * @brief Query whether any turbulent perturbation mode is enabled on a level.
@@ -1975,7 +2040,30 @@ struct SolverChoice {
      */
     bool uses_shoc_family () const noexcept
     {
-        return use_eamxx_shoc || use_native_shoc;
+        return (use_eamxx_shoc || use_native_shoc);
+    }
+
+    /**
+     * @brief Test whether the host owns momentum diffusion.
+     * @return True if ERF dycore does vertical diffusion of momentum.
+     */
+    bool host_owns_vertical_momentum_diffusion () const noexcept
+    {
+        if (use_eamxx_shoc)   { return false; }
+        if (!use_native_shoc) { return true;  }
+        return (shoc_uses_momentum_host_diffusion(shoc_momentum_transport) ||
+                shoc_disables_momentum_transport (shoc_momentum_transport));
+    }
+
+    /**
+     * @brief Test whether the host owns scalar diffusion.
+     * @return True if ERF dycore does vertical diffusion of scalars.
+     */
+    bool host_owns_vertical_scalar_diffusion () const noexcept
+    {
+        if (use_eamxx_shoc)   { return false; }
+        if (!use_native_shoc) { return true;  }
+        return shoc_uses_host_diffusion(shoc_transport_mode);
     }
 
     /**
@@ -2062,6 +2150,11 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
+
+    // Fixed-leaf-temperature canopy heat exchange (disabled by default)
+    bool        forest_biophysics       {false};
+    bool        forest_biophysics_heat  {false};
+    amrex::Real forest_leaf_theta_fixed {-one};
 
     // Enforce constant mass flux?
     amrex::Real const_massflux_u = zero;
