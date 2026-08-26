@@ -697,7 +697,7 @@ struct SolverChoice {
         // rather than just listing the enum values.
         {
             std::string lsm_string;
-            if (pp.query("land_surface_model", lsm_string) &&
+            if (pp.queryAdd("land_surface_model", lsm_string) &&
                 amrex::toLower(lsm_string) == "oceansurf") {
                 amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
                              "Coupled ocean SST is now applied through the "
@@ -768,7 +768,7 @@ struct SolverChoice {
         //
         std::string init_type_temp_string;
 
-        int found = pp.query("init_type",init_type_temp_string);
+        int found = pp.queryAdd("init_type",init_type_temp_string);
 
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
             amrex::Error("erf.init_type = Real is deprecated; please replace Real by WRFInput");
@@ -798,7 +798,7 @@ struct SolverChoice {
 
             // NetCDF wrfbdy lateral boundary file
             std::string nc_bdy_file_temp_string;
-            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file_temp_string);
+            bool has_bdy = pp.queryAdd("nc_bdy_file", nc_bdy_file_temp_string);
             if (!has_bdy) use_real_bcs = false;
 
             bool use_real_bcs_temp = use_real_bcs;
@@ -1749,7 +1749,7 @@ struct SolverChoice {
             amrex::Vector<amrex::Real> abl_geo_wind(3);
             pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-            if(!pp.query("abl_geo_wind_table",abl_geo_wind_table)) {
+            if(!pp.queryAdd("abl_geo_wind_table",abl_geo_wind_table)) {
                 abl_geo_forcing = {
                     -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
                      coriolis_factor *  abl_geo_wind[0]*sinphi,

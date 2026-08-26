@@ -318,7 +318,7 @@ parse_sampled_level_definition (const std::string& level_set_name,
     const std::string base = "plot2d.level_set." + level_set_name + ".";
 
     std::string coordinate_value;
-    if (!pp.query((base + "coordinate").c_str(), coordinate_value)) {
+    if (!pp.queryAdd((base + "coordinate").c_str(), coordinate_value)) {
         amrex::Abort(build_missing_field_error(level_set_name, "coordinate"));
     }
     const std::string coordinate_error =
@@ -328,21 +328,22 @@ parse_sampled_level_definition (const std::string& level_set_name,
     }
     level_set.coordinate = sampled_coordinate_from_string(coordinate_value);
 
-    if (pp.query((base + "units").c_str(), level_set.units) == 0) {
+    if (pp.queryAdd((base + "units").c_str(), level_set.units) == 0) {
         level_set.units = sampled_coordinate_default_units(level_set.coordinate);
     }
 
     std::string interpolation_value;
-    if (pp.query((base + "interpolation").c_str(), interpolation_value) == 0) {
+    if (pp.queryAdd((base + "interpolation").c_str(), interpolation_value) == 0) {
         level_set.interpolation =
             sampled_interpolation_from_string(sampled_coordinate_default_interpolation(level_set.coordinate));
     } else {
         level_set.interpolation = sampled_interpolation_from_string(interpolation_value);
     }
 
-    if (pp.query((base + "missing_value").c_str(), level_set.missing_value) == 0) {
-        level_set.missing_value = amrex::Real(-999.0);
-    }
+    // level_set.missing_value already carries the -999 default from its declaration,
+    // so there is nothing to do when the key is absent; queryAdd records the
+    // effective value in the job info without a presence test.
+    pp.queryAdd((base + "missing_value").c_str(), level_set.missing_value);
 
     int n_values = pp.countval((base + "values").c_str());
     if (n_values <= 0) {

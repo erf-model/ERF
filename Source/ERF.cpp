@@ -2280,12 +2280,12 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        if (pp.query("nc_bdy_file", nc_bdy_file)) {
+        if (pp.queryAdd("nc_bdy_file", nc_bdy_file)) {
             Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
         }
 
         // NetCDF wrflow lateral boundary file
-        if (pp.query("nc_low_file", nc_low_file)) {
+        if (pp.queryAdd("nc_low_file", nc_low_file)) {
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
@@ -2307,7 +2307,9 @@ ERF::ReadParameters ()
         pp.queryAdd("metgrid_force_sfc_k",      metgrid_force_sfc_k);
 
         // Options for boundary file.
-        pp.queryAdd("write_erfbdy",             write_erfbdy);
+        // NOTE: write_erfbdy is deliberately NOT parsed here.  Its default depends on
+        //       solverChoice.init_type, which is not known until init_params() runs
+        //       below, so it is parsed further down once that default has been chosen.
         pp.queryAdd("erfbdy_file",              erfbdy_file);
 
         // Set default to FullState for now ... later we will try Perturbation
@@ -2532,19 +2534,27 @@ ERF::ReadParameters ()
     // Prioritize write_erfbdy provided by user.
     // write_erfbdy must be false for restarts.
     // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
+    //
+    // The context-dependent default is chosen FIRST and the user's value is parsed on
+    // top of it, so that "did the user set this" never has to be asked.  It must not be
+    // asked: this used to test ParmParse::contains("write_erfbdy") after the key had
+    // already been parsed with queryAdd up in the metgrid block, and queryAdd inserts
+    // the default into the global table on a miss.  contains() was therefore always
+    // true, the metgrid/WRFInput default below never fired, no erfbdy was written on a
+    // clean start, and the following restart aborted in ReadCheckpointFile.
     {
         ParmParse pp_erfbdy(pp_prefix);
-        bool is_restart = !restart_chkfile.empty();
-        if (is_restart) {
-            if (write_erfbdy) {
-                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
-            }
-        } else {
-            if (!pp_erfbdy.contains("write_erfbdy")) {
-                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
-                    write_erfbdy = true;
-                }
-            }
+        const bool is_restart = !restart_chkfile.empty();
+        if (!is_restart &&
+            ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput))) {
+            write_erfbdy = true;
+        }
+
+        // A value given in the inputs file overrides the default chosen above.
+        pp_erfbdy.queryAdd("write_erfbdy", write_erfbdy);
+
+        if (is_restart && write_erfbdy) {
+            Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
         }
     }
 
@@ -2556,7 +2566,7 @@ ERF::ReadParameters ()
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp_no_prefix.query("start_datetime", start_datetime)) {
+        if (pp_no_prefix.queryAdd("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2621,7 +2631,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.queryAdd("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2636,7 +2646,12 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.query("stop_time", stop_time)) {
+            // stop_time already defaults to numeric_limits<double>::max(), which no user
+            // would type, so it serves as its own sentinel and we can test the value
+            // instead of the queryAdd return value (which only reports whether the key
+            // existed before this call).
+            pp_no_prefix.queryAdd("stop_time", stop_time);
+            if (stop_time < std::numeric_limits<double>::max()) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;

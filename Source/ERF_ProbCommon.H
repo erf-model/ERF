@@ -336,7 +336,7 @@ public:
         // Check if a valid text file exists for the buildings
         std::string fname;
         amrex::ParmParse pp("erf");
-        auto valid_fname = pp.query("buildings_file_name",fname);
+        auto valid_fname = pp.queryAdd("buildings_file_name",fname);
 
         if (valid_fname) {
             read_custom_terrain(fname,false,geom,buildings_fab,time);
