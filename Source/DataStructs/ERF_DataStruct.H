@@ -867,15 +867,15 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
-        // Keep the default wrf grid or remake our own
-        pp.queryAdd("use_wrf_height_grid",use_wrf_height_grid);
+        // Average the input z-face heights onto the nodes, or reconstruct our own
+        pp.queryAdd("average_erf_height_grid",average_erf_height_grid);
 
         // Rebalance wrf state?
         pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
-        // Must rebalance if not using WRF grid
-        if (!use_wrf_height_grid && !rebalance_wrf_input) {
-            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+        // Must rebalance if the nodal heights were reconstructed rather than averaged
+        if (!average_erf_height_grid && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not averaging the input height grid. Setting rebalance_wrf_input to true \n";
             rebalance_wrf_input = true;
         }
 
@@ -2057,8 +2057,8 @@ struct SolverChoice {
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 1;
 
-    // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {false};
+    // Average the input z-face heights onto the nodes rather than reconstructing them?
+    bool average_erf_height_grid {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};
