@@ -43,7 +43,14 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // Corrections to the mean surface velocity
     pp.queryAdd("most.include_subgrid_vel", include_subgrid_vel);
 
-    auto specified_policy = pp.queryAdd("most.average_policy",m_policy);
+    // Probe with a negative sentinel rather than testing the queryAdd return value:
+    // the return value only reports "did this key exist before this call", which is
+    // the same as "did the user set it" only on the first parse of the key.  0 is a
+    // legal policy (plane average), so the natural default cannot double as a sentinel.
+    m_policy = -1;
+    pp.queryAdd("most.average_policy",m_policy);
+    const bool specified_policy = (m_policy >= 0);
+    if (!specified_policy) { m_policy = 0; }
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
         if (specified_policy) {
             Warning("MOST Planar averaging requested with variable dz -- proceed with caution");
@@ -528,8 +535,13 @@ void
 MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_z = pp.queryAdd("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
+    if (!read_z) { zref_tmp = zref_default; }
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Default behavior is to use the first cell center
@@ -584,9 +596,14 @@ MOSTAverage::set_k_indices_N (const int& lev)
 void
 MOSTAverage::set_z_positions_EB (const int& lev)
 {
-    Real zref_tmp = zref_default;
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
     ParmParse pp(m_pp_prefix);
-    auto read_z = pp.queryAdd("most.zref",zref_tmp);
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
+    if (!read_z) { zref_tmp = zref_default; }
 
     if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
@@ -614,13 +631,18 @@ MOSTAverage::set_k_indices_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_z = pp.queryAdd("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
     int klo     = m_geom[lev].Domain().smallEnd(2);
 
     // Allow default zref
     if (!read_z) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
         read_z = true;
     }
@@ -695,9 +717,14 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
     int klo = m_geom[lev].Domain().smallEnd(2);
@@ -784,9 +811,14 @@ MOSTAverage::set_z_positions_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     } else {
         m_zref[lev]->setVal(zref_tmp);
@@ -849,9 +881,14 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
     int klo = m_geom[lev].Domain().smallEnd(2);

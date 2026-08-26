@@ -140,13 +140,22 @@ public:
                        "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
       }
 
-      // Get surface temperature
-      auto erf_st = pp.queryAdd("most.surf_temp", surf_temp);
+      // Get surface temperature.  surf_temp and surf_moist are declared with negative
+      // sentinels (see below) so that "did the user set this" is a property of the
+      // value rather than of the queryAdd return value, which only reports whether the
+      // key existed before the call and so stops being meaningful once anything has
+      // parsed the key.  Both most.surf_temp and most.surf_moist are also parsed by
+      // ERF_InputSoundingData.H, so the two sites would poison each other otherwise.
+      pp.queryAdd("most.surf_temp", surf_temp);
+      const bool erf_st = (surf_temp > amrex::Real(0));
       if (erf_st) { default_land_surf_temp  = surf_temp; }
 
       // Get surface moisture
       bool erf_sq = false;
-      if (use_moisture) { erf_sq = pp.queryAdd("most.surf_moist", surf_moist); }
+      if (use_moisture) {
+          pp.queryAdd("most.surf_moist", surf_moist);
+          erf_sq = (surf_moist >= amrex::Real(0));
+      }
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
@@ -186,13 +195,13 @@ public:
               // Modify rate to be in units of K / s rather than K / hr
               surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
 
-              if (pp.queryAdd("most.surf_temp_flux", surf_temp_flux)) {
+              if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
           } else {
               pp.queryAdd("most.surf_temp_flux", surf_temp_flux);
 
-              if (pp.queryAdd("most.surf_heating_rate", surf_heating_rate)) {
+              if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
               if (std::abs(surf_temp_flux) >
@@ -1237,11 +1246,16 @@ private:
   bool m_include_wstar = false;
   amrex::Real z0_const{amrex::Real(0.1)};
   amrex::Real default_land_surf_temp{amrex::Real(300.)};
-  amrex::Real surf_temp;
+  // Negative sentinels: a surface temperature is absolute and a surface moisture is a
+  // mixing ratio, so neither can legitimately be negative.  The constructor probes
+  // most.surf_temp / most.surf_moist with these and tests the resulting value to decide
+  // whether the user supplied them.  They were previously left uninitialized, which was
+  // safe only because a plain query() leaves them untouched on a miss.
+  amrex::Real surf_temp{amrex::Real(-1.)};
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
   amrex::Real default_land_surf_moist{zero};
-  amrex::Real surf_moist;
+  amrex::Real surf_moist{amrex::Real(-1.)};
   amrex::Real surf_moist_flux{0};
   amrex::Real custom_ustar{0};
   amrex::Real custom_tstar{0};

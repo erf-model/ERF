@@ -152,7 +152,15 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
             } else {
-                if (!pp.queryAdd("density", rho_in)) {
+                // Negative sentinel rather than the queryAdd return value: a density is
+                // always positive -- the "rho_in > 0" test just below already reads
+                // presence off the value -- whereas the return value only reports whether
+                // the key existed before this call.  init_bcs() runs twice on restart, so
+                // the second pass would otherwise see every key as user-specified.
+                rho_in = Real(-1.0);
+                pp.queryAdd("density", rho_in);
+                if (rho_in <= zero_d) {
+                    rho_in = zero_d;
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
                 }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
@@ -181,33 +189,49 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
             } else {
-                if (pp.queryAdd("scalar", scalar_in))
+                if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qv_in = zero_d;
+                Real qv_in = Real(-1.0);
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.queryAdd("qv", qv_in))
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
+                    // Negative sentinel rather than the queryAdd return value: a mixing
+                    // ratio is never negative, and the return value only reports whether
+                    // the key existed before this call (init_bcs() runs twice on restart).
+                    pp.queryAdd("qv", qv_in);
+                    if (qv_in >= zero_d) {
+                        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
+                    }
                 }
-                Real qc_in = zero_d;
+                Real qc_in = Real(-1.0);
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.queryAdd("qc", qc_in))
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
+                    // Negative sentinel rather than the queryAdd return value: a mixing
+                    // ratio is never negative, and the return value only reports whether
+                    // the key existed before this call (init_bcs() runs twice on restart).
+                    pp.queryAdd("qc", qc_in);
+                    if (qc_in >= zero_d) {
+                        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
+                    }
                 }
             }
 
-            Real KE_in = zero_d;
+            Real KE_in = Real(-1.0);
             if (input_bndry_planes && m_r2d->ingested_KE()) {
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero_d;
             } else {
-                if (pp.queryAdd("KE", KE_in))
-                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                // Negative sentinel rather than the queryAdd return value: a turbulent
+                // kinetic energy is never negative, and the return value only reports
+                // whether the key existed before this call (init_bcs() runs twice on
+                // restart).
+                pp.queryAdd("KE", KE_in);
+                if (KE_in >= zero_d) {
+                    m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                }
             }
         }
         else if (bc_type == "noslipwall")

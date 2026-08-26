@@ -462,5 +462,14 @@ protected:
     // Default values
     //--------------------------------------------
     const amrex::Real zref_default = amrex::Real(10.0);
+
+    // Sentinel used to detect whether most.zref was set by the user.  zref_default
+    // is itself a legal user value, so "was it specified" cannot be read off the
+    // value unless we probe with something unreachable first.  A reference height
+    // is a distance above the surface and so is always positive.  See the parse
+    // sites in ERF_MOSTAverage.cpp: they use ParmParse::queryAdd, whose return value
+    // is only meaningful on the first parse of a key, and these routines run once
+    // per level.
+    const amrex::Real zref_sentinel = amrex::Real(-1.0);
 };
 #endif

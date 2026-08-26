@@ -2187,7 +2187,9 @@ ERF::ReadParameters ()
         pp.queryAdd("metgrid_force_sfc_k",      metgrid_force_sfc_k);
 
         // Options for boundary file.
-        pp.queryAdd("write_erfbdy",             write_erfbdy);
+        // NOTE: write_erfbdy is deliberately NOT parsed here.  Its default depends on
+        //       solverChoice.init_type, which is not known until init_params() runs
+        //       below, so it is parsed further down once that default has been chosen.
         pp.queryAdd("erfbdy_file",              erfbdy_file);
 
         // Set default to FullState for now ... later we will try Perturbation
@@ -2412,19 +2414,27 @@ ERF::ReadParameters ()
     // Prioritize write_erfbdy provided by user.
     // write_erfbdy must be false for restarts.
     // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
+    //
+    // The context-dependent default is chosen FIRST and the user's value is parsed on
+    // top of it, so that "did the user set this" never has to be asked.  It must not be
+    // asked: this used to test ParmParse::contains("write_erfbdy") after the key had
+    // already been parsed with queryAdd up in the metgrid block, and queryAdd inserts
+    // the default into the global table on a miss.  contains() was therefore always
+    // true, the metgrid/WRFInput default below never fired, no erfbdy was written on a
+    // clean start, and the following restart aborted in ReadCheckpointFile.
     {
         ParmParse pp_erfbdy(pp_prefix);
-        bool is_restart = !restart_chkfile.empty();
-        if (is_restart) {
-            if (write_erfbdy) {
-                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
-            }
-        } else {
-            if (!pp_erfbdy.contains("write_erfbdy")) {
-                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
-                    write_erfbdy = true;
-                }
-            }
+        const bool is_restart = !restart_chkfile.empty();
+        if (!is_restart &&
+            ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput))) {
+            write_erfbdy = true;
+        }
+
+        // A value given in the inputs file overrides the default chosen above.
+        pp_erfbdy.queryAdd("write_erfbdy", write_erfbdy);
+
+        if (is_restart && write_erfbdy) {
+            Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
         }
     }
 
@@ -2482,7 +2492,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
                     amrex::Abort();
                 }
@@ -2493,7 +2503,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
@@ -2516,7 +2526,12 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.queryAdd("stop_time", stop_time)) {
+            // stop_time already defaults to numeric_limits<double>::max(), which no user
+            // would type, so it serves as its own sentinel and we can test the value
+            // instead of the queryAdd return value (which only reports whether the key
+            // existed before this call).
+            pp_no_prefix.queryAdd("stop_time", stop_time);
+            if (stop_time < std::numeric_limits<double>::max()) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;

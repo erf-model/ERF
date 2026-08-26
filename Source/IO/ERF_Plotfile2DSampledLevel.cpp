@@ -340,9 +340,10 @@ parse_sampled_level_definition (const std::string& level_set_name,
         level_set.interpolation = sampled_interpolation_from_string(interpolation_value);
     }
 
-    if (pp.queryAdd((base + "missing_value").c_str(), level_set.missing_value) == 0) {
-        level_set.missing_value = amrex::Real(-999.0);
-    }
+    // level_set.missing_value already carries the -999 default from its declaration,
+    // so there is nothing to do when the key is absent; queryAdd records the
+    // effective value in the job info without a presence test.
+    pp.queryAdd((base + "missing_value").c_str(), level_set.missing_value);
 
     int n_values = pp.countval((base + "values").c_str());
     if (n_values <= 0) {

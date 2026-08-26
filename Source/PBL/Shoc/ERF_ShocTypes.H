@@ -319,8 +319,14 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     pp.queryAdd("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
     pp.queryAdd("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
 
+    // Parse unconditionally rather than only when the key was found: the default
+    // string comes from shoc_transport_mode_name(), so it always round-trips back
+    // to the same enum.  This keeps the routine idempotent -- it runs once per
+    // ShocDriver, i.e. once per level -- whereas branching on the queryAdd return
+    // value would see "specified" on every call after the first.
     std::string transport_mode = shoc_transport_mode_name(opts.transport_mode);
-    if (pp.queryAdd("transport_mode", transport_mode)) {
+    pp.queryAdd("transport_mode", transport_mode);
+    {
         std::string error_message;
         if (!parse_shoc_transport_mode_string(transport_mode, opts.transport_mode, error_message)) {
             amrex::Abort(error_message.c_str());
@@ -328,7 +334,8 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     }
 
     std::string momentum_transport = shoc_momentum_transport_name(opts.momentum_transport);
-    if (pp.queryAdd("momentum_transport", momentum_transport)) {
+    pp.queryAdd("momentum_transport", momentum_transport);
+    {
         std::string error_message;
         if (!parse_shoc_momentum_transport_string(momentum_transport,
                                                   opts.momentum_transport,

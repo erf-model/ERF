@@ -642,11 +642,11 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         bool bogus_bool;
-        if (pp.queryAdd("use_terrain",bogus_bool) > 0)  {
+        if (pp.query("use_terrain",bogus_bool) > 0)  {
             amrex::Error("The input use_terrain is deprecated.  Set terrain_type instead.");
         }
 
-        if (pp.queryAdd("use_moist_background",bogus_bool) > 0)  {
+        if (pp.query("use_moist_background",bogus_bool) > 0)  {
             amrex::Error("The input use_moist_background is deprecated.  Set init_type = MoistBaseState instead.");
         }
 
@@ -665,7 +665,7 @@ struct SolverChoice {
 
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
-        if (pp.queryAdd("moisture_type",moisture_type) > 0) {
+        if (pp.query("moisture_type",moisture_type) > 0) {
             amrex::Error("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
 
