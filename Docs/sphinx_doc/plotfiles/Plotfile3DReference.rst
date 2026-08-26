@@ -11,6 +11,14 @@ package, or stored diagnostic state; the tables below state those restrictions.
 Time-averaged velocity fields require ``erf.time_avg_vel = true``. Set
 ``erf.plot_face_vels = true`` to write the native staggered velocity components
 in separate face-centered outputs associated with the configured 3D stream.
+Interval mean, covariance, and resolved TKE fields require
+``erf.compute_mean_vars = true``; their averaging window is controlled by
+``erf.mean_vars_reset_mode`` and ``erf.mean_vars_reset_time``.
+In ``plotfile`` reset mode the window is global to both 3-D streams: every
+stream due at the same simulation time receives the same accumulated values,
+then ERF resets the accumulator once after the complete output batch. A due
+stream that does not select an interval diagnostic (for example, a
+``density``-only stream) does not reset the shared window.
 
 3D output variables
 -------------------
@@ -205,6 +213,70 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 | **umag_t_avg**              | time average of  |
 |                             | velocity mag     |
 |                             | [m/s]            |
++-----------------------------+------------------+
+| **u_mean**                  | interval mean of |
+|                             | x velocity [m/s] |
++-----------------------------+------------------+
+| **v_mean**                  | interval mean of |
+|                             | y velocity [m/s] |
++-----------------------------+------------------+
+| **w_mean**                  | interval mean of |
+|                             | z velocity [m/s] |
++-----------------------------+------------------+
+| **theta_mean**              | interval mean of |
+|                             | potential temp.  |
+|                             | [K]              |
++-----------------------------+------------------+
+| **uu_mean**                 | interval mean of |
+|                             | u squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vv_mean**                 | interval mean of |
+|                             | v squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **ww_mean**                 | interval mean of |
+|                             | w squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **uw_mean**                 | interval mean of |
+|                             | u times w        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vw_mean**                 | interval mean of |
+|                             | v times w        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **wtheta_mean**             | interval mean of |
+|                             | w times theta    |
+|                             | [K m/s]          |
++-----------------------------+------------------+
+| **uu_fluct**                | resolved u       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vv_fluct**                | resolved v       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **ww_fluct**                | resolved w       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **uw_fluct**                | resolved u-w     |
+|                             | covariance       |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vw_fluct**                | resolved v-w     |
+|                             | covariance       |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **wtheta_fluct**            | resolved w-theta |
+|                             | covariance       |
+|                             | [K m/s]          |
++-----------------------------+------------------+
+| **tke_resolved**            | resolved TKE     |
+|                             | [m^2/s^2]        |
 +-----------------------------+------------------+
 | **rhoadv_0**                | Conserved scalar |
 |                             | [problem-dep.]   |
@@ -577,6 +649,29 @@ every AMR level in the plotfile:
   output value is defined as zero rather than dividing by zero. The running
   sum and its normalizer are saved in checkpoint files, so the averaging
   window survives a restart; see :ref:`sec:Checkpoint`.
+
+  The ``*_t_avg`` fields are a long-running cumulative mean: the averaging
+  window never resets on its own and simply grows for the length of the run
+  (surviving restarts via the checkpoint). This is distinct from the
+  ``*_mean``/``*_fluct`` interval diagnostics below, whose averaging window is
+  short and resets periodically; use ``*_t_avg`` for a run-long mean flow and
+  ``*_mean``/``*_fluct`` for turbulence statistics over a controlled window.
+* ``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, all ``*_mean`` second
+  moments, all ``*_fluct`` resolved variances/covariances, and ``tke_resolved`` require
+  ``erf.compute_mean_vars = true``. For example,
+  ``uw_fluct = uw_mean - u_mean*w_mean`` and
+  ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
+  before the first sample is accumulated.
+
+  Note that the accumulator for a given level is rebuilt when that level is
+  regridded, so a regrid restarts the averaging window on the regridded level
+  while the other levels continue accumulating. In a multi-level run a
+  plotfile written shortly after a regrid can therefore contain interval
+  fields whose averaging windows differ from level to level, and the plotfile
+  itself carries no record of the per-level window length. The same is true of
+  the ``*_t_avg`` fields above. If a consistent window across levels matters
+  for the analysis, write the interval fields from a run without regridding,
+  or allow enough time after a regrid for the window to refill.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.

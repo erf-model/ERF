@@ -49,6 +49,7 @@ struct Plot3DSelectionCapabilities
     MoistureComponentIndices moisture_indices;
 
     bool time_average_storage = false;
+    bool interval_mean_storage = false;
     bool radiation_heating_storage = false;
     bool eddy_diffusivity_storage = false;
     bool dissipation_storage = false;
@@ -78,6 +79,16 @@ plot3d_set_state_capabilities (Plot3DSelectionCapabilities& caps,
     caps.moisture_indices     = mi;
     caps.moist_state_size     = qstate_moist_size;
     caps.conserved_state_size = NDRY + NSCALARS + qstate_size;
+}
+
+inline bool
+plot3d_batch_resets_interval_means (int plotfiles_written,
+                                    bool interval_diagnostic_consumed,
+                                    bool compute_mean_vars,
+                                    const std::string& reset_mode)
+{
+    return plotfiles_written > 0 && interval_diagnostic_consumed &&
+           compute_mean_vars && reset_mode == "plotfile";
 }
 
 /**
@@ -156,6 +167,31 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
  * anything left is an always-available diagnostic.
  */
 inline bool
+plot3d_interval_mean_diagnostic (const std::string& name)
+{
+    static constexpr const char* names[] = {
+        "u_mean", "v_mean", "w_mean", "theta_mean",
+        "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+        "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved"
+    };
+
+    for (const char* candidate : names) {
+        if (name == candidate) return true;
+    }
+    return false;
+}
+
+inline bool
+plot3d_selection_has_interval_mean_diagnostic (
+    const amrex::Vector<std::string>& names)
+{
+    return std::any_of(names.begin(), names.end(),
+                       [] (const std::string& name) {
+                           return plot3d_interval_mean_diagnostic(name);
+                       });
+}
+
+inline bool
 plot3d_fixed_variable_available (const std::string& name,
                                  const Plot3DSelectionCapabilities& caps)
 {
@@ -184,6 +220,9 @@ plot3d_fixed_variable_available (const std::string& name,
     if (name == "u_t_avg" || name == "v_t_avg" || name == "w_t_avg" ||
         name == "umag_t_avg") {
         return caps.time_average_storage;
+    }
+    if (plot3d_interval_mean_diagnostic(name)) {
+        return caps.interval_mean_storage;
     }
     if (name == "qsrc_sw" || name == "qsrc_lw") {
         return caps.radiation_heating_storage;
