@@ -116,16 +116,19 @@ init_terrain_from_wrfinput (int lev,
 /**
  * Initialize hydrostatic base state data from a WRF dataset.
  *
+ * The profile is built analytically from the six WRF reference-state parameters
+ * and the ERF cell-centered heights; PB and ALB from the file are not used.
+ *
  * @param[in] subdomain Box specifying the index space to initialize.
- * @param[in] l_rdOcp Constant $R_d/c_p$.
+ * @param[in] l_rdOcp Constant $R_d/c_p$ (currently unused; the constexpr RdoCp is used instead).
  * @param[out] p_hse MultiFab holding the hydrostatic base state pressure.
  * @param[out] pi_hse MultiFab holding the hydrostatic base state Exner pressure.
  * @param[out] th_hse MultiFab holding the hydrostatic base state potential temperature.
  * @param[out] qv_hse MultiFab holding the hydrostatic base state qv.
  * @param[out] r_hse MultiFab holding the hydrostatic base state density.
- * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure.
- * @param[in] mf_ALB Optional MultiFab holding inverse density perturbation data.
- * @param[in] z_phys Optional terrain nodal z-coordinate MultiFab.
+ * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure (currently unused).
+ * @param[in] mf_ALB MultiFab holding inverse density perturbation data (currently unused).
+ * @param[in] z_phys_cc Cell-centered z-coordinate MultiFab; required, must not be null.
  * @param[in] T00 Sea-level base-state temperature.
  * @param[in] P00 Sea-level base-state pressure.
  * @param[in] TLP Base-state lapse rate.
@@ -242,15 +245,19 @@ read_base_state_params_from_wrfinput (const std::string& fname,
         ncf.close();
 
         // Idealized WRF cases (and some hand-built wrfinput files) declare these
-        // variables but leave them zero-filled.  T00, P00 and TISO are absolute
-        // temperatures/pressures, so a non-positive value is never meaningful; if
-        // any of them is bad we discard the whole group and keep the defaults.
-        // (TLP, TLP_STRAT and P_STRAT may legitimately be zero, so they are only
-        // reset alongside a bad T00/P00/TISO.)
+        // variables but leave them zero-filled.  T00 and P00 are an absolute
+        // temperature and pressure, and TLP is the lapse rate that the closed-form
+        // p(z) inversion in init_base_state_from_wrfinput divides by, so a
+        // non-positive value of any of the three leaves us with no usable
+        // reference profile: TLP == 0 makes the inversion NaN and TLP < 0 flips the
+        // sign of the quadratic root it takes.  If any of them is bad we discard
+        // the whole group and keep the defaults.  (TLP_STRAT and P_STRAT may
+        // legitimately be zero -- that just disables the stratospheric layer -- so
+        // they are only reset alongside a bad T00/P00/TLP.)
         const bool params_ok = std::isfinite(T00)  && (T00  > Real(0)) &&
                                std::isfinite(P00)  && (P00  > Real(0)) &&
-                               std::isfinite(TISO) && (TISO > Real(0)) &&
-                               std::isfinite(TLP)  && std::isfinite(TLP_STRAT) &&
+                               std::isfinite(TLP)  && (TLP  > Real(0)) &&
+                               std::isfinite(TISO) && std::isfinite(TLP_STRAT) &&
                                std::isfinite(P_STRAT);
 
         if (!params_ok) {
@@ -258,10 +265,28 @@ read_base_state_params_from_wrfinput (const std::string& fname,
                     << " are invalid: (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
                     << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", "
                     << TLP_STRAT << ", " << P_STRAT << ")\n";
-            Print() << "         T00, P00 and TISO must all be positive and finite; "
+            Print() << "         T00, P00 and TLP must all be positive and finite; "
                        "reverting to ERF defaults.\n";
+            Print() << "         NOTE: the base state is built entirely from these six "
+                       "parameters -- PB and ALB in the file are not used -- so the "
+                       "resulting base state is synthetic and may be inconsistent with "
+                       "the state read from " << fname << ".\n";
             T00 = T00_def;   P00 = P00_def;   TLP = TLP_def;
             TISO = TISO_def; TLP_STRAT = TLP_STRAT_def; P_STRAT = P_STRAT_def;
+        }
+
+        // WRF evaluates the reference temperature as max(TISO, T00 + TLP*ln(p/P00)),
+        // so iso_temp == 0 there simply means "no isothermal cap".  ERF instead
+        // inverts each layer analytically and divides by TISO inside the isothermal
+        // layer, so a non-positive TISO would be a division by zero (and, taken
+        // literally, a profile running down to 0 K).  The tropospheric parameters
+        // this file supplies are still good, so keep them and cap with the ERF
+        // default rather than discarding the whole group.
+        if (params_ok && (TISO <= Real(0))) {
+            Print() << "WARNING: TISO read from " << fname << " is " << TISO
+                    << "; using the ERF default isothermal cap of " << TISO_def
+                    << " K and keeping T00, P00 and TLP from the file.\n";
+            TISO = TISO_def;
         }
 
         Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
@@ -1731,16 +1756,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 /**
  * Helper function to initialize hydrostatic base state data from WRF dataset
  *
+ * The profile is built analytically from the six WRF reference-state parameters
+ * and the ERF cell-centered heights; PB and ALB from the file are not used.
+ *
  * @param subdomain        Box specifying the index space we are to initialize
- * @param l_rdOcp          Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param l_rdOcp          Real constant specifying Rydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$); currently unused, the constexpr RdoCp is used instead
  * @param p_hse            MultiFab holding the hydrostatic base state pressure to be initialized
  * @param pi_hse           MultiFab holding the hydrostatic base state Exner pressure to be initialized
  * @param th_hse           MultiFab holding the hydrostatic base state potential temperature to be initialized
  * @param qv_hse           MultiFab holding the hydrostatic base state qv to be initialized
  * @param r_hse            MultiFab holding the hydrostatic base state density to be initialized
- * @param mf_PB            MultiFab holding WRF data specifying base state pressure
- * @param mf_ALB           Optional MultiFab holding inverse density perturbation data
- * @param z_phys_nd        Optional terrain nodal z-coordinate MultiFab
+ * @param mf_PB            MultiFab holding WRF data specifying base state pressure; currently unused
+ * @param mf_ALB           MultiFab holding inverse density perturbation data; currently unused
+ * @param z_phys_cc        Cell-centered z-coordinate MultiFab; required, must not be null
  * @param T00              Sea-level base-state temperature
  * @param P00              Sea-level base-state pressure
  * @param TLP              Base-state lapse rate
@@ -1769,6 +1797,11 @@ init_base_state_from_wrfinput (const Box& subdomain,
     const auto& dom_lo = lbound(subdomain);
     const auto& dom_hi = ubound(subdomain);
 
+    // The analytic inversion below is a function of the true cell-centered
+    // height, so z_phys_cc is required here -- it is dereferenced unconditionally
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_phys_cc != nullptr,
+                                     "init_base_state_from_wrfinput requires z_phys_cc");
+
     // **************************************************************************
     // The WRF reference state is piecewise in log-pressure:
     //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
@@ -1781,11 +1814,24 @@ init_base_state_from_wrfinput (const Box& subdomain,
     const Real P_iso = P00 * std::exp(x_iso);
     const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
 
-    // The upper stratospheric layer is optional (P_STRAT == 0 disables it) and
-    // is only meaningful if it begins above the isothermal layer.
-    const bool use_strat = (P_STRAT > zero) && (P_STRAT < P_iso) && (TLP_STRAT != zero);
-    const Real z_strat   = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
-                                       : z_iso;
+    // The upper stratospheric layer is optional (P_STRAT == 0 or TLP_STRAT == 0
+    // disables it) and is only meaningful if it begins above the isothermal layer,
+    // i.e. if P_STRAT is below the pressure at which the isothermal layer starts.
+    const bool want_strat = (P_STRAT > zero) && (TLP_STRAT != zero);
+    const bool use_strat  = want_strat && (P_STRAT < P_iso);
+    const Real z_strat    = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
+                                        : z_iso;
+
+    // A configured stratospheric layer that lies at or below the isothermal
+    // transition cannot be represented, so say so rather than dropping it quietly.
+    if (want_strat && !use_strat) {
+        Print() << "WARNING: the WRF stratospheric layer is being ignored: P_STRAT = "
+                << P_STRAT << " Pa is not below the pressure at the base of the "
+                << "isothermal layer, P_iso = " << P_iso << " Pa.\n";
+        Print() << "         TLP_STRAT = " << TLP_STRAT << " will have no effect and "
+                << "the atmosphere above z_iso will be isothermal at TISO = "
+                << TISO << " K.\n";
+    }
 
     Print() << "WRF base state layer interfaces: z_iso = " << z_iso << " m";
     if (use_strat) Print() << ", z_strat = " << z_strat << " m";
@@ -1796,7 +1842,20 @@ init_base_state_from_wrfinput (const Box& subdomain,
 #endif
     for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        Box gtbx = mfi.tilebox();
+        // The base state must be valid in its ghost cells as well: physbcs_base is
+        // not applied until after init_from_wrfinput returns, but r_hse is consumed
+        // before that (read_and_convert_from_wrfbdy -> scale_bdy_normal_by_rho0
+        // reads rho0 one cell outside the domain).  Leaving the ghost cells at the
+        // setVal(0) from ERF_MakeNewArrays would divide by zero there, so fill the
+        // grown box here just as the pre-analytic version of this routine did.
+        Box gtbx = mfi.growntilebox();
+
+        // z_phys_cc carries fewer ghost cells than the base state, so clamp the
+        // height lookup into the region where it is defined; that gives the outer
+        // ghost cells a zeroth-order extrapolation of the profile.
+        const Box  zbx  = amrex::grow(mfi.validbox(), z_phys_cc->nGrowVect());
+        const auto z_lo = lbound(zbx);
+        const auto z_hi = ubound(zbx);
 
         const Array4<Real      >&  p_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
@@ -1809,9 +1868,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
         ParallelFor(gtbx, [=,zero_d=zero,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            const int ii = amrex::min(amrex::max(i, z_lo.x), z_hi.x);
+            const int jj = amrex::min(amrex::max(j, z_lo.y), z_hi.y);
+            const int kk = amrex::min(amrex::max(k, z_lo.z), z_hi.z);
+
             // Analytical inversion with true CC heights, branching on the layer
             Real Pd, Td;
-            const Real z = z_cc_arr(i,j,k);
+            const Real z = z_cc_arr(ii,jj,kk);
             if (z <= z_iso) {
                 // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
                 const Real ToA  = T00 / TLP;
@@ -1851,11 +1914,10 @@ init_base_state_from_wrfinput (const Box& subdomain,
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
 
-    // The vertical integration below is seeded with the surface values (P00,T00),
-    // so these must be valid regardless of whether ALB was present in the file
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(P00) && (P00 > Real(0)) &&
-                                     std::isfinite(T00) && (T00 > Real(0)),
-                                     "Cannot rebalance the WRF base state: P00 and T00 must be positive");
+    // The vertical integration below is seeded with the analytic profile in the
+    // lowest cell of each column, z_cc(i,j,klo) and p_hse(i,j,klo), not with
+    // (P00,T00); read_base_state_params_from_wrfinput has already guaranteed that
+    // the parameters those were built from are positive and finite.
 
 #ifdef AMREX_USE_FLOAT
     Real tol  = Real(1.0e-6);
