@@ -2677,7 +2677,7 @@ ERF::ReadParameters ()
         pp.queryAdd("forest_tree_type", forest_tree_type);
         pp.queryAdd("forest_laimax",    forest_laimax);
 
-        if (has_forest_file && (has_forest_lai || has_forest_height || has_any_cd)) {
+        if (has_forest_file && (has_forest_lai || has_forest_height || has_forest_cd || has_forest_cd_const)) {
             Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");
         }
 
@@ -2717,7 +2717,7 @@ ERF::ReadParameters ()
                     << "  Tree type: " << forest_tree_type << "\n"
                     << "  LAImax: " << forest_laimax << "\n";
 
-        } else if (has_forest_lai || has_forest_height || has_any_cd) {
+        } else if (has_forest_lai || has_forest_height || has_forest_cd || has_forest_cd_const) {
             Abort("Gridded forest mode requires forest_lai_file, forest_height_file, "
                   "and either forest_cd_file or forest_cd.");
         }
