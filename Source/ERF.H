@@ -1925,8 +1925,16 @@ private:
         return *eb[lev];
     }
 
+    //
+    // NOTE: this dereferences the cell-centered EB factory, which is only built when
+    //       we are using EB or immersed forcing -- see ERF::MakeNewLevelFromScratch.
+    //       Calling this in any other case is undefined behavior, so we assert here
+    //       rather than relying on the (build-dependent) libstdc++ hardening check.
+    //
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        AMREX_ASSERT(eb[lev]->get_const_factory() != nullptr);
         return *(eb[lev]->get_const_factory());
     }
 
