@@ -298,7 +298,7 @@ public:
     void m_ensure_nsoil_resolved () {
         if (m_nsoil_resolved) { return; }
         amrex::ParmParse pp_nsoil("erf");
-        pp_nsoil.query("lsm_nsoil", m_nsoil);
+        pp_nsoil.queryAdd("lsm_nsoil", m_nsoil);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_nsoil >= 1, "erf.lsm_nsoil must be >= 1");
         m_lsm_data_size = LsmData_NOAHMP::NumVars + m_num_soil_groups*m_nsoil;
         m_nsoil_resolved = true;

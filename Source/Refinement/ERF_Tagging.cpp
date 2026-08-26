@@ -450,7 +450,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             ParmParse ppr(ref_prefix);
 
             double ref_start_time = -1.0;
-            ppr.query("start_time",ref_start_time);
+            ppr.queryAdd("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
 

@@ -58,10 +58,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.terrain_type == TerrainType::EB) {
         ParmParse pp_eb2("eb2");
         std::string geometry;
-        pp_eb2.query("geometry", geometry);
+        pp_eb2.queryAdd("geometry", geometry);
         if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
-            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.queryAdd("plane_point", plane_point);
             z_offset = plane_point[2];
         }
     }
@@ -818,7 +818,7 @@ ERF::init_zphys (int lev, double elapsed_time)
         // Read the small_volfrac threshold from eb2 namespace
         Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
-        pp_eb2.query("small_volfrac", small_volfrac);
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
 
         // Cell-centered terrain blanking
         terrain_blanking[lev]->setVal(one);
@@ -965,7 +965,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         // Read the small_volfrac threshold from eb2 namespace
         Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
-        pp_eb2.query("small_volfrac", small_volfrac);
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
 
         terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());

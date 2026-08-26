@@ -69,11 +69,11 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
         ParmParse pp(pp_text);
 
         std::string bc_type_in;
-        if (pp.query("type", bc_type_in) <= 0)
+        if (pp.queryAdd("type", bc_type_in) <= 0)
         {
             pp_text = bcid;
             pp = ParmParse(pp_text);
-            pp.query("type", bc_type_in);
+            pp.queryAdd("type", bc_type_in);
         }
 
         std::string bc_type = amrex::toLower(bc_type_in);
@@ -136,9 +136,9 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             } else {
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
-                auto file_exists = pp.query("dirichlet_file", dirichlet_file);
+                auto file_exists = pp.queryAdd("dirichlet_file", dirichlet_file);
                 if (file_exists) {
-                    pp.query("read_prim_theta", read_prim_theta);
+                    pp.queryAdd("read_prim_theta", read_prim_theta);
                     init_Dirichlet_bc_data(dirichlet_file);
                 } else {
                     pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
@@ -152,7 +152,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
             } else {
-                if (!pp.query("density", rho_in)) {
+                if (!pp.queryAdd("density", rho_in)) {
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
                 }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
@@ -174,14 +174,14 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             // This lets upstream-propagating acoustic waves exit the domain
             // instead of reflecting off the rigid Dirichlet boundary.
             bool nonreflecting = false;
-            pp.query("nonreflecting", nonreflecting);
+            pp.queryAdd("nonreflecting", nonreflecting);
             m_bc_nonreflecting[ori] = nonreflecting;
 
             Real scalar_in = zero_d;
             if (input_bndry_planes && m_r2d->ingested_scalar()) {
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = zero_d;
             } else {
-                if (pp.query("scalar", scalar_in))
+                if (pp.queryAdd("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
 
@@ -190,14 +190,14 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.query("qv", qv_in))
+                    if (pp.queryAdd("qv", qv_in))
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
                 }
                 Real qc_in = zero_d;
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.query("qc", qc_in))
+                    if (pp.queryAdd("qc", qc_in))
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
                 }
             }
@@ -206,7 +206,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_KE()) {
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero_d;
             } else {
-                if (pp.query("KE", KE_in))
+                if (pp.queryAdd("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
             }
         }

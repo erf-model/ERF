@@ -31,19 +31,19 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // Get basic info
     //--------------------------------------------------------
     ParmParse pp(m_pp_prefix);
-    pp.query("most.radius",m_radius);
-    pp.query("most.time_average",m_t_avg);
-    pp.query("most.terrain_rotate",m_rotate);
-    pp.query("most.use_interpolation",m_interp);
-    pp.query("most.use_normal_vector",m_norm_vec);
+    pp.queryAdd("most.radius",m_radius);
+    pp.queryAdd("most.time_average",m_t_avg);
+    pp.queryAdd("most.terrain_rotate",m_rotate);
+    pp.queryAdd("most.use_interpolation",m_interp);
+    pp.queryAdd("most.use_normal_vector",m_norm_vec);
 
     // m_time_window is normalized by the time-step "dt"
-    pp.query("most.time_window", m_time_window);
+    pp.queryAdd("most.time_window", m_time_window);
 
     // Corrections to the mean surface velocity
-    pp.query("most.include_subgrid_vel", include_subgrid_vel);
+    pp.queryAdd("most.include_subgrid_vel", include_subgrid_vel);
 
-    auto specified_policy = pp.query("most.average_policy",m_policy);
+    auto specified_policy = pp.queryAdd("most.average_policy",m_policy);
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
         if (specified_policy) {
             Warning("MOST Planar averaging requested with variable dz -- proceed with caution");
@@ -529,7 +529,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
-    auto read_z = pp.query("most.zref",zref_tmp);
+    auto read_z = pp.queryAdd("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Default behavior is to use the first cell center
@@ -586,7 +586,7 @@ MOSTAverage::set_z_positions_EB (const int& lev)
 {
     Real zref_tmp = zref_default;
     ParmParse pp(m_pp_prefix);
-    auto read_z = pp.query("most.zref",zref_tmp);
+    auto read_z = pp.queryAdd("most.zref",zref_tmp);
 
     if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
@@ -615,7 +615,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
     ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
-    auto read_z = pp.query("most.zref",zref_tmp);
+    auto read_z = pp.queryAdd("most.zref",zref_tmp);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
     int klo     = m_geom[lev].Domain().smallEnd(2);
 
@@ -696,7 +696,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
     ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
@@ -785,7 +785,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
 
     ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     } else {
@@ -850,7 +850,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
 
     ParmParse pp(m_pp_prefix);
     Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    auto read_zref = pp.queryAdd("most.zref",zref_tmp);
     if (!read_zref) {
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
