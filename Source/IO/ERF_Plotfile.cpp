@@ -60,6 +60,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                                 micro->Get_Qstate_Moist_Size(),
                                                 micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
+    capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
     capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
@@ -249,7 +250,7 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 }
 
 // Write plotfile to disk
-void
+bool
 ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
     auto dPlotTime0 = amrex::second();
@@ -259,7 +260,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = static_cast<int>(varnames.size());
 
-    if (ncomp_mf == 0) return;
+    if (ncomp_mf == 0) return false;
 
     // Lagrangian microphysics with AMR (TwoWay): synchronize the
     // microphysics-owned storage before rebuilding the active moisture state
@@ -1081,6 +1082,100 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             if (containerHasElement(plot_var_names, "v_t_avg")) copy_time_average(1);
             if (containerHasElement(plot_var_names, "w_t_avg")) copy_time_average(2);
             if (containerHasElement(plot_var_names, "umag_t_avg")) copy_time_average(3);
+        }
+
+        if (solverChoice.compute_mean_vars) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                interval_means[lev] != nullptr,
+                "interval-mean plot variables require storage on every AMR level");
+
+            const Real norm = static_cast<Real>(t_mean_cnt[lev]);
+            const Real inv_norm = norm > Real(0.0) ? Real(1.0) / norm : Real(0.0);
+
+            auto copy_interval_mean = [&](const int source_comp) {
+                const int dest_comp = mf_comp++;
+                if (norm <= Real(0.0)) {
+                    mf[lev].setVal(Real(0.0), dest_comp, 1, 0);
+                    return;
+                }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& out = mf[lev].array(mfi);
+                    const Array4<const Real>& moments = interval_means[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        out(i,j,k,dest_comp) = moments(i,j,k,source_comp) * inv_norm;
+                    });
+                }
+            };
+
+            static constexpr const char* mean_names[] = {
+                "u_mean", "v_mean", "w_mean", "theta_mean",
+                "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean"
+            };
+            for (int source_comp = 0; source_comp < 10; ++source_comp) {
+                if (containerHasElement(plot_var_names, mean_names[source_comp])) {
+                    copy_interval_mean(source_comp);
+                }
+            }
+
+            auto copy_fluctuation = [&](const int product_comp,
+                                        const int first_comp,
+                                        const int second_comp) {
+                const int dest_comp = mf_comp++;
+                if (norm <= Real(0.0)) {
+                    mf[lev].setVal(Real(0.0), dest_comp, 1, 0);
+                    return;
+                }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& out = mf[lev].array(mfi);
+                    const Array4<const Real>& moments = interval_means[lev]->const_array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        const Real product_mean = moments(i,j,k,product_comp) * inv_norm;
+                        const Real first_mean = moments(i,j,k,first_comp) * inv_norm;
+                        const Real second_mean = moments(i,j,k,second_comp) * inv_norm;
+                        out(i,j,k,dest_comp) = product_mean - first_mean * second_mean;
+                    });
+                }
+            };
+
+            if (containerHasElement(plot_var_names, "uu_fluct")) copy_fluctuation(4, 0, 0);
+            if (containerHasElement(plot_var_names, "vv_fluct")) copy_fluctuation(5, 1, 1);
+            if (containerHasElement(plot_var_names, "ww_fluct")) copy_fluctuation(6, 2, 2);
+            if (containerHasElement(plot_var_names, "uw_fluct")) copy_fluctuation(7, 0, 2);
+            if (containerHasElement(plot_var_names, "vw_fluct")) copy_fluctuation(8, 1, 2);
+            if (containerHasElement(plot_var_names, "wtheta_fluct")) copy_fluctuation(9, 2, 3);
+
+            if (containerHasElement(plot_var_names, "tke_resolved")) {
+                const int dest_comp = mf_comp++;
+                if (norm <= Real(0.0)) {
+                    mf[lev].setVal(Real(0.0), dest_comp, 1, 0);
+                } else {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                    for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const Box& bx = mfi.tilebox();
+                        const Array4<Real>& out = mf[lev].array(mfi);
+                        const Array4<const Real>& moments = interval_means[lev]->const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            const Real u_mean = moments(i,j,k,0) * inv_norm;
+                            const Real v_mean = moments(i,j,k,1) * inv_norm;
+                            const Real w_mean = moments(i,j,k,2) * inv_norm;
+                            const Real uu_fluct = moments(i,j,k,4) * inv_norm - u_mean * u_mean;
+                            const Real vv_fluct = moments(i,j,k,5) * inv_norm - v_mean * v_mean;
+                            const Real ww_fluct = moments(i,j,k,6) * inv_norm - w_mean * w_mean;
+                            out(i,j,k,dest_comp) = Real(0.5) * (uu_fluct + vv_fluct + ww_fluct);
+                        });
+                    }
+                }
+            }
         }
 
         const MultiFab* eta_src = nullptr;
@@ -1990,6 +2085,9 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         ParallelDescriptor::ReduceRealMax(dPlotTime,ParallelDescriptor::IOProcessorNumber());
         amrex::Print() << "3DPlotfile write time = " << dPlotTime << " seconds." << '\n';
     }
+
+    return true;
+
 }
 
 void

@@ -985,6 +985,22 @@ struct SolverChoice {
         pp.queryAdd("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
         pp.queryAdd("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
+        // Fixed-leaf-temperature canopy heat exchange
+        pp.query("forest_biophysics",       forest_biophysics);
+        pp.query("forest_biophysics_heat",  forest_biophysics_heat);
+        pp.query("forest_leaf_theta_fixed", forest_leaf_theta_fixed);
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !forest_biophysics_heat || forest_biophysics,
+            "forest_biophysics_heat requires forest_biophysics = true");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(forest_biophysics && forest_biophysics_heat) ||
+                forest_leaf_theta_fixed > zero,
+            "forest_biophysics_heat requires a positive forest_leaf_theta_fixed");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            forest_leaf_theta_fixed <= zero || forest_biophysics_heat,
+            "forest_leaf_theta_fixed requires forest_biophysics_heat = true");
+
         // immersed forcing parameters
         pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
         pp.queryAdd("if_Cd_scalar", if_Cd_scalar);
@@ -1353,6 +1369,21 @@ struct SolverChoice {
         pp.queryAdd("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
         pp.queryAdd("time_avg_vel",time_avg_vel);
+
+        // Interval means and resolved turbulent moments for plotfile output
+        pp.queryAdd("compute_mean_vars", compute_mean_vars);
+        pp.queryAdd("mean_vars_reset_mode", mean_vars_reset_mode);
+        pp.queryAdd("mean_vars_reset_time", mean_vars_reset_time);
+
+        if (compute_mean_vars &&
+            mean_vars_reset_mode != "plotfile" && mean_vars_reset_mode != "time") {
+            amrex::Error("erf.mean_vars_reset_mode must be either 'plotfile' or 'time'");
+        }
+        if (compute_mean_vars && mean_vars_reset_mode == "time" &&
+            mean_vars_reset_time < zero) {
+            amrex::Error("erf.mean_vars_reset_time must be non-negative when "
+                         "erf.mean_vars_reset_mode = 'time'");
+        }
 
         pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
@@ -1951,6 +1982,13 @@ struct SolverChoice {
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
 
+    // User wishes to output interval means and resolved turbulent moments
+    bool compute_mean_vars = false;
+
+    // Reset interval means after each plotfile or once at a requested time
+    std::string mean_vars_reset_mode = "plotfile";
+    amrex::Real mean_vars_reset_time = -one;
+
     /**
      * @brief Query whether any turbulent perturbation mode is enabled on a level.
      * @param lev AMR level index.
@@ -2112,6 +2150,11 @@ struct SolverChoice {
 
     // Use forest canopy model?
     bool do_forest_drag {false};
+
+    // Fixed-leaf-temperature canopy heat exchange (disabled by default)
+    bool        forest_biophysics       {false};
+    bool        forest_biophysics_heat  {false};
+    amrex::Real forest_leaf_theta_fixed {-one};
 
     // Enforce constant mass flux?
     amrex::Real const_massflux_u = zero;

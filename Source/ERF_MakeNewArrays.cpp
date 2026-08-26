@@ -267,6 +267,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         t_avg_cnt[lev] = zero;
     }
 
+    // Components: u, v, w, theta, uu, vv, ww, uw, vw, wtheta.
+    // The field storage is rebuilt for this level, but the time-reset state is
+    // global and must survive regridding of any level.
+    interval_means[lev] = nullptr;
+    if (solverChoice.compute_mean_vars) {
+        interval_means[lev] = std::make_unique<MultiFab>(ba, dm, 10, 0);
+        interval_means[lev]->setVal(zero);
+        t_mean_cnt[lev] = 0.0;
+    }
+
     // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************
