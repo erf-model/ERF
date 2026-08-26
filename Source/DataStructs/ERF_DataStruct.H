@@ -1212,9 +1212,6 @@ struct SolverChoice {
         }
 
         // Set up the vertical implicit diffusion solve
-        bool do_vert_implicit = true;
-        pp.queryAdd("vert_implicit", do_vert_implicit);
-
         int n_impfac = pp.countval("vert_implicit_fac");
         AMREX_ALWAYS_ASSERT(n_impfac == 0 || n_impfac == 1 || n_impfac==3);
         if (n_impfac == 1) {
@@ -1231,24 +1228,24 @@ struct SolverChoice {
             }
         }
 
-        // If true (default), include implicit contributions to vertical
-        // thermal diffusion
+        // Record whether the user explicitly requested these
+        const bool user_set_imp_thermal  = pp.contains("implicit_thermal_diffusion");
+        const bool user_set_imp_moisture = pp.contains("implicit_moisture_diffusion");
+        const bool user_set_imp_ke       = pp.contains("implicit_ke_diffusion");
+        const bool user_set_imp_momentum = pp.contains("implicit_momentum_diffusion");
+
+        // If true (default), include implicit contributions to vertical thermal diffusion
         pp.queryAdd("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
-        // If true (default), include implicit contributions to vertical
-        // moisture diffusion
+        // If true (default), include implicit contributions to vertical moisture diffusion
         pp.queryAdd("implicit_moisture_diffusion", implicit_moisture_diffusion);
 
-        // If true (default), include implicit contributions to vertical
-        // KE diffusion
+        // If true (default), include implicit contributions to vertical KE diffusion
         pp.queryAdd("implicit_ke_diffusion", implicit_ke_diffusion);
 
         // If true (default), include implicit contributions in tau13, tau23,
-        // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
         pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
-        // This controls when the vertical implicit solve for the diffusive terms will happen relative to
-        //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
         // The default is true (i.e. that it happens before the acoustic substepping).
         pp.queryAdd("implicit_before_substep", implicit_before_substep);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1258,26 +1255,45 @@ struct SolverChoice {
             }
         }
 
-        // Handle shoc case
-        bool host_owns_diffusion = ( host_owns_vertical_scalar_diffusion() ||
-                                     host_owns_vertical_momentum_diffusion() );
+        // Handle shoc case -- SHOC owns whatever vertical diffusion the host does not
         if (uses_shoc_family()) {
-            if(!host_owns_diffusion && do_vert_implicit) {
-                amrex::Print() << "Turning off native vertical implicit solve at all levels with SHOC family PBL scheme." << std::endl;
-                for (int lev = 0; lev <= max_level; lev++) {
-                    vert_implicit_fac[lev][0] = zero;
-                    vert_implicit_fac[lev][1] = zero;
-                    vert_implicit_fac[lev][2] = zero;
-                }
+            const bool host_owns_scalars  = host_owns_vertical_scalar_diffusion();
+            const bool host_owns_momentum = host_owns_vertical_momentum_diffusion();
+            if (!host_owns_scalars &&
+                ( (user_set_imp_thermal  && implicit_thermal_diffusion ) ||
+                  (user_set_imp_moisture && implicit_moisture_diffusion) ||
+                  (user_set_imp_ke       && implicit_ke_diffusion      ) ) ) {
+                amrex::Print() << "Ignoring erf.implicit_{thermal,moisture,ke}_diffusion = true; "
+                               << "SHOC owns vertical scalar diffusion." << "\n";
+            }
+            if (!host_owns_momentum && user_set_imp_momentum && implicit_momentum_diffusion) {
+                amrex::Print() << "Ignoring erf.implicit_momentum_diffusion = true; "
+                               << "SHOC owns vertical momentum diffusion." << "\n";
+            }
+
+            implicit_thermal_diffusion  = (implicit_thermal_diffusion  && host_owns_scalars);
+            implicit_moisture_diffusion = (implicit_moisture_diffusion && host_owns_scalars);
+            implicit_ke_diffusion       = (implicit_ke_diffusion       && host_owns_scalars);
+            implicit_momentum_diffusion = (implicit_momentum_diffusion && host_owns_momentum);
+
+            // Make the resulting configuration visible in the run log
+            if (!host_owns_scalars && !host_owns_momentum) {
+                amrex::Print() << "Turning off vertical implicit solve for all components since SHOC owns diffusion." << "\n";
             } else {
-                implicit_momentum_diffusion = host_owns_vertical_momentum_diffusion();
-                implicit_thermal_diffusion  = host_owns_vertical_scalar_diffusion();
-                implicit_moisture_diffusion = host_owns_vertical_scalar_diffusion();
-                implicit_ke_diffusion       = host_owns_vertical_scalar_diffusion();
-            } // owns diff
-        } // uses shoc but not host diff
+                amrex::Print() << "SHOC hands vertical diffusion of"
+                               << (host_owns_scalars  ? " scalars"  : "")
+                               << (host_owns_momentum ? " momentum" : "")
+                               << " to the host; keeping the vertical implicit solve on (theta = "
+                               << implicit_thermal_diffusion
+                               << ", moisture = " << implicit_moisture_diffusion
+                               << ", tke = "      << implicit_ke_diffusion
+                               << ", momenta = "  << implicit_momentum_diffusion << ")." << "\n";
+            }
+        } // uses_shoc_family
 
         // Do not allow implicit vertical diff if user turns it off
+        bool do_vert_implicit = true;
+        pp.queryAdd("vert_implicit", do_vert_implicit);
         if (!do_vert_implicit) {
             for (int lev = 0; lev <= max_level; lev++) {
                 amrex::Print() << "Turning off native vertical implicit solve from vert_implicit flag at level " << lev << std::endl;
