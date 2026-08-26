@@ -336,7 +336,7 @@ public:
         // Check if a valid text file exists for the buildings
         std::string fname;
         amrex::ParmParse pp("erf");
-        auto valid_fname = pp.queryAdd("buildings_file_name",fname);
+        auto valid_fname = pp.query("buildings_file_name",fname);
 
         if (valid_fname) {
             read_custom_terrain(fname,false,geom,buildings_fab,time);
@@ -362,11 +362,11 @@ public:
 
         // NetCDF terrain file takes priority
         std::string fname_nc;
-        auto valid_fname_nc = pp.queryAdd("terrain_file_name_nc", fname_nc);
+        auto valid_fname_nc = pp.query("terrain_file_name_nc", fname_nc);
 
         std::string fname, fname_usgs;
-        auto valid_fname      = pp.queryAdd("terrain_file_name",      fname);
-        auto valid_fname_USGS = pp.queryAdd("terrain_file_name_USGS", fname_usgs);
+        auto valid_fname      = pp.query("terrain_file_name",      fname);
+        auto valid_fname_USGS = pp.query("terrain_file_name_USGS", fname_usgs);
 
         if (valid_fname_nc) {
 #ifdef ERF_USE_NETCDF

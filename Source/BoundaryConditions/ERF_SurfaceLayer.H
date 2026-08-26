@@ -89,7 +89,7 @@ public:
       } else {
           std::string flux_string_in;
           std::string flux_string{"moeng"};
-          auto read_flux = pp.queryAdd("surface_layer.flux_type", flux_string_in);
+          auto read_flux = pp.query("surface_layer.flux_type", flux_string_in);
           if (read_flux) {
               flux_string = amrex::toLower(flux_string_in);
           }
@@ -113,7 +113,7 @@ public:
 
       std::string pblh_string_in;
       std::string pblh_string{"none"};
-      auto read_pblh = pp.queryAdd("most.pblh_calc", pblh_string_in);
+      auto read_pblh = pp.query("most.pblh_calc", pblh_string_in);
       if (read_pblh) {
           pblh_string = amrex::toLower(pblh_string_in);
       }
@@ -141,12 +141,12 @@ public:
       }
 
       // Get surface temperature
-      auto erf_st = pp.queryAdd("most.surf_temp", surf_temp);
+      auto erf_st = pp.query("most.surf_temp", surf_temp);
       if (erf_st) { default_land_surf_temp  = surf_temp; }
 
       // Get surface moisture
       bool erf_sq = false;
-      if (use_moisture) { erf_sq = pp.queryAdd("most.surf_moist", surf_moist); }
+      if (use_moisture) { erf_sq = pp.query("most.surf_moist", surf_moist); }
       if (erf_sq) { default_land_surf_moist = surf_moist; }
 
       // Custom type user must specify the fluxes
@@ -186,13 +186,13 @@ public:
               // Modify rate to be in units of K / s rather than K / hr
               surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
 
-              if (pp.queryAdd("most.surf_temp_flux", surf_temp_flux)) {
+              if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
           } else {
               pp.queryAdd("most.surf_temp_flux", surf_temp_flux);
 
-              if (pp.queryAdd("most.surf_heating_rate", surf_heating_rate)) {
+              if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
                   amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
               }
               if (std::abs(surf_temp_flux) >
@@ -224,7 +224,7 @@ public:
 
       // Make sure the inputs file doesn't try to use most.roughness_type
       std::string bogus_input;
-      if (pp.queryAdd("most.roughness_type", bogus_input) > 0) {
+      if (pp.query("most.roughness_type", bogus_input) > 0) {
           amrex::Abort("most.roughness_type is deprecated; use "
                        "most.roughness_type_land and/or most.roughness_type_sea");
       }
@@ -233,7 +233,7 @@ public:
       std::string rough_land_string_in;
       std::string rough_land_string{"constant"};
       auto read_rough_land =
-          pp.queryAdd("most.roughness_type_land", rough_land_string_in);
+          pp.query("most.roughness_type_land", rough_land_string_in);
       if (read_rough_land) {
           rough_land_string = amrex::toLower(rough_land_string_in);
       }
@@ -246,7 +246,7 @@ public:
       // Specify how to compute the surface flux over sea (if there is any)
       std::string rough_sea_string_in;
       std::string rough_sea_string{"charnock"};
-      auto read_rough_sea = pp.queryAdd("most.roughness_type_sea", rough_sea_string_in);
+      auto read_rough_sea = pp.query("most.roughness_type_sea", rough_sea_string_in);
       if (read_rough_sea) {
           rough_sea_string = amrex::toLower(rough_sea_string_in);
       }

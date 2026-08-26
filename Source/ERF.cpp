@@ -2280,12 +2280,12 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        if (pp.queryAdd("nc_bdy_file", nc_bdy_file)) {
+        if (pp.query("nc_bdy_file", nc_bdy_file)) {
             Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
         }
 
         // NetCDF wrflow lateral boundary file
-        if (pp.queryAdd("nc_low_file", nc_low_file)) {
+        if (pp.query("nc_low_file", nc_low_file)) {
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
@@ -2556,7 +2556,7 @@ ERF::ReadParameters ()
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp_no_prefix.queryAdd("start_datetime", start_datetime)) {
+        if (pp_no_prefix.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2602,7 +2602,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
                     amrex::Abort();
                 }
@@ -2613,7 +2613,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
@@ -2621,7 +2621,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp_no_prefix.queryAdd("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2636,7 +2636,7 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.queryAdd("stop_time", stop_time)) {
+            if (pp_no_prefix.query("stop_time", stop_time)) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
@@ -2657,16 +2657,16 @@ ERF::ReadParameters ()
         std::string forest_lai_file, forest_height_file, forest_cd_file;
 
         bool requested_forest_drag = false;
-        bool has_forest_drag_switch = pp.queryAdd("do_forest_drag", requested_forest_drag);
+        bool has_forest_drag_switch = pp.query("do_forest_drag", requested_forest_drag);
 
-        bool has_forest_file   = pp.queryAdd("forest_file",        forestfile);
-        bool has_forest_lai    = pp.queryAdd("forest_lai_file",    forest_lai_file);
-        bool has_forest_height = pp.queryAdd("forest_height_file", forest_height_file);
-        bool has_forest_cd     = pp.queryAdd("forest_cd_file",     forest_cd_file);
+        bool has_forest_file   = pp.query("forest_file",        forestfile);
+        bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
+        bool has_forest_height = pp.query("forest_height_file", forest_height_file);
+        bool has_forest_cd     = pp.query("forest_cd_file",     forest_cd_file);
 
         // Optional constant drag coefficient (alternative to forest_cd_file)
         Real forest_cd_const = -1.0;
-        bool has_forest_cd_const = pp.queryAdd("forest_cd", forest_cd_const);
+        bool has_forest_cd_const = pp.query("forest_cd", forest_cd_const);
 
         if (has_forest_cd && has_forest_cd_const) {
             Abort("Cannot specify both 'forest_cd_file' and 'forest_cd'. Choose one.");
@@ -2674,8 +2674,8 @@ ERF::ReadParameters ()
 
         int  forest_tree_type = 1;
         Real forest_laimax    = 0.8;
-        pp.queryAdd("forest_tree_type", forest_tree_type);
-        pp.queryAdd("forest_laimax",    forest_laimax);
+        pp.query("forest_tree_type", forest_tree_type);
+        pp.query("forest_laimax",    forest_laimax);
 
         if (has_forest_file && (has_forest_lai || has_forest_height || has_forest_cd || has_forest_cd_const)) {
             Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");

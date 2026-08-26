@@ -107,10 +107,10 @@ struct TurbulentPerturbation {
         pp.queryAdd("perturbation_w_amp",input_w_amp);
 
         perturbation_klo = 0;
-        bool have_klo = pp.queryAdd("perturbation_klo", perturbation_klo);
+        bool have_klo = pp.query("perturbation_klo", perturbation_klo);
 
         perturbation_khi = 0;
-        bool have_khi = pp.queryAdd("perturbation_khi", perturbation_khi);
+        bool have_khi = pp.query("perturbation_khi", perturbation_khi);
 
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
