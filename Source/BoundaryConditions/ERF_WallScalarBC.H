@@ -168,17 +168,17 @@ parse_wall_face_scalars (amrex::ParmParse& pp,
                          bool anelastic)
 {
     amrex::Real density = amrex::Real(0.0);
-    const bool density_specified = pp.queryAdd("density", density);
+    const bool density_specified = pp.query("density", density);
     amrex::Real density_grad = amrex::Real(0.0);
-    const bool density_gradient_specified = pp.queryAdd("density_grad", density_grad);
+    const bool density_gradient_specified = pp.query("density_grad", density_grad);
     amrex::Real theta = amrex::Real(0.0);
-    const bool theta_specified = pp.queryAdd("theta", theta);
+    const bool theta_specified = pp.query("theta", theta);
     amrex::Real theta_grad = amrex::Real(0.0);
-    const bool theta_gradient_specified = pp.queryAdd("theta_grad", theta_grad);
+    const bool theta_gradient_specified = pp.query("theta_grad", theta_grad);
 
     amrex::Real qv = amrex::Real(0.0);
     const bool qv_specified = (wall_kind == SolidWallKind::NoSlip) &&
-                              pp.queryAdd("qv", qv);
+                              pp.query("qv", qv);
 
     WallFaceParseResult result;
     if (anelastic && (density_specified || density_gradient_specified)) {

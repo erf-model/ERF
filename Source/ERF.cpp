@@ -2160,12 +2160,12 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        if (pp.queryAdd("nc_bdy_file", nc_bdy_file)) {
+        if (pp.query("nc_bdy_file", nc_bdy_file)) {
             Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
         }
 
         // NetCDF wrflow lateral boundary file
-        if (pp.queryAdd("nc_low_file", nc_low_file)) {
+        if (pp.query("nc_low_file", nc_low_file)) {
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
@@ -2436,7 +2436,7 @@ ERF::ReadParameters ()
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp_no_prefix.queryAdd("start_datetime", start_datetime)) {
+        if (pp_no_prefix.query("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2482,7 +2482,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
                     amrex::Abort();
                 }
@@ -2493,7 +2493,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.queryAdd("start_time", start_time)) {
+                if (pp_no_prefix.query("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
@@ -2501,7 +2501,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp_no_prefix.queryAdd("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2516,7 +2516,7 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.queryAdd("stop_time", stop_time)) {
+            if (pp_no_prefix.query("stop_time", stop_time)) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
@@ -2533,7 +2533,7 @@ ERF::ReadParameters ()
 
     // Query the canopy model file name
     std::string forestfile;
-    solverChoice.do_forest_drag = pp.queryAdd("forest_file", forestfile);
+    solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
     if (solverChoice.do_forest_drag) {
         for (int lev = 0; lev <= max_level; ++lev) {
             m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);

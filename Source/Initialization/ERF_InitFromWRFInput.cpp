@@ -1462,9 +1462,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 1);
         MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 1);
         MultiFab::Divide(theta, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+        amrex::Print() << "FINISHED MAKING THETA " << std::endl;
 
         MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 1);
         MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 1);
+        amrex::Print() << "FINISHED COPYIGN QV " << std::endl;
         MultiFab::Divide(qv, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
 
         MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
