@@ -284,43 +284,43 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
 {
     amrex::ParmParse pp("erf.shoc");
 
-    pp.query("lambda_low", opts.lambda_low);
-    pp.query("lambda_high", opts.lambda_high);
-    pp.query("lambda_slope", opts.lambda_slope);
-    pp.query("lambda_thresh", opts.lambda_thresh);
-    pp.query("thl2tune", opts.thl2tune);
-    pp.query("qw2tune", opts.qw2tune);
-    pp.query("qwthl2tune", opts.qwthl2tune);
-    pp.query("w2tune", opts.w2tune);
-    pp.query("length_fac", opts.length_fac);
-    pp.query("c_diag_3rd_mom", opts.c_diag_3rd_mom);
-    pp.query("coeff_kh", opts.coeff_kh);
-    pp.query("coeff_km", opts.coeff_km);
-    pp.query("top_taper_depth", opts.top_taper_depth);
-    pp.query("top_taper_min_factor", opts.top_taper_min_factor);
-    pp.query("shoc_1p5tke", opts.shoc_1p5tke);
-    pp.query("extra_shoc_diags", opts.extra_shoc_diags);
-    pp.query("apply_tms", opts.apply_tms);
-    pp.query("check_flux_state", opts.check_flux_state);
-    pp.query("column_conservation_check", opts.column_conservation_check);
-    pp.query("debug_summary", opts.debug_summary);
-    pp.query("allow_tendency_microphysics_overlap", opts.allow_tendency_microphysics_overlap);
-    pp.query("signed_tke_production", opts.signed_tke_production);
-    pp.query("debug_bad_column", opts.debug_bad_column);
-    pp.query("debug_bad_column_abort", opts.debug_bad_column_abort);
-    pp.query("debug_bad_column_max_reports", opts.debug_bad_column_max_reports);
-    pp.query("debug_bad_column_theta_tend_threshold", opts.debug_bad_column_theta_tend_threshold);
-    pp.query("debug_bad_column_q_tend_threshold", opts.debug_bad_column_q_tend_threshold);
-    pp.query("debug_bad_column_brunt_threshold", opts.debug_bad_column_brunt_threshold);
-    pp.query("debug_bad_column_min_dz", opts.debug_bad_column_min_dz);
-    pp.query("debug_bad_column_scalar_moment_threshold", opts.debug_bad_column_scalar_moment_threshold);
-    pp.query("debug_disable_pdf_cloud_increment", opts.debug_disable_pdf_cloud_increment);
-    pp.query("debug_disable_theta_state_update", opts.debug_disable_theta_state_update);
-    pp.query("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
-    pp.query("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
+    pp.queryAdd("lambda_low", opts.lambda_low);
+    pp.queryAdd("lambda_high", opts.lambda_high);
+    pp.queryAdd("lambda_slope", opts.lambda_slope);
+    pp.queryAdd("lambda_thresh", opts.lambda_thresh);
+    pp.queryAdd("thl2tune", opts.thl2tune);
+    pp.queryAdd("qw2tune", opts.qw2tune);
+    pp.queryAdd("qwthl2tune", opts.qwthl2tune);
+    pp.queryAdd("w2tune", opts.w2tune);
+    pp.queryAdd("length_fac", opts.length_fac);
+    pp.queryAdd("c_diag_3rd_mom", opts.c_diag_3rd_mom);
+    pp.queryAdd("coeff_kh", opts.coeff_kh);
+    pp.queryAdd("coeff_km", opts.coeff_km);
+    pp.queryAdd("top_taper_depth", opts.top_taper_depth);
+    pp.queryAdd("top_taper_min_factor", opts.top_taper_min_factor);
+    pp.queryAdd("shoc_1p5tke", opts.shoc_1p5tke);
+    pp.queryAdd("extra_shoc_diags", opts.extra_shoc_diags);
+    pp.queryAdd("apply_tms", opts.apply_tms);
+    pp.queryAdd("check_flux_state", opts.check_flux_state);
+    pp.queryAdd("column_conservation_check", opts.column_conservation_check);
+    pp.queryAdd("debug_summary", opts.debug_summary);
+    pp.queryAdd("allow_tendency_microphysics_overlap", opts.allow_tendency_microphysics_overlap);
+    pp.queryAdd("signed_tke_production", opts.signed_tke_production);
+    pp.queryAdd("debug_bad_column", opts.debug_bad_column);
+    pp.queryAdd("debug_bad_column_abort", opts.debug_bad_column_abort);
+    pp.queryAdd("debug_bad_column_max_reports", opts.debug_bad_column_max_reports);
+    pp.queryAdd("debug_bad_column_theta_tend_threshold", opts.debug_bad_column_theta_tend_threshold);
+    pp.queryAdd("debug_bad_column_q_tend_threshold", opts.debug_bad_column_q_tend_threshold);
+    pp.queryAdd("debug_bad_column_brunt_threshold", opts.debug_bad_column_brunt_threshold);
+    pp.queryAdd("debug_bad_column_min_dz", opts.debug_bad_column_min_dz);
+    pp.queryAdd("debug_bad_column_scalar_moment_threshold", opts.debug_bad_column_scalar_moment_threshold);
+    pp.queryAdd("debug_disable_pdf_cloud_increment", opts.debug_disable_pdf_cloud_increment);
+    pp.queryAdd("debug_disable_theta_state_update", opts.debug_disable_theta_state_update);
+    pp.queryAdd("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
+    pp.queryAdd("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
 
     std::string transport_mode = shoc_transport_mode_name(opts.transport_mode);
-    if (pp.query("transport_mode", transport_mode)) {
+    if (pp.queryAdd("transport_mode", transport_mode)) {
         std::string error_message;
         if (!parse_shoc_transport_mode_string(transport_mode, opts.transport_mode, error_message)) {
             amrex::Abort(error_message.c_str());
@@ -328,7 +328,7 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     }
 
     std::string momentum_transport = shoc_momentum_transport_name(opts.momentum_transport);
-    if (pp.query("momentum_transport", momentum_transport)) {
+    if (pp.queryAdd("momentum_transport", momentum_transport)) {
         std::string error_message;
         if (!parse_shoc_momentum_transport_string(momentum_transport,
                                                   opts.momentum_transport,

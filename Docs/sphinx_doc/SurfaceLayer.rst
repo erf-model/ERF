@@ -226,6 +226,12 @@ In the above case, ``use_normal_vector`` utilizes the a local surface-normal vec
 
 Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
 
+The state of this filter is written to and read from checkpoint files, so a
+restarted run continues the average rather than beginning it again from the
+instantaneous value; see :ref:`sec:Checkpoint`. Note that regridding rebuilds
+the averaging containers and therefore restarts the filter on the affected
+level.
+
 Low-speed corrections
 ~~~~~~~~~~~~~~~~~~~~~
 The following options are available:

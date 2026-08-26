@@ -1373,7 +1373,14 @@ ERF::InitData_post ()
     }
 
     // Fill time averaged velocities before first plot file
-    if (solverChoice.time_avg_vel) {
+    //
+    // NOTE: only when starting from scratch.  On restart the running sum and its
+    //       normalizer have just been read back in, and that sum already includes
+    //       the state at the checkpoint time (ERF::Advance accumulates after each
+    //       step).  Accumulating it again here would count that state twice, so a
+    //       restarted run would not match the equivalent continuous run, and the
+    //       bias would compound over a chain of restarts.
+    if (solverChoice.time_avg_vel && restart_chkfile.empty()) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
                               vars_new[lev][Vars::xvel],
@@ -1661,7 +1668,7 @@ ERF::InitData_post ()
 
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
-    pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
+    pp.queryAdd("do_line_sampling",do_line); pp.queryAdd("do_plane_sampling",do_plane);
     if (do_line) {
         if (line_sampling_interval < 0 && line_sampling_per < 0) {
             Abort("Need to specify line_sampling_interval or line_sampling_per");
@@ -1681,7 +1688,7 @@ ERF::InitData_post ()
          solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
-        pp.query("write_eb_surface", write_eb_surface);
+        pp.queryAdd("write_eb_surface", write_eb_surface);
         if (write_eb_surface) {
             if (verbose > 0) {
                 amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
@@ -2153,26 +2160,26 @@ ERF::ReadParameters ()
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
     {
-        pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
-        pp.query("regrid_int", regrid_int);
-        pp.query("check_file", check_file);
+        pp.queryAdd("regrid_level_0_on_restart", regrid_level_0_on_restart);
+        pp.queryAdd("regrid_int", regrid_int);
+        pp.queryAdd("check_file", check_file);
 
         // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
         //    for those or "erf.restart" / "erf.m_check_int". The amr.* values are
         //    queried after the erf.* values and therefore take precedence if both
         //    are specified.
-        pp.query("check_int", m_check_int);
-        pp.query("check_per", m_check_per);
-        pp_amr.query("check_int", m_check_int);
-        pp_amr.query("check_per", m_check_per);
+        pp.queryAdd("check_int", m_check_int);
+        pp.queryAdd("check_per", m_check_per);
+        pp_amr.queryAdd("check_int", m_check_int);
+        pp_amr.queryAdd("check_per", m_check_per);
 
-        pp.query("restart", restart_chkfile);
-        pp_amr.query("restart", restart_chkfile);
+        pp.queryAdd("restart", restart_chkfile);
+        pp_amr.queryAdd("restart", restart_chkfile);
 
         // Verbosity
-        pp.query("v", verbose);
-        pp.query("mg_v", mg_verbose);
-        pp.query("use_fft", use_fft);
+        pp.queryAdd("v", verbose);
+        pp.queryAdd("mg_v", mg_verbose);
+        pp.queryAdd("use_fft", use_fft);
 #ifndef ERF_USE_FFT
         if (use_fft) {
             Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
@@ -2180,27 +2187,27 @@ ERF::ReadParameters ()
 #endif
 
         // Check for NaNs?
-        pp.query("check_for_nans", check_for_nans);
+        pp.queryAdd("check_for_nans", check_for_nans);
 
         // Frequency of diagnostic output
-        pp.query("sum_interval", sum_interval);
-        pp.query("sum_period"  , sum_per);
+        pp.queryAdd("sum_interval", sum_interval);
+        pp.queryAdd("sum_period"  , sum_per);
 
-        pp.query("pert_interval", pert_interval);
+        pp.queryAdd("pert_interval", pert_interval);
 
         // Time step controls
-        pp.query("cfl", cfl);
-        pp.query("substepping_cfl", sub_cfl);
-        pp.query("init_shrink", init_shrink);
-        pp.query("change_max", change_max);
-        pp.query("dt_max_initial", dt_max_initial);
-        pp.query("dt_max", dt_max);
+        pp.queryAdd("cfl", cfl);
+        pp.queryAdd("substepping_cfl", sub_cfl);
+        pp.queryAdd("init_shrink", init_shrink);
+        pp.queryAdd("change_max", change_max);
+        pp.queryAdd("dt_max_initial", dt_max_initial);
+        pp.queryAdd("dt_max", dt_max);
 
         fixed_dt.resize(max_level+1,-one);
         fixed_fast_dt.resize(max_level+1,-one);
 
-        pp.query("fixed_dt", fixed_dt[0]);
-        pp.query("fixed_fast_dt", fixed_fast_dt[0]);
+        pp.queryAdd("fixed_dt", fixed_dt[0]);
+        pp.queryAdd("fixed_fast_dt", fixed_fast_dt[0]);
 
         int nlevs_max = max_level + 1;
         istep.resize(nlevs_max, 0);
@@ -2237,7 +2244,7 @@ ERF::ReadParameters ()
             fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(nsubsteps[lev]);
         }
 
-        pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.queryAdd("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -2273,35 +2280,35 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        if (pp.query("nc_bdy_file", nc_bdy_file)) {
+        if (pp.queryAdd("nc_bdy_file", nc_bdy_file)) {
             Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
         }
 
         // NetCDF wrflow lateral boundary file
-        if (pp.query("nc_low_file", nc_low_file)) {
+        if (pp.queryAdd("nc_low_file", nc_low_file)) {
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
 #endif
 
         // Options for vertical interpolation of met_em*.nc data.
-        pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);
-        pp.query("metgrid_debug_isothermal", metgrid_debug_isothermal);
-        pp.query("metgrid_debug_dry",        metgrid_debug_dry);
-        pp.query("metgrid_debug_psfc",       metgrid_debug_psfc);
-        pp.query("metgrid_debug_msf",        metgrid_debug_msf);
-        pp.query("metgrid_interp_theta",     metgrid_interp_theta);
-        pp.query("metgrid_basic_linear",     metgrid_basic_linear);
-        pp.query("metgrid_use_below_sfc",    metgrid_use_below_sfc);
-        pp.query("metgrid_use_sfc",          metgrid_use_sfc);
-        pp.query("metgrid_retain_sfc",       metgrid_retain_sfc);
-        pp.query("metgrid_proximity",        metgrid_proximity);
-        pp.query("metgrid_order",            metgrid_order);
-        pp.query("metgrid_force_sfc_k",      metgrid_force_sfc_k);
+        pp.queryAdd("metgrid_debug_quiescent",  metgrid_debug_quiescent);
+        pp.queryAdd("metgrid_debug_isothermal", metgrid_debug_isothermal);
+        pp.queryAdd("metgrid_debug_dry",        metgrid_debug_dry);
+        pp.queryAdd("metgrid_debug_psfc",       metgrid_debug_psfc);
+        pp.queryAdd("metgrid_debug_msf",        metgrid_debug_msf);
+        pp.queryAdd("metgrid_interp_theta",     metgrid_interp_theta);
+        pp.queryAdd("metgrid_basic_linear",     metgrid_basic_linear);
+        pp.queryAdd("metgrid_use_below_sfc",    metgrid_use_below_sfc);
+        pp.queryAdd("metgrid_use_sfc",          metgrid_use_sfc);
+        pp.queryAdd("metgrid_retain_sfc",       metgrid_retain_sfc);
+        pp.queryAdd("metgrid_proximity",        metgrid_proximity);
+        pp.queryAdd("metgrid_order",            metgrid_order);
+        pp.queryAdd("metgrid_force_sfc_k",      metgrid_force_sfc_k);
 
         // Options for boundary file.
-        pp.query("write_erfbdy",             write_erfbdy);
-        pp.query("erfbdy_file",              erfbdy_file);
+        pp.queryAdd("write_erfbdy",             write_erfbdy);
+        pp.queryAdd("erfbdy_file",              erfbdy_file);
 
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
@@ -2369,28 +2376,28 @@ ERF::ReadParameters ()
         }
 #endif
 
-        pp.query("plot_file_1"  ,   plot3d_file_1);
-        pp.query("plot_file_2"  ,   plot3d_file_2);
-        pp.query("plot2d_file_1",   plot2d_file_1);
-        pp.query("plot2d_file_2",   plot2d_file_2);
+        pp.queryAdd("plot_file_1"  ,   plot3d_file_1);
+        pp.queryAdd("plot_file_2"  ,   plot3d_file_2);
+        pp.queryAdd("plot2d_file_1",   plot2d_file_1);
+        pp.queryAdd("plot2d_file_2",   plot2d_file_2);
 
-        pp.query("plot_int_1"   , m_plot3d_int_1);
-        pp.query("plot_int_2"   , m_plot3d_int_2);
-        pp.query("plot_per_1"   , m_plot3d_per_1);
-        pp.query("plot_per_2"   , m_plot3d_per_2);
+        pp.queryAdd("plot_int_1"   , m_plot3d_int_1);
+        pp.queryAdd("plot_int_2"   , m_plot3d_int_2);
+        pp.queryAdd("plot_per_1"   , m_plot3d_per_1);
+        pp.queryAdd("plot_per_2"   , m_plot3d_per_2);
 
-        pp.query("plot2d_int_1" , m_plot2d_int_1);
-        pp.query("plot2d_int_2" , m_plot2d_int_2);
-        pp.query("plot2d_per_1",  m_plot2d_per_1);
-        pp.query("plot2d_per_2",  m_plot2d_per_2);
+        pp.queryAdd("plot2d_int_1" , m_plot2d_int_1);
+        pp.queryAdd("plot2d_int_2" , m_plot2d_int_2);
+        pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
+        pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
-        pp.query("subvol_file",   subvol_file);
+        pp.queryAdd("subvol_file",   subvol_file);
 
         // Should we use format like plt1970-01-01_00:00:Real(00.000000) (if true) or plt00001 (if false)
-        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+        pp.queryAdd("use_real_time_in_pltname", use_real_time_in_pltname);
 
         // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
-        pp.query("file_name_digits", file_name_digits);
+        pp.queryAdd("file_name_digits", file_name_digits);
 
         // Default if subvol_int not specified
         m_subvol_int.resize(1); m_subvol_int[0] = -1;
@@ -2449,12 +2456,15 @@ ERF::ReadParameters ()
             }
         }
 
-        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
+        // NOTE: the subvolume variable list is *not* selected here.  Choosing which
+        //       "rhoQn" components exist needs the microphysics interface, and that
+        //       is constructed after ReadParameters() returns, so setSubVolVariables
+        //       is called alongside setPlotVariables in the ERF constructor.
 
-        pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
+        pp.queryAdd("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
-        pp.query("plot_face_vels",m_plot_face_vels);
-        pp.query("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
+        pp.queryAdd("plot_face_vels",m_plot_face_vels);
+        pp.queryAdd("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
 
         if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
              (m_plot3d_int_2 > 0 && m_plot3d_per_2 > zero) ) {
@@ -2465,50 +2475,50 @@ ERF::ReadParameters ()
             Abort("Must choose only one of plot_int or plot_per");
         }
 
-        pp.query("profile_int", profile_int);
-        pp.query("destag_profiles", destag_profiles);
+        pp.queryAdd("profile_int", profile_int);
+        pp.queryAdd("destag_profiles", destag_profiles);
 
-        pp.query("plot_lsm", plot_lsm);
+        pp.queryAdd("plot_lsm", plot_lsm);
 #ifdef ERF_USE_RRTMGP
-        pp.query("plot_rad", plot_rad);
+        pp.queryAdd("plot_rad", plot_rad);
 #endif
-        pp.query("profile_rad_int", rad_datalog_int);
+        pp.queryAdd("profile_rad_int", rad_datalog_int);
 
-        pp.query("output_1d_column", output_1d_column);
-        pp.query("column_per", column_per);
-        pp.query("column_interval", column_interval);
-        pp.query("column_loc_x", column_loc_x);
-        pp.query("column_loc_y", column_loc_y);
-        pp.query("column_file_name", column_file_name);
+        pp.queryAdd("output_1d_column", output_1d_column);
+        pp.queryAdd("column_per", column_per);
+        pp.queryAdd("column_interval", column_interval);
+        pp.queryAdd("column_loc_x", column_loc_x);
+        pp.queryAdd("column_loc_y", column_loc_y);
+        pp.queryAdd("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("line_sampling_per", line_sampling_per);
-        pp.query("line_sampling_interval", line_sampling_interval);
-        pp.query("plane_sampling_per", plane_sampling_per);
-        pp.query("plane_sampling_interval", plane_sampling_interval);
+        pp.queryAdd("line_sampling_per", line_sampling_per);
+        pp.queryAdd("line_sampling_interval", line_sampling_interval);
+        pp.queryAdd("plane_sampling_per", plane_sampling_per);
+        pp.queryAdd("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
-        pp.query("output_bndry_planes", output_bndry_planes);
-        pp.query("bndry_output_planes_interval", bndry_output_planes_interval);
-        pp.query("bndry_output_planes_per", bndry_output_planes_per);
-        pp.query("bndry_output_start_time", bndry_output_planes_start_time);
+        pp.queryAdd("output_bndry_planes", output_bndry_planes);
+        pp.queryAdd("bndry_output_planes_interval", bndry_output_planes_interval);
+        pp.queryAdd("bndry_output_planes_per", bndry_output_planes_per);
+        pp.queryAdd("bndry_output_start_time", bndry_output_planes_start_time);
 
         // Specify whether ingest boundary planes of data
-        pp.query("input_bndry_planes", input_bndry_planes);
+        pp.queryAdd("input_bndry_planes", input_bndry_planes);
 
         // Query the total width for wrfbdy interior ghost cells
-        pp.query("real_width", real_width);
+        pp.queryAdd("real_width", real_width);
 
         // If using real boundaries, do we extrapolate w (or set to 0)
-        pp.query("real_extrap_w", real_extrap_w);
+        pp.queryAdd("real_extrap_w", real_extrap_w);
 
         // Query the set and total widths for crse-fine interior ghost cells
-        pp.query("cf_width", cf_width);
-        pp.query("cf_set_width", cf_set_width);
+        pp.queryAdd("cf_width", cf_width);
+        pp.queryAdd("cf_set_width", cf_set_width);
 
         // AmrMesh iterate on grids?
         bool iterate(true);
-        pp_amr.query("iterate_grids",iterate);
+        pp_amr.queryAdd("iterate_grids",iterate);
         if (!iterate) SetIterateToFalse();
     }
 
@@ -2540,13 +2550,13 @@ ERF::ReadParameters ()
 
     {
         ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.
-        pp_no_prefix.query("max_step", max_step);
+        pp_no_prefix.queryAdd("max_step", max_step);
         if (max_step < 0) {
             max_step = std::numeric_limits<int>::max();
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp_no_prefix.query("start_datetime", start_datetime)) {
+        if (pp_no_prefix.queryAdd("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2592,7 +2602,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.query("start_time", start_time)) {
+                if (pp_no_prefix.queryAdd("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from wrfinput" << std::endl;
                     amrex::Abort();
                 }
@@ -2603,7 +2613,7 @@ ERF::ReadParameters ()
 
                 use_datetime = true;
 
-                if (pp_no_prefix.query("start_time", start_time)) {
+                if (pp_no_prefix.queryAdd("start_time", start_time)) {
                     amrex::Print() << "start_time should not be set from inputs file; we are reading SIMULATION START DATE from metgrid" << std::endl;
                     amrex::Abort();
                 }
@@ -2611,7 +2621,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.queryAdd("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2626,7 +2636,7 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.query("stop_time", stop_time)) {
+            if (pp_no_prefix.queryAdd("stop_time", stop_time)) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
@@ -2647,16 +2657,16 @@ ERF::ReadParameters ()
         std::string forest_lai_file, forest_height_file, forest_cd_file;
 
         bool requested_forest_drag = false;
-        bool has_forest_drag_switch = pp.query("do_forest_drag", requested_forest_drag);
+        bool has_forest_drag_switch = pp.queryAdd("do_forest_drag", requested_forest_drag);
 
-        bool has_forest_file   = pp.query("forest_file",        forestfile);
-        bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
-        bool has_forest_height = pp.query("forest_height_file", forest_height_file);
-        bool has_forest_cd     = pp.query("forest_cd_file",     forest_cd_file);
+        bool has_forest_file   = pp.queryAdd("forest_file",        forestfile);
+        bool has_forest_lai    = pp.queryAdd("forest_lai_file",    forest_lai_file);
+        bool has_forest_height = pp.queryAdd("forest_height_file", forest_height_file);
+        bool has_forest_cd     = pp.queryAdd("forest_cd_file",     forest_cd_file);
 
         // Optional constant drag coefficient (alternative to forest_cd_file)
         Real forest_cd_const = -1.0;
-        bool has_forest_cd_const = pp.query("forest_cd", forest_cd_const);
+        bool has_forest_cd_const = pp.queryAdd("forest_cd", forest_cd_const);
 
         if (has_forest_cd && has_forest_cd_const) {
             Abort("Cannot specify both 'forest_cd_file' and 'forest_cd'. Choose one.");
@@ -2664,10 +2674,8 @@ ERF::ReadParameters ()
 
         int  forest_tree_type = 1;
         Real forest_laimax    = 0.8;
-        pp.query("forest_tree_type", forest_tree_type);
-        pp.query("forest_laimax",    forest_laimax);
-
-        bool has_any_cd = has_forest_cd || has_forest_cd_const;
+        pp.queryAdd("forest_tree_type", forest_tree_type);
+        pp.queryAdd("forest_laimax",    forest_laimax);
 
         if (has_forest_file && (has_forest_lai || has_forest_height || has_any_cd)) {
             Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");

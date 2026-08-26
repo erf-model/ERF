@@ -1451,9 +1451,13 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // NOTE: This is the set of derived variables that WriteSubvolume knows how to fill; it
+    //       is an unordered allow-list, since setSubVolVariables walks "derived_names" and
+    //       keeps the entries found here.  That means the names are selected in
+    //       "derived_names" order, which is the order WriteSubvolume must compute them in.
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar",
+                                                           "precipitable", "mucape"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1942,8 +1946,16 @@ private:
         return *eb[lev];
     }
 
+    //
+    // NOTE: this dereferences the cell-centered EB factory, which is only built when
+    //       we are using EB or immersed forcing -- see ERF::MakeNewLevelFromScratch.
+    //       Calling this in any other case is undefined behavior, so we assert here
+    //       rather than relying on the (build-dependent) libstdc++ hardening check.
+    //
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        AMREX_ASSERT(eb[lev]->get_const_factory() != nullptr);
         return *(eb[lev]->get_const_factory());
     }
 
