@@ -9,6 +9,10 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Vector.H>
 
+#include <algorithm>
+#include <cctype>
+#include <string>
+
 struct ShocRuntimeOptions
 {
     amrex::Real lambda_low    = amrex::Real(0.001);
