@@ -437,4 +437,21 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    if (solverChoice.compute_mean_vars) {
+        // The interval window is shared by all AMR levels.  Reset it before
+        // accumulating the first sample whose step starts at or beyond the
+        // configured reset time.  The restart reader restores the flags when
+        // that time has already passed, so this is a one-shot transition.
+        if (solverChoice.mean_vars_reset_mode == "time" &&
+            time >= static_cast<double>(solverChoice.mean_vars_reset_time)) {
+            if (mean_vars_time_reset_done == 0) {
+                ResetIntervalMeans();
+                mean_vars_time_reset_done = 1;
+            }
+        }
+
+        Accumulate_Interval_Means(dt_lev, t_mean_cnt[lev], interval_means[lev].get(),
+                                  U_new, V_new, W_new, S_new);
+    }
+
 }

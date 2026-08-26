@@ -11,6 +11,7 @@
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
 #include <ERF_PlaneAverage.H>
+#include <ERF_CanopyBiophysics.H>
 
 using namespace amrex;
 

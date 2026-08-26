@@ -229,7 +229,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
-            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                                  z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                  solverChoice.forest_biophysics &&
+                                                  solverChoice.forest_biophysics_heat, lev);
         }
     }
 
@@ -360,7 +363,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     //********************************************************************************************
@@ -659,7 +665,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     // *****************************************************************************************************
