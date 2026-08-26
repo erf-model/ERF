@@ -562,7 +562,7 @@ ERF::init_from_metgrid (int lev)
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
                 init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
-                                             l_rdOcp, valid_bx, flag_psfc, cons_fab,
+                                             valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
                                              qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab);
             } // mf
@@ -1253,7 +1253,6 @@ init_state_from_metgrid (const int  lev,
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
-                              const Real l_rdOcp,
                               const Box& valid_bx,
                               const int& flag_psfc,
                               FArrayBox& state_fab,
@@ -1266,6 +1265,98 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& z_phys_cc_fab,
                               const FArrayBox& NC_psfc_fab)
 {
+    // Base state params from WRF
+    Real T00 = Real(290.0);
+    Real P00 = p_0;
+    Real TLP = Real(50.0);
+    Real TISO = Real(200.0);
+    Real TLP_STRAT = Real(-11.0);
+    Real P_STRAT   = zero;
+
+    // **************************************************************************
+    // The base state is piecewise in log-pressure:
+    //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
+    //   (2) isothermal layer T = TISO                       P_STRAT < p <= P_iso
+    //   (3) stratosphere     T = TISO + TLP_STRAT * ln(p/P_STRAT)     p <= P_STRAT
+    // Each piece inverts to p(z) in closed form under dp/dz = -rho g; here we
+    // precompute the two interface heights so the inversion can branch on z.
+    // **************************************************************************
+    const Real x_iso = (TISO - T00) / TLP;
+    const Real P_iso = P00 * std::exp(x_iso);
+    const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
+
+    // The upper stratospheric layer is optional (P_STRAT == 0 or TLP_STRAT == 0
+    // disables it) and is only meaningful if it begins above the isothermal layer,
+    // i.e. if P_STRAT is below the pressure at which the isothermal layer starts.
+    const bool want_strat = ((P_STRAT > zero) && (TLP_STRAT != zero));
+    const bool use_strat  = (want_strat && (P_STRAT < P_iso));
+    const Real z_strat    = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
+                                        : z_iso;
+
+    // A configured stratospheric layer that lies at or below the isothermal
+    // transition cannot be represented, so say so rather than dropping it quietly.
+    if (want_strat && !use_strat) {
+        Print() << "WARNING: the base stratospheric layer is being ignored: P_STRAT = "
+                << P_STRAT << " Pa is not below the pressure at the base of the "
+                << "isothermal layer, P_iso = " << P_iso << " Pa.\n";
+        Print() << "         TLP_STRAT = " << TLP_STRAT << " will have no effect and "
+                << "the atmosphere above z_iso will be isothermal at TISO = "
+                << TISO << " K.\n";
+    }
+
+    Print() << "Base state layer interfaces: z_iso = " << z_iso << " m";
+    if (use_strat) Print() << ", z_strat = " << z_strat << " m";
+    Print() << "\n";
+
+    //***********************************************************************************
+    // Set the base state columns
+    //***********************************************************************************
+    {
+        const Array4<Real>& r_hse_arr  = r_hse_fab.array();
+        const Array4<Real>& p_hse_arr  = p_hse_fab.array();
+        const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
+        const Array4<Real>& th_hse_arr = th_hse_fab.array();
+        const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
+        auto const z_cc_arr = z_phys_cc_fab.const_array();
+
+        ParallelFor(valid_bx, [=,zero_d=zero,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Analytical inversion with true CC heights, branching on the layer
+            Real Pd, Td;
+            const Real z = z_cc_arr(i,j,k);
+            if (z <= z_iso) {
+                // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
+                const Real ToA  = T00 / TLP;
+                const Real disc = amrex::max(ToA*ToA - two*CONST_GRAV*z/(TLP*R_d), zero_d);
+                Pd = P00 * std::exp(-ToA + std::sqrt(disc));
+                Td = T00 + TLP * std::log(Pd/P00);
+            }
+            else if (!use_strat || z <= z_strat) {
+                // Isothermal layer: exponential decay with scale height R_d*TISO/g
+                Pd = P_iso * std::exp(-CONST_GRAV*(z - z_iso)/(R_d*TISO));
+                Td = TISO;
+            }
+            else {
+                // Upper stratosphere. Same quadratic as the troposphere with
+                // (TISO, TLP_STRAT, P_STRAT, z_strat) in place of (T00, TLP, P00, 0).
+                // NOTE: TLP_STRAT is negative, so the root must NOT be folded as
+                // sqrt(X)/TLP_STRAT -> sqrt(X/TLP_STRAT^2); that drops the sign.
+                const Real disc = amrex::max(TISO*TISO
+                                             - two*TLP_STRAT*CONST_GRAV*(z - z_strat)/R_d, zero_d);
+                Pd = P_STRAT * std::exp((-TISO + std::sqrt(disc))/TLP_STRAT);
+                Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
+            }
+
+            // Fill HSE arrays for balancing
+             p_hse_arr(i,j,k) = Pd;
+            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
+            qv_hse_arr(i,j,k) = zero;
+             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
+            pi_hse_arr(i,j,k) = getExnergivenP(Pd, RdoCp_d);
+        });
+    }
+
     // NOTE: FOEXTRAP is utilized on the validbox but
     //       the FillBoundary call will populate the
     //       internal ghost cells and we are left with
@@ -1292,7 +1383,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 #endif
 
     //***********************************************************************************
-    // Set the HSE base state only
+    // Integrate to ensure HSE
     //***********************************************************************************
     {
         Box valid_bx2d = valid_bx;
@@ -1302,75 +1393,65 @@ init_base_state_from_metgrid (const bool use_moisture,
         int khi = ubound(valid_bx).z;
         int klo = lbound(valid_bx).z;
 
-        // ARW V4 Constants (5.2.2 Reference State)
-        const Real T00       = Real(290.0);
-        const Real TLP       = Real(50.0);
-        const Real TISO      = Real(200.0);
-
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
         const Array4<Real>& th_hse_arr = th_hse_fab.array();
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
-        auto const z_arr = z_phys_nd_fab.const_array();
+        auto const z_cc_arr = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=]
+        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            // Surface values and constants
+            // Integrate from surface to domain top
+            Real T_hi;
+            Real z_lo, z_hi;
+            Real R_lo, R_hi;
+            Real Th_lo, Th_hi;
+            Real P_lo, P_hi;
+            Real rho_tot_hi, rho_tot_lo;
+
             Real dz, F, C;
-            Real z_hi, Pd_hi, Td_hi, Rd_hi;
 
-            // Surface quantities
-            Real z_lo  = Real(0.25) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
-            Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
-            Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
-            Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
+            Real qv_lo = zero;
+            Real qv_hi = zero;
 
-            for (int k(klo); k<=khi; ++k) {
+            z_lo =  z_cc_arr(i,j,klo);
+            P_lo = p_hse_arr(i,j,klo);
+
+            for (int k(klo+1); k<=khi; ++k) {
                 // Vertical grid spacing
-                z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                     + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+                z_hi = z_cc_arr(i,j,k);
                 dz   = z_hi - z_lo;
 
                 // Establish known constant
-                C  = -Pd_lo + myhalf*Rd_lo*grav*dz;
+                Th_lo = th_hse_arr(i,j,k-1);
+                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                rho_tot_lo = R_lo;
+                C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                 // Initial guess and residual
-                Pd_hi = Pd_lo;
-                Td_hi = Td_lo;
-                Rd_hi = Rd_lo;
-                F = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                P_hi  =  p_hse_arr(i,j,k);
+                Th_hi = th_hse_arr(i,j,k);
+                T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                rho_tot_hi = R_hi;
+                F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
-                // Iterate to solution
-                int niter = 0;
-                while (std::fabs(F)>tol && niter<maxiter) {
-                    Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
-                    Real Pd_plus = Pd_hi + dP;
-                    Real Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
-                    Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
-                    Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
-                    Real dFdP    = (F_plus - F) / dP;
-
-                    Pd_hi -= F / dFdP;
-                    Td_hi  = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
-                    Rd_hi  = getRhogivenTandPress(Td_hi, Pd_hi);
-                    F      = Pd_hi + myhalf*Rd_hi*grav*dz + C;
-                    ++niter;
-                }
+                // Do iterations
+                bool maintain_Th = true;
+                HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                             grav, C, Th_hi, T_hi,
+                                             qv_hi, qv_hi,
+                                             P_hi, R_hi, F, maintain_Th);
 
                 // Assign data
-                r_hse_arr(i,j,k)  = Rd_hi;
-                th_hse_arr(i,j,k) = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
-                qv_hse_arr(i,j,k) = Real(0.);
-                p_hse_arr(i,j,k)  = Pd_hi;
-                pi_hse_arr(i,j,k) = getExnergivenP(Pd_hi, l_rdOcp);
+                r_hse_arr(i,j,k) = R_hi;
+                p_hse_arr(i,j,k) = P_hi;
+                pi_hse_arr(i,j,k) = getExnergivenP(P_hi, RdoCp_d);
 
-                // Transfer solution
-                Pd_lo = Pd_hi;
-                Td_lo = Td_hi;
-                Rd_lo = Rd_hi;
-                z_lo  = z_hi;
+                P_lo = P_hi;
+                z_lo = z_hi;
             }
         });
 

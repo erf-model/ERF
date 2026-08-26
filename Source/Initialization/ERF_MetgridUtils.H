@@ -119,7 +119,6 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
-                              const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
                               const int& flag_psfc,
                               amrex::FArrayBox& state_fab,
