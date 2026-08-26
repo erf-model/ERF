@@ -825,6 +825,10 @@ In ``plotfile`` mode, a reset occurs only after all 3-D streams due at the
 same output event have been written and at least one emitted stream contains
 an interval diagnostic; a density-only stream does not close the shared
 averaging window.
+In either mode, regridding a level rebuilds that level's accumulator, so the
+averaging window restarts on the regridded level while the other levels keep
+accumulating. A plotfile written shortly after a regrid can therefore mix
+per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
 
 
 Screen Output
@@ -2305,11 +2309,13 @@ A genuine WPS ``geo_em`` file may instead provide
 It must provide matching first-time-record ``XLAT_M`` and ``XLONG_M`` fields and
 the WPS global attributes ``MAP_PROJ``, ``CEN_LAT``, ``CEN_LON``, ``STAND_LON``,
 ``DX``, ``DY``, ``WEST-EAST_GRID_DIMENSION``, and
-``SOUTH-NORTH_GRID_DIMENSION``. ERF supports Lambert (1), polar (2), Mercator
-(3), and latitude/longitude (6) WPS projections; Lambert additionally requires
-``TRUELAT1`` and ``TRUELAT2``, while the other projected cases require
-``TRUELAT1``. ``HGT_M``, ``XLAT_M``, and ``XLONG_M`` must have the exact
-``(Time,south_north,west_east)`` order, and the first time record is selected.
+``SOUTH-NORTH_GRID_DIMENSION``. ERF supports Lambert (1), polar (2), and
+Mercator (3) WPS projections; Lambert additionally requires ``TRUELAT1`` and
+``TRUELAT2``, while the other two require ``TRUELAT1``. The latitude/longitude
+projection (6) is rejected, because WPS writes ``DX``/``DY`` in degrees for it
+while ERF consumes them as metres. ``HGT_M``, ``XLAT_M``, and ``XLONG_M`` must
+have the exact ``(Time,south_north,west_east)`` order, and the first time
+record is selected.
 The WPS grid dimensions, ``DX``/``DY``, and domain extent must match the ERF
 level-0 Cartesian geometry.
 

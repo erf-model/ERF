@@ -511,11 +511,25 @@ public:
                 };
 
                 const int map_proj = require_int_attribute("MAP_PROJ");
-                if (map_proj != 1 && map_proj != 2 && map_proj != 3 && map_proj != 6) {
+                // Projection 6 (latitude/longitude) is deliberately excluded.
+                // WPS writes DX/DY in degrees for that projection, whereas
+                // everything below consumes them as metres -- both the
+                // geometry-consistency check and the m_xterrain/m_yterrain
+                // axes built from ProbLo + (i+0.5)*DX.  Accepting it would
+                // either abort with a misleading "grid does not match"
+                // message, or, if prob_hi were specified in degrees to get
+                // past that check, silently place metre-valued terrain
+                // heights on a degree-spaced horizontal grid and corrupt the
+                // terrain-fitted metrics with no warning.
+                if (map_proj != 1 && map_proj != 2 && map_proj != 3) {
+                    std::string reason =
+                        (map_proj == 6)
+                        ? "; latitude/longitude WPS grids are not supported because their "
+                          "DX/DY are in degrees rather than metres"
+                        : "; supported projections are 1 (Lambert), 2 (polar), "
+                          "and 3 (Mercator)";
                     amrex::Abort("WPS terrain file '" + fname + "' uses unsupported MAP_PROJ=" +
-                                 std::to_string(map_proj) +
-                                 "; supported projections are 1 (Lambert), 2 (polar), "
-                                 "3 (Mercator), and 6 (latitude/longitude)");
+                                 std::to_string(map_proj) + reason);
                 }
                 const double cen_lat = require_real_attribute("CEN_LAT");
                 const double cen_lon = require_real_attribute("CEN_LON");
@@ -527,12 +541,11 @@ public:
                     amrex::Abort("WPS terrain file '" + fname +
                                  "' has invalid projection or grid metadata");
                 }
-                if ((map_proj == 1 || map_proj == 2 || map_proj == 3)) {
-                    const double truelat1 = require_real_attribute("TRUELAT1");
-                    if (std::abs(truelat1) > 90.0) {
-                        amrex::Abort("WPS terrain file '" + fname +
-                                     "' has invalid TRUELAT1");
-                    }
+                // TRUELAT1 is required by all three remaining projections.
+                const double truelat1 = require_real_attribute("TRUELAT1");
+                if (std::abs(truelat1) > 90.0) {
+                    amrex::Abort("WPS terrain file '" + fname +
+                                 "' has invalid TRUELAT1");
                 }
                 if (map_proj == 1) {
                     const double truelat2 = require_real_attribute("TRUELAT2");
@@ -723,11 +736,14 @@ public:
                             (x_stencil.inside && y_stencil.inside) ? amrex::Long(0) : amrex::Long(1);
                         return {amrex::Long(1), outside};
                     });
-                auto local = reduce_data.value();
-                amrex::Long total_targets = amrex::get<0>(local);
-                amrex::Long outside_targets = amrex::get<1>(local);
-                amrex::ParallelDescriptor::ReduceLongSum(total_targets);
-                amrex::ParallelDescriptor::ReduceLongSum(outside_targets);
+                // No parallel reduction here: init_terrain_surface is called
+                // on every rank with its own private full-domain FArrayBox,
+                // not a distributed MultiFab, so every rank has already
+                // counted the whole domain.  Summing across ranks would
+                // simply multiply both counts by the rank count.
+                const auto local = reduce_data.value();
+                const amrex::Long total_targets = amrex::get<0>(local);
+                const amrex::Long outside_targets = amrex::get<1>(local);
                 if (amrex::ParallelDescriptor::IOProcessor() && outside_targets > 0) {
                     const amrex::Real source_xhi = m_xterrain[nx-1];
                     const amrex::Real source_yhi = m_yterrain[ny-1];

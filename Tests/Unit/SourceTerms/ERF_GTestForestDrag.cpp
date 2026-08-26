@@ -78,11 +78,11 @@ TEST(ForestDrag, OptionalFrontalAreaStorageWorksForDiscretePatches)
     amrex::Gpu::streamSynchronize();
 
     ForestDrag forest(filename.string());
-    forest.define_drag_field(ba, dm, geom, &z_cc, &z_nd, false);
+    forest.define_drag_field(ba, dm, geom, &z_cc, &z_nd, false, 0);
     EXPECT_NE(forest.get_drag_field(), nullptr);
     EXPECT_EQ(forest.get_frontal_area(), nullptr);
 
-    forest.define_drag_field(ba, dm, geom, &z_cc, &z_nd, true);
+    forest.define_drag_field(ba, dm, geom, &z_cc, &z_nd, true, 0);
     amrex::Gpu::streamSynchronize();
     ASSERT_NE(forest.get_frontal_area(), nullptr);
     const amrex::Real max_frontal_area = forest.get_frontal_area()->max(0, 1, false);

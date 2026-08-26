@@ -49,15 +49,25 @@ public:
 
     ~ForestDrag () = default;
 
-    /** Allocate and fill drag and, optionally, frontal-area-density fields. */
+    /** Allocate and fill drag and, optionally, frontal-area-density fields.
+     *
+     * @param need_frontal_area Allocate the frontal-area-density field, which
+     *        is only consumed by the fixed-leaf-temperature path.
+     * @param level Level index, used only in diagnostic messages.
+     *
+     * Neither argument is defaulted on purpose: every caller must state
+     * whether the frontal-area field is needed, so that a new call site cannot
+     * silently allocate and fill it when forest biophysics is off, nor report
+     * a placeholder level in the coverage warning.
+     */
     void
     define_drag_field (const amrex::BoxArray& ba,
                        const amrex::DistributionMapping& dm,
                        amrex::Geometry& geom,
                        amrex::MultiFab* z_phys_cc,
                        amrex::MultiFab* z_phys_nd,
-                       bool need_frontal_area = true,
-                       int level = -1);
+                       bool need_frontal_area,
+                       int level);
 
     /** Return the cell-centered product of drag coefficient and LAD. */
     amrex::MultiFab*

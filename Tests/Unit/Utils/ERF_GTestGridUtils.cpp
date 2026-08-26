@@ -95,6 +95,71 @@ TEST(ForestGridMetadata, RejectsMateriallyNonuniformFloatBackedCoordinates)
         origin, spacing).empty());
 }
 
+// Build a float32-quantized axis, as a NetCDF float coordinate variable
+// reaches ERF after conversion to Real.
+static amrex::Vector<amrex::Real>
+float_backed_axis (double axis_origin, double axis_spacing, int point_count)
+{
+    amrex::Vector<amrex::Real> axis;
+    axis.reserve(point_count);
+    for (int index = 0; index < point_count; ++index) {
+        axis.push_back(static_cast<amrex::Real>(
+            static_cast<float>(axis_origin + double(index) * axis_spacing)));
+    }
+    return axis;
+}
+
+// Motivation: a sub-metre canopy raster in a projected coordinate system is
+// where float32 quantization is largest relative to the spacing.  At a UTM
+// easting near 5e5 the float32 ulp is 0.03125 m, so on a 0.4 m grid
+// neighbouring intervals deviate from the nominal spacing by up to 0.025 m --
+// more than 5% of the spacing, but far less than the ulp allowance.  The
+// spacing tolerance must be the larger of the two allowances, or this
+// perfectly uniform grid is rejected with no way for the user to work around
+// it.
+TEST(ForestGridMetadata, AcceptsSubMetreFloatBackedGridAtLargeProjectedOffset)
+{
+    const int point_count = 1000;
+    const auto easting = float_backed_axis(500000.0, 0.4, point_count);
+
+    amrex::Real origin = 0.0;
+    amrex::Real spacing = 0.0;
+    EXPECT_TRUE(erf_grid_utils::validate_uniform_axis(
+        easting, point_count, "x", "float-backed UTM field",
+        origin, spacing).empty());
+}
+
+// Motivation: the origin/spacing pair returned here is exactly what
+// uniform_interpolation_stencil uses to reconstruct the axis as
+// origin + index*spacing.  A spacing taken from the first interval alone
+// carries that interval's quantization error into every index, so the
+// reconstructed far end drifts.  For a 1.1 m float32 axis at a UTM easting
+// near 5e5 the drift reaches 6.25 m -- more than five cells -- on an axis
+// that passes validation, silently shifting the interpolation stencil near
+// the upper edge.  Pin the reconstructed endpoint to the stored one.
+TEST(ForestGridMetadata, ReturnedSpacingReconstructsTheStoredFarEndpoint)
+{
+    const int point_count = 1000;
+    const auto easting = float_backed_axis(500000.0, 1.1, point_count);
+
+    amrex::Real origin = 0.0;
+    amrex::Real spacing = 0.0;
+    ASSERT_TRUE(erf_grid_utils::validate_uniform_axis(
+        easting, point_count, "x", "float-backed UTM field",
+        origin, spacing).empty());
+
+    const amrex::Real stored_upper = easting[point_count-1];
+    const amrex::Real reconstructed_upper =
+        origin + static_cast<amrex::Real>(point_count - 1) * spacing;
+    EXPECT_LE(std::abs(reconstructed_upper - stored_upper),
+              erf_grid_utils::comparison_tolerance(reconstructed_upper, stored_upper));
+
+    const auto upper_stencil = erf_grid_utils::uniform_interpolation_stencil(
+        stored_upper, origin, spacing, point_count);
+    EXPECT_TRUE(upper_stencil.inside);
+    EXPECT_EQ(upper_stencil.lower, point_count - 2);
+}
+
 TEST(ForestGridMetadata, FloatAndDoubleGridMetadataMatchWithinStorageQuantization)
 {
     const UniformGridMetadata double_grid{8, 8, 0.01, 0.01, -105.0, 40.0};

@@ -71,7 +71,18 @@ validate_uniform_axis (const amrex::Vector<amrex::Real>& coordinates,
     }
 
     origin = coordinates.front();
-    spacing = coordinates[1] - coordinates[0];
+    // Derive the spacing from the two endpoints rather than from the first
+    // interval alone.  The returned origin/spacing pair is what
+    // uniform_interpolation_stencil uses to reconstruct the axis as
+    // origin + index*spacing, so a first interval that is rounded slightly
+    // short or long would otherwise accumulate that error over the whole axis
+    // -- for a float32 axis with many points the reconstructed far end can
+    // drift by (point_count-1) ulps, which is large enough to shift the
+    // stencil by a cell near the upper edge.  Averaging over the full extent
+    // pins both endpoints instead.  A non-finite last coordinate propagates
+    // into spacing and is caught by the isfinite check below.
+    spacing = (coordinates[expected_size-1] - coordinates.front()) /
+              static_cast<amrex::Real>(expected_size - 1);
     if (!std::isfinite(origin) || !std::isfinite(spacing) || spacing <= amrex::Real(0.0)) {
         return field_description + " must have finite, strictly increasing " +
                axis_name + " coordinates with nonzero spacing";
@@ -83,12 +94,25 @@ validate_uniform_axis (const amrex::Vector<amrex::Real>& coordinates,
             return field_description + " must have finite, strictly increasing " +
                    axis_name + " coordinates";
         }
-        // Compare adjacent spacings instead of accumulating the first spacing
-        // over the whole axis.  This avoids rejecting a valid float32 axis
-        // because each stored coordinate was rounded independently, while the
-        // ulp-based tolerance above still rejects materially nonuniform grids.
+        // Compare each interval against the mean spacing instead of
+        // accumulating the first spacing over the whole axis.  This avoids
+        // rejecting a valid float32 axis because each stored coordinate was
+        // rounded independently, while still rejecting materially nonuniform
+        // grids.
+        //
+        // The tolerance is the *larger* of the two allowances, not the
+        // smaller: the ulp term covers source-file quantization, which scales
+        // with the coordinate magnitude, while the fraction-of-spacing term
+        // covers grids whose coordinates are small enough that a few ulps are
+        // negligible.  Taking the minimum cancels the ulp allowance in exactly
+        // the case it exists for -- a fine grid at a large offset.  Concretely,
+        // at a UTM easting near 5e5 the float32 ulp is 0.03125 m, so a 0.4 m
+        // raster stores intervals that deviate from the nominal spacing by up
+        // to 0.025 m: more than 5% of the spacing, yet far below the ulp
+        // allowance.  Integer-metre spacings are unaffected either way, since
+        // integers are exactly representable in float32 at UTM magnitudes.
         const amrex::Real local_spacing = coordinate - coordinates[index-1];
-        const amrex::Real spacing_tolerance = std::min(
+        const amrex::Real spacing_tolerance = std::max(
             amrex::Real(0.05) * std::abs(spacing),
             comparison_tolerance(coordinate, coordinates[index-1]));
         if (std::abs(local_spacing - spacing) > spacing_tolerance) {

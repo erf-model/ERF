@@ -56,8 +56,20 @@ warn_if_forest_grid_does_not_cover_targets (const MultiFab& target_field,
     const int source_xmax = grid_nx - 1;
     const int source_ymax = grid_ny - 1;
 
+    // The coverage test is purely horizontal, so count each target column
+    // once: reduce over a single k plane rather than the full 3-D box.  Tiles
+    // partition the valid box, so restricting to the one tile that contains
+    // k_ref visits every (i,j) column exactly once.  Note also that the box
+    // must come from tilebox(), not validbox(): with TilingIfNotGPU() true on
+    // CPU the iterator yields one entry per tile while validbox() always
+    // returns the whole FAB, which would re-count the entire box per tile.
+    const int k_ref = geom.Domain().smallEnd(2);
+
     for (MFIter mfi(target_field, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box box = mfi.validbox();
+        Box box = mfi.tilebox();
+        if (box.smallEnd(2) > k_ref || box.bigEnd(2) < k_ref) { continue; }
+        box.setSmall(2, k_ref);
+        box.setBig(2, k_ref);
         reduce_op.eval(box, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) -> GpuTuple<Long, Long> {
                 const Real x = prob_lo[0] + (static_cast<Real>(i) + Real(0.5)) * dx[0];
