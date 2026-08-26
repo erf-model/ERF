@@ -47,8 +47,8 @@ void SuperDropletPC::readInputs (const double a_dt)
     /* default values */
     m_density_scaling = false;
     m_nucleate_particles = false;
-    m_advect_w_flow = true;
-    m_advect_w_gravity = true;
+    // advect_with_flow and advect_with_gravity are read by ERFPC with the defaults
+    // selected in ERFPCOptions; re-reading them here would duplicate that.
     m_prescribed_advection = false;
     m_prescribed_w = 0.0;
     m_distribution_grid_size = 100;
@@ -111,8 +111,6 @@ void SuperDropletPC::readInputs (const double a_dt)
     /* read these parameters if specified */
     pp.queryAdd("density_scaling", m_density_scaling);
     pp.queryAdd("nucleate_particles", m_nucleate_particles);
-    pp.queryAdd("advect_with_flow", m_advect_w_flow);
-    pp.queryAdd("advect_with_gravity", m_advect_w_gravity);
     pp.queryAdd("prescribed_advection", m_prescribed_advection);
     pp.queryAdd("prescribed_w", m_prescribed_w);
     pp.queryAdd("split_merge_amr", m_split_merge_amr);
