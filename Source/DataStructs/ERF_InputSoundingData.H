@@ -141,7 +141,7 @@ public:
             amrex::ParmParse pp_erf("erf");
 
             amrex::Real surf_temp;
-            bool surf_temp_specified = pp_erf.queryAdd("most.surf_temp", surf_temp);
+            bool surf_temp_specified = pp_erf.query("most.surf_temp", surf_temp);
             if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
@@ -153,7 +153,7 @@ public:
             //      those values must match
             // *************************************************************************************************
             amrex::Real surf_moist;
-            bool surf_moist_specified = pp_erf.queryAdd("most.surf_moist", surf_moist);
+            bool surf_moist_specified = pp_erf.query("most.surf_moist", surf_moist);
             if ( surf_moist_specified && (surf_moist != qv_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding qv does not match most.surf_moist" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;

@@ -320,7 +320,7 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     pp.queryAdd("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
 
     std::string transport_mode = shoc_transport_mode_name(opts.transport_mode);
-    if (pp.queryAdd("transport_mode", transport_mode)) {
+    if (pp.query("transport_mode", transport_mode)) {
         std::string error_message;
         if (!parse_shoc_transport_mode_string(transport_mode, opts.transport_mode, error_message)) {
             amrex::Abort(error_message.c_str());
@@ -328,7 +328,7 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     }
 
     std::string momentum_transport = shoc_momentum_transport_name(opts.momentum_transport);
-    if (pp.queryAdd("momentum_transport", momentum_transport)) {
+    if (pp.query("momentum_transport", momentum_transport)) {
         std::string error_message;
         if (!parse_shoc_momentum_transport_string(momentum_transport,
                                                   opts.momentum_transport,
