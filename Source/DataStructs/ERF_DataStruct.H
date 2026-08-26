@@ -161,28 +161,89 @@ enum Sponge {
 };
 
 /**
- * @brief Component indices for moisture species in the conserved state.
+ * @brief The moisture data carried by the active microphysics scheme.
+ *
+ * This struct is the single source of truth for the question "which moisture
+ * quantities does this run actually have?".  Everything downstream of the
+ * microphysics -- source terms, turbulence closures, and every output path
+ * (3D plotfiles, 2D plotfiles, subvolumes) -- answers that question by querying
+ * this struct instead of enumerating MoistureType values, so a newly added
+ * scheme only has to declare its layout once, in from_moisture_model() below.
+ *
+ * Two kinds of index live here:
+ *
+ *   1. Conserved-state components (qv ... nn).  Absolute component indices into
+ *      the conserved state array, i.e. one of RhoQ1_comp ... RhoQ11_comp.  They
+ *      name the *rho-weighted* species: state(i,j,k,qv) is rho*qv, so an output
+ *      path must divide by Rho_comp to recover the mixing ratio.
+ *
+ *   2. qmoist diagnostic slots (rain_accum ... cond_rate).  Indices into the
+ *      per-level qmoist vector that is filled from
+ *      Microphysics::Get_Qmoist_Ptr(lev,idx).  Each scheme chooses that
+ *      layout independently, so the slot numbers differ between schemes and are
+ *      recorded per scheme below.
+ *
+ * In both cases the value is `absent` when the active scheme does not carry the
+ * quantity, so `index >= 0` is the criterion for "this exists and is meaningful
+ * to write".  That is deliberately *not* the same test as "the storage is
+ * allocated": several schemes allocate a wider state than they integrate (the
+ * Morrison class always allocates eleven moist components, so Morrison_NoIce
+ * owns ice slots it never fills), and writing those slots to a plotfile would
+ * publish untouched memory as if it were data.
  */
 struct MoistureComponentIndices {
-    int qv = -1;  // Water vapor
-    int qc = -1;  // Cloud liquid water
-    int qi = -1;  // Cloud ice
-    int qr = -1;  // Rain
-    int qs = -1;  // Snow
-    int qg = -1;  // Graupel
-    int nc = -1;  // number concentration for cloud liquid water
-    int ni = -1;  // number concentration for cloud ice
-    int nr = -1;  // number concentration for rain
-    int ns = -1;  // number concentration for snow
-    int ng = -1;  // number concentration for graupel
+
+    // Sentinel values shared by both kinds of index above.
+    static constexpr int absent = -1;              //!< not carried by the active scheme
+    static constexpr int computed_from_state = -2; //!< carried, but derived at output
+                                                   //!< time from the conserved state
+                                                   //!< rather than read from a qmoist slot
+
+    // ---------------------------------------------------------------------
+    // Conserved-state components: mass mixing ratios (rho-weighted)
+    // ---------------------------------------------------------------------
+    int qv = absent;  //!< water vapor
+    int qc = absent;  //!< cloud liquid water
+    int qi = absent;  //!< cloud ice
+    int qr = absent;  //!< rain
+    int qs = absent;  //!< snow
+    int qg = absent;  //!< graupel
+
+    // ---------------------------------------------------------------------
+    // Conserved-state components: number concentrations (rho-weighted)
+    // ---------------------------------------------------------------------
+    int nc = absent;  //!< cloud liquid water number
+    int ni = absent;  //!< cloud ice number
+    int nr = absent;  //!< rain number
+    int ns = absent;  //!< snow number
+    int ng = absent;  //!< graupel number
     // CCN / total aerosol number. Unlike every other number concentration above,
     // this has no companion mass species: it is an aerosol reservoir that
     // exchanges number with nc and nr through activation and evaporation rather
-    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number.
-    int nn = -1;  // number concentration for CCN / total aerosol
+    // than a hydrometeor count. Kept distinct from ni, which is cloud ice number,
+    // even though some schemes place the two in the same conserved-state slot.
+    int nn = absent;  //!< CCN / total aerosol number
+
+    // ---------------------------------------------------------------------
+    // qmoist diagnostic slots
+    //
+    // These are *not* conserved-state components; they index the qmoist vector
+    // handed out by the microphysics interface.  Slot numbers are scheme
+    // specific, which is exactly why they belong in this per-scheme map.
+    // ---------------------------------------------------------------------
+    int rain_accum  = absent;  //!< accumulated surface rain
+    int snow_accum  = absent;  //!< accumulated surface snow
+    int graup_accum = absent;  //!< accumulated surface graupel
+    int rel_hum     = absent;  //!< relative humidity
+    int cond_rate   = absent;  //!< condensation rate
 
     /**
-     * @brief Construct moisture component indices from conserved-state component numbers.
+     * @brief Construct the conserved-state component map.
+     *
+     * Prefer from_moisture_model() for production code: it fills in the qmoist
+     * diagnostic slots as well.  This constructor exists for the callers -- unit
+     * tests and kernels exercised in isolation -- that only need the state map.
+     *
      * @param qv_comp Water vapor component index.
      * @param qc_comp Cloud liquid water component index.
      * @param qi_comp Cloud ice component index.
@@ -194,52 +255,376 @@ struct MoistureComponentIndices {
      * @param nr_comp Rain number concentration component index.
      * @param ns_comp Snow number concentration component index.
      * @param ng_comp Graupel number concentration component index.
+     * @param nn_comp CCN / total aerosol number concentration component index.
      */
     MoistureComponentIndices (int qv_comp, int qc_comp,
-                              int qi_comp=-1,
-                              int qr_comp=-1,
-                              int qs_comp=-1,
-                              int qg_comp=-1,
-                              int nc_comp=-1,
-                              int ni_comp=-1,
-                              int nr_comp=-1,
-                              int ns_comp=-1,
-                              int ng_comp=-1,
-                              int nn_comp=-1)
+                              int qi_comp=absent,
+                              int qr_comp=absent,
+                              int qs_comp=absent,
+                              int qg_comp=absent,
+                              int nc_comp=absent,
+                              int ni_comp=absent,
+                              int nr_comp=absent,
+                              int ns_comp=absent,
+                              int ng_comp=absent,
+                              int nn_comp=absent)
         : qv(qv_comp), qc(qc_comp), qi(qi_comp), qr(qr_comp), qs(qs_comp), qg(qg_comp),
                        nc(nc_comp), ni(ni_comp), nr(nr_comp), ns(ns_comp), ng(ng_comp),
                        nn(nn_comp) {}
 
     /**
-     * @brief Construct an empty set of moisture component indices.
+     * @brief Construct an empty map, i.e. a dry run.
      */
     MoistureComponentIndices() = default;
-};
 
-/**
- * @var MoistureComponentIndices::qv
- * @brief Water vapor component index.
- * @var MoistureComponentIndices::qc
- * @brief Cloud liquid water component index.
- * @var MoistureComponentIndices::qi
- * @brief Cloud ice component index.
- * @var MoistureComponentIndices::qr
- * @brief Rain component index.
- * @var MoistureComponentIndices::qs
- * @brief Snow component index.
- * @var MoistureComponentIndices::qg
- * @brief Graupel component index.
- * @var MoistureComponentIndices::nc
- * @brief Cloud liquid water number concentration component index.
- * @var MoistureComponentIndices::ni
- * @brief Cloud ice number concentration component index.
- * @var MoistureComponentIndices::nr
- * @brief Rain number concentration component index.
- * @var MoistureComponentIndices::ns
- * @brief Snow number concentration component index.
- * @var MoistureComponentIndices::ng
- * @brief Graupel number concentration component index.
- */
+    /**
+     * @brief Build the complete index map -- conserved-state components and
+     *        qmoist diagnostic slots -- for a moisture model.
+     *
+     * This is the one place a scheme declares what it carries.  The conserved
+     * layout must match the component the scheme reads and writes in its
+     * Copy_State_to_Micro / Copy_Micro_to_State pair, and the qmoist slots must
+     * match the order the scheme installs in its MicVarMap.  A slot that a
+     * scheme allocates but never fills is left `absent` on purpose: see the
+     * class comment for why allocation is not the criterion here.
+     *
+     * @param moisture_type Active moisture/microphysics model.
+     */
+    static MoistureComponentIndices
+    from_moisture_model (const MoistureType moisture_type)
+    {
+        MoistureComponentIndices mi;
+
+        switch (moisture_type) {
+
+        case MoistureType::None:
+            // Dry: no moisture data of any kind.
+            break;
+
+        case MoistureType::MoistNoCondensation:
+        case MoistureType::SAM_NoPrecip_NoIce:
+        case MoistureType::Kessler_NoRain:
+            // Vapor plus suspended cloud water, no precipitation and no
+            // accumulation diagnostics.
+            mi.qv = RhoQ1_comp;
+            mi.qc = RhoQ2_comp;
+            break;
+
+        case MoistureType::SatAdj:
+            // As above, but relative humidity is recovered from the state at
+            // output time rather than stored: SatAdj publishes no qmoist arrays.
+            mi.qv      = RhoQ1_comp;
+            mi.qc      = RhoQ2_comp;
+            mi.rel_hum = computed_from_state;
+            break;
+
+        case MoistureType::Kessler:
+            // Warm rain in three moist components; qmoist is {rain_accum}.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ3_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::SAM_NoIce:
+            // The SAM class always allocates six moist components, so rain sits
+            // in the fourth slot even with the ice species switched off.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::SAM:
+        case MoistureType::WSM6:
+            // Single-moment mixed phase; qmoist is
+            // {rain_accum, snow_accum, graup_accum}.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::Morrison:
+            // Two-moment mixed phase: six mass species followed by five number
+            // concentrations.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.nc          = RhoQ7_comp;
+            mi.ni          = RhoQ8_comp;
+            mi.nr          = RhoQ9_comp;
+            mi.ns          = RhoQ10_comp;
+            mi.ng          = RhoQ11_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::Morrison_NoIce:
+            // Liquid-only Morrison: the class still allocates all eleven moist
+            // components, but only vapor, cloud water and rain -- and the cloud
+            // and rain numbers -- are integrated, so the frozen species and
+            // their numbers stay absent here.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.nc         = RhoQ7_comp;
+            mi.nr         = RhoQ9_comp;
+            mi.rain_accum = 0;
+            break;
+
+        case MoistureType::WDM6:
+            // Double-moment warm phase on top of single-moment ice: nn is the
+            // aerosol reservoir and takes the slot Morrison uses for ice number,
+            // and there are no snow or graupel numbers.
+            mi.qv          = RhoQ1_comp;
+            mi.qc          = RhoQ2_comp;
+            mi.qi          = RhoQ3_comp;
+            mi.qr          = RhoQ4_comp;
+            mi.qs          = RhoQ5_comp;
+            mi.qg          = RhoQ6_comp;
+            mi.nc          = RhoQ7_comp;
+            mi.nn          = RhoQ8_comp;
+            mi.nr          = RhoQ9_comp;
+            mi.rain_accum  = 0;
+            mi.snow_accum  = 1;
+            mi.graup_accum = 2;
+            break;
+
+        case MoistureType::SuperDroplets:
+            // Lagrangian microphysics that still carries the six Eulerian mass
+            // species.  Its qmoist layout is its own (see the MicVarMap in
+            // SuperDropletsMoist::Init): the graupel accumulation slot exists
+            // but is never filled, so it stays absent.
+            mi.qv         = RhoQ1_comp;
+            mi.qc         = RhoQ2_comp;
+            mi.qi         = RhoQ3_comp;
+            mi.qr         = RhoQ4_comp;
+            mi.qs         = RhoQ5_comp;
+            mi.qg         = RhoQ6_comp;
+            mi.cond_rate  = 3;
+            mi.rel_hum    = 7;
+            mi.rain_accum = 8;
+            mi.snow_accum = 10;
+            break;
+
+        default:
+            amrex::Abort("Unknown MoistureType in MoistureComponentIndices::from_moisture_model");
+        }
+
+        return mi;
+    }
+
+    /**
+     * @brief An ordered list of conserved-state components forming an aggregate
+     *        moisture output variable (qt, qn, qp, moist_density).
+     *
+     * Only the species the active scheme carries are appended, so a consumer can
+     * sum the list without first asking which ones exist.
+     */
+    struct CompList {
+        static constexpr int max_size = 6; //!< qv, qc, qi, qr, qs, qg
+        int comp[max_size] = {absent, absent, absent, absent, absent, absent};
+        int size = 0;
+
+        //! Append a component, ignoring the ones the scheme does not carry.
+        void append (int c) {
+            if ( (c >= 0) && (size < max_size) ) { comp[size++] = c; }
+        }
+        [[nodiscard]] bool empty () const { return (size == 0); }
+    };
+
+    /**
+     * @brief Components summed for total water, "qt": every mass mixing ratio.
+     *
+     * Number concentrations are excluded -- they are counts, not masses.
+     */
+    [[nodiscard]] CompList total_water_comps () const {
+        CompList list;
+        list.append(qv); list.append(qc); list.append(qi);
+        list.append(qr); list.append(qs); list.append(qg);
+        return list;
+    }
+
+    /**
+     * @brief Components summed for non-precipitating water, "qn": vapor plus the
+     *        suspended condensate.  Also the moist part of "moist_density".
+     */
+    [[nodiscard]] CompList nonprecipitating_comps () const {
+        CompList list;
+        list.append(qv); list.append(qc); list.append(qi);
+        return list;
+    }
+
+    /**
+     * @brief Components summed for precipitating water, "qp": the falling species.
+     */
+    [[nodiscard]] CompList precipitating_comps () const {
+        CompList list;
+        list.append(qr); list.append(qs); list.append(qg);
+        return list;
+    }
+
+    /**
+     * @brief Test whether a conserved-state component holds one of the moisture
+     *        variables this scheme carries.
+     *
+     * Use this rather than enumerating moisture models when deciding whether a
+     * "rhoQn" state component is meaningful for the active scheme.
+     *
+     * @param comp Absolute component index into the conserved state array.
+     */
+    [[nodiscard]] bool has_comp (int comp) const {
+        return ( (comp >= 0) &&
+                 ( (comp == qv) || (comp == qc) || (comp == qi) ||
+                   (comp == qr) || (comp == qs) || (comp == qg) ||
+                   (comp == nc) || (comp == ni) || (comp == nr) ||
+                   (comp == ns) || (comp == ng) || (comp == nn) ) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries rain, snow and graupel in the
+     *        RhoQ4/RhoQ5/RhoQ6 slots assumed by erf_derreflectivity and
+     *        erf_dermaxreflectivity.
+     *
+     * Those kernels read the precipitating species by hardcoded component, so this
+     * checks the layout and not just the presence of the species.
+     */
+    [[nodiscard]] bool has_reflectivity_species () const {
+        return ( (qr == RhoQ4_comp) && (qs == RhoQ5_comp) && (qg == RhoQ6_comp) );
+    }
+
+    /**
+     * @brief Test whether the active scheme carries any moisture at all.
+     *
+     * Every moist scheme allocates water vapor, so this is equivalent to testing
+     * moisture_type != MoistureType::None without needing the enum.
+     */
+    [[nodiscard]] bool has_moisture () const { return (qv >= 0); }
+
+    /**
+     * @brief The conserved-state component behind a single-species output name,
+     *        or `absent` if the name is not a single species or the scheme does
+     *        not carry it.
+     *
+     * An output path can use this to copy a species without repeating the
+     * name-to-component mapping.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] int comp_for_var (const std::string& name) const {
+        if (name == "qv")     { return qv; }
+        if (name == "qc")     { return qc; }
+        if (name == "qi")     { return qi; }
+        if (name == "qrain")  { return qr; }
+        if (name == "qsnow")  { return qs; }
+        if (name == "qgraup") { return qg; }
+        if (name == "nc")     { return nc; }
+        if (name == "ni")     { return ni; }
+        if (name == "nr")     { return nr; }
+        if (name == "ns")     { return ns; }
+        if (name == "ng")     { return ng; }
+        if (name == "nn")     { return nn; }
+        return absent;
+    }
+
+    /**
+     * @brief The qmoist slot behind a moist diagnostic output name.
+     *
+     * Returns `absent` when the scheme does not provide the diagnostic, and
+     * `computed_from_state` when it does provide it but not through a qmoist
+     * array -- in that case the caller must derive it from the conserved state.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] int qmoist_index_for_var (const std::string& name) const {
+        if (name == "rain_accum")        { return rain_accum; }
+        if (name == "snow_accum")        { return snow_accum; }
+        if (name == "graup_accum")       { return graup_accum; }
+        if (name == "rel_humidity")      { return rel_hum; }
+        if (name == "condensation_rate") { return cond_rate; }
+        return absent;
+    }
+
+    /**
+     * @brief Whether this map decides a variable's availability, and if so
+     *        whether the variable is available.
+     */
+    struct VarAvailability {
+        bool governed  = false; //!< the name is a moisture output variable
+        bool available = false; //!< the active scheme carries the data behind it
+    };
+
+    /**
+     * @brief Classify an output variable name against this index map.
+     *
+     * This is the one table pairing output names with the data behind them.  It
+     * is driven off the scheme's index map rather than an enumerated list of
+     * moisture models, so it stays correct as schemes are added.  Names with no
+     * moisture dependence come back not-governed, which lets a caller walk a
+     * mixed list of variable names and only defer to this map where it applies.
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] VarAvailability query_var (const std::string& name) const {
+
+        // Single species, taken straight from the conserved state
+        if ( (name == "qv") || (name == "qc") || (name == "qi") ||
+             (name == "qrain") || (name == "qsnow") || (name == "qgraup") ||
+             (name == "nc") || (name == "ni") || (name == "nr") ||
+             (name == "ns") || (name == "ng") || (name == "nn") ) {
+            return {true, comp_for_var(name) >= 0};
+        }
+
+        // Moist diagnostics, either from a qmoist array or derived at output time
+        if ( (name == "rain_accum") || (name == "snow_accum") ||
+             (name == "graup_accum") || (name == "rel_humidity") ||
+             (name == "condensation_rate") ) {
+            return {true, qmoist_index_for_var(name) != absent};
+        }
+
+        // Aggregates over several species
+        if (name == "qt") { return {true, !total_water_comps().empty()}; }
+        if (name == "qp") { return {true, !precipitating_comps().empty()}; }
+
+        // Non-precipitating water is vapor plus the suspended condensate, and
+        // moist density adds that same sum to the dry density
+        if ( (name == "qn") || (name == "moist_density") ) {
+            return {true, (qv >= 0) && (qc >= 0)};
+        }
+
+        // Column and thermodynamic diagnostics that read vapor only
+        if ( (name == "qsat") || (name == "precipitable") ) {
+            return {true, has_moisture()};
+        }
+
+        return {false, false};
+    }
+
+    /**
+     * @brief Test whether the moist species behind a derived/plot variable name is
+     *        carried by the active scheme.
+     *
+     * Names this map does not govern return true, so this can be used directly as
+     * a filter over a mixed list of variable names.  Use query_var() instead when
+     * the caller needs to distinguish "not a moisture variable" from "available".
+     *
+     * @param name Derived or plot variable name.
+     */
+    [[nodiscard]] bool has_derived_var (const std::string& name) const {
+        const VarAvailability status = query_var(name);
+        return (!status.governed) || status.available;
+    }
+};
 
 /**
  * Container holding many of the algorithmic options and parameters
@@ -257,106 +642,41 @@ struct SolverChoice {
         amrex::ParmParse pp(pp_prefix);
 
         bool bogus_bool;
-        if (pp.query("use_terrain",bogus_bool) > 0)  {
+        if (pp.queryAdd("use_terrain",bogus_bool) > 0)  {
             amrex::Error("The input use_terrain is deprecated.  Set terrain_type instead.");
         }
 
-        if (pp.query("use_moist_background",bogus_bool) > 0)  {
+        if (pp.queryAdd("use_moist_background",bogus_bool) > 0)  {
             amrex::Error("The input use_moist_background is deprecated.  Set init_type = MoistBaseState instead.");
         }
 
         // Do we set map scale factors to myhalf instead of 1 for testing?
-        pp.query("test_mapfactor", test_mapfactor);
+        pp.queryAdd("test_mapfactor", test_mapfactor);
 
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
         // 0: dp/dx with dp/dz correction (default)
         // 1: gradient of vertically interpolated p, see Klemp 2011
-        pp.query("gradp_type", gradp_type);
+        pp.queryAdd("gradp_type", gradp_type);
         AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?
-        pp.query("use_pert_pres_gradient", use_pert_pres_gradient);
+        pp.queryAdd("use_pert_pres_gradient", use_pert_pres_gradient);
 
         // What type of moisture model to use?
         moisture_type = MoistureType::None; // Default
-        if (pp.query("moisture_type",moisture_type) > 0) {
+        if (pp.queryAdd("moisture_type",moisture_type) > 0) {
             amrex::Error("The input moisture_type is deprecated.  Set moisture_model instead.");
         }
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
-        if (moisture_type == MoistureType::Morrison) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp,  // graupel
-                RhoQ7_comp,  // number concentration of cloud water
-                RhoQ8_comp,  // number concentration of cloud ice
-                RhoQ9_comp,  // number concentration of rain
-                RhoQ10_comp,  // number concentration of snow
-                RhoQ11_comp  // number concentration of graupel
-            );
-        } else if ( (moisture_type == MoistureType::WSM6) ||
-                    (moisture_type == MoistureType::SAM) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp   // graupel
-            );
-        } else if (moisture_type == MoistureType::WDM6) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor (qv)
-                RhoQ2_comp,  // cloud water (qc)
-                RhoQ3_comp,  // cloud ice (qi)
-                RhoQ4_comp,  // rain (qr)
-                RhoQ5_comp,  // snow (qs)
-                RhoQ6_comp,  // graupel (qg)
-                RhoQ7_comp,  // cloud droplet number concentration (nc)
-                -1,          // ice number (ni) not used - WDM6 uses nn for total aerosol
-                RhoQ9_comp,  // rain number concentration (nr)
-                -1,          // snow number (ns) not used
-                -1,          // graupel number (ng) not used
-                RhoQ8_comp   // CCN / total aerosol number (nn)
-            );
-        } else if ( (moisture_type == MoistureType::Morrison_NoIce) ||
-                    (moisture_type == MoistureType::SAM_NoIce) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ4_comp   // rain
-            );
-        } else if ( (moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                    (moisture_type == MoistureType::Kessler_NoRain)     ||
-                    (moisture_type == MoistureType::SatAdj)             ||
-                    (moisture_type == MoistureType::MoistNoCondensation) ) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp   // cloud water
-            );
-        } else if (moisture_type == MoistureType::Kessler) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                -1,          // cloud ice
-                RhoQ3_comp   // rain
-            );
-        } else if (moisture_type == MoistureType::SuperDroplets) {
-            moisture_indices = MoistureComponentIndices(
-                RhoQ1_comp,  // water vapor
-                RhoQ2_comp,  // cloud water
-                RhoQ3_comp,  // cloud ice
-                RhoQ4_comp,  // rain
-                RhoQ5_comp,  // snow
-                RhoQ6_comp   // graupel
-            );
-        }
+
+        // Register the moisture data this scheme carries: conserved-state
+        // components and qmoist diagnostic slots alike.  MoistureComponentIndices
+        // is the one place that mapping lives, and every consumer -- source terms,
+        // turbulence closures, and the plotfile/subvolume writers -- queries it
+        // instead of testing moisture_type.
+        moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         // Set a default for both dry and moist
         buoyancy_type.resize(max_level+1);
@@ -365,7 +685,7 @@ struct SolverChoice {
         }
 
         if (moisture_type != MoistureType::None) {
-            pp.query("moisture_tight_coupling",moisture_tight_coupling);
+            pp.queryAdd("moisture_tight_coupling",moisture_tight_coupling);
         }
 
         // Which expression (1,2/3 or 4) to use for buoyancy
@@ -377,7 +697,7 @@ struct SolverChoice {
         // rather than just listing the enum values.
         {
             std::string lsm_string;
-            if (pp.query("land_surface_model", lsm_string) &&
+            if (pp.queryAdd("land_surface_model", lsm_string) &&
                 amrex::toLower(lsm_string) == "oceansurf") {
                 amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
                              "Coupled ocean SST is now applied through the "
@@ -398,7 +718,7 @@ struct SolverChoice {
         // has run yet. The surface layer needs it at Define time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
-        pp.query("use_coupled_sst", use_coupled_sst);
+        pp.queryAdd("use_coupled_sst", use_coupled_sst);
 
         read_int_string(max_level, "is_land", is_land, 1);
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -425,7 +745,7 @@ struct SolverChoice {
 
         // Is the terrain none, static or moving?
         std::string terrain_type_temp = "";
-        pp.query("terrain_type", terrain_type_temp);
+        pp.queryAdd("terrain_type", terrain_type_temp);
         if (terrain_type_temp == "Moving") {
             amrex::Warning("erf.terrain_type = Moving is deprecated; please replace Moving by MovingFittedMesh");
             terrain_type = TerrainType::MovingFittedMesh;
@@ -438,7 +758,7 @@ struct SolverChoice {
 
         // Get buildings type
         std::string buildings_type_temp = "";
-        pp.query("buildings_type", buildings_type_temp);
+        pp.queryAdd("buildings_type", buildings_type_temp);
         if (buildings_type_temp == "ImmersedForcing") {
             buildings_type = BuildingsType::ImmersedForcing;
         }
@@ -448,7 +768,7 @@ struct SolverChoice {
         //
         std::string init_type_temp_string;
 
-        int found = pp.query("init_type",init_type_temp_string);
+        int found = pp.queryAdd("init_type",init_type_temp_string);
 
         if ( (init_type_temp_string == "Real") || (init_type_temp_string == "real") ) {
             amrex::Error("erf.init_type = Real is deprecated; please replace Real by WRFInput");
@@ -478,11 +798,11 @@ struct SolverChoice {
 
             // NetCDF wrfbdy lateral boundary file
             std::string nc_bdy_file_temp_string;
-            bool has_bdy = pp.query("nc_bdy_file", nc_bdy_file_temp_string);
+            bool has_bdy = pp.queryAdd("nc_bdy_file", nc_bdy_file_temp_string);
             if (!has_bdy) use_real_bcs = false;
 
             bool use_real_bcs_temp = use_real_bcs;
-            pp.query("use_real_bcs", use_real_bcs_temp);
+            pp.queryAdd("use_real_bcs", use_real_bcs_temp);
             if (use_real_bcs && !use_real_bcs_temp) {
                 use_real_bcs = false;
             }
@@ -513,7 +833,7 @@ struct SolverChoice {
             amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
-        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        pp.queryAdd("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
                                       "The grid stretching ratio must be greater than 1");
@@ -525,7 +845,7 @@ struct SolverChoice {
             if (mesh_type == MeshType::ConstantDz) {
                 mesh_type = MeshType::StretchedDz;
             }
-            pp.query("zsurface", zsurf);
+            pp.queryAdd("zsurface", zsurf);
             if (zsurf != zero) {
                 amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
                     << std::endl;
@@ -545,13 +865,13 @@ struct SolverChoice {
         }
 
         // Use lagged_delta_rt in the fast integrator?
-        pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+        pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
         // Keep the default wrf grid or remake our own
-        pp.query("use_wrf_height_grid",use_wrf_height_grid);
+        pp.queryAdd("use_wrf_height_grid",use_wrf_height_grid);
 
         // Rebalance wrf state?
-        pp.query("rebalance_wrf_input", rebalance_wrf_input);
+        pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
         // Must rebalance if not using WRF grid
         if (!use_wrf_height_grid && !rebalance_wrf_input) {
@@ -560,7 +880,7 @@ struct SolverChoice {
         }
 
         // These default to true but are used for unit testing
-        pp.query("use_gravity", use_gravity);
+        pp.queryAdd("use_gravity", use_gravity);
 
         // Initializing from Metgrid or WRFInput without gravity makes no sense
         if ( !use_gravity && ( (init_type == InitType::WRFInput) || (init_type == InitType::Metgrid) ) ) {
@@ -570,7 +890,7 @@ struct SolverChoice {
 
         gravity = use_gravity? CONST_GRAV: zero;
 
-        pp.query("c_p", c_p);
+        pp.queryAdd("c_p", c_p);
         rdOcp = R_d / c_p;
 
         // *******************************************************************************
@@ -621,9 +941,9 @@ struct SolverChoice {
                 pp, "substepping_type", substepping_type[i], i, max_level);
         }
 
-        pp.query("substepping_diag", substepping_diag);
+        pp.queryAdd("substepping_diag", substepping_diag);
 
-        pp.query("beta_s", beta_s);
+        pp.queryAdd("beta_s", beta_s);
 
 
 
@@ -637,9 +957,9 @@ struct SolverChoice {
 
         // *******************************************************************************
 
-        pp.query("ncorr", ncorr);
-        pp.query("poisson_abstol", poisson_abstol);
-        pp.query("poisson_reltol", poisson_reltol);
+        pp.queryAdd("ncorr", ncorr);
+        pp.queryAdd("poisson_abstol", poisson_abstol);
+        pp.queryAdd("poisson_reltol", poisson_reltol);
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
@@ -651,37 +971,37 @@ struct SolverChoice {
             }
         }
 
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+        pp.queryAdd("force_stage1_single_substep", force_stage1_single_substep);
 
         // Include Coriolis forcing?
-        pp.query("use_coriolis", use_coriolis);
-        pp.query("variable_coriolis", variable_coriolis);
+        pp.queryAdd("use_coriolis", use_coriolis);
+        pp.queryAdd("variable_coriolis", variable_coriolis);
 
         // Include four stream radiation approximation
-        pp.query("four_stream_radiation", four_stream_radiation);
+        pp.queryAdd("four_stream_radiation", four_stream_radiation);
 
         // flags for whether to apply other source terms in substep only
-        pp.query("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
-        pp.query("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
+        pp.queryAdd("immersed_forcing_substep", immersed_forcing_substep); // apply immersed forcing source terms in substep only
+        pp.queryAdd("forest_substep", forest_substep);                     // apply canopy-related source terms in substep only
 
         // immersed forcing parameters
-        pp.query("if_Cd_momentum", if_Cd_momentum);
-        pp.query("if_Cd_scalar", if_Cd_scalar);
-        pp.query("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
-        pp.query("if_z0", if_z0);
-        pp.query("if_surf_temp_flux", if_surf_temp_flux);
-        pp.query("if_init_surf_temp", if_init_surf_temp);
+        pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
+        pp.queryAdd("if_Cd_scalar", if_Cd_scalar);
+        pp.queryAdd("if_implicit_drag", if_implicit_drag); // flag for implicit vs. explicit drag formulation
+        pp.queryAdd("if_z0", if_z0);
+        pp.queryAdd("if_surf_temp_flux", if_surf_temp_flux);
+        pp.queryAdd("if_init_surf_temp", if_init_surf_temp);
 
-        pp.query("if_surf_heating_rate", if_surf_heating_rate);
+        pp.queryAdd("if_surf_heating_rate", if_surf_heating_rate);
 
         // Modify rate to be in units of K / s rather than K / hr
         if_surf_heating_rate /= amrex::Real(3600.0);        // [K/s]
 
-        pp.query("if_Olen", if_Olen_in);
-        pp.query("if_use_most",if_use_most);
-        pp.query("if_stability_correction",if_stability_correction);
-        pp.query("if_ws_floor",if_ws_floor);
-        pp.query("if_damp_alpha",if_damp_alpha);
+        pp.queryAdd("if_Olen", if_Olen_in);
+        pp.queryAdd("if_use_most",if_use_most);
+        pp.queryAdd("if_stability_correction",if_stability_correction);
+        pp.queryAdd("if_ws_floor",if_ws_floor);
+        pp.queryAdd("if_damp_alpha",if_damp_alpha);
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
             (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
@@ -691,7 +1011,7 @@ struct SolverChoice {
         }
 
         // Flag to do MOST rotations with terrain
-        pp.query("use_rotate_surface_flux",use_rotate_surface_flux);
+        pp.queryAdd("use_rotate_surface_flux",use_rotate_surface_flux);
         if (use_rotate_surface_flux) {
             AMREX_ASSERT_WITH_MESSAGE(terrain_type != TerrainType::None,"MOST stress rotations are only valid with terrain!");
         }
@@ -699,11 +1019,11 @@ struct SolverChoice {
         // Which external forcings?
         abl_driver_type = ABLDriverType::None; // Default: no ABL driver for simulating classical fluid dynamics problems
         pp.query_enum_case_insensitive("abl_driver_type",abl_driver_type);
-        pp.query("const_massflux_u", const_massflux_u);
-        pp.query("const_massflux_v", const_massflux_v);
-        pp.query("const_massflux_tau", const_massflux_tau);
-        pp.query("const_massflux_layer_lo", const_massflux_layer_lo);
-        pp.query("const_massflux_layer_hi", const_massflux_layer_hi);
+        pp.queryAdd("const_massflux_u", const_massflux_u);
+        pp.queryAdd("const_massflux_v", const_massflux_v);
+        pp.queryAdd("const_massflux_tau", const_massflux_tau);
+        pp.queryAdd("const_massflux_layer_lo", const_massflux_layer_lo);
+        pp.queryAdd("const_massflux_layer_hi", const_massflux_layer_hi);
 
         // Which type of inflow turbulent generation
         pert_type.resize(max_level+1);
@@ -732,33 +1052,33 @@ struct SolverChoice {
             build_coriolis_forcings_const_lat(pp_prefix);
         }
 
-        pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
-        pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
-        pp.query("add_custom_w_subsidence", custom_w_subsidence);
-        pp.query("add_do_theta_advection", do_theta_advection);  // If true, apply custom subsidence to (rho*theta) when add_custom_w_subsidence is used
-        pp.query("add_do_mom_advection", do_mom_advection);      // If true, apply custom subsidence to momentum when add_custom_w_subsidence is used
-        pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
-        pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
-        pp.query("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
-        pp.query("spatial_moisture_forcing", spatial_moisture_forcing);
+        pp.queryAdd("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
+        pp.queryAdd("add_custom_moisture_forcing", custom_moisture_forcing);
+        pp.queryAdd("add_custom_w_subsidence", custom_w_subsidence);
+        pp.queryAdd("add_do_theta_advection", do_theta_advection);  // If true, apply custom subsidence to (rho*theta) when add_custom_w_subsidence is used
+        pp.queryAdd("add_do_mom_advection", do_mom_advection);      // If true, apply custom subsidence to momentum when add_custom_w_subsidence is used
+        pp.queryAdd("add_custom_geostrophic_profile", custom_geostrophic_profile);
+        pp.queryAdd("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.queryAdd("spatial_rhotheta_forcing", spatial_rhotheta_forcing);
+        pp.queryAdd("spatial_moisture_forcing", spatial_moisture_forcing);
 
-        pp.query("nudging_from_input_sounding", nudging_from_input_sounding);
+        pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
-        pp.query("nudging_q_z1", nudging_q_z1);
-        pp.query("nudging_q_z2", nudging_q_z2);
-        pp.query("nudging_t_z1", nudging_t_z1);
-        pp.query("nudging_t_z2", nudging_t_z2);
+        pp.queryAdd("nudging_q_z1", nudging_q_z1);
+        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+        pp.queryAdd("nudging_t_z1", nudging_t_z1);
+        pp.queryAdd("nudging_t_z2", nudging_t_z2);
 
-        pp.query("large_scale_forcing", large_scale_forcing);
+        pp.queryAdd("large_scale_forcing", large_scale_forcing);
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
             "Should not have both abl_geo_wind_table and custom_geostrophic_profile set.");
 
-        pp.query("Ave_Plane", ave_plane);
+        pp.queryAdd("Ave_Plane", ave_plane);
 
         // Use numerical diffusion?
-        pp.query("num_diff_coeff",num_diff_coeff);
+        pp.queryAdd("num_diff_coeff",num_diff_coeff);
         AMREX_ASSERT_WITH_MESSAGE(( (num_diff_coeff >= zero) && (num_diff_coeff <= one) ),
                                   "Numerical diffusion coefficient must be between 0 & one");
         use_num_diff = (num_diff_coeff > 0);
@@ -815,22 +1135,22 @@ struct SolverChoice {
         }
 
         // What's the strength of the bdy nudging?
-        pp.query("bdy_nudge_factor",bdy_nudge_factor);
+        pp.queryAdd("bdy_nudge_factor",bdy_nudge_factor);
 
         // Optionally use the dry-air density reconstructed from wrfbdy.
-        pp.query("use_wrf_bdy_density", use_wrf_bdy_density);
+        pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
         // Optionally ingest cloud water and cloud ice from wrfinput/wrfbdy.
-        pp.query("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
+        pp.queryAdd("use_wrf_bdy_qc_qi", use_wrf_bdy_qc_qi);
 
         if (!use_real_bcs || init_type != InitType::WRFInput) {
             use_wrf_bdy_density = false;
         }
 
-        pp.query("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
+        pp.queryAdd("bdy_rho_nudge_factor", bdy_rho_nudge_factor);
 
         // Which approach to nudging the moist variables in the boundary region?
-        pp.query("bdy_moist_nudge_type",bdy_moist_nudge_type);
+        pp.queryAdd("bdy_moist_nudge_type",bdy_moist_nudge_type);
         if (bdy_moist_nudge_type < 0 || bdy_moist_nudge_type > 3) {
             amrex::Error("erf.bdy_moist_nudge_type must be one of 0, 1, 2, or 3");
         }
@@ -860,7 +1180,7 @@ struct SolverChoice {
         }
 
         // Are me transporting the scalar component?
-        pp.query("transport_scalar",transport_scalar);
+        pp.queryAdd("transport_scalar",transport_scalar);
 
         for (int lev = 0; lev <= max_level; ++lev) {
             if (turbChoice[lev].uses_eamxx_shoc()) {
@@ -882,7 +1202,7 @@ struct SolverChoice {
         } else {
             // This controls the time-centering of the vertical differences in the diffusive term
             bool do_vert_implicit = true;
-            pp.query("vert_implicit", do_vert_implicit);
+            pp.queryAdd("vert_implicit", do_vert_implicit);
 
             if (!do_vert_implicit) {
                 for (int lev = 0; lev <= max_level; lev++) {
@@ -925,24 +1245,24 @@ struct SolverChoice {
 
                 // If true (default), include implicit contributions to vertical
                 // thermal diffusion
-                pp.query("implicit_thermal_diffusion", implicit_thermal_diffusion);
+                pp.queryAdd("implicit_thermal_diffusion", implicit_thermal_diffusion);
 
                 // If true (default), include implicit contributions to vertical
                 // moisture diffusion
-                pp.query("implicit_moisture_diffusion", implicit_moisture_diffusion);
+                pp.queryAdd("implicit_moisture_diffusion", implicit_moisture_diffusion);
 
                 // If true (default), include implicit contributions to vertical
                 // KE diffusion
-                pp.query("implicit_ke_diffusion", implicit_ke_diffusion);
+                pp.queryAdd("implicit_ke_diffusion", implicit_ke_diffusion);
 
                 // If true (default), include implicit contributions in tau13, tau23,
                 // (and if ERF_IMPLICIT_W is set, tau33) to correct u, v, (and w).
-                pp.query("implicit_momentum_diffusion", implicit_momentum_diffusion);
+                pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
                 // This controls when the vertical implicit solve for the diffusive terms will happen relative to
                 //      the acoustic substepping (if it happens, i.e. if any of the implicit_fac > zero)
                 // The default is true (i.e. that it happens before the acoustic substepping).
-                pp.query("implicit_before_substep", implicit_before_substep);
+                pp.queryAdd("implicit_before_substep", implicit_before_substep);
                 for (int lev = 0; lev <= max_level; lev++) {
                     if ( (substepping_type[lev] == SubsteppingType::None) && !implicit_before_substep) {
                         amrex::Print() << "implicit_before_substep cannot be false without substepping; setting to true." << "\n";
@@ -993,44 +1313,44 @@ struct SolverChoice {
         windfarm_loc_type = WindFarmLocType::None;
         pp.query_enum_case_insensitive("windfarm_loc_type",windfarm_loc_type);
 
-        pp.query("windfarm_loc_table",  windfarm_loc_table);
-        pp.query("windfarm_spec_table", windfarm_spec_table);
-        pp.query("windfarm_blade_table", windfarm_blade_table);
-        pp.query("windfarm_airfoil_tables", windfarm_airfoil_tables);
-        pp.query("windfarm_spec_table_extra", windfarm_spec_table_extra);
+        pp.queryAdd("windfarm_loc_table",  windfarm_loc_table);
+        pp.queryAdd("windfarm_spec_table", windfarm_spec_table);
+        pp.queryAdd("windfarm_blade_table", windfarm_blade_table);
+        pp.queryAdd("windfarm_airfoil_tables", windfarm_airfoil_tables);
+        pp.queryAdd("windfarm_spec_table_extra", windfarm_spec_table_extra);
 
         // Sampling distance upstream of the turbine to find the
         // incoming free stream velocity as a factor of the diameter of the
         // turbine. ie. the sampling distance will be this number multiplied
         // by the diameter of the turbine
-        pp.query("sampling_distance_by_D", sampling_distance_by_D);
-        pp.query("turb_disk_angle_from_x", turb_disk_angle);
+        pp.queryAdd("sampling_distance_by_D", sampling_distance_by_D);
+        pp.queryAdd("turb_disk_angle_from_x", turb_disk_angle);
 
-        pp.query("windfarm_x_shift",windfarm_x_shift);
-        pp.query("windfarm_y_shift",windfarm_y_shift);
+        pp.queryAdd("windfarm_x_shift",windfarm_x_shift);
+        pp.queryAdd("windfarm_y_shift",windfarm_y_shift);
         // Test if time averaged data is to be output
-        pp.query("time_avg_vel",time_avg_vel);
+        pp.queryAdd("time_avg_vel",time_avg_vel);
 
-        pp.query("hindcast_lateral_forcing", hindcast_lateral_forcing);
+        pp.queryAdd("hindcast_lateral_forcing", hindcast_lateral_forcing);
 
         if (hindcast_lateral_forcing) {
-            pp.query("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
+            pp.queryAdd("hindcast_boundary_data_dir", hindcast_boundary_data_dir);
 
             if(hindcast_boundary_data_dir.empty()) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_boundary_data_dir' for boundary data for lateral forcing");
             }
-            pp.query("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
+            pp.queryAdd("hindcast_data_interval_in_hrs", hindcast_data_interval_in_hrs);
             if(hindcast_data_interval_in_hrs < zero) {
                 amrex::Error("ERROR: Input parameter 'erf.hindcast_data_interval_in_hrs' which is the time interval between the "
                              "data files is either missing or set to less than zero");
             }
-            pp.query("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
-            pp.query("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
+            pp.queryAdd("hindcast_lateral_sponge_strength", hindcast_lateral_sponge_strength);
+            pp.queryAdd("hindcast_lateral_sponge_length", hindcast_lateral_sponge_length);
 
-            pp.query("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
-            pp.query("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
+            pp.queryAdd("hindcast_zhi_sponge_length", hindcast_zhi_sponge_length);
+            pp.queryAdd("hindcast_zhi_sponge_strength", hindcast_zhi_sponge_strength);
 
-            pp.query("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
+            pp.queryAdd("hindcast_zhi_sponge_damping", hindcast_zhi_sponge_damping);
 
             if (hindcast_lateral_forcing and hindcast_lateral_sponge_strength < zero) {
                 amrex::Error("ERROR: Missing input parameter 'erf.hindcast_lateral_sponge_strength' or it is specified to be less than zero");
@@ -1049,15 +1369,15 @@ struct SolverChoice {
             }
         }
 
-        pp.query("hindcast_surface_bcs", hindcast_surface_bcs);
+        pp.queryAdd("hindcast_surface_bcs", hindcast_surface_bcs);
         if(hindcast_surface_bcs) {
-            pp.query("hindcast_surface_data_dir", hindcast_surface_data_dir);
+            pp.queryAdd("hindcast_surface_data_dir", hindcast_surface_data_dir);
         }
 
-        pp.query("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
+        pp.queryAdd("io_hurricane_eye_tracker", io_hurricane_eye_tracker);
         if (io_hurricane_eye_tracker) {
-            pp.query("hurricane_eye_latitude", hurricane_eye_latitude);
-            pp.query("hurricane_eye_longitude", hurricane_eye_longitude);
+            pp.queryAdd("hurricane_eye_latitude", hurricane_eye_latitude);
+            pp.queryAdd("hurricane_eye_longitude", hurricane_eye_longitude);
             if(hurricane_eye_latitude == amrex::Real(-1e10) or hurricane_eye_longitude == amrex::Real(-1e10)) {
                 amrex::Error("ERROR: You are using 'erf.io_hurricane_eye_tracker' to write out the files that track the eye of the hurricane"
                               " but have not provided the initial location of the eye of the hurricane to be tracked. There has to be two"
@@ -1066,28 +1386,28 @@ struct SolverChoice {
             }
         }
 
-        pp.query("is_init_for_ensemble", is_init_for_ensemble);
+        pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
             amrex::ParmParse pp_ens("ensemble");
-            pp_ens.query("n_members", n_ensemble);
+            pp_ens.queryAdd("n_members", n_ensemble);
             if(n_ensemble < 2) {
                 amrex::Abort("You are using an ensemble run. There needs to be at least 2 ensemble members. "
                              "erf.n_ensemble must be >=2.");
             }
-            pp_ens.query("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
+            pp_ens.queryAdd("coarse_bckgnd_data_file", coarse_bckgnd_data_file);
             if (coarse_bckgnd_data_file.empty()) {
                 amrex::Abort("coarse_bckgnd_data_file is empty! For ensmeble simulations, there needs to be a coarse background file which "
                              "contains the data which will be interpolated onto the fine mesh. There has to a entry ensemble.coarse_bckgnd_data_file "
                              "which contains the filename in the inputs.");
             }
-            pp_ens.query("ens_pert_amplitude", ens_pert_amplitude);
+            pp_ens.queryAdd("ens_pert_amplitude", ens_pert_amplitude);
             if(ens_pert_amplitude <= 0.0) {
                 amrex::Error("You are using initialization for ensemble simulations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
                              "ensemble.ens_pert_amplitude which is the value of the amplitude of the perturbation  "
                              "to be added to the background state and has to be greater than 0.0");
             }
-            pp_ens.query("ens_pert_correlated_radius", ens_pert_correlated_radius);
+            pp_ens.queryAdd("ens_pert_correlated_radius", ens_pert_correlated_radius);
             if(ens_pert_correlated_radius <= 0.0) {
                 amrex::Error("You are using initialization with spatially correlated perturbations using the inputs option "
                              "ensemble.is_init_for_ensemble=true. In this case, there has to be an option "
@@ -1373,15 +1693,15 @@ struct SolverChoice {
 
         // Read the rotational time period (in seconds)
         double rot_time_period = 86400.0;
-        pp.query("rotational_time_period", rot_time_period);
+        pp.queryAdd("rotational_time_period", rot_time_period);
 
         coriolis_factor = static_cast<amrex::Real>(4.0 * PI / rot_time_period);
 
-        pp.query("coriolis_3d", coriolis_3d);
+        pp.queryAdd("coriolis_3d", coriolis_3d);
 
         // Convert to radians
         amrex::Real latitude_for_coriolis = amrex::Real(90.0);
-        pp.query("latitude", latitude_for_coriolis);
+        pp.queryAdd("latitude", latitude_for_coriolis);
         latitude_for_coriolis *= (PI/amrex::Real(180.));
         sinphi = std::sin(latitude_for_coriolis);
 
@@ -1398,7 +1718,7 @@ struct SolverChoice {
             amrex::Vector<amrex::Real> abl_geo_wind(3);
             pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-            if(!pp.query("abl_geo_wind_table",abl_geo_wind_table)) {
+            if(!pp.queryAdd("abl_geo_wind_table",abl_geo_wind_table)) {
                 abl_geo_forcing = {
                     -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
                      coriolis_factor *  abl_geo_wind[0]*sinphi,
@@ -1956,7 +2276,8 @@ struct SolverChoice {
  * @var SolverChoice::ave_plane
  * @brief Averaging plane index used by diagnostics.
  * @var SolverChoice::moisture_indices
- * @brief Conserved-state component indices for active moisture species.
+ * @brief Index map of the moisture data carried by the active scheme: conserved-state
+ *        components for the species and qmoist slots for the moist diagnostics.
  * @var SolverChoice::moisture_tight_coupling
  * @brief Whether moisture updates use tight coupling.
  * @var SolverChoice::windfarm_loc_table

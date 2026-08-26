@@ -180,7 +180,7 @@ init_which_terrain_grid (int lev,
     // User-selected method from inputs file (BTF default)
     ParmParse pp("erf");
     int terrain_smoothing = 0;
-    pp.query("terrain_smoothing", terrain_smoothing);
+    pp.queryAdd("terrain_smoothing", terrain_smoothing);
 
     if (lev > 0 && terrain_smoothing != 0) {
         Abort("Must use terrain_smoothing = 0 when doing multilevel");
@@ -349,7 +349,7 @@ init_which_terrain_grid (int lev,
 
         // Minimum allowed fractional grid spacing
         Real gamma_m = myhalf;
-        pp.query("terrain_gamma_m", gamma_m);
+        pp.queryAdd("terrain_gamma_m", gamma_m);
         Real z_H     = Real(2.44)*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices

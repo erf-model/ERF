@@ -56,8 +56,8 @@ ERF::ERF_shared ()
     long random_seed = -1;
     {
         ParmParse pp("erf");
-        pp.query("fix_random_seed", fix_random_seed);
-        pp.query("random_seed", random_seed);
+        pp.queryAdd("fix_random_seed", fix_random_seed);
+        pp.queryAdd("random_seed", random_seed);
     }
     // Note that the value of 1024UL is not significant -- the point here is just to set the
     // same seed for all MPI processes for the purpose of regression testing
@@ -160,8 +160,11 @@ ERF::ERF_shared ()
             Abort("Don't know this radiation model!");
         }
     }
+    // NOTE: these must come after initializeMicrophysics() -- the conserved-state
+    //       layout they select against is owned by the microphysics interface.
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
+    setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
@@ -239,7 +242,7 @@ ERF::ERF_shared ()
 
     ParmParse pp_erf("erf");
     std::string prob_name;
-    pp_erf.query("prob_name", prob_name);
+    pp_erf.queryAdd("prob_name", prob_name);
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
@@ -247,7 +250,7 @@ ERF::ERF_shared ()
     }
     {
         int budget_interval = 0;
-        pp_erf.query("cloud_chamber_budget_interval", budget_interval);
+        pp_erf.queryAdd("cloud_chamber_budget_interval", budget_interval);
         if (budget_interval > 0) {
             if (!cloud_chamber_config.active ||
                 !cloud_chamber_config.physical_initialization ||
@@ -505,8 +508,8 @@ ERF::ERF_shared ()
         } else if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
             RealArray plane_normal{zero, zero, -one}; // pointing into the solid region
-            pp_eb2.query("plane_point", plane_point);
-            pp_eb2.query("plane_normal", plane_normal);
+            pp_eb2.queryAdd("plane_point", plane_point);
+            pp_eb2.queryAdd("plane_normal", plane_normal);
             EB2::PlaneIF implicit_fun(plane_point, plane_normal, true);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -521,8 +524,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
             RealArray box_hi{zero, zero, zero};
-            pp_eb2.query("box_lo", box_lo);
-            pp_eb2.query("box_hi", box_hi);
+            pp_eb2.queryAdd("box_lo", box_lo);
+            pp_eb2.queryAdd("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -572,8 +575,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
             RealArray box_hi{zero, zero, zero};
-            pp_eb2.query("box_lo", box_lo);
-            pp_eb2.query("box_hi", box_hi);
+            pp_eb2.queryAdd("box_lo", box_lo);
+            pp_eb2.queryAdd("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
