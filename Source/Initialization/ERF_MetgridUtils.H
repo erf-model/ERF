@@ -155,6 +155,15 @@ struct MetgridBaseStateParams
     //
     void set_layer_interfaces ()
     {
+        // The troposphere inverts p(z) as sqrt((T00/TLP)^2 - 2*g*z/(TLP*R_d)), which
+        // folds 1/TLP inside the square root and so discards the sign of TLP. A
+        // non-positive lapse parameter, or an isothermal temperature at or above the
+        // surface temperature, would silently select the wrong root instead of failing.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(TLP > zero,
+                                         "Base state TLP must be positive");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(TISO < T00,
+                                         "Base state TISO must be less than T00");
+
         const amrex::Real x_iso = (TISO - T00) / TLP;
         P_iso = P00 * std::exp(x_iso);
         z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
@@ -190,6 +199,8 @@ struct MetgridBaseStateParams
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
+                              const amrex::Real l_rdOcp,
+                              const amrex::Box& domain,
                               const amrex::Box& valid_bx,
                               const int& flag_psfc,
                               amrex::FArrayBox& state_fab,
