@@ -1090,15 +1090,16 @@ struct SolverChoice {
 
         pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
-        pp.queryAdd("nudging_q_z1", nudging_q_z1);
-        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+        pp.queryAdd("nudging_u_z1", nudging_u_z1);
+        pp.queryAdd("nudging_u_z2", nudging_u_z2);
         pp.queryAdd("nudging_t_z1", nudging_t_z1);
         pp.queryAdd("nudging_t_z2", nudging_t_z2);
+        pp.queryAdd("nudging_q_z1", nudging_q_z1);
+        pp.queryAdd("nudging_q_z2", nudging_q_z2);
 
-        pp.queryAdd("nudging_mom", nudging_mom);
-        pp.queryAdd("nudging_theta", nudging_theta);
-        pp.queryAdd("nudging_z_lo", nudging_z_lo);
-        pp.queryAdd("nudging_z_hi", nudging_z_hi);
+        pp.queryAdd("nudging_u", nudging_u);
+        pp.queryAdd("nudging_t", nudging_t);
+        pp.queryAdd("nudging_q", nudging_q);
 
         pp.queryAdd("large_scale_forcing", large_scale_forcing);
 
@@ -1970,15 +1971,16 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
-    amrex::Real nudging_q_z1 = zero;
-    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_u_z1 = zero;
+    amrex::Real nudging_u_z2 = amrex::Real(1.0e36);
     amrex::Real nudging_t_z1 = zero;
     amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
 
-    bool nudging_mom   = true;      // Nudge u,v when nudging_from_input_sounding is true
-    bool nudging_theta = true;      // Nudge potential temperature when nudging_from_input_sounding is true
-    amrex::Real nudging_z_lo = zero; // Additional height bound on theta nudging, ANDed with nudging_t_z1/t_z2
-    amrex::Real nudging_z_hi = amrex::Real(1.0e36);
+    bool nudging_u = true;      // Nudge u,v when nudging_from_input_sounding is true
+    bool nudging_t = true;      // Nudge potential temperature when nudging_from_input_sounding is true
+    bool nudging_q = true;      // Nudge water vapor when nudging_from_input_sounding is true
 
     bool large_scale_forcing = false;
     std::string lsf_file = "";
