@@ -10,3 +10,4 @@ CEXE_headers += ERF_TurbStruct.H
 CEXE_headers += ERF_TurbPertStruct.H
 CEXE_headers += ERF_RadStruct.H
 CEXE_headers += ERF_LargeScaleForcingData.H
+CEXE_headers += ERF_ShocTransportStruct.H

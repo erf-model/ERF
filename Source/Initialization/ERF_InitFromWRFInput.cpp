@@ -116,16 +116,19 @@ init_terrain_from_wrfinput (int lev,
 /**
  * Initialize hydrostatic base state data from a WRF dataset.
  *
+ * The profile is built analytically from the six WRF reference-state parameters
+ * and the ERF cell-centered heights; PB and ALB from the file are not used.
+ *
  * @param[in] subdomain Box specifying the index space to initialize.
- * @param[in] l_rdOcp Constant $R_d/c_p$.
+ * @param[in] l_rdOcp Constant $R_d/c_p$ (currently unused; the constexpr RdoCp is used instead).
  * @param[out] p_hse MultiFab holding the hydrostatic base state pressure.
  * @param[out] pi_hse MultiFab holding the hydrostatic base state Exner pressure.
  * @param[out] th_hse MultiFab holding the hydrostatic base state potential temperature.
  * @param[out] qv_hse MultiFab holding the hydrostatic base state qv.
  * @param[out] r_hse MultiFab holding the hydrostatic base state density.
- * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure.
- * @param[in] mf_ALB Optional MultiFab holding inverse density perturbation data.
- * @param[in] z_phys Optional terrain nodal z-coordinate MultiFab.
+ * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure (currently unused).
+ * @param[in] mf_ALB MultiFab holding inverse density perturbation data (currently unused).
+ * @param[in] z_phys_cc Cell-centered z-coordinate MultiFab; required, must not be null.
  * @param[in] T00 Sea-level base-state temperature.
  * @param[in] P00 Sea-level base-state pressure.
  * @param[in] TLP Base-state lapse rate.
@@ -143,7 +146,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& r_hse,
                                MultiFab& mf_PB,
                                MultiFab* mf_ALB,
-                               MultiFab* z_phys,
+                               MultiFab* z_phys_cc,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -242,15 +245,19 @@ read_base_state_params_from_wrfinput (const std::string& fname,
         ncf.close();
 
         // Idealized WRF cases (and some hand-built wrfinput files) declare these
-        // variables but leave them zero-filled.  T00, P00 and TISO are absolute
-        // temperatures/pressures, so a non-positive value is never meaningful; if
-        // any of them is bad we discard the whole group and keep the defaults.
-        // (TLP, TLP_STRAT and P_STRAT may legitimately be zero, so they are only
-        // reset alongside a bad T00/P00/TISO.)
+        // variables but leave them zero-filled.  T00 and P00 are an absolute
+        // temperature and pressure, and TLP is the lapse rate that the closed-form
+        // p(z) inversion in init_base_state_from_wrfinput divides by, so a
+        // non-positive value of any of the three leaves us with no usable
+        // reference profile: TLP == 0 makes the inversion NaN and TLP < 0 flips the
+        // sign of the quadratic root it takes.  If any of them is bad we discard
+        // the whole group and keep the defaults.  (TLP_STRAT and P_STRAT may
+        // legitimately be zero -- that just disables the stratospheric layer -- so
+        // they are only reset alongside a bad T00/P00/TLP.)
         const bool params_ok = std::isfinite(T00)  && (T00  > Real(0)) &&
                                std::isfinite(P00)  && (P00  > Real(0)) &&
-                               std::isfinite(TISO) && (TISO > Real(0)) &&
-                               std::isfinite(TLP)  && std::isfinite(TLP_STRAT) &&
+                               std::isfinite(TLP)  && (TLP  > Real(0)) &&
+                               std::isfinite(TISO) && std::isfinite(TLP_STRAT) &&
                                std::isfinite(P_STRAT);
 
         if (!params_ok) {
@@ -258,10 +265,28 @@ read_base_state_params_from_wrfinput (const std::string& fname,
                     << " are invalid: (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
                     << T00 << ", " << P00 << ", " << TLP << ", " << TISO << ", "
                     << TLP_STRAT << ", " << P_STRAT << ")\n";
-            Print() << "         T00, P00 and TISO must all be positive and finite; "
+            Print() << "         T00, P00 and TLP must all be positive and finite; "
                        "reverting to ERF defaults.\n";
+            Print() << "         NOTE: the base state is built entirely from these six "
+                       "parameters -- PB and ALB in the file are not used -- so the "
+                       "resulting base state is synthetic and may be inconsistent with "
+                       "the state read from " << fname << ".\n";
             T00 = T00_def;   P00 = P00_def;   TLP = TLP_def;
             TISO = TISO_def; TLP_STRAT = TLP_STRAT_def; P_STRAT = P_STRAT_def;
+        }
+
+        // WRF evaluates the reference temperature as max(TISO, T00 + TLP*ln(p/P00)),
+        // so iso_temp == 0 there simply means "no isothermal cap".  ERF instead
+        // inverts each layer analytically and divides by TISO inside the isothermal
+        // layer, so a non-positive TISO would be a division by zero (and, taken
+        // literally, a profile running down to 0 K).  The tropospheric parameters
+        // this file supplies are still good, so keep them and cap with the ERF
+        // default rather than discarding the whole group.
+        if (params_ok && (TISO <= Real(0))) {
+            Print() << "WARNING: TISO read from " << fname << " is " << TISO
+                    << "; using the ERF default isothermal cap of " << TISO_def
+                    << " K and keeping T00, P00 and TLP from the file.\n";
+            TISO = TISO_def;
         }
 
         Print() << "WRF base state parameters (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) are: ("
@@ -574,7 +599,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // Invert exactly the region that received data from the file: the copy
+                    // of "ALB" and the plus of "AL" both act on cons_fab.box() & var_fab.box(),
+                    // which includes the ghost cells lying inside the region read from the file.
+                    Box vbx = cons_fab.box() & var_fab.box();
 
                     // Add "AL" to "ALB" before inverting
                     cons_fab.template   plus<RunOn::Device>(var_fab, 0, Rho_comp, 1);
@@ -590,7 +619,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
                     FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-                    Box vbx = cons_fab.box(); vbx.grow(-ng);
+
+                    // See the note in the ALB/AL branch above: invert exactly the region
+                    // the copy below writes, so the in-domain ghost cells hold density
+                    // rather than specific volume, and the cells still holding zero are skipped.
+                    Box vbx = cons_fab.box() & var_fab.box();
 
                     // "ALT" holds the full 1/density so we can invert here
                     cons_fab.template copy<RunOn::Device>(var_fab, 0, Rho_comp, 1);
@@ -637,7 +670,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                  var_name == "QSNOW"   ||
                  var_name == "QGRAUP" )
             {
-                int n_qstate_moist = micro->Get_Qstate_Moist_Size();
                 AMREX_ALWAYS_ASSERT(micro->Get_Qstate_NonMoist_Size() == 0);
 
                 int icomp = -1;
@@ -1460,13 +1492,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
         MultiFab rho (lev_new[Vars::cons], make_alias, Rho_comp, 1);
 
-        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 1);
-        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 1);
-        MultiFab::Divide(theta, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+        MultiFab theta(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab::Copy(theta, lev_new[Vars::cons], RhoTheta_comp, 0, 1, 0);
+        MultiFab::Divide(theta, lev_new[Vars::cons], Rho_comp , 0, 1, 0);
 
-        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 1);
-        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 1);
-        MultiFab::Divide(qv, vars_new[lev][Vars::cons], Rho_comp , 0, 1, 1);
+        MultiFab qv(rho.boxArray(), rho.DistributionMap(), 1, 0);
+        MultiFab::Copy(qv, lev_new[Vars::cons], RhoQ1_comp, 0, 1, 0);
+        MultiFab::Divide(qv, lev_new[Vars::cons], Rho_comp , 0, 1, 0);
 
         MultiFab qt(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
         int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
@@ -1476,12 +1508,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         rebalance_columns(rho, theta, qv, qt, z_phys_nd[lev].get(), geom[lev], maintain_Th);
 
         // Update (rho qv) in the state
-        MultiFab::Multiply(qv, rho, 0, 0, 1, 1);
-        MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 1);
+        MultiFab::Multiply(qv, rho, 0, 0, 1, 0);
+        MultiFab::Copy(lev_new[Vars::cons], qv, 0, RhoQ1_comp, 1, 0);
 
         // Update (rho theta) in the state
-        MultiFab::Multiply(theta, rho, 0, 0, 1, 1);
-        MultiFab::Copy(lev_new[Vars::cons], theta, 0, RhoTheta_comp, 1, 1);
+        MultiFab::Multiply(theta, rho, 0, 0, 1, 0);
+        MultiFab::Copy(lev_new[Vars::cons], theta, 0, RhoTheta_comp, 1, 0);
     }
 
     // **************************************************************************
@@ -1495,7 +1527,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
                                   p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  mf_PB, mf_ALB.get(), z_phys_nd[lev].get(),
+                                  mf_PB, mf_ALB.get(), z_phys_cc[lev].get(),
                                   T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
 
     // FillBoundary to populate the internal ghost cells (no averaging in above call)
@@ -1530,8 +1562,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                             ? WRFBdyVars::NumTypes : WRFBdyVars::LegacyNumTypes);
         }
         auto repack_runtime_bdy = [&] (const int itime) {
-            const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
-                wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
             repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
             repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
             repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
@@ -1726,16 +1756,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 /**
  * Helper function to initialize hydrostatic base state data from WRF dataset
  *
+ * The profile is built analytically from the six WRF reference-state parameters
+ * and the ERF cell-centered heights; PB and ALB from the file are not used.
+ *
  * @param subdomain        Box specifying the index space we are to initialize
- * @param l_rdOcp          Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param l_rdOcp          Real constant specifying Rydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$); currently unused, the constexpr RdoCp is used instead
  * @param p_hse            MultiFab holding the hydrostatic base state pressure to be initialized
  * @param pi_hse           MultiFab holding the hydrostatic base state Exner pressure to be initialized
  * @param th_hse           MultiFab holding the hydrostatic base state potential temperature to be initialized
  * @param qv_hse           MultiFab holding the hydrostatic base state qv to be initialized
  * @param r_hse            MultiFab holding the hydrostatic base state density to be initialized
- * @param mf_PB            MultiFab holding WRF data specifying base state pressure
- * @param mf_ALB           Optional MultiFab holding inverse density perturbation data
- * @param z_phys_nd        Optional terrain nodal z-coordinate MultiFab
+ * @param mf_PB            MultiFab holding WRF data specifying base state pressure; currently unused
+ * @param mf_ALB           MultiFab holding inverse density perturbation data; currently unused
+ * @param z_phys_cc        Cell-centered z-coordinate MultiFab; required, must not be null
  * @param T00              Sea-level base-state temperature
  * @param P00              Sea-level base-state pressure
  * @param TLP              Base-state lapse rate
@@ -1745,15 +1778,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
-                               const Real& l_rdOcp,
+                               const Real& /*l_rdOcp*/,
                                MultiFab& p_hse,
                                MultiFab& pi_hse,
                                MultiFab& th_hse,
                                MultiFab& qv_hse,
                                MultiFab& r_hse,
-                               MultiFab& mf_PB,
-                               MultiFab* mf_ALB,
-                               MultiFab* z_phys_nd,
+                               MultiFab& /*mf_PB*/,
+                               MultiFab* /*mf_ALB*/,
+                               MultiFab* z_phys_cc,
                                const Real& T00,
                                const Real& P00,
                                const Real& TLP,
@@ -1764,70 +1797,127 @@ init_base_state_from_wrfinput (const Box& subdomain,
     const auto& dom_lo = lbound(subdomain);
     const auto& dom_hi = ubound(subdomain);
 
+    // The analytic inversion below is a function of the true cell-centered
+    // height, so z_phys_cc is required here -- it is dereferenced unconditionally
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_phys_cc != nullptr,
+                                     "init_base_state_from_wrfinput requires z_phys_cc");
+
+    // **************************************************************************
+    // The WRF reference state is piecewise in log-pressure:
+    //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
+    //   (2) isothermal layer T = TISO                       P_STRAT < p <= P_iso
+    //   (3) stratosphere     T = TISO + TLP_STRAT * ln(p/P_STRAT)     p <= P_STRAT
+    // Each piece inverts to p(z) in closed form under dp/dz = -rho g; here we
+    // precompute the two interface heights so the inversion can branch on z.
+    // **************************************************************************
+    const Real x_iso = (TISO - T00) / TLP;
+    const Real P_iso = P00 * std::exp(x_iso);
+    const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
+
+    // The upper stratospheric layer is optional (P_STRAT == 0 or TLP_STRAT == 0
+    // disables it) and is only meaningful if it begins above the isothermal layer,
+    // i.e. if P_STRAT is below the pressure at which the isothermal layer starts.
+    const bool want_strat = (P_STRAT > zero) && (TLP_STRAT != zero);
+    const bool use_strat  = want_strat && (P_STRAT < P_iso);
+    const Real z_strat    = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
+                                        : z_iso;
+
+    // A configured stratospheric layer that lies at or below the isothermal
+    // transition cannot be represented, so say so rather than dropping it quietly.
+    if (want_strat && !use_strat) {
+        Print() << "WARNING: the WRF stratospheric layer is being ignored: P_STRAT = "
+                << P_STRAT << " Pa is not below the pressure at the base of the "
+                << "isothermal layer, P_iso = " << P_iso << " Pa.\n";
+        Print() << "         TLP_STRAT = " << TLP_STRAT << " will have no effect and "
+                << "the atmosphere above z_iso will be isothermal at TISO = "
+                << TISO << " K.\n";
+    }
+
+    Print() << "WRF base state layer interfaces: z_iso = " << z_iso << " m";
+    if (use_strat) Print() << ", z_strat = " << z_strat << " m";
+    Print() << "\n";
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+    for (MFIter mfi(p_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
+        // The base state must be valid in its ghost cells as well: physbcs_base is
+        // not applied until after init_from_wrfinput returns, but r_hse is consumed
+        // before that (read_and_convert_from_wrfbdy -> scale_bdy_normal_by_rho0
+        // reads rho0 one cell outside the domain).  Leaving the ghost cells at the
+        // setVal(0) from ERF_MakeNewArrays would divide by zero there, so fill the
+        // grown box here just as the pre-analytic version of this routine did.
         Box gtbx = mfi.growntilebox();
 
-        const Array4<Real      >&  p_hse_arr = p_hse.array(mfi);
-        const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
+        // z_phys_cc carries fewer ghost cells than the base state, so clamp the
+        // height lookup into the region where it is defined; that gives the outer
+        // ghost cells a zeroth-order extrapolation of the profile.
+        const Box  zbx  = amrex::grow(mfi.validbox(), z_phys_cc->nGrowVect());
+        const auto z_lo = lbound(zbx);
+        const auto z_hi = ubound(zbx);
+
+        const Array4<Real      >&  p_hse_arr =  p_hse.array(mfi);
         const Array4<Real      >& th_hse_arr = th_hse.array(mfi);
         const Array4<Real      >& qv_hse_arr = qv_hse.array(mfi);
-        const Array4<Real      >&  r_hse_arr = r_hse.array(mfi);
+        const Array4<Real      >&  r_hse_arr =  r_hse.array(mfi);
+        const Array4<Real      >& pi_hse_arr = pi_hse.array(mfi);
 
-        const Array4<Real const>&      PB_arr = mf_PB.const_array(mfi);
-        const Array4<Real const>&     ALB_arr = (mf_ALB) ? mf_ALB->const_array(mfi) :
-                                                           Array4<const Real> {};
+        const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
 
-        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=,zero_d=zero,RdoCp_d=RdoCp]
+                    AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            // Base state needs ghost cells filled, protect FAB access
-            int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_hi.y);
-            int kk = std::max(k , dom_lo.z);
-                kk = std::min(kk, dom_hi.z);
+            const int ii = amrex::min(amrex::max(i, z_lo.x), z_hi.x);
+            const int jj = amrex::min(amrex::max(j, z_lo.y), z_hi.y);
+            const int kk = amrex::min(amrex::max(k, z_lo.z), z_hi.z);
 
-            Real Rd, Td, Thd;
-            Real Pd = PB_arr(ii,jj,kk);
-            // Have inverse base density
-            if (ALB_arr) {
-                Rd  = Real(1.0) / ALB_arr(ii,jj,kk);
-                Td  = Pd / (R_d * Rd);
-                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
-            } else {
-                Td  = std::max(TISO, T00 + TLP * std::log(Pd/P00));
-                if (P_STRAT > Real(0.) && Pd <= P_STRAT) {
-                    Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
-                }
-                Thd = getThgivenTandP(Td, Pd, l_rdOcp);
-                Rd  = getRhogivenThetaPress (Thd, Pd, l_rdOcp);
+            // Analytical inversion with true CC heights, branching on the layer
+            Real Pd, Td;
+            const Real z = z_cc_arr(ii,jj,kk);
+            if (z <= z_iso) {
+                // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
+                const Real ToA  = T00 / TLP;
+                const Real disc = amrex::max(ToA*ToA - two*CONST_GRAV*z/(TLP*R_d), zero_d);
+                Pd = P00 * std::exp(-ToA + std::sqrt(disc));
+                Td = T00 + TLP * std::log(Pd/P00);
+            }
+            else if (!use_strat || z <= z_strat) {
+                // Isothermal layer: exponential decay with scale height R_d*TISO/g
+                Pd = P_iso * std::exp(-CONST_GRAV*(z - z_iso)/(R_d*TISO));
+                Td = TISO;
+            }
+            else {
+                // Upper stratosphere. Same quadratic as the troposphere with
+                // (TISO, TLP_STRAT, P_STRAT, z_strat) in place of (T00, TLP, P00, 0).
+                // NOTE: TLP_STRAT is negative, so the root must NOT be folded as
+                // sqrt(X)/TLP_STRAT -> sqrt(X/TLP_STRAT^2); that drops the sign.
+                const Real disc = amrex::max(TISO*TISO
+                                  - two*TLP_STRAT*CONST_GRAV*(z - z_strat)/R_d, zero_d);
+                Pd = P_STRAT * std::exp((-TISO + std::sqrt(disc))/TLP_STRAT);
+                Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
             }
 
-            // Fill HSE arrays (FOEXTRAP ghost cells)
-             r_hse_arr(i,j,k) = Rd;
-            th_hse_arr(i,j,k) = Thd;
-            qv_hse_arr(i,j,k) = Real(0.);
+            // Fill HSE arrays for balancing
              p_hse_arr(i,j,k) = Pd;
-            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
+            qv_hse_arr(i,j,k) = zero;
+             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
+            pi_hse_arr(i,j,k) = getExnergivenP(Pd, RdoCp_d);
         });
     }
 
     // **************************************************************************
-    // Rebalance the base state since state from WRFInput does not discretely
-    // satisfy dp0/dz = -rho0 g
+    // Rebalance the base state since state from WRFInput since it does not
+    // discretely satisfy dp0/dz = -rho0 g on the ERF grid
     // **************************************************************************
     int k_dom_lo = dom_lo.z;
     int k_dom_hi = dom_hi.z;
 
-    // The vertical integration below is seeded with the surface values (P00,T00),
-    // so these must be valid regardless of whether ALB was present in the file
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(P00) && (P00 > Real(0)) &&
-                                     std::isfinite(T00) && (T00 > Real(0)),
-                                     "Cannot rebalance the WRF base state: P00 and T00 must be positive");
+    // The vertical integration below is seeded with the analytic profile in the
+    // lowest cell of each column, z_cc(i,j,klo) and p_hse(i,j,klo), not with
+    // (P00,T00); read_base_state_params_from_wrfinput has already guaranteed that
+    // the parameters those were built from are positive and finite.
 
 #ifdef AMREX_USE_FLOAT
     Real tol  = Real(1.0e-6);
@@ -1846,50 +1936,46 @@ init_base_state_from_wrfinput (const Box& subdomain,
             AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
             bx.makeSlab(2,klo);
 
+            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
             const Array4<Real>&  p_hse_arr = p_hse.array(mfi);
             const Array4<Real>& pi_hse_arr = pi_hse.array(mfi);
-            const Array4<Real>& th_hse_arr = th_hse.array(mfi);
-            const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
 
-            const Array4<const Real>& z_arr = z_phys_nd->const_array(mfi);
+            const Array4<const Real>& th_hse_arr = th_hse.const_array(mfi);
+            const Array4<const Real>& z_cc_arr   = z_phys_cc->const_array(mfi);
 
             ParallelFor(bx, [=,RdoCp_d=RdoCp]
                         AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                // integrate from surface to domain top
-                Real dz, F, C;
-                Real rho_tot_hi, rho_tot_lo;
+                // Integrate from surface to domain top
+                Real T_hi;
                 Real z_lo, z_hi;
                 Real R_lo, R_hi;
                 Real Th_lo, Th_hi;
-                Real T_hi;
                 Real P_lo, P_hi;
+                Real rho_tot_hi, rho_tot_lo;
+
+                Real dz, F, C;
 
                 Real qv_lo = zero;
                 Real qv_hi = zero;
 
-                // First integrate from surface to first CC at klo
-                {
-                    // Vertical grid spacing
-                    z_lo = zero; // corresponding to p_0
-                    z_hi = Real(0.125) * ( z_arr(i,j,klo  ) + z_arr(i+1,j,klo  ) + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  )
-                                         + z_arr(i,j,klo+1) + z_arr(i+1,j,klo+1) + z_arr(i,j+1,klo+1) + z_arr(i+1,j+1,klo+1) );
+                z_lo =  z_cc_arr(i,j,klo);
+                P_lo = p_hse_arr(i,j,klo);
+                for (int k(klo+1); k<=khi; ++k) {
+                    z_hi = z_cc_arr(i,j,k);
+                    dz   = z_hi - z_lo;
 
-                    // dz == height of first cell center
-                    dz = z_hi - z_lo;
-
-                    // Known surface values
-                    P_lo  = P00;
-                    Th_lo = getThgivenTandP(T00, P00, RdoCp_d);
-                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d);
+                    // Establish known constant
+                    Th_lo = th_hse_arr(i,j,k-1);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
                     rho_tot_lo = R_lo;
                     C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                     // Initial guess and residual
-                    P_hi  = P_lo;
-                    Th_hi = th_hse_arr(i,j,klo);
+                    P_hi  =  p_hse_arr(i,j,k);
+                    Th_hi = th_hse_arr(i,j,k);
                     T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
                     rho_tot_hi = R_hi;
                     F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
@@ -1900,48 +1986,13 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                                  qv_hi, qv_hi,
                                                  P_hi, R_hi, F, maintain_Th);
 
-                    // At first cell center
-                     r_hse_arr(i,j,klo) = R_hi;
-                     p_hse_arr(i,j,klo) = P_hi;
-                    pi_hse_arr(i,j,klo) = getExnergivenP(p_hse_arr(i,j,klo), l_rdOcp);
+                    // Assign data
+                     r_hse_arr(i,j,k) = R_hi;
+                     p_hse_arr(i,j,k) = P_hi;
+                    pi_hse_arr(i,j,k) = getExnergivenP(P_hi, RdoCp_d);
 
                     P_lo = P_hi;
                     z_lo = z_hi;
-                }
-
-                for (int k(klo+1); k<=khi; ++k) {
-
-                  z_hi = Real(0.125) * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                       +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1));
-                  dz   = z_hi - z_lo;
-
-                  // Establish known constant
-                  Th_lo = th_hse_arr(i,j,k-1);
-                  R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
-                  rho_tot_lo = R_lo;
-                  C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
-
-                  // Initial guess and residual
-                  Th_hi = th_hse_arr(i,j,k);
-                  T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
-                  R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
-                  rho_tot_hi = R_hi;
-                  F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
-
-                  // Do iterations
-                  bool maintain_Th = true;
-                  HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
-                                               grav, C, Th_hi, T_hi,
-                                               qv_hi, qv_hi,
-                                               P_hi, R_hi, F, maintain_Th);
-
-                  // Assign data
-                   r_hse_arr(i,j,k) = R_hi;
-                   p_hse_arr(i,j,k) = P_hi;
-                  pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-
-                  P_lo = P_hi;
-                  z_lo = z_hi;
                 }
             });
     } // mfi

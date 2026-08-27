@@ -11,6 +11,14 @@ package, or stored diagnostic state; the tables below state those restrictions.
 Time-averaged velocity fields require ``erf.time_avg_vel = true``. Set
 ``erf.plot_face_vels = true`` to write the native staggered velocity components
 in separate face-centered outputs associated with the configured 3D stream.
+Interval mean, covariance, and resolved TKE fields require
+``erf.compute_mean_vars = true``; their averaging window is controlled by
+``erf.mean_vars_reset_mode`` and ``erf.mean_vars_reset_time``.
+In ``plotfile`` reset mode the window is global to both 3-D streams: every
+stream due at the same simulation time receives the same accumulated values,
+then ERF resets the accumulator once after the complete output batch. A due
+stream that does not select an interval diagnostic (for example, a
+``density``-only stream) does not reset the shared window.
 
 3D output variables
 -------------------
@@ -205,6 +213,70 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 | **umag_t_avg**              | time average of  |
 |                             | velocity mag     |
 |                             | [m/s]            |
++-----------------------------+------------------+
+| **u_mean**                  | interval mean of |
+|                             | x velocity [m/s] |
++-----------------------------+------------------+
+| **v_mean**                  | interval mean of |
+|                             | y velocity [m/s] |
++-----------------------------+------------------+
+| **w_mean**                  | interval mean of |
+|                             | z velocity [m/s] |
++-----------------------------+------------------+
+| **theta_mean**              | interval mean of |
+|                             | potential temp.  |
+|                             | [K]              |
++-----------------------------+------------------+
+| **uu_mean**                 | interval mean of |
+|                             | u squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vv_mean**                 | interval mean of |
+|                             | v squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **ww_mean**                 | interval mean of |
+|                             | w squared        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **uw_mean**                 | interval mean of |
+|                             | u times w        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vw_mean**                 | interval mean of |
+|                             | v times w        |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **wtheta_mean**             | interval mean of |
+|                             | w times theta    |
+|                             | [K m/s]          |
++-----------------------------+------------------+
+| **uu_fluct**                | resolved u       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vv_fluct**                | resolved v       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **ww_fluct**                | resolved w       |
+|                             | variance         |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **uw_fluct**                | resolved u-w     |
+|                             | covariance       |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **vw_fluct**                | resolved v-w     |
+|                             | covariance       |
+|                             | [m^2/s^2]        |
++-----------------------------+------------------+
+| **wtheta_fluct**            | resolved w-theta |
+|                             | covariance       |
+|                             | [K m/s]          |
++-----------------------------+------------------+
+| **tke_resolved**            | resolved TKE     |
+|                             | [m^2/s^2]        |
 +-----------------------------+------------------+
 | **rhoadv_0**                | Conserved scalar |
 |                             | [problem-dep.]   |
@@ -404,97 +476,140 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
 
-Fixed-field capability matrix
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Moisture variable selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Fixed moisture names are selected only when both the active scheme gives the
-source its documented physical meaning and the corresponding conserved or
-auxiliary component exists. A reduced scheme can retain a fixed-width state
-vector without making every slot a valid diagnostic. Unsupported requests are
-warned about and omitted before plotfile allocation.
+Every moisture plot variable -- the individual species, the aggregates, the
+surface accumulations and the moist diagnostics -- is selected from a single
+per-scheme index map, ``SolverChoice::moisture_indices`` (the
+``MoistureComponentIndices`` struct in ``Source/DataStructs/ERF_DataStruct.H``).
+A variable is written when, and only when, that map names the data behind it.
+The same map is used by the writer, so a name in the plotfile header and the
+data under it come from one place.
 
-The following matrix summarizes the fixed moisture capabilities. ``qv`` is
-vapor, ``qc`` is cloud liquid, ``qi`` is cloud ice, and ``qr``, ``qs``, and
-``qg`` are rain, snow, and graupel. ``N`` denotes the corresponding number
-concentration and ``A`` the corresponding accumulation field.
+The criterion is a valid index, not an allocated component. Several schemes
+allocate a wider moist state than they integrate -- the ``Morrison`` class always
+allocates eleven moist components, so ``Morrison_NoIce`` owns ice slots it never
+fills -- and a plotfile must not publish untouched storage as if it were data.
+Requests for a variable the active scheme does not carry are ignored rather than
+treated as an error, and the name does not reserve a plotfile component.
+
+Two kinds of index live in the map:
+
+* **Conserved-state components** for the species, i.e. one of ``RhoQ1`` through
+  ``RhoQ11``. These name the density-weighted species, so the writer divides by
+  the density to output a mixing ratio or a number per unit mass.
+* **qmoist slots** for the surface accumulations and moist diagnostics. Each
+  scheme chooses that layout for itself, so the slot numbers differ between
+  schemes and are recorded per scheme in the map.
+
+The species carried by each scheme, and the conserved component each one
+occupies:
 
 .. list-table::
    :header-rows: 1
-   :widths: 27 31 25 22
+   :widths: 24 38 38
 
-   * - Moisture type
-     - Mass fields
-     - Number fields
-     - Accumulations
+   * - Moisture model
+     - Mass species
+     - Number concentrations
    * - ``None``
      - none
      - none
-     - none
    * - ``MoistNoCondensation``
-     - qv
-     - none
+     - qv (Q1), qc (Q2)
      - none
    * - ``SatAdj``
-     - qv, qc
-     - none
+     - qv (Q1), qc (Q2)
      - none
    * - ``Kessler_NoRain``
-     - qv, qc
-     - none
+     - qv (Q1), qc (Q2)
      - none
    * - ``Kessler``
-     - qv, qc, qr
+     - qv (Q1), qc (Q2), qr (Q3)
      - none
-     - rain
    * - ``SAM_NoPrecip_NoIce``
-     - qv, qc
-     - none
+     - qv (Q1), qc (Q2)
      - none
    * - ``SAM_NoIce``
-     - qv, qc, qr
+     - qv (Q1), qc (Q2), qr (Q4)
      - none
-     - rain
    * - ``SAM``
-     - qv, qc, qi, qr, qs, qg
+     - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
      - none
-     - rain, snow, graupel
    * - ``Morrison_NoIce``
-     - qv, qc, qr
-     - Nc, Nr
-     - rain
+     - qv (Q1), qc (Q2), qr (Q4)
+     - nc (Q7), nr (Q9)
    * - ``Morrison``
-     - qv, qc, qi, qr, qs, qg
-     - Nc, Ni, Nr, Ns, Ng
-     - rain, snow, graupel
+     - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
+     - nc (Q7), ni (Q8), nr (Q9), ns (Q10), ng (Q11)
    * - ``WSM6``
-     - qv, qc, qi, qr, qs, qg
+     - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
      - none
-     - rain, snow, graupel
+   * - ``WDM6``
+     - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
+     - nc (Q7), nn (Q8), nr (Q9)
    * - ``SuperDroplets``
-     - qv, qc, qr
+     - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
      - none
-     - rain
 
-For ``SuperDroplets``, water vapor, cloud water, and rain water occupy the
-fixed ``RhoQ1``, ``RhoQ2``, and ``RhoQ3`` conserved components. The fixed
-``qv``, ``qc``, ``qrain``, ``qt``, ``qn``, and ``qp`` diagnostics are therefore
-available. For this scheme, ``qt = qv + qc + qrain``, ``qn = qv + qc``, and
-``qp = qrain``. Provider-generated names such as ``qv_<species>``,
-``qc_<species>``, and ``qt_<species>`` apply only to additional non-water
-condensable species. The fixed ``rain_accum``, ``rel_humidity``, and
-``condensation_rate`` names are available only when their documented
-auxiliary qmoist storage is present.
-The aggregate ``qt``, ``qn``, ``qp``, ``moist_density``, ``qsat``, and
-``precipitable`` fields additionally require their source-state bounds.
+Note that ``nn``, the CCN / total aerosol number, is not a hydrometeor count:
+it is an aerosol reservoir with no companion mass species, and it takes the
+conserved component that ``Morrison`` uses for cloud ice number. The two are
+mutually exclusive by scheme, and the map keeps them apart, so ``ni`` and
+``nn`` are never both selectable.
 
-In general, an aggregate fixed field is selected only when the complete
-inclusive q-component range used by its writer is present in the actual
-conserved state. SuperDroplets satisfies this rule for its q1:q3 water state.
+The accumulations and moist diagnostics available from each scheme's qmoist
+arrays:
 
-For the fixed mixed-phase layouts, ``qi`` is read from ``RhoQ3`` and
-``qrain`` from ``RhoQ4``. Warm-rain layouts have no ice component and place
-``qrain`` in ``RhoQ3``. Selection checks the exact source component used by
-the writer.
+.. list-table::
+   :header-rows: 1
+   :widths: 24 34 42
+
+   * - Moisture model
+     - Accumulations
+     - Moist diagnostics
+   * - ``Kessler``, ``SAM_NoIce``, ``Morrison_NoIce``
+     - ``rain_accum``
+     - none
+   * - ``SAM``, ``Morrison``, ``WSM6``, ``WDM6``
+     - ``rain_accum``, ``snow_accum``, ``graup_accum``
+     - none
+   * - ``SatAdj``
+     - none
+     - ``rel_humidity``, recovered from the conserved state
+   * - ``SuperDroplets``
+     - ``rain_accum``, ``snow_accum``
+     - ``rel_humidity``, ``condensation_rate``
+   * - all others
+     - none
+     - none
+
+``SuperDroplets`` allocates a graupel accumulation slot that nothing fills, so
+``graup_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist
+arrays at all: its ``rel_humidity`` is derived from the conserved state when the
+plotfile is written, which the map records with a distinct sentinel so the
+writer takes the right path.
+
+The aggregates are sums over the species the map hands out, so they follow the
+table above rather than a fixed component range:
+
+* ``qt`` sums every mass species. Number concentrations are counts, not masses,
+  and are excluded.
+* ``qn`` sums vapor and the suspended condensate: ``qv``, ``qc`` and, where the
+  scheme carries it, ``qi``.
+* ``qp`` sums the falling species: ``qr``, ``qs`` and ``qg``.
+* ``moist_density`` adds the ``qn`` sum to the dry density.
+* ``qsat`` and ``precipitable`` read vapor only, and so need any moist scheme.
+
+For example ``Kessler`` gives ``qt = qv + qc + qr``, ``qn = qv + qc`` and
+``qp = qr``, while ``Morrison_NoIce`` gives the same three sums even though it
+allocates the frozen species alongside them.
+
+Raw state requests behave the same way: ``rhoQ1`` through ``rhoQ11`` are
+selected when the map names that component for the active scheme, so
+``Morrison_NoIce`` offers ``rhoQ4`` and ``rhoQ7`` but not ``rhoQ3`` or
+``rhoQ8``. The dry state names remain bounded by the allocated state width.
 
 Terrain metric restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -531,7 +646,32 @@ every AMR level in the plotfile:
 
 * ``u_t_avg``, ``v_t_avg``, ``w_t_avg``, and ``umag_t_avg`` require
   ``erf.time_avg_vel = true``. If no samples have been accumulated yet, the
-  output value is defined as zero rather than dividing by zero.
+  output value is defined as zero rather than dividing by zero. The running
+  sum and its normalizer are saved in checkpoint files, so the averaging
+  window survives a restart; see :ref:`sec:Checkpoint`.
+
+  The ``*_t_avg`` fields are a long-running cumulative mean: the averaging
+  window never resets on its own and simply grows for the length of the run
+  (surviving restarts via the checkpoint). This is distinct from the
+  ``*_mean``/``*_fluct`` interval diagnostics below, whose averaging window is
+  short and resets periodically; use ``*_t_avg`` for a run-long mean flow and
+  ``*_mean``/``*_fluct`` for turbulence statistics over a controlled window.
+* ``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, all ``*_mean`` second
+  moments, all ``*_fluct`` resolved variances/covariances, and ``tke_resolved`` require
+  ``erf.compute_mean_vars = true``. For example,
+  ``uw_fluct = uw_mean - u_mean*w_mean`` and
+  ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
+  before the first sample is accumulated.
+
+  Note that the accumulator for a given level is rebuilt when that level is
+  regridded, so a regrid restarts the averaging window on the regridded level
+  while the other levels continue accumulating. In a multi-level run a
+  plotfile written shortly after a regrid can therefore contain interval
+  fields whose averaging windows differ from level to level, and the plotfile
+  itself carries no record of the per-level window length. The same is true of
+  the ``*_t_avg`` fields above. If a consistent window across levels matters
+  for the analysis, write the interval fields from a run without regridding,
+  or allow enough time after a regrid for the window to refill.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.
@@ -838,6 +978,9 @@ additional plot names. There is no universal static list for these fields.
 The current providers expose the following families:
 
 * Morrison exposes the 19 ``micro_*`` names listed in the section above.
+* WDM6 exposes number concentration fields: ``nn`` (CCN number concentration),
+  ``nc`` (cloud droplet number concentration), and ``nr`` (rain drop number concentration).
+  To output these, add them to your plot variables list (e.g., ``erf.plot_vars_1 = nn nc nr``).
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.

@@ -688,7 +688,7 @@ void WDM6::Advance(const Real& dt_advance,
     std::vector<int> micro_diag_target_column;
     {
         amrex::ParmParse pp("erf");
-        pp.query("microphysics_debug", microphysics_debug);
+        pp.queryAdd("microphysics_debug", microphysics_debug);
         pp.queryarr("micro_diag_target_column", micro_diag_target_column);
     }
     microphysics_debug = std::max(0, std::min(2, microphysics_debug));
@@ -696,7 +696,7 @@ void WDM6::Advance(const Real& dt_advance,
     bool use_wdm6_cpp_answer = false;
     {
         amrex::ParmParse pp("erf");
-        pp.query("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
+        pp.queryAdd("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
     }
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
 #endif
@@ -796,10 +796,18 @@ void WDM6::Advance(const Real& dt_advance,
                                                      + (z_arr(i+1,j+1,k+1) - z_arr(i+1,j+1,k)) ) : dz_val;
         });
 
+        // Surface slabs are anchored at klo, NOT at k = 0. The 2D buffers below
+        // are addressed with the ParallelFor's own k, while the 3D accumulation
+        // fields (rain_arr and friends, allocated on cons_in.boxArray()) are
+        // addressed at klo. Collapsing the slab to 0 makes those two agree only
+        // when klo happens to be 0, which is every case ERF can currently run
+        // because ERF_InitCustomPert_Bubble.H asserts each box spans the whole
+        // column. Anchoring at klo makes the correspondence hold by
+        // construction, and is bit-identical wherever klo == 0.
         Box box2d(box);
-        box2d.makeSlab(2, 0);
+        box2d.makeSlab(2, klo);
         Box fab_box2d(fab_box);
-        fab_box2d.makeSlab(2, 0);
+        fab_box2d.makeSlab(2, klo);
 
         // Create landmask array in the WRF xland encoding: 1 = land, 2 = water.
         // xland is handed to wdm62D's slmsk dummy unconverted (see the comment
@@ -858,6 +866,13 @@ void WDM6::Advance(const Real& dt_advance,
         });
 
         // (Tile-based diagnostics removed - using global diagnostics instead)
+
+        // Host-only Fortran reads mic_fab_vars and the buffers filled above via
+        // dataPtr(), so the GPU writes must complete before crossing the
+        // language boundary. Without this the Fortran can read delz, xland and
+        // the zeroed accumulators while their kernels are still in flight.
+        // Mirrors ERF_AdvanceWSM6.cpp.
+        Gpu::streamSynchronize();
 
         // Call Fortran WDM6
         mp_wdm6_run_c(
@@ -927,7 +942,13 @@ void WDM6::Advance(const Real& dt_advance,
         FArrayBox work1_fab(fab_box,3, Arena_Used);
         FArrayBox workn_fab(fab_box,1, Arena_Used);
         FArrayBox work2_fab(fab_box,1, Arena_Used);  // Ventilation factor for diffusion (G11+)
-        Box box2d(IntVect(ilo,jlo,0), IntVect(ihi,jhi,0));
+        // Anchored at klo, not 0. mstep/numdt/sr/fallc/delqi all live on this
+        // slab and are written with the ParallelFor's own k, while the G9
+        // accumulation block reads them back at klo alongside the 3D surface
+        // fields (rain_arr, delz_arr, work1_arr). With the slab at 0 those two
+        // conventions only coincide when klo == 0; sr_arr(i,j,klo) and
+        // fallc_arr(i,j,klo) were otherwise out of bounds on this FAB.
+        Box box2d(IntVect(ilo,jlo,klo), IntVect(ihi,jhi,klo));
         IArrayBox mstep_fab(box2d,1, Arena_Used);
         IArrayBox numdt_fab(box2d,1, Arena_Used);
         FArrayBox sr_fab(box2d, 1, Arena_Used);  // Snow ratio for G9 output
@@ -1396,7 +1417,7 @@ void WDM6::Advance(const Real& dt_advance,
             // ============================================================
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
-                const int col_mstep = mstep_arr(i,j,0);
+                const int col_mstep = mstep_arr(i,j,klo);
                 for (int n = 1; n <= mstepmax; ++n) {
                     if (n > col_mstep) {
                         continue;
@@ -1768,9 +1789,12 @@ void WDM6::Advance(const Real& dt_advance,
                     qi_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                 }
 
-                // Ice fallout at surface
-                fallc_arr(i,j,k) = delqi_col / dz_col(0) / dtcld;
-                delqi_arr(i,j,k) = delqi_col;
+                // Ice fallout at surface. Indexed at klo to match the G9 block
+                // below, which reads fallc_arr(i,j,klo); this lambda discards
+                // its own k (see ignore_unused above), so spelling the index
+                // out keeps the two sites textually identical.
+                fallc_arr(i,j,klo) = delqi_col / dz_col(0) / dtcld;
+                delqi_arr(i,j,klo) = delqi_col;
             });
 
 
@@ -1852,7 +1876,9 @@ void WDM6::Advance(const Real& dt_advance,
                     const Real qim = qi_arr(i,j,k);  // preserve old ice amount
 
                     qc_arr(i,j,k)   += qim;                           // qci(:,:,1) += qci(:,:,2)
-                    nc_arr(i,j,k)   += xni_arr(i,j,k);                // ncr(:,:,2) += xni
+                    if (qim > Real(qmin)) {
+                        nc_arr(i,j,k) += xni_arr(i,j,k);               // ncr(:,:,2) += xni
+                    }
                     t_arr(i,j,k)    -= xlf / cpm_arr(i,j,k) * qim;    // latent heat release
                     qi_arr(i,j,k)    = Real(0.0);                     // zero out ice
                 }
@@ -2193,6 +2219,10 @@ void WDM6::Advance(const Real& dt_advance,
                             nn_arr(i,j,k) = nn_arr(i,j,k) + nr_arr(i,j,k);
                             nr_arr(i,j,k) = Real(0.0);
                         }
+                    } else if (prevp_arr(i,j,k) == Real(0.0)) {
+                        // A zero kinetic rate must not become evaporation
+                        // through a negative saturation-rate limiter.
+                        prevp_arr(i,j,k) = Real(0.0);
                     } else {
                         prevp_arr(i,j,k) = amrex::min(prevp_arr(i,j,k), satdt / Real(2.0));
                     }

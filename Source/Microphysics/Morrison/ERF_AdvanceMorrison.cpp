@@ -186,7 +186,7 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         // Check if CPP or FORT answer is used
         ParmParse pp("erf");
         bool use_morr_cpp_answer = true;
-        pp.query("use_morr_cpp_answer", use_morr_cpp_answer);
+        pp.queryAdd("use_morr_cpp_answer", use_morr_cpp_answer);
 
         // Ensure that only one of these is true
         bool run_morr_cpp  =  use_morr_cpp_answer;
@@ -197,7 +197,7 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         // Allow user to override constant droplet concentration from inputs file
         // Constant droplet concentration (if INUM = 1)
         Real m_ndcnst = Real(250.0);  // Droplet number concentration (cm^-3)
-        pp.query("morrison_ndcnst", m_ndcnst);
+        pp.queryAdd("morrison_ndcnst", m_ndcnst);
 
         // Loop through the grids
         //

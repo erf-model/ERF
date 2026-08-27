@@ -1,0 +1,23 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+#
+# WDM6 DEFAULT CONFIGURATION variant of inputs_BF02_moist_bubble.
+#
+# Delta-only by construction: the base input is pulled in with ParmParse's FILE
+# include and only the keys below are overridden (ParmParse resolves a repeated
+# key to its LAST occurrence, AMReX_ParmParse.H:353). The base input is also
+# shared with the nightly Bubble_WSM6 regression test and must not be edited.
+#
+# This file demonstrates WDM6 with default settings:
+# - Graupel regime (wdm6.hail_opt = 0, the default)
+# - Continental autoconversion (erf.is_land = 1, the default)
+
+FILE = inputs_BF02_moist_bubble
+
+# ---- variant overrides only, below this line ----
+
+erf.moisture_model = WDM6
+
+# plot_vars_1 is deliberately NOT overridden: the campaign runner supplies the
+# 32-entry list including nc/nn/nr. A standalone invocation inherits the base
+# input's list, which omits the number concentrations -- pass them explicitly if
+# you need them outside the runner.

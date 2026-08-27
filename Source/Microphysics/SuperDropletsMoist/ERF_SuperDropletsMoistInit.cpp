@@ -40,40 +40,40 @@ void SuperDropletsMoist::readInputs ()
 
     // include phase change in super-droplet dynamics?
     m_flag_phase_change = true; //default
-    pp.query("include_phase_change", m_flag_phase_change);
+    pp.queryAdd("include_phase_change", m_flag_phase_change);
     // include advection in super-droplet dynamics?
     m_flag_advection = true; //default
-    pp.query("include_advection", m_flag_advection);
+    pp.queryAdd("include_advection", m_flag_advection);
     // include coalescence in super-droplet dynamics?
     m_flag_coalescence = true; //default
-    pp.query("include_coalescence", m_flag_coalescence);
+    pp.queryAdd("include_coalescence", m_flag_coalescence);
 
     // include cold processes?
     m_with_ice = true;
-    pp.query("include_cold_processes", m_with_ice);
+    pp.queryAdd("include_cold_processes", m_with_ice);
 
     // initial distribution type
     m_init_type = SDMoistInit::uniform;
-    pp.query("distribution_type", m_init_type);
+    pp.queryAdd("distribution_type", m_init_type);
 
     // minimum radius for rain
     m_r_rain = Real(4.0e-5); // 40 micrometers
-    pp.query("radius_raindrop", m_r_rain);
+    pp.queryAdd("radius_raindrop", m_r_rain);
 
     m_rime_ratio = 0.3;
-    pp.query("rime_mass_ratio", m_rime_ratio);
+    pp.queryAdd("rime_mass_ratio", m_rime_ratio);
 
     // whether to run in kinematic mode
     m_kinematic_mode = false;
-    pp.query("kinematic_mode", m_kinematic_mode);
+    pp.queryAdd("kinematic_mode", m_kinematic_mode);
 
     // simulation dimensionality
     m_dimensionality = SDMSimulationDim::three_d;
-    pp.query("dimensionality", m_dimensionality);
+    pp.queryAdd("dimensionality", m_dimensionality);
 
     // recycle super-droplets
     m_recycle_particles = false;
-    pp.query("recycle_particles", m_recycle_particles);
+    pp.queryAdd("recycle_particles", m_recycle_particles);
 
 
     // get vapour/condensate species names
@@ -125,18 +125,18 @@ void SuperDropletsMoist::readInputs ()
 
     // number of time steps between writing distribution  diagnostics to file
     m_diagnostics_iter = 1; //default
-    pp.query("diagnostics_interval", m_diagnostics_iter);
+    pp.queryAdd("diagnostics_interval", m_diagnostics_iter);
 
     // number of substeps for phase change process
     m_num_substeps_phase_change = 1; //default
-    pp.query("num_substeps_phase_change", m_num_substeps_phase_change);
+    pp.queryAdd("num_substeps_phase_change", m_num_substeps_phase_change);
 
     // let superdroplets relax to a physically correct size at initialization?
     m_init_phase_change = false; //default
-    pp.query("initial_phase_change_relaxation", m_init_phase_change);
+    pp.queryAdd("initial_phase_change_relaxation", m_init_phase_change);
     // time (in seconds) of initial relaxation
     m_init_phase_change_time = Real(10.0); //default
-    pp.query("initial_phase_change_relaxation_time", m_init_phase_change_time);
+    pp.queryAdd("initial_phase_change_relaxation_time", m_init_phase_change_time);
 
     return;
 }

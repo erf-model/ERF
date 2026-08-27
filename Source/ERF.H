@@ -23,6 +23,7 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
@@ -620,8 +621,11 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // Write plotfile to disk
-    void Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    bool Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
+                                                 bool interval_diagnostic_consumed);
+    void ResetIntervalMeans ();
 
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
@@ -747,6 +751,14 @@ public:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // The configured time reset is one global, one-shot event.  Keep this
+    // separate from the per-level accumulation storage so regridding a level
+    // cannot re-arm an event that has already happened.
+    int mean_vars_time_reset_done{0};
 #endif
 
     std::string pp_prefix {"erf"};
@@ -1011,6 +1023,10 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
+
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
@@ -1059,6 +1075,12 @@ private:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // Global one-shot time-reset state; interval_means remains per level.
+    int mean_vars_time_reset_done{0};
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
@@ -1412,6 +1434,10 @@ private:
                                                     "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
+                                                    // Interval means and resolved turbulence moments
+                                                    "u_mean", "v_mean", "w_mean", "theta_mean",
+                                                    "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved",
                                                     // eddy viscosity
                                                     "nut",
                                                     // eddy diffusivity of momentum
@@ -1446,9 +1472,13 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // NOTE: This is the set of derived variables that WriteSubvolume knows how to fill; it
+    //       is an unordered allow-list, since setSubVolVariables walks "derived_names" and
+    //       keeps the entries found here.  That means the names are selected in
+    //       "derived_names" order, which is the order WriteSubvolume must compute them in.
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar",
+                                                           "precipitable", "mucape"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1937,8 +1967,16 @@ private:
         return *eb[lev];
     }
 
+    //
+    // NOTE: this dereferences the cell-centered EB factory, which is only built when
+    //       we are using EB or immersed forcing -- see ERF::MakeNewLevelFromScratch.
+    //       Calling this in any other case is undefined behavior, so we assert here
+    //       rather than relying on the (build-dependent) libstdc++ hardening check.
+    //
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        AMREX_ASSERT(eb[lev]->get_const_factory() != nullptr);
         return *(eb[lev]->get_const_factory());
     }
 

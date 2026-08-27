@@ -41,6 +41,12 @@ Model overview and transported quantities in ERF
 | Double moment      | ``Morrison``            | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 |                    |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| WRF Single Moment  | ``WSM6``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
+| 6-class            |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| WRF Double Moment  | ``WDM6``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
+| 6-class            |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Predicted Particle | ``P3``                  | :math:`q_i` | :math:`q_r` | :math:`q_{rim}` | --          |
 | Properties         |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
@@ -48,6 +54,11 @@ Model overview and transported quantities in ERF
 | Method (SDM)       |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
+.. note::
+
+   **WDM6 additional outputs:** In addition to the mass mixing ratios listed above, WDM6 also outputs
+   number concentration fields: :math:`n_n` (CCN number concentration), :math:`n_c` (cloud droplet number
+   concentration), and :math:`n_r` (rain drop number concentration).
 
 Surface precipitation accumulations
 -----------------------------------
@@ -203,6 +214,272 @@ microphysics module in WRF.  For the relevant paper, please see Morrison et al, 
 The specific Fortran file which was ported was `module_mp_morr_two_moment.F`_
 
 .. _`module_mp_morr_two_moment.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_morr_two_moment.F
+
+
+WRF Single-Moment 6-Class (WSM6) Microphysics Model
+----------------------------------------------------
+
+Overview
+~~~~~~~~
+
+The WRF Single-Moment 6-class (WSM6) microphysics scheme is a bulk microphysics parameterization
+that predicts mass mixing ratios for water vapor and five hydrometeor species (cloud water, cloud
+ice, rain, snow, and graupel) but diagnoses number concentrations from assumed size distributions.
+WSM6 is suitable for simulating deep convection and winter precipitation.
+
+ERF's WSM6 implementation is derived from WRF's `module_mp_wsm6.F`_ and provides both CPU
+(via Fortran-C++ bridge) and GPU (native C++ implementation) execution paths.
+
+.. _`module_mp_wsm6.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_wsm6.F
+
+Prognostic Variables
+~~~~~~~~~~~~~~~~~~~~
+
+WSM6 transports the following mass mixing ratios (in addition to :math:`q_v` and :math:`q_c`):
+
+- :math:`q_i`: cloud ice mixing ratio
+- :math:`q_r`: rain water mixing ratio
+- :math:`q_s`: snow mixing ratio
+- :math:`q_g`: graupel mixing ratio
+
+Number concentrations are diagnosed from the predicted mass mixing ratios using assumed particle
+size distributions and prescribed particle properties. The distributions and associated parameters
+vary among hydrometeor species; for example, rain uses a Marshall–Palmer-type exponential distribution,
+while the snow intercept parameter has a temperature dependence.
+
+Implementation
+~~~~~~~~~~~~~~
+
+ERF provides two execution paths for WSM6:
+
+**CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
+Fortran-C interface. This path ensures reproducibility with WRF results and serves
+as a reference implementation.
+
+**GPU execution (native C++):** A native C++ implementation of all WSM6 microphysical processes
+enables efficient execution on GPUs.
+
+Configuration
+~~~~~~~~~~~~~
+
+WSM6 is enabled by setting the moisture model in the input file:
+
+.. code-block:: bash
+
+   erf.moisture_model = WSM6
+
+The default build uses native C++ code that can run on both CPU and GPU.
+For validation against WRF or reproducibility testing, the Fortran bridge
+can be enabled at build time:
+
+.. code-block:: bash
+
+   # CMake
+   cmake -DERF_ENABLE_WSM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+   # GNU Make
+   make USE_WSM6_FORT=TRUE PRECISION=DOUBLE ...
+
+When built with the Fortran bridge enabled, runtime selection is controlled by
+``erf.use_wsm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++).
+
+Output Variables
+~~~~~~~~~~~~~~~~
+
+WSM6 provides the following diagnostic outputs:
+
+- Surface precipitation accumulations: total (rain), snow, and graupel
+- All mass mixing ratios: :math:`q_v`, :math:`q_c`, :math:`q_i`, :math:`q_r`, :math:`q_s`, :math:`q_g`
+
+The surface precipitation fields are normalized to liquid-water-equivalent units of kg/m\ :sup:`2`.
+
+References
+~~~~~~~~~~
+
+The WSM6 scheme is documented in:
+
+- Hong, S.-Y., and J.-O. J. Lim, 2006: The WRF single-moment 6-class microphysics scheme (WSM6). J. Korean Meteor. Soc., 42, 129-151.
+
+The ERF implementation is derived from WRF's `module_mp_wsm6.F`_.
+
+Example Cases
+~~~~~~~~~~~~~
+
+WSM6 is used in several test cases:
+
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble``: Moist bubble test case (requires setting ``erf.moisture_model = WSM6`` to enable WSM6 physics; the default configuration uses Kessler)
+- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MRF_smag2d``: Hurricane Katrina simulation with WSM6 and MRF PBL scheme
+- ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MYJ_smag2d``: Hurricane Katrina simulation with WSM6 and MYJ PBL scheme
+
+
+WRF Double-Moment 6-Class (WDM6) Microphysics Model
+----------------------------------------------------
+
+Overview
+~~~~~~~~
+
+The WRF Double-Moment 6-class (WDM6) microphysics scheme extends WSM6 by adding double-moment
+(mass and number) prediction for warm-rain species while retaining single-moment (mass only)
+prediction for ice-phase species. WDM6 adds prognostic equations for cloud droplet number
+concentration (:math:`n_c`), rain drop number concentration (:math:`n_r`), and CCN
+number concentration (:math:`n_n`), enabling improved representation of cloud-aerosol
+interactions and warm-rain precipitation processes. Ice-phase species (cloud ice, snow, and
+graupel/hail) retain the single-moment treatment from WSM6.
+
+ERF's WDM6 implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_ and supports both
+CPU execution through the Fortran-C++ bridge and GPU execution through the native C++
+implementation. The scheme transports six water species (including water vapor) and three
+number concentration fields.
+
+.. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/v4.7.1/phys/module_mp_wdm6.F
+
+Prognostic Variables
+~~~~~~~~~~~~~~~~~~~~
+
+WDM6 transports the following state variables (in addition to :math:`q_v` and :math:`q_c`):
+
+**Mass mixing ratios:**
+
+- :math:`q_i`: cloud ice mixing ratio
+- :math:`q_r`: rain water mixing ratio
+- :math:`q_s`: snow mixing ratio
+- :math:`q_g`: graupel/hail mixing ratio
+
+**Number concentrations:**
+
+- :math:`n_n`: CCN number concentration
+- :math:`n_c`: cloud droplet number concentration
+- :math:`n_r`: rain drop number concentration
+
+The aerosol concentration :math:`n_n` serves as the source for cloud droplet activation, allowing
+the scheme to represent aerosol indirect effects on cloud and precipitation development.
+
+Implementation
+~~~~~~~~~~~~~~
+
+ERF provides two execution paths for WDM6:
+
+**CPU execution (Fortran bridge):** ERF calls a locally maintained version of the WRF Fortran
+implementation through a Fortran-C interface. The source was verified against WRF v4.7.1 and
+serves as the reference implementation for validation of the native C++ path.
+
+ERF applies two numerical consistency safeguards to both implementations:
+
+- **Cloud-droplet number tendency from cloud-ice melting:** Cloud-ice mass is still transferred
+  to cloud water, and the associated latent-heat tendency is unchanged. The diagnosed ice number
+  ``xni`` is transferred to cloud-droplet number only when the pre-melt cloud-ice mixing ratio
+  exceeds ``qmin``. This prevents numerically negligible ice mass from producing a finite
+  cloud-droplet-number tendency.
+
+- **Rain evaporation/condensation tendency (``prevp``):** An exactly zero kinetic rain
+  phase-change tendency remains zero. This prevents a negative saturation limiter (``satdt/2``)
+  from turning a zero-rate state into artificial rain evaporation and thereby changing the vapor,
+  rain-mass, and latent-heating tendencies.
+
+These safeguards differ from upstream WRF v4.7.1 when either condition is encountered. The
+Fortran bridge is therefore ERF's reference for native C++ validation but is not unconditionally
+bit-for-bit reproducible with upstream WRF.
+
+Future WRF updates can be assessed by visually diffing ``ERF_module_mp_wdm6.F90`` against the
+corresponding upstream ``phys/module_mp_wdm6.F`` and reviewing the documented ERF-specific
+changes as a separate patch.
+
+**GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
+enables efficient execution on GPUs. The native implementation can also run on CPUs.
+
+The implementation handles both graupel and hail regimes via the ``hail_opt`` parameter, which
+modifies fall speed coefficients and size distribution parameters for the graupel/hail category.
+
+Configuration
+~~~~~~~~~~~~~
+
+**Build Configuration**
+
+The default build uses native C++ code that can run on both CPU and GPU. The Fortran bridge can
+be enabled for validation of the native implementation and comparison with the WRF v4.7.1
+baseline:
+
+.. code-block:: bash
+
+   # CMake
+   cmake -DERF_ENABLE_WDM6_FORT=ON -DERF_PRECISION=DOUBLE ...
+
+   # GNU Make
+   make USE_WDM6_FORT=TRUE PRECISION=DOUBLE ...
+
+When built with the Fortran bridge enabled, runtime selection is controlled by
+``erf.use_wdm6_cpp_answer`` (0 = Fortran bridge, 1 = native C++). If the Fortran bridge
+is not enabled, then WDM6 will default to the C++ implementation.
+
+**Runtime Configuration**
+
+WDM6 is enabled by setting the moisture model in the input file:
+
+.. code-block:: bash
+
+   erf.moisture_model = WDM6
+
+Optional parameters control the graupel/hail regime and background aerosol concentration:
+
+.. code-block:: bash
+
+   # Graupel regime (default)
+   wdm6.hail_opt = 0
+
+   # Hail regime (modified graupel fall speeds and size distributions)
+   wdm6.hail_opt = 1
+
+   # Background CCN concentration (m^-3)
+   wdm6.ccn0 = 100.0e6
+
+The ``hail_opt`` parameter modifies five coefficients that control graupel/hail particle
+properties:
+
++-------------------------+--------------------+--------------------+
+| Coefficient             | Graupel (opt=0)    | Hail (opt=1)       |
++=========================+====================+====================+
+| :math:`N_{0g}`          | 4.0×10\ :sup:`6`   | 4.0×10\ :sup:`4`   |
++-------------------------+--------------------+--------------------+
+| :math:`\rho_g`          | 500 kg/m\ :sup:`3` | 700 kg/m\ :sup:`3` |
++-------------------------+--------------------+--------------------+
+| :math:`a_{vg}`          | 330.0              | 285.0              |
++-------------------------+--------------------+--------------------+
+| :math:`b_{vg}`          | 0.8                | 0.8                |
++-------------------------+--------------------+--------------------+
+| :math:`\lambda_{g,max}` | 6.0×10\ :sup:`4`   | 2.0×10\ :sup:`4`   |
++-------------------------+--------------------+--------------------+
+
+Output Variables
+~~~~~~~~~~~~~~~~
+
+WDM6 provides the following diagnostic outputs:
+
+- Surface precipitation accumulations: total (rain), snow, and graupel/hail
+- All mass mixing ratios: :math:`q_v`, :math:`q_c`, :math:`q_i`, :math:`q_r`, :math:`q_s`, :math:`q_g`
+- Number concentrations: :math:`n_n`, :math:`n_c`, :math:`n_r`
+
+The surface precipitation fields accumulate throughout the simulation and are normalized to
+liquid-water-equivalent units of kg/m\ :sup:`2` for consistent comparison across schemes.
+
+References
+~~~~~~~~~~
+
+The WDM6 scheme is documented in:
+
+- Lim, K.-S. S., and S.-Y. Hong, 2010: Development of an effective double-moment cloud microphysics scheme with prognostic cloud condensation nuclei (CCN) for weather and climate models. Mon. Wea. Rev., 138, 1587-1612, https://doi.org/10.1175/2009MWR2968.1.
+
+- Hong, S.-Y., and J.-O. J. Lim, 2006: The WRF single-moment 6-class microphysics scheme (WSM6). J. Korean Meteor. Soc., 42, 129-151.
+
+The ERF implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_.
+
+Example Cases
+~~~~~~~~~~~~~
+
+Three test cases demonstrate WDM6 capabilities:
+
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6``: Moist bubble with default WDM6 settings (graupel regime, continental autoconversion)
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_water``: Moist bubble with maritime (water) autoconversion (``erf.is_land = 0``)
+- ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble_wdm6_hail``: Moist bubble with hail regime (``wdm6.hail_opt = 1``)
 
 Single Moment (SAM) Microphysics Model
 ---------------------------------------
