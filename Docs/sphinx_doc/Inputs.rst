@@ -1785,6 +1785,13 @@ List of Parameters
 |                                     | initial sounding       |                   |                     |
 |                                     | profile                |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_u_z1**                | Bottom of the height   | Real [m]          | -1.0e36             |
+|                                     | range over which       |                   |                     |
+|                                     | u,v are nudged         |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_u_z2**                | Top of the same        | Real [m]          | 1.0e36              |
+|                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_t_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
 |                                     | range over which       |                   |                     |
 |                                     | potential temperature  |                   |                     |
@@ -1800,6 +1807,28 @@ List of Parameters
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_q_z2**                | Top of the same        | Real [m]          | 10000.0             |
 |                                     | range                  |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_u**                   | Nudge u,v towards the  | Boolean           | true                |
+|                                     | sounding when          |                   |                     |
+|                                     | nudging_from_input_\   |                   |                     |
+|                                     | sounding is true.      |                   |                     |
+|                                     | Does not affect        |                   |                     |
+|                                     | LSF-based wind nudging |                   |                     |
+|                                     | (see                   |                   |                     |
+|                                     | ``large_scale_forcing``|                   |                     |
+|                                     | above)                 |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_t**                   | Nudge potential        | Boolean           | true                |
+|                                     | temperature towards    |                   |                     |
+|                                     | the sounding when      |                   |                     |
+|                                     | nudging_from_input_\   |                   |                     |
+|                                     | sounding is true       |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_q**                   | Nudge water vapor      | Boolean           | true                |
+|                                     | towards the sounding   |                   |                     |
+|                                     | when                   |                   |                     |
+|                                     | nudging_from_input_\   |                   |                     |
+|                                     | sounding is true       |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.large_scale_forcing**         | Apply time-varying     | Boolean           | false               |
 |                                     | large-scale tendencies |                   |                     |
@@ -1956,13 +1985,20 @@ zonal and meridional velocity, and large scale vertical subsidence velocity.
 
 - Times are converted to elapsed seconds relative to the first timestamp in the file.
 
-- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
-  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+- Momentum, temperature, and moisture nudging can each be restricted to a custom height interval instead of
+  the entire domain with the ``erf.nudging_u_z1``/``erf.nudging_u_z2``, ``erf.nudging_t_z1``/``erf.nudging_t_z2``,
+  and ``erf.nudging_q_z1``/``erf.nudging_q_z2`` options, respectively. ``erf.nudging_u``, ``erf.nudging_t``, and
+  ``erf.nudging_q`` turn momentum, temperature, and moisture nudging on/off independently (all default to true).
 
-- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+- **NOTE:** All of the nudging described here, including LSF-based wind nudging, requires
+  ``erf.nudging_from_input_sounding = true``; none of it has any effect otherwise. When both
+  ``erf.nudging_from_input_sounding`` and ``erf.large_scale_forcing`` are true, the u and v velocities are nudged
   according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
-  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
-  sounding ``tau_nudging`` timescale.
+  ``erf.forcing_timescale``. Temperature and moisture are still nudged from the input sounding as normal, using the
+  input sounding ``tau_nudging`` timescale. In this case, wind nudging is controlled solely by
+  ``erf.large_scale_forcing`` and is unaffected by ``erf.nudging_u``, which only turns off/on
+  sounding-based wind nudging (and, likewise, ``erf.nudging_u_z1``/``erf.nudging_u_z2`` only restrict the
+  sounding-based branch).
 
 Example file format for large scale forcing:
 
@@ -3267,9 +3303,26 @@ Custom, Nudging and Numerical Diffusion Forcing
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_q_z2**                           | height above which moisture is not nudged              | Real                           | 10000.0                |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u_z1**                           | height below which u,v are not nudged                  | Real                           | -1.0e36                |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u_z2**                           | height above which u,v are not nudged                  | Real                           | 1.0e36                 |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t_z1**                           | height below which temperature is not nudged           | Real                           | 0.0                    |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t_z2**                           | height above which temperature is not nudged           | Real                           | 10000.0                |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u**                              | nudge u,v towards the sounding (takes effect only      | Boolean                        | true                   |
+|                                                | when ``nudging_from_input_sounding`` is true; does     |                                |                        |
+|                                                | not affect LSF-based wind nudging, see                 |                                |                        |
+|                                                | ``large_scale_forcing``)                               |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_t**                              | nudge potential temperature towards the sounding       | Boolean                        | true                   |
+|                                                | (takes effect only when ``nudging_from_input_sounding``|                                |                        |
+|                                                | is true)                                               |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_q**                              | nudge water vapor towards the sounding (takes          | Boolean                        | true                   |
+|                                                | effect only when ``nudging_from_input_sounding``       |                                |                        |
+|                                                | is true)                                               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.large_scale_forcing**                    | apply the large-scale forcing read from a forcing file | Boolean                        | false                  |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
