@@ -693,23 +693,12 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
-        // This option has been deprecated.
-        {
-            std::string lsm_string;
-            if (pp.queryAdd("land_surface_model", lsm_string) &&
-                amrex::toLower(lsm_string) == "oceansurf") {
-                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. ");
-            }
-        }
-
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
         // Will an external ocean coupler supply SST for part or all of the water
-        // cells this run? This is a configuration predicate, not a data-validity
-        // one: it says the coupled lane will be filled, not that any coupled step
-        // has run yet. The surface layer needs it at Define time to select
+        // cells this run? The surface layer needs to know this it in time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);

@@ -253,11 +253,8 @@ void
 ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
                                    amrex::DistributionMapping& dm)
 {
-    // The level-0 flattened cell layout. Coupled SST used to live in the
-    // OceanSurf LSM slot, whose BoxArray was grids[0] with setRange(2,0) on
-    // dmap[0] -- exactly ba2d[0]/dmap[0]. Nothing asserted that equality then;
-    // now that the LSM slot is gone we take ba2d[0] directly and assert the
-    // shape the driver depends on.
+    // The level-0 flattened cell layout.
+    // We take ba2d[0] directly and assert the shape the driver depends on.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !ba2d.empty() && ba2d[0].size() == grids[0].size(),
         "ERF::GetOceanToAtmosSurfaceLayout requires the level-0 2D layout after InitData.");
@@ -785,9 +782,7 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                              double time,
                              const amrex::iMultiFab* erf_coverage)
 {
-    // The gate is now "is coupled SST configured", not "which LSM was selected".
-    // The old gate compared against LandSurfaceType::OceanSurf, so a deck that
-    // misspelled the key got its ocean data dropped with no diagnostic.
+    // The gate is "is coupled SST configured"
     if (!solverChoice.use_coupled_sst) {
         if (!m_warned_coupled_sst_declined) {
             m_warned_coupled_sst_declined = true;
