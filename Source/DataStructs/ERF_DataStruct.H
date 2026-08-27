@@ -1083,12 +1083,37 @@ struct SolverChoice {
 
         pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
-        pp.queryAdd("nudging_q_z1", nudging_q_z1);
-        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+        int nudging_u_z1_set = pp.queryAdd("nudging_u_z1", nudging_u_z1);
+        int nudging_u_z2_set = pp.queryAdd("nudging_u_z2", nudging_u_z2);
         pp.queryAdd("nudging_t_z1", nudging_t_z1);
         pp.queryAdd("nudging_t_z2", nudging_t_z2);
+        pp.queryAdd("nudging_q_z1", nudging_q_z1);
+        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_u_z1 <= nudging_u_z2,
+            "nudging_u_z1 must be less than or equal to nudging_u_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_t_z1 <= nudging_t_z2,
+            "nudging_t_z1 must be less than or equal to nudging_t_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_q_z1 <= nudging_q_z2,
+            "nudging_q_z1 must be less than or equal to nudging_q_z2");
+
+        pp.queryAdd("nudging_u", nudging_u);
+        pp.queryAdd("nudging_t", nudging_t);
+        pp.queryAdd("nudging_q", nudging_q);
 
         pp.queryAdd("large_scale_forcing", large_scale_forcing);
+
+        if (nudging_from_input_sounding && large_scale_forcing) {
+            if (!nudging_u) {
+                amrex::Print() << "WARNING: erf.nudging_u = false has no effect when erf.large_scale_forcing "
+                                  "= true; momentum nudging is then controlled solely by large_scale_forcing.\n";
+            }
+            if (nudging_u_z1_set || nudging_u_z2_set) {
+                amrex::Print() << "WARNING: erf.nudging_u_z1/erf.nudging_u_z2 are ignored when "
+                                  "erf.large_scale_forcing = true; momentum nudging is then applied "
+                                  "at all heights.\n";
+            }
+        }
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
@@ -1958,10 +1983,16 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
-    amrex::Real nudging_q_z1 = zero;
-    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_u_z1 = amrex::Real(-1.0e36);
+    amrex::Real nudging_u_z2 = amrex::Real(1.0e36);
     amrex::Real nudging_t_z1 = zero;
     amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+
+    bool nudging_u = true;      // Nudge u,v when nudging_from_input_sounding is true
+    bool nudging_t = true;      // Nudge potential temperature when nudging_from_input_sounding is true
+    bool nudging_q = true;      // Nudge water vapor when nudging_from_input_sounding is true
 
     bool large_scale_forcing = false;
     std::string lsf_file = "";
