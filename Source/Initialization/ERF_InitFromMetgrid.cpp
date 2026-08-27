@@ -617,8 +617,8 @@ ERF::init_from_metgrid (int lev)
                 //     th_hse    calculate potential temperature
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
-                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
-                                             valid_bx, flag_psfc, cons_fab,
+                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
+                                             geom[lev].Domain(), valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
                                              qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab,
                                              bsp);
@@ -1338,6 +1338,7 @@ init_state_from_metgrid (const int  lev,
  * @param use_moisture bool True if solverChoice.moisture_type != MoistureType::None
  * @param metgrid_debug_psfc bool use 10**5 Pa as surface pressure when True
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param domain Box specifying the index space of the entire domain at this level
  * @param valid_bx Box specifying the index space we are to initialize
  * @param flag_psfc Int 1 if surface pressure is in metgrid data, 0 otherwise
  * @param state_fab FArrayBox object holding the state data to initialize
@@ -1354,6 +1355,8 @@ init_state_from_metgrid (const int  lev,
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
+                              const Real l_rdOcp,
+                              const Box& domain,
                               const Box& valid_bx,
                               const int& flag_psfc,
                               FArrayBox& state_fab,
@@ -1391,7 +1394,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_cc_arr = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx, [=,zero_d=zero,RdoCp_d=RdoCp]
+        ParallelFor(valid_bx, [=,zero_d=zero,RdoCp_d=l_rdOcp]
                     AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Analytical inversion with true CC heights, branching on the layer
@@ -1465,6 +1468,14 @@ init_base_state_from_metgrid (const bool use_moisture,
         int khi = ubound(valid_bx).z;
         int klo = lbound(valid_bx).z;
 
+        // Each column is seeded from the analytic profile at klo and integrated
+        // upward from there, which is only correct if klo is the bottom of the
+        // domain. Boxes that do not span the domain in z (erf.max_grid_size_z
+        // less than n_cell in z) would each re-seed and integrate independently.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == lbound(domain).z) && (khi == ubound(domain).z),
+                                         "init_base_state_from_metgrid requires boxes that span "
+                                         "the entire domain in the vertical direction");
+
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
@@ -1472,7 +1483,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
         auto const z_cc_arr = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
+        ParallelFor(valid_bx2d, [=,RdoCp_d=l_rdOcp]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Integrate from surface to domain top
@@ -1604,7 +1615,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto const new_z     = z_phys_cc_fab.const_array();
         auto const z_nd      = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=,RdoCp_d=RdoCp]
+        ParallelFor(valid_bx2d, [=,RdoCp_d=l_rdOcp]
                     AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
