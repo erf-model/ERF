@@ -68,7 +68,7 @@ public:
     {
         amrex::ParmParse pp("erf.rad");
         if (pp.contains("datalog")) {
-            pp.query("datalog", datalogname);
+            pp.queryAdd("datalog", datalogname);
 
             setRecordDataInfo(datalogname);
         }

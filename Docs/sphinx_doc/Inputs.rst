@@ -177,14 +177,14 @@ List of Parameters
 | **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
 |                                   | to fine grid       | (one per level) | levels      |
 |                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | subsequent levels, |                 |             |
+|                                   | in every direction |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
-|                                   | to fine grid       | (one per dir)   | directions  |
-|                                   | spacing between    |                 |             |
-|                                   | subsequent         |                 |             |
-|                                   | levels             |                 |             |
+|                                   | to fine grid       | per level, one  | levels and  |
+|                                   | spacing between    | per coordinate  | directions  |
+|                                   | subsequent levels, | direction       |             |
+|                                   | per direction      |                 |             |
 +-----------------------------------+--------------------+-----------------+-------------+
 | **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
 |                                   | regrid             | (if negative,   |             |
@@ -235,9 +235,18 @@ Examples of Usage
      may appear in that line and they will be ignored).
 
 -  | **amr.ref_ratio_vect** = 2 4 3
-   | would set factor {2 in x-dir, 4 in y-dir, 3 in z-dir} refinement between
-     all adjacent levels.    Note that you must specify 3 values, one for
-     each coordinate direction.
+   | with **amr.max_level** = 1, this would set factor {2 in x-dir, 4 in y-dir,
+     3 in z-dir} refinement between levels 0 and 1.  Note that you must specify
+     3 values for every refined level, i.e. 3 :math:`\times` **amr.max_level**
+     values in all, ordered (x,y,z) for level 0, then (x,y,z) for level 1, and
+     so on.  **amr.ref_ratio** and **amr.ref_ratio_vect** may not both be given.
+
+-  | **amr.ref_ratio_vect** = 2 2 1
+   | refines by a factor of 2 in x and y but not at all in z, so the fine level
+     has the same vertical grid spacing as the coarse level.  Note that
+     **amr.ref_ratio** cannot express this, since it applies a single ratio in
+     all three directions; see :ref:`MeshRefinement` for the distinction between
+     refining in z and creating a finer level over a region.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new
@@ -318,49 +327,89 @@ refinement.
 List of Parameters
 ------------------
 
-+----------------------------+----------------+----------------+----------------+
-| Parameter                  | Definition     | Acceptable     | Default        |
-|                            |                | Values         |                |
-+============================+================+================+================+
-| **amr.regrid_file**        | name of file   | text           | no file        |
-|                            | from which to  |                |                |
-|                            | read the grids |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.grid_eff**           | grid           | Real > 0, < 1  | 0.7            |
-|                            | efficiency at  |                |                |
-|                            | coarse level   |                |                |
-|                            | at which grids |                |                |
-|                            | are created    |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.n_error_buf**        | radius of      | Integer >= 0   | 1              |
-|                            | additional     |                |                |
-|                            | tagging around |                |                |
-|                            | already tagged |                |                |
-|                            | cells          |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer > 0    | 32             |
-|                            | of a grid in   |                |                |
-|                            | any direction  |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.blocking_factor**    | grid size must | Integer > 0    | 2              |
-|                            | be a multiple  |                |                |
-|                            | of this        |                |                |
-+----------------------------+----------------+----------------+----------------+
-| **amr.refine_grid_layout** | refine grids   | 0 if false, 1  | 1              |
-|                            | more if # of   | if true        |                |
-|                            | processors     |                |                |
-|                            | :math:`>` # of |                |                |
-|                            | grids          |                |                |
-+----------------------------+----------------+----------------+----------------+
++------------------------------+----------------------------------+-----------------+---------------------+
+| Parameter                    | Definition                       | Acceptable      | Default             |
+|                              |                                  | Values          |                     |
++==============================+==================================+=================+=====================+
+| **amr.regrid_file**          | name of file from which to read  | text            | no file             |
+|                              | the grids                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.grid_eff**             | grid efficiency at coarse level  | Real > 0, < 1   | 0.7                 |
+|                              | at which grids are created       |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf**          | radius of additional tagging     | Integer >= 0    | 0                   |
+|                              | around already tagged cells      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_x**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the x-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_y**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the y-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_error_buf_z**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
+|                              | the z-direction                  |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.n_proper**             | minimum number of coarse cells   | Integer > 0     | 2                   |
+|                              | between coarse-fine boundaries   |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size**        | maximum size of a grid in every  | Integer > 0     | 2048                |
+|                              | direction                        |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_x**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | x-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_y**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | y-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.max_grid_size_z**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
+|                              | z-direction                      |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor**      | grid size must be a multiple of  | Integer > 0     | 1                   |
+|                              | this in every direction          |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_x**    | grid size in x must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_y**    | grid size in y must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.blocking_factor_z**    | grid size in z must be a         | Integer > 0     | **blocking_factor** |
+|                              | multiple of this                 |                 |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout**   | chop grids further if # of       | 0 if false, 1   | 1                   |
+|                              | processors > # of grids          | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_x** | chop in x when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_y** | chop in y when refining the grid | 0 if false, 1   | 1                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
+| **amr.refine_grid_layout_z** | chop in z when refining the grid | 0 if false, 1   | 0                   |
+|                              | layout                           | if true         |                     |
++------------------------------+----------------------------------+-----------------+---------------------+
 
 .. _notes-2:
 
 Notes
 -----
 
+-  ERF changes several of the AMReX gridding defaults; the values in the table
+   above are the ERF defaults, and they are set in ``add_par`` in
+   ``Source/main.cpp``.  In particular **amr.max_grid_size** defaults to a very
+   large value (so that grids are chopped only when there are more processors
+   than grids), **amr.blocking_factor** defaults to 1, and
+   **amr.refine_grid_layout_z** defaults to 0 (the AMReX default is 1).
+
 -  **amr.n_error_buf**, **amr.max_grid_size** and
    **amr.blocking_factor** can be read in as a single value which is
    assigned to every level, or as multiple values, one for each level
+
+-  **amr.n_error_buf**, **amr.max_grid_size** and **amr.blocking_factor** apply
+   to all coordinate directions; the per-direction forms
+   **amr.n_error_buf_x/_y/_z**, **amr.max_grid_size_x/_y/_z** and
+   **amr.blocking_factor_x/_y/_z** override them in the specified direction
+   only, and may also be specified per level
 
 -  **amr.max_grid_size** at every level must be even
 
@@ -371,6 +420,10 @@ Notes
 
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
+
+-  **amr.refine_grid_layout** is a single flag that sets all three of
+   **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
+   specified it takes precedence in that direction
 
 .. _examples-of-usage-4:
 
@@ -407,6 +460,55 @@ Examples of Usage
 -  | **amr.blocking_factor** = 32 16 8
    | The dimensions of all the final grids will be multiples of 32 at
      level 0, multiples of 16 at level 1, and multiples of 8 at level 2.
+
+-  | **amr.max_grid_size_x** = 64
+   | **amr.max_grid_size_y** = 64
+   | The final grids will be no longer than 64 cells in the x and y
+     directions, but will not be limited in the z direction.  This is the
+     way to limit the horizontal box size without decomposing the grids
+     vertically.
+
+-  | **amr.refine_grid_layout_z** = 1
+   | Allow the grids to be chopped in the vertical direction as well as
+     horizontally when there are more processors than grids.  This is *not*
+     the ERF default.
+
+.. _subsec:no-vertical-decomposition:
+
+Avoiding Decomposition in the Vertical Direction
+------------------------------------------------
+
+Many ERF workflows want each box to span the full vertical extent of the domain
+or of the refined region -- for example because a physics package operates on
+entire columns.  (Native SHOC requires this and will abort if any box is split
+in z.)  ERF is set up so that this is the default behavior, in both places where
+grids are created:
+
+-  **When the level 0 grids are created**, ERF decomposes the domain across the
+   processors itself (see ``ERFPostProcessBaseGrids``).  It decomposes in the
+   vertical direction only if **amr.max_grid_size_z** is smaller than
+   **amr.n_cell** in the z direction.  Since **amr.max_grid_size** defaults to a
+   very large value, no vertical decomposition is done unless it is requested.
+
+-  **When grids are chopped to give at least one grid per processor**, either
+   during regridding at a finer level or when regridding level 0 on restart,
+   AMReX only chops in the directions for which the corresponding
+   **amr.refine_grid_layout_x/_y/_z** flag is set.  Because ERF defaults
+   **amr.refine_grid_layout_z** to 0, this load-balancing step never splits a
+   box in the vertical direction.
+
+The usual way to *accidentally* introduce a vertical decomposition is to set
+**amr.max_grid_size** as a single value, since that limits the box size in all
+three directions.  To limit the box size horizontally only, use the
+per-direction forms, e.g.
+
+::
+
+     amr.max_grid_size_x = 64
+     amr.max_grid_size_y = 64
+
+and leave **amr.max_grid_size_z** at its (large) default.  The same holds for
+**amr.blocking_factor** versus **amr.blocking_factor_x/_y**.
 
 .. _subsec:grid-generation:
 
@@ -687,13 +789,46 @@ Additional Plotfile Controls
 List of Parameters
 ~~~~~~~~~~~~~~~~~~
 
-+-------------------------------------+------------------------------+---------------------+---------+
-| Parameter                           | Definition                   | Acceptable Values   | Default |
-+=====================================+==============================+=====================+=========+
-| **erf.expand_plotvars_to_unif_rr**  | Expand plot variables to a   | Boolean             | false   |
-|                                     | uniform refinement ratio     |                     |         |
-|                                     | for mixed-refinement cases   |                     |         |
-+-------------------------------------+------------------------------+---------------------+---------+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 40 18 10
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - **erf.expand_plotvars_to_unif_rr**
+     - Expand plot variables to a uniform refinement ratio for mixed-refinement cases
+     - Boolean
+     - false
+   * - **erf.compute_mean_vars**
+     - Accumulate interval first and second moments for resolved plot diagnostics
+     - Boolean
+     - false
+   * - **erf.mean_vars_reset_mode**
+     - Reset moments after a complete 3-D plotfile batch or once at a specified time
+     - ``plotfile`` or ``time``
+     - ``plotfile``
+   * - **erf.mean_vars_reset_time**
+     - Reset time when reset mode is ``time``
+     - Real [s], >= 0
+     - -1.0
+
+When ``erf.compute_mean_vars = true``, ERF makes the interval fields
+``u_mean``, ``v_mean``, ``w_mean``, ``theta_mean``, the corresponding second
+moments, resolved variances/covariances, and resolved ``tke_resolved`` available to
+``erf.plot_vars_1`` and ``erf.plot_vars_2``. See
+:ref:`sec:Plotfile3DReference` for definitions. In ``time`` reset mode, the
+accumulator is reset once, at the first step whose start time is at or beyond
+``erf.mean_vars_reset_time``.
+In ``plotfile`` mode, a reset occurs only after all 3-D streams due at the
+same output event have been written and at least one emitted stream contains
+an interval diagnostic; a density-only stream does not close the shared
+averaging window.
+In either mode, regridding a level rebuilds that level's accumulator, so the
+averaging window restarts on the regridded level while the other levels keep
+accumulating. A plotfile written shortly after a regrid can therefore mix
+per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
 
 
 Screen Output
@@ -745,13 +880,14 @@ Diagnostic Outputs
 If ``erf.v`` is set then one or more additional output files may be requested.
 These are **useful for idealized, horizontally homogeneous simulation domains**
 and include (1) a surface time history file, (2) a history of mean profiles,
-(3) a history of vertical flux profiles (i.e., variances and covariances), and
-(4) a history of modeled subgrid stresses. The profiles are calculated from
-planar averages.
+(3) a history of vertical flux profiles (i.e., variances and covariances),
+(4) a history of modeled subgrid stresses, and (5) a history of large scale
+forcing and nudging data. The profiles are calculated from planar averages.
 
 The number of output filenames specified through ``erf.data_log`` dictates the
-level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3).
-Data files are only written if ``erf.profile_int > 0``.
+level of output. E.g., specifying 3 filenames will give outputs (1), (2), and (3);
+specifying 5 filenames will also include output (5). Data files are only written
+if ``erf.profile_int > 0``.
 
 This output functionality has not been implemented for terrain.
 For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfiles`.
@@ -766,7 +902,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.data_log**              | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to five     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.der_data_log**          | Output           | Up to four     | NONE           |
@@ -787,7 +923,7 @@ List of Parameters
 |                               | heights          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 
-By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
+All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
 that are destaggered by interpolating to cell centers where appropriate.
 Setting ``erf.destag_profiles = false`` will
 keep vertically staggered quantities on z faces -- quantities already at cell
@@ -911,6 +1047,41 @@ The requested output files have the following columns:
 
   #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
 
+* Large scale forcing and nudging profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. Total applied temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Total applied water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Large-scale subsidence velocity, :math:`w_{sub}` (m/s)
+
+  #. Horizontal temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Horizontal water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical temperature tendency, :math:`\partial \theta / \partial t` (K/s)
+
+  #. Vertical water vapor tendency, :math:`\partial q_v / \partial t` (kg/kg/s)
+
+  #. Vertical cloud water tendency, :math:`\partial q_c / \partial t` (kg/kg/s)
+
+  #. Temperature nudging tendency, :math:`\theta_{nudge}` (K/s)
+
+  #. Water vapor nudging tendency, :math:`q_{v,nudge}` (kg/kg/s)
+
+  #. X-velocity nudging tendency, :math:`u_{nudge}` (m/s2)
+
+  #. Y-velocity nudging tendency, :math:`v_{nudge}` (m/s2)
+
+.. note::
+
+   The vertical tendency columns are only populated for interior cells between
+   the bottom and top boundaries; they are zero at the domain edges.
+
 
 Data Sampling Outputs
 =====================
@@ -963,10 +1134,18 @@ the entire requested sampling line; velocities are also destaggered.
 
 The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
-"density", "x_velocity", "y_velocity", "z_velocity",
-"magvel", "theta", "qv", "qc", and "pressure". Velocities are output at cell centers only.
-The water vapor mixing ratio "qv" will only output valid values if a moisture model is used.
-Pressure is calculated from rho*theta and will account for moisture if qv is requested.
+``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
+``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
+``sgs_tke``, ``sgs_tau13``, ``sgs_tau23``, and ``sgs_hfx3``. The SGS stress and
+heat-flux values are averaged from their native edge/face locations to cell
+centers; if their diffusion storage is unavailable, ERF writes zero. Velocities
+are output at cell centers only. The water vapor mixing ratio ``qv`` will only
+output valid values if a moisture model is used. Pressure is calculated from
+rho*theta and will account for moisture if ``qv`` is requested.
+``sgs_tke`` is zero unless the selected level has a prognostic TKE closure
+(``Deardorff``, k-equation RANS, MYJ/MYNN, or a SHOC-family PBL); Smagorinsky
+and ``les_type = None`` do not provide prognostic TKE and their unused state
+slot is never sampled.
 
 .. _list-of-parameters-10b:
 
@@ -1018,7 +1197,9 @@ List of Parameters
 |                                   | plotfiles        |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
-|                                   | variables        |                |                |
+|                                   | variables; SGS   |                |                |
+|                                   | fields are line- |                |                |
+|                                   | only             |                |                |
 +-----------------------------------+------------------+----------------+----------------+
 | **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
 |                                   | variables        |                |                |
@@ -1377,6 +1558,105 @@ initialization are applied.
 Parameters for PBL schemes can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+Forest Canopy
+=============
+
+Forest drag can be configured either with the existing discrete-patch text file
+or with gridded NetCDF fields. The two modes are mutually exclusive. A complete
+file configuration enables forest drag automatically; if ``erf.do_forest_drag``
+is specified explicitly, its value must agree with the presence or absence of
+that configuration. See :ref:`sec:Forest` for the LAD profiles and the scoped
+fixed-leaf-temperature exchange equations.
+
+The gridded mode requires NetCDF support and both ``forest_lai_file`` and
+``forest_height_file``. Supply exactly one of ``forest_cd_file`` and the
+constant ``forest_cd``. The LAI, height, and optional drag-coefficient files
+must share the same horizontal grid. ERF reads variables named ``LAI``,
+``height``, and ``cd``; each may be two-dimensional or have a leading time
+dimension, in which case the first time record is used. Coordinates must be
+projected Cartesian ``x``/``y``; raw ``lon``/``lat`` coordinates are rejected
+because ERF does not silently reinterpret degrees as meters. Each horizontal direction must contain
+at least two finite, strictly increasing, uniformly spaced coordinates. All
+forest fields must match the LAI dimensions, spacing, and horizontal origin;
+ERF rejects misregistered fields before interpolation. A coordinate pair is
+required; ERF does not assume a unit-spacing grid when metadata is absent.
+
+.. list-table:: Forest canopy parameters
+   :header-rows: 1
+   :widths: 28 45 17 12
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - **erf.do_forest_drag**
+     - Optional consistency switch for forest drag
+     - Boolean
+     - false
+   * - **erf.forest_file**
+     - Discrete-patch canopy text file
+     - String
+     - None
+   * - **erf.forest_lai_file**
+     - Gridded NetCDF file containing ``LAI``
+     - String
+     - None
+   * - **erf.forest_height_file**
+     - Gridded NetCDF file containing canopy ``height`` [m]
+     - String
+     - None
+   * - **erf.forest_cd_file**
+     - Gridded NetCDF file containing ``cd``
+     - String
+     - None
+   * - **erf.forest_cd**
+     - Spatially constant drag coefficient; mutually exclusive with ``forest_cd_file``
+     - Real
+     - None
+   * - **erf.forest_tree_type**
+     - Vertical LAD profile: uniform or Lalic--Mihailovic
+     - 1 or 2
+     - 1
+   * - **erf.forest_laimax**
+     - Fraction of canopy height at maximum LAD for tree type 2; must satisfy ``0 <= laimax < 1``
+     - Real
+     - 0.8
+   * - **erf.forest_substep**
+     - Apply canopy momentum source during fast substeps
+     - Boolean
+     - false
+   * - **erf.forest_biophysics**
+     - Master switch for the scoped canopy exchange path
+     - Boolean
+     - false
+   * - **erf.forest_biophysics_heat**
+     - Apply fixed-leaf-temperature sensible and latent exchange
+     - Boolean
+     - false
+   * - **erf.forest_leaf_theta_fixed**
+     - Prescribed leaf potential temperature [K]; required and positive when heat exchange is enabled
+     - Real [K]
+     - None
+
+``erf.forest_biophysics_heat = true`` requires
+``erf.forest_biophysics = true`` and a positive
+``erf.forest_leaf_theta_fixed``.
+
+For example, a gridded canopy with fixed leaf potential temperature can be
+configured as follows:
+
+::
+
+   erf.do_forest_drag          = true
+   erf.forest_lai_file         = canopy_lai.nc
+   erf.forest_height_file      = canopy_height.nc
+   erf.forest_cd               = 0.15
+   erf.forest_tree_type        = 2
+   erf.forest_laimax           = 0.6
+   erf.forest_biophysics       = true
+   erf.forest_biophysics_heat  = true
+   erf.forest_leaf_theta_fixed = 301.0
+
 Forcing Terms
 =============
 
@@ -1538,9 +1818,6 @@ List of Parameters
 | **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.forest_file**                 | Name(s) of the         | String            | None                |
-|                                     | canopy forest file     |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | 0.0                 |
 |                                     | input sounding file(s) |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
@@ -1645,6 +1922,64 @@ with an ``erf.abl_geo_wind_table``.
 - Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
   See :ref:`sec:WindFarmModels` for theory and examples.
+
+
+Large Scale Forcing
+--------------------
+
+Large-scale forcing can be used to prescribe time-varying vertical profiles for
+temperature, water vapor, horizontal wind, and vertical subsidence.
+To enable it, set::
+
+  erf.large_scale_forcing      = true
+  erf.large_scale_forcing_file = lsf.txt
+  erf.forcing_timescale        = 3600.0
+
+where ``erf.large_scale_forcing_file`` is the path to a text file containing the
+large scale forcing data and ``erf.forcing_timescale`` is the relaxation timescale
+(in seconds) for nudging velocities. The file contains one or more time blocks, where each time
+block is denoted with a header containing the day, number of levels in the block, and reference
+pressure for that time. Each row of data in the block contains ``z, p, tls, qls, uls, vls, wls``
+corresponding to level height, pressure, large scale temperature and moisture tendency, large scale
+zonal and meridional velocity, and large scale vertical subsidence velocity.
+
+- Either a height grid ``z[m]`` or pressure grid ``p[mb]`` can be provided, where one can be a negative number
+  to indicate the other grid type should be used (e.g. if the ``z`` values are negative, the file is
+  interpreted as pressure-level data instead of height-level data). If both grids are provided, then the ``z`` grid is used.
+
+- The large scale forcing grid is interpolated to the ERF grid, similar to the input sounding.
+
+- ``erf.forcing_timescale`` is the relaxation time scale used when nudging the
+  horizontal velocities toward the ``uls`` and ``vls`` profiles. The
+  temperature, moisture, and subsidence tendencies are applied directly and
+  are not scaled by this option.
+
+- Times are converted to elapsed seconds relative to the first timestamp in the file.
+
+- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
+  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+
+- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+  according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
+  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
+  sounding ``tau_nudging`` timescale.
+
+Example file format for large scale forcing:
+
+.. code-block:: text
+
+   z[m] p[mb]  tls[K/s] qls[kg/kg/s] uls  vls  wls[m/s]
+   0.0,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.0  0.0  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.5  0.2  0.000e+00
+   1000.0   900.00 -5.000e-06  0.000e+00  2.0  1.0  0.000e+00
+   5000.0   500.00 -1.000e-05  0.000e+00  6.0  3.0  0.000e+00
+   0.5,   4, 1000.0  day, levels, pres0
+      0.0  1000.00  0.000e+00  0.000e+00  0.2  0.1  0.000e+00
+    100.0   990.00  0.000e+00  0.000e+00  0.7  0.3  0.000e+00
+   1000.0   900.00 -2.500e-06  0.000e+00  2.5  1.2  0.000e+00
+   5000.0   500.00 -8.000e-06  0.000e+00  6.5  3.2  0.000e+00
+
 
 Boundary Plane I/O (Coupling Support)
 =====================================
@@ -1802,9 +2137,10 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.use_wrf_height_grid**      | use z heights       |  Boolean           | false                 |
-|                                  | from wrfinput or    |                    |                       |
-|                                  | make our own?       |                    |                       |
+| **erf.avg_grid_faces_to_nodes**  | avg z heights       |  Boolean           | false                 |
+|                                  | from z-face data in |                    |                       |
+|                                  | wrfinput/metgrid or |                    |                       |
+|                                  | make our own grid?  |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  Boolean           | true                  |
 |                                  | from wrfinput and   |                    |                       |
@@ -1959,8 +2295,41 @@ with an embedded boundary / cut cell representation.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
 
-The height at the surface nodes can be defined analytically or read from a text file
-specified by ``erf.terrain_file_name``.  The ordering of data in the file is first
+The height at the surface nodes can be defined analytically, read from a text file
+specified by ``erf.terrain_file_name``, or read from a NetCDF file specified by
+``erf.terrain_file_name_nc``. The NetCDF option requires NetCDF support and takes
+precedence when both inputs are present. The explicit Cartesian format uses a
+height variable named ``height``, ``z``, ``terrain``, ``HGT_M``, or ``AGL`` with
+dimensions ``(y,x)`` or ``(time,y,x)`` (time must be the leading dimension).
+It must also provide one-dimensional, finite, strictly increasing, uniformly
+spaced ``x`` and ``y`` coordinate variables matching the height dimensions;
+ERF reads the first time record when one is present.
+
+A genuine WPS ``geo_em`` file may instead provide
+``HGT_M(Time,south_north,west_east)`` without Cartesian ``x``/``y`` variables.
+It must provide matching first-time-record ``XLAT_M`` and ``XLONG_M`` fields and
+the WPS global attributes ``MAP_PROJ``, ``CEN_LAT``, ``CEN_LON``, ``STAND_LON``,
+``DX``, ``DY``, ``WEST-EAST_GRID_DIMENSION``, and
+``SOUTH-NORTH_GRID_DIMENSION``. ERF supports Lambert (1), polar (2), and
+Mercator (3) WPS projections; Lambert additionally requires ``TRUELAT1`` and
+``TRUELAT2``, while the other two require ``TRUELAT1``. The latitude/longitude
+projection (6) is rejected, because WPS writes ``DX``/``DY`` in degrees for it
+while ERF consumes them as metres. ``HGT_M``, ``XLAT_M``, and ``XLONG_M`` must
+have the exact ``(Time,south_north,west_east)`` order, and the first time
+record is selected.
+The WPS grid dimensions, ``DX``/``DY``, and domain extent must match the ERF
+level-0 Cartesian geometry.
+
+WPS fields are mass-point fields. ERF maps their logical mass-point locations
+to terrain nodes using ``x_mass = x_lo + (i+1/2) DX`` and
+``y_mass = y_lo + (j+1/2) DY``. At the four outer node edges, where no WPS mass
+point exists, ERF holds the nearest mass-point value (an explicit one-sided
+mass-to-node conversion); this is not general extrapolation. For both formats,
+bilinear interpolation includes the final coordinate. Explicit Cartesian
+terrain nodes genuinely outside the file grid are assigned zero, and malformed
+or nonfinite WPS metadata, coordinates, or heights are rejected.
+
+For the text format, the ordering of data in the file is first
 nx, ny (where nx is the number of values specified in the x-direction and
 ny is the number of values specified in the y-direction; note that these need not match
 the resolution of the problem).  Then nx x-values are read followed by ny y-values.   Finally,
@@ -1985,6 +2354,9 @@ List of Parameters
 |                             |                    | 2                  |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_file_name**   | filename           | String             | NONE       |
++-----------------------------+--------------------+--------------------+------------+
+| **erf.terrain_file_name_nc**| NetCDF terrain     | String             | NONE       |
+|                             | filename           |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
 
 Examples of Usage
@@ -2220,6 +2592,15 @@ Notes
   is honored independently, so specifying one does not change how the others are obtained.
 
 The lookup data may be downloaded as a package from `here <https://doi.org/10.22002/ppv8a-4q131>`_.
+The k-distribution files are also shipped with the RRTMGP submodule in
+``Submodules/RRTMGP/rrtmgp/data``, and the cloud optics files in
+``Submodules/RRTMGP/extensions/cloud_optics``.
+
+All four files are expected in the single directory named by ``erf.rrtmgp_file_path``, which
+is resolved relative to the run directory (not to the location of the inputs file). ERF checks
+for them while constructing the radiation interface and aborts with a message listing the
+directory and any missing file, so a mis-set path is reported at startup rather than as a
+netCDF "No such file or directory" error.
 
 .. note::
 
@@ -2680,12 +3061,13 @@ Initialization, Terrain and Vertical Mesh
 |                                                | levels; specifying these makes the mesh type           |                                |                        |
 |                                                | ``StretchedDz``.  See :ref:`sec:Meshing`               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_wrf_height_grid**                    | use the vertical grid from the ``wrfinput`` file       | Boolean                        | false                  |
-|                                                | rather than generating one                             |                                |                        |
+| **erf.avg_grid_faces_to_nodes**                | average the ``wrfinput`` / ``met_em`` heights onto the | Boolean                        | false                  |
+|                                                | nodes rather than reconstructing nodal heights whose   |                                |                        |
+|                                                | four-node average reproduces them                      |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.rebalance_wrf_input**                    | rebalance (hydrostatically re-integrate) the state     | Boolean                        | true                   |
 |                                                | read from ``wrfinput`` and ``wrfbdy``.  Forced to true |                                |                        |
-|                                                | if ``use_wrf_height_grid`` is false                    |                                |                        |
+|                                                | if ``avg_grid_faces_to_nodes`` is false                |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 
 Physics Model Selection
@@ -2727,7 +3109,21 @@ Implicit Vertical Diffusion
 These parameters control the time-centering of the vertical differences in the
 diffusive terms.  The implicit solve is turned off automatically if there is no
 molecular or turbulent diffusion, if the level is anelastic, if ``terrain_type``
-= ``EB``, or if a SHOC-family PBL scheme is active.
+= ``EB``, or if the active PBL scheme owns *all* of the vertical diffusion
+itself.  That last case covers ``erf.pbl_type = EAMXX_SHOC`` (which always owns
+both scalar and momentum diffusion) and ``erf.pbl_type = NATIVE_SHOC`` when
+``erf.shoc.transport_mode = state_update`` *and*
+``erf.shoc.momentum_transport`` is ``state_update`` or ``none``.
+
+When a SHOC-family scheme is active, the ``erf.implicit_*_diffusion`` flags are
+additionally restricted to the components that SHOC hands back to the host:
+``erf.shoc.momentum_transport = host_diffusion`` (the native default) keeps
+``erf.implicit_momentum_diffusion``, and ``erf.shoc.transport_mode =
+host_diffusion`` keeps ``erf.implicit_thermal_diffusion``,
+``erf.implicit_moisture_diffusion``, and ``erf.implicit_ke_diffusion``.
+Requesting a component that SHOC owns is ignored, with a message in the run
+log.  ``erf.vert_implicit`` and ``erf.vert_implicit_fac`` are always honored,
+so the solve can still be disabled entirely from the inputs file.
 
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | Parameter                                      | Definition                                             | Acceptable Values              | Default                |

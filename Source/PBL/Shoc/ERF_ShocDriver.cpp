@@ -348,6 +348,9 @@ ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
       m_moisture_type(solver_choice.moisture_type),
       m_moisture_indices(solver_choice.moisture_indices)
 {
+    m_opts.transport_mode     = solver_choice.shoc_transport_mode;
+    m_opts.momentum_transport = solver_choice.shoc_momentum_transport;
+
     read_shoc_runtime_options(m_opts);
     validate_shoc_runtime_options(m_opts);
     warn_if_shoc_debug_overrides_active_once(m_opts);

@@ -27,7 +27,7 @@ public:
     InputSoundingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("tau_nudging", tau_nudging);
+        pp.queryAdd("tau_nudging", tau_nudging);
 
         // Read in input_sounding filename
         n_sounding_files = pp.countval("input_sounding_file");
@@ -140,8 +140,14 @@ public:
             // *************************************************************************************************
             amrex::ParmParse pp_erf("erf");
 
-            amrex::Real surf_temp;
-            bool surf_temp_specified = pp_erf.query("most.surf_temp", surf_temp);
+            // Negative sentinel rather than the queryAdd return value: an absolute
+            // temperature is never negative, and the return value only reports whether
+            // the key existed before this call.  ERF_SurfaceLayer.H parses the same key,
+            // so testing the return would report "specified" here whenever that site ran
+            // first.  This was also an uninitialized read before.
+            amrex::Real surf_temp = amrex::Real(-1.0);
+            pp_erf.queryAdd("most.surf_temp", surf_temp);
+            bool surf_temp_specified = (surf_temp > amrex::Real(0.0));
             if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
@@ -152,8 +158,11 @@ public:
             // Make sure that if we specify surface values for qv in the inputs file and in the input sounding file,
             //      those values must match
             // *************************************************************************************************
-            amrex::Real surf_moist;
-            bool surf_moist_specified = pp_erf.query("most.surf_moist", surf_moist);
+            // Negative sentinel, as for most.surf_temp above: a mixing ratio is never
+            // negative, and ERF_SurfaceLayer.H parses this same key.
+            amrex::Real surf_moist = amrex::Real(-1.0);
+            pp_erf.queryAdd("most.surf_moist", surf_moist);
+            bool surf_moist_specified = (surf_moist >= amrex::Real(0.0));
             if ( surf_moist_specified && (surf_moist != qv_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding qv does not match most.surf_moist" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
