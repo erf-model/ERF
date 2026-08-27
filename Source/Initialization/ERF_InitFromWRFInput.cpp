@@ -100,7 +100,8 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
  * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
  * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
  * @param[out] dz0_max Maximum first-layer thickness.
- * @param[in] avg_grid_faces_to_nodes Whether to average the ERF height grid at from z-faces.
+ * @param[in] avg_grid_faces_to_nodes Whether to average the wrfinput heights onto the nodes
+ *                                   rather than reconstructing nodal heights from them.
  */
 void
 init_terrain_from_wrfinput (int lev,
@@ -2426,6 +2427,6 @@ init_terrain_from_wrfinput (int /*lev*/,
                       "Consider running with erf.avg_grid_faces_to_nodes = true.");
             }
         }
-    } // average_erf_grid
+    } // avg_grid_faces_to_nodes
 }
 #endif // ERF_USE_NETCDF

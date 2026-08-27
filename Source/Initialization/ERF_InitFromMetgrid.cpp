@@ -7,6 +7,8 @@
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_NodalReconstruction.H"
 
+#include <AMReX_Reduce.H>
+
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
@@ -331,6 +333,60 @@ ERF::init_from_metgrid (int lev)
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev],
                                        zlevels_stag[lev], phys_bc_type);
+
+            // Verify the mesh before it is handed to make_J.
+            //
+            // The nodal surface is either an average of HGT_M or a regularized
+            // reconstruction of it.  The reconstruction only guarantees that the
+            // nodal heights stay within a slack of the range of HGT_M -- it
+            // explicitly permits over/undershoot where the terrain is under
+            // resolved -- so steep, grid-scale metgrid terrain can pass that
+            // check and still yield a degenerate or inverted first layer.  Since
+            // reconstruction is the default here, check now rather than letting a
+            // bad Jacobian propagate.  This mirrors the check that
+            // init_terrain_from_wrfinput does on its reconstructed levels.
+            {
+                Print() << "Verifying grid integrity" << std::endl;
+
+                const int klo_nd = convert(geom[lev].Domain(), IntVect(1,1,1)).smallEnd(2);
+
+                ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+                ReduceData<Real, Real> reduce_data(reduce_op);
+                using ReduceTuple = typename decltype(reduce_data)::Type;
+
+                for ( MFIter mfi(*z_phys_nd[lev]); mfi.isValid(); ++mfi ) {
+                    Box vbx = mfi.validbox();
+                    if (klo_nd < vbx.smallEnd(2) || klo_nd >= vbx.bigEnd(2)) { continue; }
+
+                    const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+                    reduce_op.eval(makeSlab(vbx,2,klo_nd), reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                    {
+                        return {z_arr(i,j,k+1) - z_arr(i,j,k), std::fabs(z_arr(i,j,k))};
+                    });
+                } // mfi
+
+                ReduceTuple hv  = reduce_data.value(reduce_op);
+                Real min_dz     = amrex::get<0>(hv);
+                Real max_abs_z  = amrex::get<1>(hv);
+                ParallelAllReduce::Min(min_dz   , ParallelContext::CommunicatorAll());
+                ParallelAllReduce::Max(max_abs_z, ParallelContext::CommunicatorAll());
+
+                Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+                if (!std::isfinite(min_dz) || !std::isfinite(max_abs_z)) {
+                    Error("Non-finite nodal heights produced from the metgrid terrain");
+                }
+                if (min_dz <= zero) {
+                    std::string msg("The metgrid terrain gives a non-positive first layer "
+                                    "thickness; the terrain is too rough to represent on the "
+                                    "ERF nodal mesh.");
+                    if (!solverChoice.avg_grid_faces_to_nodes) {
+                        msg += "  Consider running with erf.avg_grid_faces_to_nodes = true.";
+                    }
+                    Error(msg);
+                }
+            }
 
             // This makes the Jacobian.
             make_J(geom[lev], *z_phys_nd[lev], *detJ_cc[lev]);
@@ -680,11 +736,25 @@ init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
 {
     Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-    // HGT_M is a single level of surface heights on the (cell-centered) mass grid
-    const Box hgt_box = makeSlab(NC_hgt_fab.box(), 2, 0);
+    // HGT_M is a single level of surface heights on the (cell-centered) mass grid.
+    // BuildFABsFromNetCDFFile shifts the fab to the low corner of the level's
+    // domain, so this is the k index at which the heights actually live.
+    const Box nc_box = NC_hgt_fab.box();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nc_box.ok() && nc_box.length(2) == 1,
+                                     "HGT_M must be a single, non-empty k level");
+    const int k_src = nc_box.smallEnd(2);
 
-    // Nodal index of the surface
-    const int klo = hgt_box.smallEnd(2);
+    // Nodal index of the surface, taken from the level domain rather than from
+    // the input fab.  The reconstruction requires its input slab to be indexed
+    // at k = 0, so the two must agree; assert that rather than leaving the
+    // coupling implicit.
+    const int klo = convert(geom.Domain(), IntVect(1,1,1)).smallEnd(2);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(k_src == klo && klo == 0,
+                                     "init_terrain_from_metgrid assumes the domain and the "
+                                     "metgrid heights both start at k = 0");
+
+    // Slab pinned to k = 0, which is how the reconstruction indexes all of its fabs
+    const Box hgt_box = makeSlab(nc_box, 2, 0);
 
     // NC height array
     const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
@@ -706,18 +776,19 @@ init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
                 int im = std::max(std::min(i-1,ihi),ilo);
                 int jj = std::max(std::min(j  ,jhi),jlo);
                 int jm = std::max(std::min(j-1,jhi),jlo);
-                z_arr(i,j,k) = fourth * ( nc_hgt_arr(ii,jj,klo) + nc_hgt_arr(im,jj,klo) +
-                                          nc_hgt_arr(ii,jm,klo) + nc_hgt_arr(im,jm,klo) );
+                z_arr(i,j,k) = fourth * ( nc_hgt_arr(ii,jj,k_src) + nc_hgt_arr(im,jj,k_src) +
+                                          nc_hgt_arr(ii,jm,k_src) + nc_hgt_arr(im,jm,k_src) );
             });
         } // mfi
     } else {
         // The reconstruction runs on the host, so stage the (already global)
-        // metgrid heights into managed memory for it
+        // metgrid heights into managed memory for it, mapping the source k index
+        // onto the k = 0 slab the solver expects
         FArrayBox z_slice_hgt(hgt_box, 1, The_Managed_Arena());
         const Array4<Real>& z_slice_hgt_arr = z_slice_hgt.array();
-        ParallelFor(hgt_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(hgt_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
-            z_slice_hgt_arr(i,j,k) = nc_hgt_arr(i,j,k);
+            z_slice_hgt_arr(i,j,0) = nc_hgt_arr(i,j,k_src);
         });
 
         // Solve for the nodal heights of the surface

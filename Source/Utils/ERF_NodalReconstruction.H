@@ -4,16 +4,18 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
+#include "AMReX.H"
 #include "AMReX_Array4.H"
+#include "AMReX_BLassert.H"
 #include "AMReX_Box.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_GpuDevice.H"
 #include "AMReX_Geometry.H"
 #include "AMReX_MultiFab.H"
+#include "AMReX_ParallelDescriptor.H"
 #include "AMReX_Print.H"
 #include "AMReX_REAL.H"
 
@@ -129,35 +131,55 @@ public:
     using Real = amrex::Real;
 
     /**
-     * @brief Construct a nodal reconstruction object for a given face box.
-     * @param face_box Box specifying the cell-centered data region.
+     * @brief Construct a nodal reconstruction object for one horizontal slice.
+     *
+     * The operator that is inverted is the purely horizontal four-node average,
+     * so the only thing that matters about the input is that it is cell-centered
+     * in (x,y); whether the data happens to sit on a z-face (wrfinput
+     * geopotential) or at a cell center (metgrid HGT_M) is irrelevant here.
+     *
+     * @param cc_slice_box Box specifying the data region: cell-centered in (x,y),
+     *                     a single slab at k = 0.
      * @param geom Geometry used for grid spacing and anisotropy weights.
      */
-    explicit NodalReconstruction (amrex::Box const& face_box,
+    explicit NodalReconstruction (amrex::Box const& cc_slice_box,
                                   amrex::Geometry const& geom)
-        : m_face_box(face_box),
-          m_ilo(face_box.smallEnd(0)),
-          m_ihi(face_box.bigEnd(0)),
-          m_jlo(face_box.smallEnd(1)),
-          m_jhi(face_box.bigEnd(1))
+        : m_cc_slice_box(cc_slice_box),
+          m_ilo(cc_slice_box.smallEnd(0)),
+          m_ihi(cc_slice_box.bigEnd(0)),
+          m_jlo(cc_slice_box.smallEnd(1)),
+          m_jhi(cc_slice_box.bigEnd(1))
     {
-        if (face_box.length(2) != 1) {
-            throw std::invalid_argument(
-                "face_box must contain exactly one z cell.");
+        // These are amrex::Abort rather than throw: an uncaught exception under
+        // MPI is std::terminate, which tells the user nothing about what failed.
+        if (!cc_slice_box.ok()) {
+            amrex::Abort("NodalReconstruction: cc_slice_box is empty; the input "
+                         "heights were probably never read.");
         }
-        if (face_box.smallEnd(2) != 0) {
-            throw std::invalid_argument(
-                "face_box must be a slab at k = 0; all fabs are indexed at k = 0.");
+        if (cc_slice_box.length(2) != 1) {
+            amrex::Abort("NodalReconstruction: cc_slice_box must contain exactly one z cell.");
+        }
+        if (cc_slice_box.smallEnd(2) != 0) {
+            amrex::Abort("NodalReconstruction: cc_slice_box must be a slab at k = 0; "
+                         "all fabs are indexed at k = 0.");
         }
 
-        m_nodal_box = amrex::surroundingNodes(face_box);
+        m_nodal_box = amrex::surroundingNodes(cc_slice_box);
         m_nodal_box.setSmall(2, 0);
         m_nodal_box.setBig(2, 0);
+
+        // Scratch for the operators applied once per CG iteration, sized once
+        // here rather than allocated inside every matrix-vector product.
+        m_x_edge_box = m_nodal_box; m_x_edge_box.growHi(0,-1);
+        m_y_edge_box = m_nodal_box; m_y_edge_box.growHi(1,-1);
+        m_interior_nodal_box = m_nodal_box;
+        m_interior_nodal_box.grow(0,-1);
+        m_interior_nodal_box.grow(1,-1);
 
         Real const dx = geom.CellSizeArray()[0];
         Real const dy = geom.CellSizeArray()[1];
         if (!(dx > zero) || !(dy > zero)) {
-            throw std::invalid_argument("Cell sizes must be positive.");
+            amrex::Abort("NodalReconstruction: cell sizes must be positive.");
         }
 
         // Non-dimensional, O(1) stencil weights that respect grid anisotropy.
@@ -224,20 +246,25 @@ public:
            int  max_iterations      = 1000)
     {
         if (!(smoothing > zero)) {
-            throw std::invalid_argument("Smoothing weight must be positive.");
+            amrex::Abort("NodalReconstruction: smoothing weight must be positive.");
         }
         if (!(min_regularization > zero)) {
             // With mu == 0 the operator can be singular: the roughness penalty
             // alone does not control every mode (the Laplacian penalty, for
             // instance, is blind to bilinear and discrete-harmonic fields).
-            throw std::invalid_argument("Regularization must be positive.");
+            amrex::Abort("NodalReconstruction: regularization must be positive.");
         }
 
         m_var_op = var_op;
         m_lambda = smoothing;
 
-        m_cc_scratch.resize(m_face_box ,1,amrex::The_Managed_Arena());
+        m_cc_scratch.resize(m_cc_slice_box ,1,amrex::The_Managed_Arena());
         m_nd_scratch.resize(m_nodal_box,1,amrex::The_Managed_Arena());
+        m_difx.resize(m_x_edge_box,1,amrex::The_Managed_Arena());
+        m_dify.resize(m_y_edge_box,1,amrex::The_Managed_Arena());
+        if (m_interior_nodal_box.ok()) {
+            m_lap.resize(m_interior_nodal_box,1,amrex::The_Managed_Arena());
+        }
 
         SolveInfo info;
 
@@ -245,7 +272,7 @@ public:
         /**
          * @brief Local storage for the interpolation misfit.
          */
-        amrex::FArrayBox misfit(m_face_box,1,amrex::The_Managed_Arena());
+        amrex::FArrayBox misfit(m_cc_slice_box,1,amrex::The_Managed_Arena());
         Real misfit_max = zero;
         Real t_min      =  std::numeric_limits<Real>::max();
         Real t_max      = -std::numeric_limits<Real>::max();
@@ -366,8 +393,11 @@ private:
     static constexpr amrex::Real mu_growth        = amrex::Real(4.0);
     static constexpr int         max_attempts     = 24;
 
-    amrex::Box m_face_box;
+    amrex::Box m_cc_slice_box;
     amrex::Box m_nodal_box;
+    amrex::Box m_x_edge_box;
+    amrex::Box m_y_edge_box;
+    amrex::Box m_interior_nodal_box;
     int m_ilo=0;
     int m_ihi=-1;
     int m_jlo=0;
@@ -382,6 +412,11 @@ private:
 
     mutable amrex::FArrayBox m_cc_scratch;
     mutable amrex::FArrayBox m_nd_scratch;
+    //! Scratch for the roughness operators, which are applied once per CG
+    //! iteration; sized in solve() so the iteration itself never allocates.
+    mutable amrex::FArrayBox m_difx;
+    mutable amrex::FArrayBox m_dify;
+    mutable amrex::FArrayBox m_lap;
 
     //! (A S)(i,j) = 1/4 [ S(i,j) + S(i+1,j) + S(i,j+1) + S(i+1,j+1) ]
     /**
@@ -494,14 +529,10 @@ private:
     void applyDTD (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
-        amrex::Box x_edge_box = m_nodal_box;
-        amrex::Box y_edge_box = m_nodal_box;
-        x_edge_box.growHi(0,-1);
-        y_edge_box.growHi(1,-1);
-        amrex::FArrayBox difx(x_edge_box,1,amrex::The_Managed_Arena());
-        amrex::FArrayBox dify(y_edge_box,1,amrex::The_Managed_Arena());
-        applyD(S, difx, dify);
-        applyDT(difx, dify, R);
+        // m_difx/m_dify are sized once in solve(); this routine runs once per CG
+        // iteration, so allocating here would allocate O(iterations) times.
+        applyD(S, m_difx, m_dify);
+        applyDT(m_difx, m_dify, R);
     }
 
     /**
@@ -562,18 +593,15 @@ private:
     void applyLTL (amrex::FArrayBox const& S,
                    amrex::FArrayBox& R) const
     {
-        amrex::Box interior_nodal_box = m_nodal_box;
-        interior_nodal_box.grow(0,-1);
-        interior_nodal_box.grow(1,-1);
-        if (!interior_nodal_box.ok()) {
+        if (!m_interior_nodal_box.ok()) {
             // Fewer than two cells in a direction: there is no interior node to
             // evaluate the Laplacian at.  mu keeps the operator definite.
             R.setVal<amrex::RunOn::Host>(zero);
             return;
         }
-        amrex::FArrayBox lap(interior_nodal_box,1,amrex::The_Managed_Arena());
-        applyL(S, lap);
-        applyLT(lap, R);
+        // m_lap is sized once in solve(); see the note in applyDTD.
+        applyL(S, m_lap);
+        applyLT(m_lap, R);
     }
 
     /**
@@ -594,7 +622,7 @@ private:
             break;
 
         default:
-            throw std::runtime_error("Unsupported variation operator.");
+            amrex::Abort("NodalReconstruction: unsupported variation operator.");
         }
     }
 
@@ -760,7 +788,7 @@ private:
             applyM(p,Mp);
             Real const pMp = dot(p,Mp);
             if (!(pMp > zero) || !std::isfinite(pMp)) {
-                throw std::runtime_error("CG curvature failure.");
+                amrex::Abort("NodalReconstruction: CG curvature failure.");
             }
 
             Real const alpha = rz/pMp;
@@ -846,8 +874,14 @@ private:
  * wrfinput, HGT_M for metgrid) and in what they do with the answer, so the
  * solve and its checks live here and are called from both.
  *
- * The solve runs on the host and redundantly on every rank, so \p z_cc_slice
- * must be host-accessible and hold the *global* slice on every rank.
+ * The solve is serial and covers the whole domain, so it runs on the I/O rank
+ * only and the resulting nodal slice is broadcast.  Running it redundantly on
+ * every rank would cost a full-domain CG solve and several full-domain managed
+ * allocations *per rank*, i.e. a startup stall and a memory spike that grow with
+ * the rank count rather than with the decomposition.  \p z_cc_slice must be
+ * host-accessible and must hold the *global* slice on the I/O rank.
+ *
+ * This is collective: every rank must call it.
  *
  * @param[in] cc_slice_box Box covering the domain, cell-centered in (x,y) and a single k = 0 slab.
  * @param[in] geom Geometry of the level, used for the grid spacing.
@@ -863,67 +897,101 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
                                 int klev,
                                 std::string const& src_name)
 {
+    // Fail here, with a message naming the data, rather than deep inside the
+    // solver: an empty box means the source heights were never read, and the
+    // degenerate loop bounds it produces would otherwise read out of bounds.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(cc_slice_box.ok() && cc_slice_box.length(2) == 1,
+                                     "reconstruct_nodal_height_slice: the input slice is empty "
+                                     "or spans more than one z level -- check that the source "
+                                     "heights were read successfully.");
+
     // The slice is typically filled by a device kernel, and everything below
     // reads it from the host.
     amrex::Gpu::streamSynchronize();
 
-    // Solve for node values that reproduce the cell-centered values as closely
-    // as a bounded, smooth nodal field can.  We deliberately do *not* invert the
-    // four-node averaging operator exactly: its symbol vanishes at the grid
-    // Nyquist mode, so exact de-averaging amplifies grid-scale content of the
-    // terrain without bound and returns nodal heights that are kilometers away
-    // from the input terrain.  See the class documentation above for the
-    // regularized least-squares formulation used instead.
-    amrex::Real const tol = amrex::Real(1.e-10);
-    NodalReconstruction NR_solver(cc_slice_box, geom);
-    amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
-    std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_cc_slice, z_ref,
-                                                                  VariationOperator::FirstDeriv, tol);
-    SolveInfo const& info = result.second;
+    amrex::Box nd_box = amrex::surroundingNodes(cc_slice_box);
+    nd_box.setSmall(2, 0);
+    nd_box.setBig(2, 0);
 
-    if (!info.converged) {
-        amrex::Print() << "WARNING: Nodal reconstruction did not converge at k = " << klev
-                       << "; residual is: " << info.final_residual
-                       << " and requested tolerance was: " << tol << "\n";
-    }
+    // Broadcast target; also the return value, so it must be device-readable.
+    amrex::FArrayBox z_nd_slice(nd_box, 1, amrex::The_Managed_Arena());
 
-    // Range check on the reconstructed heights.  This is the check that has
-    // teeth: max |avg4(nodal) - source| is close to satisfied by construction
-    // and cannot detect a blown-up reconstruction.
-    amrex::Real src_min =  std::numeric_limits<amrex::Real>::max();
-    amrex::Real src_max = -std::numeric_limits<amrex::Real>::max();
+    int const ioproc = amrex::ParallelDescriptor::IOProcessorNumber();
+
+    // Non-zero if the reconstruction is unusable; decided on the I/O rank and
+    // broadcast so that every rank aborts together rather than one rank calling
+    // MPI_Abort out from under the others.
+    int bad_reconstruction = 0;
+
+    if (amrex::ParallelDescriptor::IOProcessor())
     {
-        auto const src_arr = z_cc_slice.const_array();
-        amrex::LoopOnCpu(cc_slice_box, [=,&src_min,&src_max] (int i, int j, int /*k*/) noexcept
+        // Solve for node values that reproduce the cell-centered values as closely
+        // as a bounded, smooth nodal field can.  We deliberately do *not* invert the
+        // four-node averaging operator exactly: its symbol vanishes at the grid
+        // Nyquist mode, so exact de-averaging amplifies grid-scale content of the
+        // terrain without bound and returns nodal heights that are kilometers away
+        // from the input terrain.  See the class documentation above for the
+        // regularized least-squares formulation used instead.
+        amrex::Real const tol = amrex::Real(1.e-10);
+        NodalReconstruction NR_solver(cc_slice_box, geom);
+        amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
+        std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_cc_slice, z_ref,
+                                                                      VariationOperator::FirstDeriv, tol);
+        SolveInfo const& info = result.second;
+
+        if (!info.converged) {
+            amrex::Print() << "WARNING: Nodal reconstruction did not converge at k = " << klev
+                           << "; residual is: " << info.final_residual
+                           << " and requested tolerance was: " << tol << "\n";
+        }
+
+        // Range check on the reconstructed heights.  This is the check that has
+        // teeth: max |avg4(nodal) - source| is close to satisfied by construction
+        // and cannot detect a blown-up reconstruction.
+        amrex::Real src_min =  std::numeric_limits<amrex::Real>::max();
+        amrex::Real src_max = -std::numeric_limits<amrex::Real>::max();
         {
-            src_min = std::min(src_min, src_arr(i,j,0));
-            src_max = std::max(src_max, src_arr(i,j,0));
-        });
+            auto const src_arr = z_cc_slice.const_array();
+            amrex::LoopOnCpu(cc_slice_box, [=,&src_min,&src_max] (int i, int j, int /*k*/) noexcept
+            {
+                src_min = std::min(src_min, src_arr(i,j,0));
+                src_max = std::max(src_max, src_arr(i,j,0));
+            });
+        }
+
+        amrex::Print() << "Nodal reconstruction at k = " << klev << ": "
+                       << info.iterations << " CG iterations, " << info.refinements
+                       << " refinements, regularization " << info.regularization
+                       << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                       << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
+                       << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
+                       << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                       << "\n    max deviation from direct interpolation = " << info.deviation
+                       << " m (cap " << info.deviation_cap << " m)" << std::endl;
+
+        // Nodes may legitimately over/undershoot the cell values where the terrain
+        // is under-resolved, but only by a fraction of the relief of the layer itself.
+        amrex::Real const relief = std::max(src_max - src_min, amrex::Real(1.0));
+        amrex::Real const slack  = std::max(amrex::Real(0.5) * relief, amrex::Real(10.0));
+
+        if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
+             (info.min_value < src_min - slack) || (info.max_value > src_max + slack) )
+        {
+            bad_reconstruction = 1;
+        }
+
+        z_nd_slice.copy<amrex::RunOn::Host>(result.first, nd_box, 0, nd_box, 0, 1);
     }
 
-    amrex::Print() << "Nodal reconstruction at k = " << klev << ": "
-                   << info.iterations << " CG iterations, " << info.refinements
-                   << " refinements, regularization " << info.regularization
-                   << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
-                   << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
-                   << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
-                   << " m (direct interpolation gives " << info.interp_average_error << " m)"
-                   << "\n    max deviation from direct interpolation = " << info.deviation
-                   << " m (cap " << info.deviation_cap << " m)" << std::endl;
-
-    // Nodes may legitimately over/undershoot the cell values where the terrain
-    // is under-resolved, but only by a fraction of the relief of the layer itself.
-    amrex::Real const relief = std::max(src_max - src_min, amrex::Real(1.0));
-    amrex::Real const slack  = std::max(amrex::Real(0.5) * relief, amrex::Real(10.0));
-
-    if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
-         (info.min_value < src_min - slack) || (info.max_value > src_max + slack) )
-    {
-        amrex::Error("Nodal reconstruction produced heights far outside the range of the "
+    amrex::ParallelDescriptor::Bcast(&bad_reconstruction, 1, ioproc);
+    if (bad_reconstruction) {
+        amrex::Abort("Nodal reconstruction produced heights far outside the range of the "
                      + src_name + "; the reconstruction is not usable as terrain.");
     }
 
-    return std::move(result.first);
+    amrex::ParallelDescriptor::Bcast(z_nd_slice.dataPtr(), z_nd_slice.size(), ioproc);
+
+    return z_nd_slice;
 }
 
 /**
@@ -961,6 +1029,11 @@ fill_nodal_level_from_slice (amrex::MultiFab& z_phys_nd,
             z_arr(i,j,k) = z_slice_arr(ii,jj,0);
         });
     }
+
+    // The kernels above read z_nd_slice, which every caller destroys as soon as
+    // this returns.  Freeing it while the launch is still queued would hand its
+    // bytes back to the arena for reuse under a running kernel.
+    amrex::Gpu::streamSynchronize();
 }
 
 #endif

@@ -281,7 +281,6 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Print() << "Min/max value of moist dp/dz + rho_m*|g|             are " << min_gpz << " " << max_gpz;
                 if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
                 if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
-                Print() << std::endl;
             } else {
                 Print() << "Min/max value of moist dp/dz + rho_m*|g|  are zero " << std::endl;
             }
