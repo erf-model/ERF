@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include <vector>
 #include <string>
 
@@ -11,6 +12,7 @@
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
+#include "ERF_IntervalMeansCheckpoint.H"
 
 using namespace amrex;
 
@@ -203,6 +205,35 @@ ERF::WriteCheckpointFile () const
        }
    }
 
+    // Interval means are stored separately from the legacy Header so older
+    // readers continue to parse that file unchanged.  The metadata records
+    // the level/component layout; the v1 processor map is retained only for
+    // format compatibility and is not a restart constraint.
+    if (solverChoice.compute_mean_vars && ParallelDescriptor::IOProcessor()) {
+        const std::string metadata_name(checkpointname + "/IntervalMeansHeader");
+        std::ofstream metadata(metadata_name, std::ofstream::out |
+                                            std::ofstream::trunc |
+                                            std::ofstream::binary);
+        if (!metadata.good()) {
+            FileOpenFailed(metadata_name);
+        }
+        metadata.precision(17);
+        metadata << "ERF interval means checkpoint v1\n";
+        metadata << finest_level + 1 << " " << 10 << "\n";
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            metadata << lev << " " << t_mean_cnt[lev] << " "
+                     << mean_vars_time_reset_done << "\n";
+            boxArray(lev).writeOn(metadata);
+            metadata << '\n';
+            const auto& pmap = dmap[lev].ProcessorMap();
+            metadata << pmap.size();
+            for (const int proc : pmap) {
+                metadata << " " << proc;
+            }
+            metadata << '\n';
+        }
+    }
+
     // write the MultiFab data to, e.g., chk00010/Level_0/
     // Here we make copies of the MultiFab with no ghost cells
     for (int lev = 0; lev <= finest_level; ++lev)
@@ -283,6 +314,12 @@ ERF::WriteCheckpointFile () const
         if (solverChoice.time_avg_vel) {
             AMREX_ALWAYS_ASSERT(vel_t_avg[lev] != nullptr);
             VisMF::Write(*vel_t_avg[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "VelTimeAvg"));
+        }
+
+        if (solverChoice.compute_mean_vars) {
+            AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
+            VisMF::Write(*interval_means[lev],
+                         MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IntervalMeans"));
         }
 
         // Note that we write the ghost cells of the base state (unlike above)
@@ -799,6 +836,59 @@ ERF::ReadCheckpointFile ()
             amrex::Print() << "NOTE: this checkpoint predates time-averaged velocity being "
                               "checkpointed; the running average of velocity will start over"
                            << std::endl;
+        }
+    }
+
+    if (solverChoice.compute_mean_vars) {
+        const std::string metadata_name(restart_chkfile + "/IntervalMeansHeader");
+        if (!amrex::FileExists(metadata_name)) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
+                interval_means[lev]->setVal(zero);
+                t_mean_cnt[lev] = 0.0;
+            }
+            // A legacy checkpoint has no interval-mean metadata.  Keep the
+            // safe empty-window fallback, but do not schedule a time reset a
+            // second time when the checkpoint was written after its threshold.
+            mean_vars_time_reset_done = erf_interval_means::legacy_reset_done(
+                solverChoice.mean_vars_reset_mode == "time", t_new[0],
+                static_cast<double>(solverChoice.mean_vars_reset_time));
+            if (ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "WARNING: legacy checkpoint without interval-mean state; "
+                                  "the averaging window starts empty.\n";
+            }
+        } else {
+            Vector<char> metadata_chars;
+            ParallelDescriptor::ReadAndBcastFile(metadata_name, metadata_chars);
+            std::istringstream metadata(std::string(metadata_chars.dataPtr()),
+                                        std::istringstream::in);
+            erf_interval_means::Metadata parsed_metadata;
+            std::string metadata_error;
+            if (!erf_interval_means::parse_metadata(
+                    metadata, parsed_metadata, metadata_error)) {
+                Abort("Invalid interval-mean checkpoint metadata in '" + metadata_name +
+                      "': " + metadata_error);
+            }
+            const std::string validation_error = erf_interval_means::validate_metadata(
+                parsed_metadata, finest_level + 1, 10, grids);
+            if (!validation_error.empty()) {
+                Abort(validation_error + " in '" + metadata_name + "'");
+            }
+
+            mean_vars_time_reset_done = erf_interval_means::global_reset_done(parsed_metadata);
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                const auto& level_metadata = parsed_metadata.level[lev];
+
+                const std::string mf_name =
+                    MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IntervalMeans");
+                if (!amrex::FileExists(mf_name + "_H")) {
+                    Abort("Interval-mean metadata exists but data is missing for level " +
+                          std::to_string(lev));
+                }
+                AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
+                VisMF::Read(*interval_means[lev], mf_name);
+                t_mean_cnt[lev] = level_metadata.accumulation_count;
+            }
         }
     }
 

@@ -85,7 +85,7 @@ get_dzmin_terrain (amrex::MultiFab& z_phys_nd);
  *
  * init_zlevels() fills both zlevels_stag and stretched_dz_* together, but
  * zlevels_stag can be replaced after construction (init_from_wrfinput() does this
- * when erf.use_wrf_height_grid = false, and restart reads it back from the
+ * when erf.avg_grid_faces_to_nodes = false, and restart reads it back from the
  * checkpoint).  Call this whenever zlevels_stag[lev] changes so that the cell
  * heights never drift out of sync with the levels they are supposed to describe.
  *

@@ -55,6 +55,8 @@
         // Canopy data for mom sources
         MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
             m_forest_drag[level]->get_drag_field() : nullptr;
+        MultiFab* frontal_area = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_frontal_area() : nullptr;
 
         // Immersed Forcing
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -153,6 +155,18 @@
                                     solverChoice.use_wrf_bdy_density, moist_nudge_type);
         }
 #endif
+
+        // Accumulate fixed-leaf-temperature canopy exchange in the staged
+        // source storage.  The existing slow-pre and slow-post paths then
+        // apply rho-theta and rho-qv with their normal RK/anelastic weighting.
+        if (solverChoice.do_forest_drag && solverChoice.forest_biophysics &&
+            solverChoice.forest_biophysics_heat && frontal_area) {
+            AddCanopyBiophysicsHeatSources(cc_src,
+                                           S_data[IntVars::cons],
+                                           xvel_new, yvel_new, zvel_new,
+                                           frontal_area, base_to_use,
+                                           solverChoice);
+        }
 
         // *****************************************************************************
         // Define the pressure gradient
