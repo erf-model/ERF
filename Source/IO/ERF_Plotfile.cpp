@@ -385,26 +385,14 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
 
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
-                if (tau12 && tau21) {
-                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        tau_cc(i, j, k, TauType::tau12) = 0.25 * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k));
-                        tau_cc(i, j, k, TauType::tau21) = 0.25 * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k));
-                    });
-                }
-
-                if (tau13 && tau31) {
-                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        tau_cc(i, j, k, TauType::tau13) = 0.25 * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k));
-                        tau_cc(i, j, k, TauType::tau31) = 0.25 * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k));
-                    });
-                }
-
-                if (tau23 && tau32) {
-                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        tau_cc(i, j, k, TauType::tau23) = 0.25 * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k));
-                        tau_cc(i, j, k, TauType::tau32) = 0.25 * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k));
-                    });
-                }
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau12) = (tau12) ? fourth * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau21) = (tau21) ? fourth * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau13) = (tau13) ? fourth * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau31) = (tau31) ? fourth * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau23) = (tau23) ? fourth * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau32) = (tau32) ? fourth * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k)) : zero;
+                });
             }
         }
     }
@@ -1787,90 +1775,74 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (containerHasElement(plot_var_names, "Tau11")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau11,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau12")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau12],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau12,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau13")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau13],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau13,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau21")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau21],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau21,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau22")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau22],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau22,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau23")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau23],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau23,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau31")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau31],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau31,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau32")) {
-            //MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau32],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau32,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "Tau33")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau33],0,mf_comp,1,0);
-            //MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau33,mf_comp,1,0);
             mf_comp ++;
         }
 
         if (containerHasElement(plot_var_names, "hfx1")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx1_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "hfx2")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx2_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],1,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "hfx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_hfx3_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],2,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx1")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx1_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],3,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx2")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx2_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],4,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q1fx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_q1fx3_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],5,mf_comp,1,0);
             mf_comp ++;
         }
         if (containerHasElement(plot_var_names, "q2fx3")) {
-            //MultiFab::Copy(mf[lev],*SFS_q2fx3_lev[lev],0,mf_comp,1,0);
             MultiFab::Copy(mf[lev],mf_cc_fx[lev],6,mf_comp,1,0);
             mf_comp ++;
         }
