@@ -693,19 +693,12 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
-        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
-        // before query_enum_case_insensitive does, so the error says what to do
-        // rather than just listing the enum values.
+        // This option has been deprecated.
         {
             std::string lsm_string;
             if (pp.queryAdd("land_surface_model", lsm_string) &&
                 amrex::toLower(lsm_string) == "oceansurf") {
-                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
-                             "Coupled ocean SST is now applied through the "
-                             "lower-boundary path: set erf.use_coupled_sst = 1 "
-                             "instead, and use erf.land_surface_model for the land "
-                             "surface you actually want (the two are no longer "
-                             "the same setting).");
+                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. ");
             }
         }
 

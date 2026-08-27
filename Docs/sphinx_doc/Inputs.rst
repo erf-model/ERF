@@ -2137,10 +2137,10 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.avg_grid_faces_to_nodes**  | avg z heights       |  Boolean           | false                 |
-|                                  | from z-face data in |                    |                       |
-|                                  | wrfinput/metgrid or |                    |                       |
-|                                  | make our own grid?  |                    |                       |
+| **erf.avg_grid_faces_to_nodes**  | avg the wrfinput /  |  Boolean           | false                 |
+|                                  | metgrid heights     |                    |                       |
+|                                  | onto the nodes, or  |                    |                       |
+|                                  | reconstruct them?   |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  Boolean           | true                  |
 |                                  | from wrfinput and   |                    |                       |
@@ -2385,7 +2385,7 @@ Examples of Usage
 Land Surface Model
 ==================
 
-The land surface model provides energy and moisture fluxes at the lower boundary.
+The land surface model provides energy and moisture fluxes at the lower boundary when that lower boundary is land.
 
 List of Parameters
 ------------------
@@ -2398,26 +2398,33 @@ List of Parameters
 |                                | energy and moisture        | "NOAHMP",          |             |
 |                                | fluxes                     | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
-| **erf.use_coupled_sst**        | Expect sea-surface         | true / false       | false       |
+
+.. note::
+
+   Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+Ocean Surface Model
+===================
+
+The ocean surface model provides energy fluxes at the lower boundary when that lower boundary is ocean.
+
+List of Parameters
+------------------
+
++--------------------------------+----------------------------+--------------------+-------------+
+| Parameter                      | Definition                 | Acceptable         | Default     |
+|                                |                            | Values             |             |
++================================+============================+====================+=============+
+| **erf.use_coupled_sst**        | Expect sea-surface         | Boolean            | false       |
 |                                | temperature from an        |                    |             |
 |                                | external ocean coupler     |                    |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
 
-   Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
-
-.. note::
-
-   ``erf.use_coupled_sst`` is independent of ``erf.land_surface_model``. Coupled SST
-   is applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK, and
-   only on the water cells the coupler actually covers: land keeps its land surface
-   model, and water the ocean grid does not reach keeps the ``wrflowinp`` value. A
-   coupled run can therefore also run Noah-MP.
-
-   This replaces ``erf.land_surface_model = OceanSurf``, which delivered coupled SST
-   as a land surface model and so occupied the one land surface model slot. That
-   value has been removed and now aborts with a message pointing here.
+   Coupled SST is applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK,
+   and only on the water cells the coupler actually covers: land keeps its land surface
+   model, and water the ocean grid does not reach keeps the ``wrflowinp`` value.
 
 Coupling Type (Data Exchange)
 ==============================
@@ -3503,9 +3510,7 @@ ignoring them.
 |                                                | ``StaticFittedMesh`` and ``MovingFittedMesh``; the old | ``MovingFittedMesh``           | ``Moving`` is used     |
 |                                                | names still work                                       |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.land_surface_model**                     | the value ``OceanSurf`` was removed; set               | ``None``, ``SLM``, ``NOAHMP``  | aborts if              |
-|                                                | ``erf.use_coupled_sst`` = 1 and use                    |                                | ``OceanSurf`` is used  |
-|                                                | ``erf.land_surface_model`` for the land surface itself |                                |                        |
+| **erf.land_surface_model**                     |                                                        | ``None``, ``SLM``, ``NOAHMP``  |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 
 .. _sec:DampingChoice:
