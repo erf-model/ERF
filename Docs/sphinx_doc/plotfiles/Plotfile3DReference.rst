@@ -381,6 +381,122 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | to be defined    |
 |                             | [count]          |
 +-----------------------------+------------------+
+| **Tau11**                   | Subgrid stress   |
+|                             | component 11.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau12**                   | Subgrid stress   |
+|                             | component 12.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau13**                   | Subgrid stress   |
+|                             | component 13.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau21**                   | Subgrid stress   |
+|                             | component 21.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau22**                   | Subgrid stress   |
+|                             | component 22.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau23**                   | Subgrid stress   |
+|                             | component 23.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau31**                   | Subgrid stress   |
+|                             | component 31.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau32**                   | Subgrid stress   |
+|                             | component 32.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **Tau33**                   | Subgrid stress   |
+|                             | component 33.    |
+|                             | Only available   |
+|                             | when diffusion   |
+|                             | is enabled       |
+|                             | [kg/m/s^2]       |
++-----------------------------+------------------+
+| **hfx1**                    | Heat flux in     |
+|                             | x-direction.     |
+|                             | Only available   |
+|                             | with X surface   |
+|                             | layers enabled   |
+|                             | [W/m^2]          |
++-----------------------------+------------------+
+| **hfx2**                    | Heat flux in     |
+|                             | y-direction.     |
+|                             | Only available   |
+|                             | with Y surface   |
+|                             | layers enabled   |
+|                             | [W/m^2]          |
++-----------------------------+------------------+
+| **hfx3**                    | Heat flux in     |
+|                             | z-direction.     |
+|                             | Only available   |
+|                             | with Z surface   |
+|                             | layers enabled   |
+|                             | [W/m^2]          |
++-----------------------------+------------------+
+| **q1fx1**                   | Moisture flux 1  |
+|                             | in x-direction.  |
+|                             | Only available   |
+|                             | with X surface   |
+|                             | layers and       |
+|                             | moisture enabled |
+|                             | [kg/m^2/s]       |
++-----------------------------+------------------+
+| **q1fx2**                   | Moisture flux 1  |
+|                             | in y-direction.  |
+|                             | Only available   |
+|                             | with Y surface   |
+|                             | layers and       |
+|                             | moisture enabled |
+|                             | [kg/m^2/s]       |
++-----------------------------+------------------+
+| **q1fx3**                   | Moisture flux 1  |
+|                             | in z-direction.  |
+|                             | Only available   |
+|                             | with Z surface   |
+|                             | layers and       |
+|                             | moisture enabled |
+|                             | [kg/m^2/s]       |
++-----------------------------+------------------+
+| **q2fx3**                   | Moisture flux 2  |
+|                             | in z-direction.  |
+|                             | Only available   |
+|                             | with Z surface   |
+|                             | layers and       |
+|                             | moisture enabled |
+|                             | [kg/m^2/s]       |
++-----------------------------+------------------+
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.

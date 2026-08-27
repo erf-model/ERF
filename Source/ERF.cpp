@@ -1131,7 +1131,6 @@ ERF::InitData_post ()
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
-    m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
     bool updated_prim = false;
     // Count number of surface layer boundaries to determine correct parm parse prefix
     int n_faces = 0;

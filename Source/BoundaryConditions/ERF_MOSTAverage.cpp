@@ -419,8 +419,8 @@ MOSTAverage::set_rotated_fields (const int& lev)
 
     // TODO: Add W to rot_fields?
     // Direct copy of other scalar variables
-    MultiFab::Copy(*rot_fields[2],*fields[3],0,0,1,rot_fields[2]->nGrowVect());
-    if (fields[4]) MultiFab::Copy(*rot_fields[3],*fields[4],0,0,1,rot_fields[3]->nGrowVect());
+    MultiFab::Copy(*rot_fields[3],*fields[3],0,0,1,rot_fields[3]->nGrowVect());
+    if (fields[4]) MultiFab::Copy(*rot_fields[4],*fields[4],0,0,1,rot_fields[4]->nGrowVect());
 }
 
 /**
@@ -622,9 +622,9 @@ MOSTAverage::set_k_indices_N (const int& lev)
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + 0.5 * m_dz,
                                               "Query point must be below the last z-cell!");
 
-            lk = m_geom[0].Domain().bigEnd(dir) - static_cast<int>(floor((m_zhi - zref_tmp) / m_dz - 0.5));
+            lk = m_geom[0].Domain().bigEnd(dir) - static_cast<int>(floor(zref_tmp / m_dz - 0.5));
 
-            m_zref[lev]->setVal( (lk + myhalf) * m_dz );
+            m_zref[lev]->setVal( zref_tmp );
         }
 
         AMREX_ALWAYS_ASSERT(lk >= m_radius);
@@ -870,7 +870,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                             if (z_target >= z_lo && z_target <= z_hi){
                                 AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                         "K index must be larger than averaging radius!");
-                                k_arr(i,j,k) = kmax;
+                                k_arr(i,j,k) = lk;
                                 zref_arr(i,j,k) = z_top_face - myhalf * (z_hi + z_lo);
                                 found = true;
                                 break;
@@ -1242,6 +1242,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
             if (imf < 3 && imf == dir) {
                 sm_index += 1;
             }
+            if (dir != imf) sm_index += 1;
         }
 
         // Continue if no valid Qv pointer
@@ -1265,7 +1266,6 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (vbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
-                if (dir != imf) sm_index += 1;
             }
 
             // Make planar since mfiter is over fields
@@ -1333,7 +1333,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
         if (m_face.isLow()) {
             sm_index = m_geom[lev].Domain().smallEnd(dir);
         } else {
-            sm_index = m_geom[lev].Domain().bigEnd(dir);
+            sm_index = m_geom[lev].Domain().bigEnd(dir) + 1;
         }
 
         int iavg = 5;
@@ -1355,7 +1355,6 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
-                sm_index += 1;
             }
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
@@ -1436,7 +1435,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
         if (m_face.isLow()) {
             sm_index = m_geom[lev].Domain().smallEnd(dir);
         } else {
-            sm_index = m_geom[lev].Domain().bigEnd(dir);
+            sm_index = m_geom[lev].Domain().bigEnd(dir) + 1;
         }
 
         const int imf_cc  = 3;
@@ -1468,7 +1467,6 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
-                sm_index += 1;
             }
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
@@ -2290,7 +2288,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
             const Array4<Real const> T_mf_arr  = fields[3]->const_array(mfi);
             const Array4<Real const> qv_mf_arr = fields[4]->const_array(mfi);
-            const Array4<Real const> qr_mf_arr = (fields[5]) ? fields[4]->const_array(mfi) :
+            const Array4<Real const> qr_mf_arr = (fields[5]) ? fields[5]->const_array(mfi) :
                                                                 Array4<const Real> {};
 
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]

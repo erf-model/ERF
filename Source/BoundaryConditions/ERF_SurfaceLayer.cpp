@@ -944,7 +944,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 }
             });
         } else {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 0 && m_face.isLow(), "Stress rotation only supported for zlo face");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2 && m_face.isLow(), "Stress rotation only supported for zlo face");
             // All fluxes with rotation
             //============================================================================
             Box bxxy = convert(bx, IntVect(1,1,0));

@@ -119,10 +119,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = hfx_x(i,j,k);
             } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
@@ -162,10 +158,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = hfx_y(i,j,k);
             } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
@@ -291,10 +283,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = hfx_x(i,j,k);
             } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
@@ -334,10 +322,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = hfx_y(i,j,k);
             } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
@@ -459,10 +443,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 xflux(i,j,k) = hfx_x(i,j,k);
             } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                xflux(i,j,k) = hfx_x(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * GradCx;
             }
@@ -499,10 +479,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = hfx_y(i,j,k);
             } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }
@@ -661,10 +637,6 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
                 yflux(i,j,k) = hfx_y(i,j,k);
             } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,k);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
-                yflux(i,j,k) = hfx_y(i,j,0);
-            } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
-                yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * GradCy;
             }

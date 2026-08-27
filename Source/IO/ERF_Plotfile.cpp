@@ -385,20 +385,26 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
 
                 const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    tau_cc(i, j, k, TauType::tau12) = 0.25 * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k));
-                    tau_cc(i, j, k, TauType::tau21) = 0.25 * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k));
-                });
+                if (tau12 && tau21) {
+                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        tau_cc(i, j, k, TauType::tau12) = 0.25 * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k));
+                        tau_cc(i, j, k, TauType::tau21) = 0.25 * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k));
+                    });
+                }
 
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    tau_cc(i, j, k, TauType::tau13) = 0.25 * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k));
-                    tau_cc(i, j, k, TauType::tau31) = 0.25 * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k));
-                });
+                if (tau13 && tau31) {
+                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        tau_cc(i, j, k, TauType::tau13) = 0.25 * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k));
+                        tau_cc(i, j, k, TauType::tau31) = 0.25 * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k));
+                    });
+                }
 
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    tau_cc(i, j, k, TauType::tau23) = 0.25 * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k));
-                    tau_cc(i, j, k, TauType::tau32) = 0.25 * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k));
-                });
+                if (tau23 && tau32) {
+                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        tau_cc(i, j, k, TauType::tau23) = 0.25 * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k));
+                        tau_cc(i, j, k, TauType::tau32) = 0.25 * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k));
+                    });
+                }
             }
         }
     }
@@ -434,11 +440,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     tau_fx(i, j, k, 0) = (hfx1) ? 0.5 * (hfx1(i, j, k) + hfx1(i+1, j  , k)) : 0.0;
                     tau_fx(i, j, k, 1) = (hfx2) ? 0.5 * (hfx2(i, j, k) + hfx2(i  , j+1, k)) : 0.0;
-                    tau_fx(i, j, k, 2) = 0.5 * (hfx3(i, j, k) + hfx3(i  , j  , k+1));
+                    tau_fx(i, j, k, 2) = (hfx3) ? 0.5 * (hfx3(i, j, k) + hfx3(i  , j  , k+1)) : 0.0;
                     tau_fx(i, j, k, 3) = (q1fx1) ? 0.5 * (q1fx1(i, j, k) + q1fx1(i+1, j  , k)) : 0.0;
                     tau_fx(i, j, k, 4) = (q1fx2) ? 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k)) : 0.0;
-                    tau_fx(i, j, k, 5) = 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1));
-                    tau_fx(i, j, k, 6) = 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1));
+                    tau_fx(i, j, k, 5) = (q1fx3) ? 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1)) : 0.0;
+                    tau_fx(i, j, k, 6) = (q2fx3) ? 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1)) : 0.0;
                 });
             }
         }
