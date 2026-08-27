@@ -1801,6 +1801,26 @@ List of Parameters
 | **erf.nudging_q_z2**                | Top of the same        | Real [m]          | 10000.0             |
 |                                     | range                  |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_mom**                 | Nudge u,v towards the  | Boolean           | true                |
+|                                     | sounding when          |                   |                     |
+|                                     | ``nudging_from_input_``|                   |                     |
+|                                     | ``sounding`` is true   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_theta**               | Nudge potential        | Boolean           | true                |
+|                                     | temperature towards    |                   |                     |
+|                                     | the sounding when      |                   |                     |
+|                                     | ``nudging_from_input_``|                   |                     |
+|                                     | ``sounding`` is true   |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_z_lo**                | Additional bottom of   | Real [m]          | 0.0                 |
+|                                     | the height range over  |                   |                     |
+|                                     | which theta is nudged, |                   |                     |
+|                                     | ANDed with             |                   |                     |
+|                                     | nudging_t_z1/t_z2      |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
+| **erf.nudging_z_hi**                | Additional top of the  | Real [m]          | 1.0e36              |
+|                                     | same range             |                   |                     |
++-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.large_scale_forcing**         | Apply time-varying     | Boolean           | false               |
 |                                     | large-scale tendencies |                   |                     |
 |                                     | and subsidence read    |                   |                     |
@@ -1958,6 +1978,9 @@ zonal and meridional velocity, and large scale vertical subsidence velocity.
 
 - Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
   ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+  ``erf.nudging_z_lo`` and ``erf.nudging_z_hi`` add a further height bound on temperature nudging only, ANDed with
+  ``erf.nudging_t_z1``/``erf.nudging_t_z2``. ``erf.nudging_mom`` and ``erf.nudging_theta`` turn momentum and
+  temperature nudging on/off independently (both default to true).
 
 - **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
   according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
@@ -3250,6 +3273,19 @@ Custom, Nudging and Numerical Diffusion Forcing
 | **erf.nudging_t_z1**                           | height below which temperature is not nudged           | Real                           | 0.0                    |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t_z2**                           | height above which temperature is not nudged           | Real                           | 10000.0                |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_mom**                            | nudge u,v towards the sounding (takes effect only      | Boolean                        | true                   |
+|                                                | when ``nudging_from_input_sounding`` is true)          |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_theta**                          | nudge potential temperature towards the sounding       | Boolean                        | true                   |
+|                                                | (takes effect only when ``nudging_from_input_``        |                                |                        |
+|                                                | ``sounding`` is true)                                  |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_z_lo**                           | additional lower bound on the height range over        | Real                           | 0.0                    |
+|                                                | which theta is nudged, ANDed with nudging_t_z1/        |                                |                        |
+|                                                | nudging_t_z2                                           |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_z_hi**                           | additional upper bound on the same range               | Real                           | 1.0e36                 |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.large_scale_forcing**                    | apply the large-scale forcing read from a forcing file | Boolean                        | false                  |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+

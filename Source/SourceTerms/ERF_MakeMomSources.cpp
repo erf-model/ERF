@@ -673,7 +673,7 @@ void make_mom_sources (double time_d,
         // *************************************************************************************
         // 5. Add nudging towards value specified in input sounding
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
+        if (solverChoice.nudging_from_input_sounding && solverChoice.nudging_mom && is_slow_step)
         {
             Real uv_coeff_n = 1.0;
             Real uv_coeff_np1 = 0.0;

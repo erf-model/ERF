@@ -387,6 +387,11 @@ void ERF::advance_dycore (int level,
         const Real t_z1 = solverChoice.nudging_t_z1;
         const Real t_z2 = solverChoice.nudging_t_z2;
 
+        // whether to nudge theta at all, and an additional height bound
+        const bool nudge_theta   = solverChoice.nudging_theta;
+        const Real nudge_z_lo    = solverChoice.nudging_z_lo;
+        const Real nudge_z_hi    = solverChoice.nudging_z_hi;
+
         // lower and upper bounds to apply qv nudging
         const Real q_z1 = solverChoice.nudging_q_z1;
         const Real q_z2 = solverChoice.nudging_q_z2;
@@ -411,7 +416,7 @@ void ERF::advance_dycore (int level,
                 // nudge_data = tnudge, qnudge, unudge, vnudge
 
                 // Nudging for theta
-                if (z >= t_z1 && z <= t_z2) {
+                if (nudge_theta && z >= t_z1 && z <= t_z2 && z >= nudge_z_lo && z <= nudge_z_hi) {
                     Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 0) = nudge * tau_inv;
                     //if (i == 0 && j == 0)

@@ -1086,6 +1086,11 @@ struct SolverChoice {
         pp.queryAdd("nudging_t_z1", nudging_t_z1);
         pp.queryAdd("nudging_t_z2", nudging_t_z2);
 
+        pp.queryAdd("nudging_mom", nudging_mom);
+        pp.queryAdd("nudging_theta", nudging_theta);
+        pp.queryAdd("nudging_z_lo", nudging_z_lo);
+        pp.queryAdd("nudging_z_hi", nudging_z_hi);
+
         pp.queryAdd("large_scale_forcing", large_scale_forcing);
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
@@ -1960,6 +1965,11 @@ struct SolverChoice {
     amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
     amrex::Real nudging_t_z1 = zero;
     amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+
+    bool nudging_mom   = true;      // Nudge u,v when nudging_from_input_sounding is true
+    bool nudging_theta = true;      // Nudge potential temperature when nudging_from_input_sounding is true
+    amrex::Real nudging_z_lo = zero; // Additional height bound on theta nudging, ANDed with nudging_t_z1/t_z2
+    amrex::Real nudging_z_hi = amrex::Real(1.0e36);
 
     bool large_scale_forcing = false;
     std::string lsf_file = "";
