@@ -53,7 +53,9 @@ read_from_metgrid (int lev,
  * Initialize nodal terrain heights from metgrid surface-height data.
  */
 void
-init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
+init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
+                           amrex::Geometry& geom,
+                           amrex::MultiFab* z_phys_nd,
                            amrex::FArrayBox& NC_hgt_fab);
 
 /**

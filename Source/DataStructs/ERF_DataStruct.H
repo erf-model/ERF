@@ -868,15 +868,24 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
-        // Keep the default wrf grid or remake our own
-        pp.queryAdd("use_wrf_height_grid",use_wrf_height_grid);
+        // Average the input z-face heights onto the nodes, or reconstruct our own
+        pp.queryAdd("avg_grid_faces_to_nodes",avg_grid_faces_to_nodes);
+
+        // Catch the old name for the flag above so the error says what to do
+        // rather than silently ignoring the setting.
+        if (pp.contains("use_wrf_height_grid")) {
+            amrex::Abort("erf.use_wrf_height_grid has been renamed. "
+                         "Set erf.avg_grid_faces_to_nodes instead; it carries "
+                         "the same meaning (average the input z-face heights "
+                         "onto the nodes rather than reconstructing them).");
+        }
 
         // Rebalance wrf state?
         pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
-        // Must rebalance if not using WRF grid
-        if (!use_wrf_height_grid && !rebalance_wrf_input) {
-            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+        // Must rebalance if the nodal heights were reconstructed rather than averaged
+        if (!avg_grid_faces_to_nodes && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not averaging the input height grid. Setting rebalance_wrf_input to true \n";
             rebalance_wrf_input = true;
         }
 
@@ -2145,8 +2154,8 @@ struct SolverChoice {
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 1;
 
-    // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {false};
+    // Average the input z-face heights onto the nodes rather than reconstructing them?
+    bool avg_grid_faces_to_nodes {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

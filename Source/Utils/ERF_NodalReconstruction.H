@@ -5,12 +5,16 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "AMReX_Array4.H"
 #include "AMReX_Box.H"
 #include "AMReX_FArrayBox.H"
+#include "AMReX_GpuDevice.H"
 #include "AMReX_Geometry.H"
+#include "AMReX_MultiFab.H"
+#include "AMReX_Print.H"
 #include "AMReX_REAL.H"
 
 #include "ERF_Constants.H"
@@ -831,5 +835,132 @@ private:
         return v;
     }
 };
+
+/**
+ * Reconstruct one horizontal slice of nodal heights from heights that live at
+ * cell centers in (x,y), reporting diagnostics and aborting if the result is
+ * unusable as terrain.
+ *
+ * Both NetCDF initialization paths need exactly this operation and differ only
+ * in how the cell-centered slice is assembled (geopotential from PH + PHB for
+ * wrfinput, HGT_M for metgrid) and in what they do with the answer, so the
+ * solve and its checks live here and are called from both.
+ *
+ * The solve runs on the host and redundantly on every rank, so \p z_cc_slice
+ * must be host-accessible and hold the *global* slice on every rank.
+ *
+ * @param[in] cc_slice_box Box covering the domain, cell-centered in (x,y) and a single k = 0 slab.
+ * @param[in] geom Geometry of the level, used for the grid spacing.
+ * @param[in] z_cc_slice Heights on \p cc_slice_box.
+ * @param[in] klev Vertical index of the slice; used only in messages.
+ * @param[in] src_name Name of the source data; used only in messages.
+ * @return The nodal heights on surroundingNodes(cc_slice_box), indexed at k = 0.
+ */
+inline amrex::FArrayBox
+reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
+                                amrex::Geometry const& geom,
+                                amrex::FArrayBox const& z_cc_slice,
+                                int klev,
+                                std::string const& src_name)
+{
+    // The slice is typically filled by a device kernel, and everything below
+    // reads it from the host.
+    amrex::Gpu::streamSynchronize();
+
+    // Solve for node values that reproduce the cell-centered values as closely
+    // as a bounded, smooth nodal field can.  We deliberately do *not* invert the
+    // four-node averaging operator exactly: its symbol vanishes at the grid
+    // Nyquist mode, so exact de-averaging amplifies grid-scale content of the
+    // terrain without bound and returns nodal heights that are kilometers away
+    // from the input terrain.  See the class documentation above for the
+    // regularized least-squares formulation used instead.
+    amrex::Real const tol = amrex::Real(1.e-10);
+    NodalReconstruction NR_solver(cc_slice_box, geom);
+    amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
+    std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_cc_slice, z_ref,
+                                                                  VariationOperator::FirstDeriv, tol);
+    SolveInfo const& info = result.second;
+
+    if (!info.converged) {
+        amrex::Print() << "WARNING: Nodal reconstruction did not converge at k = " << klev
+                       << "; residual is: " << info.final_residual
+                       << " and requested tolerance was: " << tol << "\n";
+    }
+
+    // Range check on the reconstructed heights.  This is the check that has
+    // teeth: max |avg4(nodal) - source| is close to satisfied by construction
+    // and cannot detect a blown-up reconstruction.
+    amrex::Real src_min =  std::numeric_limits<amrex::Real>::max();
+    amrex::Real src_max = -std::numeric_limits<amrex::Real>::max();
+    {
+        auto const src_arr = z_cc_slice.const_array();
+        amrex::LoopOnCpu(cc_slice_box, [=,&src_min,&src_max] (int i, int j, int /*k*/) noexcept
+        {
+            src_min = std::min(src_min, src_arr(i,j,0));
+            src_max = std::max(src_max, src_arr(i,j,0));
+        });
+    }
+
+    amrex::Print() << "Nodal reconstruction at k = " << klev << ": "
+                   << info.iterations << " CG iterations, " << info.refinements
+                   << " refinements, regularization " << info.regularization
+                   << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                   << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
+                   << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
+                   << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                   << "\n    max deviation from direct interpolation = " << info.deviation
+                   << " m (cap " << info.deviation_cap << " m)" << std::endl;
+
+    // Nodes may legitimately over/undershoot the cell values where the terrain
+    // is under-resolved, but only by a fraction of the relief of the layer itself.
+    amrex::Real const relief = std::max(src_max - src_min, amrex::Real(1.0));
+    amrex::Real const slack  = std::max(amrex::Real(0.5) * relief, amrex::Real(10.0));
+
+    if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
+         (info.min_value < src_min - slack) || (info.max_value > src_max + slack) )
+    {
+        amrex::Error("Nodal reconstruction produced heights far outside the range of the "
+                     + src_name + "; the reconstruction is not usable as terrain.");
+    }
+
+    return std::move(result.first);
+}
+
+/**
+ * Copy one reconstructed nodal slice into level \p klev of a nodal MultiFab,
+ * filling the lateral ghost nodes by clamping to the nearest valid node.
+ *
+ * @param[in,out] z_phys_nd Nodal MultiFab of physical heights.
+ * @param[in] klev Vertical node index to fill.
+ * @param[in] z_nd_slice Nodal slice, indexed at k = 0, spanning the whole domain in (x,y).
+ */
+inline void
+fill_nodal_level_from_slice (amrex::MultiFab& z_phys_nd,
+                             int klev,
+                             amrex::FArrayBox const& z_nd_slice)
+{
+    amrex::Box const& nd_box = z_nd_slice.box();
+    int const ilo = nd_box.smallEnd(0); int const ihi = nd_box.bigEnd(0);
+    int const jlo = nd_box.smallEnd(1); int const jhi = nd_box.bigEnd(1);
+
+    auto const z_slice_arr = z_nd_slice.const_array();
+
+    for ( amrex::MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi ) {
+        amrex::Box gbx = mfi.growntilebox();
+
+        // Boxes that do not reach this level get their surface data from the
+        // ParallelCopy in make_terrain_fitted_coords
+        if (klev < gbx.smallEnd(2) || klev > gbx.bigEnd(2)) { continue; }
+
+        amrex::Box sbx = amrex::makeSlab(gbx, 2, klev);
+        auto const z_arr = z_phys_nd.array(mfi);
+        amrex::ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            int const ii = amrex::max(amrex::min(i,ihi),ilo);
+            int const jj = amrex::max(amrex::min(j,jhi),jlo);
+            z_arr(i,j,k) = z_slice_arr(ii,jj,0);
+        });
+    }
+}
 
 #endif

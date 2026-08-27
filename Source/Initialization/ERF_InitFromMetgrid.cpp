@@ -1,10 +1,11 @@
 /**
  * \file ERF_InitFromMetgrid.cpp
  */
-#include <ERF_Constants.H>
-#include <ERF_MetgridUtils.H>
-#include <ERF_WriteERFBdy.H>
-#include <ERF_ReadFromERFBdy.H>
+#include "ERF_Constants.H"
+#include "ERF_MetgridUtils.H"
+#include "ERF_WriteERFBdy.H"
+#include "ERF_ReadFromERFBdy.H"
+#include "ERF_NodalReconstruction.H"
 
 using namespace amrex;
 
@@ -323,14 +324,13 @@ ERF::init_from_metgrid (int lev)
 
         if (itime == 0) {
 
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-                // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
-                FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
-                init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
-            } // mf
+            // Initialize the terrain
+            init_terrain_from_metgrid(solverChoice.avg_grid_faces_to_nodes, geom[lev],
+                                      z_phys_nd[lev].get(), NC_hgt_fab);
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
-            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev],
+                                       zlevels_stag[lev], phys_bc_type);
 
             // This makes the Jacobian.
             make_J(geom[lev], *z_phys_nd[lev], *detJ_cc[lev]);
@@ -666,39 +666,67 @@ ERF::init_from_metgrid (int lev)
 /**
  * Helper function to initialize terrain nodal z coordinates given metgrid data.
  *
- * @param z_phys_nd_fab FArrayBox (Fab) holding the nodal z coordinates for terrain data we want to fill
+ * @param avg_grid_faces_to_nodes Average the metgrid surface heights onto the nodes rather
+ *                                than reconstructing nodal heights that reproduce them
+ * @param geom Geometry at this level
+ * @param z_phys_nd MultiFab holding the nodal z coordinates for terrain data we want to fill
  * @param NC_hgt_fab FArrayBox (Fab) holding height data read from the first NetCDF file of metgrid data
  */
 void
-init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
+init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
+                           Geometry& geom,
+                           MultiFab* z_phys_nd,
                            FArrayBox& NC_hgt_fab)
 {
-   // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-   const Array4<Real      >&      z_arr = z_phys_nd_fab.array();
-   const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
+    Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-   const Box z_hgt_box = NC_hgt_fab.box();
+    // HGT_M is a single level of surface heights on the (cell-centered) mass grid
+    const Box hgt_box = makeSlab(NC_hgt_fab.box(), 2, 0);
 
-   int ilo = z_hgt_box.smallEnd()[0];
-   int ihi = z_hgt_box.bigEnd()[0];
-   int jlo = z_hgt_box.smallEnd()[1];
-   int jhi = z_hgt_box.bigEnd()[1];
+    // Nodal index of the surface
+    const int klo = hgt_box.smallEnd(2);
 
-   Box z_phys_box = z_phys_nd_fab.box();
-   Box from_box = surroundingNodes(NC_hgt_fab.box());
-   from_box.growHi(2,-1);
+    // NC height array
+    const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
 
-   Box bx = z_phys_box & from_box;
+    if (avg_grid_faces_to_nodes) {
+        // Average the mass-grid cells that touch each node onto the node,
+        // clamping at the domain edges so that a boundary node takes the
+        // average of only the cells that exist
+        const int ilo = hgt_box.smallEnd(0); const int ihi = hgt_box.bigEnd(0);
+        const int jlo = hgt_box.smallEnd(1); const int jhi = hgt_box.bigEnd(1);
 
-   ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-   {
-       // Node (i,j) averages cells (i-1,i) x (j-1,j), so the valid range for the
-       // upper cell index is [ilo+1,ihi] in x and [jlo+1,jhi] in y
-       int ii = std::max(std::min(i,ihi),ilo+1);
-       int jj = std::max(std::min(j,jhi),jlo+1);
-       z_arr(i,j,k) =  fourth * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
-                                nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
-   });
+        for ( MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi ) {
+            Box gbx = mfi.growntilebox();
+            if (klo < gbx.smallEnd(2) || klo > gbx.bigEnd(2)) { continue; }
+            const Array4<Real>& z_arr = z_phys_nd->array(mfi);
+            ParallelFor(makeSlab(gbx,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(std::min(i  ,ihi),ilo);
+                int im = std::max(std::min(i-1,ihi),ilo);
+                int jj = std::max(std::min(j  ,jhi),jlo);
+                int jm = std::max(std::min(j-1,jhi),jlo);
+                z_arr(i,j,k) = fourth * ( nc_hgt_arr(ii,jj,klo) + nc_hgt_arr(im,jj,klo) +
+                                          nc_hgt_arr(ii,jm,klo) + nc_hgt_arr(im,jm,klo) );
+            });
+        } // mfi
+    } else {
+        // The reconstruction runs on the host, so stage the (already global)
+        // metgrid heights into managed memory for it
+        FArrayBox z_slice_hgt(hgt_box, 1, The_Managed_Arena());
+        const Array4<Real>& z_slice_hgt_arr = z_slice_hgt.array();
+        ParallelFor(hgt_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_slice_hgt_arr(i,j,k) = nc_hgt_arr(i,j,k);
+        });
+
+        // Solve for the nodal heights of the surface
+        FArrayBox z_slice_erf = reconstruct_nodal_height_slice(hgt_box, geom, z_slice_hgt,
+                                                              klo, "MetGrid heights");
+
+        // Copy back to z_phys, filling the lateral ghost nodes
+        fill_nodal_level_from_slice(*z_phys_nd, klo, z_slice_erf);
+    } // avg_grid_faces_to_nodes
 }
 
 /**
