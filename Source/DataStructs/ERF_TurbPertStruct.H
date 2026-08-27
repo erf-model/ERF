@@ -92,25 +92,32 @@ struct TurbulentPerturbation {
         pp.get("perturbation_offset",tpi_offset);
 
         tpi_nonDim = zero;
-        pp.query("perturbation_nondimensional",tpi_nonDim);
+        pp.queryAdd("perturbation_nondimensional",tpi_nonDim);
 
         tpi_Tinf = amrex::Real(300.);
-        pp.query("perturbation_T_infinity",tpi_Tinf);
+        pp.queryAdd("perturbation_T_infinity",tpi_Tinf);
 
         tpi_Ti = zero;
-        pp.query("perturbation_T_intensity",tpi_Ti);
+        pp.queryAdd("perturbation_T_intensity",tpi_Ti);
 
         input_Ug = zero;
-        pp.query("perturbation_Ug",input_Ug);
+        pp.queryAdd("perturbation_Ug",input_Ug);
 
         input_w_amp = zero;
-        pp.query("perturbation_w_amp",input_w_amp);
+        pp.queryAdd("perturbation_w_amp",input_w_amp);
 
-        perturbation_klo = 0;
-        bool have_klo = pp.query("perturbation_klo", perturbation_klo);
+        // Negative sentinels rather than the queryAdd return values: k = 0 is a legal
+        // bound, so the natural default cannot double as "unset", and the return value
+        // only reports whether the key existed before the call.  init_tpi runs once per
+        // level, so testing the return would make every level above 0 see "specified"
+        // with the value level 0 planted, skipping the valid_box_lo/hi defaults below.
+        perturbation_klo = -1;
+        pp.queryAdd("perturbation_klo", perturbation_klo);
+        const bool have_klo = (perturbation_klo >= 0);
 
-        perturbation_khi = 0;
-        bool have_khi = pp.query("perturbation_khi", perturbation_khi);
+        perturbation_khi = -1;
+        pp.queryAdd("perturbation_khi", perturbation_khi);
+        const bool have_khi = (perturbation_khi >= 0);
 
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
@@ -307,7 +314,7 @@ struct TurbulentPerturbation {
         // Seed the random generator at 1024UL for regression testing
         int fix_random_seed = 0;
         amrex::ParmParse pp("erf");
-        pp.query("fix_random_seed", fix_random_seed);
+        pp.queryAdd("fix_random_seed", fix_random_seed);
         if (fix_random_seed) {
             // We need this one for the ParalleForRNG used in calc_tpi
             amrex::InitRandom(1024UL, amrex::ParallelDescriptor::NProcs(), 1024UL);

@@ -93,3 +93,35 @@ directory:
 ERF also accepts **amr.restart** for compatibility with AMReX and existing
 regression inputs. When both keys are present, **amr.restart** takes
 precedence because ``ReadParameters()`` queries it after ``erf.restart``.
+
+Time-accumulated diagnostics
+============================
+
+Some diagnostics are accumulated over the course of a run rather than computed
+from the instantaneous state, so they carry state of their own that must be
+carried across a restart. ERF checkpoints that state, and a run restarted from
+a checkpoint reproduces the equivalent uninterrupted run:
+
+-  the running sum and normalizer behind the time-averaged velocity fields
+   (``erf.time_avg_vel``, plotted as ``u_t_avg``, ``v_t_avg``, ``w_t_avg`` and
+   ``umag_t_avg``), so the averaging window continues to extend back to the
+   start of the original run;
+
+-  the exponentially filtered surface-layer averages used when
+   ``erf.most.time_average`` is set (see :ref:`sec:surface_layer`), so
+   :math:`u_{*}`, :math:`\theta_{*}` and the Obukhov length after restart are
+   computed from the same filter history the uninterrupted run would have had;
+
+-  the accumulated surface precipitation reported by the microphysics schemes.
+
+Two caveats are worth knowing:
+
+-  A checkpoint written by a version of ERF that predates this state being
+   saved does not carry it. Restarting from such a checkpoint simply starts the
+   average over, which is what those checkpoints have always done; ERF prints a
+   note when it detects this.
+
+-  Regridding rebuilds the per-level containers that hold these averages, so a
+   regrid restarts the velocity time average and the surface-layer time filter
+   on the affected level. With AMR the averaging window is therefore "since the
+   last regrid on that level," not "since the start of the run."
