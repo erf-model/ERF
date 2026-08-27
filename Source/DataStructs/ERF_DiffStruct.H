@@ -30,7 +30,7 @@ struct DiffChoice {
         amrex::ParmParse pp(pp_prefix);
 
         static std::string molec_diff_type_string = "None";
-        pp.query("molec_diff_type",molec_diff_type_string);
+        pp.queryAdd("molec_diff_type",molec_diff_type_string);
 
         if (!molec_diff_type_string.compare("Constant")) {
             molec_diff_type = MolecDiffType::Constant;
@@ -43,13 +43,13 @@ struct DiffChoice {
         }
 
         if (molec_diff_type != MolecDiffType::None) {
-            pp.query("alpha_T", alpha_T);
-            pp.query("alpha_C", alpha_C);
-            pp.query("dynamic_viscosity", dynamic_viscosity);
-            pp.query("rho0_trans", rho0_trans);
-            pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
-            pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
-            pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
+            pp.queryAdd("alpha_T", alpha_T);
+            pp.queryAdd("alpha_C", alpha_C);
+            pp.queryAdd("dynamic_viscosity", dynamic_viscosity);
+            pp.queryAdd("rho0_trans", rho0_trans);
+            pp.queryAdd("eb_diff_constraint_x", eb_diff_constraint_x);
+            pp.queryAdd("eb_diff_constraint_y", eb_diff_constraint_y);
+            pp.queryAdd("eb_diff_constraint_z", eb_diff_constraint_z);
         }
 
         // Compute relevant forms of diffusion parameters

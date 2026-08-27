@@ -3,6 +3,7 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
@@ -92,6 +93,8 @@ void make_sources (int level, int nrk,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    const amrex::Real* sinesq_at_lev_d,
                    TurbulentPerturbation& turbPert,
+                   const amrex::Table1D<amrex::Real> r_plane_avg,
+                   const amrex::Table1D<amrex::Real> t_plane_avg,
                    bool is_slow_step);
 
 #if defined(ERF_USE_NETCDF)
@@ -138,6 +141,7 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          std::unique_ptr<ReadBndryPlanes>& m_r2d,
                          const amrex::Real& c_p,
                          const amrex::Real& rdOcp,
+                         const MoistureComponentIndices& moisture_indices,
                          const bool use_wrf_bdy_density,
                          const int bdy_moist_nudge_type);
 #endif

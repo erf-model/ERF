@@ -58,10 +58,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.terrain_type == TerrainType::EB) {
         ParmParse pp_eb2("eb2");
         std::string geometry;
-        pp_eb2.query("geometry", geometry);
+        pp_eb2.queryAdd("geometry", geometry);
         if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
-            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.queryAdd("plane_point", plane_point);
             z_offset = plane_point[2];
         }
     }
@@ -111,6 +111,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking_yface[lev]->setVal(one);
         terrain_blanking_zface[lev]->setVal(one);
 #endif
+
+        // Initialize planar average storage for immersed forcing
+        // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
+        Box domain = geom[lev].Domain();
+        Box tdomain = domain; tdomain.grow(2, 1);  // Grow by 1 ghost cell in z-direction
+        r_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+        t_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -258,6 +265,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
         vel_t_avg[lev]->setVal(zero);
         t_avg_cnt[lev] = zero;
+    }
+
+    // Components: u, v, w, theta, uu, vv, ww, uw, vw, wtheta.
+    // The field storage is rebuilt for this level, but the time-reset state is
+    // global and must survive regridding of any level.
+    interval_means[lev] = nullptr;
+    if (solverChoice.compute_mean_vars) {
+        interval_means[lev] = std::make_unique<MultiFab>(ba, dm, 10, 0);
+        interval_means[lev]->setVal(zero);
+        t_mean_cnt[lev] = 0.0;
     }
 
     // ********************************************************************************************
@@ -696,6 +713,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         eddyDiffs_lev[lev]->setVal(zero);
         if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+            SmnSmn_lev[lev]->setVal(zero);
         } else {
             SmnSmn_lev[lev] = nullptr;
         }
@@ -810,7 +828,7 @@ ERF::init_zphys (int lev, double elapsed_time)
         // Read the small_volfrac threshold from eb2 namespace
         Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
-        pp_eb2.query("small_volfrac", small_volfrac);
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
 
         // Cell-centered terrain blanking
         terrain_blanking[lev]->setVal(one);
@@ -957,7 +975,7 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         // Read the small_volfrac threshold from eb2 namespace
         Real small_volfrac = 0.005;
         ParmParse pp_eb2("eb2");
-        pp_eb2.query("small_volfrac", small_volfrac);
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
 
         terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());

@@ -14,192 +14,105 @@
 namespace erf_plotfile
 {
 
-struct Plot3DMoistureCapabilities
-{
-    bool vapor = false;
-    bool cloud_liquid = false;
-    bool cloud_ice = false;
-    bool rain = false;
-    bool snow = false;
-    bool graupel = false;
-
-    bool cloud_number = false;
-    bool ice_number = false;
-    bool rain_number = false;
-    bool snow_number = false;
-    bool graupel_number = false;
-    // CCN / total aerosol number, distinct from ice_number: it is an aerosol
-    // reservoir with no companion mass species, not a hydrometeor count.
-    bool ccn_number = false;
-
-    bool rain_accumulation = false;
-    bool snow_accumulation = false;
-    bool graupel_accumulation = false;
-    bool relative_humidity_diagnostic = false;
-    bool condensation_rate_diagnostic = false;
-};
-
+/**
+ * @brief What the active run can supply to a 3D plotfile.
+ *
+ * Availability of the *moist* components is not described here: it comes from
+ * the active scheme's MoistureComponentIndices, which is the single source of
+ * truth for which moisture variables exist (see the class comment on that
+ * struct).  What remains in this struct is the conserved-state layout -- needed
+ * to know where the moist window ends and the non-water species begin -- and the
+ * optional non-moisture storage, which a plot variable can only be selected
+ * against if it was actually allocated.
+ */
 struct Plot3DSelectionCapabilities
 {
+    //! Width of the allocated conserved state, i.e. NDRY + NSCALARS plus every
+    //! component the microphysics interface adds.  This bounds the dry
+    //! components and the non-water species some schemes carry above the moist
+    //! window; it is deliberately *not* what gates the moist components.
     int conserved_state_size = 0;
-    int moist_state_size = 0;
-    int moist_numconc_size = 0;
-    int qmoist_size = 0;
-    MoistureType moisture_type = MoistureType::None;
 
-    Plot3DMoistureCapabilities moisture;
+    //! Number of conserved components in the moist window that starts at
+    //! RhoQ1_comp.  Inside that window a component is gated by moisture_indices
+    //! rather than by allocation, because several schemes allocate moist slots
+    //! they never integrate.  Above the window sit the non-water species a
+    //! scheme may add (SuperDroplets), which are allocated *and* integrated and
+    //! so are gated by conserved_state_size like the dry components.
+    //!
+    //! The default is the full RhoQ1..RhoQ11 window, i.e. "let the moisture map
+    //! decide about every rhoQn slot", which is the conservative answer for a
+    //! caller that does not know the scheme's width.
+    int moist_state_size = NMOIST_max;
+
+    //! The active moisture scheme's component/diagnostic map.
+    MoistureComponentIndices moisture_indices;
 
     bool time_average_storage = false;
+    bool interval_mean_storage = false;
     bool radiation_heating_storage = false;
     bool eddy_diffusivity_storage = false;
     bool dissipation_storage = false;
     bool wall_distance_storage = false;
 };
 
-struct Plot3DQRange
+/**
+ * @brief Record the conserved-state layout of a run on its capabilities.
+ *
+ * Every output path that selects raw state names must describe the state the
+ * same way, so the three fields are filled here rather than at each call site.
+ *
+ * @param caps              Capabilities to fill in.
+ * @param mi                The active scheme's component/diagnostic map.
+ * @param qstate_moist_size Conserved components in the moist window
+ *                          (Microphysics::Get_Qstate_Moist_Size()).
+ * @param qstate_size       All conserved components the microphysics adds,
+ *                          moist window plus non-water species
+ *                          (Microphysics::Get_Qstate_Size()).
+ */
+inline void
+plot3d_set_state_capabilities (Plot3DSelectionCapabilities& caps,
+                               const MoistureComponentIndices& mi,
+                               const int qstate_moist_size,
+                               const int qstate_size)
 {
-    int first_q = 0;
-    int last_q = -1;
-
-    [[nodiscard]] bool valid () const noexcept
-    {
-        return first_q >= 1 && last_q >= first_q;
-    }
-};
-
-inline Plot3DMoistureCapabilities
-plot3d_moisture_capabilities (const MoistureType moisture_type)
-{
-    Plot3DMoistureCapabilities caps;
-
-    switch (moisture_type) {
-    case MoistureType::None:
-        break;
-    case MoistureType::MoistNoCondensation:
-        caps.vapor = true;
-        // The second moist conserved component is the canonical cloud-water
-        // state even when this model supplies no condensation source.
-        caps.cloud_liquid = true;
-        break;
-    case MoistureType::SatAdj:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.relative_humidity_diagnostic = true;
-        break;
-    case MoistureType::Kessler_NoRain:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        break;
-    case MoistureType::Kessler:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.rain = true;
-        caps.rain_accumulation = true;
-        break;
-    case MoistureType::SAM_NoPrecip_NoIce:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        break;
-    case MoistureType::SAM_NoIce:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.rain = true;
-        caps.rain_accumulation = true;
-        break;
-    case MoistureType::SAM:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.cloud_ice = true;
-        caps.rain = true;
-        caps.snow = true;
-        caps.graupel = true;
-        caps.rain_accumulation = true;
-        caps.snow_accumulation = true;
-        caps.graupel_accumulation = true;
-        break;
-    case MoistureType::Morrison_NoIce:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.rain = true;
-        caps.cloud_number = true;
-        caps.rain_number = true;
-        caps.rain_accumulation = true;
-        break;
-    case MoistureType::Morrison:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.cloud_ice = true;
-        caps.rain = true;
-        caps.snow = true;
-        caps.graupel = true;
-        caps.cloud_number = true;
-        caps.ice_number = true;
-        caps.rain_number = true;
-        caps.snow_number = true;
-        caps.graupel_number = true;
-        caps.rain_accumulation = true;
-        caps.snow_accumulation = true;
-        caps.graupel_accumulation = true;
-        break;
-    case MoistureType::WSM6:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.cloud_ice = true;
-        caps.rain = true;
-        caps.snow = true;
-        caps.graupel = true;
-        caps.rain_accumulation = true;
-        caps.snow_accumulation = true;
-        caps.graupel_accumulation = true;
-        break;
-    case MoistureType::WDM6:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.cloud_ice = true;
-        caps.rain = true;
-        caps.snow = true;
-        caps.graupel = true;
-        caps.cloud_number = true;
-        caps.rain_number = true;
-        caps.ccn_number = true;
-        caps.rain_accumulation = true;
-        caps.snow_accumulation = true;
-        caps.graupel_accumulation = true;
-        break;
-    case MoistureType::SuperDroplets:
-        caps.vapor = true;
-        caps.cloud_liquid = true;
-        caps.cloud_ice = true;
-        caps.rain = true;
-        caps.snow = true;
-        caps.graupel = true;
-        caps.rain_accumulation = true;
-        // graupel accumulation is not advertised because nothing writes it
-        caps.snow_accumulation = true;
-        caps.relative_humidity_diagnostic = true;
-        caps.condensation_rate_diagnostic = true;
-        break;
-    default:
-        amrex::Abort("Unknown MoistureType in plot3d_moisture_capabilities");
-    }
-
-    return caps;
+    caps.moisture_indices     = mi;
+    caps.moist_state_size     = qstate_moist_size;
+    caps.conserved_state_size = NDRY + NSCALARS + qstate_size;
 }
 
+inline bool
+plot3d_batch_resets_interval_means (int plotfiles_written,
+                                    bool interval_diagnostic_consumed,
+                                    bool compute_mean_vars,
+                                    const std::string& reset_mode)
+{
+    return plotfiles_written > 0 && interval_diagnostic_consumed &&
+           compute_mean_vars && reset_mode == "plotfile";
+}
+
+/**
+ * @brief Conserved-state component holding the q-th moist variable, or -1 if
+ *        q is outside the fixed RhoQ1..RhoQ11 layout.
+ */
 inline int
 plot3d_q_conserved_component_index (const int q)
 {
     if (q < 1 || q > 11) return -1;
-    return 3 + q; // RhoQ1_comp + q - 1 in the fixed conserved layout.
+    return RhoQ1_comp + q - 1;
 }
 
+/**
+ * @brief Conserved-state component behind a raw state variable name
+ *        ("density", "rhotheta", "rhoQ3", ...), or -1 if the name is not one.
+ */
 inline int
 plot3d_conserved_component_index (const std::string& name)
 {
-    if (name == "density")  return 0;
-    if (name == "rhotheta") return 1;
-    if (name == "rhoKE")    return 2;
-    if (name == "rhoadv_0") return 3;
+    if (name == "density")  return Rho_comp;
+    if (name == "rhotheta") return RhoTheta_comp;
+    if (name == "rhoKE")    return RhoKE_comp;
+    if (name == "rhoadv_0") return RhoScalar_comp;
 
     if (name.size() > 4 && name.compare(0, 4, "rhoQ") == 0) {
         const std::string suffix = name.substr(4);
@@ -213,71 +126,9 @@ plot3d_conserved_component_index (const std::string& name)
     return -1;
 }
 
-inline bool
-plot3d_has_moist_state (const Plot3DSelectionCapabilities& caps)
-{
-    return caps.moisture_type != MoistureType::None && caps.moist_state_size > 0;
-}
-
-inline bool
-plot3d_source_component_available (const Plot3DSelectionCapabilities& caps,
-                                    const int q)
-{
-    const int comp = plot3d_q_conserved_component_index(q);
-    return plot3d_has_moist_state(caps) && comp >= 0 && comp < caps.conserved_state_size;
-}
-
-inline bool
-plot3d_moist_q_component_available (const Plot3DSelectionCapabilities& caps,
-                                     const int q)
-{
-    return q >= 1 && q <= caps.moist_state_size &&
-        plot3d_source_component_available(caps, q);
-}
-
-inline Plot3DQRange
-plot3d_total_mass_q_range (const int moist_state_size,
-                           const int moist_numconc_size)
-{
-    if (moist_state_size <= 0 || moist_numconc_size < 0 ||
-        moist_numconc_size > moist_state_size) {
-        return {};
-    }
-
-    const int mass_count = moist_state_size - moist_numconc_size;
-    if (mass_count <= 0) return {};
-    return {1, mass_count};
-}
-
-inline Plot3DQRange
-plot3d_nonprecipitating_q_range (const int moist_state_size)
-{
-    if (moist_state_size < 2) return {};
-    return {1, moist_state_size > 3 ? 3 : 2};
-}
-
-inline Plot3DQRange
-plot3d_precipitating_q_range (const int moist_state_size,
-                              const int moist_numconc_size)
-{
-    const Plot3DQRange total =
-        plot3d_total_mass_q_range(moist_state_size, moist_numconc_size);
-    if (!total.valid()) return {};
-
-    const int first_precip_q = moist_state_size > 3 ? 4 : 3;
-    if (total.last_q < first_precip_q) return {};
-    return {first_precip_q, total.last_q};
-}
-
-inline bool
-plot3d_q_range_available (const Plot3DSelectionCapabilities& caps,
-                          const Plot3DQRange range)
-{
-    return range.valid() &&
-        plot3d_source_component_available(caps, range.first_q) &&
-        plot3d_source_component_available(caps, range.last_q);
-}
-
+/**
+ * @brief Diagnostics that every run can write, moist or dry.
+ */
 inline bool
 plot3d_fixed_unconditional_diagnostic (const std::string& name)
 {
@@ -307,16 +158,71 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
     return false;
 }
 
+/**
+ * @brief Whether a named 3D plot variable can be written by this run.
+ *
+ * The order of the tests below is the order of authority: raw state components
+ * answer from the state layout, moisture variables answer from the active
+ * scheme's index map, optional diagnostics answer from their storage flag, and
+ * anything left is an always-available diagnostic.
+ */
+inline bool
+plot3d_interval_mean_diagnostic (const std::string& name)
+{
+    static constexpr const char* names[] = {
+        "u_mean", "v_mean", "w_mean", "theta_mean",
+        "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+        "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved"
+    };
+
+    for (const char* candidate : names) {
+        if (name == candidate) return true;
+    }
+    return false;
+}
+
+inline bool
+plot3d_selection_has_interval_mean_diagnostic (
+    const amrex::Vector<std::string>& names)
+{
+    return std::any_of(names.begin(), names.end(),
+                       [] (const std::string& name) {
+                           return plot3d_interval_mean_diagnostic(name);
+                       });
+}
+
 inline bool
 plot3d_fixed_variable_available (const std::string& name,
                                  const Plot3DSelectionCapabilities& caps)
 {
+    const MoistureComponentIndices& mi = caps.moisture_indices;
+
+    // Raw conserved-state components.  Inside the moist window the moisture map
+    // decides, since allocated-but-never-integrated slots must not be published
+    // as data.  Below the window the state is always allocated dry-or-moist, and
+    // above it are the non-water species a scheme may add -- both of those are
+    // real data whenever they were allocated, so a bounds check is the right
+    // test for them.
     const int cons_comp = plot3d_conserved_component_index(name);
-    if (cons_comp >= 0) return cons_comp < caps.conserved_state_size;
+    if (cons_comp >= 0) {
+        if ( (cons_comp >= RhoQ1_comp) &&
+             (cons_comp <  RhoQ1_comp + caps.moist_state_size) ) {
+            return mi.has_comp(cons_comp);
+        }
+        return (cons_comp < caps.conserved_state_size);
+    }
+
+    // Every moisture variable -- species, aggregates and moist diagnostics --
+    // is decided by the scheme's index map.
+    const auto moist_status = mi.query_var(name);
+    if (moist_status.governed) return moist_status.available;
 
     if (name == "u_t_avg" || name == "v_t_avg" || name == "w_t_avg" ||
         name == "umag_t_avg") {
         return caps.time_average_storage;
+    }
+    if (plot3d_interval_mean_diagnostic(name)) {
+        return caps.interval_mean_storage;
     }
     if (name == "qsrc_sw" || name == "qsrc_lw") {
         return caps.radiation_heating_storage;
@@ -328,58 +234,12 @@ plot3d_fixed_variable_available (const std::string& name,
     if (name == "diss") return caps.dissipation_storage;
     if (name == "walldist") return caps.wall_distance_storage;
 
-    const auto& moisture = caps.moisture;
-    if (name == "moist_density") {
-        return moisture.vapor && moisture.cloud_liquid &&
-            plot3d_q_range_available(
-                caps, plot3d_nonprecipitating_q_range(caps.moist_state_size));
-    }
-    if (name == "qv")    return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
-    if (name == "qc")    return moisture.cloud_liquid && plot3d_moist_q_component_available(caps, 2);
-    if (name == "qi")    return moisture.cloud_ice && plot3d_moist_q_component_available(caps, 3);
-    if (name == "qrain") return moisture.rain && plot3d_moist_q_component_available(
-        caps, caps.moist_state_size > 3 ? 4 : 3);
-    if (name == "qsnow") return moisture.snow && plot3d_moist_q_component_available(caps, 5);
-    if (name == "qgraup") return moisture.graupel && plot3d_moist_q_component_available(caps, 6);
-    if (name == "nc") return moisture.cloud_number && plot3d_moist_q_component_available(caps, 7);
-    if (name == "ni") return moisture.ice_number && plot3d_moist_q_component_available(caps, 8);
-    if (name == "nr") return moisture.rain_number && plot3d_moist_q_component_available(caps, 9);
-    if (name == "ns") return moisture.snow_number && plot3d_moist_q_component_available(caps, 10);
-    if (name == "ng") return moisture.graupel_number && plot3d_moist_q_component_available(caps, 11);
-    // nn shares slot 8 with ni, but the two are mutually exclusive by scheme:
-    // WDM6 declares ccn_number and leaves ice_number false, Morrison the reverse.
-    if (name == "nn") return moisture.ccn_number && plot3d_moist_q_component_available(caps, 8);
-    if (name == "qt") {
-        return moisture.vapor &&
-            plot3d_q_range_available(
-                caps, plot3d_total_mass_q_range(
-                    caps.moist_state_size, caps.moist_numconc_size));
-    }
-    if (name == "qn") {
-        return moisture.cloud_liquid &&
-            plot3d_q_range_available(
-                caps, plot3d_nonprecipitating_q_range(caps.moist_state_size));
-    }
-    if (name == "qp") {
-        return moisture.rain &&
-            plot3d_q_range_available(
-                caps, plot3d_precipitating_q_range(
-                    caps.moist_state_size, caps.moist_numconc_size));
-    }
-    if (name == "qsat") return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
-    if (name == "precipitable") return moisture.vapor && plot3d_moist_q_component_available(caps, 1);
-
-    if (name == "rain_accum") return moisture.rain_accumulation &&
-        caps.qmoist_size >= (caps.moisture_type == MoistureType::SuperDroplets ? 7 : 1);
-    if (name == "snow_accum") return moisture.snow_accumulation && caps.qmoist_size >= 2;
-    if (name == "graup_accum") return moisture.graupel_accumulation && caps.qmoist_size >= 3;
-    if (name == "rel_humidity") return moisture.relative_humidity_diagnostic &&
-        (caps.moisture_type == MoistureType::SatAdj || caps.qmoist_size >= 6);
-    if (name == "condensation_rate") return moisture.condensation_rate_diagnostic && caps.qmoist_size >= 4;
-
     return plot3d_fixed_unconditional_diagnostic(name);
 }
 
+/**
+ * @brief Whether any requested variable needs the pressure field computed.
+ */
 inline bool
 plot3d_needs_pressure (const amrex::Vector<std::string>& names)
 {

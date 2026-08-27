@@ -23,6 +23,7 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
@@ -158,6 +159,19 @@ public:
     // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
     // used to build ocean->atmos remap weights. Sets both to nullptr if
     // unavailable (e.g. idealized/non-WRF configurations).
+    //
+    // Staggering contract: both MultiFabs always carry CELL index type, but what
+    // they actually hold depends on the init path, and a caller building a corner
+    // mesh must account for the difference:
+    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
+    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
+    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
+    //     the south face -- nodal in j, cell-centred in i. The extra staggered
+    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
+    //     so a corner mesh must read one ghost beyond the valid box in the nodal
+    //     direction; ghosts further out are duplicates of that edge.
+    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
+    //     so both are genuinely cell-centred and there is no staggered edge.
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
@@ -216,7 +230,22 @@ public:
                                 const amrex::MultiFab* dst_mskr = nullptr,
                                 const amrex::MultiFab* dst_msku = nullptr,
                                 const amrex::MultiFab* dst_mskv = nullptr);
-    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
+    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    //
+    // state[0] carries SST in Kelvin on the layout reported by
+    // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
+    // that same layout: nonzero where the driver's remap found at least one
+    // ocean donor for that ERF cell.
+    //
+    // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
+    // supplied nothing and state[0] holds the remap's zero fill, which is
+    // indistinguishable from a computed zero; ERF keeps its own wrflowinp SST
+    // there instead. Passing erf_coverage = nullptr therefore means "no cell is
+    // covered", not "every cell is covered" -- a driver that has coverage
+    // information must pass it.
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
+                                 double time,
+                                 const amrex::iMultiFab* erf_coverage = nullptr);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -587,8 +616,11 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // Write plotfile to disk
-    void Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    bool Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
+                                                 bool interval_diagnostic_consumed);
+    void ResetIntervalMeans ();
 
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
@@ -714,6 +746,14 @@ public:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // The configured time reset is one global, one-shot event.  Keep this
+    // separate from the per-level accumulation storage so regridding a level
+    // cannot re-arm an event that has already happened.
+    int mean_vars_time_reset_done{0};
 #endif
 
     std::string pp_prefix {"erf"};
@@ -786,6 +826,17 @@ public:
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
+
+    // Coupled sea-surface temperature and its per-cell coverage flag, on the
+    // layout reported by GetOceanToAtmosSurfaceLayout. Allocated on the first
+    // ApplyOceanSurfaceState call and handed to the SurfaceLayer as borrowed
+    // pointers, so ERF must outlive the SurfaceLayer's use of them. Level 0
+    // only: the coupler exchanges on the base grid.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // One-shot latch so a misconfigured deck says so once rather than every step.
+    bool m_warned_coupled_sst_declined = false;
 
 private:
 
@@ -967,6 +1018,10 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
+
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
@@ -1015,6 +1070,12 @@ private:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // Global one-shot time-reset state; interval_means remains per level.
+    int mean_vars_time_reset_done{0};
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
@@ -1352,6 +1413,10 @@ private:
                                                     "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
+                                                    // Interval means and resolved turbulence moments
+                                                    "u_mean", "v_mean", "w_mean", "theta_mean",
+                                                    "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved",
                                                     // eddy viscosity
                                                     "nut",
                                                     // eddy diffusivity of momentum
@@ -1386,9 +1451,13 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // NOTE: This is the set of derived variables that WriteSubvolume knows how to fill; it
+    //       is an unordered allow-list, since setSubVolVariables walks "derived_names" and
+    //       keeps the entries found here.  That means the names are selected in
+    //       "derived_names" order, which is the order WriteSubvolume must compute them in.
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar",
+                                                           "precipitable", "mucape"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1877,8 +1946,16 @@ private:
         return *eb[lev];
     }
 
+    //
+    // NOTE: this dereferences the cell-centered EB factory, which is only built when
+    //       we are using EB or immersed forcing -- see ERF::MakeNewLevelFromScratch.
+    //       Calling this in any other case is undefined behavior, so we assert here
+    //       rather than relying on the (build-dependent) libstdc++ hardening check.
+    //
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        AMREX_ASSERT(eb[lev]->get_const_factory() != nullptr);
         return *(eb[lev]->get_const_factory());
     }
 
