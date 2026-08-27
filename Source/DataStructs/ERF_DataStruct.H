@@ -869,13 +869,22 @@ struct SolverChoice {
         pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
         // Average the input z-face heights onto the nodes, or reconstruct our own
-        pp.queryAdd("average_erf_height_grid",average_erf_height_grid);
+        pp.queryAdd("avg_grid_faces_to_nodes",avg_grid_faces_to_nodes);
+
+        // Catch the old name for the flag above so the error says what to do
+        // rather than silently ignoring the setting.
+        if (pp.contains("use_wrf_height_grid")) {
+            amrex::Abort("erf.use_wrf_height_grid has been renamed. "
+                         "Set erf.avg_grid_faces_to_nodes instead; it carries "
+                         "the same meaning (average the input z-face heights "
+                         "onto the nodes rather than reconstructing them).");
+        }
 
         // Rebalance wrf state?
         pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
         // Must rebalance if the nodal heights were reconstructed rather than averaged
-        if (!average_erf_height_grid && !rebalance_wrf_input) {
+        if (!avg_grid_faces_to_nodes && !rebalance_wrf_input) {
             amrex::Print() << "Must rebalance when not averaging the input height grid. Setting rebalance_wrf_input to true \n";
             rebalance_wrf_input = true;
         }
@@ -2146,7 +2155,7 @@ struct SolverChoice {
     int bdy_moist_nudge_type = 1;
 
     // Average the input z-face heights onto the nodes rather than reconstructing them?
-    bool average_erf_height_grid {false};
+    bool avg_grid_faces_to_nodes {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

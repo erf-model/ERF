@@ -325,7 +325,7 @@ ERF::init_from_metgrid (int lev)
         if (itime == 0) {
 
             // Initialize the terrain
-            init_terrain_from_metgrid(solverChoice.average_erf_height_grid, geom[lev],
+            init_terrain_from_metgrid(solverChoice.avg_grid_faces_to_nodes, geom[lev],
                                       z_phys_nd[lev].get(), NC_hgt_fab);
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
@@ -666,14 +666,14 @@ ERF::init_from_metgrid (int lev)
 /**
  * Helper function to initialize terrain nodal z coordinates given metgrid data.
  *
- * @param average_erf_height_grid Average the metgrid surface heights onto the nodes rather
+ * @param avg_grid_faces_to_nodes Average the metgrid surface heights onto the nodes rather
  *                                than reconstructing nodal heights that reproduce them
  * @param geom Geometry at this level
  * @param z_phys_nd MultiFab holding the nodal z coordinates for terrain data we want to fill
  * @param NC_hgt_fab FArrayBox (Fab) holding height data read from the first NetCDF file of metgrid data
  */
 void
-init_terrain_from_metgrid (const bool& average_erf_height_grid,
+init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
                            Geometry& geom,
                            MultiFab* z_phys_nd,
                            FArrayBox& NC_hgt_fab)
@@ -689,7 +689,7 @@ init_terrain_from_metgrid (const bool& average_erf_height_grid,
     // NC height array
     const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
 
-    if (average_erf_height_grid) {
+    if (avg_grid_faces_to_nodes) {
         // Average the mass-grid cells that touch each node onto the node,
         // clamping at the domain edges so that a boundary node takes the
         // average of only the cells that exist
@@ -726,7 +726,7 @@ init_terrain_from_metgrid (const bool& average_erf_height_grid,
 
         // Copy back to z_phys, filling the lateral ghost nodes
         fill_nodal_level_from_slice(*z_phys_nd, klo, z_slice_erf);
-    } // average_erf_height_grid
+    } // avg_grid_faces_to_nodes
 }
 
 /**

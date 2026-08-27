@@ -100,7 +100,7 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
  * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
  * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
  * @param[out] dz0_max Maximum first-layer thickness.
- * @param[in] average_erf_height_grid Whether to average the ERF height grid at from z-faces.
+ * @param[in] avg_grid_faces_to_nodes Whether to average the ERF height grid at from z-faces.
  */
 void
 init_terrain_from_wrfinput (int lev,
@@ -111,7 +111,7 @@ init_terrain_from_wrfinput (int lev,
                             const MultiFab& NC_PH_fab,
                             const MultiFab& NC_PHB_fab,
                             Real& dz0_max,
-                            const bool& average_erf_height_grid);
+                            const bool& avg_grid_faces_to_nodes);
 
 /**
  * Initialize hydrostatic base state data from a WRF dataset.
@@ -1227,9 +1227,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // **************************************************************************
         Real dz0_max;
         init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
-                                   mf_PH, *mf_PHB, dz0_max, solverChoice.average_erf_height_grid);
+                                   mf_PH, *mf_PHB, dz0_max, solverChoice.avg_grid_faces_to_nodes);
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
-        if (!solverChoice.average_erf_height_grid) {
+        if (!solverChoice.avg_grid_faces_to_nodes) {
 #ifdef AMREX_USE_FLOAT
             const Real tol = Real(1.e-4);
 #else
@@ -2186,11 +2186,11 @@ init_terrain_from_wrfinput (int /*lev*/,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB,
                             Real& dz0_max,
-                            const bool& average_erf_height_grid)
+                            const bool& avg_grid_faces_to_nodes)
 {
     Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-    if (average_erf_height_grid) {
+    if (avg_grid_faces_to_nodes) {
         for ( MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi )
         {
             Box gtbx = mfi.growntilebox();
@@ -2423,7 +2423,7 @@ init_terrain_from_wrfinput (int /*lev*/,
             if (min_dz <= zero) {
                 Error("Reconstructed nodal terrain gives a non-positive first layer thickness; "
                       "the WRF terrain is too rough to represent on the ERF nodal mesh. "
-                      "Consider running with erf.average_erf_height_grid = true.");
+                      "Consider running with erf.avg_grid_faces_to_nodes = true.");
             }
         }
     } // average_erf_grid

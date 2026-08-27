@@ -2137,7 +2137,7 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.average_erf_height_grid**  | avg z heights       |  Boolean           | false                 |
+| **erf.avg_grid_faces_to_nodes**  | avg z heights       |  Boolean           | false                 |
 |                                  | from z-face data in |                    |                       |
 |                                  | wrfinput/metgrid or |                    |                       |
 |                                  | make our own grid?  |                    |                       |
@@ -3061,13 +3061,13 @@ Initialization, Terrain and Vertical Mesh
 |                                                | levels; specifying these makes the mesh type           |                                |                        |
 |                                                | ``StretchedDz``.  See :ref:`sec:Meshing`               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.average_erf_height_grid**                | average the ``wrfinput`` / ``met_em`` heights onto the | Boolean                        | false                  |
+| **erf.avg_grid_faces_to_nodes**                | average the ``wrfinput`` / ``met_em`` heights onto the | Boolean                        | false                  |
 |                                                | nodes rather than reconstructing nodal heights whose   |                                |                        |
 |                                                | four-node average reproduces them                      |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.rebalance_wrf_input**                    | rebalance (hydrostatically re-integrate) the state     | Boolean                        | true                   |
 |                                                | read from ``wrfinput`` and ``wrfbdy``.  Forced to true |                                |                        |
-|                                                | if ``average_erf_height_grid`` is false                |                                |                        |
+|                                                | if ``avg_grid_faces_to_nodes`` is false                |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 
 Physics Model Selection
