@@ -406,11 +406,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                      << estdt_comp_T/cfl << " (terrain aware)  "
                      << estdt_comp_N/cfl << " (terrain unaware)" << std::endl;
              if (estdt_lowM_inv_T > zero) {
-                 Print() << "Anelastic dt at level " << level << " would be:  "
+                 Print() << "Anelastic    dt at level " << level << " would be:  "
                          << estdt_lowM_T/cfl << " (terrain aware)  "
                          << estdt_lowM_N/cfl << " (terrain unaware)" << std::endl;
              } else {
-                 Print() << "Anelastic dt at level " << level << " would be undefined " << std::endl;
+                 Print() << "Anelastic    dt at level " << level << " would be undefined " << std::endl;
              }
              Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt[level] << std::endl;
              if (fixed_fast_dt[level] > zero) {
