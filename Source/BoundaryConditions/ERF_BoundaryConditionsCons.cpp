@@ -541,7 +541,15 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         } else if (i+1 > bx_hi.x) {
                             GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         } else if (i-1 < bx_lo.x) {
+                            if (i == 107 and j == -1) {
+                            amrex::Print()  << " COMPUTING AT IJK " << IntVect(i,j,k0) << " " << dest_comp << std::endl;
+                            amrex::Print()  << " AT I+1,j,k0 " << dest_arr(i+1,j,k0,dest_comp) << std::endl;
+                            amrex::Print()  << " AT I  ,j,k0 " << dest_arr(i  ,j,k0,dest_comp) << std::endl;
+                            }
                             GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i  ,j,k0,dest_comp));
+                            if (i == 107 and j == -1) {
+                            amrex::Print()  << " COMPUTED  AT IJK " << IntVect(i,j,k0) << " " << dest_comp << std::endl;
+                            }
                         } else {
                             GradVarx = myhalf * dxInv[0] * (dest_arr(i+1,j,k0,dest_comp) - dest_arr(i-1,j,k0,dest_comp));
                         }
