@@ -2339,25 +2339,29 @@ An example is given in Exec/CanonicalTests/ABL/erf_terrain_def.
 List of Parameters
 ------------------
 
-+-----------------------------+--------------------+--------------------+------------+
-| Parameter                   | Definition         | Acceptable         | Default    |
-|                             |                    | Values             |            |
-+=============================+====================+====================+============+
-| **erf.terrain_type**        | Is there terrain   | None               | None       |
-|                             | and if so, how is  | StaticFittedMesh   |            |
-|                             | it represented?    | MovingFittedMesh   |            |
-|                             |                    | ImmersedForcing    |            |
-|                             |                    | EB                 |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
-|                             | following          | 1,                 |            |
-|                             |                    | 2                  |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_file_name**   | filename           | String             | NONE       |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_file_name_nc**| NetCDF terrain     | String             | NONE       |
-|                             | filename           |                    |            |
-+-----------------------------+--------------------+--------------------+------------+
++------------------------------------+--------------------+--------------------+----------------+
+| Parameter                          | Definition         | Acceptable         | Default        |
+|                                    |                    | Values             |                |
++====================================+====================+====================+================+
+| **erf.terrain_type**               | Is there terrain   | None               | None           |
+|                                    | and if so, how is  | StaticFittedMesh   |                |
+|                                    | it represented?    | MovingFittedMesh   |                |
+|                                    |                    | ImmersedForcing    |                |
+|                                    |                    | EB                 |                |
++------------------------------------+--------------------+--------------------+----------------+
+| **erf.terrain_smoothing**          | specify terrain    | 0,                 | 0              |
+|                                    | following          | 1,                 |                |
+|                                    |                    | 2                  |                |
++------------------------------------+--------------------+--------------------+----------------+
+| **erf.amr_terrain_refinement**     | terrain refinement | "interpolate",     | "interpolate"  |
+|                                    | strategy for AMR   | "transform"        |                |
+|                                    | with STF/Sullivan  |                    |                |
++------------------------------------+--------------------+--------------------+----------------+
+| **erf.terrain_file_name**          | filename           | String             | NONE           |
++------------------------------------+--------------------+--------------------+----------------+
+| **erf.terrain_file_name_nc**       | NetCDF terrain     | String             | NONE           |
+|                                    | filename           |                    |                |
++------------------------------------+--------------------+--------------------+----------------+
 
 Examples of Usage
 -----------------
@@ -2374,6 +2378,20 @@ Examples of Usage
 
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.
+
+-  **erf.amr_terrain_refinement**  = "interpolate"
+    Default mode for AMR with STF/Sullivan terrain smoothing (``terrain_smoothing=1`` or ``2``).
+    Fine levels use terrain coordinates interpolated from the coarse level, maintaining
+    smooth consistency across refinement levels. Note: Currently only supported for
+    idealized initialization types. Support for WRFInput
+    and Metgrid initialization is planned for future work.
+
+-  **erf.amr_terrain_refinement**  = "transform"
+    Advanced mode for AMR with STF/Sullivan (``terrain_smoothing=1`` or ``2``). Fine levels read the 
+    higher-resolution terrain data for the surface (``k=0``), with height-dependent blending to match 
+    the coarse-fine boundary. Captures finer terrain features. Note: Currently only
+    supported for standard initialization types. Support for WRFInput and Metgrid
+    initialization is planned for future work.
 
 -  When setting **erf.terrain_file_name**, the format of the file is expected to
     be (in raw text): the integer nx on the first line, the integer ny on the second line,
