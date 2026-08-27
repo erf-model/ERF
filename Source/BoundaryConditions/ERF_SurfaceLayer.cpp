@@ -578,13 +578,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         // Output stresses:
         //            T     Q      U     V
-        // X-faces: hfx1   qfx1   t31   t21
+        // X-faces: hfx1   qfx1   t21   t31
         // Y-faces: hfx2   qfx2   t12   t32
         // Z-faces: hfx3   qfx3   t13   t23
 
         // Output stresses nodal locations:
         //            T     Q
-        // X-faces: hfx1   qfx1(1,0,0)   t31(W)(1,0,1)   t21(V)(1,1,0)
+        // X-faces: hfx1   qfx1(1,0,0)   t21(V)(1,1,0)   t31(W)(1,0,1)
         // Y-faces: hfx2   qfx2(0,1,0)   t12(U)(1,1,0)   t32(W)(0,1,1)
         // Z-faces: hfx3   qfx3(0,0,1)   t13(U)(1,0,1)   t23(V)(0,1,1)
 
@@ -870,9 +870,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
                 // write out to corresponding face
                 if (dir == 0) {
-                    const int out_ind = (is_low_face) ? k : k+1; // (1, 0, 1) on X faces
-                    t31_arr(i,j,out_ind) = stressx;
-                    if (t13_arr) { t13_arr(i,j,out_ind) = stressx; }
+                    const int out_ind = (is_low_face) ? j : j+1; // (1, 1, 0) on X faces
+                    t21_arr(i,out_ind,k) = stressx;
+                    if (t12_arr) { t12_arr(i,out_ind,k) = stressx; }
                 } else if (dir == 1) {
                     const int out_ind = (is_low_face) ? j : j+1; // (1, 1, 0) on Y faces
                     t12_arr(i,out_ind,k) = stressx;
@@ -930,9 +930,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
                 // write out to corresponding face
                 if (dir == 0) {
-                    const int out_ind = (is_low_face) ? i : i+1; // (1, 1, 0) on X faces
-                    t21_arr(out_ind,j,k) = stressy;
-                    if (t12_arr) { t12_arr(out_ind,j,k) = stressy; }
+                    const int out_ind = (is_low_face) ? k : k+1; // (1, 0, 1) on X faces
+                    t31_arr(i,j,out_ind) = stressy;
+                    if (t13_arr) { t13_arr(i,j,out_ind) = stressy; }
                 } else if (dir == 1) {
                     const int out_ind = (is_low_face) ? k : k+1; // (0, 1, 1) on Y faces
                     t32_arr(i,j,out_ind) = stressy;
