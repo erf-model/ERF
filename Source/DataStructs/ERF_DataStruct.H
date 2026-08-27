@@ -693,30 +693,12 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
-        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
-        // before query_enum_case_insensitive does, so the error says what to do
-        // rather than just listing the enum values.
-        {
-            std::string lsm_string;
-            if (pp.queryAdd("land_surface_model", lsm_string) &&
-                amrex::toLower(lsm_string) == "oceansurf") {
-                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
-                             "Coupled ocean SST is now applied through the "
-                             "lower-boundary path: set erf.use_coupled_sst = 1 "
-                             "instead, and use erf.land_surface_model for the land "
-                             "surface you actually want (the two are no longer "
-                             "the same setting).");
-            }
-        }
-
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
         // Will an external ocean coupler supply SST for part or all of the water
-        // cells this run? This is a configuration predicate, not a data-validity
-        // one: it says the coupled lane will be filled, not that any coupled step
-        // has run yet. The surface layer needs it at Define time to select
+        // cells this run? The surface layer needs to know this it in time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
