@@ -13,10 +13,15 @@ void ERFPC::readInputs ()
 
     ParmParse pp(m_name);
 
+    // Containers with their own initialization scheme opt out of these; the names
+    // are then theirs to define under the same prefix.
     m_initialization_type = ERFParticleInitializations::init_box_uniform;
-    pp.query("initial_distribution_type", m_initialization_type);
+    if (m_opts.read_particle_init) {
+        pp.query("initial_distribution_type", m_initialization_type);
+    }
 
-    if (m_initialization_type == ERFParticleInitializations::init_box_uniform)
+    if (m_opts.read_particle_init &&
+        m_initialization_type == ERFParticleInitializations::init_box_uniform)
     {
         Vector<Real> particle_box_lo(AMREX_SPACEDIM);
         Vector<Real> particle_box_hi(AMREX_SPACEDIM);
@@ -41,12 +46,14 @@ void ERFPC::readInputs ()
     }
 
     m_ppc_init = 1;
-    pp.query("initial_particles_per_cell", m_ppc_init);
+    if (m_opts.read_particle_init) {
+        pp.query("initial_particles_per_cell", m_ppc_init);
+    }
 
     m_advect_w_flow = true;
     pp.query("advect_with_flow", m_advect_w_flow);
 
-    m_advect_w_gravity = false;
+    m_advect_w_gravity = m_opts.advect_with_gravity;
     pp.query("advect_with_gravity", m_advect_w_gravity);
 
     m_inject_start_time = zero;
