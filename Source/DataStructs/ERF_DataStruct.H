@@ -1097,11 +1097,30 @@ struct SolverChoice {
         pp.queryAdd("nudging_q_z1", nudging_q_z1);
         pp.queryAdd("nudging_q_z2", nudging_q_z2);
 
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_u_z1 < nudging_u_z2,
+            "nudging_u_z1 must be less than nudging_u_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_t_z1 < nudging_t_z2,
+            "nudging_t_z1 must be less than nudging_t_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_q_z1 < nudging_q_z2,
+            "nudging_q_z1 must be less than nudging_q_z2");
+
         pp.queryAdd("nudging_u", nudging_u);
         pp.queryAdd("nudging_t", nudging_t);
         pp.queryAdd("nudging_q", nudging_q);
 
         pp.queryAdd("large_scale_forcing", large_scale_forcing);
+
+        if (nudging_from_input_sounding && large_scale_forcing) {
+            if (!nudging_u) {
+                amrex::Print() << "WARNING: erf.nudging_u = false has no effect when erf.large_scale_forcing "
+                                  "= true; momentum nudging is then controlled solely by large_scale_forcing.\n";
+            }
+            if (nudging_u_z1 != zero || nudging_u_z2 != amrex::Real(1.0e36)) {
+                amrex::Print() << "WARNING: erf.nudging_u_z1/erf.nudging_u_z2 are ignored when "
+                                  "erf.large_scale_forcing = true; momentum nudging is then applied "
+                                  "at all heights.\n";
+            }
+        }
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),

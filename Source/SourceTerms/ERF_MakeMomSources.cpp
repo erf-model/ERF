@@ -166,7 +166,9 @@ void make_mom_sources (double time_d,
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
+    if (is_slow_step && (dptr_wbar_sub ||
+                         (solverChoice.nudging_from_input_sounding &&
+                          (solverChoice.large_scale_forcing || solverChoice.nudging_u)) ||
                          enforce_massflux_x || enforce_massflux_y))
     {
         // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
@@ -683,8 +685,6 @@ void make_mom_sources (double time_d,
             const bool l_lsf = solverChoice.large_scale_forcing;
             const Real u_z1 = solverChoice.nudging_u_z1;
             const Real u_z2 = solverChoice.nudging_u_z2;
-            const Real zlo  = geom.ProbLo(2);
-            const Real dz   = geom.CellSize(2);
             Real uv_coeff_n = 1.0;
             Real uv_coeff_np1 = 0.0;
             Real tau = Real(1.0) / input_sounding_data.tau_nudging;
@@ -726,7 +726,7 @@ void make_mom_sources (double time_d,
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real z = zlo + (k+0.5)*dz;
+                Real z = z_cc_arr(i,j,k);
                 if (l_lsf || (z >= u_z1 && z <= u_z2)) {
                     Real unudge = -((dptr_u_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
                     xmom_src_arr(i, j, k) += tau * unudge * dptr_r_plane(k);
@@ -735,7 +735,7 @@ void make_mom_sources (double time_d,
 
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real z = zlo + (k+0.5)*dz;
+                Real z = z_cc_arr(i,j,k);
                 if (l_lsf || (z >= u_z1 && z <= u_z2)) {
                     Real vnudge = -((dptr_v_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
                     ymom_src_arr(i, j, k) += tau * vnudge * dptr_r_plane(k);

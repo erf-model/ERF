@@ -1810,8 +1810,8 @@ List of Parameters
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_u**                   | Nudge u,v towards the  | Boolean           | true                |
 |                                     | sounding when          |                   |                     |
-|                                     | ``nudging_from_input_``|                   |                     |
-|                                     | ``sounding`` is true.  |                   |                     |
+|                                     | ``nudging_from_input_\ |                   |                     |
+|                                     | sounding`` is true.    |                   |                     |
 |                                     | Does not affect        |                   |                     |
 |                                     | LSF-based wind nudging |                   |                     |
 |                                     | (see                   |                   |                     |
@@ -1821,14 +1821,14 @@ List of Parameters
 | **erf.nudging_t**                   | Nudge potential        | Boolean           | true                |
 |                                     | temperature towards    |                   |                     |
 |                                     | the sounding when      |                   |                     |
-|                                     | ``nudging_from_input_``|                   |                     |
-|                                     | ``sounding`` is true   |                   |                     |
+|                                     | ``nudging_from_input_\ |                   |                     |
+|                                     | sounding`` is true     |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.nudging_q**                   | Nudge water vapor      | Boolean           | true                |
 |                                     | towards the sounding   |                   |                     |
 |                                     | when                   |                   |                     |
-|                                     | ``nudging_from_input_``|                   |                     |
-|                                     | ``sounding`` is true   |                   |                     |
+|                                     | ``nudging_from_input_\ |                   |                     |
+|                                     | sounding`` is true     |                   |                     |
 +-------------------------------------+------------------------+-------------------+---------------------+
 | **erf.large_scale_forcing**         | Apply time-varying     | Boolean           | false               |
 |                                     | large-scale tendencies |                   |                     |
@@ -3297,8 +3297,8 @@ Custom, Nudging and Numerical Diffusion Forcing
 |                                                | ``large_scale_forcing``)                               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t**                              | nudge potential temperature towards the sounding       | Boolean                        | true                   |
-|                                                | (takes effect only when ``nudging_from_input_``        |                                |                        |
-|                                                | ``sounding`` is true)                                  |                                |                        |
+|                                                | (takes effect only when ``nudging_from_input_sounding``|                                |                        |
+|                                                | is true)                                               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_q**                              | nudge water vapor towards the sounding (takes          | Boolean                        | true                   |
 |                                                | effect only when ``nudging_from_input_sounding``       |                                |                        |
