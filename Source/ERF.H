@@ -827,8 +827,9 @@ public:
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();
 
+    void fill_terrain_surface  (int lev, amrex::MultiFab& z_phys, double elapsed_time);
     void init_zphys            (int lev, double elapsed_time);
-    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
     bool m_driver_has_atm2ocn_coupling = false;

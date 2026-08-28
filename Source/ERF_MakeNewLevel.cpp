@@ -689,7 +689,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 #endif
         }
     }
-    remake_zphys(lev, temp_zphys_nd);
+    remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     // ********************************************************************************************

@@ -723,6 +723,41 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 }
 
+//
+// Overwrite the k=0 slab of z_phys with the terrain surface at this level's resolution
+//
+void
+ERF::fill_terrain_surface (int lev, MultiFab& z_phys, double elapsed_time)
+{
+    int ngrow = ComputeGhostCells(solverChoice) + 2;
+    Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
+    FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+
+    //
+    // If we are using fitted mesh then we use the surface as defined above
+    // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
+    //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
+    //    from the correct terrain)
+    //
+    if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
+        solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
+            terrain_fab.template setVal<RunOn::Device>(zero);
+    } else {
+        //
+        // Fill the values of the terrain height at k=0 only
+        //
+        prob->init_terrain_surface(geom[lev],terrain_fab,elapsed_time);
+    }
+
+    for (MFIter mfi(z_phys,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box isect = terrain_fab.box() & z_phys[mfi].box();
+        if (!isect.isEmpty()) {
+            z_phys[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
+        }
+    }
+}
+
 void
 ERF::init_zphys (int lev, double elapsed_time)
 {
@@ -752,35 +787,38 @@ ERF::init_zphys (int lev, double elapsed_time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
 
-        int ngrow = ComputeGhostCells(solverChoice) + 2;
-        Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
-        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+        //
+        // The STF and Sullivan TF transformations are only defined on a level that
+        // spans the full column, so on a fine level we build the mesh from the one
+        // just interpolated from the coarse level instead.  "interpolate" uses that
+        // mesh as-is; "transform" additionally reads the terrain at the fine
+        // resolution and blends it in with a correction that decays with height.
+        //
+        ParmParse pp("erf");
+        int terrain_smoothing = 0;
+        pp.query("terrain_smoothing", terrain_smoothing);
+
+        FineTerrain fine_terrain = (lev > 0 && terrain_smoothing != 0) ? which_fine_terrain()
+                                                                      : FineTerrain::None;
 
         //
-        // If we are using fitted mesh then we use the surface as defined above
-        // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
-        //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
-        //    from the correct terrain)
+        // Save the interpolated mesh before the fine terrain overwrites the k=0 slab,
+        // since the transform is expressed relative to it
         //
-        if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
-            solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-                terrain_fab.template setVal<RunOn::Device>(zero);
-        } else {
-            //
-            // Fill the values of the terrain height at k=0 only
-            //
-            prob->init_terrain_surface(geom[lev],terrain_fab,elapsed_time);
+        MultiFab z_phys_interp;
+        if (fine_terrain == FineTerrain::Transform) {
+            z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
+                                 1, z_phys_nd[lev]->nGrowVect());
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0); // valid region only
         }
 
-        for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
-            if (!isect.isEmpty()) {
-                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
-            }
+        if (fine_terrain != FineTerrain::Interpolate) {
+            fill_terrain_surface(lev, *z_phys_nd[lev], elapsed_time);
         }
 
-        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
+                                   fine_terrain,
+                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
@@ -790,7 +828,7 @@ ERF::init_zphys (int lev, double elapsed_time)
             if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                amrex::Abort("Terrain is taller than domain top!");
+                amrex::Warning("Terrain is taller than domain top!");
             }
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways
@@ -927,7 +965,7 @@ ERF::init_zphys (int lev, double elapsed_time)
 }
 
 void
-ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
@@ -947,9 +985,31 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
+            //
+            // On a fine level with STF or Sullivan TF we have to rebuild the mesh the
+            // same way init_zphys() did, since make_terrain_fitted_coords() cannot
+            // apply the transformation to a level that does not span the full column
+            //
+            ParmParse pp("erf");
+            int terrain_smoothing = 0;
+            pp.query("terrain_smoothing", terrain_smoothing);
+
+            FineTerrain fine_terrain = (terrain_smoothing != 0) ? which_fine_terrain()
+                                                                : FineTerrain::None;
+
+            MultiFab z_phys_interp;
+            if (fine_terrain == FineTerrain::Transform) {
+                z_phys_interp.define(temp_zphys_nd->boxArray(), temp_zphys_nd->DistributionMap(),
+                                     1, temp_zphys_nd->nGrowVect());
+                MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, 0); // valid region only
+                fill_terrain_surface(lev, *temp_zphys_nd, time);
+            }
+
             // This recomputes the fine values using the bottom terrain at the fine resolution,
             //    and also fills values of z_phys_nd outside the domain
-            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
+            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
+                                       fine_terrain,
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
 
         } // lev > 0
 
