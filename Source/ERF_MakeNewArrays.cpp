@@ -841,11 +841,21 @@ ERF::init_zphys (int lev, double elapsed_time)
         } // lev == 0
 
     } else {
-        // NOTE: If a WRFInput file is NOT provided for a finer level,
-        //       we simply interpolate from the coarse. This is necessary
-        //       since we average_down the terrain (ERF_MakeNewLevel.cpp L351).
-        //       If a WRFInput file IS present, it overwrites the terrain data.
-        if (lev > 0) {
+        // If a WRFInput / met_em file is NOT provided for a finer level, we simply
+        // interpolate the terrain from the coarse level. This is necessary since we
+        // average_down the terrain (see ERF_MakeNewLevel.cpp).
+        //
+        // If a file IS present at this level, the terrain has already been built from
+        // that file's PH + PHB by init_terrain_from_wrfinput (or its metgrid analogue),
+        // which runs BEFORE this routine on both the from-scratch and the from-coarse
+        // paths (init_only precedes init_zphys there because level 0 has to read its
+        // terrain and its data in the same pass). Interpolating from the coarse level
+        // here would therefore throw that away and leave the fine level running on
+        // coarse-derived heights -- so we must not do it.
+        //
+        // NOTE: this is the behavior the comment here has always described; the guard
+        //       below is what actually makes it true.
+        if ( (lev > 0) && nc_init_file[lev].empty() ) {
             //
             // First interpolate from coarser level if there is one
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -1021,6 +1031,23 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
+
+            //
+            // If this level has its own wrfinput / met_em file then its terrain was built
+            // from that file's PH + PHB, and the coarse interpolation above is only the
+            // right answer in the parts of the NEW grids that the OLD grids did not cover.
+            // ParallelCopy writes only where source and destination overlap, so this keeps
+            // the file-derived terrain wherever we already had it and leaves the
+            // coarse-interpolated values everywhere else.
+            //
+            // Without this, every regrid would quietly demote a nested level back onto
+            // coarse-interpolated heights -- which is the same thing the guard in
+            // init_zphys above exists to prevent at initialization.
+            //
+            if (!nc_init_file[lev].empty()) {
+                temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1,
+                                            z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+            }
 
         } // lev > 0
 

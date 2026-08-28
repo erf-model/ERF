@@ -104,7 +104,7 @@ ERF::init_from_metgrid (int lev)
         AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
 
     // Base state parameters from WRF and the layer interfaces derived from them.
-    MetgridBaseStateParams bsp;
+    BaseStateParams bsp;
     bsp.set_layer_interfaces();
 
     // Size the SST and LANDMASK
@@ -1368,10 +1368,10 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& z_phys_nd_fab,
                               FArrayBox& z_phys_cc_fab,
                               const FArrayBox& NC_psfc_fab,
-                              const MetgridBaseStateParams& bsp)
+                              const BaseStateParams& bsp)
 {
     // Base state parameters and the layer interfaces derived from them. These are
-    // set once by the caller; see MetgridBaseStateParams for the profile they define.
+    // set once by the caller; see BaseStateParams for the profile they define.
     const Real T00       = bsp.T00;
     const Real P00       = bsp.P00;
     const Real TLP       = bsp.TLP;
