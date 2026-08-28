@@ -4,7 +4,8 @@ using namespace amrex;
 
 void ERF::advance_radiation (int lev,
                              MultiFab& cons,
-                             const double& dt_advance)
+                             const double& dt_advance,
+                             const MultiFab* liquid_cloud_fraction)
 {
     if (solverChoice.rad_type != RadiationType::None) {
 #ifdef ERF_USE_NETCDF
@@ -40,6 +41,7 @@ void ERF::advance_radiation (int lev,
         double time_for_rad = t_old[lev] + start_time;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
                       cons.boxArray(), geom[lev], &(cons),
+                      liquid_cloud_fraction,
                       lmask_lev[lev][0].get(), t_surf,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),

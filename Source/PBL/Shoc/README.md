@@ -456,6 +456,16 @@ Also run representative non-SHOC regression tests after changing shared coupling
 microphysics, plotfile, or time-integration paths. Native SHOC must not alter
 non-SHOC results when it is not selected at runtime.
 
+## RRTMGP radiation coupling
+
+When Native SHOC is coupled to RRTMGP, ERF passes SHOC's diagnosed liquid-cloud
+fraction to radiation when `erf.rad_use_shoc_cldfrac = true` (the default).
+Radiation is called after the current Native SHOC update so the diagnostic and
+the host thermodynamic state are from the same step. The diagnostic describes
+liquid-cloud macrophysics only; cloud ice retains a binary fraction. ERF's host
+`qc` field remains the liquid input to RRTMGP, and `shoc_ql` is not substituted
+for it by this coupling.
+
 ## See also
 
 User documentation:
