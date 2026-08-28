@@ -398,20 +398,23 @@ SurfaceLayer::compute_fluxes (const int& lev,
         vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
-        const auto ng = umm_ptr->nGrowVect();
-
         if (m_face.isLow()) {
             if (vbx.smallEnd(dir) != sm_index) {
                 continue;
             }
-            gtbx.grow(2, ng[2]);
             gtbx.setBig(dir, sm_index);
         } else {
             if (vbx.bigEnd(dir) != sm_index) {
                 continue;
             }
-            gtbx.grow(2, ng[2]);
             gtbx.setSmall(dir, sm_index);
+        }
+
+        // X/Y faces still need the full valid z column
+        if (dir == 2) {
+            gtbx.makeSlab(2, sm_index);
+        } else {
+            gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
         }
 
         auto u_star_arr = u_star[lev]->array(mfi);
