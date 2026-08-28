@@ -297,7 +297,7 @@ public:
 
     // There is a default value of 1e-6 but the user can override the value here,
     //   and in addition can add perturbational values.  and in addition can add perturbational values.
-    pp.query("tke_min",tke_min);
+    pp.queryAdd("tke_min",tke_min);
 
     // LES constants...
     query_one_or_per_level(pp, "Cs", Cs, lev, max_level);

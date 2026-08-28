@@ -178,6 +178,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else if (my_prob_name_ci == "bellforest") {
+        // No state perturbation; uniform flow is set in init_custom_pert_vels
+    }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
                 << "does not add any state perturbations. \n";
@@ -242,7 +245,8 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
     }
     else if ( (my_prob_name_ci == "flow over witch of agnesi hill") ||
-              (my_prob_name_ci == "flow over schar mountain") ) {
+              (my_prob_name_ci == "flow over schar mountain") ||
+              (my_prob_name_ci == "bellforest") ) {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
     }
     else if (my_prob_name_ci == "moving terrain") {

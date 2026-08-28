@@ -1753,9 +1753,9 @@ SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
     int nlines = 0;
     int ncols = -1;
 
-    const auto print_err = [](const std::string &fname, int line, int cols, int expected_cols) {
-        amrex::Error("Error reading file '" + fname + "': expected line " +
-                     std::to_string(line) + " to have " + std::to_string(expected_cols) +
+    const auto print_err = [](const std::string &err_fname, int lineno, int cols, int expected_cols) {
+        amrex::Error("Error reading file '" + err_fname + "': expected line " +
+                     std::to_string(lineno) + " to have " + std::to_string(expected_cols) +
                      " columns, but got " + std::to_string(cols));
     };
 

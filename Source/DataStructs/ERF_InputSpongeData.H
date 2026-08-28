@@ -25,7 +25,7 @@ public:
     {
         // Text input_sounding file
         amrex::ParmParse pp("erf");
-        pp.query("input_sponge_file", input_sponge_file);
+        pp.queryAdd("input_sponge_file", input_sponge_file);
     }
 
     /**
