@@ -51,7 +51,9 @@ make_terrain_fitted_coords (int lev,
                             const Geometry& geom,
                             MultiFab& z_phys_nd,
                             Vector<Real> const& z_levels_h,
-                            GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type)
+                            GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
+                            FineTerrain fine_terrain,
+                            MultiFab const* z_phys_interp)
 {
     const Box& domain = geom.Domain();
 
@@ -73,7 +75,7 @@ make_terrain_fitted_coords (int lev,
         }
 
         if (all_boxes_touch_bottom) {
-            init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
+            init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
         } else {
 
             BoxArray ba_new(domain);
@@ -86,12 +88,12 @@ make_terrain_fitted_coords (int lev,
 
             z_phys_nd_new.ParallelCopy(z_phys_nd,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
 
-            init_which_terrain_grid(lev, geom, z_phys_nd_new, z_levels_h);
+            init_which_terrain_grid(lev, geom, z_phys_nd_new, z_levels_h, fine_terrain, z_phys_interp);
 
             z_phys_nd.ParallelCopy(z_phys_nd_new,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
         }
     } else { // lev > 0
-        init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h);
+        init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
     }
 
     //
@@ -164,6 +166,156 @@ make_terrain_fitted_coords (int lev,
 } // make_terrain_fitted_coords
 
 /**
+ * Translate erf.amr_terrain_refinement into a FineTerrain.
+ */
+FineTerrain
+which_fine_terrain ()
+{
+    ParmParse pp("erf");
+    std::string amr_terrain_refinement = "interpolate";
+    pp.query("amr_terrain_refinement", amr_terrain_refinement);
+
+    if (amr_terrain_refinement == "interpolate") {
+        return FineTerrain::Interpolate;
+    } else if (amr_terrain_refinement == "transform") {
+        return FineTerrain::Transform;
+    }
+
+    Abort("erf.amr_terrain_refinement = " + amr_terrain_refinement +
+          " is not recognized; it must be \"interpolate\" or \"transform\"");
+    return FineTerrain::Interpolate;
+}
+
+/**
+ * Finish the terrain-fitted mesh on a fine level built from the coarse level.
+ *
+ * On entry z_phys_nd holds the mesh interpolated from the coarse level in its valid
+ * region, with -- for Transform -- the fine-resolution terrain already written into
+ * the k=0 slab.  The nodes outside the domain are still bogus_large_value, because
+ * neither the interpolation nor make_terrain_fitted_coords()'s setDomainBndry() call
+ * gave them a usable value, so we fill them here the same way the BTF branch does.
+ */
+void
+init_fine_terrain_grid (int lev,
+                        Geometry const& geom,
+                        MultiFab& z_phys_nd,
+                        Vector<Real> const& z_levels_h,
+                        FineTerrain fine_terrain,
+                        MultiFab const* z_phys_interp)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+    AMREX_ALWAYS_ASSERT(fine_terrain != FineTerrain::None);
+
+    const Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2);
+
+    IntVect ngrowVect = z_phys_nd.nGrowVect();
+
+    if (fine_terrain == FineTerrain::Transform) {
+        AMREX_ALWAYS_ASSERT(z_phys_interp != nullptr);
+
+        const BoxArray& ba = z_phys_nd.boxArray();
+
+        //
+        // The correction is anchored at the surface, so a box that does not reach the
+        // surface would keep the uncorrected interpolated mesh and would not join the
+        // box below it.  Say so rather than silently building a tangled mesh.
+        //
+        for (int i = 0; i < ba.size(); i++) {
+            if (ba[i].smallEnd(2) != domlo_z) {
+                Abort("erf.amr_terrain_refinement = transform requires that every box on a fine level reach the surface: increase amr.max_grid_size_z or use erf.amr_terrain_refinement = interpolate");
+            }
+        }
+
+        //
+        // Decay over the height of the fine grids as a whole and never over the height
+        // of an individual box, so that the mesh does not depend on the decomposition.
+        //
+        int khi_lev = ba.minimalBox().bigEnd(2);
+        Real z_lev_top = z_levels_h[khi_lev];
+        Real z_lev_bot = z_levels_h[domlo_z];
+        AMREX_ALWAYS_ASSERT(z_lev_top > z_lev_bot);
+
+        Gpu::DeviceVector<Real> z_levels_d(z_levels_h.size());
+        Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
+        auto const& z_lev = z_levels_d.data();
+
+        for (MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+
+            Array4<Real      > const& z_arr    = z_phys_nd.array(mfi);
+            Array4<Real const> const& z_interp = z_phys_interp->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (k > domlo_z && k <= khi_lev) {
+                    // How much taller the fine terrain is than the interpolated surface
+                    Real delta_terrain = z_arr(i,j,domlo_z) - z_interp(i,j,domlo_z);
+
+                    Real decay = (z_lev_top - z_lev[k]) / (z_lev_top - z_lev_bot);
+                    decay = amrex::max(Real(0.0), amrex::min(Real(1.0), decay));
+
+                    z_arr(i,j,k) = z_interp(i,j,k) + decay * delta_terrain;
+                }
+            });
+        } // mfi
+
+        // The loop above only covers the valid region, so bring the ghost nodes inside
+        // the domain up to date before the fill below reads them
+        z_phys_nd.FillBoundary(geom.periodicity());
+    }
+
+    //
+    // Extend the mesh to the nodes outside the lateral domain boundary by copying the
+    // nearest column inside it, which is the value the BTF branch gives those nodes.
+    // Like that branch we clamp in a periodic direction too, even though FillBoundary
+    // below will replace what we write there with the periodic image: that way every
+    // node we read here is one inside the domain, whose value we know is already set.
+    //
+    int imin = domlo_x; int imax = domhi_x;
+    int jmin = domlo_y; int jmax = domhi_y;
+
+    for (MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box gbx = mfi.growntilebox(ngrowVect);
+        Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+        // Note that we only write nodes outside the domain and only read nodes inside
+        // it, so no node is both read and written here.
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            int ii = amrex::max(amrex::min(i,imax),imin);
+            int jj = amrex::max(amrex::min(j,jmax),jmin);
+            if (ii != i || jj != j) {
+                z_arr(i,j,k) = z_arr(ii,jj,k);
+            }
+        });
+    } // mfi
+
+    z_phys_nd.FillBoundary(geom.periodicity());
+
+    for (MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.validbox();
+        Box gbx = mfi.growntilebox(ngrowVect);
+
+        if (bx.smallEnd(2) == domlo_z)
+        {
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+            // Fill lateral boundaries below the bottom surface
+            ParallelFor(makeSlab(gbx,2,domlo_z), [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                z_arr(i,j,domlo_z-1) = two*z_arr(i,j,domlo_z) - z_arr(i,j,domlo_z+1);
+            });
+        }
+    } // mfi
+} // init_fine_terrain_grid
+
+/**
  * Initialize the terrain grid using the selected model (BTF, STF, or Sullivan TF).
  *
  * @param[in] lev Level in the AMR hierarchy.
@@ -175,15 +327,27 @@ void
 init_which_terrain_grid (int lev,
                          Geometry const& geom,
                          MultiFab& z_phys_nd,
-                         Vector<Real> const& z_levels_h)
+                         Vector<Real> const& z_levels_h,
+                         FineTerrain fine_terrain,
+                         MultiFab const* z_phys_interp)
 {
     // User-selected method from inputs file (BTF default)
     ParmParse pp("erf");
     int terrain_smoothing = 0;
     pp.queryAdd("terrain_smoothing", terrain_smoothing);
 
+    //
+    // The STF and Sullivan TF transformations need the full column from the surface to
+    // the domain top, so on a fine level we build the mesh from the one interpolated
+    // from the coarse level instead.  Only a caller that has done that interpolation
+    // (and told us so) may take this path; everyone else still aborts, as before.
+    //
     if (lev > 0 && terrain_smoothing != 0) {
-        Abort("Must use terrain_smoothing = 0 when doing multilevel");
+        if (fine_terrain == FineTerrain::None) {
+            Abort("Must use terrain_smoothing = 0 when doing multilevel with this initialization");
+        }
+        init_fine_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
+        return;
     }
 
     // Number of ghost cells

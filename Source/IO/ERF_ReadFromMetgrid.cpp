@@ -168,11 +168,22 @@ read_from_metgrid (int lev, int itime,
     flag_tsk  = 0;
     flag_msf  = 0;
 
+    // HGT_M is not optional: it is the only source of terrain on this path.
+    // Without this check a missing HGT_M leaves NC_hgt_fab default-constructed
+    // with an empty box, and init_terrain_from_metgrid goes on to build terrain
+    // out of it instead of reporting what is actually wrong.
+    int flag_hgt = 0;
+
     for (int i = 0; i < success.size(); i++) {
         if (NC_fnames[i] == "PSFC"     && success[i] == 1) { flag_psfc = 1; }
         if (NC_fnames[i] == "SST"      && success[i] == 1) { flag_sst  = 1; }
         if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) { flag_tsk  = 1; }
         if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) { flag_msf  = 1; }
+        if (NC_fnames[i] == "HGT_M"    && success[i] == 1) { flag_hgt  = 1; }
+    }
+
+    if (!flag_hgt) {
+        Abort("HGT_M was not found in " + fname + "; it is required to build the terrain.");
     }
 
     // Read the netcdf file and fill these IABs

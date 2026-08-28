@@ -166,7 +166,9 @@ void make_mom_sources (double time_d,
     Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
-    if (is_slow_step && (dptr_wbar_sub || solverChoice.nudging_from_input_sounding ||
+    if (is_slow_step && (dptr_wbar_sub ||
+                         (solverChoice.nudging_from_input_sounding &&
+                          (solverChoice.large_scale_forcing || solverChoice.nudging_u)) ||
                          enforce_massflux_x || enforce_massflux_y))
     {
         // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
@@ -672,14 +674,22 @@ void make_mom_sources (double time_d,
 
         // *************************************************************************************
         // 5. Add nudging towards value specified in input sounding
+        //    NOTE: nudging_u only gates sounding-based wind nudging (the !large_scale_forcing
+        //    branch below); LSF-based wind nudging (towards uls/vls) is controlled solely by
+        //    large_scale_forcing, per the NOTE in Inputs.rst. Likewise, nudging_u_z1/z2 only
+        //    restrict the sounding-based branch.
         // *************************************************************************************
-        if (solverChoice.nudging_from_input_sounding && is_slow_step)
+        if (solverChoice.nudging_from_input_sounding && is_slow_step &&
+            (solverChoice.large_scale_forcing || solverChoice.nudging_u))
         {
+            const bool l_lsf = solverChoice.large_scale_forcing;
+            const Real u_z1 = solverChoice.nudging_u_z1;
+            const Real u_z2 = solverChoice.nudging_u_z2;
             Real uv_coeff_n = 1.0;
             Real uv_coeff_np1 = 0.0;
             Real tau = Real(1.0) / input_sounding_data.tau_nudging;
             Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
-            if (!solverChoice.large_scale_forcing)
+            if (!l_lsf)
             {
                 int itime_n    = 0;
                 int itime_np1  = 0;
@@ -716,14 +726,20 @@ void make_mom_sources (double time_d,
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real unudge = -((dptr_u_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
-                xmom_src_arr(i, j, k) += tau * unudge * dptr_r_plane(k);
+                Real z = z_cc_arr(i,j,k);
+                if (l_lsf || (z >= u_z1 && z <= u_z2)) {
+                    Real unudge = -((dptr_u_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                    xmom_src_arr(i, j, k) += tau * unudge * dptr_r_plane(k);
+                }
             });
 
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real vnudge = -((dptr_v_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
-                ymom_src_arr(i, j, k) += tau * vnudge * dptr_r_plane(k);
+                Real z = z_cc_arr(i,j,k);
+                if (l_lsf || (z >= u_z1 && z <= u_z2)) {
+                    Real vnudge = -((dptr_v_plane(k)/dptr_r_plane(k)) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                    ymom_src_arr(i, j, k) += tau * vnudge * dptr_r_plane(k);
+                }
             });
         }
 
