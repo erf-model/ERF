@@ -58,10 +58,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.terrain_type == TerrainType::EB) {
         ParmParse pp_eb2("eb2");
         std::string geometry;
-        pp_eb2.query("geometry", geometry);
+        pp_eb2.queryAdd("geometry", geometry);
         if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
-            pp_eb2.query("plane_point", plane_point);
+            pp_eb2.queryAdd("plane_point", plane_point);
             z_offset = plane_point[2];
         }
     }
@@ -101,6 +101,23 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
+
+#if USE_FC_FACTORY
+        // Face-centered terrain blanking for momentum forcing
+        terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
+        terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
+        terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+#endif
+
+        // Initialize planar average storage for immersed forcing
+        // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
+        Box domain = geom[lev].Domain();
+        Box tdomain = domain; tdomain.grow(2, 1);  // Grow by 1 ghost cell in z-direction
+        r_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+        t_plane_avg[lev].resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
     }
 
     // We use these area arrays regardless of terrain, EB or none of the above
@@ -250,6 +267,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         t_avg_cnt[lev] = zero;
     }
 
+    // Components: u, v, w, theta, uu, vv, ww, uw, vw, wtheta.
+    // The field storage is rebuilt for this level, but the time-reset state is
+    // global and must survive regridding of any level.
+    interval_means[lev] = nullptr;
+    if (solverChoice.compute_mean_vars) {
+        interval_means[lev] = std::make_unique<MultiFab>(ba, dm, 10, 0);
+        interval_means[lev]->setVal(zero);
+        t_mean_cnt[lev] = 0.0;
+    }
+
     // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************
@@ -339,6 +366,17 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
             mapfac[lev][i]->setVal(one);
         }
     }
+
+    if (solverChoice.nudging_from_input_sounding) {
+        nudge_data[lev] = std::make_unique<MultiFab>(ba, dm, 4, ngrow_state);
+        nudge_data[lev]->setVal(0.0);
+    }
+
+    if (solverChoice.large_scale_forcing) {
+        lsf_data[lev] = std::make_unique<MultiFab>(ba, dm, 8, ngrow_state);
+        lsf_data[lev]->setVal(0.0);
+    }
+
 
     // ********************************************************************************************
     // Build WRF data structures
@@ -675,12 +713,48 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         eddyDiffs_lev[lev]->setVal(zero);
         if(l_need_SmnSmn) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+            SmnSmn_lev[lev]->setVal(zero);
         } else {
             SmnSmn_lev[lev] = nullptr;
         }
     } else {
         eddyDiffs_lev[lev] = nullptr;
         SmnSmn_lev[lev]    = nullptr;
+    }
+}
+
+//
+// Overwrite the k=0 slab of z_phys with the terrain surface at this level's resolution
+//
+void
+ERF::fill_terrain_surface (int lev, MultiFab& z_phys, double elapsed_time)
+{
+    int ngrow = ComputeGhostCells(solverChoice) + 2;
+    Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
+    FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+
+    //
+    // If we are using fitted mesh then we use the surface as defined above
+    // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
+    //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
+    //    from the correct terrain)
+    //
+    if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
+        solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
+            terrain_fab.template setVal<RunOn::Device>(zero);
+    } else {
+        //
+        // Fill the values of the terrain height at k=0 only
+        //
+        prob->init_terrain_surface(geom[lev],terrain_fab,elapsed_time);
+    }
+
+    for (MFIter mfi(z_phys,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        Box isect = terrain_fab.box() & z_phys[mfi].box();
+        if (!isect.isEmpty()) {
+            z_phys[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
+        }
     }
 }
 
@@ -713,47 +787,49 @@ ERF::init_zphys (int lev, double elapsed_time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
 
-        int ngrow = ComputeGhostCells(solverChoice) + 2;
-        Box bx(surroundingNodes(Geom(lev).Domain())); bx.grow(ngrow);
-        FArrayBox terrain_fab(makeSlab(bx,2,0),1);
+        //
+        // The STF and Sullivan TF transformations are only defined on a level that
+        // spans the full column, so on a fine level we build the mesh from the one
+        // just interpolated from the coarse level instead.  "interpolate" uses that
+        // mesh as-is; "transform" additionally reads the terrain at the fine
+        // resolution and blends it in with a correction that decays with height.
+        //
+        ParmParse pp("erf");
+        int terrain_smoothing = 0;
+        pp.query("terrain_smoothing", terrain_smoothing);
+
+        FineTerrain fine_terrain = (lev > 0 && terrain_smoothing != 0) ? which_fine_terrain()
+                                                                      : FineTerrain::None;
 
         //
-        // If we are using fitted mesh then we use the surface as defined above
-        // If we are not using fitted mesh but are using z_levels, we still need z_phys (for now)
-        //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
-        //    from the correct terrain)
+        // Save the interpolated mesh before the fine terrain overwrites the k=0 slab,
+        // since the transform is expressed relative to it
         //
-        if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
-            solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-                terrain_fab.template setVal<RunOn::Device>(zero);
-        } else {
-            //
-            // Fill the values of the terrain height at k=0 only
-            //
-            prob->init_terrain_surface(geom[lev],terrain_fab,elapsed_time);
+        MultiFab z_phys_interp;
+        if (fine_terrain == FineTerrain::Transform) {
+            z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
+                                 1, z_phys_nd[lev]->nGrowVect());
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0); // valid region only
         }
 
-        for (MFIter mfi(*z_phys_nd[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box isect = terrain_fab.box() & (*z_phys_nd[lev])[mfi].box();
-            if (!isect.isEmpty()) {
-                (*z_phys_nd[lev])[mfi].template copy<RunOn::Device>(terrain_fab,isect,0,isect,0,1);
-            }
+        if (fine_terrain != FineTerrain::Interpolate) {
+            fill_terrain_surface(lev, *z_phys_nd[lev], elapsed_time);
         }
 
-        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type);
+        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
+                                   fine_terrain,
+                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
         if (lev == 0) {
             Real zmax = z_phys_nd[0]->max(0,0,false);
             Real rel_diff = (zmax - zlevels_stag[0][zlevels_stag[0].size()-1]) / zmax;
-            if (rel_diff < Real(1.e-8)) {
+            if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rel_diff < Real(1.e-8), "Terrain is taller than domain top!");
+                amrex::Warning("Terrain is taller than domain top!");
             }
-
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways
             //   in fact give the same answer when appropriate
@@ -765,11 +841,21 @@ ERF::init_zphys (int lev, double elapsed_time)
         } // lev == 0
 
     } else {
-        // NOTE: If a WRFInput file is NOT provided for a finer level,
-        //       we simply interpolate from the coarse. This is necessary
-        //       since we average_down the terrain (ERF_MakeNewLevel.cpp L351).
-        //       If a WRFInput file IS present, it overwrites the terrain data.
-        if (lev > 0) {
+        // If a WRFInput / met_em file is NOT provided for a finer level, we simply
+        // interpolate the terrain from the coarse level. This is necessary since we
+        // average_down the terrain (see ERF_MakeNewLevel.cpp).
+        //
+        // If a file IS present at this level, the terrain has already been built from
+        // that file's PH + PHB by init_terrain_from_wrfinput (or its metgrid analogue),
+        // which runs BEFORE this routine on both the from-scratch and the from-coarse
+        // paths (init_only precedes init_zphys there because level 0 has to read its
+        // terrain and its data in the same pass). Interpolating from the coarse level
+        // here would therefore throw that away and leave the fine level running on
+        // coarse-derived heights -- so we must not do it.
+        //
+        // NOTE: this is the behavior the comment here has always described; the guard
+        //       below is what actually makes it true.
+        if ( (lev > 0) && nc_init_file[lev].empty() ) {
             //
             // First interpolate from coarser level if there is one
             // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
@@ -787,9 +873,75 @@ ERF::init_zphys (int lev, double elapsed_time)
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+        // Read the small_volfrac threshold from eb2 namespace
+        Real small_volfrac = 0.005;
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
+
+        // Cell-centered terrain blanking
         terrain_blanking[lev]->setVal(one);
-        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ComputeGhostCells(solverChoice) + 2);
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+        MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ng_sub);
+
+        // Clip small terrain_blanking values (almost fluid cells) using same threshold as eb2.small_volfrac
+        if (small_volfrac > zero) {
+            for (MFIter mfi(*terrain_blanking[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& tblank = terrain_blanking[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (tblank(i,j,k) < small_volfrac) { tblank(i,j,k) = zero; }
+                });
+            }
+        }
         terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+
+#if USE_FC_FACTORY
+        // Face-centered terrain blanking from face-centered EB volume fractions
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+
+        // Check if face factories are available before using them
+        auto const* u_factory = eb[lev]->get_u_const_factory();
+        auto const* v_factory = eb[lev]->get_v_const_factory();
+        auto const* w_factory = eb[lev]->get_w_const_factory();
+
+        if (u_factory && v_factory && w_factory) {
+            MultiFab::Subtract(*terrain_blanking_xface[lev], u_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_yface[lev], v_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_zface[lev], w_factory->getVolFrac(), 0, 0, 1, ng_sub);
+
+            // Clip small terrain_blanking values on faces (almost fluid cells) using same threshold
+            if (small_volfrac > zero) {
+                for (MFIter mfi(*terrain_blanking_xface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& xbx = mfi.tilebox();
+                    auto const& tblank_x = terrain_blanking_xface[lev]->array(mfi);
+                    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_x(i,j,k) < small_volfrac) { tblank_x(i,j,k) = zero; }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_yface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& ybx = mfi.tilebox();
+                    auto const& tblank_y = terrain_blanking_yface[lev]->array(mfi);
+                    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_y(i,j,k) < small_volfrac) { tblank_y(i,j,k) = zero; }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_zface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& zbx = mfi.tilebox();
+                    auto const& tblank_z = terrain_blanking_zface[lev]->array(mfi);
+                    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_z(i,j,k) < small_volfrac) { tblank_z(i,j,k) = zero; }
+                    });
+                }
+            }
+        }
+
+        terrain_blanking_xface[lev]->FillBoundary(geom[lev].periodicity());
+        terrain_blanking_yface[lev]->FillBoundary(geom[lev].periodicity());
+        terrain_blanking_zface[lev]->FillBoundary(geom[lev].periodicity());
+#endif
+
         init_immersed_forcing(lev); // needed for real cases
 
         // buildings are landmask = 2
@@ -813,7 +965,7 @@ ERF::init_zphys (int lev, double elapsed_time)
 }
 
 void
-ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
+ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 {
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
@@ -833,9 +985,31 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
+            //
+            // On a fine level with STF or Sullivan TF we have to rebuild the mesh the
+            // same way init_zphys() did, since make_terrain_fitted_coords() cannot
+            // apply the transformation to a level that does not span the full column
+            //
+            ParmParse pp("erf");
+            int terrain_smoothing = 0;
+            pp.query("terrain_smoothing", terrain_smoothing);
+
+            FineTerrain fine_terrain = (terrain_smoothing != 0) ? which_fine_terrain()
+                                                                : FineTerrain::None;
+
+            MultiFab z_phys_interp;
+            if (fine_terrain == FineTerrain::Transform) {
+                z_phys_interp.define(temp_zphys_nd->boxArray(), temp_zphys_nd->DistributionMap(),
+                                     1, temp_zphys_nd->nGrowVect());
+                MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, 0); // valid region only
+                fill_terrain_surface(lev, *temp_zphys_nd, time);
+            }
+
             // This recomputes the fine values using the bottom terrain at the fine resolution,
             //    and also fills values of z_phys_nd outside the domain
-            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type);
+            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
+                                       fine_terrain,
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
 
         } // lev > 0
 
@@ -858,6 +1032,23 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
+            //
+            // If this level has its own wrfinput / met_em file then its terrain was built
+            // from that file's PH + PHB, and the coarse interpolation above is only the
+            // right answer in the parts of the NEW grids that the OLD grids did not cover.
+            // ParallelCopy writes only where source and destination overlap, so this keeps
+            // the file-derived terrain wherever we already had it and leaves the
+            // coarse-interpolated values everywhere else.
+            //
+            // Without this, every regrid would quietly demote a nested level back onto
+            // coarse-interpolated heights -- which is the same thing the guard in
+            // init_zphys above exists to prevent at initialization.
+            //
+            if (!nc_init_file[lev].empty()) {
+                temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1,
+                                            z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
+            }
+
         } // lev > 0
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
@@ -868,8 +1059,79 @@ ERF::remake_zphys (int lev, std::unique_ptr<MultiFab>& temp_zphys_nd)
         //
         // This assumes we have already remade the EBGeometry
         //
+        // Read the small_volfrac threshold from eb2 namespace
+        Real small_volfrac = 0.005;
+        ParmParse pp_eb2("eb2");
+        pp_eb2.queryAdd("small_volfrac", small_volfrac);
+
         terrain_blanking[lev]->setVal(one);
         MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, z_phys_nd[lev]->nGrowVect());
+
+        // Clip small terrain_blanking values (almost fluid cells) using same threshold as eb2.small_volfrac
+        if (small_volfrac > zero) {
+            for (MFIter mfi(*terrain_blanking[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto const& tblank = terrain_blanking[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (tblank(i,j,k) < small_volfrac) {
+                        tblank(i,j,k) = zero;
+                    }
+                });
+            }
+        }
+
+#if USE_FC_FACTORY
+    // Face-centered terrain blanking from face-centered EB volume fractions
+        const int ng_sub = std::min(ComputeGhostCells(solverChoice) + 2, EBFactory(lev).getVolFrac().nGrow());
+
+        terrain_blanking_xface[lev]->setVal(one);
+        terrain_blanking_yface[lev]->setVal(one);
+        terrain_blanking_zface[lev]->setVal(one);
+        // Check if face factories are available before using them
+        auto const* u_factory = eb[lev]->get_u_const_factory();
+        auto const* v_factory = eb[lev]->get_v_const_factory();
+        auto const* w_factory = eb[lev]->get_w_const_factory();
+
+        if (u_factory && v_factory && w_factory) {
+            MultiFab::Subtract(*terrain_blanking_xface[lev],
+                               u_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_yface[lev],
+                               v_factory->getVolFrac(), 0, 0, 1, ng_sub);
+            MultiFab::Subtract(*terrain_blanking_zface[lev],
+                               w_factory->getVolFrac(), 0, 0, 1, ng_sub);
+
+            // Clip small terrain_blanking values on faces (almost fluid cells) using same threshold
+            if (small_volfrac > zero) {
+                for (MFIter mfi(*terrain_blanking_xface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& xbx = mfi.tilebox();
+                    auto const& tblank_x = terrain_blanking_xface[lev]->array(mfi);
+                    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_x(i,j,k) < small_volfrac) {
+                            tblank_x(i,j,k) = zero;
+                        }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_yface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& ybx = mfi.tilebox();
+                    auto const& tblank_y = terrain_blanking_yface[lev]->array(mfi);
+                    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_y(i,j,k) < small_volfrac) {
+                            tblank_y(i,j,k) = zero;
+                        }
+                    });
+                }
+                for (MFIter mfi(*terrain_blanking_zface[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& zbx = mfi.tilebox();
+                    auto const& tblank_z = terrain_blanking_zface[lev]->array(mfi);
+                    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if (tblank_z(i,j,k) < small_volfrac) {
+                            tblank_z(i,j,k) = zero;
+                        }
+                    });
+                }
+            }
+        }
+#endif
     }
 
     // Compute the min dz and pass to the micro model
@@ -923,19 +1185,25 @@ ERF::make_physbcs (int lev)
         AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
     }
 
+    // Real (wrfbdy/metgrid) boundary data only exists at level 0 -- there is no machinery
+    //    to interpolate it onto a refined level.  At lev > 0 we must therefore fall back on
+    //    the boundary condition types specified in the inputs file, so that the lateral
+    //    ghost cells outside the domain get filled if a fine grid abuts a domain boundary.
+    bool l_use_real_bcs = (solverChoice.use_real_bcs && (lev == 0));
+
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
-                                                               z_phys_nd[lev], solverChoice.use_real_bcs, th_bc_data[lev].data());
+                                                               z_phys_nd[lev], l_use_real_bcs, th_bc_data[lev].data());
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, xvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], l_use_real_bcs, xvel_bc_data[lev].data());
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], l_use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
-                                                            solverChoice.use_real_bcs, zvel_bc_data[lev].data());
+                                                            l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 }

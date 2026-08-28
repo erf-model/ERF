@@ -32,8 +32,6 @@ ERF::initHSE (int lev)
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
-    int icomp = 0; int ncomp = BaseState::num_comps;
-
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
         for (int i = 0; i < ba.size(); i++) {
@@ -45,71 +43,60 @@ ERF::initHSE (int lev)
     else
     {
         //
-        // We need to do this interp from coarse level in order to set the values of
-        // the base state inside the domain but outside of the fine region
+        // Set the values of the base state inside the domain but outside of the fine region,
+        // and in the fine ghost cells; the vertical integration below then overwrites only
+        // the fine grids, and for a box whose klo is in the interior it reads the value this
+        // leaves in klo-1 as its starting point.
         //
-        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
-        //
-        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-        //       have been pre-filled - this includes ghost cells both inside and outside
-        //       the domain
-        //
-        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                              IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              base_state[lev-1], icomp, icomp, ncomp,
-                              geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
-                              domain_bcs_type, BCVars::cons_bc);
-
-         // We need to do this here because the interpolation above may leave corners unfilled
-         //    when the corners need to be filled by, for example, reflection of the fine ghost
-         //    cell outside the fine region but inide the domain.
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
+        interp_base_state_from_coarse(lev);
     }
 
     bool is_constant_dz  = (solverChoice.mesh_type == MeshType::ConstantDz);
     bool is_stretched_dz = (solverChoice.mesh_type == MeshType::StretchedDz);
 
-    if (all_boxes_touch_bottom || lev > 0) {
-
-        // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
-        if ( (solverChoice.init_type == InitType::MoistBaseState) ||
-             (solverChoice.init_type == InitType::HindCast) )
+    auto initialize_base_state =
+        [this, lev, is_constant_dz, is_stretched_dz]
+        (MultiFab& dens, MultiFab& pres, MultiFab& pi, MultiFab& theta, MultiFab& qv,
+         std::unique_ptr<MultiFab>& z_phys_nd_in, std::unique_ptr<MultiFab>& z_phys_cc_in)
+    {
+        if (solverChoice.init_type == InitType::MoistBaseState ||
+            solverChoice.init_type == InitType::HindCast)
         {
             AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
-            prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
-
+            prob->erf_init_dens_hse_moist(dens, z_phys_nd_in, geom[lev]);
         }
         else if (solverChoice.init_type == InitType::ConstantDensity)
         {
-            // In this case we set rho from user-specified values, then integrate
-            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_const_dens_hse(r_hse);
+            prob->erf_init_const_dens_hse(dens);
         }
         else if (solverChoice.init_type == InitType::Uniform)
         {
-            // In this case we set both rho and theta from user-specified values
             AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
-            prob->erf_init_const_dens_and_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,solverChoice.rdOcp);
+            prob->erf_init_const_dens_and_th_hse(dens, pres, pi, theta, qv, solverChoice.rdOcp);
         }
         else if (solverChoice.init_type == InitType::ConstantDensityLinearTheta)
         {
-            // In this case we set both rho and theta from user-specified values
             AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
-            prob->erf_init_const_dens_and_linear_th_hse(r_hse,p_hse,pi_hse,th_hse,qv_hse,
-                                                        solverChoice.rdOcp,z_phys_cc[lev]);
+            prob->erf_init_const_dens_and_linear_th_hse(dens, pres, pi, theta, qv,
+                                                        solverChoice.rdOcp, z_phys_cc_in);
         }
         else
         {
-            // In this case we set rho from user-specified values, then integrate
-            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_dens_hse_dry(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev], stretched_dz_h[lev],
-                                        is_constant_dz, is_stretched_dz);
+            prob->erf_init_dens_hse_dry(dens, z_phys_nd_in, z_phys_cc_in, geom[lev],
+                                        stretched_dz_h[lev], is_constant_dz, is_stretched_dz);
         }
 
-        if (solverChoice.init_type != InitType::Uniform && solverChoice.init_type !=InitType::ConstantDensityLinearTheta) {
-            erf_enforce_hse(lev, r_hse, p_hse, pi_hse, th_hse, qv_hse, z_phys_cc[lev]);
+        if (solverChoice.init_type != InitType::Uniform &&
+            solverChoice.init_type != InitType::ConstantDensityLinearTheta)
+        {
+            erf_enforce_hse(lev, dens, pres, pi, theta, qv, z_phys_cc_in);
         }
+    };
+
+    if (all_boxes_touch_bottom || lev > 0) {
+
+        initialize_base_state(r_hse, p_hse, pi_hse, th_hse, qv_hse,
+                              z_phys_nd[lev], z_phys_cc[lev]);
 
         //
         // Impose physical bc's on the base state
@@ -136,38 +123,22 @@ ERF::initHSE (int lev)
 
         std::unique_ptr<MultiFab> new_z_phys_cc;
         std::unique_ptr<MultiFab> new_z_phys_nd;
-        if (solverChoice.mesh_type != MeshType::ConstantDz) {
+        if (solverChoice.mesh_type != MeshType::ConstantDz ||
+            solverChoice.init_type == InitType::ConstantDensityLinearTheta)
+        {
             new_z_phys_cc = std::make_unique<MultiFab>(ba_new,dm_new,1,1);
             new_z_phys_cc->ParallelCopy(*z_phys_cc[lev],0,0,1,1,1);
+        }
 
+        if (solverChoice.mesh_type != MeshType::ConstantDz) {
             BoxArray ba_new_nd(ba_new);
             ba_new_nd.surroundingNodes();
             new_z_phys_nd = std::make_unique<MultiFab>(ba_new_nd,dm_new,1,1);
             new_z_phys_nd->ParallelCopy(*z_phys_nd[lev],0,0,1,1,1);
         }
 
-        // Initial r_hse may or may not be in HSE -- defined in ERF_Prob.cpp
-        if (solverChoice.init_type == InitType::MoistBaseState) {
-            AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
-            prob->erf_init_dens_hse_moist(new_r_hse, new_z_phys_nd, geom[lev]);
-        } else if (solverChoice.init_type == InitType::ConstantDensity) {
-
-            // In this case we set rho from user-specified values, then integrate
-            //    to define p from HSE (even if gravity = 0), then compute theta from (p,rho)
-            prob->erf_init_const_dens_hse(new_r_hse);
-
-        } else if (solverChoice.init_type == InitType::Uniform) {
-
-            // In this case we set both rho and theta from user-specified values
-            AMREX_ALWAYS_ASSERT(!solverChoice.use_gravity || solverChoice.anelastic[lev]);
-            prob->erf_init_const_dens_and_th_hse(new_r_hse,new_p_hse,new_pi_hse,new_th_hse,new_qv_hse,solverChoice.rdOcp);
-
-        } else {
-            prob->erf_init_dens_hse_dry(new_r_hse, new_z_phys_nd, new_z_phys_cc, geom[lev], stretched_dz_h[lev],
-                                        is_constant_dz, is_stretched_dz);
-        }
-
-        erf_enforce_hse(lev, new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse, new_z_phys_cc);
+        initialize_base_state(new_r_hse, new_p_hse, new_pi_hse, new_th_hse, new_qv_hse,
+                              new_z_phys_nd, new_z_phys_cc);
 
         //
         // Impose physical bc's on the base state (we must make new, temporary bcs object because the z_phys_nd is different)
@@ -188,6 +159,43 @@ ERF::initHSE (int lev)
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+}
+
+/**
+ * Fill base_state[lev] by conservative interpolation from the next coarser level and then
+ * apply the base-state physical boundary conditions.
+ *
+ * This is what gives values to the part of a fine level that lies inside the domain but
+ * outside the fine grids, and to the fine ghost cells.  Any construction that writes only
+ * the fine grids -- initHSE's vertical integration, or the analytic WRF profile -- must run
+ * after this, not before.
+ *
+ * @param lev Integer specifying the current level; must be > 0
+ */
+void
+ERF::interp_base_state_from_coarse (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
+    int icomp = 0; int ncomp = BaseState::num_comps;
+
+    base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+    //
+    // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+    //       have been pre-filled - this includes ghost cells both inside and outside
+    //       the domain
+    //
+    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], icomp, icomp, ncomp,
+                          geom[lev-1], geom[lev],
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
+
+    // We need to do this here because the interpolation above may leave corners unfilled
+    //    when the corners need to be filled by, for example, reflection of the fine ghost
+    //    cell outside the fine region but inside the domain.
+    (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
 }
 
 /**

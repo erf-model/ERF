@@ -3,9 +3,11 @@
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include "ERF_DataStruct.H"
 #include "ERF_InputSoundingData.H"
+#include "ERF_LargeScaleForcingData.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_EB.H"
 #include "ERF_ReadBndryPlanes.H"
@@ -90,12 +92,36 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                    const amrex::Real* sinesq_at_lev_d,
-                   const amrex::MultiFab* surface_state_at_lev,
-                   InputSoundingData& input_sounding_data,
                    TurbulentPerturbation& turbPert,
+                   const amrex::Table1D<amrex::Real> r_plane_avg,
+                   const amrex::Table1D<amrex::Real> t_plane_avg,
                    bool is_slow_step);
 
 #if defined(ERF_USE_NETCDF)
+/**
+ * Add moisture nudging terms to the source.
+ *
+ * @param[in] S_data State data.
+ * @param[in,out] source Source terms to be updated.
+ * @param[in] n_qstate Number of moisture species.
+ * @param[in] dt Time step.
+ * @param[in] old_stage_time_total Total time at current stage.
+ * @param[in] start_bdy_time Start time for boundary data.
+ * @param[in] final_bdy_time Final time for boundary data.
+ * @param[in] bdy_time_interval Interval between boundary data files.
+ * @param[in] bdy_factor Nudging strength factor.
+ * @param[in] width Nudging width.
+ * @param[in] geom Grid geometry.
+ * @param[in] bdy_data_xlo Boundary data for x-low face.
+ * @param[in] bdy_data_xhi Boundary data for x-high face.
+ * @param[in] bdy_data_ylo Boundary data for y-low face.
+ * @param[in] bdy_data_yhi Boundary data for y-high face.
+ * @param[in] m_r2d Pointer to boundary plane reader.
+ * @param[in] c_p Specific heat at constant pressure.
+ * @param[in] rdOcp Ratio of gas constants to specific heat.
+ * @param[in] use_wrf_bdy_density Use WRF boundary density.
+ * @param[in] bdy_moist_nudge_type Type of moisture nudging.
+ */
 void
 add_moist_nudging_terms (const amrex::MultiFab& S_data,
                                amrex::MultiFab& source,
@@ -115,6 +141,8 @@ add_moist_nudging_terms (const amrex::MultiFab& S_data,
                          std::unique_ptr<ReadBndryPlanes>& m_r2d,
                          const amrex::Real& c_p,
                          const amrex::Real& rdOcp,
+                         const MoistureComponentIndices& moisture_indices,
+                         const bool use_wrf_bdy_density,
                          const int bdy_moist_nudge_type);
 #endif
 
@@ -133,6 +161,9 @@ void make_mom_sources (double time,
                        const amrex::MultiFab& base_state,
                              amrex::MultiFab* forest_drag,
                              amrex::MultiFab* terrain_blank,
+                             amrex::MultiFab* terrain_blank_xface,
+                             amrex::MultiFab* terrain_blank_yface,
+                             amrex::MultiFab* terrain_blank_zface,
                              amrex::MultiFab* cosPhi_mf,
                              amrex::MultiFab* sinPhi_mf,
                        const amrex::Geometry geom,
@@ -146,10 +177,11 @@ void make_mom_sources (double time,
                        const amrex::Real* sinesq_stag_at_lev_d,
                        const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev,
                        const amrex::Vector<amrex::MultiFab>* forecast_state_at_lev,
-                       const amrex::MultiFab* surface_state_at_lev,
                              InputSoundingData& input_sounding_data,
+                             LargeScaleForcingData &lsf_data,
+                       std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
                        const eb_& ebfact,
-                             bool is_slow_step);
+                       bool is_slow_step);
 
 void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             amrex::MultiFab& ymom_source,
@@ -162,6 +194,28 @@ void add_thin_body_sources (amrex::MultiFab& xmom_source,
                             std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 
 #if defined(ERF_USE_NETCDF)
+/**
+ * Set the right-hand side for moist variables.
+ *
+ * @param[in] geom Grid geometry.
+ * @param[in] tbx Local box.
+ * @param[in] new_cons Current conservative variables.
+ * @param[in,out] cell_rhs Right-hand side to be updated.
+ * @param[in] n_qstate Number of moisture species.
+ * @param[in] time Current simulation time.
+ * @param[in] dt Time step.
+ * @param[in] start_bdy_time Start time for boundary data.
+ * @param[in] final_bdy_time Final time for boundary data.
+ * @param[in] bdy_time_interval Interval between boundary data files.
+ * @param[in] nudge_factor Nudging strength factor.
+ * @param[in] width Nudging width.
+ * @param[in] domain Global domain box.
+ * @param[in] bdy_data_xlo Boundary data for x-low face.
+ * @param[in] bdy_data_xhi Boundary data for x-high face.
+ * @param[in] bdy_data_ylo Boundary data for y-low face.
+ * @param[in] bdy_data_yhi Boundary data for y-high face.
+ * @param[in] m_r2d Pointer to boundary plane reader.
+ */
 void
 moist_set_rhs (const amrex::Geometry& geom,
                const amrex::Box& tbx,
@@ -237,23 +291,5 @@ void ApplyBndryForcing_Forecast (const SolverChoice& solverChoice,
                                  const amrex::Array4<const amrex::Real>& rho_v_initial_state,
                                  const amrex::Array4<const amrex::Real>& rho_w_initial_state,
                                  const amrex::Array4<const amrex::Real>& cons_initial_state);
-
-void
-ApplySurfaceTreatment_BulkCoeff_Mom (const amrex::Box& tbx,
-                                     const amrex::Box& tby,
-                                     const amrex::Array4<amrex::Real>& rho_u_rhs,
-                                     const amrex::Array4<amrex::Real>& rho_v_rhs,
-                                     const amrex::Array4<const amrex::Real>& rho_u,
-                                     const amrex::Array4<const amrex::Real>& rho_v,
-                                     const amrex::Array4<const amrex::Real>& cons_state,
-                                     const amrex::Array4<const amrex::Real>& z_phys_nd,
-                                     const amrex::Array4<const amrex::Real>& surface_state_arr);
-
-void
-ApplySurfaceTreatment_BulkCoeff_CC (const amrex::Box& bx,
-                                    const amrex::Array4<amrex::Real>& cell_rhs,
-                                    const amrex::Array4<const amrex::Real>& cons_state,
-                                    const amrex::Array4<const amrex::Real>& z_phys_cc,
-                                    const amrex::Array4<const amrex::Real>& surface_state_arr);
 
 #endif

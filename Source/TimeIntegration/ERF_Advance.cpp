@@ -323,6 +323,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (!solverChoice.moisture_tight_coupling)
     {
+        // S_new ghost cells are stale after the dycore RK stages; refresh
+        // them before microphysics (Lagrangian particle interpolation reads
+        // the ghost region for cells along level boundaries).
+        if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+            if (lev == 0) {
+                FillPatchCrseLevel(lev, t_new[lev],
+                                   {&S_new, &U_new, &V_new, &W_new},
+                                   /*cons_only=*/true);
+            } else {
+                FillPatchFineLevel(lev, t_new[lev],
+                                   {&S_new, &U_new, &V_new, &W_new},
+                                   {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                                   base_state[lev], base_state[lev],
+                                   /*fillset=*/true, /*cons_only=*/true);
+            }
+        }
+
         advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
         // Test for NaNs after microphysics
@@ -431,6 +448,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // ***********************************************************************************************
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
+    }
+
+    if (solverChoice.compute_mean_vars) {
+        // The interval window is shared by all AMR levels.  Reset it before
+        // accumulating the first sample whose step starts at or beyond the
+        // configured reset time.  The restart reader restores the flags when
+        // that time has already passed, so this is a one-shot transition.
+        if (solverChoice.mean_vars_reset_mode == "time" &&
+            time >= static_cast<double>(solverChoice.mean_vars_reset_time)) {
+            if (mean_vars_time_reset_done == 0) {
+                ResetIntervalMeans();
+                mean_vars_time_reset_done = 1;
+            }
+        }
+
+        Accumulate_Interval_Means(dt_lev, t_mean_cnt[lev], interval_means[lev].get(),
+                                  U_new, V_new, W_new, S_new);
     }
 
 }

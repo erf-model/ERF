@@ -55,9 +55,22 @@ namespace HSEutils
                         Real& F,
                         const bool& maintain_Th)
     {
+        // A non-finite residual (or a non-positive initial guess) would make the
+        // convergence test below evaluate to false on the very first pass, so we
+        // would silently return the initial guess and leave, e.g., an all-zero
+        // base state.  Trap that here rather than propagating it downstream.
+        if (!(P > amrex::Real(0)) || !(rd > amrex::Real(0)) || !std::isfinite(F)) {
+            AMREX_DEVICE_PRINTF("ERROR: HSE Newton started from an invalid state: P = %e, rd = %e, F = %e\n",
+                                double(P), double(rd), double(F));
+            AMREX_DEVICE_PRINTF("       Check the surface pressure/temperature used to seed the integration%s\n", "");
+        }
+        AMREX_ALWAYS_ASSERT(P > amrex::Real(0) && rd > amrex::Real(0) && std::isfinite(F));
+
         int iter=0;
         int max_iter=20;
-        while (std::abs(F)>m_tol && iter<max_iter) {
+        // Written as !(|F| <= tol) so that a NaN residual enters the loop instead
+        // of being mistaken for convergence
+        while (!(std::abs(F)<=m_tol) && iter<max_iter) {
             // Compute change in pressure
             Real dRdP = (maintain_Th) ? iGamma * rd / P : rd / P;
             Real dFdp = one + myhalf*dRdP*g*dz;
@@ -594,8 +607,15 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 {
     Real delta_p_k;
 
+    // Perturbation used to form the difference quotient for dF/dp.  It has to
+    // be scaled by p_k rather than fixed in Pa: the pressures here are O(1e5),
+    // and in single precision one ulp at that magnitude is already ~1e-2 Pa,
+    // so a fixed 1e-4 Pa perturbation rounds away entirely -- p_k + eps == p_k,
+    // the difference quotient is zero, and the iteration returns NaN.  The
+    // double-precision perturbation is left exactly as it was so that results
+    // in double are unchanged.
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1e-4);
+    Real eps = Real(1.e-5) * std::abs(p_k);
 #else
     Real eps = Real(1e-10);
 #endif
@@ -613,13 +633,42 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
         p_k            = p_k + delta_p_k;
     }
 
-    if (std::fabs(delta_p_k) > TOL) {
+    // Convergence is measured on the last Newton step relative to p_k, for the
+    // same reason: an absolute tolerance in Pa that is smaller than an ulp of
+    // p_k can never be met in single precision.  The double-precision value is
+    // set so that p_rel_tol * p_k reproduces the previous absolute tolerance of
+    // 1e-8 at the O(1e5) Pa pressures this is used at.
+#ifdef AMREX_USE_FLOAT
+    const Real p_rel_tol = Real(1.e-5);
+#else
+    const Real p_rel_tol = Real(1.e-13);
+#endif
+    if (std::fabs(delta_p_k) > p_rel_tol * std::abs(p_k)) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 
     return p_k;
 }
 
+/**
+ * Initialize an isentropic hydrostatic equilibrium base state without terrain.
+ *
+ * @param[out] theta Potential temperature profile.
+ * @param[out] r Density profile.
+ * @param[out] p Pressure profile.
+ * @param[out] q_v Water vapor mixing ratio profile.
+ * @param[in] dz Vertical grid spacing.
+ * @param[in] khi Top index of the domain.
+ * @param[in] q_t Total water mixing ratio.
+ * @param[in] eq_pot_temp Equilibrium potential temperature.
+ * @param[in] use_empirical Use empirical saturation formulas.
+ * @param[in] T_from_theta Whether temperature is derived from potential temperature.
+ * @param[in] z_tr_1 First transition height.
+ * @param[in] z_tr_2 Second transition height.
+ * @param[in] theta_0 Surface potential temperature.
+ * @param[in] theta_tr Potential temperature at transition height.
+ * @param[in] T_tr Temperature at transition height.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void

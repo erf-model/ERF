@@ -193,6 +193,11 @@ public:
           pp, "pbl_mynn_SHmax", pbl_mynn.SHmax, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mynn_SQfactor", pbl_mynn.SQfac, lev, max_level);
+
+        // SQ = SQfac*SM, so its bound is tied to SHmax and SQfac; the default member
+        // initializer was evaluated before either could be overridden here.
+        pbl_mynn.SQmax = pbl_mynn.SQfac * pbl_mynn.SHmax;
+
       } else if (pbl_type == PBLType::YSU || pbl_type == PBLType::YSUNew) {
         query_one_or_per_level(
           pp, "pbl_ysu_coriolis_freq", pbl_ysu_coriolis_freq, lev, max_level);
@@ -292,7 +297,7 @@ public:
 
     // There is a default value of 1e-6 but the user can override the value here,
     //   and in addition can add perturbational values.  and in addition can add perturbational values.
-    pp.query("tke_min",tke_min);
+    pp.queryAdd("tke_min",tke_min);
 
     // LES constants...
     query_one_or_per_level(pp, "Cs", Cs, lev, max_level);

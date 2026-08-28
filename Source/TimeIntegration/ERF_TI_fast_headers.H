@@ -135,8 +135,6 @@ void make_fast_coeffs (int level,
                        const amrex::Real gravity,
                        const amrex::Real c_p,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,
-                       const amrex::MultiFab* r0,
-                       const amrex::MultiFab* pi0,
                        const double dtau,
                        const amrex::Real beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);

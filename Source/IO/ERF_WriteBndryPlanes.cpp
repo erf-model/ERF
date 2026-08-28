@@ -60,7 +60,7 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     ParmParse pp("erf");
 
     // Get the radius inside the domain
-    pp.query("in_rad",m_in_rad);
+    pp.queryAdd("in_rad",m_in_rad);
 
     // User-specified region is given in physical coordinates, not index space
     std::vector<Real> box_lo(3), box_hi(3);
@@ -78,10 +78,10 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
 
         // We create the smallest box that contains all of the cell centers
         // in the physical region specified
-        int ilo = static_cast<int>(Math::floor((box_lo[0] - xLo[0]) * dxi[0])+Real(.5));
-        int jlo = static_cast<int>(Math::floor((box_lo[1] - xLo[1]) * dxi[1])+Real(.5));
-        int ihi = static_cast<int>(Math::floor((box_hi[0] - xLo[0]) * dxi[0])+Real(.5))-1;
-        int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1])+Real(.5))-1;
+        int ilo = static_cast<int>(Math::floor((box_lo[0] - xLo[0]) * dxi[0] + Real(.5)));
+        int jlo = static_cast<int>(Math::floor((box_lo[1] - xLo[1]) * dxi[1] + Real(.5)));
+        int ihi = static_cast<int>(Math::floor((box_hi[0] - xLo[0]) * dxi[0] + Real(.5)))-1;
+        int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1] + Real(.5)))-1;
 
         // Map this to index space -- for now we do no interpolation
         Box box_this_lev(IntVect(ilo,jlo,0),

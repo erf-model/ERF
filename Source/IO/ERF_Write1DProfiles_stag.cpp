@@ -27,7 +27,12 @@ using namespace amrex;
 void
 ERF::write_1D_profiles_stag (double time)
 {
-    BL_PROFILE("ERF::write_1D_profiles()");
+    BL_PROFILE("ERF::write_1D_profiles_stag()");
+
+    int prof_datwidth = 14;
+    int prof_datprecision = 9;
+    int prof_timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
+
 
     if (NumDataLogs() > 1)
     {
@@ -43,7 +48,10 @@ ERF::write_1D_profiles_stag (double time)
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
-        if (NumDataLogs() > 1) {
+
+        Gpu::HostVector<Real> h_avg_ttend, h_avg_qtend, h_avg_wsub, h_avg_tnudge, h_avg_qnudge, h_avg_unudge, h_avg_vnudge;
+        Gpu::HostVector<Real> h_avg_thtend, h_avg_qhtend, h_avg_tvtend, h_avg_qvtend, h_avg_qcvtend;
+        {
             derive_diag_profiles_stag(time,
                                       h_avg_u, h_avg_v, h_avg_w,
                                       h_avg_rho, h_avg_th, h_avg_ksgs,
@@ -65,6 +73,13 @@ ERF::write_1D_profiles_stag (double time)
                                         h_avg_sgsdiss);
         }
 
+        if (NumDataLogs() > 4 && time > 0.) {
+            derive_forcing_profiles_stag(h_avg_ttend, h_avg_qtend, h_avg_wsub,
+                                         h_avg_thtend, h_avg_qhtend, h_avg_tvtend,
+                                         h_avg_qvtend, h_avg_qcvtend, h_avg_tnudge,
+                                         h_avg_qnudge, h_avg_unudge, h_avg_vnudge);
+        }
+
         int unstag_size =  h_avg_w.size() - 1; // _un_staggered heights
 
         auto const& dx = geom[0].CellSizeArray();
@@ -75,8 +90,8 @@ ERF::write_1D_profiles_stag (double time)
                   // Write the quantities at this time
                   for (int k = 0; k < unstag_size; k++) {
                       Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
-                      data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                      data_log1 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                                << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_u[k]   << " " << h_avg_v[k]   << " " << h_avg_w[k]     << " "
                                 << h_avg_rho[k] << " " << h_avg_th[k]  << " " << h_avg_ksgs[k] << " "
                                 << h_avg_Kmv[k] << " " << h_avg_Khv[k] << " "
@@ -86,8 +101,8 @@ ERF::write_1D_profiles_stag (double time)
                   } // loop over z
                   // Write top face values
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
-                  data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                  data_log1 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                            << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << 0 << " " << 0 << " " << h_avg_w[unstag_size] << " "
                             << 0 << " " << 0 << " " << 0 << " " // rho, theta, ksgs
                             << 0 << " " << 0 << " "             // Kmv, Khv
@@ -106,8 +121,8 @@ ERF::write_1D_profiles_stag (double time)
                   Real uw_cc = h_avg_uw[1] / 2; // u*w at first cell center
                   Real vw_cc = h_avg_vw[1] / 2; // v*w at first cell center
                   Real ww_cc = h_avg_ww[1] / 2; // w*w at first cell center
-                  data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << 0 << " "
+                  data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                            << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << 0 << " "
                             << h_avg_uu[0]   - h_avg_u[0]*h_avg_u[0]   << " " // u'u'
                             << h_avg_uv[0]   - h_avg_u[0]*h_avg_v[0]   << " " // u'v'
                             << 0                                       << " " // u'w'
@@ -155,8 +170,8 @@ ERF::write_1D_profiles_stag (double time)
                       uw_cc  = myhalf*(h_avg_uw[k-1] + h_avg_uw[k]);
                       vw_cc  = myhalf*(h_avg_vw[k-1] + h_avg_vw[k]);
                       ww_cc  = myhalf*(h_avg_ww[k-1] + h_avg_ww[k]);
-                      data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                      data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                                << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
                                 << h_avg_uv[k]   - h_avg_u[k]*h_avg_v[k]   << " " // u'v'
                                 << h_avg_uw[k]   -      uface*h_avg_w[k]   << " " // u'w'
@@ -209,8 +224,8 @@ ERF::write_1D_profiles_stag (double time)
                   Real vvface = Real(1.5)*h_avg_vv[k-1] - myhalf*h_avg_vv[k-2];
                   Real thvface = thface * (one + epsv*qvface - qcface - qrface);
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
-                  data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                  data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                            << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << 0                                     << " " // u'u'
                             << 0                                     << " " // u'v'
                             << h_avg_uw[k]   -      uface*h_avg_w[k] << " " // u'w'
@@ -245,8 +260,8 @@ ERF::write_1D_profiles_stag (double time)
                   // Write the average stresses
                   for (int k = 0; k < unstag_size; k++) {
                       Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
-                      data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                      data_log3 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                                << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_tau11[k]  << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
                                 << h_avg_tau22[k]  << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
                                 << h_avg_sgshfx[k] << " "
@@ -257,8 +272,8 @@ ERF::write_1D_profiles_stag (double time)
                   // Write top face values
                   Real NANval = zero;
                   Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
-                  data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                            << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                  data_log3 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                            << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << NANval << " " << NANval << " " << h_avg_tau13[unstag_size] << " "
                             << NANval << " " << h_avg_tau23[unstag_size] << " " << NANval << " "
                             << h_avg_sgshfx[unstag_size] << " "
@@ -267,6 +282,32 @@ ERF::write_1D_profiles_stag (double time)
                             << std::endl;
                 } // if good
             } // if (NumDataLogs() > 3)
+
+            if (NumDataLogs() > 4 && time > 0.) {
+                std::ostream& data_log4 = DataLog(4);
+                if (data_log4.good()) {
+                    for (int k = 0; k < unstag_size; k++) {
+                        Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
+                        data_log4 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                                  << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
+                                  << h_avg_ttend[k]  << " " << h_avg_qtend[k]   << " " << h_avg_wsub[k]   << " "
+                                  << h_avg_thtend[k] << " " << h_avg_qhtend[k]  << " " << h_avg_tvtend[k] << " "
+                                  << h_avg_qvtend[k] << " " << h_avg_qcvtend[k] << " " << h_avg_tnudge[k] << " "
+                                  << h_avg_qnudge[k] << " " << h_avg_unudge[k]  << " " << h_avg_vnudge[k]
+                                  << std::endl;
+                  } // loop over z
+                  // Write top face values
+                  Real NANval = zero;
+                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
+                  data_log4 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
+                            << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
+                            << NANval << " " << NANval << " " << NANval << " "
+                            << NANval << " " << NANval << " " << NANval << " "
+                            << NANval << " " << NANval << " " << NANval << " "
+                            << NANval << " " << NANval << " " << NANval
+                            << std::endl;
+                }
+            }
         } // if IOProcessor
     } // if (NumDataLogs() > 1)
 }
@@ -475,8 +516,6 @@ ERF::derive_diag_profiles_stag (double /*time*/,
 
     if (use_moisture)
     {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
@@ -488,12 +527,21 @@ ERF::derive_diag_profiles_stag (double /*time*/,
             const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
+            // The moisture map is the authority on which species this scheme
+            // carries; a slot the scheme allocates but never integrates must not
+            // be reported as a profile of data.
+            int rhoqv_comp = solverChoice.moisture_indices.qv;
+            int rhoqc_comp = solverChoice.moisture_indices.qc;
             int rhoqr_comp = solverChoice.moisture_indices.qr;
+            int rhoqi_comp = solverChoice.moisture_indices.qi;
+            int rhoqs_comp = solverChoice.moisture_indices.qs;
+            int rhoqg_comp = solverChoice.moisture_indices.qg;
+            AMREX_ALWAYS_ASSERT( (rhoqv_comp > -1) && (rhoqc_comp > -1) );
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
-                Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qv = cons_arr(i,j,k,rhoqv_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qc = cons_arr(i,j,k,rhoqc_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
                                                zero;
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
@@ -505,27 +553,24 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 fab_arr(i, j, k,16) = qv;  // qv
                 fab_arr(i, j, k,17) = qc;  // qc
                 fab_arr(i, j, k,18) = qr;  // qr
-                if (n_qstate_moist > 3) { // SAM model
-                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
-                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
-                    fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
-                } else {
-                    fab_arr(i, j, k,19) = zero;  // qi
-                    fab_arr(i, j, k,20) = zero;  // qs
-                    fab_arr(i, j, k,21) = zero;  // qg
-                }
+                fab_arr(i, j, k,19) = (rhoqi_comp > -1) ?
+                    cons_arr(i,j,k,rhoqi_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qi
+                fab_arr(i, j, k,20) = (rhoqs_comp > -1) ?
+                    cons_arr(i,j,k,rhoqs_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qs
+                fab_arr(i, j, k,21) = (rhoqg_comp > -1) ?
+                    cons_arr(i,j,k,rhoqg_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qg
             });
 
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real qv0 = cons_arr(i,j,k  ,RhoQ1_comp) / cons_arr(i,j,k  ,Rho_comp);
-                Real qv1 = cons_arr(i,j,k-1,RhoQ1_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real qc0 = cons_arr(i,j,k  ,RhoQ2_comp) / cons_arr(i,j,k  ,Rho_comp);
-                Real qc1 = cons_arr(i,j,k-1,RhoQ2_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,RhoQ3_comp) / cons_arr(i,j,k  ,Rho_comp) :
+                Real qv0 = cons_arr(i,j,k  ,rhoqv_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qv1 = cons_arr(i,j,k-1,rhoqv_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qc0 = cons_arr(i,j,k  ,rhoqc_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qc1 = cons_arr(i,j,k-1,rhoqc_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,rhoqr_comp) / cons_arr(i,j,k  ,Rho_comp) :
                                                zero;
-                Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp) :
+                Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,rhoqr_comp) / cons_arr(i,j,k-1,Rho_comp) :
                                                zero;
                 Real qvface = myhalf * (qv0 + qv1);
                 Real qcface = myhalf * (qc0 + qc1);
@@ -751,4 +796,77 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     h_avg_hfx3[ht_size]  /= area_z;
     h_avg_q1fx3[ht_size] /= area_z;
     h_avg_q2fx3[ht_size] /= area_z;
+}
+
+void
+ERF::derive_forcing_profiles_stag(Gpu::HostVector<Real>& h_avg_ttend,  Gpu::HostVector<Real>& h_avg_qtend,
+                                  Gpu::HostVector<Real>& h_avg_wsub,   Gpu::HostVector<Real>& h_avg_thtend,
+                                  Gpu::HostVector<Real>& h_avg_qhtend, Gpu::HostVector<Real>& h_avg_tvtend,
+                                  Gpu::HostVector<Real>& h_avg_qvtend, Gpu::HostVector<Real>& h_avg_qcvtend,
+                                  Gpu::HostVector<Real>& h_avg_tnudge, Gpu::HostVector<Real>& h_avg_qnudge,
+                                  Gpu::HostVector<Real>& h_avg_unudge, Gpu::HostVector<Real>& h_avg_vnudge)
+{
+    // We assume that this is always called at level 0
+    int lev = 0;
+    int zdir = 2;
+    auto domain = geom[0].Domain();
+    int nz = domain.length(2);
+
+    // Sum in the horizontal plane
+    if (solverChoice.large_scale_forcing) {
+        h_avg_ttend   = sumToLine(*lsf_data[lev], 0,1,domain,zdir);
+        h_avg_qtend   = sumToLine(*lsf_data[lev], 1,1,domain,zdir);
+        h_avg_wsub    = sumToLine(*lsf_data[lev], 2,1,domain,zdir);
+
+        // horizontal and vertical tendencies:
+        h_avg_thtend   = sumToLine(*lsf_data[lev], 3,1,domain,zdir);
+        h_avg_qhtend   = sumToLine(*lsf_data[lev], 4,1,domain,zdir);
+        h_avg_tvtend   = sumToLine(*lsf_data[lev], 5,1,domain,zdir);
+        h_avg_qvtend   = sumToLine(*lsf_data[lev], 6,1,domain,zdir);
+        h_avg_qcvtend  = sumToLine(*lsf_data[lev], 7,1,domain,zdir);
+    } else {
+        h_avg_ttend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_wsub  = Gpu::HostVector<Real>(nz, zero);
+        h_avg_thtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qhtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_tvtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qvtend = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qcvtend = Gpu::HostVector<Real>(nz, zero);
+    }
+
+    if (solverChoice.nudging_from_input_sounding) {
+        h_avg_tnudge   = sumToLine(*nudge_data[lev], 0,1,domain,zdir);
+        h_avg_qnudge   = sumToLine(*nudge_data[lev], 1,1,domain,zdir);
+        h_avg_unudge   = sumToLine(*nudge_data[lev], 2,1,domain,zdir);
+        h_avg_vnudge   = sumToLine(*nudge_data[lev], 3,1,domain,zdir);
+    } else {
+        h_avg_tnudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_qnudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_unudge = Gpu::HostVector<Real>(nz, zero);
+        h_avg_vnudge = Gpu::HostVector<Real>(nz, zero);
+    }
+
+    // Divide by the total number of cells we are averaging over
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    for (int k = 0; k < nz; ++k) {
+        if (solverChoice.large_scale_forcing) {
+            h_avg_ttend[k]     /= area_z;
+            h_avg_qtend[k]     /= area_z;
+            h_avg_wsub[k]      /= area_z;
+
+            h_avg_thtend[k]     /= area_z;
+            h_avg_qhtend[k]     /= area_z;
+            h_avg_tvtend[k]     /= area_z;
+            h_avg_qvtend[k]     /= area_z;
+            h_avg_qcvtend[k]    /= area_z;
+        }
+
+        if (solverChoice.nudging_from_input_sounding) {
+            h_avg_tnudge[k]    /= area_z;
+            h_avg_qnudge[k]    /= area_z;
+            h_avg_unudge[k]    /= area_z;
+            h_avg_vnudge[k]    /= area_z;
+        }
+    }
 }

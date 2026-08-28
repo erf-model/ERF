@@ -27,6 +27,7 @@ if(ERF_ENABLE_TESTS)
   set(ERF_TEST_FCOMPARE_ATOL "2.0e-10" CACHE STRING "fcompare absolute tolerance")
   set(ERF_TEST_GOLD_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles" CACHE PATH "Path to ERF gold files")
   option(ERF_TEST_ENABLE_EXTRA_SDM_TESTS "Enable additional SDM tests that require machine-specific gold files" OFF)
+  option(ERF_TEST_SDM_SMOKE_GATED "Run the machine-specific SDM tests to completion, without gold comparison, under the smoke label" OFF)
 
   message(STATUS "ERF testing configuration summary:")
   message(STATUS "   Number of ranks               = ${ERF_TEST_NRANKS}")
@@ -35,6 +36,7 @@ if(ERF_ENABLE_TESTS)
   message(STATUS "   comparison absolute tolerance = ${ERF_TEST_FCOMPARE_ATOL}")
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")
   message(STATUS "   Extra SDM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}")
+  message(STATUS "   Gated SDM smoke tests         = ${ERF_TEST_SDM_SMOKE_GATED}")
 
   add_executable(erf_shoc_plotfile_check
     ${CMAKE_CURRENT_SOURCE_DIR}/ShocPlotfileCheck.cpp)
@@ -84,6 +86,18 @@ if(ERF_ENABLE_TESTS)
   target_compile_features(erf_cloud_chamber_check PRIVATE cxx_std_17)
   set(CLOUD_CHAMBER_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
+
+  if(ERF_ENABLE_CUDA)
+    foreach(_erf_test_tool IN ITEMS
+        erf_shoc_plotfile_check
+        erf_shoc_microphysics_differential
+        erf_shoc_mutation_differential
+        erf_shoc_gold_differential
+        erf_anelastic_wall_diffusion_check
+        erf_cloud_chamber_check)
+      setup_target_for_cuda_compilation(${_erf_test_tool})
+    endforeach()
+  endif()
 
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 endif()

@@ -1,16 +1,22 @@
-    // Compute density from state on device, copy to host
+    // Horizontally averaged density per level, summed over all boxes and ranks
     Gpu::DeviceVector<Real> rho_d(khi+1, zero);
     auto rho_arr = rho_d.data();
     for (MFIter mfi(state, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto &box = mfi.tilebox();
         auto state_arr = state.const_array(mfi);
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            rho_arr[k] = state_arr(i, j, k, Rho_comp);
+            Gpu::Atomic::AddNoRet(&rho_arr[k], state_arr(i, j, k, Rho_comp));
         });
     }
 
     Vector<Real> rho_h(khi+1, zero);
     Gpu::copy(Gpu::deviceToHost, rho_d.begin(), rho_d.end(), rho_h.begin());
+    ParallelDescriptor::ReduceRealSum(rho_h.dataPtr(), khi+1);
+    {
+        const Box& dom = geom.Domain();
+        const Real inv_ncell_xy = one / static_cast<Real>(dom.length(0)*dom.length(1));
+        for (int k = 0; k <= khi; k++) { rho_h[k] *= inv_ncell_xy; }
+    }
 
     // Staggered rho via linear interpolation
     Vector<Real> rho_stag(khi+2, zero);

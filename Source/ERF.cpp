@@ -15,6 +15,8 @@
 #include "AMReX_WriteEBSurface.H"
 
 #include "ERF_EpochTime.H"
+#include "ERF_IntervalMeansCheckpoint.H"
+#include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_SrcHeaders.H"
@@ -31,6 +33,7 @@ double ERF::startCPUTime        = 0.0;
 double ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
+Vector<std::string> ERF::ref_tag_indicator_names;
 
 SolverChoice ERF::solverChoice;
 
@@ -232,18 +235,32 @@ ERF::Evolve ()
 void
 ERF::WriteAtIntermediateTime(int step, double cur_time)
 {
+    int plotfiles_3d_written = 0;
+    bool interval_diagnostic_consumed = false;
     if (writeNow(cur_time, step+1, m_plot3d_int_1, m_plot3d_per_1, dt[0], last_plot3d_file_time_1)) {
         last_plot3d_file_step_1 = step+1;
-        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+        }
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if (writeNow(cur_time, step+1, m_plot3d_int_2, m_plot3d_per_2, dt[0], last_plot3d_file_time_2)) {
         last_plot3d_file_step_2 = step+1;
-        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+        }
         for (int lev = 0; lev <= finest_level; ++lev) {lsm.Plot(lev, step+1);}
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
+                                           interval_diagnostic_consumed);
 
     if (writeNow(cur_time, step+1, m_plot2d_int_1, m_plot2d_per_1, dt[0], last_plot2d_file_time_1)) {
         last_plot2d_file_step_1 = step+1;
@@ -276,14 +293,28 @@ void
 ERF::WriteAtFinalTime()
 {
     // Write plotfiles at final time
+    int plotfiles_3d_written = 0;
+    bool interval_diagnostic_consumed = false;
     if ( (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero) && istep[0] > last_plot3d_file_step_1 ) {
-        Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+        }
         if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
     }
     if ( (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero) && istep[0] > last_plot3d_file_step_2) {
-        Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+        if (wrote_plotfile) {
+            ++plotfiles_3d_written;
+            interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+        }
         if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
     }
+    ResetIntervalMeansAfter3DPlotfileBatch(plotfiles_3d_written,
+                                           interval_diagnostic_consumed);
     if ( (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero) && istep[0] > last_plot2d_file_step_1 ) {
         Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
         if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 += m_plot2d_per_1;}
@@ -303,6 +334,31 @@ ERF::WriteAtFinalTime()
     if ( (m_check_int > 0 || m_check_per > zero) && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
         if (m_check_per > zero) {last_check_file_time += m_check_per;}
+    }
+}
+
+void
+ERF::ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
+                                             bool interval_diagnostic_consumed)
+{
+    if (!erf_plotfile::plot3d_batch_resets_interval_means(
+            plotfiles_written, interval_diagnostic_consumed,
+            solverChoice.compute_mean_vars,
+            solverChoice.mean_vars_reset_mode)) {
+        return;
+    }
+
+    ResetIntervalMeans();
+}
+
+void
+ERF::ResetIntervalMeans ()
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        if (interval_means[lev] != nullptr) {
+            interval_means[lev]->setVal(zero);
+            t_mean_cnt[lev] = 0.0;
+        }
     }
 }
 
@@ -426,11 +482,20 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
          {
+            const Box& domain_lev = geom[lev].Domain();
             Real dx_lev = geom[lev].CellSize(0);
             Real dy_lev = geom[lev].CellSize(1);
-            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
-            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
+            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
+            //     measured from ProbLo, which need not be at the origin
+            int i_lev = domain_lev.smallEnd(0) +
+                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
+            int j_lev = domain_lev.smallEnd(1) +
+                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
+            // Loop runs from finest to coarsest, so stop at the first (finest) level
+            //     that contains the column
+            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
+                lev_column = lev; break;
+            }
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
@@ -451,7 +516,27 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
     // Write plane/line sampler data
     if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        line_sampler->get_sample_data(geom, vars_new);
+        const int nlev = static_cast<int>(vars_new.size());
+        Vector<MultiFab*> tau13_lev(nlev, nullptr);
+        Vector<MultiFab*> tau23_lev(nlev, nullptr);
+        Vector<MultiFab*> hfx3_lev(nlev, nullptr);
+        Vector<int> prognostic_tke_available(nlev, 0);
+        for (int lev = 0; lev < nlev; ++lev) {
+            prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
+            if (lev < static_cast<int>(Tau.size())) {
+                if (Tau[lev].size() > TauType::tau13) {
+                    tau13_lev[lev] = Tau[lev][TauType::tau13].get();
+                }
+                if (Tau[lev].size() > TauType::tau23) {
+                    tau23_lev[lev] = Tau[lev][TauType::tau23].get();
+                }
+            }
+            if (lev < static_cast<int>(SFS_hfx3_lev.size())) {
+                hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
+            }
+        }
+        line_sampler->get_sample_data(geom, vars_new, tau13_lev, tau23_lev, hfx3_lev,
+                                      prognostic_tke_available);
         line_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
     }
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
@@ -474,7 +559,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (nstep+1)%m_plot3d_int_1 == 0)) {
+         (nstep == 0 or (m_plot3d_int_1 > 0 and (nstep+1)%m_plot3d_int_1 == 0))) {
 
         int levc=finest_level;
 
@@ -577,13 +662,24 @@ ERF::InitData_post ()
     setPlotVariables2D("plot2d_vars_2", plot2d_var_names_2);
 
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
+    // Make sure that detJ is the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
             }
         }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
@@ -630,7 +726,8 @@ ERF::InitData_post ()
         AMREX_ALWAYS_ASSERT(pc_ptr != nullptr);
         pc_ptr->Define(static_cast<amrex::ParGDBBase*>(GetParGDB()));
 
-        if (restart_chkfile.empty()) {
+        if (erf_interval_means::initialization_accumulates_state(
+                !restart_chkfile.empty())) {
             if (solverChoice.moisture_tight_coupling) {
                 Warning("Tight coupling has not been tested with Lagrangian microphysics");
             }
@@ -654,7 +751,9 @@ ERF::InitData_post ()
         if (solverChoice.do_forest_drag) {
             for (int lev(0); lev <= finest_level; ++lev) {
                 m_forest_drag[lev]->define_drag_field(grids[lev], dmap[lev], geom[lev],
-                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get());
+                                                      z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                      solverChoice.forest_biophysics &&
+                                                      solverChoice.forest_biophysics_heat, lev);
             }
         }
 
@@ -678,6 +777,14 @@ ERF::InitData_post ()
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
             MultiFab r_hse(base_state[0], make_alias, BaseState::r0_comp, 1);
             Array<MultiFab*, AMREX_SPACEDIM> area_vec = {ax[0].get(), ay[0].get(), az[0].get()};
+            auto repack_runtime_bdy = [&] (const int itime) {
+                const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
+                    wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
+                repack_wrfbdy_to_realbdy(bdy_data_xlo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_xhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_ylo[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+                repack_wrfbdy_to_realbdy(bdy_data_yhi[itime], solverChoice.use_wrf_bdy_qc_qi, separate_hydrometeors);
+            };
 
             // Need itime=0 for vertical interpolation
             if (n_time_old > 0) {
@@ -685,10 +792,16 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
+                repack_runtime_bdy(itime);
             }
 
             int ntimes = std::min(n_time_old+3, static_cast<int>(bdy_data_xlo.size()));
@@ -698,10 +811,19 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.anelastic[0] == 1);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist,
+                                             solverChoice.use_wrf_bdy_qc_qi,
+                                             solverChoice.moisture_indices.qi >= 0,
+                                             solverChoice.use_wrf_bdy_qc_qi &&
+                                             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices),
+                                             solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
+                if (itime == static_cast<int>(bdy_data_xlo.size())-1 && itime > 0) {
+                    repack_runtime_bdy(itime-1);
+                }
+                repack_runtime_bdy(itime);
             } // itime
         } // use_real_bcs
 
@@ -868,6 +990,17 @@ ERF::InitData_post ()
                                       h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
                                       geom[lev], z_phys_nd[lev]);
         }
+    }
+
+    if (solverChoice.large_scale_forcing)
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
+                                         "erf.forcing_timescale must be positive when nudging with large-scale forcing");
+        if (verbose) {
+            lsf.verbose_print = true;
+        }
+        lsf.read_forcing_file();
+        lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
     }
 
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
@@ -1102,6 +1235,9 @@ ERF::InitData_post ()
                                    solverChoice.advChoice.zero_zflux,
                                    geom[lev],
                                    z_phys_cc[lev]);
+
+                // The correction is only applied on the valid region
+                fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
             }
         }
     }
@@ -1145,6 +1281,11 @@ ERF::InitData_post ()
                                                         zero, zero, zero,
 #endif
                                                         eb_ptrs);
+
+        // Must precede make_SurfaceLayer_at_level: coupled SST is one of the
+        // conditions that selects ThetaCalcType::SURFACE_TEMPERATURE there.
+        m_SurfaceLayer->set_coupled_sst_active(solverChoice.use_coupled_sst);
+
         // This call will allocate the arrays at each level. If we regrid later, either changing
         // the number of levels or just the grids at each existing level, we will call an update routine
         // to redefine the internal arrays in m_SurfaceLayer.
@@ -1243,12 +1384,43 @@ ERF::InitData_post ()
     }
 
     // Fill time averaged velocities before first plot file
-    if (solverChoice.time_avg_vel) {
+    //
+    // NOTE: only when starting from scratch.  On restart the running sum and its
+    //       normalizer have just been read back in, and that sum already includes
+    //       the state at the checkpoint time (ERF::Advance accumulates after each
+    //       step).  Accumulating it again here would count that state twice, so a
+    //       restarted run would not match the equivalent continuous run, and the
+    //       bias would compound over a chain of restarts.
+    if (solverChoice.time_avg_vel && restart_chkfile.empty()) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
                               vars_new[lev][Vars::xvel],
                               vars_new[lev][Vars::yvel],
                               vars_new[lev][Vars::zvel]);
+        }
+    }
+
+    if (solverChoice.compute_mean_vars) {
+        if (solverChoice.mean_vars_reset_mode == "time" &&
+            static_cast<double>(t_new[0]) >=
+            static_cast<double>(solverChoice.mean_vars_reset_time)) {
+            if (mean_vars_time_reset_done == 0) {
+                ResetIntervalMeans();
+                mean_vars_time_reset_done = 1;
+            }
+        }
+        // A restart restores the already accumulated window from the
+        // checkpoint.  Sampling the restart state here would count that
+        // instant twice; a fresh run still needs its initial sample for the
+        // historical t=0 behavior.
+        if (restart_chkfile.empty()) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                Accumulate_Interval_Means(dt[lev], t_mean_cnt[lev], interval_means[lev].get(),
+                                          vars_new[lev][Vars::xvel],
+                                          vars_new[lev][Vars::yvel],
+                                          vars_new[lev][Vars::zvel],
+                                          vars_new[lev][Vars::cons]);
+            }
         }
     }
 
@@ -1265,6 +1437,7 @@ ERF::InitData_post ()
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (lev == 0) {
                 compute_max_pressure_gradient_diagnostic(lev);
+                compute_max_buoyancy_gradp_diagnostic(lev);
             }
         }
     }
@@ -1286,18 +1459,36 @@ ERF::InitData_post ()
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
+        int plotfiles_3d_written = 0;
+        bool interval_diagnostic_consumed = false;
         if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero)
         {
-            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
+            if (wrote_plotfile) {
+                ++plotfiles_3d_written;
+                interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
+            }
             if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
             last_plot3d_file_step_1 = istep[0];
         }
         if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero)
         {
-            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
+            if (wrote_plotfile) {
+                ++plotfiles_3d_written;
+                interval_diagnostic_consumed = interval_diagnostic_consumed ||
+                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
+            }
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
+        // A restart-only plot is observational: it must not consume the
+        // restored interval window before the first post-restart advance.
+        ResetIntervalMeansAfter3DPlotfileBatch(
+            plotfiles_3d_written,
+            erf_interval_means::initialization_plot_consumes_interval(
+                !restart_chkfile.empty(), interval_diagnostic_consumed));
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
@@ -1488,7 +1679,7 @@ ERF::InitData_post ()
 
     // Create object to do line and plane sampling if needed
     bool do_line = false; bool do_plane = false;
-    pp.query("do_line_sampling",do_line); pp.query("do_plane_sampling",do_plane);
+    pp.queryAdd("do_line_sampling",do_line); pp.queryAdd("do_plane_sampling",do_plane);
     if (do_line) {
         if (line_sampling_interval < 0 && line_sampling_per < 0) {
             Abort("Need to specify line_sampling_interval or line_sampling_per");
@@ -1508,7 +1699,7 @@ ERF::InitData_post ()
          solverChoice.buildings_type == BuildingsType::ImmersedForcing )
     {
         bool write_eb_surface = false;
-        pp.query("write_eb_surface", write_eb_surface);
+        pp.queryAdd("write_eb_surface", write_eb_surface);
         if (write_eb_surface) {
             if (verbose > 0) {
                 amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
@@ -1792,17 +1983,25 @@ ERF::restart ()
 #endif
 
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = cur_time;}
+    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
     if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
     if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
     if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
     if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+
+    for (int i = 0; i < m_subvol_per.size(); i++) {
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+    }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
     if (m_plot2d_int_1 > zero) {last_plot2d_file_step_1 = istep[0];}
     if (m_plot2d_int_2 > zero) {last_plot2d_file_step_2 = istep[0];}
     if (m_plot3d_int_1 > zero) {last_plot3d_file_step_1 = istep[0];}
     if (m_plot3d_int_2 > zero) {last_plot3d_file_step_2 = istep[0];}
+
+    for (int i = 0; i < m_subvol_int.size(); i++) {
+        if (m_subvol_int[i] > 0) {last_subvol_step[i] = istep[0];}
+    }
 
     if (verbose > 0)
     {
@@ -1869,7 +2068,51 @@ ERF::init_only (int lev, double elapsed_time)
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
-        amrex::Abort("This pathway is not quite implemented yet");
+        //
+        // A refined level with no wrfinput file of its own: the level was created by
+        // ERF's own refinement machinery rather than read from a wrfinput_d0*.  Level 0
+        // must always have a file (checked in ParameterSanityChecks), so this is lev > 0.
+        //
+        // Note the caller has already built the terrain at this level for us -- see the
+        // ordering in MakeNewLevelFromScratch -- because unlike the has-a-file case there
+        // is no file here to build z_phys from, and the base state below needs it.
+        //
+        AMREX_ALWAYS_ASSERT(lev > 0);
+        AMREX_ALWAYS_ASSERT(z_phys_cc[lev] != nullptr);
+
+        make_physbcs(lev);
+
+        // Fill the part of this level that lies inside the domain but outside the fine
+        // grids, and the fine ghost cells, from the coarser level.
+        interp_base_state_from_coarse(lev);
+
+        // Now build the base state on the fine grids by exactly the construction level 0
+        // used: the analytic reference profile from the level-0 parameters, evaluated at
+        // this level's cell-centered heights, followed by the discrete hydrostatic
+        // rebalance.  Running the same procedure on both levels is what makes their base
+        // states agree; interpolating the coarse base state instead would leave this level
+        // not discretely hydrostatic on its own mesh.
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
+        // The state itself is interpolated from the coarser level.  This must come after the
+        // base state, since it interpolates perturbational quantities relative to it.
+        FillCoarsePatch(lev, elapsed_time);
+
+        // The 2D/surface arrays likewise have no file to come from at this level
+        Interp2DArrays(lev, ba2d[lev], dmap[lev]);
+
+        // PSFC is read from the file at a level that has one; here it can only be
+        // interpolated from the parent.  The surface layer and the LSM both read it.
+        if (mf_PSFC[lev-1] && mf_PSFC[lev]) {
+            auto ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+            InterpFromCoarseLevel(*mf_PSFC[lev], ngv,
+                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *mf_PSFC[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
@@ -1972,26 +2215,26 @@ ERF::ReadParameters ()
     ParmParse pp(pp_prefix);
     ParmParse pp_amr("amr");
     {
-        pp.query("regrid_level_0_on_restart", regrid_level_0_on_restart);
-        pp.query("regrid_int", regrid_int);
-        pp.query("check_file", check_file);
+        pp.queryAdd("regrid_level_0_on_restart", regrid_level_0_on_restart);
+        pp.queryAdd("regrid_int", regrid_int);
+        pp.queryAdd("check_file", check_file);
 
         // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
         //    for those or "erf.restart" / "erf.m_check_int". The amr.* values are
         //    queried after the erf.* values and therefore take precedence if both
         //    are specified.
-        pp.query("check_int", m_check_int);
-        pp.query("check_per", m_check_per);
-        pp_amr.query("check_int", m_check_int);
-        pp_amr.query("check_per", m_check_per);
+        pp.queryAdd("check_int", m_check_int);
+        pp.queryAdd("check_per", m_check_per);
+        pp_amr.queryAdd("check_int", m_check_int);
+        pp_amr.queryAdd("check_per", m_check_per);
 
-        pp.query("restart", restart_chkfile);
-        pp_amr.query("restart", restart_chkfile);
+        pp.queryAdd("restart", restart_chkfile);
+        pp_amr.queryAdd("restart", restart_chkfile);
 
         // Verbosity
-        pp.query("v", verbose);
-        pp.query("mg_v", mg_verbose);
-        pp.query("use_fft", use_fft);
+        pp.queryAdd("v", verbose);
+        pp.queryAdd("mg_v", mg_verbose);
+        pp.queryAdd("use_fft", use_fft);
 #ifndef ERF_USE_FFT
         if (use_fft) {
             Abort("You must build with USE_FFT in order to set use_fft = true in your inputs file");
@@ -1999,27 +2242,27 @@ ERF::ReadParameters ()
 #endif
 
         // Check for NaNs?
-        pp.query("check_for_nans", check_for_nans);
+        pp.queryAdd("check_for_nans", check_for_nans);
 
         // Frequency of diagnostic output
-        pp.query("sum_interval", sum_interval);
-        pp.query("sum_period"  , sum_per);
+        pp.queryAdd("sum_interval", sum_interval);
+        pp.queryAdd("sum_period"  , sum_per);
 
-        pp.query("pert_interval", pert_interval);
+        pp.queryAdd("pert_interval", pert_interval);
 
         // Time step controls
-        pp.query("cfl", cfl);
-        pp.query("substepping_cfl", sub_cfl);
-        pp.query("init_shrink", init_shrink);
-        pp.query("change_max", change_max);
-        pp.query("dt_max_initial", dt_max_initial);
-        pp.query("dt_max", dt_max);
+        pp.queryAdd("cfl", cfl);
+        pp.queryAdd("substepping_cfl", sub_cfl);
+        pp.queryAdd("init_shrink", init_shrink);
+        pp.queryAdd("change_max", change_max);
+        pp.queryAdd("dt_max_initial", dt_max_initial);
+        pp.queryAdd("dt_max", dt_max);
 
         fixed_dt.resize(max_level+1,-one);
         fixed_fast_dt.resize(max_level+1,-one);
 
-        pp.query("fixed_dt", fixed_dt[0]);
-        pp.query("fixed_fast_dt", fixed_fast_dt[0]);
+        pp.queryAdd("fixed_dt", fixed_dt[0]);
+        pp.queryAdd("fixed_fast_dt", fixed_fast_dt[0]);
 
         int nlevs_max = max_level + 1;
         istep.resize(nlevs_max, 0);
@@ -2056,7 +2299,7 @@ ERF::ReadParameters ()
             fixed_fast_dt[lev] = fixed_fast_dt[lev-1] / static_cast<Real>(nsubsteps[lev]);
         }
 
-        pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.queryAdd("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -2092,35 +2335,37 @@ ERF::ReadParameters ()
         } // lev
 
         // NetCDF wrfbdy lateral boundary file
-        if (pp.query("nc_bdy_file", nc_bdy_file)) {
+        if (pp.queryAdd("nc_bdy_file", nc_bdy_file)) {
             Print() << "Reading NC bdy file name " << nc_bdy_file << std::endl;
         }
 
         // NetCDF wrflow lateral boundary file
-        if (pp.query("nc_low_file", nc_low_file)) {
+        if (pp.queryAdd("nc_low_file", nc_low_file)) {
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
 #endif
 
         // Options for vertical interpolation of met_em*.nc data.
-        pp.query("metgrid_debug_quiescent",  metgrid_debug_quiescent);
-        pp.query("metgrid_debug_isothermal", metgrid_debug_isothermal);
-        pp.query("metgrid_debug_dry",        metgrid_debug_dry);
-        pp.query("metgrid_debug_psfc",       metgrid_debug_psfc);
-        pp.query("metgrid_debug_msf",        metgrid_debug_msf);
-        pp.query("metgrid_interp_theta",     metgrid_interp_theta);
-        pp.query("metgrid_basic_linear",     metgrid_basic_linear);
-        pp.query("metgrid_use_below_sfc",    metgrid_use_below_sfc);
-        pp.query("metgrid_use_sfc",          metgrid_use_sfc);
-        pp.query("metgrid_retain_sfc",       metgrid_retain_sfc);
-        pp.query("metgrid_proximity",        metgrid_proximity);
-        pp.query("metgrid_order",            metgrid_order);
-        pp.query("metgrid_force_sfc_k",      metgrid_force_sfc_k);
+        pp.queryAdd("metgrid_debug_quiescent",  metgrid_debug_quiescent);
+        pp.queryAdd("metgrid_debug_isothermal", metgrid_debug_isothermal);
+        pp.queryAdd("metgrid_debug_dry",        metgrid_debug_dry);
+        pp.queryAdd("metgrid_debug_psfc",       metgrid_debug_psfc);
+        pp.queryAdd("metgrid_debug_msf",        metgrid_debug_msf);
+        pp.queryAdd("metgrid_interp_theta",     metgrid_interp_theta);
+        pp.queryAdd("metgrid_basic_linear",     metgrid_basic_linear);
+        pp.queryAdd("metgrid_use_below_sfc",    metgrid_use_below_sfc);
+        pp.queryAdd("metgrid_use_sfc",          metgrid_use_sfc);
+        pp.queryAdd("metgrid_retain_sfc",       metgrid_retain_sfc);
+        pp.queryAdd("metgrid_proximity",        metgrid_proximity);
+        pp.queryAdd("metgrid_order",            metgrid_order);
+        pp.queryAdd("metgrid_force_sfc_k",      metgrid_force_sfc_k);
 
         // Options for boundary file.
-        pp.query("write_erfbdy",             write_erfbdy);
-        pp.query("erfbdy_file",              erfbdy_file);
+        // NOTE: write_erfbdy is deliberately NOT parsed here.  Its default depends on
+        //       solverChoice.init_type, which is not known until init_params() runs
+        //       below, so it is parsed further down once that default has been chosen.
+        pp.queryAdd("erfbdy_file",              erfbdy_file);
 
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
@@ -2188,28 +2433,28 @@ ERF::ReadParameters ()
         }
 #endif
 
-        pp.query("plot_file_1"  ,   plot3d_file_1);
-        pp.query("plot_file_2"  ,   plot3d_file_2);
-        pp.query("plot2d_file_1",   plot2d_file_1);
-        pp.query("plot2d_file_2",   plot2d_file_2);
+        pp.queryAdd("plot_file_1"  ,   plot3d_file_1);
+        pp.queryAdd("plot_file_2"  ,   plot3d_file_2);
+        pp.queryAdd("plot2d_file_1",   plot2d_file_1);
+        pp.queryAdd("plot2d_file_2",   plot2d_file_2);
 
-        pp.query("plot_int_1"   , m_plot3d_int_1);
-        pp.query("plot_int_2"   , m_plot3d_int_2);
-        pp.query("plot_per_1"   , m_plot3d_per_1);
-        pp.query("plot_per_2"   , m_plot3d_per_2);
+        pp.queryAdd("plot_int_1"   , m_plot3d_int_1);
+        pp.queryAdd("plot_int_2"   , m_plot3d_int_2);
+        pp.queryAdd("plot_per_1"   , m_plot3d_per_1);
+        pp.queryAdd("plot_per_2"   , m_plot3d_per_2);
 
-        pp.query("plot2d_int_1" , m_plot2d_int_1);
-        pp.query("plot2d_int_2" , m_plot2d_int_2);
-        pp.query("plot2d_per_1",  m_plot2d_per_1);
-        pp.query("plot2d_per_2",  m_plot2d_per_2);
+        pp.queryAdd("plot2d_int_1" , m_plot2d_int_1);
+        pp.queryAdd("plot2d_int_2" , m_plot2d_int_2);
+        pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
+        pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
-        pp.query("subvol_file",   subvol_file);
+        pp.queryAdd("subvol_file",   subvol_file);
 
         // Should we use format like plt1970-01-01_00:00:Real(00.000000) (if true) or plt00001 (if false)
-        pp.query("use_real_time_in_pltname", use_real_time_in_pltname);
+        pp.queryAdd("use_real_time_in_pltname", use_real_time_in_pltname);
 
         // If use_real_time_in_pltname is false, how many digits should we use for the timestep?
-        pp.query("file_name_digits", file_name_digits);
+        pp.queryAdd("file_name_digits", file_name_digits);
 
         // Default if subvol_int not specified
         m_subvol_int.resize(1); m_subvol_int[0] = -1;
@@ -2234,7 +2479,6 @@ ERF::ReadParameters ()
                 Abort("WriteSubvolume: origin, nxnynz, and dxdydz must have multiples of AMReX_SPACEDIM");
             }
             nsub = n1/AMREX_SPACEDIM;
-            m_subvol_int.resize(nsub);
             last_subvol_step.resize(nsub);
             last_subvol_time.resize(nsub);
             m_subvol_int.resize(nsub);
@@ -2242,10 +2486,12 @@ ERF::ReadParameters ()
         }
 
         if (nsi > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_per[i] = -one;
+            for (int i = 0; i < nsub; i++) m_subvol_per[i] = -one;
             if ( nsi == 1) {
                 m_subvol_int[0] = -1;
                 pp.get("subvol_int" , m_subvol_int[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_int[i] = m_subvol_int[0];
             } else if ( nsi == nsub) {
                 pp.getarr("subvol_int" , m_subvol_int);
             } else {
@@ -2254,10 +2500,12 @@ ERF::ReadParameters ()
         }
 
         if (nsr > 0) {
-            for (int i = 1; i < nsub; i++) m_subvol_int[i] = -static_cast<int>(one);
+            for (int i = 0; i < nsub; i++) m_subvol_int[i] = -1;
             if ( nsr == 1) {
                 m_subvol_per[0] = -one;
                 pp.get("subvol_per" , m_subvol_per[0]);
+                // A single value applies to every subdomain
+                for (int i = 1; i < nsub; i++) m_subvol_per[i] = m_subvol_per[0];
             } else if ( nsr == nsub) {
                 pp.getarr("subvol_per" , m_subvol_per);
             } else {
@@ -2265,11 +2513,15 @@ ERF::ReadParameters ()
             }
         }
 
-        setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
+        // NOTE: the subvolume variable list is *not* selected here.  Choosing which
+        //       "rhoQn" components exist needs the microphysics interface, and that
+        //       is constructed after ReadParameters() returns, so setSubVolVariables
+        //       is called alongside setPlotVariables in the ERF constructor.
 
-        pp.query("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
+        pp.queryAdd("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
 
-        pp.query("plot_face_vels",m_plot_face_vels);
+        pp.queryAdd("plot_face_vels",m_plot_face_vels);
+        pp.queryAdd("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
 
         if ( (m_plot3d_int_1 > 0 && m_plot3d_per_1 > 0) ||
              (m_plot3d_int_2 > 0 && m_plot3d_per_2 > zero) ) {
@@ -2280,50 +2532,50 @@ ERF::ReadParameters ()
             Abort("Must choose only one of plot_int or plot_per");
         }
 
-        pp.query("profile_int", profile_int);
-        pp.query("destag_profiles", destag_profiles);
+        pp.queryAdd("profile_int", profile_int);
+        pp.queryAdd("destag_profiles", destag_profiles);
 
-        pp.query("plot_lsm", plot_lsm);
+        pp.queryAdd("plot_lsm", plot_lsm);
 #ifdef ERF_USE_RRTMGP
-        pp.query("plot_rad", plot_rad);
+        pp.queryAdd("plot_rad", plot_rad);
 #endif
-        pp.query("profile_rad_int", rad_datalog_int);
+        pp.queryAdd("profile_rad_int", rad_datalog_int);
 
-        pp.query("output_1d_column", output_1d_column);
-        pp.query("column_per", column_per);
-        pp.query("column_interval", column_interval);
-        pp.query("column_loc_x", column_loc_x);
-        pp.query("column_loc_y", column_loc_y);
-        pp.query("column_file_name", column_file_name);
+        pp.queryAdd("output_1d_column", output_1d_column);
+        pp.queryAdd("column_per", column_per);
+        pp.queryAdd("column_interval", column_interval);
+        pp.queryAdd("column_loc_x", column_loc_x);
+        pp.queryAdd("column_loc_y", column_loc_y);
+        pp.queryAdd("column_file_name", column_file_name);
 
         // Sampler output frequency
-        pp.query("line_sampling_per", line_sampling_per);
-        pp.query("line_sampling_interval", line_sampling_interval);
-        pp.query("plane_sampling_per", plane_sampling_per);
-        pp.query("plane_sampling_interval", plane_sampling_interval);
+        pp.queryAdd("line_sampling_per", line_sampling_per);
+        pp.queryAdd("line_sampling_interval", line_sampling_interval);
+        pp.queryAdd("plane_sampling_per", plane_sampling_per);
+        pp.queryAdd("plane_sampling_interval", plane_sampling_interval);
 
         // Specify information about outputting planes of data
-        pp.query("output_bndry_planes", output_bndry_planes);
-        pp.query("bndry_output_planes_interval", bndry_output_planes_interval);
-        pp.query("bndry_output_planes_per", bndry_output_planes_per);
-        pp.query("bndry_output_start_time", bndry_output_planes_start_time);
+        pp.queryAdd("output_bndry_planes", output_bndry_planes);
+        pp.queryAdd("bndry_output_planes_interval", bndry_output_planes_interval);
+        pp.queryAdd("bndry_output_planes_per", bndry_output_planes_per);
+        pp.queryAdd("bndry_output_start_time", bndry_output_planes_start_time);
 
         // Specify whether ingest boundary planes of data
-        pp.query("input_bndry_planes", input_bndry_planes);
+        pp.queryAdd("input_bndry_planes", input_bndry_planes);
 
         // Query the total width for wrfbdy interior ghost cells
-        pp.query("real_width", real_width);
+        pp.queryAdd("real_width", real_width);
 
         // If using real boundaries, do we extrapolate w (or set to 0)
-        pp.query("real_extrap_w", real_extrap_w);
+        pp.queryAdd("real_extrap_w", real_extrap_w);
 
         // Query the set and total widths for crse-fine interior ghost cells
-        pp.query("cf_width", cf_width);
-        pp.query("cf_set_width", cf_set_width);
+        pp.queryAdd("cf_width", cf_width);
+        pp.queryAdd("cf_set_width", cf_set_width);
 
         // AmrMesh iterate on grids?
         bool iterate(true);
-        pp_amr.query("iterate_grids",iterate);
+        pp_amr.queryAdd("iterate_grids",iterate);
         if (!iterate) SetIterateToFalse();
     }
 
@@ -2337,31 +2589,39 @@ ERF::ReadParameters ()
     // Prioritize write_erfbdy provided by user.
     // write_erfbdy must be false for restarts.
     // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
+    //
+    // The context-dependent default is chosen FIRST and the user's value is parsed on
+    // top of it, so that "did the user set this" never has to be asked.  It must not be
+    // asked: this used to test ParmParse::contains("write_erfbdy") after the key had
+    // already been parsed with queryAdd up in the metgrid block, and queryAdd inserts
+    // the default into the global table on a miss.  contains() was therefore always
+    // true, the metgrid/WRFInput default below never fired, no erfbdy was written on a
+    // clean start, and the following restart aborted in ReadCheckpointFile.
     {
         ParmParse pp_erfbdy(pp_prefix);
-        bool is_restart = !restart_chkfile.empty();
-        if (is_restart) {
-            if (write_erfbdy) {
-                Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
-            }
-        } else {
-            if (!pp_erfbdy.contains("write_erfbdy")) {
-                if ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput)) {
-                    write_erfbdy = true;
-                }
-            }
+        const bool is_restart = !restart_chkfile.empty();
+        if (!is_restart &&
+            ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput))) {
+            write_erfbdy = true;
+        }
+
+        // A value given in the inputs file overrides the default chosen above.
+        pp_erfbdy.queryAdd("write_erfbdy", write_erfbdy);
+
+        if (is_restart && write_erfbdy) {
+            Abort("Cannot set erf.write_erfbdy = true during restart. erfbdy should only be written during initial runs.");
         }
     }
 
     {
         ParmParse pp_no_prefix;  // Traditionally, max_step and stop_time do not have prefix.
-        pp_no_prefix.query("max_step", max_step);
+        pp_no_prefix.queryAdd("max_step", max_step);
         if (max_step < 0) {
             max_step = std::numeric_limits<int>::max();
         }
 
         std::string start_datetime, stop_datetime;
-        if (pp_no_prefix.query("start_datetime", start_datetime)) {
+        if (pp_no_prefix.queryAdd("start_datetime", start_datetime)) {
             if (start_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 start_datetime += ":00"; // add seconds
             }
@@ -2426,7 +2686,7 @@ ERF::ReadParameters ()
 #endif
         }
 
-        if (pp_no_prefix.query("stop_datetime", stop_datetime)) {
+        if (pp_no_prefix.queryAdd("stop_datetime", stop_datetime)) {
             if (stop_datetime.length() == 16) { // YYYY-MM-DD HH:MM
                 stop_datetime += ":00"; // add seconds
             }
@@ -2441,7 +2701,12 @@ ERF::ReadParameters ()
 
         } else {
 
-            if (pp_no_prefix.query("stop_time", stop_time)) {
+            // stop_time already defaults to numeric_limits<double>::max(), which no user
+            // would type, so it serves as its own sentinel and we can test the value
+            // instead of the queryAdd return value (which only reports whether the key
+            // existed before this call).
+            pp_no_prefix.queryAdd("stop_time", stop_time);
+            if (stop_time < std::numeric_limits<double>::max()) {
                 Print() << "Maximum simulation length based on stop_time: " << stop_time << " s (elapsed) " << std::endl;
                 amrex::Print() <<" Adding stop time " << stop_time << " to start_time " << start_time << std::endl;
                 stop_time += start_time;
@@ -2456,13 +2721,92 @@ ERF::ReadParameters ()
                                      "init_type cannot be 'WRFInput', 'Metgrid' or 'NCFile' if we don't build with netcdf!");
 #endif
 
-    // Query the canopy model file name
-    std::string forestfile;
-    solverChoice.do_forest_drag = pp.query("forest_file", forestfile);
-    if (solverChoice.do_forest_drag) {
-        for (int lev = 0; lev <= max_level; ++lev) {
-            m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+    // Query the canopy model parameters
+    {
+        std::string forestfile;
+        std::string forest_lai_file, forest_height_file, forest_cd_file;
+
+        bool requested_forest_drag = false;
+        bool has_forest_drag_switch = pp.query("do_forest_drag", requested_forest_drag);
+
+        bool has_forest_file   = pp.query("forest_file",        forestfile);
+        bool has_forest_lai    = pp.query("forest_lai_file",    forest_lai_file);
+        bool has_forest_height = pp.query("forest_height_file", forest_height_file);
+        bool has_forest_cd     = pp.query("forest_cd_file",     forest_cd_file);
+
+        // Optional constant drag coefficient (alternative to forest_cd_file)
+        Real forest_cd_const = -1.0;
+        bool has_forest_cd_const = pp.query("forest_cd", forest_cd_const);
+
+        if (has_forest_cd && has_forest_cd_const) {
+            Abort("Cannot specify both 'forest_cd_file' and 'forest_cd'. Choose one.");
         }
+
+        int  forest_tree_type = 1;
+        Real forest_laimax    = 0.8;
+        pp.query("forest_tree_type", forest_tree_type);
+        pp.query("forest_laimax",    forest_laimax);
+
+        if (has_forest_file && (has_forest_lai || has_forest_height || has_forest_cd || has_forest_cd_const)) {
+            Abort("Cannot specify both 'forest_file' and gridded forest options. Choose one mode.");
+        }
+
+        if (has_forest_file) {
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(forestfile);
+            }
+            Print() << "ForestDrag: Using discrete patch mode with file: " << forestfile << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd) {
+            // Gridded NC mode with Cd from file
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_file,
+                    forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Cd file: " << forest_cd_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai && has_forest_height && has_forest_cd_const) {
+            // Gridded NC mode with constant Cd
+            solverChoice.do_forest_drag = true;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                m_forest_drag[lev] = std::make_unique<ForestDrag>(
+                    forest_lai_file, forest_height_file, forest_cd_const,
+                    forest_tree_type, forest_laimax);
+            }
+            Print() << "ForestDrag: Using gridded NetCDF mode with constant Cd=" << forest_cd_const << "\n"
+                    << "  LAI file: " << forest_lai_file << "\n"
+                    << "  Height file: " << forest_height_file << "\n"
+                    << "  Tree type: " << forest_tree_type << "\n"
+                    << "  LAImax: " << forest_laimax << "\n";
+
+        } else if (has_forest_lai || has_forest_height || has_forest_cd || has_forest_cd_const) {
+            Abort("Gridded forest mode requires forest_lai_file, forest_height_file, "
+                  "and either forest_cd_file or forest_cd.");
+        }
+
+        if (has_forest_drag_switch && requested_forest_drag != solverChoice.do_forest_drag) {
+            Abort("'do_forest_drag' must be true when a complete forest configuration is "
+                  "provided, and false when no forest configuration is provided.");
+        }
+
+        if ((solverChoice.forest_biophysics || solverChoice.forest_biophysics_heat) &&
+            !solverChoice.do_forest_drag) {
+            Abort("Forest biophysics was requested (forest_biophysics=" +
+                  std::string(solverChoice.forest_biophysics ? "true" : "false") +
+                  ", forest_biophysics_heat=" +
+                  std::string(solverChoice.forest_biophysics_heat ? "true" : "false") +
+                  ") but no complete forest configuration was supplied. Provide "
+                  "forest_lai_file, forest_height_file, and forest_cd or forest_cd_file.");
+        }
+
     }
 
     // If init from WRFInput or Metgrid make sure a valid file name is present at level zero
@@ -2482,17 +2826,11 @@ ERF::ReadParameters ()
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         lsm.SetModel<SLM>();
         Print() << "SLM land surface model!\n";
-    } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
-        lsm.SetModel<MM5>();
-        Print() << "MM5 land surface model!\n";
 #ifdef ERF_USE_NOAHMP
     } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
         lsm.SetModel<NOAHMP>();
         Print() << "Noah-MP land surface model!\n";
 #endif
-    } else if (solverChoice.lsm_type == LandSurfaceType::OceanSurf) {
-        lsm.SetModel<OceanSurf>();
-        Print() << "OceanSurf land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
@@ -2516,6 +2854,46 @@ ERF::ParameterSanityChecks ()
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
     AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||
                         ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) );
+
+    if (solverChoice.use_wrf_bdy_density) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_density requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
+        }
+        if (!solverChoice.anelastic.empty() && solverChoice.anelastic[0] != 0) {
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");
+        }
+        const Real rho_factor = (solverChoice.bdy_rho_nudge_factor > zero)
+                              ? solverChoice.bdy_rho_nudge_factor
+                              : solverChoice.bdy_nudge_factor;
+        if (rho_factor <= zero) {
+            Abort("erf.bdy_rho_nudge_factor or erf.bdy_nudge_factor must be positive");
+        }
+        Print() << "WRF lateral boundary density forcing: enabled\n"
+                << "WRF boundary density nudge factor: " << rho_factor << std::endl;
+    } else {
+        Print() << "WRF lateral boundary density forcing: disabled" << std::endl;
+    }
+
+    if (solverChoice.use_wrf_bdy_qc_qi) {
+        if (!solverChoice.use_real_bcs || solverChoice.init_type != InitType::WRFInput) {
+            Abort("erf.use_wrf_bdy_qc_qi requires standard WRFInput real boundary conditions");
+        }
+        if (nc_bdy_file.empty()) {
+            Abort("erf.use_wrf_bdy_qc_qi requires erf.nc_bdy_file");
+        }
+        if (input_bndry_planes) {
+            Abort("erf.use_wrf_bdy_qc_qi is not supported with generic boundary-plane input");
+        }
+        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: enabled" << std::endl;
+    } else {
+        Print() << "WRF lateral boundary cloud-water/cloud-ice forcing: disabled" << std::endl;
+    }
 
     AMREX_ALWAYS_ASSERT(real_width >= 0);
 

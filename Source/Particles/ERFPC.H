@@ -5,8 +5,32 @@
 
 #include <string>
 #include <AMReX_Particles.H>
+#include <AMReX_ParticleUtil.H>
 #include <ERF_Constants.H>
 
+/** Particle cell-binning functor for DenseBins.  Maps a particle to its
+ *  cell-tile index via amrex::getParticleCell + amrex::getTileIndex. */
+struct GetParticleBinERF
+{
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> plo;
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxi;
+    amrex::Box                                   domain;
+    amrex::IntVect                               bin_size;
+    amrex::Box                                   box;
+    template <typename P>
+    AMREX_GPU_HOST_DEVICE
+    unsigned int operator() (const P& p) const noexcept
+    {
+        amrex::Box tbx;
+        auto iv  = amrex::getParticleCell(p, plo, dxi, domain);
+        auto tid = amrex::getTileIndex(iv, box, true, bin_size, tbx);
+        return static_cast<unsigned int>(tid);
+    }
+};
+
+/**
+ * @brief Index mapping for integer particle attributes.
+ */
 struct ERFParticlesIntIdx
 {
     enum {
@@ -14,6 +38,9 @@ struct ERFParticlesIntIdx
     };
 };
 
+/**
+ * @brief Index mapping for real-valued particle attributes.
+ */
 struct ERFParticlesRealIdx
 {
     enum {
@@ -37,6 +64,29 @@ namespace ERFParticleNames
     const std::string tracers = "tracer_particles";
 }
 
+/**
+ * @brief Particle container for ERF particles.
+ */
+/*! \brief Behaviour a derived container selects before ERFPC reads the input file.
+ *
+ *  ERFPC::readInputs() runs from the ERFPC constructor, so a derived class cannot
+ *  influence it through a virtual -- the base version is the one that runs. These
+ *  options are passed down the constructor instead.
+ */
+struct ERFPCOptions
+{
+    /*! Read the generic particle-initialization inputs: initial_distribution_type,
+     *  particle_box_lo / particle_box_hi, place_randomly_in_cells and
+     *  initial_particles_per_cell. A container with its own initialization scheme
+     *  (SuperDropletPC) sets this false, so those names stay free for it to define
+     *  with its own meaning under the same input prefix. */
+    bool read_particle_init = true;
+
+    /*! Value of advect_with_gravity before the input file is consulted. Tracers
+     *  default to off, super-droplets to on. */
+    bool advect_with_gravity = false;
+};
+
 class ERFPC : public amrex::ParticleContainer<  0,                              // AoS real attributes
                                                 0,                              // AoS integer attributes
                                                 ERFParticlesRealIdx::ncomps,    // SoA real attributes
@@ -47,7 +97,8 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
 
         /*! Constructor */
         ERFPC ( amrex::ParGDBBase* a_gdb,
-                const std::string& a_name = "particles" )
+                const std::string& a_name = "particles",
+                  const ERFPCOptions& a_opts = ERFPCOptions() )
             : amrex::ParticleContainer< 0,                              // AoS real attributes
                                         0,                              // AoS integer attributes
                                         ERFParticlesRealIdx::ncomps,    // SoA real attributes
@@ -56,6 +107,7 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         {
             BL_PROFILE("ERFPCPC::ERFPC()");
             m_name = a_name;
+            m_opts = a_opts;
             readInputs();
         }
 
@@ -63,7 +115,8 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         ERFPC ( const amrex::Geometry&            a_geom,
                 const amrex::DistributionMapping& a_dmap,
                 const amrex::BoxArray&            a_ba,
-                const std::string&                a_name = "particles" )
+                const std::string&                a_name = "particles",
+                  const ERFPCOptions&               a_opts = ERFPCOptions() )
             : amrex::ParticleContainer< 0,                              // AoS real attributes
                                         0,                              // AoS integer attributes
                                         ERFParticlesRealIdx::ncomps,    // SoA real attributes
@@ -72,6 +125,7 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         {
             BL_PROFILE("ERFPCPC::ERFPC()");
             m_name = a_name;
+            m_opts = a_opts;
             readInputs();
         }
 
@@ -181,6 +235,25 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         /*! Diagnostic: count particles per level and halo (for AMR) */
         void CountParticlesPerLevelAndHalo ( int a_finest_level );
 
+        /*! Split coarse-level particles in newly-refined cells after AMR regrid
+         *  to restore the per-cell super-droplet count.  Handles cascading
+         *  refinement across multiple new levels in a single call (see the
+         *  SuperDropletPC override for details).  Default no-op. */
+        virtual void SplitParticlesForRefinement ( int /*a_finest_level*/ ) {}
+
+        /*! Split new entrants and merge departees at AMR level boundaries.
+         *  Called every Redistribute(z_phys_nd) to maintain uniform per-cell
+         *  super-droplet density across levels.  Default no-op. */
+        virtual void SplitMergeAtLevelBoundary () {}
+
+        /*! Regrid-time de-refinement merge.  For cells that were in the old
+         *  fine BoxArray at level `a_lev` but are no longer in the current
+         *  one, reduces the coarse-level super-droplet count from `np_bin`
+         *  to `np_bin / merge_factor`.  Default no-op. */
+        virtual void MergeParticlesAtDerefinement ( int /*a_lev*/,
+                                                    const amrex::BoxArray& /*a_old_fine_ba*/,
+                                                    const amrex::IntVect& /*a_ref_ratio*/ ) {}
+
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
@@ -188,7 +261,9 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
 
         amrex::RealBox m_particle_box;      /*!< box within which to place particles */
 
-        std::string m_name;                 /*!< name of this particle species */
+        std::string m_name;
+
+        ERFPCOptions m_opts; /*!< selected by the derived container */                 /*!< name of this particle species */
 
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */

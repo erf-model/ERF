@@ -12,6 +12,11 @@
  * Usage in an MFIter loop after K_h is computed:
  *   K_h_eff = pbl_kh_blend_and_cap(K_h, dx, L_blend, C_s, c_max, SmnSmn, use_smag);
  *
+ * K_h is a kinematic diffusivity [m^2/s], because that is the unit of the ceilings
+ * applied here.  Schemes that carry rho*K in K_turb (all of the ERF PBL models do)
+ * must divide by rho on the way in and multiply by rho on the way out, or the cap
+ * ends up scaling like 1/rho instead of being a constant diffusivity.
+ *
  * Gating: pbl_kh_blend_and_cap returns K_h unchanged when L_blend <= 0.
  * Setting L_blend = 0 recovers original PBL behaviour exactly.
  *
@@ -38,11 +43,18 @@
 /**
  * @brief Boutle et al. (2014) blending factor.
  *
- * f = 1 / (1 + (dx/L_blend)^2)
+ * f = (dx/L_blend)^2 / (1 + (dx/L_blend)^2)
  *
  * Returns 1 when L_blend <= 0 (gate: no blending).
  * Asymptotes to 1 as dx >> L_blend (mesoscale grid, full PBL K_h).
  * Asymptotes to 0 as dx << L_blend (LES grid, no PBL K_h contribution).
+ *
+ * This is the weight on the parameterized (subgrid) part of the turbulence, so it
+ * must grow with dx: the coarser the grid, the less of the boundary layer overturning
+ * is resolved and the more the PBL scheme has to supply. It was previously written as
+ * 1/(1+(dx/L_blend)^2), which has both limits backwards -- it switched the PBL scheme
+ * off at mesoscale resolution and left it at full strength at LES resolution, on top of
+ * whatever the resolved motions were already doing (issue #3619).
  *
  * @param dx       Horizontal grid spacing [m].
  * @param L_blend  Blending length scale [m]. Typical: 750 m. 0 = disabled.
@@ -53,7 +65,7 @@ amrex::Real pbl_blend_factor(amrex::Real dx,
 {
     if (L_blend <= 0.0) return 1.0;
     const amrex::Real r = dx / L_blend;
-    return 1.0 / (1.0 + r * r);
+    return (r * r) / (1.0 + r * r);
 }
 
 /**

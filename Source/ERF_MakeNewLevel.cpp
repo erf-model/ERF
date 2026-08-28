@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -158,10 +162,28 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
             //
-            init_only(lev, time);
-            init_zphys(lev, time);
-            update_terrain_arrays(lev);
-            make_physbcs(lev);
+            if (nc_init_file[lev].empty()) {
+                //
+                // A refined level with no file of its own has no PH/PHB to build terrain
+                // from, so its terrain must be interpolated from the coarser level FIRST --
+                // the base state init_only builds is a function of the cell-centered heights
+                // and cannot run before they exist.  (init_zphys interpolates from coarse
+                // exactly when this level has no file, which is the same condition.)
+                //
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+                init_only(lev, time);
+            } else {
+                //
+                // A level that does have a file reads its terrain and its data in the same
+                // pass, so init_only must come first here.
+                //
+                init_only(lev, time);
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+            }
         } else {
             //
             // Note that "time" here is elapsed time, and start_time = 0 when not using wrfinput/metgrid
@@ -188,6 +210,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
                 input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
+
+            input_sounding_data.set_start_time(start_time);
 
             // this will calculate the hydrostatically balanced density and pressure
             // profiles following WRF ideal.exe
@@ -223,7 +247,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
-            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                                  z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                  solverChoice.forest_biophysics &&
+                                                  solverChoice.forest_biophysics_heat, lev);
         }
     }
 
@@ -238,6 +265,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -325,20 +356,35 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
     //
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
@@ -346,7 +392,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     //********************************************************************************************
@@ -387,6 +436,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -434,6 +487,20 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     } else {
 #endif
+
+#ifdef ERF_USE_NETCDF
+    //
+    // A WRFInput level created by refinement rather than read from a file: build its base
+    // state by the same construction level 0 used, on top of the coarse interpolation done
+    // above.  This must happen BEFORE FillCoarsePatch, which interpolates perturbational
+    // quantities relative to the base state.
+    //
+    if ( (solverChoice.init_type == InitType::WRFInput) && nc_init_file[lev].empty() ) {
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+    }
+#endif
+
     //
     // Interpolate the solution data
     //
@@ -615,21 +682,36 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
-    remake_zphys(lev, temp_zphys_nd);
+    remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     // ********************************************************************************************
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
     // from the coarse ... but just in case ...
     // ********************************************************************************************
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
@@ -637,7 +719,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     // *****************************************************************************************************
@@ -666,6 +751,28 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
         // Impose bc's outside the domain
         (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+
+#ifdef ERF_USE_NETCDF
+        // *************************************************************************************************
+        // For a WRFInput run, rebuild the base state on the new grids by the SAME construction
+        // used at initialization -- the analytic reference profile from the level-0 parameters,
+        // evaluated at this level's heights, followed by the discrete hydrostatic rebalance --
+        // rather than leaving it as the conservative interpolation of the parent's base state.
+        //
+        // Without this, the first regrid silently replaces a base state that is discretely
+        // hydrostatic on this level's mesh with one that is not, and the level stops agreeing
+        // with its parent in the way it did at t = 0.
+        //
+        // Note this must come AFTER the FillPatchTwoLevels above (which fills the region of
+        // this level outside the fine grids, and the ghost cells) and BEFORE the
+        // FillPatchFineLevel below, which interpolates perturbational quantities relative to
+        // the new base state.
+        // *************************************************************************************************
+        if (solverChoice.init_type == InitType::WRFInput) {
+            rebuild_base_state_from_wrfinput(lev, temp_base_state);
+            (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+        }
+#endif
 
         // *************************************************************************************************
         // This will fill the temporary MultiFabs with data from vars_new
@@ -719,6 +826,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -730,6 +843,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);

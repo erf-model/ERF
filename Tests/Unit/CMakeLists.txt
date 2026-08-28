@@ -113,6 +113,8 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceDiagnosticSource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerStress.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryDensity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryMoisture.cpp
     # Motivation: face-local wall metadata must not inherit a later wall's
     # density representation or treat explicit zero as absent.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWallBCMetadata.cpp
@@ -124,9 +126,13 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfileSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Interpolation/ERF_GTestInterpolationScalar.cpp
@@ -149,6 +155,45 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
 )
+if(ERF_ENABLE_NETCDF)
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDragNetCDF.cpp
+  )
+  set(ERF_FOREST_TEST_FIXTURE_DIR
+      "${CMAKE_CURRENT_BINARY_DIR}/forest_fixtures/BellForest")
+  file(MAKE_DIRECTORY "${ERF_FOREST_TEST_FIXTURE_DIR}")
+  file(COPY
+    ${PROJECT_SOURCE_DIR}/Tests/test_files/BellForest/forest_lai_bell.nc
+    ${PROJECT_SOURCE_DIR}/Tests/test_files/BellForest/forest_height_bell.nc
+    DESTINATION "${ERF_FOREST_TEST_FIXTURE_DIR}")
+  target_compile_definitions(${erf_exe_name} PRIVATE
+    ERF_FOREST_TEST_FIXTURE_DIR="${ERF_FOREST_TEST_FIXTURE_DIR}")
+endif()
+target_sources(${erf_exe_name} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestIntervalMeansRestart.cpp
+)
+# These exercise the super-droplet phase-change kernels, whose headers are
+# only available when particles are enabled.
+if(ERF_ENABLE_PARTICLES)
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingKernel.cpp
+  )
+endif()
+
 if(ERF_ENABLE_NOAHMP)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPResultPolicy.cpp
@@ -249,6 +294,14 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
+  if(ERF_ENABLE_NETCDF)
+    # The terrain reader opens the fixture only on the I/O rank and then
+    # broadcasts the result.  Keep this source in the MPI executable so the
+    # WPS edge/corner regression exercises every rank.
+    target_sources(${erf_parallel_exe_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
+    )
+  endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)
   target_link_libraries(${erf_parallel_exe_name}
     PRIVATE

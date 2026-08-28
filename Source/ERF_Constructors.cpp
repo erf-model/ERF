@@ -20,15 +20,6 @@ using namespace amrex;
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
-    int fix_random_seed = 0;
-    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
-    // Note that the value of 1024UL is not significant -- the point here is just to set the
-    // same seed for all MPI processes for the purpose of regression testing
-    if (fix_random_seed) {
-        Print() << "Fixing the random seed" << std::endl;
-        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
-    }
-
     ERF_shared();
 }
 
@@ -60,6 +51,28 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 void
 ERF::ERF_shared ()
 {
+    // Seeding lives here so every constructor gets it
+    int fix_random_seed = 0;
+    long random_seed = -1;
+    {
+        ParmParse pp("erf");
+        pp.queryAdd("fix_random_seed", fix_random_seed);
+        pp.queryAdd("random_seed", random_seed);
+    }
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    // same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL, ParallelDescriptor::NProcs(), 1024UL);
+    } else if (random_seed >= 0) {
+        // User-supplied seed: vary the random sampling per run (e.g. across ensemble
+        // realizations), still offset by rank so the ranks draw independent streams.
+        Print() << "Using user random seed " << random_seed << std::endl;
+        auto s = static_cast<unsigned long>(random_seed);
+        InitRandom(s + static_cast<unsigned long>(ParallelDescriptor::MyProc()) + 1UL,
+                   ParallelDescriptor::NProcs(), s * 1234567UL + 12345UL);
+    }
+
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
@@ -95,6 +108,9 @@ ERF::ERF_shared ()
     lsm.ReSize(nlevs_max);
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
+
+    nudge_data.resize(nlevs_max);
+    lsf_data.resize(nlevs_max);
 
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
@@ -137,12 +153,18 @@ ERF::ERF_shared ()
             // pass radiation datalog frequency to model - RRTMGP needs to know when to save data for profiles
             rad[lev]->setDataLogFrequency(rad_datalog_int);
 #endif
+        } else if (solverChoice.rad_type == RadiationType::Simple) {
+            rad[lev] = std::make_unique<RadiationSimple>(lev, solverChoice);
+            rad[lev]->setDataLogFrequency(rad_datalog_int);
         } else if (solverChoice.rad_type != RadiationType::None) {
             Abort("Don't know this radiation model!");
         }
     }
+    // NOTE: these must come after initializeMicrophysics() -- the conserved-state
+    //       layout they select against is owned by the microphysics interface.
     const std::string& pv3d_1 = "plot_vars_1"  ; setPlotVariables(pv3d_1,plot3d_var_names_1);
     const std::string& pv3d_2 = "plot_vars_2"  ; setPlotVariables(pv3d_2,plot3d_var_names_2);
+    setSubVolVariables("subvol_sampling_vars",subvol3d_var_names);
 
     // This is only used when we have mesh_type == MeshType::StretchedDz
     stretched_dz_h.resize(nlevs_max);
@@ -220,7 +242,7 @@ ERF::ERF_shared ()
 
     ParmParse pp_erf("erf");
     std::string prob_name;
-    pp_erf.query("prob_name", prob_name);
+    pp_erf.queryAdd("prob_name", prob_name);
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
@@ -228,7 +250,7 @@ ERF::ERF_shared ()
     }
     {
         int budget_interval = 0;
-        pp_erf.query("cloud_chamber_budget_interval", budget_interval);
+        pp_erf.queryAdd("cloud_chamber_budget_interval", budget_interval);
         if (budget_interval > 0) {
             if (!cloud_chamber_config.active ||
                 !cloud_chamber_config.physical_initialization ||
@@ -342,6 +364,9 @@ ERF::ERF_shared ()
     z_t_rk.resize(nlevs_max);
 
     terrain_blanking.resize(nlevs_max);
+    terrain_blanking_xface.resize(nlevs_max);
+    terrain_blanking_yface.resize(nlevs_max);
+    terrain_blanking_zface.resize(nlevs_max);
 
     // Wall distance
     walldist.resize(nlevs_max);
@@ -401,6 +426,11 @@ ERF::ERF_shared ()
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
 
+    // Interval mean variables
+    interval_means.resize(nlevs_max);
+    t_mean_cnt.resize(nlevs_max);
+    mean_vars_time_reset_done = 0;
+
     // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
@@ -424,6 +454,10 @@ ERF::ERF_shared ()
     d_sinesq_ptrs.resize(nlevs_max);
     h_sinesq_stag_ptrs.resize(nlevs_max);
     d_sinesq_stag_ptrs.resize(nlevs_max);
+
+    // Planar averages for immersed forcing
+    r_plane_avg.resize(nlevs_max);
+    t_plane_avg.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -479,8 +513,8 @@ ERF::ERF_shared ()
         } else if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
             RealArray plane_normal{zero, zero, -one}; // pointing into the solid region
-            pp_eb2.query("plane_point", plane_point);
-            pp_eb2.query("plane_normal", plane_normal);
+            pp_eb2.queryAdd("plane_point", plane_point);
+            pp_eb2.queryAdd("plane_normal", plane_normal);
             EB2::PlaneIF implicit_fun(plane_point, plane_normal, true);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -495,8 +529,8 @@ ERF::ERF_shared ()
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
             RealArray box_hi{zero, zero, zero};
-            pp_eb2.query("box_lo", box_lo);
-            pp_eb2.query("box_hi", box_hi);
+            pp_eb2.queryAdd("box_lo", box_lo);
+            pp_eb2.queryAdd("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             if (build_eb_for_multigrid) {
@@ -538,16 +572,22 @@ ERF::ERF_shared ()
             TerrainIF implicit_fun(buildings_fab, geom[max_level], stretched_dz_d[max_level]);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "plane") {
             amrex::Abort("plane geometry is not supported with ImmersedForcing for buildings");
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
             RealArray box_hi{zero, zero, zero};
-            pp_eb2.query("box_lo", box_lo);
-            pp_eb2.query("box_hi", box_hi);
+            pp_eb2.queryAdd("box_lo", box_lo);
+            pp_eb2.queryAdd("box_hi", box_hi);
             EB2::BoxIF implicit_fun(box_lo, box_hi, false);
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "sphere") {
             amrex::Abort("sphere geometry is not supported with ImmersedForcing for buildings");
         }

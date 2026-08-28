@@ -11,12 +11,21 @@ if(ERF_ENABLE_NETCDF)
         PRIVATE
         ${PROJECT_SOURCE_DIR}/Source/Tools
         ${PROJECT_SOURCE_DIR}/Source/IO
+        # ERF_NCPlotFile.{H,cpp} need ERF_Constants.H and ERF_DataStruct.H
+        # (and the structs the latter pulls in)
+        ${PROJECT_SOURCE_DIR}/Source
+        ${PROJECT_SOURCE_DIR}/Source/DataStructs
+        ${PROJECT_SOURCE_DIR}/Source/PBL
+        ${PROJECT_SOURCE_DIR}/Source/Utils
         ${AMREX_SUBMOD_LOCATION}/Src/Base
         ${AMREX_SUBMOD_LOCATION}/Src/EB
         ${AMREX_SUBMOD_LOCATION}/Src/Extern/HDF5
         ${AMReX_BINARY_DIR}
         ${NETCDF_INCLUDE_DIRS}
     )
+
+    # ERF_NCInterface.H and the writeNCPlotFile definition are both behind this
+    target_compile_definitions(${tool_exe} PRIVATE ERF_USE_NETCDF)
 
     target_link_libraries(${tool_exe}
         PUBLIC

@@ -111,7 +111,12 @@ void SimpleAD::compute_freestream_velocity (const MultiFab& cons_in,
         auto SMark_array    = mf_SMark.array(mfi);
         auto u_vel          = U_old.array(mfi);
         auto v_vel          = V_old.array(mfi);
-        Box tbx = mfi.nodaltilebox(0);
+        // NOTE: this reduction is driven by the cell-centered SMark, so it must
+        //       run over the cell-centered tilebox. Using nodaltilebox(0) here
+        //       would include the plane at bigEnd(0)+1, which is a ghost cell of
+        //       this box and a valid cell of its x-neighbor, and so would count
+        //       that plane twice in the sums below.
+        Box tbx = mfi.tilebox();
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -202,7 +207,20 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     get_turb_disk_angle(turb_disk_angle);
     Real nx = -std::cos(turb_disk_angle);
     Real ny = -std::sin(turb_disk_angle);
-    Real d_turb_disk_angle = turb_disk_angle;
+
+    // How much rotor area to attribute to each cell that the disk passes through.
+    // WindFarm::fill_SMark_multifab marks the staircase of cells that the disk plane
+    // cuts -- one cell per crossing -- so the average area of disk inside a marked cell
+    // is dz times the mean chord of a line with normal (nx,ny) across a dx by dy cell,
+    //
+    //     A_cell = dx*dy*dz / (|nx|*dx + |ny|*dy)
+    //
+    // This is dy*dz for a disk facing x and dx*dz for a disk facing y, and summing it
+    // over the marked cells recovers the rotor area at any angle in between. It replaces
+    // a signed dy*dz*cos(turb_disk_angle), which vanished for a disk facing y (i.e. for
+    // erf.turb_disk_angle_from_x of 0 or 180) and changed sign past 180 degrees, turning
+    // the momentum sink into a source (issue #3673)
+    Real area_over_vol = one/(std::abs(nx)*dx[0] + std::abs(ny)*dx[1]);
 
     Gpu::DeviceVector<Real> d_wind_speed(wind_speed.size());
     Gpu::DeviceVector<Real> d_thrust_coeff(thrust_coeff.size());
@@ -243,12 +261,12 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                 }
                 Real Uinfty_dot_nhat = avg_vel*(std::cos(phi)*nx + std::sin(phi)*ny);
                     if(C_T <= 1) {
-                        source_x = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*area_over_vol*std::cos(phi);
+                        source_y = -two*std::pow(Uinfty_dot_nhat, two)*a*(one-a)*area_over_vol*std::sin(phi);
                     }
                     else {
-                        source_x = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::cos(phi);
-                        source_y = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*dx[1]*dx[2]*std::cos(d_turb_disk_angle)/(dx[0]*dx[1]*dx[2])*std::sin(phi);
+                        source_x = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*area_over_vol*std::cos(phi);
+                        source_y = -myhalf*C_T*std::pow(Uinfty_dot_nhat, two)*area_over_vol*std::sin(phi);
                     }
              }
 

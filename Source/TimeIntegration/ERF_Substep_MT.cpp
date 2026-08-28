@@ -216,7 +216,14 @@ void erf_substep_MT (int step, int /*nrk*/,
         ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
         });
-        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+
+        // gbxo_lo covers k<=0 and gbxo_hi covers the box's top face, so the mid box is
+        // [max(smallEnd,1), bigEnd-1]. Using max() never EXPANDS the box past the FAB,
+        // which is what setSmall(2,1) does for a box that starts above k=1.
+        Box gbxo_mid = gbxo;
+        gbxo_mid.setSmall(2, std::max(gbxo.smallEnd(2), 1));
+        gbxo_mid.setBig  (2, gbxo.bigEnd(2)-1);
+
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) =
                 ( OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,mf_ux,mf_vy,z_nd_old,dxInv)

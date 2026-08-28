@@ -12,10 +12,71 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
+#include <filesystem>
+#include <sstream>
+
 #include "ERF_NCInterface.H"
 #include "ERF_Radiation.H"
 
 using namespace amrex;
+
+namespace {
+/**
+ * Verify that the directory named by erf.rrtmgp_file_path exists and holds the four
+ * netCDF lookup tables RRTMGP needs. Without this check, a missing directory or file
+ * surfaces as a bare "NetCDF: No such file or directory" from deep inside the netCDF
+ * layer, with no indication of which file was wanted or which input controls it.
+ *
+ * @param[in] path   value of erf.rrtmgp_file_path
+ * @param[in] files  (input parameter name, file name) pairs for the required data files
+ */
+void
+check_rrtmgp_data_files (const std::string& path,
+                         const std::vector<std::pair<std::string,std::string>>& files)
+{
+    namespace fs = std::filesystem;
+
+    // Report the absolute path as well, since a relative erf.rrtmgp_file_path is
+    // resolved against the run directory and not against the inputs file.
+    std::error_code ec;
+    const fs::path dir(path);
+    const fs::path abs_dir = fs::absolute(dir, ec);
+    const std::string resolved = ec ? path : abs_dir.string();
+
+    std::ostringstream problem;
+
+    if (!fs::exists(dir, ec) || !fs::is_directory(dir, ec)) {
+        problem << "The RRTMGP data directory does not exist:\n"
+                << "    erf.rrtmgp_file_path = " << path << "\n"
+                << "    (resolved to " << resolved << ")\n";
+    } else {
+        std::ostringstream missing;
+        int nmissing = 0;
+        for (const auto& [param, file] : files) {
+            if (!fs::is_regular_file(dir / file, ec)) {
+                missing << "    " << file << "  (set by erf." << param << ")\n";
+                ++nmissing;
+            }
+        }
+        if (nmissing == 0) { return; }
+        problem << "The RRTMGP data directory\n"
+                << "    erf.rrtmgp_file_path = " << path << "\n"
+                << "    (resolved to " << resolved << ")\n"
+                << "exists, but " << nmissing << " of the required data file(s) were not found there:\n"
+                << missing.str();
+    }
+
+    Abort("RRTMGP radiation was requested, but its lookup data could not be found.\n"
+          + problem.str()
+          + "Set erf.rrtmgp_file_path in the inputs file to the directory that holds the\n"
+            "RRTMGP netCDF lookup tables. The k-distribution files are shipped with the\n"
+            "RRTMGP submodule in Submodules/RRTMGP/rrtmgp/data and the cloud optics files\n"
+            "in Submodules/RRTMGP/extensions/cloud_optics (run\n"
+            "'git submodule update --init --recursive' if those directories are empty);\n"
+            "the full data package may also be downloaded from\n"
+            "https://doi.org/10.22002/ppv8a-4q131 .\n");
+}
+} // namespace
 
 Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
@@ -39,67 +100,71 @@ Radiation::Radiation (const int& lev,
     pp.get("rad_t_sfc", m_rad_t_sfc);
 
     // Radiation timestep, as a number of atm steps
-    pp.query("rad_freq_in_steps", m_rad_freq_in_steps);
+    pp.queryAdd("rad_freq_in_steps", m_rad_freq_in_steps);
 
     // Use Native SHOC's diagnosed liquid-cloud fraction when supplied.
     pp.query("rad_use_shoc_cldfrac", m_use_shoc_cldfrac);
 
     // Get nvar if specified
-    pp.query("rad_nvar", m_rad_nvar);
+    pp.queryAdd("rad_nvar", m_rad_nvar);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_rad_nvar >= 0,
         "erf.rad_nvar must be greater than 0. "
         "It controls the amount of memory allocated for temporaries with RRTMGP; "
         "a value of 0 would allocate no memory.");
 
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
-    pp.query("rad_ncol_chunk", m_ncol_chunk);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk > 0,
+    pp.queryAdd("rad_ncol_chunk", m_ncol_chunk_requested);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk_requested > 0,
         "erf.rad_ncol_chunk must be a positive integer (default 5000). "
         "It controls the number of columns processed per RRTMGP kernel launch; "
         "a value of 0 or negative would produce an infinite loop.");
+    m_ncol_chunk = m_ncol_chunk_requested;
 
     // Flag to write fluxes to plt file
-    pp.query("rad_write_fluxes", m_rad_write_fluxes);
+    pp.queryAdd("rad_write_fluxes", m_rad_write_fluxes);
 
     // Do MCICA subcolumn sampling
-    pp.query("rad_do_subcol_sampling", m_do_subcol_sampling);
+    pp.queryAdd("rad_do_subcol_sampling", m_do_subcol_sampling);
 
     // Determine orbital year. If orbital_year is negative, use current year
-    // from timestamp for orbital year; if positive, use provided orbital year
-    // for duration of simulation.
-    m_fixed_orbital_year = pp.query("rad_orbital_year", m_orbital_year);
+    // from timestamp for orbital year; if non-negative, use provided orbital year
+    // for duration of simulation.  Note that this is keyed off the value itself,
+    // not off whether the input was present, so that a negative value defers to
+    // the timestamp as documented.
+    pp.queryAdd("rad_orbital_year", m_orbital_year);
+    m_fixed_orbital_year = (m_orbital_year >= 0);
 
     // Get orbital parameters from inputs file
-    pp.query("rad_orbital_eccentricity", m_orbital_eccen);
-    pp.query("rad_orbital_obliquity"   , m_orbital_obliq);
-    pp.query("rad_orbital_mvelp"       , m_orbital_mvelp);
+    pp.queryAdd("rad_orbital_eccentricity", m_orbital_eccen);
+    pp.queryAdd("rad_orbital_obliquity"   , m_orbital_obliq);
+    pp.queryAdd("rad_orbital_mvelp"       , m_orbital_mvelp);
 
     // Get a constant lat/lon for idealized simulations
-    pp.query("rad_cons_lat", m_lat_cons);
-    pp.query("rad_cons_lon", m_lon_cons);
+    pp.queryAdd("rad_cons_lat", m_lat_cons);
+    pp.queryAdd("rad_cons_lon", m_lon_cons);
 
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than zero
-    pp.query("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
+    pp.queryAdd("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
 
     // Determine whether or not we are using a fixed solar zenith angle (positive value)
-    pp.query("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
+    pp.queryAdd("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
 
     // Get prescribed surface values of greenhouse gases
-    pp.query("co2vmr", m_co2vmr);
+    pp.queryAdd("co2vmr", m_co2vmr);
     pp.queryarr("o3vmr" , m_o3vmr );
-    pp.query("n2ovmr", m_n2ovmr);
-    pp.query("covmr" , m_covmr );
-    pp.query("ch4vmr", m_ch4vmr);
-    pp.query("o2vmr" , m_o2vmr );
-    pp.query("n2vmr" , m_n2vmr );
+    pp.queryAdd("n2ovmr", m_n2ovmr);
+    pp.queryAdd("covmr" , m_covmr );
+    pp.queryAdd("ch4vmr", m_ch4vmr);
+    pp.queryAdd("o2vmr" , m_o2vmr );
+    pp.queryAdd("n2vmr" , m_n2vmr );
 
     // Aerosol forcing hook (not implemented). The aerosol arrays that used to be
     // passed through rrtmgp_main were never populated with real data, so enabling
     // this flag only ever multiplied radiation by zero aerosol optics. The hook is
     // kept so a future SPA/prescribed-aerosol scheme can wire in without touching
     // the ParmParse surface.
-    pp.query("rad_do_aerosol", m_do_aerosol_rad);
+    pp.queryAdd("rad_do_aerosol", m_do_aerosol_rad);
     if (m_do_aerosol_rad) {
         amrex::Abort("erf.rad_do_aerosol = true is not supported: aerosol forcing is "
                      "currently not implemented in the ERF RRTMGP interface. The hook "
@@ -108,15 +173,25 @@ Radiation::Radiation (const int& lev,
     }
 
     // Whether we do extra clean/clear sky calculations
-    pp.query("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
-    pp.query("rad_extra_clnsky_diag"   , m_extra_clnsky_diag);
+    pp.queryAdd("rad_extra_clnclrsky_diag", m_extra_clnclrsky_diag);
+    pp.queryAdd("rad_extra_clnsky_diag"   , m_extra_clnsky_diag);
 
     // Parse path and file names
-    pp.query("rrtmgp_file_path"      , rrtmgp_file_path);
-    pp.query("rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw  );
-    pp.query("rrtmgp_coeffs_lw"      , rrtmgp_coeffs_lw  );
-    pp.query("rrtmgp_cloud_optics_sw", rrtmgp_cloud_optics_sw);
-    pp.query("rrtmgp_cloud_optics_lw", rrtmgp_cloud_optics_lw);
+    pp.queryAdd("rrtmgp_file_path"      , rrtmgp_file_path);
+    pp.queryAdd("rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw  );
+    pp.queryAdd("rrtmgp_coeffs_lw"      , rrtmgp_coeffs_lw  );
+    pp.queryAdd("rrtmgp_cloud_optics_sw", rrtmgp_cloud_optics_sw);
+    pp.queryAdd("rrtmgp_cloud_optics_lw", rrtmgp_cloud_optics_lw);
+
+    // Fail early, and with a message that names the missing files and the inputs that
+    // control them, rather than letting netCDF report a bare "No such file or directory"
+    // when the coefficients are opened just below (or, for the cloud optics files, much
+    // later inside rrtmgp_initialize). Every rank does this so that all of them abort.
+    check_rrtmgp_data_files(rrtmgp_file_path,
+                            {{"rrtmgp_coeffs_sw"      , rrtmgp_coeffs_sw      },
+                             {"rrtmgp_coeffs_lw"      , rrtmgp_coeffs_lw      },
+                             {"rrtmgp_cloud_optics_sw", rrtmgp_cloud_optics_sw},
+                             {"rrtmgp_cloud_optics_lw", rrtmgp_cloud_optics_lw}});
 
     // Append file names to path
     rrtmgp_coeffs_file_sw       = rrtmgp_file_path + "/" + rrtmgp_coeffs_sw;
@@ -233,10 +308,13 @@ Radiation::set_grids (int& level,
         // Fill the KOKKOS Views from AMReX MFs
         mf_to_kokkos_buffers(lmask, t_surf, lsm_input_ptrs);
 
-        // Initialize datalog MF on first step
-        if (m_first_step) {
-            m_first_step = false;
-            if (datalog_int > 0) {
+        // (Re)define the datalog MF whenever the grids change; this must always
+        // match the layout of cons_in since populateDatalogMF() iterates over it
+        // while indexing m_col_offsets and m_qheating_rates.
+        if (datalog_int > 0) {
+            bool needs_define = ( (datalog_mf.boxArray()        != cons_in->boxArray()) ||
+                                  (datalog_mf.DistributionMap() != cons_in->DistributionMap()) );
+            if (needs_define) {
                 datalog_mf.define(cons_in->boxArray(), cons_in->DistributionMap(), 25, 0);
                 datalog_mf.setVal(0.0);
             }
@@ -577,9 +655,11 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                   + (z_arr(i+1,j  ,k  ) - z_arr(i+1,j  ,k-1))
                                                   + (z_arr(i  ,j+1,k  ) - z_arr(i  ,j+1,k-1))
                                                   + (z_arr(i+1,j+1,k  ) - z_arr(i+1,j+1,k-1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k-1
-            Real r_avg  = (dz_k*r  + dz_km1*r_lo ) / (dz_k + dz_km1);
-            Real rt_avg = (dz_k*rt + dz_km1*rt_lo) / (dz_k + dz_km1);
-            Real qv_avg = (dz_k*qv + dz_km1*qv_lo) / (dz_k + dz_km1);
+            // NOTE: Linear interpolation to the w-face weights each CC value by the
+            //       distance from the face to the *opposite* CC (inverse distance)
+            Real r_avg  = (dz_km1*r  + dz_k*r_lo ) / (dz_k + dz_km1);
+            Real rt_avg = (dz_km1*rt + dz_k*rt_lo) / (dz_k + dz_km1);
+            Real qv_avg = (dz_km1*qv + dz_k*qv_lo) / (dz_k + dz_km1);
 
             // Views at CC
             r_lay_tab(icol,ilay) = r;
@@ -617,9 +697,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                       + (z_arr(i+1,j  ,k+2) - z_arr(i+1,j  ,k+1))
                                                       + (z_arr(i  ,j+1,k+2) - z_arr(i  ,j+1,k+1))
                                                       + (z_arr(i+1,j+1,k+2) - z_arr(i+1,j+1,k+1)) ) : Real(0.5)*dz; // Dist from w-face to CC at k+1
-                r_avg  = (dz_k*r  + dz_kp1*r_hi ) / (dz_k + dz_kp1);
-                rt_avg = (dz_k*rt + dz_kp1*rt_hi) / (dz_k + dz_kp1);
-                qv_avg = (dz_k*qv + dz_kp1*qv_hi) / (dz_k + dz_kp1);
+                r_avg  = (dz_kp1*r  + dz_k*r_hi ) / (dz_k + dz_kp1);
+                rt_avg = (dz_kp1*rt + dz_k*rt_hi) / (dz_k + dz_kp1);
+                qv_avg = (dz_kp1*qv + dz_k*qv_hi) / (dz_k + dz_kp1);
                 p_lev_tab(icol,ilay+1) = getPgivenRTh(rt_avg, qv_avg);
                 t_lev_tab(icol,ilay+1) = getTgivenRandRTh(r_avg, rt_avg, qv_avg);
             }
@@ -1084,11 +1164,14 @@ Radiation::initialize_impl ()
 
     // Load k-distribution and cloud optics data only once.
     // These are static lookup tables that never change.
-    // Size the memory pool for m_ncol_chunk (not min with current m_ncol) so that
-    // the pool remains valid even if m_ncol grows after regridding/load balancing.
+    // Size the memory pool for the requested chunk size (not the effective one, and
+    // not min with the current m_ncol) so that the pool remains valid even if m_ncol
+    // grows after regridding/load balancing. The pool is created once and never
+    // resized, whereas the effective chunk size is recomputed at every Init() and is
+    // bounded above by the request.
     if (!rrtmgp::initialized) {
         gas_concs_t gas_concs_pool;
-        gas_concs_pool.init(gas_names_offset, m_ncol_chunk, m_nlay);
+        gas_concs_pool.init(gas_names_offset, m_ncol_chunk_requested, m_nlay);
         rrtmgp::rrtmgp_initialize(gas_concs_pool,
                                   rrtmgp_coeffs_file_sw      , rrtmgp_coeffs_file_lw      ,
                                   rrtmgp_cloud_optics_file_sw, rrtmgp_cloud_optics_file_lw,
@@ -1101,6 +1184,11 @@ Radiation::initialize_impl ()
 void
 Radiation::run_impl ()
 {
+    // A rank that owns no boxes on this level has no columns and therefore no
+    // radiation work to do. Bail out before the chunk loop; there are no MPI
+    // collectives in this routine, so returning early cannot deadlock.
+    if (m_ncol == 0) { return; }
+
     // Local copies
     const auto ncol     = m_ncol;
     const auto nlay     = m_nlay;
@@ -1110,14 +1198,12 @@ Radiation::run_impl ()
     // the solar zenith angle and also for computing total solar
     // irradiance scaling (tsi_scaling).
     double obliqr, lambm0, mvelpp;
+    // Any of eccen/obliq/mvelp that the user set (i.e. is non-negative) is used
+    // as is by orbital_params; the rest are computed from the orbital year.
     int  orbital_year = m_orbital_year;
     double eccen      = m_orbital_eccen;
     double obliq      = m_orbital_obliq;
     double mvelp      = m_orbital_mvelp;
-    if (eccen >= 0 && obliq >= 0 && mvelp >= 0) {
-      // fixed orbital parameters forced with orbital_year == ORB_UNDEF_INT
-      orbital_year = ORB_UNDEF_INT;
-    }
     orbital_params(orbital_year, eccen, obliq,
                    mvelp, obliqr, lambm0, mvelpp);
 

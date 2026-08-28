@@ -8,14 +8,17 @@ CEXE_headers += ERF_Interpolation_1D.H
 CEXE_headers += ERF_Interpolation_Bilinear.H
 CEXE_headers += ERF_Microphysics_Utils.H
 CEXE_headers += ERF_TerrainMetrics.H
+CEXE_headers += ERF_TimestepUtils.H
 CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
+CEXE_headers += ERF_GridUtils.H
 CEXE_headers += ERF_EpochTime.H
 CEXE_headers += ERF_ParFunctions.H
 CEXE_headers += ERF_MoistUtils.H
 CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_DirectionSelector.H
 CEXE_headers += ERF_StormDiagnostics.H
+CEXE_headers += ERF_NodalReconstruction.H
 
 CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp

@@ -4,11 +4,15 @@
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
 
+#include <cmath>
+#include <limits>
+
 #include <ERF.H>
 #include <ERF_EOS.H>
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_HSEUtils.H>
+#include <ERF_BaseStateParams.H>
 
 /**
  * Read metgrid NetCDF data and populate ERF initialization FABs.
@@ -51,7 +55,9 @@ read_from_metgrid (int lev,
  * Initialize nodal terrain heights from metgrid surface-height data.
  */
 void
-init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
+init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
+                           amrex::Geometry& geom,
+                           amrex::MultiFab* z_phys_nd,
                            amrex::FArrayBox& NC_hgt_fab);
 
 /**
@@ -111,6 +117,7 @@ init_msfs_from_metgrid (const bool metgrid_debug_msf,
                         amrex::FArrayBox& NC_MSFV_fab,
                         amrex::FArrayBox& NC_MSFM_fab);
 
+
 /**
  * Initialize hydrostatic base-state quantities from metgrid data.
  */
@@ -118,6 +125,7 @@ void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
                               const amrex::Real l_rdOcp,
+                              const amrex::Box& domain,
                               const amrex::Box& valid_bx,
                               const int& flag_psfc,
                               amrex::FArrayBox& state_fab,
@@ -128,7 +136,8 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& qv_hse_fab,
                               amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
-                              const amrex::FArrayBox& NC_psfc_fab);
+                              const amrex::FArrayBox& NC_psfc_fab,
+                              const BaseStateParams& bsp);
 
 /**
  * Interpolate a value with a Lagrange polynomial stencil.
@@ -165,14 +174,18 @@ lagrange_interp (const int& order,
 
 /**
  * Prepare interpolation stencils and apply Lagrange interpolation or extrapolation.
+ *
+ * Both orig_npts and new_npts are point counts, not last indices; valid indices
+ * into the orig_* arrays are 0 through orig_npts-1, and into the new_* arrays
+ * are 0 through new_npts-1.
  */
 AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
 void
 lagrange_setup (char var_type,
                 const bool& exp_interp,
-                const int& orig_n,
-                const int& new_n,
+                const int& orig_npts,
+                const int& new_npts,
                 const int& order,
                 const int& i,
                 const int& j,
@@ -193,7 +206,7 @@ lagrange_setup (char var_type,
     bool debug = false;
 #endif
 
-    for (int new_k=0; new_k < new_n; new_k++) {
+    for (int new_k=0; new_k < new_npts; new_k++) {
 #ifndef AMREX_USE_GPU
         if (debug) amrex::Print() << "new_k=" << new_k;
 #endif
@@ -201,7 +214,7 @@ lagrange_setup (char var_type,
         // If interpolating, find bounding x values and store the indices.
         bool extrapolating = true;
         int kl, kr;
-        for (int ko=0; ko < orig_n-1; ko++) {
+        for (int ko=0; ko < orig_npts-1; ko++) {
             amrex::Real a = new_x_z[new_k]-orig_x_z[ko];
             amrex::Real b = new_x_z[new_k]-orig_x_z[ko+1];
             if (a*b <= zero) {
@@ -232,7 +245,7 @@ lagrange_setup (char var_type,
         }
 
         if (order%2 != 0) {
-            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_n-1)) {
+            if ((kl-((order+1)/2-1) >= 0) && (kr+((order+1)/2-1) <= orig_npts-1)) {
                 // Odd order interpolation.
                 int ksta = kl-(((order+1)/2)-1);
                 int kend = ksta+order;
@@ -299,7 +312,7 @@ lagrange_setup (char var_type,
                 lagrange_interp(1, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
             }
         } else if (order%2 == 0) {
-            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_n-1)) {
+            if ((kl-(order/2) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 // Even order interpolation.
                 // Interpolate twice. Offset the range by 1 the 2nd time. Average the results.
                 amrex::Real new_y_l, new_y_r;
@@ -368,7 +381,7 @@ lagrange_setup (char var_type,
                     lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y_r);
                 }
                 new_y[new_k] = myhalf*(new_y_l+new_y_r);
-            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_n-1)) {
+            } else if ((kl-(order/2-1) >= 0) && (kr+order/2 <= orig_npts-1)) {
                 int ksta = kl-(order/2-1);
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -399,7 +412,7 @@ lagrange_setup (char var_type,
                 }
 #endif
                 lagrange_interp(order, orig_x_sub_p, orig_y_sub_p, new_x, new_y[new_k]);
-            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_n-1)) {
+            } else if ((kl-order/2 >= 0) && (kr+order/2-1 <= orig_npts-1)) {
                 int ksta = kl-order/2;
                 int kend = ksta+order;
 #ifndef AMREX_USE_GPU
@@ -739,8 +752,9 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         calc_p_isothermal(ordered_z_p[k], ordered_p_p[k]);
     }
 
-    int new_n = 0;
-    int zap_final = 0;
+    // kfinal is the index of the topmost level retained in the final_*
+    // arrays, so those arrays hold kfinal+1 points.
+    int kfinal = 0;
     amrex::GpuArray<amrex::Real,256> final_z;
     amrex::GpuArray<amrex::Real,256> final_p;
     amrex::GpuArray<amrex::Real,256> final_data;
@@ -751,21 +765,18 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
     final_p_p[0] = ordered_p[ksta];
     final_data_p[0] = ordered_data[ksta];
     for (int k=ksta+1; k <= kend; k++) {
-        if ((final_p_p[new_n]-ordered_p_p[k]) < metgrid_proximity) {
-            zap_final++;
-        } else {
-            new_n++;
-            final_z_p[new_n] = ordered_z_p[k];
-            final_p_p[new_n] = ordered_p_p[k];
-            final_data_p[new_n] = ordered_data_p[k];
-        }
+        // Skip levels that are "too close" to the prior retained level.
+        if ((final_p_p[kfinal]-ordered_p_p[k]) < metgrid_proximity) continue;
+        kfinal++;
+        final_z_p[kfinal] = ordered_z_p[k];
+        final_p_p[kfinal] = ordered_p_p[k];
+        final_data_p[kfinal] = ordered_data_p[k];
     }
-    kend -= zap_final;
 
     // Call the interpolator.
     lagrange_setup(var_type,
                    exp_interp,
-                   kend-ksta,
+                   kfinal+1,
                    kmax_new,
                    metgrid_order,
                    i,
@@ -820,7 +831,10 @@ interpolate_column_metgrid_linear (const int& i,
                    new_z(i,j,k+1)+new_z(i,j+1,k+1)+new_z(i+1,j,k+1)+new_z(i+1,j+1,k+1));
     }
 
-    amrex::Real z0, z1;
+    // Initialized to NaN so that any path which fails to set them fails loudly
+    // (with amrex.fpe_trap_invalid=1) rather than returning plausible garbage.
+    amrex::Real z0 = std::numeric_limits<amrex::Real>::quiet_NaN();
+    amrex::Real z1 = std::numeric_limits<amrex::Real>::quiet_NaN();
     int klow   = -1;
     int khi0   = -1;
     amrex::Real dzlow =  amrex::Real(1.0e12);
@@ -868,6 +882,10 @@ interpolate_column_metgrid_linear (const int& i,
 
     // extrapolate below the bottom surface
     if (klow == -1) {
+        // klow was never found, so z0 was never set above. The two levels used
+        // here are khi0 and khi1, both above z, so z0 is the height at khi0 --
+        // which is exactly what the search loop left in z1 before we clobber it.
+        z0 = z1;
         int khi1   = -1;
         amrex::Real dzhi1 = -amrex::Real(1.0e12);
         for (int kk = 0; kk < kmax_orig; kk++) {
@@ -912,6 +930,10 @@ interpolate_column_metgrid_linear (const int& i,
     } else if (khi0 == -1) {
         khi0 = klow - 1;
         int khi1 = klow;
+        // khi0 was never found, so z1 was never set above. The upper level used
+        // here is khi1 = klow, whose height is currently held in z0 -- capture
+        // it before z0 is recomputed at the new (lower) khi0.
+        z1 = z0;
         if (stag == 'M') {
             z0 = orig_z(i,j,khi0);
         }

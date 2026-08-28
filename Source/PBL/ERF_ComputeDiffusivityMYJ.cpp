@@ -9,6 +9,26 @@
 
 using namespace amrex;
 
+/**
+ * Compute turbulent diffusivities using the Mellor-Yamada-Janjic (MYJ) closure model.
+ *
+ * @param[in] dt Time step.
+ * @param[in] xvel X-velocity MultiFab.
+ * @param[in] yvel Y-velocity MultiFab.
+ * @param[in,out] cons_in Conservative variables.
+ * @param[out] eddyViscosity Turbulent diffusivity MultiFab.
+ * @param[in] geom Grid geometry.
+ * @param[in] turbChoice Turbulence choice parameters.
+ * @param[in] SurfLayer Pointer to surface layer data.
+ * @param[in] use_terrain_fitted_coords Whether to use terrain-fitted coordinates.
+ * @param[in] use_moisture Whether moisture variables are used.
+ * @param[in] level Level index.
+ * @param[in] bc_ptr Boundary condition pointers.
+ * @param[in] vert_only Flag for vertical-only computation.
+ * @param[in] z_phys_nd Node-centered physical height field.
+ * @param[in] z_phys_cc Cell-centered physical height field.
+ * @param[in] moisture_indices Indices for moisture components.
+ */
 void
 ComputeDiffusivityMYJ (double dt,
                        const MultiFab& xvel,
@@ -128,9 +148,9 @@ ComputeDiffusivityMYJ (double dt,
 
         // Allocate space for integrals
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox qturb(bx,1);
-        FArrayBox qintegral(xybx,2);
-        IArrayBox pbl_k(xybx,1);
+        FArrayBox qturb(bx,1,The_Async_Arena());
+        FArrayBox qintegral(xybx,2,The_Async_Arena());
+        IArrayBox pbl_k(xybx,1,The_Async_Arena());
         qintegral.setVal<RunOn::Device>(0);
         pbl_k.setVal<RunOn::Device>(khi);
         const Array4<Real> qint  = qintegral.array();
@@ -336,7 +356,7 @@ ComputeDiffusivityMYJ (double dt,
                 // COEFFICIENTS FOR THE SH DETERMINANT
                 Real BESH=BSHM*GML+BSHH*GHL;
 
-                // one/DENOMINATOR
+                // 1/DENOMINATOR
                 Real RDEN=one/(ADEN*ELOQ4+BDEN*ELOQ2+CDEN);
 
                 // SM, SH, SQ

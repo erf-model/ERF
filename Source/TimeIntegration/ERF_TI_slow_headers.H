@@ -19,8 +19,14 @@
 #include "ERF_ReadBndryPlanes.H"
 #include "Prob/ERF_CloudChamber.H"
 
+/**
+ * @brief Budget tracking for the cloud chamber simulation.
+ */
 class CloudChamberBudget;
 
+/**
+ * @brief Driver for the SHOC physics model.
+ */
 class ShocDriver;
 
 void erf_make_tau_terms (int level, int nrk,
@@ -131,6 +137,9 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        const amrex::MultiFab& zvel,
                        const amrex::MultiFab& source,
                              amrex::MultiFab* terrain_blank,
+                             amrex::MultiFab* terrain_blank_xface,
+                             amrex::MultiFab* terrain_blank_yface,
+                             amrex::MultiFab* terrain_blank_zface,
                        const amrex::MultiFab* SmnSmn,
                        const amrex::MultiFab* eddyDiffs,
                              amrex::MultiFab* Hfx1,
@@ -155,7 +164,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::MultiFab* dJ_new,
                        amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
                        amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
-                       amrex::EBFArrayBoxFactory const& ebfact,
+                       const eb_& ebfact,
 #ifdef ERF_USE_EAMXX_SHOC
                        SHOCInterface* eamxx_shoc_lev,
 #endif
