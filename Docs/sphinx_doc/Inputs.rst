@@ -1660,188 +1660,188 @@ configured as follows:
 Forcing Terms
 =============
 
-.. _list-of-parameters-14:
+.. _sec:ABLDriverInputs:
 
-List of Parameters
+ABL Driver and Geostrophic Forcing
+----------------------------------
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.abl_driver_type**               | Type of external forcing term                          | None,                | None             |
+|                                       |                                                        | PressureGradient     |                  |
+|                                       |                                                        | GeostrophicWind      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.abl_pressure_grad**             | Pressure gradient forcing term (only if                | 3 Reals              | (0.,0.,0.)       |
+|                                       | erf.abl_driver_type = PressureGradient)                |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.abl_geo_wind**                  | Geostrophic forcing term (only if erf.abl_driver_type  | 3 Reals              | (0.,0.,0.)       |
+|                                       | = GeostrophicWind)                                     |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.abl_geo_forcing**               | Constant body force applied to momentum equations      | 3 Reals              | (0.,0.,0.)       |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.abl_geo_wind_table**            | Path to text file containing a geostrophic wind        | String               | None             |
+|                                       | profile (with z, Ug, and Vg whitespace delimited       |                      |                  |
+|                                       | columns)                                               |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
+.. _sec:WindFarmForcingInputs:
+
+Wind Farm Forcing
+-----------------
+
+The wind farm parameterizations are selected with ``erf.windfarm_type``;
+that option and its companion parameters are listed in
+:ref:`sec:WindFarmModelInputs`.
+
+- Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
+  or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
+  See :ref:`sec:WindFarmModels` for theory and examples.
+
+.. _sec:ConstantMassFluxInputs:
+
+Constant Mass Flux
 ------------------
 
-+-------------------------------------+------------------------+-------------------+---------------------+
-| Parameter                           | Definition             | Acceptable        | Default             |
-|                                     |                        | Values            |                     |
-+=====================================+========================+===================+=====================+
-| **erf.abl_driver_type**             | Type of external       | None,             | None                |
-|                                     | forcing term           | PressureGradient  |                     |
-|                                     |                        | GeostrophicWind   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.abl_pressure_grad**           | Pressure gradient      | 3 Reals           | (0.,0.,0.)          |
-|                                     | forcing term           |                   |                     |
-|                                     | (only if               |                   |                     |
-|                                     | erf.abl_driver_type =  |                   |                     |
-|                                     | PressureGradient)      |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.abl_geo_wind**                | Geostrophic            | 3 Reals           | (0.,0.,0.)          |
-|                                     | forcing term           |                   |                     |
-|                                     | (only if               |                   |                     |
-|                                     | erf.abl_driver_type =  |                   |                     |
-|                                     | GeostrophicWind)       |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.abl_geo_forcing**             | Constant body force    | 3 Reals           | (0.,0.,0.)          |
-|                                     | applied to momentum    |                   |                     |
-|                                     | equations              |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.abl_geo_wind_table**          | Path to text file      | String            | None                |
-|                                     | containing a           |                   |                     |
-|                                     | geostrophic wind       |                   |                     |
-|                                     | profile                |                   |                     |
-|                                     | (with z, Ug, and       |                   |                     |
-|                                     | Vg whitespace          |                   |                     |
-|                                     | delimited              |                   |                     |
-|                                     | columns)               |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.windfarm_type**               | Wind farm              | "None",           | "None"              |
-|                                     | parameterization       | "Fitch", "EWP",   |                     |
-|                                     |                        | "SimpleActuator", |                     |
-|                                     |                        | "GeneralActuator" |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.const_massflux_u**            | Include a momentum     | Real              | 0.                  |
-| **erf.const_massflux_v**            | source at each time,   |                   |                     |
-|                                     | (e.g., representing a  |                   |                     |
-|                                     | background driving     |                   |                     |
-|                                     | pressure gradient),    |                   |                     |
-|                                     | to obtain a desired    |                   |                     |
-|                                     | mass flux with the     |                   |                     |
-|                                     | specified bulk velocity|                   |                     |
-|                                     | in x,y                 |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.const_massflux_layer_lo**     | Two heights defining   | Real              | None                |
-| **erf.const_massflux_layer_hi**     | the layer over which   |                   |                     |
-|                                     | the mass flux is       |                   |                     |
-|                                     | integrated and compared|                   |                     |
-|                                     | to the desired input(s)|                   |                     |
-|                                     | specified above        |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.const_massflux_tau**          | Timescale over which   | Real              | None                |
-|                                     | to adjust the          |                   |                     |
-|                                     | background pressure    |                   |                     |
-|                                     | gradient to match the  |                   |                     |
-|                                     | specified mass flux    |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_gravity**                 | Include gravity        | Boolean           | false               |
-|                                     | in momentum            |                   |                     |
-|                                     | update?  If true,      |                   |                     |
-|                                     | there is buoyancy      |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_coriolis**                | Include Coriolis       | Boolean           | false               |
-|                                     | forcing                |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.variable_coriolis**           | Include Coriolis       | Boolean           | false               |
-|                                     | forcing that varies    |                   |                     |
-|                                     | with latitude          |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rotational_time_period**      | Used to calculate the  | Real              | 86400.0             |
-|                                     | Coriolis frequency     |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.latitude**                    | Used to calculate the  | Real              | 90.0                |
-|                                     | Coriolis frequency     |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.coriolis_3d**                 | Include z component in | true / false      | true                |
-|                                     | the Coriolis forcing   |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damping_type**       | Rayleigh damping       | "SlowExplicit",   | "SlowExplicit"      |
-|                                     | type. Leave all        | "FastExplicit",   |                     |
-|                                     | rayleigh_damp_* flags  | "FastImplicit"    |                     |
-|                                     | false to disable       |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_U**             | Include explicit       | Boolean           | false               |
-|                                     | Rayleigh damping in    |                   |                     |
-|                                     | the x-momentum equation|                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_V**             | Include explicit       | Boolean           | false               |
-|                                     | Rayleigh damping in    |                   |                     |
-|                                     | the y-momentum equation|                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_W**             | Include                | Boolean           | false               |
-|                                     | Rayleigh damping in    |                   |                     |
-|                                     | the z-momentum equation|                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_damp_T**             | Include explicit       | Boolean           | false               |
-|                                     | Rayleigh damping in    |                   |                     |
-|                                     | the potential          |                   |                     |
-|                                     | temperature equation   |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_dampcoef**           | Inverse damping        | Real [1/s]        | 0.2                 |
-|                                     | timescale multiplying  |                   |                     |
-|                                     | the vertical damping   |                   |                     |
-|                                     | weight                 |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.rayleigh_zdamp**              | Depth of upper damping | Real [m]          | 500.0               |
-|                                     | layer below model top  |                   |                     |
-|                                     | where sine-squared     |                   |                     |
-|                                     | ramp is nonzero        |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_from_input_sounding** | Add momentum source    | Boolean           | false               |
-|                                     | terms to nudge the     |                   |                     |
-|                                     | solution towards the   |                   |                     |
-|                                     | initial sounding       |                   |                     |
-|                                     | profile                |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_t_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
-|                                     | range over which       |                   |                     |
-|                                     | potential temperature  |                   |                     |
-|                                     | is nudged              |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_t_z2**                | Top of the same        | Real [m]          | 10000.0             |
-|                                     | range                  |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_q_z1**                | Bottom of the height   | Real [m]          | 0.0                 |
-|                                     | range over which       |                   |                     |
-|                                     | water vapor is         |                   |                     |
-|                                     | nudged                 |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.nudging_q_z2**                | Top of the same        | Real [m]          | 10000.0             |
-|                                     | range                  |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.large_scale_forcing**         | Apply time-varying     | Boolean           | false               |
-|                                     | large-scale tendencies |                   |                     |
-|                                     | and subsidence read    |                   |                     |
-|                                     | from a forcing file    |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.large_scale_forcing_file**    | Name of the            | String            | None                |
-|                                     | large-scale forcing    |                   |                     |
-|                                     | file                   |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.forcing_timescale**           | Relaxation time scale  | Real [s]          | 0.0                 |
-|                                     | for the u and v        |                   |                     |
-|                                     | large-scale nudging;   |                   |                     |
-|                                     | 0 disables it          |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.input_sounding_file**         | Name(s) of the         | String(s)         | input_sounding      |
-|                                     | input sounding file(s) |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.input_sounding_time**         | Time(s) of the         | Real(s)           | 0.0                 |
-|                                     | input sounding file(s) |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.tau_nudging**                 | Time scale for         | Real              | 5.0                 |
-|                                     | nudging                |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_nudge_factor**            | Sets real bc nudging   | Real              | 10.0                |
-|                                     | strength as 1/(VAL*dt) |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_wrf_bdy_density**         | Use WRF-reconstructed  | Boolean           | true                |
-|                                     | dry-air density for    |                   |                     |
-|                                     | real WRF boundaries    |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.use_wrf_bdy_qc_qi**           | Ingest WRF ``QCLOUD``  | Boolean           | false               |
-|                                     | and active ``QICE`` at |                   |                     |
-|                                     | real boundaries        |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_rho_nudge_factor**        | Density Davies factor; | Real              | -1.0                |
-|                                     | non-positive uses      |                   |                     |
-|                                     | ``bdy_nudge_factor``   |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
-| **erf.bdy_moist_nudge_type**        | Which strategy for     | int 0,1,2 or 3    | 1                   |
-|                                     | nudging of moist vars  |                   |                     |
-+-------------------------------------+------------------------+-------------------+---------------------+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.const_massflux_u**              | Include a momentum source at each time, (e.g.,         | Real                 | 0.               |
+| **erf.const_massflux_v**              | representing a background driving pressure gradient),  |                      |                  |
+|                                       | to obtain a desired mass flux with the specified bulk  |                      |                  |
+|                                       | velocity in x,y                                        |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.const_massflux_layer_lo**       | Two heights defining the layer over which the mass     | Real                 | None             |
+| **erf.const_massflux_layer_hi**       | flux is integrated and compared to the desired         |                      |                  |
+|                                       | input(s) specified above                               |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.const_massflux_tau**            | Timescale over which to adjust the background pressure | Real                 | None             |
+|                                       | gradient to match the specified mass flux              |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
+.. _sec:GravityCoriolisInputs:
+
+Gravity and Coriolis
+--------------------
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.use_gravity**                   | Include gravity in momentum update? If true, there is  | Boolean              | false            |
+|                                       | buoyancy                                               |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.use_coriolis**                  | Include Coriolis forcing                               | Boolean              | false            |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.variable_coriolis**             | Include Coriolis forcing that varies with latitude     | Boolean              | false            |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rotational_time_period**        | Used to calculate the Coriolis frequency               | Real                 | 86400.0          |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.latitude**                      | Used to calculate the Coriolis frequency               | Real                 | 90.0             |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.coriolis_3d**                   | Include z component in the Coriolis forcing            | true / false         | true             |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
+.. _sec:RayleighDampingInputs:
+
+Rayleigh Damping
+----------------
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.rayleigh_damping_type**         | Rayleigh damping type. Leave all rayleigh_damp_* flags | "SlowExplicit",      | "SlowExplicit"   |
+|                                       | false to disable                                       | "FastExplicit",      |                  |
+|                                       |                                                        | "FastImplicit"       |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_damp_U**               | Include explicit Rayleigh damping in the x-momentum    | Boolean              | false            |
+|                                       | equation                                               |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_damp_V**               | Include explicit Rayleigh damping in the y-momentum    | Boolean              | false            |
+|                                       | equation                                               |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_damp_W**               | Include Rayleigh damping in the z-momentum equation    | Boolean              | false            |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_damp_T**               | Include explicit Rayleigh damping in the potential     | Boolean              | false            |
+|                                       | temperature equation                                   |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_dampcoef**             | Inverse damping timescale multiplying the vertical     | Real [1/s]           | 0.2              |
+|                                       | damping weight                                         |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.rayleigh_zdamp**                | Depth of upper damping layer below model top where     | Real [m]             | 500.0            |
+|                                       | sine-squared ramp is nonzero                           |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
+.. _sec:NudgingInputs:
+
+Nudging from Input Soundings
+----------------------------
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.nudging_from_input_sounding**   | Add momentum source terms to nudge the solution        | Boolean              | false            |
+|                                       | towards the initial sounding profile                   |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_u**                     | Nudge u,v towards the sounding when                    | Boolean              | true             |
+|                                       | ``nudging_from_input_sounding`` is true. Does not      |                      |                  |
+|                                       | affect LSF-based wind nudging (see                     |                      |                  |
+|                                       | :ref:`sec:LargeScaleForcingInputs`)                    |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_t**                     | Nudge potential temperature towards the sounding when  | Boolean              | true             |
+|                                       | ``nudging_from_input_sounding`` is true                |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_q**                     | Nudge water vapor towards the sounding when            | Boolean              | true             |
+|                                       | ``nudging_from_input_sounding`` is true                |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_u_z1**                  | Bottom of the height range over which u,v are nudged   | Real [m]             | -1.0e36          |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_u_z2**                  | Top of the same range                                  | Real [m]             | 1.0e36           |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_t_z1**                  | Bottom of the height range over which potential        | Real [m]             | 0.0              |
+|                                       | temperature is nudged                                  |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_t_z2**                  | Top of the same range                                  | Real [m]             | 10000.0          |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_q_z1**                  | Bottom of the height range over which water vapor is   | Real [m]             | 0.0              |
+|                                       | nudged                                                 |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.nudging_q_z2**                  | Top of the same range                                  | Real [m]             | 10000.0          |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.input_sounding_file**           | Name(s) of the input sounding file(s)                  | String(s)            | input_sounding   |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.input_sounding_time**           | Time(s) of the input sounding file(s)                  | Real(s)              | 0.0              |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.tau_nudging**                   | Time scale for nudging                                 | Real                 | 5.0              |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
+If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
+file is available.  If there is only one, and no specification of time is made, it is assumed that
+the one file corresponds to time = 0.0.   If the final time supplied in
+``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
+in ``input_*_sounding_*_file`` will be used for all times later than the final value in
+in ``input_*_sounding_*_time``.
+
+.. _sec:LateralBoundaryNudgingInputs:
+
+Lateral Boundary Nudging
+------------------------
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.bdy_nudge_factor**              | Sets real bc nudging strength as 1/(VAL*dt)            | Real                 | 10.0             |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.bdy_rho_nudge_factor**          | Density Davies factor; non-positive uses               | Real                 | -1.0             |
+|                                       | ``bdy_nudge_factor``                                   |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.bdy_moist_nudge_type**          | Which strategy for nudging of moist vars               | int 0,1,2 or 3       | 1                |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.use_wrf_bdy_density**           | Use WRF-reconstructed dry-air density for real WRF     | Boolean              | true             |
+|                                       | boundaries                                             |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.use_wrf_bdy_qc_qi**             | Ingest WRF ``QCLOUD`` and active ``QICE`` at real      | Boolean              | false            |
+|                                       | boundaries                                             |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
 
 For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
 ``QVAPOR``. Type 1 applies a ``qv`` tendency based on ERF ``qv+qc+qi`` versus
@@ -1850,12 +1850,10 @@ toward zero with the existing latent-heat terms. Type 3 directly relaxes active
 ``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` without
 an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
 
-If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
-file is available.  If there is only one, and no specification of time is made, it is assumed that
-the one file corresponds to time = 0.0.   If the final time supplied in
-``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
-in ``input_*_sounding_*_file`` will be used for all times later than the final value in
-in ``input_*_sounding_*_time``.
+.. _sec:CustomForcingInputs:
+
+Custom Forcings
+---------------
 
 In addition, custom forcings or tendencies may be defined on a problem-specific
 basis. This affords additional flexibility in defining the RHS source term as
@@ -1919,16 +1917,28 @@ function(s).
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
 
-- Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
-  or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
-  See :ref:`sec:WindFarmModels` for theory and examples.
 
+
+.. _sec:LargeScaleForcingInputs:
 
 Large Scale Forcing
 --------------------
 
 Large-scale forcing can be used to prescribe time-varying vertical profiles for
 temperature, water vapor, horizontal wind, and vertical subsidence.
+
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| Parameter                             | Definition                                             | Acceptable Values    | Default          |
++=======================================+========================================================+======================+==================+
+| **erf.large_scale_forcing**           | Apply time-varying large-scale tendencies and          | Boolean              | false            |
+|                                       | subsidence read from a forcing file                    |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.large_scale_forcing_file**      | Name of the large-scale forcing file                   | String               | None             |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+| **erf.forcing_timescale**             | Relaxation time scale for the u and v large-scale      | Real [s]             | 0.0              |
+|                                       | nudging; 0 disables it                                 |                      |                  |
++---------------------------------------+--------------------------------------------------------+----------------------+------------------+
+
 To enable it, set::
 
   erf.large_scale_forcing      = true
@@ -1956,13 +1966,20 @@ zonal and meridional velocity, and large scale vertical subsidence velocity.
 
 - Times are converted to elapsed seconds relative to the first timestamp in the file.
 
-- Temperature and moisture nudging can be restricted to a custom interval instead of entire domain with the
-  ``erf.nudging_t_z1`` and ``erf.nudging_t_z2``, and ``erf.nudging_q_z1`` and ``erf.nudging_q_z2`` options, respectively.
+- Momentum, temperature, and moisture nudging can each be restricted to a custom height interval instead of
+  the entire domain with the ``erf.nudging_u_z1``/``erf.nudging_u_z2``, ``erf.nudging_t_z1``/``erf.nudging_t_z2``,
+  and ``erf.nudging_q_z1``/``erf.nudging_q_z2`` options, respectively. ``erf.nudging_u``, ``erf.nudging_t``, and
+  ``erf.nudging_q`` turn momentum, temperature, and moisture nudging on/off independently (all default to true).
 
-- **NOTE:** When both large scale forcing and ``erf.nudging_from_input_sounding`` are used, the u and v velocities are nudged
+- **NOTE:** All of the nudging described here, including LSF-based wind nudging, requires
+  ``erf.nudging_from_input_sounding = true``; none of it has any effect otherwise. When both
+  ``erf.nudging_from_input_sounding`` and ``erf.large_scale_forcing`` are true, the u and v velocities are nudged
   according to the observed large scale velocity ``uls`` and ``vls`` instead of the input sounding, using
-  ``erf.forcing_timescale``. Temperature and moisture are nudged from input sounding as normal, using the input
-  sounding ``tau_nudging`` timescale.
+  ``erf.forcing_timescale``. Temperature and moisture are still nudged from the input sounding as normal, using the
+  input sounding ``tau_nudging`` timescale. In this case, wind nudging is controlled solely by
+  ``erf.large_scale_forcing`` and is unaffected by ``erf.nudging_u``, which only turns off/on
+  sounding-based wind nudging (and, likewise, ``erf.nudging_u_z1``/``erf.nudging_u_z2`` only restrict the
+  sounding-based branch).
 
 Example file format for large scale forcing:
 
@@ -2137,9 +2154,10 @@ List of Parameters
 |                                  | use_real_bcs is     |                    |                       |
 |                                  | true                |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.use_wrf_height_grid**      | use z heights       |  Boolean           | false                 |
-|                                  | from wrfinput or    |                    |                       |
-|                                  | make our own?       |                    |                       |
+| **erf.avg_grid_faces_to_nodes**  | avg the wrfinput /  |  Boolean           | false                 |
+|                                  | metgrid heights     |                    |                       |
+|                                  | onto the nodes, or  |                    |                       |
+|                                  | reconstruct them?   |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.rebalance_wrf_input**      | rebalance state     |  Boolean           | true                  |
 |                                  | from wrfinput and   |                    |                       |
@@ -2384,7 +2402,7 @@ Examples of Usage
 Land Surface Model
 ==================
 
-The land surface model provides energy and moisture fluxes at the lower boundary.
+The land surface model provides energy and moisture fluxes at the lower boundary when that lower boundary is land.
 
 List of Parameters
 ------------------
@@ -2397,26 +2415,35 @@ List of Parameters
 |                                | energy and moisture        | "NOAHMP",          |             |
 |                                | fluxes                     | "SLM"              |             |
 +--------------------------------+----------------------------+--------------------+-------------+
-| **erf.use_coupled_sst**        | Expect sea-surface         | true / false       | false       |
+
+.. note::
+
+   Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+Ocean Surface Model
+===================
+
+The ocean surface model provides energy fluxes at the lower boundary when that lower boundary is ocean.
+
+List of Parameters
+------------------
+
++--------------------------------+----------------------------+--------------------+-------------+
+| Parameter                      | Definition                 | Acceptable         | Default     |
+|                                |                            | Values             |             |
++================================+============================+====================+=============+
+| **erf.use_coupled_sst**        | Expect sea-surface         | Boolean            | false       |
 |                                | temperature from an        |                    |             |
 |                                | external ocean coupler     |                    |             |
 +--------------------------------+----------------------------+--------------------+-------------+
 
 .. note::
 
-   Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
-
-.. note::
-
-   ``erf.use_coupled_sst`` is independent of ``erf.land_surface_model``. Coupled SST
-   is applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK, and
-   only on the water cells the coupler actually covers: land keeps its land surface
-   model, and water the ocean grid does not reach keeps the ``wrflowinp`` value. A
-   coupled run can therefore also run Noah-MP.
-
-   This replaces ``erf.land_surface_model = OceanSurf``, which delivered coupled SST
-   as a land surface model and so occupied the one land surface model slot. That
-   value has been removed and now aborts with a message pointing here.
+   ``erf.use_coupled_sst`` is independent of ``erf.land_surface_model``. Coupled SST is
+   applied through the lower-boundary path alongside ``wrflowinp`` SST/TSK, and only on
+   the water cells the coupler actually covers: land keeps its land surface model, and
+   water the ocean grid does not reach keeps the ``wrflowinp`` value. A coupled run can
+   therefore also run Noah-MP or the SLM over land.
 
 Coupling Type (Data Exchange)
 ==============================
@@ -3060,12 +3087,13 @@ Initialization, Terrain and Vertical Mesh
 |                                                | levels; specifying these makes the mesh type           |                                |                        |
 |                                                | ``StretchedDz``.  See :ref:`sec:Meshing`               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_wrf_height_grid**                    | use the vertical grid from the ``wrfinput`` file       | Boolean                        | false                  |
-|                                                | rather than generating one                             |                                |                        |
+| **erf.avg_grid_faces_to_nodes**                | average the ``wrfinput`` / ``met_em`` heights onto the | Boolean                        | false                  |
+|                                                | nodes rather than reconstructing nodal heights whose   |                                |                        |
+|                                                | four-node average reproduces them                      |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.rebalance_wrf_input**                    | rebalance (hydrostatically re-integrate) the state     | Boolean                        | true                   |
 |                                                | read from ``wrfinput`` and ``wrfbdy``.  Forced to true |                                |                        |
-|                                                | if ``use_wrf_height_grid`` is false                    |                                |                        |
+|                                                | if ``avg_grid_faces_to_nodes`` is false                |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 
 Physics Model Selection
@@ -3247,9 +3275,26 @@ Custom, Nudging and Numerical Diffusion Forcing
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_q_z2**                           | height above which moisture is not nudged              | Real                           | 10000.0                |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u_z1**                           | height below which u,v are not nudged                  | Real                           | -1.0e36                |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u_z2**                           | height above which u,v are not nudged                  | Real                           | 1.0e36                 |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t_z1**                           | height below which temperature is not nudged           | Real                           | 0.0                    |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.nudging_t_z2**                           | height above which temperature is not nudged           | Real                           | 10000.0                |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_u**                              | nudge u,v towards the sounding (takes effect only      | Boolean                        | true                   |
+|                                                | when ``nudging_from_input_sounding`` is true; does     |                                |                        |
+|                                                | not affect LSF-based wind nudging, see                 |                                |                        |
+|                                                | ``large_scale_forcing``)                               |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_t**                              | nudge potential temperature towards the sounding       | Boolean                        | true                   |
+|                                                | (takes effect only when ``nudging_from_input_sounding``|                                |                        |
+|                                                | is true)                                               |                                |                        |
++------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+| **erf.nudging_q**                              | nudge water vapor towards the sounding (takes          | Boolean                        | true                   |
+|                                                | effect only when ``nudging_from_input_sounding``       |                                |                        |
+|                                                | is true)                                               |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 | **erf.large_scale_forcing**                    | apply the large-scale forcing read from a forcing file | Boolean                        | false                  |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
@@ -3355,6 +3400,8 @@ Inflow Perturbation
 |                                                | (per-level).  See                                      | CPM_W                          |                        |
 |                                                | :ref:`sec:InflowTurbulenceGeneration`                  |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+
+.. _sec:WindFarmModelInputs:
 
 Wind Farm Models
 ----------------
@@ -3501,10 +3548,6 @@ ignoring them.
 |                                                | ``StaticFittedMesh`` and ``MovingFittedMesh``; the old | ``MovingFittedMesh``           | ``Moving`` is used     |
 |                                                | names still work                                       |                                |                        |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.land_surface_model**                     | the value ``OceanSurf`` was removed; set               | ``None``, ``SLM``, ``NOAHMP``  | aborts if              |
-|                                                | ``erf.use_coupled_sst`` = 1 and use                    |                                | ``OceanSurf`` is used  |
-|                                                | ``erf.land_surface_model`` for the land surface itself |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
 
 .. _sec:DampingChoice:
 
@@ -3575,13 +3618,4 @@ aborts; if both are positive, ``erf.w_damping_const`` is used.  See
 | **erf.w_damping_coeff**                        | dimensionless damping factor giving a grid-dependent   | Real                           | -1.0 (not used)        |
 |                                                | coefficient proportional to dz/dt^2; a positive value  |                                |                        |
 |                                                | selects this formulation                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-
-Deprecated Damping Inputs
--------------------------
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.rayleigh_damp_substep**                  | removed; set ``erf.rayleigh_damping_type`` instead     | none -- input removed          | aborts if present      |
 +------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
