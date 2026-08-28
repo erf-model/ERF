@@ -800,7 +800,7 @@ ERF::init_zphys (int lev, double elapsed_time)
             if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                amrex::Abort("Terrain is taller than domain top!");
+                amrex::Warning("Terrain is taller than domain top!");
             }
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways

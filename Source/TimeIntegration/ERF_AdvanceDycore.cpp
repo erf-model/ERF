@@ -201,47 +201,51 @@ void ERF::advance_dycore (int level,
                     dptr_qv_plane(k-offset) = dptr_qv[k];
                 });
             }
-            IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
-            IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+            // U, V velocity averages are only needed for the momentum nudging diagnostics below
+            // (either sounding-based, gated by nudging_u, or LSF-based, gated by use_lsf)
+            if (solverChoice.nudging_u || use_lsf) {
+                IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
+                IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
 
-            PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
-            PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
+                PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
+                PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
 
-            u_ave.compute_averages(ZDir(), u_ave.field());
-            v_ave.compute_averages(ZDir(), v_ave.field());
+                u_ave.compute_averages(ZDir(), u_ave.field());
+                v_ave.compute_averages(ZDir(), v_ave.field());
 
-            int u_ncell = u_ave.ncell_line();
-            int v_ncell = v_ave.ncell_line();
-            Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
-            Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
+                int u_ncell = u_ave.ncell_line();
+                int v_ncell = v_ave.ncell_line();
+                Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
+                Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
 
-            u_ave.line_average(0, u_plane_h);
-            v_ave.line_average(0, v_plane_h);
+                u_ave.line_average(0, u_plane_h);
+                v_ave.line_average(0, v_plane_h);
 
-            Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
-            Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+                Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+                Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
 
-            Real* dptr_u = u_plane_d.data();
-            Real* dptr_v = v_plane_d.data();
+                Real* dptr_u = u_plane_d.data();
+                Real* dptr_v = v_plane_d.data();
 
-            Box udomain = domain; udomain.grow(2,ng_u[2]);
-            Box vdomain = domain; vdomain.grow(2,ng_v[2]);
-            u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
-            v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+                Box udomain = domain; udomain.grow(2,ng_u[2]);
+                Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+                u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+                v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
 
-            int u_offset = ng_u[2];
-            dptr_u_plane = u_plane_tab.table();
-            ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-            {
-                dptr_u_plane(k-u_offset) = dptr_u[k];
-            });
+                int u_offset = ng_u[2];
+                dptr_u_plane = u_plane_tab.table();
+                ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_u_plane(k-u_offset) = dptr_u[k];
+                });
 
-            int v_offset = ng_v[2];
-            dptr_v_plane = v_plane_tab.table();
-            ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-            {
-                dptr_v_plane(k-v_offset) = dptr_v[k];
-            });
+                int v_offset = ng_v[2];
+                dptr_v_plane = v_plane_tab.table();
+                ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_v_plane(k-v_offset) = dptr_v[k];
+                });
+            }
         }
 
         // Store planar averages in persistent ERF member variables for immersed forcing
@@ -387,9 +391,19 @@ void ERF::advance_dycore (int level,
         const Real t_z1 = solverChoice.nudging_t_z1;
         const Real t_z2 = solverChoice.nudging_t_z2;
 
+        // whether to nudge theta at all
+        const bool nudge_theta   = solverChoice.nudging_t;
+
         // lower and upper bounds to apply qv nudging
         const Real q_z1 = solverChoice.nudging_q_z1;
         const Real q_z2 = solverChoice.nudging_q_z2;
+
+        // whether to nudge qv at all
+        const bool nudge_q = solverChoice.nudging_q;
+
+        // lower and upper bounds to apply u,v nudging (sounding-based branch only; see below)
+        const Real u_z1 = solverChoice.nudging_u_z1;
+        const Real u_z2 = solverChoice.nudging_u_z2;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -411,7 +425,7 @@ void ERF::advance_dycore (int level,
                 // nudge_data = tnudge, qnudge, unudge, vnudge
 
                 // Nudging for theta
-                if (z >= t_z1 && z <= t_z2) {
+                if (nudge_theta && z >= t_z1 && z <= t_z2) {
                     Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 0) = nudge * tau_inv;
                     //if (i == 0 && j == 0)
@@ -420,7 +434,7 @@ void ERF::advance_dycore (int level,
                 }
 
                 // Nudging for qv
-                if (has_moisture && z >= q_z1 && z <= q_z2) {
+                if (has_moisture && nudge_q && z >= q_z1 && z <= q_z2) {
                     Real nudge = (coeff_n*qv_inp_sound_n[k] + coeff_np1*qv_inp_sound_np1[k]) - (dptr_qv_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 1) = nudge * tau_inv;
                     //if (i == 0 && j == 0)
@@ -431,41 +445,47 @@ void ERF::advance_dycore (int level,
 
             // Nudging for u and v
             // NOTE: if LSF is enabled, then the U,V nudging here uses the LSF values, not U and V from the input sounding
-            Real uv_coeff_n = coeff_n;
-            Real uv_coeff_np1 = coeff_np1;
-            Real tau = tau_inv;
-            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
-            if (!use_lsf)
-            {
-                u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
-                u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
-                v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
-                v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
-            } else {
-                int itime_curr = 0;
-                int itime_next = 0;
-                uv_coeff_n = 1.0;
-                uv_coeff_np1 = 0.0;
-                tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
+            if (solverChoice.nudging_u || use_lsf) {
+                Real uv_coeff_n = coeff_n;
+                Real uv_coeff_np1 = coeff_np1;
+                Real tau = tau_inv;
+                Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+                if (!use_lsf)
+                {
+                    u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
+                    u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                    v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
+                    v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
+                } else {
+                    int itime_curr = 0;
+                    int itime_next = 0;
+                    uv_coeff_n = 1.0;
+                    uv_coeff_np1 = 0.0;
+                    tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
 
-                lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
-                u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
-                u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
-                v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
-                v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                    lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                    u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
+                    u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
+                    v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
+                    v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                }
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // height bound below applies only to sounding-based wind nudging, not LSF
+                    Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                    if (use_lsf || (z >= u_z1 && z <= u_z2)) {
+                        Real unudge = -(dptr_u_plane(k) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                        unudge *= tau;
+
+                        Real vnudge = -(dptr_v_plane(k) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                        vnudge *= tau;
+
+                        nudge_arr(i, j, k, 2) = unudge;
+                        nudge_arr(i, j, k, 3) = vnudge;
+                    }
+                });
             }
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real unudge = -(dptr_u_plane(k) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
-                unudge *= tau;
-
-                Real vnudge = -(dptr_v_plane(k) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
-                vnudge *= tau;
-
-                nudge_arr(i, j, k, 2) = unudge;
-                nudge_arr(i, j, k, 3) = vnudge;
-            });
         }
         }
     }
