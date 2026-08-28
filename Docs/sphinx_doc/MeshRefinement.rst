@@ -220,6 +220,9 @@ aborts.  Using the two-value form above is the simplest way to guarantee this.
 Similarly, the SHOC PBL model requires that no box be split in the vertical
 direction; see :ref:`subsec:no-vertical-decomposition`.
 
+A refined region that deliberately covers only part of the depth is common when
+nesting from WRF input files; see :ref:`subsec:partial-depth-wrfinput`.
+
 The two-value form applies to statically specified boxes.  For dynamically
 created grids there is a separate, blunter mechanism based on the vertical
 tagging buffer; see :ref:`subsec:dynamic-full-depth`.
@@ -229,6 +232,44 @@ z direction should be divisible by the refinement ratio in the vertical directio
 and that the specified indices are snapped outward to the nearest indices aligned
 with the refinement ratio (a message is printed whenever this snapping changes the
 box).
+
+.. _subsec:partial-depth-wrfinput:
+
+Nesting from WRF Input Files over Only Part of the Depth
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A nested LES region rarely needs to be refined all the way to the model top, so a
+refinement box whose vertical extent stops well below ``geometry.prob_hi`` in z is a
+natural thing to want with ``erf.init_type = WRFInput``.  This is supported, both when
+each level has its own wrfinput file and when only level 0 does.  For example, with a
+domain 17500 m deep::
+
+          amr.max_level      = 1
+          amr.ref_ratio_vect = 3 3 1
+
+          erf.refinement_indicators = box1
+          erf.box1.max_level = 1
+          erf.box1.in_box_lo =  70000.   90000.     0.
+          erf.box1.in_box_hi = 110000.  150000.  6000.
+
+Two things to watch, both specific to how the box is specified:
+
+-  All three components must be given.  The two-value form described above fills the
+   vertical extent with the full depth of the domain, which is the opposite of what is
+   wanted here.
+
+-  The z values are interpreted on the nominal (undeformed) vertical grid, not on the
+   terrain-following heights that a wrfinput file supplies, so the box may not reach the
+   height you expect.  Check the box ERF reports (``Saving in 'boxes at level'``) against
+   the ``z_phys`` field in the plotfile.
+
+If a file is given for the finer level, the box must be contained in the region that file
+covers; ERF checks this and aborts with both boxes printed if it is not.
+
+See :ref:`sec:nested-wrfinput` for how the base state is built at each level, why
+truncating the refined region does not change the values in the cells it does contain,
+and the restrictions that apply (in particular, the PBL models and the column-integral
+derived quantities cannot be used on a level whose grids do not span the domain in z).
 
 Moving Refinement Regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~

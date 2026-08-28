@@ -2057,7 +2057,51 @@ ERF::init_only (int lev, double elapsed_time)
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
-        amrex::Abort("This pathway is not quite implemented yet");
+        //
+        // A refined level with no wrfinput file of its own: the level was created by
+        // ERF's own refinement machinery rather than read from a wrfinput_d0*.  Level 0
+        // must always have a file (checked in ParameterSanityChecks), so this is lev > 0.
+        //
+        // Note the caller has already built the terrain at this level for us -- see the
+        // ordering in MakeNewLevelFromScratch -- because unlike the has-a-file case there
+        // is no file here to build z_phys from, and the base state below needs it.
+        //
+        AMREX_ALWAYS_ASSERT(lev > 0);
+        AMREX_ALWAYS_ASSERT(z_phys_cc[lev] != nullptr);
+
+        make_physbcs(lev);
+
+        // Fill the part of this level that lies inside the domain but outside the fine
+        // grids, and the fine ghost cells, from the coarser level.
+        interp_base_state_from_coarse(lev);
+
+        // Now build the base state on the fine grids by exactly the construction level 0
+        // used: the analytic reference profile from the level-0 parameters, evaluated at
+        // this level's cell-centered heights, followed by the discrete hydrostatic
+        // rebalance.  Running the same procedure on both levels is what makes their base
+        // states agree; interpolating the coarse base state instead would leave this level
+        // not discretely hydrostatic on its own mesh.
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
+        // The state itself is interpolated from the coarser level.  This must come after the
+        // base state, since it interpolates perturbational quantities relative to it.
+        FillCoarsePatch(lev, elapsed_time);
+
+        // The 2D/surface arrays likewise have no file to come from at this level
+        Interp2DArrays(lev, ba2d[lev], dmap[lev]);
+
+        // PSFC is read from the file at a level that has one; here it can only be
+        // interpolated from the parent.  The surface layer and the LSM both read it.
+        if (mf_PSFC[lev-1] && mf_PSFC[lev]) {
+            auto ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+            InterpFromCoarseLevel(*mf_PSFC[lev], ngv,
+                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *mf_PSFC[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {

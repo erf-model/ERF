@@ -162,10 +162,28 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
             //
-            init_only(lev, time);
-            init_zphys(lev, time);
-            update_terrain_arrays(lev);
-            make_physbcs(lev);
+            if (nc_init_file[lev].empty()) {
+                //
+                // A refined level with no file of its own has no PH/PHB to build terrain
+                // from, so its terrain must be interpolated from the coarser level FIRST --
+                // the base state init_only builds is a function of the cell-centered heights
+                // and cannot run before they exist.  (init_zphys interpolates from coarse
+                // exactly when this level has no file, which is the same condition.)
+                //
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+                init_only(lev, time);
+            } else {
+                //
+                // A level that does have a file reads its terrain and its data in the same
+                // pass, so init_only must come first here.
+                //
+                init_only(lev, time);
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+            }
         } else {
             //
             // Note that "time" here is elapsed time, and start_time = 0 when not using wrfinput/metgrid
@@ -458,6 +476,20 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     } else {
 #endif
+
+#ifdef ERF_USE_NETCDF
+    //
+    // A WRFInput level created by refinement rather than read from a file: build its base
+    // state by the same construction level 0 used, on top of the coarse interpolation done
+    // above.  This must happen BEFORE FillCoarsePatch, which interpolates perturbational
+    // quantities relative to the base state.
+    //
+    if ( (solverChoice.init_type == InitType::WRFInput) && nc_init_file[lev].empty() ) {
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+    }
+#endif
+
     //
     // Interpolate the solution data
     //
@@ -697,6 +729,28 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
         // Impose bc's outside the domain
         (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+
+#ifdef ERF_USE_NETCDF
+        // *************************************************************************************************
+        // For a WRFInput run, rebuild the base state on the new grids by the SAME construction
+        // used at initialization -- the analytic reference profile from the level-0 parameters,
+        // evaluated at this level's heights, followed by the discrete hydrostatic rebalance --
+        // rather than leaving it as the conservative interpolation of the parent's base state.
+        //
+        // Without this, the first regrid silently replaces a base state that is discretely
+        // hydrostatic on this level's mesh with one that is not, and the level stops agreeing
+        // with its parent in the way it did at t = 0.
+        //
+        // Note this must come AFTER the FillPatchTwoLevels above (which fills the region of
+        // this level outside the fine grids, and the ghost cells) and BEFORE the
+        // FillPatchFineLevel below, which interpolates perturbational quantities relative to
+        // the new base state.
+        // *************************************************************************************************
+        if (solverChoice.init_type == InitType::WRFInput) {
+            rebuild_base_state_from_wrfinput(lev, temp_base_state);
+            (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+        }
+#endif
 
         // *************************************************************************************************
         // This will fill the temporary MultiFabs with data from vars_new

@@ -2138,9 +2138,12 @@ List of Parameters
 |                                  | these bcs?          |                    | Metgrid;              |
 |                                  |                     |                    | else false            |
 +----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.nc_init_file**             | NetCDF file with    |  String            | NONE                  |
-|                                  | initial mesoscale   |                    |                       |
-|                                  | data                |                    |                       |
+| **erf.nc_init_file_<lev>**       | NetCDF file(s) with |  String or         | NONE                  |
+|                                  | initial mesoscale   |  list of Strings   |                       |
+|                                  | data at level       |                    |                       |
+|                                  | <lev>. Required at  |                    |                       |
+|                                  | level 0; optional   |                    |                       |
+|                                  | at finer levels     |                    |                       |
 +----------------------------------+---------------------+--------------------+-----------------------+
 | **erf.nc_bdy_file**              | NetCDF file with    |  String            | NONE                  |
 |                                  | mesoscale data at   |                    |                       |
@@ -2268,7 +2271,14 @@ Notes
 
 If **erf.init_type = WRFInput** or **erf.init_type = NCFile**,
 the problem is initialized with mesoscale data contained in a NetCDF file,
-provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01").
+provided via ``erf.nc_init_file_0`` (e.g., "wrfinput_d01").
+
+A file may also be given for each refined level -- ``erf.nc_init_file_1`` (e.g.,
+"wrfinput_d02"), ``erf.nc_init_file_2``, and so on.  A file at level 0 is required;
+files at finer levels are optional.  A refined level given no file of its own is
+initialized by interpolation from its parent, and its base state is built from the
+level-0 reference profile evaluated at that level's own heights.  See
+:ref:`sec:nested-wrfinput` for the nesting options and their restrictions.
 
 In addition, if **erf.use_real_bcs = true**, the lateral boundary conditions must be supplied in a NetCDF files
 specified by ``erf.nc_bdy_file`` (e.g., "wrfbdy_d01").  (If **erf.use_real_bcs = false**, no file is read for the
