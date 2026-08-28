@@ -220,8 +220,8 @@ aborts.  Using the two-value form above is the simplest way to guarantee this.
 Similarly, the SHOC PBL model requires that no box be split in the vertical
 direction; see :ref:`subsec:no-vertical-decomposition`.
 
-A refined region that deliberately covers only part of the depth is common when
-nesting from WRF input files; see :ref:`subsec:partial-depth-wrfinput`.
+A refined region that deliberately covers only part of the depth is common in
+terrain runs; see :ref:`subsec:partial-depth-refinement`.
 
 The two-value form applies to statically specified boxes.  For dynamically
 created grids there is a separate, blunter mechanism based on the vertical
@@ -233,16 +233,23 @@ and that the specified indices are snapped outward to the nearest indices aligne
 with the refinement ratio (a message is printed whenever this snapping changes the
 box).
 
-.. _subsec:partial-depth-wrfinput:
+.. _subsec:partial-depth-refinement:
 
-Nesting from WRF Input Files over Only Part of the Depth
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Refining Only Part of the Depth with Terrain
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A nested LES region rarely needs to be refined all the way to the model top, so a
 refinement box whose vertical extent stops well below ``geometry.prob_hi`` in z is a
-natural thing to want with ``erf.init_type = WRFInput``.  This is supported, both when
-each level has its own wrfinput file and when only level 0 does.  For example, with a
-domain 17500 m deep::
+natural thing to want.  This is supported with terrain-fitted coordinates for both of the
+initialization pathways that build a stratified base state:
+
+-  ``erf.init_type = input_sounding``, with the terrain read from a text file via
+   ``erf.terrain_file_name``; and
+
+-  ``erf.init_type = WRFInput``, whether each level has its own wrfinput file or only
+   level 0 does.
+
+For example, with a domain 17500 m deep::
 
           amr.max_level      = 1
           amr.ref_ratio_vect = 3 3 1
@@ -258,18 +265,26 @@ Two things to watch, both specific to how the box is specified:
    vertical extent with the full depth of the domain, which is the opposite of what is
    wanted here.
 
--  The z values are interpreted on the nominal (undeformed) vertical grid, not on the
-   terrain-following heights that a wrfinput file supplies, so the box may not reach the
-   height you expect.  Check the box ERF reports (``Saving in 'boxes at level'``) against
-   the ``z_phys`` field in the plotfile.
+-  The z values are located on the nominal (undeformed) vertical grid -- that is, on
+   ``zlevels_stag`` -- and not on the terrain-following heights, so the box may not reach
+   the height you expect.  This matters most with ``erf.init_type = WRFInput``, where the
+   nominal grid is uniform while the heights the wrfinput file supplies are strongly
+   compressed near the surface.  Check the box ERF reports
+   (``Saving in 'boxes at level'``) against the ``z_phys`` field in the plotfile.
 
-If a file is given for the finer level, the box must be contained in the region that file
-covers; ERF checks this and aborts with both boxes printed if it is not.
+With ``erf.init_type = WRFInput``, if a file is given for the finer level then the box
+must be contained in the region that file covers; ERF checks this and aborts with both
+boxes printed if it is not.
 
-See :ref:`sec:nested-wrfinput` for how the base state is built at each level, why
-truncating the refined region does not change the values in the cells it does contain,
-and the restrictions that apply (in particular, the PBL models and the column-integral
-derived quantities cannot be used on a level whose grids do not span the domain in z).
+The base state is built independently on each level, against that level's own heights,
+and its vertical integration is causal upward -- so a level that stops partway up gets
+exactly the base state it would have had if it had been refined to the model top.  See
+:ref:`subsec:base-state-refined` for that, and :ref:`sec:nested-wrfinput` for the
+wrfinput-specific details.
+
+The restrictions are the same for both pathways: the PBL models and the column-integral
+derived quantities need entire columns and cannot be used on a level whose grids do not
+span the domain in z.  See :ref:`sec:nested-wrfinput`.
 
 Moving Refinement Regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~

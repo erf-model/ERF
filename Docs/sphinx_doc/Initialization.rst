@@ -78,6 +78,26 @@ If the sounding is ``ConstantDensity``, then the initial density field is
 uniformly set to 1.0; the potential temperature (and water vapor mixing ratio)
 field(s) are set to the sounding values.
 
+For the ``Ideal``, ``Isentropic`` and ``DryIsentropic`` soundings, the profiles are
+interpolated onto the cell-centered heights of the mesh and each column is then
+rebalanced so that the base state is in discrete hydrostatic equilibrium on that mesh.
+With terrain-fitted coordinates this step matters, because the terrain-following heights
+differ from the nominal levels the 1-D sounding was integrated on.
+
+This is done on **every level**, against that level's own heights, so a refined level is
+hydrostatic on its own mesh rather than inheriting an interpolation of its parent's base
+state.  A refined level whose terrain is read from a text file via
+``erf.terrain_file_name`` re-reads that file at its own resolution, so it genuinely
+resolves topography its parent does not.  A refined region may also cover only part of the
+depth of the domain; see :ref:`subsec:base-state-refined` for why that does not change the
+base state in the cells it does contain, and :ref:`subsec:partial-depth-refinement` for how
+to specify such a region.
+
+The same restrictions apply as for a refined region in any terrain run: the PBL models
+(MYJ, MYNN2.5, MYNN-EDMF, YSU, MRF), the SHOC PBL model, and the column-integral derived
+quantities (``helicity``, ``precipitable``, ``max_reflectivity``, ``mucape``) all need
+entire columns, so they cannot be used on a level whose grids do not span the domain in z.
+
 .. note::
 
    You can optionally replace only the velocity fields (``u``, ``v``, ``w``)
@@ -256,7 +276,7 @@ Restrictions
    the box ERF reports (``Saving in 'boxes at level'``) and the ``z_phys`` field in the
    plotfile to confirm the refined region reaches the height you intended.
 
-See :ref:`subsec:partial-depth-wrfinput` for the mesh-refinement side of this, and
+See :ref:`subsec:partial-depth-refinement` for the mesh-refinement side of this, and
 :ref:`MeshRefinement` for refinement in general.
 
 TKE Initialization

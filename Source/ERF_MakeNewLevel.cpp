@@ -367,13 +367,24 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     update_terrain_arrays(lev);
 
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
     //
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
@@ -682,14 +693,25 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     update_terrain_arrays(lev);
 
     // ********************************************************************************************
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
     // from the coarse ... but just in case ...
     // ********************************************************************************************
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
