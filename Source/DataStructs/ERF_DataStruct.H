@@ -693,30 +693,12 @@ struct SolverChoice {
         int default_buoyancy_type = buoyancy_type[0];
         read_int_string(max_level, "buoyancy_type", buoyancy_type, default_buoyancy_type);
 
-        // OceanSurf was removed from LandSurfaceType. Catch the stale spelling
-        // before query_enum_case_insensitive does, so the error says what to do
-        // rather than just listing the enum values.
-        {
-            std::string lsm_string;
-            if (pp.queryAdd("land_surface_model", lsm_string) &&
-                amrex::toLower(lsm_string) == "oceansurf") {
-                amrex::Abort("erf.land_surface_model = OceanSurf has been removed. "
-                             "Coupled ocean SST is now applied through the "
-                             "lower-boundary path: set erf.use_coupled_sst = 1 "
-                             "instead, and use erf.land_surface_model for the land "
-                             "surface you actually want (the two are no longer "
-                             "the same setting).");
-            }
-        }
-
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
         // Will an external ocean coupler supply SST for part or all of the water
-        // cells this run? This is a configuration predicate, not a data-validity
-        // one: it says the coupled lane will be filled, not that any coupled step
-        // has run yet. The surface layer needs it at Define time to select
+        // cells this run? The surface layer needs to know this it in time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
         // ApplyOceanSurfaceState call.
         pp.queryAdd("use_coupled_sst", use_coupled_sst);
@@ -868,15 +850,24 @@ struct SolverChoice {
         // Use lagged_delta_rt in the fast integrator?
         pp.queryAdd("use_lagged_delta_rt", use_lagged_delta_rt);
 
-        // Keep the default wrf grid or remake our own
-        pp.queryAdd("use_wrf_height_grid",use_wrf_height_grid);
+        // Average the input z-face heights onto the nodes, or reconstruct our own
+        pp.queryAdd("avg_grid_faces_to_nodes",avg_grid_faces_to_nodes);
+
+        // Catch the old name for the flag above so the error says what to do
+        // rather than silently ignoring the setting.
+        if (pp.contains("use_wrf_height_grid")) {
+            amrex::Abort("erf.use_wrf_height_grid has been renamed. "
+                         "Set erf.avg_grid_faces_to_nodes instead; it carries "
+                         "the same meaning (average the input z-face heights "
+                         "onto the nodes rather than reconstructing them).");
+        }
 
         // Rebalance wrf state?
         pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
-        // Must rebalance if not using WRF grid
-        if (!use_wrf_height_grid && !rebalance_wrf_input) {
-            amrex::Print() << "Must rebalance when not using WRF height grid. Setting rebalance_wrf_input to true \n";
+        // Must rebalance if the nodal heights were reconstructed rather than averaged
+        if (!avg_grid_faces_to_nodes && !rebalance_wrf_input) {
+            amrex::Print() << "Must rebalance when not averaging the input height grid. Setting rebalance_wrf_input to true \n";
             rebalance_wrf_input = true;
         }
 
@@ -1081,12 +1072,37 @@ struct SolverChoice {
 
         pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
-        pp.queryAdd("nudging_q_z1", nudging_q_z1);
-        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+        int nudging_u_z1_set = pp.queryAdd("nudging_u_z1", nudging_u_z1);
+        int nudging_u_z2_set = pp.queryAdd("nudging_u_z2", nudging_u_z2);
         pp.queryAdd("nudging_t_z1", nudging_t_z1);
         pp.queryAdd("nudging_t_z2", nudging_t_z2);
+        pp.queryAdd("nudging_q_z1", nudging_q_z1);
+        pp.queryAdd("nudging_q_z2", nudging_q_z2);
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_u_z1 <= nudging_u_z2,
+            "nudging_u_z1 must be less than or equal to nudging_u_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_t_z1 <= nudging_t_z2,
+            "nudging_t_z1 must be less than or equal to nudging_t_z2");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nudging_q_z1 <= nudging_q_z2,
+            "nudging_q_z1 must be less than or equal to nudging_q_z2");
+
+        pp.queryAdd("nudging_u", nudging_u);
+        pp.queryAdd("nudging_t", nudging_t);
+        pp.queryAdd("nudging_q", nudging_q);
 
         pp.queryAdd("large_scale_forcing", large_scale_forcing);
+
+        if (nudging_from_input_sounding && large_scale_forcing) {
+            if (!nudging_u) {
+                amrex::Print() << "WARNING: erf.nudging_u = false has no effect when erf.large_scale_forcing "
+                                  "= true; momentum nudging is then controlled solely by large_scale_forcing.\n";
+            }
+            if (nudging_u_z1_set || nudging_u_z2_set) {
+                amrex::Print() << "WARNING: erf.nudging_u_z1/erf.nudging_u_z2 are ignored when "
+                                  "erf.large_scale_forcing = true; momentum nudging is then applied "
+                                  "at all heights.\n";
+            }
+        }
 
         have_geo_wind_profile = (!abl_geo_wind_table.empty() || custom_geostrophic_profile);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(!abl_geo_wind_table.empty() && custom_geostrophic_profile),
@@ -1956,10 +1972,16 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
-    amrex::Real nudging_q_z1 = zero;
-    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+    amrex::Real nudging_u_z1 = amrex::Real(-1.0e36);
+    amrex::Real nudging_u_z2 = amrex::Real(1.0e36);
     amrex::Real nudging_t_z1 = zero;
     amrex::Real nudging_t_z2 = amrex::Real(10000.0);
+    amrex::Real nudging_q_z1 = zero;
+    amrex::Real nudging_q_z2 = amrex::Real(10000.0); // TODO: reasonable defaults here?
+
+    bool nudging_u = true;      // Nudge u,v when nudging_from_input_sounding is true
+    bool nudging_t = true;      // Nudge potential temperature when nudging_from_input_sounding is true
+    bool nudging_q = true;      // Nudge water vapor when nudging_from_input_sounding is true
 
     bool large_scale_forcing = false;
     std::string lsf_file = "";
@@ -2145,8 +2167,8 @@ struct SolverChoice {
     // Which approach to nudging the moist variables in the boundary region?
     int bdy_moist_nudge_type = 1;
 
-    // Keep the WRF grid or remake our own?
-    bool use_wrf_height_grid {false};
+    // Average the input z-face heights onto the nodes rather than reconstructing them?
+    bool avg_grid_faces_to_nodes {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

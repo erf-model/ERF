@@ -790,7 +790,7 @@ ERF::init_zphys (int lev, double elapsed_time)
             if (rel_diff > Real(1.e-8)) {
                 amrex::Print() << "max of zphys_nd " << zmax << std::endl;
                 amrex::Print() << "max of zlevels  " << zlevels_stag[0][zlevels_stag[0].size()-1] << std::endl;
-                amrex::Abort("Terrain is taller than domain top!");
+                amrex::Warning("Terrain is taller than domain top!");
             }
 #if 0
             // This remains commented out until we verify that the stretched and variable dz pathways
@@ -1098,19 +1098,25 @@ ERF::make_physbcs (int lev)
         AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
     }
 
+    // Real (wrfbdy/metgrid) boundary data only exists at level 0 -- there is no machinery
+    //    to interpolate it onto a refined level.  At lev > 0 we must therefore fall back on
+    //    the boundary condition types specified in the inputs file, so that the lateral
+    //    ghost cells outside the domain get filled if a fine grid abuts a domain boundary.
+    bool l_use_real_bcs = (solverChoice.use_real_bcs && (lev == 0));
+
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
-                                                               z_phys_nd[lev], solverChoice.use_real_bcs, th_bc_data[lev].data());
+                                                               z_phys_nd[lev], l_use_real_bcs, th_bc_data[lev].data());
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, xvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], l_use_real_bcs, xvel_bc_data[lev].data());
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], solverChoice.use_real_bcs, yvel_bc_data[lev].data());
+                                                            z_phys_nd[lev], l_use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
-                                                            solverChoice.use_real_bcs, zvel_bc_data[lev].data());
+                                                            l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
 }

@@ -73,7 +73,7 @@ void SDInitProperties::setDefaults ( const amrex::Geometry& a_geom,
     m_mult_type = SDMultiplicityType::sampled;
 }
 
-void SDInitProperties::readInputs ( const std::string& a_prefix,
+void SDInitProperties::readInputs ( SDInputs& a_in,
                                     const std::string& a_key,
                                     const amrex::Geometry& a_geom,
                                     const MatVec& a_species_mat,
@@ -83,30 +83,29 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     amrex::ignore_unused(a_geom);
     using namespace amrex;
 
-    amrex::ParmParse pp(a_prefix);
-    pp.query(std::string(a_key+"distribution_type").c_str(), m_type);
-    pp.query("maximum_multiplicity", m_max_multiplicity);
-    pp.query("multiplicity_type", m_mult_type);
-    pp.query("ice_apparent_density", m_ice_app_density);
+    a_in.query(std::string(a_key+"distribution_type").c_str(), m_type);
+    a_in.query("maximum_multiplicity", m_max_multiplicity);
+    a_in.query("multiplicity_type", m_mult_type);
+    a_in.query("ice_apparent_density", m_ice_app_density);
 
-    pp.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
+    m_ppc_from_inputs = a_in.query(std::string(a_key+"particles_per_cell").c_str(), m_ppc);
 
     if (m_type == SDInitShape::uniform) {
 
-        pp.queryAdd("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
+        a_in.queryarr("particle_box_lo", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_box_hi", m_init_particle_p2, AMREX_SPACEDIM);
+        a_in.queryarr("particle_box_hi", m_init_particle_p2, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
         m_particle_domain.setLo(m_init_particle_p1);
         m_particle_domain.setHi(m_init_particle_p2);
     } else if (m_type == SDInitShape::bubble){
 
-        pp.queryAdd("particle_bubble_center", m_init_particle_p1, AMREX_SPACEDIM);
+        a_in.queryarr("particle_bubble_center", m_init_particle_p1, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p1.size() == AMREX_SPACEDIM);
 
-        pp.queryAdd("particle_bubble_radius", m_init_particle_p2, AMREX_SPACEDIM);
+        a_in.queryarr("particle_bubble_radius", m_init_particle_p2, AMREX_SPACEDIM);
         AMREX_ASSERT(m_init_particle_p2.size() == AMREX_SPACEDIM);
 
         m_particle_domain.setLo(m_init_particle_p1);
@@ -116,113 +115,124 @@ void SDInitProperties::readInputs ( const std::string& a_prefix,
     for (int i = 0; i < m_num_species; i++) {
         {
             std::string key = a_key+"species_distribution_type_"+getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_species_init_type[i]);
+            a_in.query(key.c_str(), m_species_init_type[i]);
         }
         {
             std::string key = a_key+"species_min_mass_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_species_min[i]);
+            a_in.query(key.c_str(), m_mass_species_min[i]);
         }
         {
             std::string key = a_key+"species_mean_mass_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_species_mean[i]);
+            a_in.query(key.c_str(), m_mass_species_mean[i]);
         }
         {
             m_mass_species_max[i] = 5 * m_mass_species_mean[i]; // default
             std::string key = a_key+"species_max_mass_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_species_max[i]);
+            a_in.query(key.c_str(), m_mass_species_max[i]);
         }
         {
             std::string key = a_key+"species_min_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_species_min[i]);
+            a_in.query(key.c_str(), m_radius_species_min[i]);
         }
         {
             std::string key = a_key+"species_max_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_species_max[i]);
+            a_in.query(key.c_str(), m_radius_species_max[i]);
         }
         {
             std::string key = a_key+"species_mean_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_species_mean[i]);
+            a_in.query(key.c_str(), m_radius_species_mean[i]);
         }
         {
-            std::string key_std = a_key+"species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
+            std::string key_std  = a_key+"species_std_radius_" + getEnumNameString(a_species_mat[i]->m_name);
             std::string key_gstd = a_key+"species_geomstd_radius_" + getEnumNameString(a_species_mat[i]->m_name);
-            if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
-                amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
+
+            // The two spellings are alternatives: std_radius is the log of the
+            // geometric std, geomstd_radius is the geometric std itself. Ask the
+            // resolver whether each came from the input file rather than whether the
+            // name is present in the table, so a recorded default cannot masquerade
+            // as a user setting.
+            amrex::Real std_val  = amrex::Real(0.0);
+            amrex::Real gstd_val = m_radius_species_geom_std[i];
+            const bool has_std  = a_in.query(key_std,  std_val,  false);
+            const bool has_gstd = a_in.query(key_gstd, gstd_val, false);
+            if (has_std && has_gstd) {
+                amrex::Abort("Cannot specify BOTH "+key_std+" and "+key_gstd);
             }
-            if (pp.contains(key_std.c_str())) {
-                pp.get(key_std.c_str(), m_radius_species_geom_std[i]);
-                m_radius_species_geom_std[i] = std::exp(m_radius_species_geom_std[i]);
-            } else {
-                pp.query(key_gstd.c_str(), m_radius_species_geom_std[i]);
-            }
+            m_radius_species_geom_std[i] = has_std ? std::exp(std_val) : gstd_val;
+            if (!has_std && !has_gstd) { a_in.record(key_gstd, m_radius_species_geom_std[i]); }
         }
     }
 
     for (int i = 0; i < m_num_aerosols; i++) {
         {
             std::string key = a_key+"aerosol_distribution_type_"+getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_aerosol_init_type[i]);
+            a_in.query(key.c_str(), m_aerosol_init_type[i]);
         }
         {
             std::string key = a_key+"aerosol_min_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_aerosol_min[i]);
+            a_in.query(key.c_str(), m_mass_aerosol_min[i]);
         }
         {
             std::string key = a_key+"aerosol_mean_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_aerosol_mean[i]);
+            a_in.query(key.c_str(), m_mass_aerosol_mean[i]);
         }
         {
             m_mass_aerosol_max[i] = 5 * m_mass_aerosol_mean[i]; // default
             std::string key = a_key+"aerosol_max_mass_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_mass_aerosol_max[i]);
+            a_in.query(key.c_str(), m_mass_aerosol_max[i]);
         }
         {
             std::string key = a_key+"aerosol_min_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_min[i]);
+            a_in.query(key.c_str(), m_radius_aerosol_min[i]);
         }
         {
             std::string key = a_key+"aerosol_max_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_max[i]);
+            a_in.query(key.c_str(), m_radius_aerosol_max[i]);
         }
         {
             std::string key = a_key+"aerosol_mean_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            pp.query(key.c_str(), m_radius_aerosol_mean[i]);
+            a_in.query(key.c_str(), m_radius_aerosol_mean[i]);
         }
         {
-            std::string key_std = a_key+"aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
+            std::string key_std  = a_key+"aerosol_std_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
             std::string key_gstd = a_key+"aerosol_geomstd_radius_" + getEnumNameString(a_aerosol_mat[i]->m_name);
-            if (pp.contains(key_std.c_str()) && pp.contains(key_gstd.c_str())) {
-                amrex::Abort("Cannot specify BOTH initial_species_std_radius and initial_species_geomstd_radius");
+
+            // The two spellings are alternatives: std_radius is the log of the
+            // geometric std, geomstd_radius is the geometric std itself. Ask the
+            // resolver whether each came from the input file rather than whether the
+            // name is present in the table, so a recorded default cannot masquerade
+            // as a user setting.
+            amrex::Real std_val  = amrex::Real(0.0);
+            amrex::Real gstd_val = m_radius_aerosol_geom_std[i];
+            const bool has_std  = a_in.query(key_std,  std_val,  false);
+            const bool has_gstd = a_in.query(key_gstd, gstd_val, false);
+            if (has_std && has_gstd) {
+                amrex::Abort("Cannot specify BOTH "+key_std+" and "+key_gstd);
             }
-            if (pp.contains(key_std.c_str())) {
-                pp.get(key_std.c_str(), m_radius_aerosol_geom_std[i]);
-                m_radius_aerosol_geom_std[i] = std::exp(m_radius_aerosol_geom_std[i]);
-            } else {
-                pp.query(key_gstd.c_str(), m_radius_aerosol_geom_std[i]);
-            }
+            m_radius_aerosol_geom_std[i] = has_std ? std::exp(std_val) : gstd_val;
+            if (!has_std && !has_gstd) { a_in.record(key_gstd, m_radius_aerosol_geom_std[i]); }
         }
     }
 
 }
 
-void SDInitialization::readInputs ( const std::string& a_prefix,
+void SDInitialization::readInputs ( SDInputs& a_in,
                                     const amrex::Geometry& a_geom,
                                     const MatVec& a_species_mat,
                                     const MatVec& a_aerosol_mat )
 {
     BL_PROFILE("SDInitialization::readInputs");
 
-    SDInitProperties::readInputs( a_prefix, "initial_", a_geom, a_species_mat, a_aerosol_mat);
+    SDInitProperties::readInputs( a_in, "initial_", a_geom, a_species_mat, a_aerosol_mat);
 
     amrex::ignore_unused(a_geom);
     using namespace amrex;
 
-    amrex::ParmParse pp(a_prefix);
-    pp.query("initial_number_density", this->m_numdens);
-    pp.query("initial_super_droplet_density", m_numdens_sd_init);
+    a_in.query("initial_number_density", this->m_numdens);
+    a_in.query("initial_super_droplet_density", m_numdens_sd_init);
 }
 
-void SDInjection::readInputs ( const std::string& a_prefix,
+void SDInjection::readInputs ( SDInputs& a_in,
                                const amrex::Geometry& a_geom,
                                const MatVec& a_species_mat,
                                const MatVec& a_aerosol_mat,
@@ -230,20 +240,19 @@ void SDInjection::readInputs ( const std::string& a_prefix,
 {
     BL_PROFILE("SDInjection::readInputs");
 
-    SDInitProperties::readInputs( a_prefix, "", a_geom, a_species_mat, a_aerosol_mat);
+    SDInitProperties::readInputs( a_in, "", a_geom, a_species_mat, a_aerosol_mat);
 
     amrex::ignore_unused(a_dt);
     using namespace amrex;
 
-    amrex::ParmParse pp(a_prefix);
-    m_prefix = a_prefix;
-    pp.query("rate", m_inj_rate);
-    if (pp.query("sd_rate", m_sd_inj_rate))                { m_sd_specified  = true; }
-    if (pp.query("min_multiplicity", m_min_multiplicity))  { m_mm_specified  = true; }
-    pp.query("t_start", m_tstart);
-    pp.query("t_stop", m_tstop);
-    pp.queryarr("domain_velocity", m_domain_vel);
-    pp.query("fractional_tol", m_frac_tol);
+    m_prefix = a_in.m_block_name;
+    a_in.query("rate", m_inj_rate);
+    m_sd_specified = a_in.query("sd_rate", m_sd_inj_rate);
+    m_mm_specified = a_in.query("min_multiplicity", m_min_multiplicity);
+    a_in.query("t_start", m_tstart);
+    a_in.query("t_stop", m_tstop);
+    a_in.queryarr("domain_velocity", m_domain_vel);
+    a_in.query("fractional_tol", m_frac_tol);
 
     // Cell volume of the injection level, used to accumulate the per-cell count.
     const auto dx = a_geom.CellSize();
@@ -253,11 +262,11 @@ void SDInjection::readInputs ( const std::string& a_prefix,
     // Injection mode: an explicit particles_per_cell selects the legacy per-cell
     // path; otherwise inject in per-box high-multiplicity mode. The effective SD
     // injection rate is taken from sd_rate or rate/min_multiplicity; if both are
-    // specified, the one giving fewer super-droplets (lower SD rate) is used. The
-    // injection is read twice (non-indexed defaults then indexed overrides), so
-    // "specified" is tracked stickily across both calls.
-    int ppc_tmp = m_ppc;
-    if (pp.query("particles_per_cell", ppc_tmp)) { m_ppc_specified = true; }
+    // specified, the one giving fewer super-droplets (lower SD rate) is used.
+    // SDInitProperties::readInputs already read this key and published whether it
+    // came from the input file; reading it again here would find the default that
+    // read recorded and report it as user-specified.
+    m_ppc_specified = m_ppc_from_inputs;
     m_perbox = !m_ppc_specified;
     if (m_perbox) {
         if (m_sd_specified && m_mm_specified) {
