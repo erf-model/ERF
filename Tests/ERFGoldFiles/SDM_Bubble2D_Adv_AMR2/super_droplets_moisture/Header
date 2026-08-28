@@ -1,6 +1,6 @@
 Version_Two_Dot_Zero_double
 3
-11
+17
 xvel
 yvel
 zvel
@@ -12,28 +12,27 @@ terminal_velocity
 uid
 aerosol_mass_NaCl
 species_mass_H2O
-2
+species_mass_ice
+T_fz
+a
+c
+m_rime
+n_mono
+1
 int_comp0
-int_comp1
 1
 1280
 641
 2
-4
-6
+2
+2
 5
 0 0 0
 0 0 0
 0 0 0
 0 0 0
-0 0 0
-0 0 0
-0 0 0
-0 0 0
-0 0 0
-0 0 0
-2 0 0
-2 16 0
+1 0 0
+1 16 0
 0 1088 0
-1 160 0
-3 16 0
+0 160 187136
+0 16 214656

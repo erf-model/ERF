@@ -55,6 +55,8 @@ void make_sources (int level,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
                    const Real* d_sinesq_at_lev,
                    TurbulentPerturbation& turbPert,
+                   const Table1D<Real> r_plane_avg,
+                   const Table1D<Real> t_plane_avg,
                    bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
@@ -99,20 +101,27 @@ void make_sources (int level,
     // Planar averages for subsidence terms and immersed forcing
     // *****************************************************************************
     Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
+    Table1D<Real>      dptr_r_plane_if, dptr_t_plane_if;  // Separate tables for immersed forcing
     TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
+
     bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing);
-    // Compute averages on slow step for subsidence, or whenever immersed forcing runs
-    // NOTE: We recompute planar averages every substep when immersed forcing uses substeps.
-    //       This is simpler than passing persistent storage through the call chain, and
-    //       the cost is relatively small compared to the full solve.
-    bool compute_averages = ( (is_slow_step && dptr_wbar_sub) ||
-                              (use_immersed_forcing && ((is_slow_step && !use_ImmersedForcing_fast) ||
-                                                        (!is_slow_step && use_ImmersedForcing_fast))) );
+
+    // Use passed-in planar averages for immersed forcing (computed once in ERF_AdvanceDycore.cpp)
+    AMREX_ALWAYS_ASSERT(!use_immersed_forcing || (r_plane_avg && t_plane_avg));
+    if (use_immersed_forcing && r_plane_avg && t_plane_avg) {
+        // Use pre-computed values from persistent storage (already in Table1D format)
+        dptr_r_plane_if = r_plane_avg;
+        dptr_t_plane_if = t_plane_avg;
+    }
+
+    // Compute planar averages if needed for subsidence
+    bool compute_averages = (is_slow_step && dptr_wbar_sub);
 
     if (compute_averages)
     {
-        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
+        // The plane averaging operates at fixed k-index (not fixed height), which is
+        // acceptable for immersed forcing but not correct for subsidence with variable dz
         AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
 
         //
@@ -463,8 +472,9 @@ void make_sources (int level,
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);
 
+            AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
             ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
-                                         cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
+                                         cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }
 
         // *************************************************************************************
@@ -482,8 +492,9 @@ void make_sources (int level,
             const Array4<const Real>& v = yvel.array(mfi);
             const Array4<const Real>& w = zvel.array(mfi);
 
+            AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
             ImmersedForcingBuildings_Scalar(bx, u, v, w, cell_data, t_blank_arr, z_cc_arr,
-                                           cell_src, geom, solverChoice, dptr_r_plane, dptr_t_plane, time);
+                                           cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
         }
 
         // *************************************************************************************

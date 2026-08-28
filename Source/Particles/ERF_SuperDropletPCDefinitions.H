@@ -350,6 +350,10 @@ static amrex::ParticleReal SD_INP_surface_area(
  *  BSD 2-Clause License
  */
 struct INAS_Niemand2012 {
+
+    // Default constructor
+    INAS_Niemand2012 () = default;
+
     amrex::Real a0 = 1.0;          /*!< INAS a0 parameter [m^-2] */
     amrex::Real a1 = 0.517;        /*!< INAS a1 parameter [degC^-1] */
     amrex::Real a2 = 8.934;        /*!< INAS a2 parameter [-] */

@@ -8,9 +8,11 @@ CEXE_headers += ERF_Morrison_Advance_F.H
 CEXE_headers += ERF_MorrisonGammaFunction.H
 CEXE_headers += ERF_MorrisonVaporPressure.H
 
+# The shared support module this scheme needs -- module_model_constants -- is
+# added once in Exec/Make.ERF so that enabling several Fortran bridges together
+# does not compile it twice.
 ifeq ($(USE_MORR_FORT),TRUE)
      F90EXE_sources += ERF_module_mp_morr_two_moment.F90
      CEXE_headers += ERF_Morrison_Fortran_Interface.H
      F90EXE_sources += ERF_module_mp_morr_two_moment_isohelper.F90
-     F90EXE_sources += ERF_module_model_constants.F90
 endif

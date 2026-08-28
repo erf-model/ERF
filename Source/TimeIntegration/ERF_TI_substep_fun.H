@@ -67,6 +67,12 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             Svec_to_use.push_back(MultiFab(S_data[IntVars::zmom],make_alias,0,1));
         }
 
+        // Get planar averages from persistent storage for immersed forcing in fast substeps
+        bool l_use_IF = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                         solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+        Table1D<Real> r_avg_to_pass = l_use_IF ? r_plane_avg[level].table() : Table1D<Real>();
+        Table1D<Real> t_avg_to_pass = l_use_IF ? t_plane_avg[level].table() : Table1D<Real>();
+
         make_sources(level, nrk, dtau, old_substep_time,
                      Svec_to_use, S_prim, cc_src, base_state[level], z_phys_cc[level].get(),
                      xvel_new, yvel_new, zvel_new,
@@ -76,7 +82,9 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                      d_sinesq_at_lev,
-                     turbPert, false);
+                     turbPert,
+                     r_avg_to_pass, t_avg_to_pass,
+                     false);
 
         // *************************************************************************
         // Set up flux registers if using two_way coupling
@@ -114,7 +122,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                          d_sinesq_at_lev, d_sinesq_stag_at_lev, d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, lsf, lsf_data[level], get_eb(level), false);
+                         input_sounding_data, lsf, lsf_data[level],
+                         get_eb(level), false);
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
@@ -130,7 +139,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
+                             detJ_cc[level], dtau, beta_s, phys_bc_type);
         }
 
         bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);

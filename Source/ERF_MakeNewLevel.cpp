@@ -229,7 +229,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // ********************************************************************************************
     if (restart_chkfile.empty()) {
         if (solverChoice.do_forest_drag) {
-            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                                  z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                  solverChoice.forest_biophysics &&
+                                                  solverChoice.forest_biophysics_heat, lev);
         }
     }
 
@@ -244,6 +247,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -356,7 +363,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     //********************************************************************************************
@@ -397,6 +407,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -654,7 +668,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     // *****************************************************************************************************
@@ -753,6 +770,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);

@@ -69,11 +69,11 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
         ParmParse pp(pp_text);
 
         std::string bc_type_in;
-        if (pp.query("type", bc_type_in) <= 0)
+        if (pp.queryAdd("type", bc_type_in) <= 0)
         {
             pp_text = bcid;
             pp = ParmParse(pp_text);
-            pp.query("type", bc_type_in);
+            pp.queryAdd("type", bc_type_in);
         }
 
         std::string bc_type = amrex::toLower(bc_type_in);
@@ -136,9 +136,9 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             } else {
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
-                auto file_exists = pp.query("dirichlet_file", dirichlet_file);
+                auto file_exists = pp.queryAdd("dirichlet_file", dirichlet_file);
                 if (file_exists) {
-                    pp.query("read_prim_theta", read_prim_theta);
+                    pp.queryAdd("read_prim_theta", read_prim_theta);
                     init_Dirichlet_bc_data(dirichlet_file);
                 } else {
                     pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
@@ -152,7 +152,15 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             if (input_bndry_planes && m_r2d->ingested_density()) {
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = zero_d;
             } else {
-                if (!pp.query("density", rho_in)) {
+                // Negative sentinel rather than the queryAdd return value: a density is
+                // always positive -- the "rho_in > 0" test just below already reads
+                // presence off the value -- whereas the return value only reports whether
+                // the key existed before this call.  init_bcs() runs twice on restart, so
+                // the second pass would otherwise see every key as user-specified.
+                rho_in = Real(-1.0);
+                pp.queryAdd("density", rho_in);
+                if (rho_in <= zero_d) {
+                    rho_in = zero_d;
                     amrex::Print() << "Using interior values to set conserved vars" << std::endl;
                 }
                 m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
@@ -174,7 +182,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             // This lets upstream-propagating acoustic waves exit the domain
             // instead of reflecting off the rigid Dirichlet boundary.
             bool nonreflecting = false;
-            pp.query("nonreflecting", nonreflecting);
+            pp.queryAdd("nonreflecting", nonreflecting);
             m_bc_nonreflecting[ori] = nonreflecting;
 
             Real scalar_in = zero_d;
@@ -186,28 +194,44 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qv_in = zero_d;
+                Real qv_in = Real(-1.0);
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.query("qv", qv_in))
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
+                    // Negative sentinel rather than the queryAdd return value: a mixing
+                    // ratio is never negative, and the return value only reports whether
+                    // the key existed before this call (init_bcs() runs twice on restart).
+                    pp.queryAdd("qv", qv_in);
+                    if (qv_in >= zero_d) {
+                        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
+                    }
                 }
-                Real qc_in = zero_d;
+                Real qc_in = Real(-1.0);
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = zero_d;
                 } else {
-                    if (pp.query("qc", qc_in))
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
+                    // Negative sentinel rather than the queryAdd return value: a mixing
+                    // ratio is never negative, and the return value only reports whether
+                    // the key existed before this call (init_bcs() runs twice on restart).
+                    pp.queryAdd("qc", qc_in);
+                    if (qc_in >= zero_d) {
+                        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
+                    }
                 }
             }
 
-            Real KE_in = zero_d;
+            Real KE_in = Real(-1.0);
             if (input_bndry_planes && m_r2d->ingested_KE()) {
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = zero_d;
             } else {
-                if (pp.query("KE", KE_in))
-                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                // Negative sentinel rather than the queryAdd return value: a turbulent
+                // kinetic energy is never negative, and the return value only reports
+                // whether the key existed before this call (init_bcs() runs twice on
+                // restart).
+                pp.queryAdd("KE", KE_in);
+                if (KE_in >= zero_d) {
+                    m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                }
             }
         }
         else if (bc_type == "noslipwall")

@@ -51,6 +51,70 @@ AMREX_ENUM(SDMultiplicityType,
 );
 
 /*! \brief GPU-compatible structure holding distribution parameters */
+/*! \brief Resolves a super-droplet input across the two input tiers.
+ *
+ *  A property may be set once for every block under "<name>.<key>", or overridden
+ *  for a single block under "<name>.<idx>.<key>". The common tier is what lets a
+ *  property be shared, and is also what keeps input files written before multiple
+ *  initializations were supported working unchanged.
+ *
+ *  Precedence is per-block over common. a_val enters holding the default and leaves
+ *  holding the resolved value. The return value reports whether the value came from
+ *  the input file, so a caller can tell "the user set this" from "this is the
+ *  default" without asking ParmParse whether a name is present.
+ *
+ *  The resolved value is recorded under the per-block prefix so that it appears in
+ *  job_info. That prefix is unique to this block, so the record cannot be read back
+ *  by a later block as though the user had set it -- which is precisely what
+ *  recording under the common prefix would do.
+ */
+struct SDInputs
+{
+    SDInputs (const std::string& a_common, const std::string& a_block)
+        : m_common(a_common), m_block(a_block),
+          m_common_name(a_common), m_block_name(a_block) {}
+
+    template <typename T>
+    bool query (const std::string& a_key, T& a_val, const bool a_record = true)
+    {
+        bool from_inputs = m_block.query(a_key.c_str(), a_val);
+        if (!from_inputs) { from_inputs = m_common.query(a_key.c_str(), a_val); }
+        if (!from_inputs && a_record) { m_block.add(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    /*! Array-valued form, length taken from the input. */
+    template <typename T>
+    bool queryarr (const std::string& a_key, std::vector<T>& a_val)
+    {
+        bool from_inputs = m_block.queryarr(a_key.c_str(), a_val);
+        if (!from_inputs) { from_inputs = m_common.queryarr(a_key.c_str(), a_val); }
+        if (!from_inputs) { m_block.addarr(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    /*! Record a resolved value under the per-block prefix, for provenance only.
+     *  Use where one of several alternative spellings of an input is in effect and
+     *  only the effective one should be reported. */
+    template <typename T>
+    void record (const std::string& a_key, T& a_val) { m_block.add(a_key.c_str(), a_val); }
+
+    /*! Array-valued form; a_num is the expected number of components. */
+    template <typename T>
+    bool queryarr (const std::string& a_key, std::vector<T>& a_val, const int a_num)
+    {
+        bool from_inputs = m_block.queryarr(a_key.c_str(), a_val, 0, a_num);
+        if (!from_inputs) { from_inputs = m_common.queryarr(a_key.c_str(), a_val, 0, a_num); }
+        if (!from_inputs) { m_block.addarr(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    amrex::ParmParse m_common;    /*!< common tier: "<name>" */
+    amrex::ParmParse m_block;     /*!< per-block tier: "<name>.<idx>" */
+    std::string      m_common_name;
+    std::string      m_block_name;
+};
+
 struct SDDistributionParams {
     SDDistributionType dist_type;  /*!< Type of distribution */
     amrex::Real mass_min;          /*!< Minimum mass */
@@ -162,6 +226,10 @@ class SDInitProperties
 
         /*!< Initial number of super-droplets per cell */
         int m_ppc = 1;
+        /*!< Whether particles_per_cell came from the input file. Published by
+             readInputs so callers do not have to read the key a second time --
+             a second read would find the default this one recorded. */
+        bool m_ppc_from_inputs = false;
 
         /*! Initial distribution type */
         SDInitShape m_type = SDInitShape::uniform;
@@ -234,13 +302,13 @@ class SDInitProperties
                                    const MatVec& a_aerosol_mat );
 
         /*! \brief Read super-droplets initialization parameters from input file
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_key Key identifier for initialization parameters
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          */
-        virtual void readInputs ( const std::string& a_prefix,
+        virtual void readInputs ( SDInputs& a_in,
                                   const std::string& a_key,
                                   const amrex::Geometry& a_geom,
                                   const MatVec& a_species_mat,
@@ -599,7 +667,7 @@ class SDInjection : public SDInitProperties
         /*!< True when both sd_rate and min_multiplicity are explicitly specified */
         bool m_both_specified = false;
         /*!< Whether each knob was specified in any readInputs call (the
-             non-indexed and indexed injection prefixes are read separately). */
+             resolver reports this exactly, in a single pass). */
         bool m_ppc_specified = false;
         bool m_sd_specified  = false;
         bool m_mm_specified  = false;
@@ -719,7 +787,7 @@ class SDInjection : public SDInitProperties
         }
 
         /*! read super-droplets injection parameters */
-        void readInputs ( const std::string&,
+        void readInputs ( SDInputs&,
                           const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
@@ -733,13 +801,13 @@ class SDInjection : public SDInitProperties
          * This function reads injection-specific parameters like injection rate,
          * timing parameters, and domain velocity.
          *
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          * \param[in] a_dt Current timestep size
          */
-        void readInputs ( const std::string& a_prefix,
+        void readInputs ( SDInputs& a_in,
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat,
@@ -780,7 +848,7 @@ class SDInitialization : public SDInitProperties
         amrex::Real m_numdens_sd_init = -1;
 
         /*! read super-droplets initialization parameters */
-        void readInputs ( const std::string&,
+        void readInputs ( SDInputs&,
                           const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
@@ -794,12 +862,12 @@ class SDInitialization : public SDInitProperties
          * This function reads initialization-specific parameters including
          * distribution types, particle counts, and sizing parameters.
          *
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          */
-        void readInputs ( const std::string& a_prefix,
+        void readInputs ( SDInputs& a_in,
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat );
