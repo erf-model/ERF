@@ -791,6 +791,12 @@ public:
     // level remade by a regrid gets the same base state rather than one interpolated from
     // its parent.  Requires z_phys_cc[lev] and wrf_bsp to be valid.
     void rebuild_base_state_from_wrfinput (int lev, amrex::MultiFab& base_state_mf);
+
+    // Re-read the six reference parameters that define the WRF base state from the level-0
+    // wrfinput file.  These are read at initialization but are not part of the checkpoint,
+    // so on restart wrf_bsp would otherwise be left unset -- and the first regrid that has
+    // to rebuild a base state would abort in init_base_state_from_wrfinput.
+    void restore_base_state_params_on_restart ();
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM

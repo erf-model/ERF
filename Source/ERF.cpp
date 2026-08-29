@@ -2054,6 +2054,15 @@ ERF::restart ()
 
     ReadCheckpointFile();
 
+#ifdef ERF_USE_NETCDF
+    //
+    // The checkpoint carries every level's base state, but not the reference parameters
+    // it was built from.  Recover them now, before anything can regrid: the first regrid
+    // that creates or remakes a refined level rebuilds that level's base state from them.
+    //
+    restore_base_state_params_on_restart();
+#endif
+
     // Force regrid on level 0 if more procs than boxes are requested
     regrid_level_0_on_restart = ( regrid_level_0_on_restart ||
                                   grids[0].size() < ParallelDescriptor::NProcs() );
