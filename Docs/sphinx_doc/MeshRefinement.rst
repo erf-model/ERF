@@ -59,9 +59,10 @@ that region, i.e. the grids are not decomposed in the z direction; see
 
    which refines by a factor of 2 horizontally while leaving the vertical grid
    spacing of the fine level equal to that of the coarse level.  Initialization
-   from WRF input files requires exactly this: ERF aborts if the refinement ratio
-   in z is not 1, and asks the user to specify ``amr.ref_ratio_vect`` rather than
-   ``amr.ref_ratio``.
+   from WRF input files supports either choice: a wrfinput file for a nest carries
+   the same eta levels as its parent, so if the refinement ratio in z is greater
+   than 1 then ERF interpolates the file onto the finer vertical grid as it reads
+   it.  See :ref:`sec:nested-wrfinput`.
 
    **The vertical extent of the refined region** -- how much of the depth of the
    domain the finer level covers -- is a property of the region being tagged, not

@@ -246,7 +246,9 @@ Examples of Usage
      has the same vertical grid spacing as the coarse level.  Note that
      **amr.ref_ratio** cannot express this, since it applies a single ratio in
      all three directions; see :ref:`MeshRefinement` for the distinction between
-     refining in z and creating a finer level over a region.
+     refining in z and creating a finer level over a region.  With
+     **erf.init_type** = WRFInput, the third slot also decides whether the wrfinput
+     data is refined in the vertical as it is read; see :ref:`sec:nested-wrfinput`.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new
