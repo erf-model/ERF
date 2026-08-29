@@ -73,7 +73,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& tm_arr,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
-                        const bool use_SurfLayer,
+                        const bool /*use_SurfLayer*/,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Real implicit_fac)
 {

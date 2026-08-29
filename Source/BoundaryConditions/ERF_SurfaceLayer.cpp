@@ -363,7 +363,7 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
-                              MultiFab& cons_in,
+                              MultiFab& /*cons_in*/,
                               const FluxIter& most_flux,
                               bool is_land)
 {
