@@ -115,6 +115,19 @@ init_terrain_from_wrfinput (int lev,
                             const bool& avg_grid_faces_to_nodes);
 
 /**
+ * Interpolate a field read from a wrfinput file onto a vertical grid that is refined
+ * relative to the one the file is written on.
+ *
+ * @param[in] crse_fab Fab holding the data on the file's vertical grid.
+ * @param[out] fine_fab Fab to fill on this level's (vertically refined) grid.
+ * @param[in] rr_z Vertical refinement ratio between the two.
+ */
+void
+refine_fab_in_z (const FArrayBox& crse_fab,
+                 FArrayBox& fine_fab,
+                 int rr_z);
+
+/**
  * Initialize hydrostatic base state data from a WRF dataset.
  *
  * The profile is built analytically from the six WRF reference-state parameters
@@ -435,6 +448,26 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     }
     AMREX_ALWAYS_ASSERT(wrf_bsp.is_set);
 
+    // **************************************************************************
+    // Vertical refinement of this level's grid relative to the wrfinput files.
+    //
+    // A WRF nest is refined in the horizontal only: wrfinput_d02 carries exactly the
+    // eta levels of wrfinput_d01, so every file in the set is written on level 0's
+    // vertical grid.  If the ref_ratio in the inputs file asks for refinement in z as
+    // well, then this level's grid has rr_z times as many layers as the file we are
+    // about to read, and each field has to be interpolated onto that finer grid as it
+    // is read in.  The ratio to undo is therefore the cumulative one from level 0 up
+    // to this level, not just the ratio across the last coarse/fine interface.
+    // **************************************************************************
+    int rr_z = 1;
+    for (int l = 0; l < lev; ++l) { rr_z *= ref_ratio[l][2]; }
+    if (rr_z > 1) {
+        Print() << "Level " << lev << " is refined by " << rr_z << " in the vertical relative to "
+                << "the wrfinput files; each field read from the file will be interpolated onto "
+                << "the refined vertical grid, and the terrain, the state and the base state will "
+                << "all be built there.\n";
+    }
+
     // Temporary MFs for derived quantities
     auto& ba    = lev_new[Vars::cons].boxArray();
     auto& dm    = lev_new[Vars::cons].DistributionMap();
@@ -510,6 +543,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         shift_by[i] -= var_fab_from_file.box().smallEnd(i);
                     }
+                    // The fab just read lives on the file's vertical grid, so when this level
+                    // is refined in the vertical the z part of the shift has to be expressed
+                    // there too rather than in this level's index space.
+                    if (rr_z > 1) {
+                        shift_by[2] = amrex::coarsen(shift_by_box.smallEnd(2), rr_z)
+                                    - var_fab_from_file.box().smallEnd(2);
+                    }
                     var_fab_from_file.shift(shift_by);
                 }
 
@@ -550,46 +590,90 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     subdomain_to_fill_typed.growHi(1,1);
                 }
 
+                // *********************************************************************
+                // Decide whether this particular field has to be interpolated in the
+                // vertical as it is read.
+                //
+                // Two kinds of field are read on the file's z indexing but must NOT be
+                // refined: the surface fields, which carry a single z index, and the soil
+                // fields, whose third index is a soil layer rather than an atmospheric
+                // level even though their fab is staggered in z.
+                // *********************************************************************
+                const bool is_soil_var = (var_name == "TSLB" || var_name == "SMOIS" ||
+                                          var_name == "SH2O" || var_name == "ZS"    ||
+                                          var_name == "DZS");
+                const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
+
                 Box subdomain_crse(subdomain_to_fill_typed);
-                if (lev > 0) {
-                    subdomain_crse.coarsen(IntVect(1,1,ref_ratio[lev-1][2]));
-                    if (ref_ratio[lev-1][2] > 1) {
-                        amrex::Abort("This pathway in init_from_wrfinput not ready yet");
-                    }
+                if (refine_in_z) {
+                    subdomain_crse.coarsen(IntVect(1,1,rr_z));
+                    //
+                    // Grow by one layer of the file's grid at each end so that the fine
+                    // cells at the bottom and at the top of the patch have both of the
+                    // source values that bracket them.  This matters for a nest whose
+                    // patch stops partway up the column -- the normal way to nest an LES
+                    // region inside a mesoscale parent -- since without it the topmost
+                    // fine cells would have to fall back on a one-sided value.  Clipping
+                    // to the file's own z extent keeps us from asking for layers the file
+                    // does not carry.
+                    //
+                    subdomain_crse.grow(2,1);
+                    subdomain_crse.setSmall(2, amrex::max(subdomain_crse.smallEnd(2),
+                                                          var_fab_from_file.box().smallEnd(2)));
+                    subdomain_crse.setBig  (2, amrex::min(subdomain_crse.bigEnd(2),
+                                                          var_fab_from_file.box().bigEnd(2)));
                 }
+
 #ifdef AMREX_USE_GPU
                 var_fab.resize(subdomain_to_fill_typed, 1, amrex::The_Pinned_Arena());
-                var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena());
+                if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena()); }
 #else
                 var_fab.resize(subdomain_to_fill_typed, 1);
-                var_fab_crse.resize(subdomain_crse, 1);
+                if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1); }
 #endif
-                Box intersection = var_fab.box() & var_fab_from_file.box();
+
+                // The file data lands in the coarse-in-z fab when this level's vertical
+                // grid is refined relative to the file, and straight into the destination
+                // otherwise.
+                FArrayBox& read_fab = (refine_in_z) ? var_fab_crse : var_fab;
+
+                Box intersection = read_fab.box() & var_fab_from_file.box();
                 if (intersection.ok()) {
-#if 0
-                    var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-#else
-                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
-                        var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-                    } else {
-                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-                    }
-#endif
+                    // When we are about to interpolate in the vertical, every cell of the
+                    // coarse-in-z fab has to have come from the file: the interpolation
+                    // clamps at the ends of that fab, so a plane left uninitialized here
+                    // would be smeared into the refined data rather than simply dropped.
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!refine_in_z || intersection.contains(read_fab.box()),
+                                                     "ERF::init_from_wrfinput: the wrfinput file does not "
+                                                     "cover the region needed to refine this level in the vertical");
+                    read_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
                 } else if (nx == 1 and ny == 1) {
-                    Print() << " Copying 1D FAB from " << var_fab_from_file.box() << " to " << var_fab.box() << std::endl;
-#if 0
-                    var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
-#else
-                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
-                        var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
-                    } else {
-                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+                    //
+                    // A column that the file holds at (0,0) but that we hold at this box's
+                    // (i,j).  Shift the source onto the destination column and copy the z
+                    // range the two have in common; when this level's patch spans the whole
+                    // column that is the entire fab, and when it stops partway up it is the
+                    // part of the file that the patch actually covers.
+                    //
+                    Print() << " Copying 1D FAB from " << var_fab_from_file.box()
+                            << " to " << read_fab.box() << std::endl;
+                    IntVect shift_ij(AMREX_D_DECL(read_fab.box().smallEnd(0) - var_fab_from_file.box().smallEnd(0),
+                                                  read_fab.box().smallEnd(1) - var_fab_from_file.box().smallEnd(1),
+                                                  0));
+                    var_fab_from_file.shift(shift_ij);
+                    Box isect_1d = read_fab.box() & var_fab_from_file.box();
+                    if (isect_1d.ok()) {
+                        read_fab.template copy<RunOn::Device>(var_fab_from_file,isect_1d,0,isect_1d,0,1);
                     }
-#endif
+                    var_fab_from_file.shift(-shift_ij);
                 } else {
-                    Print() <<"var_fab_crse.box()      " << subdomain_crse << std::endl;
+                    Print() <<"read_fab.box()          " << read_fab.box() << std::endl;
                     Print() <<"var_fab_from_file.box() " << var_fab_from_file.box() << std::endl;
                     amrex::Error("ERF::init_from_wrfinput: Region we want not contained in region we have");
+                }
+
+                if (refine_in_z) {
+                    refine_fab_in_z(var_fab_crse, var_fab, rr_z);
                 }
             }
 
@@ -2265,6 +2349,77 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
     amrex::Print() << "Warning: ProbHi(2) will be ignored; we are setting top of domain to " << z_top << std::endl;
 
     return z_top;
+}
+
+/**
+ * Interpolate a field read from a wrfinput file onto a vertical grid that is refined
+ * by rr_z relative to the grid the file is written on.
+ *
+ * A WRF nest shares its parent's eta levels, so a wrfinput file for a level that ERF
+ * refines in the vertical carries only every rr_z-th layer of that level's grid.  The
+ * interpolation here is linear in the vertical index -- that is, in the eta coordinate
+ * the file is discretized on -- and it is applied in the same way to the geopotential
+ * (PH and PHB) as to the state.  That is what keeps the two collocated: the nodal
+ * heights built from the refined PH + PHB split each WRF layer into rr_z sublayers of
+ * equal eta thickness, and the state is interpolated onto the centers of exactly those
+ * sublayers.  The vertical remap that follows in init_from_wrfinput therefore has
+ * essentially nothing left to move, rather than smoothing the profile a second time.
+ *
+ * Fine points whose bracketing coarse values lie outside the fab we were given fall
+ * back on the nearest value we do have.  That happens only at the top of a patch that
+ * stops below the top of the domain and is high enough that the file cannot supply the
+ * layer above it.
+ *
+ * @param[in] crse_fab Fab holding the data on the file's vertical grid
+ * @param[out] fine_fab Fab to fill on this level's vertical grid
+ * @param[in] rr_z Vertical refinement ratio between the two
+ */
+void
+refine_fab_in_z (const FArrayBox& crse_fab,
+                 FArrayBox& fine_fab,
+                 int rr_z)
+{
+    AMREX_ALWAYS_ASSERT(rr_z > 1);
+
+    const Box& cbx = crse_fab.box();
+    const Box& fbx = fine_fab.box();
+
+    // The two fabs must agree in the horizontal; only the vertical is being changed
+    AMREX_ALWAYS_ASSERT(cbx.smallEnd(0) == fbx.smallEnd(0) && cbx.bigEnd(0) == fbx.bigEnd(0));
+    AMREX_ALWAYS_ASSERT(cbx.smallEnd(1) == fbx.smallEnd(1) && cbx.bigEnd(1) == fbx.bigEnd(1));
+
+    const int clo = cbx.smallEnd(2);
+    const int chi = cbx.bigEnd(2);
+
+    //
+    // A field that is staggered in z (PH, PHB, W) lives on the layer interfaces, where
+    // every rr_z-th fine point coincides exactly with a coarse one.  A field that is
+    // cell-centered in z lives at the layer midpoints, where the fine and the coarse
+    // points interleave; the half-cell offsets below are what account for that.
+    //
+    const bool z_nodal = fbx.ixType().nodeCentered(2);
+
+    const Array4<const Real>& crse_arr = crse_fab.const_array();
+    const Array4<      Real>& fine_arr = fine_fab.array();
+
+    const Real rr = static_cast<Real>(rr_z);
+
+    ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // Position of this fine point in the file's vertical index coordinate
+        const Real xi = (z_nodal) ? static_cast<Real>(k) / rr
+                                  : (static_cast<Real>(k) + myhalf) / rr - myhalf;
+
+        const Real xi_lo = std::floor(xi);
+        const int  kc    = static_cast<int>(xi_lo);
+        const Real frac  = xi - xi_lo;
+
+        const int kc_lo = amrex::min(amrex::max(kc  , clo), chi);
+        const int kc_hi = amrex::min(amrex::max(kc+1, clo), chi);
+
+        fine_arr(i,j,k) = (one - frac) * crse_arr(i,j,kc_lo) + frac * crse_arr(i,j,kc_hi);
+    });
+    Gpu::streamSynchronize();
 }
 
 /**
