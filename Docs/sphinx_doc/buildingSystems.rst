@@ -582,10 +582,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables RRTMGP radiation model (requires ``ERF_ENABLE_NETCDF=ON``, ``ERF_ENABLE_MPI=ON``)
      - OFF
      - ON/OFF
-      * - Native SHOC
-        - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
-        - Always built
-        - N/A
+   * - Native SHOC (no option)
+     - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
+     - Always built
+     - N/A
    * - ``ERF_ENABLE_EAMXX_SHOC``
      - Enables optional EAMxx SHOC turbulence model (requires ``ERF_ENABLE_MPI=ON`` and EKAT/Kokkos/EAMxx dependencies)
      - OFF
