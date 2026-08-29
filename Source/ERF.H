@@ -41,6 +41,7 @@
 
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_LargeScaleForcingData.H>
@@ -776,6 +777,13 @@ public:
     void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
+
+    // Rebuild the WRF base state on the grids of base_state_mf at this level, using the
+    // level-0 reference parameters (wrf_bsp) and this level's z_phys_cc.  This is the same
+    // construction init_from_wrfinput performs at initialization, factored out so that a
+    // level remade by a regrid gets the same base state rather than one interpolated from
+    // its parent.  Requires z_phys_cc[lev] and wrf_bsp to be valid.
+    void rebuild_base_state_from_wrfinput (int lev, amrex::MultiFab& base_state_mf);
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
@@ -819,8 +827,9 @@ public:
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();
 
+    void fill_terrain_surface  (int lev, amrex::MultiFab& z_phys, double elapsed_time);
     void init_zphys            (int lev, double elapsed_time);
-    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
     bool m_driver_has_atm2ocn_coupling = false;
@@ -930,6 +939,12 @@ private:
     //! Initialize HSE
     void initHSE ();
     void initHSE (int lev);
+
+    // Fill base_state[lev] by conservative interpolation from base_state[lev-1], then apply
+    // the base-state physical bc's.  This is how the part of a fine level that lies inside
+    // the domain but outside the fine grids -- and the fine ghost cells -- get their values,
+    // so it must run before any construction that overwrites only the fine grids.
+    void interp_base_state_from_coarse (int lev);
 
     //! Initialize Rayleigh damping profiles at a level
     void initRayleigh_at_level (const int& lev);
@@ -1552,6 +1567,13 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
+
+    // The six parameters defining the WRF analytic reference profile, plus the layer
+    // interfaces derived from them.  These are read from the LEVEL 0 wrfinput file only
+    // and then shared by every level: the levels of an AMR hierarchy must be built from
+    // one reference profile, or their base states cannot agree across the coarse/fine
+    // interface.  (A nested wrfinput file that disagrees produces a warning.)
+    BaseStateParams wrf_bsp;
 
     std::unique_ptr<amrex::MultiFab> wrf_C1H;
     std::unique_ptr<amrex::MultiFab> wrf_C2H;

@@ -43,6 +43,32 @@ init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
               const amrex::Real dz0);
 
 /**
+ * How the terrain-fitted mesh on a fine level is built when erf.terrain_smoothing != 0.
+ *
+ * The STF and Sullivan TF transformations are not defined on a level that does not
+ * reach the top of the domain, so on a fine level we instead start from the mesh
+ * interpolated from the coarse level.  A caller that has done that interpolation --
+ * and, for Transform, has also written the fine-resolution terrain into the k=0 slab
+ * and saved the pre-overwrite field -- says so by passing anything other than None.
+ * Every other caller keeps the historical behavior of aborting, because it has not
+ * prepared z_phys_nd in a way this path can use.
+ */
+enum struct FineTerrain {
+    None,        //!< caller has not prepared a fine mesh from the coarse level
+    Interpolate, //!< use the coordinates interpolated from the coarse level as-is
+    Transform    //!< add the fine terrain as a correction that decays with height
+};
+
+/**
+ * Read erf.amr_terrain_refinement and translate it into a FineTerrain.
+ *
+ * Aborts on any value other than "interpolate" or "transform" so that a typo cannot
+ * silently select a path that leaves the fine mesh untransformed.
+ */
+FineTerrain
+which_fine_terrain ();
+
+/**
  * Construct terrain-fitted coordinates.
  *
  * @param[in] lev Level index.
@@ -50,12 +76,18 @@ init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
  * @param[out] z_phys_nd Nodal physical height field.
  * @param[in] z_levels_h Host z-levels.
  * @param[in] phys_bc_type Physical boundary condition types.
+ * @param[in] fine_terrain How a fine level with terrain_smoothing != 0 is to be built.
+ * @param[in] z_phys_interp Mesh interpolated from the coarse level before the fine
+ *                          terrain was written into the k=0 slab; required by, and
+ *                          only used for, FineTerrain::Transform.
  */
 void
 make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
                             amrex::MultiFab& z_phys_nd,
                             amrex::Vector<amrex::Real> const& z_levels_h,
-                            amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type);
+                            amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2>& phys_bc_type,
+                            FineTerrain fine_terrain = FineTerrain::None,
+                            amrex::MultiFab const* z_phys_interp = nullptr);
 
 /**
  * Initialize the terrain grid mapping.
@@ -64,11 +96,38 @@ make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
  * @param[in] geom Geometry information.
  * @param[out] z_phys_nd Nodal physical height field.
  * @param[in] z_levels_h Host z-levels.
+ * @param[in] fine_terrain How a fine level with terrain_smoothing != 0 is to be built.
+ * @param[in] z_phys_interp Mesh interpolated from the coarse level; see above.
  */
 void
 init_which_terrain_grid (int lev, const amrex::Geometry& geom,
                          amrex::MultiFab& z_phys_nd,
-                         amrex::Vector<amrex::Real> const& z_levels_h);
+                         amrex::Vector<amrex::Real> const& z_levels_h,
+                         FineTerrain fine_terrain = FineTerrain::None,
+                         amrex::MultiFab const* z_phys_interp = nullptr);
+
+/**
+ * Finish the terrain-fitted mesh on a fine level whose interior was set by
+ * interpolation from the coarse level (erf.terrain_smoothing != 0).
+ *
+ * For FineTerrain::Transform this adds the fine-resolution terrain as a correction
+ * that decays linearly to zero at the top of the fine grids.  For both modes it then
+ * fills the nodes outside the lateral domain boundary and the layer below the
+ * surface, which init_which_terrain_grid()'s BTF branch would otherwise have filled.
+ *
+ * @param[in] lev Level index.
+ * @param[in] geom Geometry information.
+ * @param[in,out] z_phys_nd Nodal physical height field.
+ * @param[in] z_levels_h Host z-levels.
+ * @param[in] fine_terrain Interpolate or Transform.
+ * @param[in] z_phys_interp Mesh interpolated from the coarse level; see above.
+ */
+void
+init_fine_terrain_grid (int lev, const amrex::Geometry& geom,
+                        amrex::MultiFab& z_phys_nd,
+                        amrex::Vector<amrex::Real> const& z_levels_h,
+                        FineTerrain fine_terrain,
+                        amrex::MultiFab const* z_phys_interp);
 
 // Compute the min dz at cell center with terrain
 /**
