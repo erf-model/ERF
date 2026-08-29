@@ -172,15 +172,55 @@ Nested Initialization From WRF Input Files
 ------------------------------------------
 
 With ``erf.init_type = WRFInput``, a refined level may be initialized either from its
-own wrfinput file or by interpolation from its parent, and it may cover either the full
-depth of the domain or only part of it.  Refinement should be horizontal only, so use
-``amr.ref_ratio_vect`` with 1 in the third slot rather than ``amr.ref_ratio``::
+own wrfinput file or by interpolation from its parent; it may be refined in the
+horizontal only or in the vertical as well; and it may cover either the full depth of the
+domain or only part of it.  The refinement ratio is given per direction with
+``amr.ref_ratio_vect``, or in all three directions at once with ``amr.ref_ratio``::
 
-          amr.ref_ratio_vect = 3 3 1
+          amr.ref_ratio_vect = 3 3 1     # refine horizontally only
+          amr.ref_ratio_vect = 3 3 3     # refine in the vertical as well
+          amr.ref_ratio      = 3         # the same thing, written the short way
 
-When the finer level is initialized from its own wrfinput file this is enforced: ERF
-aborts if the refinement ratio in z is not 1, because the machinery that reads the file
-onto the finer level assumes the two levels share their vertical grid.
+.. _subsec:wrfinput-vertical-refinement:
+
+Refining in the vertical
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+A WRF nest is refined in the horizontal only: ``wrfinput_d02`` carries exactly the eta
+levels of ``wrfinput_d01``, so every file in the set is written on level 0's vertical
+grid no matter how finely it resolves the horizontal.  Asking for a refinement ratio
+greater than 1 in z therefore means asking ERF to build a vertical grid that the files do
+not have, and ERF does so as it reads each file:
+
+-  Every field read from the file -- the geopotential ``PH`` and ``PHB``, the state, and
+   the horizontal velocities -- is interpolated from the file's eta levels onto this
+   level's, linearly in the vertical index, which is the coordinate the file is
+   discretized on.  Each WRF layer is thereby split into :math:`r_z` sublayers of equal
+   eta thickness.  Two-dimensional surface fields and the soil fields are left alone;
+   the soil layers are not atmospheric levels.
+
+-  Because the geopotential is refined in exactly the same way as the state, the nodal
+   heights ERF then builds from ``PH + PHB`` and the state it holds remain collocated.
+   The vertical remap onto the ERF mesh that follows therefore has essentially nothing
+   left to move, rather than smoothing the profile a second time.
+
+-  The base state is rebuilt on the refined heights by the same construction level 0
+   uses -- the analytic WRF reference profile evaluated at this level's own
+   cell-centered heights, then rebalanced into discrete hydrostatic equilibrium.  It is
+   not interpolated from the coarse level.  See `The base state at each level`_ below.
+
+With the default ``erf.avg_grid_faces_to_nodes = false``, ERF does not use the refined
+WRF heights as its mesh; it reconstructs the nodal heights of the first two layers, takes
+the first-layer thickness from them, and solves for the stretching factor that fills the
+domain with this level's (now :math:`r_z` times as many) layers.  The fine level thus gets
+a stretched grid whose first layer is :math:`1/r_z` as thick as the parent's, and the
+state is remapped onto it from the refined WRF heights.  With
+``erf.avg_grid_faces_to_nodes = true`` the mesh is the refined WRF mesh itself, so every
+:math:`r_z`-th fine interface coincides exactly with a WRF interface.
+
+Vertical refinement composes with everything else described here: the nest may still be
+given its own file or be interpolated from its parent, and it may still stop below the
+domain top.
 
 Where the refined region goes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -251,9 +291,16 @@ has across its lateral faces.
 Restrictions
 ~~~~~~~~~~~~
 
--  The refinement ratio in z must be 1 for any level initialized from its own wrfinput
-   file.  Only horizontal refinement has been exercised for the interpolated case as
-   well, so ``amr.ref_ratio_vect`` with 1 in z is the supported configuration either way.
+-  The refinement ratio in z may be greater than 1, in which case the wrfinput data is
+   interpolated onto the finer vertical grid as it is read (see
+   :ref:`subsec:wrfinput-vertical-refinement`).  Note that ``amr.ref_ratio`` applies one
+   ratio in all three directions, so it always refines in z as well; use
+   ``amr.ref_ratio_vect`` with 1 in the third slot to refine horizontally only.
+
+-  Refining in the vertical does not add information the wrfinput file does not carry.
+   The extra layers are interpolated from the file's eta levels, so what the finer
+   vertical grid buys is resolution for the *solution* to develop on, not a better
+   resolved initial condition.
 
 -  The PBL models (MYJ, MYNN2.5, MYNN-EDMF, YSU, MRF), the SHOC PBL model, and the
    column-integral derived quantities (``helicity``, ``precipitable``,
