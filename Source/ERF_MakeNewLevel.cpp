@@ -663,11 +663,38 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     std::unique_ptr<MultiFab> temp_zphys_nd;
 
+    //
+    // init_stuff below rebuilds mapfac[lev] on the new grids and resets it to 1, and nothing
+    // downstream of a regrid reads the map factors back out of a file, so hold on to the
+    // pre-regrid arrays here and restore them afterwards.  Without this a level-0 regrid
+    // (which restart() does whenever the checkpoint has fewer grids than ranks) silently
+    // threw away the MAPFAC_M/U/V read from wrfinput_d01.
+    //
+    Vector<std::unique_ptr<MultiFab>> old_mapfac(mapfac[lev].size());
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        old_mapfac[i] = std::move(mapfac[lev][i]);
+    }
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
+
+    //
+    // Restore the map factors onto the new grids.  At lev > 0 we interpolate from the parent
+    // first so that cells the new grids added -- which the pre-regrid arrays never covered --
+    // are filled as well, then copy the retained values on top wherever we still have them.
+    // (For a level with no init file of its own the Interp2DArrays call further down repeats
+    // that interpolation, which is what defines its map factors in the first place.)
+    //
+    if (lev > 0) { interp_mapfac_from_coarse(lev); }
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        if (!mapfac[lev][i] || !old_mapfac[i]) { continue; }
+        IntVect ngv = mapfac[lev][i]->nGrowVect(); ngv[2] = 0;
+        mapfac[lev][i]->ParallelCopy(*old_mapfac[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+        mapfac[lev][i]->FillBoundary(geom[lev].periodicity());
+    }
 
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities

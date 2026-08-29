@@ -1709,10 +1709,103 @@ ERF::InitData_post ()
     }
 }
 
+//
+// Did this level read an initialization file (wrfinput_d0*/met_em) of its own?
+//
+// Level 0 always has one on those pathways.  A finer level only has one if the user
+// supplied erf.nc_init_file_<lev>; a level created by ERF's own refinement machinery
+// does not, and everything that would have come from the file has to be derived from
+// the parent instead.
+//
+bool
+ERF::has_own_init_file (int lev) const
+{
+    if (lev < 0 || lev >= static_cast<int>(nc_init_file.size())) { return false; }
+    return !nc_init_file[lev].empty();
+}
+
+//
+// Fill the map scale factors at lev by interpolation from lev-1.
+//
+// init_stuff() (re)builds mapfac[lev] and sets it to 1 every time a level is created or
+// remade, and only init_from_wrfinput/init_from_metgrid -- which require an init file at
+// *this* level -- ever overwrite that.  A level created by tagging therefore ran with a
+// map factor of 1 while its parent used the real MAPFAC_M/U/V from wrfinput_d01.  That is
+// not a benign inconsistency: mfsq = mf_mx*mf_my divides the horizontal fluxes in the
+// continuity and scalar equations (see AdvectionSrcForState) and in the acoustic substep,
+// so the fine level was solving a different mass equation from the one that produced the
+// momenta handed to it across the coarse/fine boundary.
+//
+// The map factor is a smooth geometric function of position, so interpolating the parent's
+// is accurate to well below the level at which any of this matters; over one coarse cell it
+// varies by O(1e-5).
+//
+void
+ERF::interp_mapfac_from_coarse (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+    AMREX_ALWAYS_ASSERT(mapfac[lev].size() == mapfac[lev-1].size());
+
+    for (int i = 0; i < mapfac[lev].size(); i++)
+    {
+        //
+        // With the isotropic MapFacType the _y entries alias the _x ones, so this loop
+        // visits m_x, u_x and v_x exactly once; with the anisotropic version enabled it
+        // visits all six.
+        //
+        if (!mapfac[lev][i] || !mapfac[lev-1][i]) { continue; }
+
+        //
+        // m_x is cell-centered, u_x lives on x-faces and v_x on y-faces, so each needs
+        // the interpolater that matches its index type.
+        //
+        const IndexType ixtype = mapfac[lev][i]->boxArray().ixType();
+        Interpolater* mapper = &cell_cons_interp;
+        int bccomp           = BCVars::cons_bc;
+        if (ixtype.nodeCentered(0)) {
+            mapper = &face_cons_linear_interp;
+            bccomp = BCVars::xvel_bc;
+        } else if (ixtype.nodeCentered(1)) {
+            mapper = &face_cons_linear_interp;
+            bccomp = BCVars::yvel_bc;
+        }
+
+        //
+        // DO fill the ghost cells outside the domain: the coarse level's map factors are
+        // defined there (init_from_wrfinput fills the grown box by clamping into the valid
+        // region) and the advection routines read the map factors on grown boxes.
+        //
+        IntVect ngv = mapfac[lev][i]->nGrowVect(); ngv[2] = 0;
+
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        InterpFromCoarseLevel(*mapfac[lev][i], ngv, ngv,
+                              *mapfac[lev-1][i], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), mapper,
+                              domain_bcs_type, bccomp);
+
+        // Prefer this level's own data in the ghost cells it shares with another fine box
+        mapfac[lev][i]->FillBoundary(geom[lev].periodicity());
+    }
+}
+
 void
 ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
 {
     if (lev == 0) { return; }
+
+    //
+    // Map factors.  Unlike the fields below, mapfac[lev] always exists by the time we get
+    // here (init_stuff builds it), so there is no "only if it hasn't been made yet" guard --
+    // we must overwrite the placeholder value of 1 that init_stuff left behind.  A level
+    // that read its own init file already has the map factors from that file and must be
+    // left alone.
+    //
+    if (!has_own_init_file(lev)) {
+        interp_mapfac_from_coarse(lev);
+    }
 
     if (lon_m[lev-1] && !lon_m[lev]) {
         auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;

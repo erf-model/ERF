@@ -344,6 +344,13 @@ public:
     // Interpolate 2D arrays lat_m, lon_m, sinPhi, cosPhi
     void Interp2DArrays (int lev, const amrex::BoxArray& my_ba2d, const amrex::DistributionMapping& my_dm);
 
+    // Fill the map factors at lev by interpolation from lev-1
+    void interp_mapfac_from_coarse (int lev);
+
+    // True if this level read its own initialization file, so its map factors
+    //     came from that file rather than from its parent
+    bool has_own_init_file (int lev) const;
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
