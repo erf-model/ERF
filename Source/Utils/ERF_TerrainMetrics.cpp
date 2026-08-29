@@ -249,8 +249,12 @@ init_which_terrain_grid (int lev,
             //
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                int ii = amrex::max(amrex::min(i,imax),imin);
-                int jj = amrex::max(amrex::min(j,jmax),jmin);
+                // int ii = amrex::max(amrex::min(i,imax),imin);
+                // int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+                // Impose even symmetry around the lateral boundaries, not foextrap
+                int ii = i; if (i < imin) ii = 2*imin - i; if (i > imax) ii = 2*imax - i;
+                int jj = j; if (j < jmin) jj = 2*jmin - j; if (j > jmax) jj = 2*jmax - j;
 
                 //
                 // Start with flat z_lev set either with uniform cell size or specified z_levels
