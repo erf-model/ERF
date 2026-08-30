@@ -714,6 +714,8 @@ public:
 
     void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
 
+    void GetEnsembleCheckpointName (int da_iter, int ens_no);
+
     void init_custom (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK

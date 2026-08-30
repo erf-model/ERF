@@ -107,7 +107,8 @@ int main (int argc, char* argv[])
     int n_ens = 1;
     pp_ens.query("n_members", n_ens);
 
-    for (int da_cycle_no = 0; da_cycle_no < num_da_cycles; ++da_cycle_no) {
+    // Data assimilation cycle loop
+    for (int da_iter = 0; da_iter < num_da_cycles; ++da_iter) {
         // Ensemble run loop
         for (int ens_no = 0; ens_no < n_ens; ++ens_no)
         {
@@ -125,6 +126,17 @@ int main (int argc, char* argv[])
             // So, whenever InitData() is called, it just does the from-scratch
             // initialization. All the restart has to be explicitly handled by
             // specifying the restart_chkfile variable for the corresponding ensemble
+
+
+            // So, for da_iter=0, it starts from scratch, and for iteration da_iter>=1
+            // there has to be a erf.restart_chkfile specified, which is the checkpoint file
+            // which contains the latest updated ensemble after data assimilation for that ensemble.
+            // The InitData reads that restart file
+
+            // This call will fill the restart_chkfile string
+            if(da_iter > 0){
+                erf.GetEnsembleCheckpointName(da_iter-1, ens_no);
+            }
             erf.InitData();
             erf.Evolve();
 
@@ -149,7 +161,6 @@ int main (int argc, char* argv[])
         //tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
         // After all ensemble runs are complete, perform data assimilation
-        int da_iter = 0;
         tmp_erf.PerformDataAssimilation(da_iter);
     }
 

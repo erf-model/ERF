@@ -639,3 +639,24 @@ MakeEnsembleCheckpointName (int da_iter, int ens_no)
 
     return chk_name.str();
 }
+
+void
+ERF::GetEnsembleCheckpointName (int da_iter, int ens_no)
+{
+    // Create CheckpointAfterDA if needed
+    const std::string base_dir = "CheckpointAfterDA";
+    fs::create_directories(base_dir);
+
+    // Create CheckpointAfterDA/DACycle_<da_iter>
+    const std::string da_dir =
+        base_dir + "/DACycle_" + std::to_string(da_iter);
+    fs::create_directories(da_dir);
+
+    std::ostringstream chk_name;
+    chk_name << da_dir
+             << "/chk_"
+             << std::setw(2) << std::setfill('0') << ens_no
+             << "_";
+
+    restart_chkfile = chk_name.str();
+}
