@@ -96,51 +96,66 @@ int main (int argc, char* argv[])
 
     ParmParse pp_ens("ensemble");
 
+    int num_da_cycles = -1;
+    pp_erf.query("num_da_cycles", num_da_cycles);
+
+    if(num_da_cycles != -1 and !is_init_for_ensemble) {
+        Abort("You are trying to run data assimilation by using the erf.num_da_cycles option. For this, you also "
+              "have to specify erf.is_init_for_ensemble=true, as ensembles have to be run for data assimilation");
+    }
+
     int n_ens = 1;
     pp_ens.query("n_members", n_ens);
 
-    // Ensemble run loop
-    for (int ens_no = 0; ens_no < n_ens; ++ens_no)
-    {
-        // --------------------------------------------------------
-        // Fresh ERF instance per ensemble
-        // --------------------------------------------------------
-        ERF erf;
+    for (int da_cycle_no = 0; da_cycle_no < num_da_cycles; ++da_cycle_no) {
+        // Ensemble run loop
+        for (int ens_no = 0; ens_no < n_ens; ++ens_no)
+        {
+            // --------------------------------------------------------
+            // Fresh ERF instance per ensemble
+            // --------------------------------------------------------
+            ERF erf;
 
-        if(is_init_for_ensemble) {
-            erf.SetDirsForPlotfilesAndCheckpointsForDA(ens_no);
-        }
-        erf.InitData();
-        erf.Evolve();
+            if(is_init_for_ensemble) {
+                erf.SetDirsForPlotfilesAndCheckpointsForDA(ens_no);
+            }
+            // InitData() handles all the initialization including when doing a
+            // restart. But in the inputs file, for DA runs, we do not specify a
+            // erf.restart. So, the ERF class does not know it is a restart.
+            // So, whenever InitData() is called, it just does the from-scratch
+            // initialization. All the restart has to be explicitly handled by
+            // specifying the restart_chkfile variable for the corresponding ensemble
+            erf.InitData();
+            erf.Evolve();
 
-        Real end_total = amrex::second() - strt_total;
-        ParallelDescriptor::ReduceRealMax(
-            end_total, ParallelDescriptor::IOProcessorNumber());
+            Real end_total = amrex::second() - strt_total;
+            ParallelDescriptor::ReduceRealMax(
+                end_total, ParallelDescriptor::IOProcessorNumber());
 
-        if (erf.Verbose()) {
-            amrex::Print() << "Ensemble " << ens_no
-                           << " wallclock time: "
-                           << end_total << '\n';
-        }
+            if (erf.Verbose()) {
+                amrex::Print() << "Ensemble " << ens_no
+                              << " wallclock time: "
+                               << end_total << '\n';
+            }
 
-        // --------------------------------------------------------
-        // MPI barrier to ensure all ranks finish Evolve
-        // --------------------------------------------------------
-        ParallelDescriptor::Barrier();
+            // --------------------------------------------------------
+            // MPI barrier to ensure all ranks finish Evolve
+            // --------------------------------------------------------
+            ParallelDescriptor::Barrier();
+        } // Ensemble run loop complete
 
-   } // Ensemble run loop complete
+        ERF tmp_erf;
+        // This is only a post-processing step for visualization
+        //tmp_erf.ComputeAndWriteEnsemblePerturbations();
 
-   ERF tmp_erf;
-   // This is only a post-processing step for visualization
-   //tmp_erf.ComputeAndWriteEnsemblePerturbations();
+        // After all ensemble runs are complete, perform data assimilation
+        int da_iter = 0;
+        tmp_erf.PerformDataAssimilation(da_iter);
+    }
 
-   // Perform data assimilation
-   int da_iter = 0;
-   tmp_erf.PerformDataAssimilation(da_iter);
+        BL_PROFILE_VAR_STOP(pmain);
 
-   BL_PROFILE_VAR_STOP(pmain);
-
-   amrex::Finalize();
+        amrex::Finalize();
 
 #ifdef AMREX_USE_MPI
     MPI_Finalize();

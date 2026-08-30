@@ -183,6 +183,33 @@ ERF::ComputeAndWriteEnsemblePerturbations()
 }
 
 void
+ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
+{
+    // --------------------------------------------------------
+    // Set up member-specific output directories
+    // --------------------------------------------------------
+    std::string member_dir;
+
+    std::stringstream ss;
+    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
+    member_dir = ss.str();
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        fs::create_directories(member_dir + "/plotfiles");
+        fs::create_directories(member_dir + "/chkfiles");
+        fs::create_directories(member_dir + "/pertfiles");
+    }
+
+    ParallelDescriptor::Barrier();
+
+    // Only change the basename/prefix.
+    // ERF will handle the step numbering as before.
+    check_file = member_dir + "/chkfiles/chk";
+    plot3d_file_1  = member_dir + "/plotfiles/plt";
+}
+
+void
 ERF::PerformDataAssimilation(int da_iter)
 {
     //lapack_testing();
@@ -348,6 +375,12 @@ ERF::PerformDataAssimilation(int da_iter)
 
         m_plot3d_int_1 = -1;
         m_check_int = -1;
+        // This handles all the initialization including when doing a
+        // restart. But in the inputs file, we do not specify a
+        // erf.restart. So, the ERF class does not know it is a restart.
+        // So, whenever InitData() is called, it just does the from scratch
+        // initialization. All the restart has to be explicitly handled by
+        // specifying the restart_chkfile variable for the corresponding ensemble
         InitData();
         auto& lev_new = vars_new[0];
 
@@ -362,32 +395,4 @@ ERF::PerformDataAssimilation(int da_iter)
         check_file = MakeEnsembleCheckpointName(da_iter, n);
         WriteCheckpointFile();
     }
-}
-
-
-void
-ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
-{
-    // --------------------------------------------------------
-    // Set up member-specific output directories
-    // --------------------------------------------------------
-    std::string member_dir;
-
-    std::stringstream ss;
-    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
-    member_dir = ss.str();
-
-    if (ParallelDescriptor::IOProcessor())
-    {
-        fs::create_directories(member_dir + "/plotfiles");
-        fs::create_directories(member_dir + "/chkfiles");
-        fs::create_directories(member_dir + "/pertfiles");
-    }
-
-    ParallelDescriptor::Barrier();
-
-    // Only change the basename/prefix.
-    // ERF will handle the step numbering as before.
-    check_file = member_dir + "/chkfiles/chk";
-    plot3d_file_1  = member_dir + "/plotfiles/plt";
 }
