@@ -210,6 +210,33 @@ ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
 }
 
 void
+ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
+{
+    // --------------------------------------------------------
+    // Set up member-specific output directories
+    // --------------------------------------------------------
+    std::string member_dir;
+
+    std::stringstream ss;
+    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
+    member_dir = ss.str();
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        fs::create_directories(member_dir + "/plotfiles");
+        fs::create_directories(member_dir + "/chkfiles");
+        fs::create_directories(member_dir + "/pertfiles");
+    }
+
+    ParallelDescriptor::Barrier();
+
+    // Only change the basename/prefix.
+    // ERF will handle the step numbering as before.
+    check_file = member_dir + "/chkfiles/chk";
+    plot3d_file_1  = member_dir + "/plotfiles/plt";
+}
+
+void
 ERF::PerformDataAssimilation(int da_iter)
 {
     //lapack_testing();
@@ -395,32 +422,4 @@ ERF::PerformDataAssimilation(int da_iter)
         check_file = MakeEnsembleCheckpointName(da_iter, n);
         WriteCheckpointFile();
     }
-}
-
-
-void
-ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
-{
-    // --------------------------------------------------------
-    // Set up member-specific output directories
-    // --------------------------------------------------------
-    std::string member_dir;
-
-    std::stringstream ss;
-    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
-    member_dir = ss.str();
-
-    if (ParallelDescriptor::IOProcessor())
-    {
-        fs::create_directories(member_dir + "/plotfiles");
-        fs::create_directories(member_dir + "/chkfiles");
-        fs::create_directories(member_dir + "/pertfiles");
-    }
-
-    ParallelDescriptor::Barrier();
-
-    // Only change the basename/prefix.
-    // ERF will handle the step numbering as before.
-    check_file = member_dir + "/chkfiles/chk";
-    plot3d_file_1  = member_dir + "/plotfiles/plt";
 }
