@@ -221,10 +221,10 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     ParmParse pp("erf");
 
     // Get the radius inside the domain
-    pp.query("in_rad",m_in_rad);
+    pp.queryAdd("in_rad",m_in_rad);
 
     // Are we using real bcs?
-    pp.query("use_real_bcs", m_use_real_bcs);
+    pp.queryAdd("use_real_bcs", m_use_real_bcs);
 
     last_file_read = -1;
 

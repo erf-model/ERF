@@ -219,6 +219,14 @@ Set build variables in the ``GNUmakefile``:
         - Enables Fortran-based Morrison microphysics scheme
         - FALSE
         - TRUE/FALSE
+      * - ``USE_WSM6_FORT``
+        - Enables Fortran bridge for WSM6 microphysics (requires ``PRECISION=DOUBLE``)
+        - FALSE
+        - TRUE/FALSE
+      * - ``USE_WDM6_FORT``
+        - Enables Fortran bridge for WDM6 microphysics (requires ``PRECISION=DOUBLE``)
+        - FALSE
+        - TRUE/FALSE
       * - ``USE_FFT``
         - Enables Fast Fourier Transform capabilities
         - FALSE
@@ -574,16 +582,24 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables RRTMGP radiation model (requires ``ERF_ENABLE_NETCDF=ON``, ``ERF_ENABLE_MPI=ON``)
      - OFF
      - ON/OFF
-      * - Native SHOC
-        - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
-        - Always built
-        - N/A
+   * - Native SHOC (no option)
+     - Builds the in-tree SHOC path and selects it at runtime with ``erf.pbl_type = NATIVE_SHOC``
+     - Always built
+     - N/A
    * - ``ERF_ENABLE_EAMXX_SHOC``
      - Enables optional EAMxx SHOC turbulence model (requires ``ERF_ENABLE_MPI=ON`` and EKAT/Kokkos/EAMxx dependencies)
      - OFF
      - ON/OFF
    * - ``ERF_ENABLE_P3``
      - Enables P3 microphysics model (requires ``ERF_ENABLE_MPI=ON``)
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_WSM6_FORT``
+     - Enables Fortran bridge for WSM6 microphysics (requires ``ERF_PRECISION=DOUBLE``)
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_WDM6_FORT``
+     - Enables Fortran bridge for WDM6 microphysics (requires ``ERF_PRECISION=DOUBLE``)
      - OFF
      - ON/OFF
    * - ``ERF_ENABLE_TESTS``

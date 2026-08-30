@@ -4,6 +4,7 @@
 #include <ERF_EOS.H>
 #include <ERF.H>
 #include <ERF_EpochTime.H>
+#include <ERF_PlotfileSelection.H>
 #include <AMReX_ParmParse.H>
 
 using namespace amrex;
@@ -43,36 +44,23 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
+    // NOTE: raw state names are selected with exactly the same predicate the 3D
+    //       plotfile uses, so the two output paths cannot drift.  It answers from
+    //       the allocated width for the dry components and for the non-water
+    //       species some schemes carry above the moist window, and from the
+    //       moisture map inside that window -- a "rhoQn" the model does not carry
+    //       would otherwise be read out of bounds when we ParallelCopy it below.
+    const MoistureComponentIndices& mi = solverChoice.moisture_indices;
+
+    erf_plotfile::Plot3DSelectionCapabilities capabilities;
+    erf_plotfile::plot3d_set_state_capabilities(capabilities,
+                                                mi,
+                                                micro->Get_Qstate_Moist_Size(),
+                                                micro->Get_Qstate_Size());
+
     for (int i = 0; i < cons_names.size(); ++i) {
         if ( containerHasElement(subvol_var_names, cons_names[i]) ) {
-            if (solverChoice.moisture_type == MoistureType::None) {
-                if (cons_names[i] != "rhoQ1" && cons_names[i] != "rhoQ2" && cons_names[i] != "rhoQ3" &&
-                    cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if (solverChoice.moisture_type == MoistureType::Kessler) { // allow rhoQ1, rhoQ2, rhoQ3
-                if (cons_names[i] != "rhoQ4" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
-                        (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                        (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow rhoQ1, rhoQ2
-                if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ4" &&
-                    cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else if ( (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                        (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow rhoQ1, rhoQ2, rhoQ4
-                if (cons_names[i] != "rhoQ3" && cons_names[i] != "rhoQ5" && cons_names[i] != "rhoQ6")
-                {
-                    tmp_plot_names.push_back(cons_names[i]);
-                }
-            } else
-            {
-                // For moisture_type SAM and Morrison we have all six variables
+            if ( erf_plotfile::plot3d_fixed_variable_available(cons_names[i], capabilities) ) {
                 tmp_plot_names.push_back(cons_names[i]);
             }
         }
@@ -93,50 +81,27 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
     //
-    for (int i = 0; i < derived_subvol_names.size(); ++i) {
-        if ( containerHasElement(subvol_var_names, derived_names[i]) ) {
-            bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing) ||
-                               (derived_names[i] != "terrain_IB_mask") );
-            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                               (derived_names[i] != "detJ") );
-            ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
-                               (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
-                               (derived_names[i] != "z_phys") );
-            if (ok_to_add)
+    // NOTE: we walk "derived_names" (not "derived_subvol_names") because the names must be
+    //       pushed in the order WriteSubvolume computes them, and that order is the
+    //       "derived_names" order.  "derived_subvol_names" is the unordered allow-list of
+    //       the derived quantities WriteSubvolume knows how to fill.
+    //
+    // NOTE: there are no terrain-dependent names to gate here -- "z_phys", "detJ" and
+    //       "terrain_IB_mask" are not in "derived_subvol_names", so WriteSubvolume
+    //       cannot fill them and they never reach this loop.
+    //
+    for (int i = 0; i < derived_names.size(); ++i) {
+        if ( containerHasElement(subvol_var_names,     derived_names[i]) &&
+             containerHasElement(derived_subvol_names, derived_names[i]) ) {
+            // NOTE: WriteSubvolume only computes "mucape" for a moist run, so it must not be
+            //       named for a dry one even though the kernel itself is dry-safe.  The
+            //       moisture map does not govern that name -- the 3D plotfile writes it for
+            //       dry runs too -- so it is gated here rather than in has_derived_var().
+            const bool ok_to_add = ( mi.has_moisture() || (derived_names[i] != "mucape") );
+            if (ok_to_add && mi.has_derived_var(derived_names[i]))
             {
-                if (solverChoice.moisture_type == MoistureType::None) { // no moist quantities allowed
-                    if (derived_names[i] != "qv" && derived_names[i] != "qc"    && derived_names[i] != "qrain"  &&
-                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qt" && derived_names[i] != "qn"    && derived_names[i] != "qp" &&
-                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else if ( (solverChoice.moisture_type == MoistureType::Kessler       ) ||
-                            (solverChoice.moisture_type == MoistureType::Morrison_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::SAM_NoIce     ) ) { // allow qv, qc, qrain
-                    if (derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else if ( (solverChoice.moisture_type == MoistureType::SatAdj) ||
-                            (solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) ||
-                            (solverChoice.moisture_type == MoistureType::Kessler_NoRain) ) { // allow qv, qc
-                    if (derived_names[i] != "qrain"  &&
-                        derived_names[i] != "qi" && derived_names[i] != "qsnow" && derived_names[i] != "qgraup" &&
-                        derived_names[i] != "qp" &&
-                        derived_names[i] != "rain_accum" && derived_names[i] != "snow_accum" && derived_names[i] != "graup_accum")
-                    {
-                        tmp_plot_names.push_back(derived_names[i]);
-                    }
-                } else
-                {
-                    // For moisture_type SAM and Morrison we have all moist quantities
-                    tmp_plot_names.push_back(derived_names[i]);
-                }
-            } // use_terrain?
+                tmp_plot_names.push_back(derived_names[i]);
+            }
         } // hasElement
     }
 
@@ -313,7 +278,11 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     //       defined in ERF.H
     // *****************************************************************************************
 
-    if (solverChoice.moisture_type != MoistureType::None) {
+    // NOTE: the moisture map is the authority on what moist data exists, the same
+    //       test setSubVolVariables used when it selected these names.
+    const MoistureComponentIndices& mi = solverChoice.moisture_indices;
+
+    if (mi.has_moisture()) {
         calculate_derived("temp",    vars_new[lev_for_sub][Vars::cons], derived::erf_dermoisttemp);
     } else {
         calculate_derived("temp",    vars_new[lev_for_sub][Vars::cons], derived::erf_dertemp);
@@ -322,7 +291,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
     calculate_derived("KE",          vars_new[lev_for_sub][Vars::cons], derived::erf_derKE);
     calculate_derived("scalar",      vars_new[lev_for_sub][Vars::cons], derived::erf_derscalar);
     calculate_derived("soundspeed",  vars_new[lev_for_sub][Vars::cons], derived::erf_dersoundspeed);
-    if (solverChoice.moisture_type != MoistureType::None) {
+    if (mi.has_moisture()) {
         calculate_derived("precipitable", vars_new[lev_for_sub][Vars::cons], derived::erf_derprecipitable);
         calculate_derived("mucape",      vars_new[lev_for_sub][Vars::cons], derived::erf_dermucape);
     }

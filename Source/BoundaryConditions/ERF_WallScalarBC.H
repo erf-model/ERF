@@ -167,18 +167,38 @@ parse_wall_face_scalars (amrex::ParmParse& pp,
                          SolidWallKind wall_kind,
                          bool anelastic)
 {
-    amrex::Real density = amrex::Real(0.0);
-    const bool density_specified = pp.query("density", density);
+    // The value-carrying keys are probed with negative sentinels and their presence is
+    // read off the resulting value, not off the queryAdd return value.  queryAdd inserts
+    // the default into the (process-global) ParmParse table on a miss, so its return
+    // value means "did this key exist before this call" -- true for every call after the
+    // first.  ERF::init_bcs() runs twice on restart, and ERF_InitBCs.cpp parses the same
+    // density/qv keys under the same face prefix, so a return-value test reports
+    // "user specified" with a value of zero on the second pass.  That is what produced
+    // the spurious NoSlipWall density_grad abort in #3922.
+    //
+    // density_grad and theta_grad deliberately keep plain query(): every real value is a
+    // legal gradient, including zero and negatives, so no sentinel can encode "unset".
+    amrex::Real density = amrex::Real(-1.0);
+    pp.queryAdd("density", density);
+    const bool density_specified = (density > amrex::Real(0.0));
+    if (!density_specified) { density = amrex::Real(0.0); }
+
     amrex::Real density_grad = amrex::Real(0.0);
     const bool density_gradient_specified = pp.query("density_grad", density_grad);
-    amrex::Real theta = amrex::Real(0.0);
-    const bool theta_specified = pp.query("theta", theta);
+
+    amrex::Real theta = amrex::Real(-1.0);
+    pp.queryAdd("theta", theta);
+    const bool theta_specified = (theta > amrex::Real(0.0));
+    if (!theta_specified) { theta = amrex::Real(0.0); }
+
     amrex::Real theta_grad = amrex::Real(0.0);
     const bool theta_gradient_specified = pp.query("theta_grad", theta_grad);
 
-    amrex::Real qv = amrex::Real(0.0);
+    amrex::Real qv = amrex::Real(-1.0);
+    if (wall_kind == SolidWallKind::NoSlip) { pp.queryAdd("qv", qv); }
     const bool qv_specified = (wall_kind == SolidWallKind::NoSlip) &&
-                              pp.query("qv", qv);
+                              (qv >= amrex::Real(0.0));
+    if (!qv_specified) { qv = amrex::Real(0.0); }
 
     WallFaceParseResult result;
     if (anelastic && (density_specified || density_gradient_specified)) {

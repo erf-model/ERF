@@ -23,17 +23,30 @@ SurfaceLayer::update_fluxes (const int& lev,
                              const std::unique_ptr<MultiFab>& walldist,
                              int max_iters)
 {
-    // Update with SST/TSK data if we have a valid pointer
-    if (!m_has_ocean_lsm_tsurf &&
-        !m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
+    // Update with SST/TSK data if we have a valid pointer.
+    //
+    // This runs even when an ocean coupler is active: it is the only writer of
+    // t_surf over land, and it is the fallback for the water cells the coupler
+    // does not cover. Coupled SST is applied below and only where the coupler
+    // actually supplied a value, so the lower-boundary data is the base layer
+    // rather than an alternative to it.
+    if (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]) {
         fill_tsurf_with_sst_and_tsk(lev, elapsed_time_since_start_low);
+    }
+    if (m_use_sfc_sst) {
+        // Set tsurf to time varying SST from sfc file
+        fill_tsurf_with_sfc_sst(lev, elapsed_time);
     }
 
     // Apply heating rate if needed
-    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE &&
-        !m_has_ocean_lsm_tsurf) {
+    if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
         update_surf_temp(elapsed_time_since_start_low);
     }
+
+    // Overwrite the covered water cells with coupled ocean SST. This must come
+    // after update_surf_temp, which is a whole-domain setVal, and before
+    // fill_qsurf_with_qsat, which derives sea-surface humidity from t_surf.
+    fill_tsurf_with_coupled_sst(lev);
 
     // Update qsurf with qsat over sea
     if (use_moisture) {
@@ -204,6 +217,29 @@ SurfaceLayer::update_fluxes (const int& lev,
     } // MOENG -- SEA
 
     if (flux_type == FluxCalcType::CUSTOM || flux_type == FluxCalcType::RICO) {
+        if (m_use_sfc_fluxes) {
+            // update custom surface fluxes interpolated from file
+            update_sfc_time_index(elapsed_time);
+            sfc_tflux = interpolate_sfc_column(elapsed_time, 2);
+            sfc_qflux = interpolate_sfc_column(elapsed_time, 3);
+            sfc_ustar = interpolate_sfc_column(elapsed_time, 4);
+
+            amrex::Print() << " ABLMOST: Interpolating SHF and LHF at time "
+                        << elapsed_time
+                        << ": SHF = " << sfc_tflux
+                        << " (W/m^2) LHF = " << sfc_qflux
+                        << " (W/m^2) TAU = " << sfc_ustar
+                        << " (m^2/s^2)" << std::endl;
+
+            // overwrite the custom_ustar/tstar/qstar values with the new values and
+            // use the existing pathway to set u*,t*,q* with or without a custom_rhosurf
+            // note - when m_use_sfc_fluxes=true, custom_flux has specified_rho_surf=true,
+            // so there is no rho factor here
+            custom_ustar = std::sqrt(sfc_ustar); // convert tau from file to u*
+            custom_tstar = sfc_tflux / Cp_d;
+            custom_qstar = sfc_qflux / L_v;
+        }
+
         if (custom_rhosurf > 0) {
             specified_rho_surf = true;
             u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
@@ -265,6 +301,47 @@ SurfaceLayer::update_fluxes (const int& lev,
     t_star[lev]->FillBoundary(m_geom[lev].periodicity());
     q_star[lev]->FillBoundary(m_geom[lev].periodicity());
       olen[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
+void
+SurfaceLayer::update_sfc_time_index (const Real& elapsed_time)
+{
+    if (sfc.empty() || sfc[0].size() < 2) { return; }
+
+    Real t1 = sfc[0][sfc_time_ind+1];
+    while (elapsed_time >= t1)
+    {
+        int prev_index = sfc_time_ind;
+        sfc_time_ind = std::min(sfc_time_ind + 1, int(sfc[0].size() - 2));
+        t1 = sfc[0][sfc_time_ind+1];
+        if (prev_index == sfc_time_ind) {
+            break;
+        }
+    }
+}
+
+Real
+SurfaceLayer::interpolate_sfc_column (const Real& elapsed_time,
+                                      int col) const
+{
+    if (sfc.empty() || sfc[0].empty()) { return zero; }
+    if (sfc[0].size() == 1) { return sfc[col][0]; }
+
+    const Real t0 = sfc[0][sfc_time_ind];
+    const Real t1 = sfc[0][sfc_time_ind+1];
+    const Real x0 = sfc[col][sfc_time_ind];
+    const Real x1 = sfc[col][sfc_time_ind+1];
+
+    if (elapsed_time < t0) {
+        return x0;
+    }
+
+    if (t0 == t1 || elapsed_time > t1) {
+        return x1;
+    }
+
+    const Real dt = (elapsed_time - t0) / (t1 - t0);
+    return x0 + (x1 - x0) * dt;
 }
 
 /**
@@ -442,7 +519,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        custom_flux flux_comp(specified_rho_surf);
+        const bool fluxes_include_rho = specified_rho_surf || m_use_sfc_fluxes;
+        custom_flux flux_comp(fluxes_include_rho);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1220,6 +1298,36 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
     t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 }
 
+void
+SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
+                                       const double& elapsed_time)
+{
+    update_sfc_time_index(elapsed_time);
+    const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
+            if (!is_land) {
+                t_surf_arr(i,j,k) = sfc_sst;
+            }
+        });
+    }
+
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+}
+
 /**
  * Fill sea-surface moisture with saturation specific humidity.
  *
@@ -1279,8 +1387,6 @@ void
 SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const bool has_sea_tsurf = (m_has_ocean_lsm_tsurf &&
-                                amrex::toLower(m_lsm_data_name[m_lsm_tsurf_indx]) == "t_surf");
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -1303,12 +1409,76 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-            if ((!has_sea_tsurf && is_land) ||
-                (has_sea_tsurf && !is_land)) {
+            if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
             }
+        });
+    }
+}
+
+/**
+ * Overwrite surface temperature with coupled ocean SST where covered.
+ *
+ * @param[in] lev Current level
+ */
+void
+SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
+{
+    // No coupler has handed us anything yet. Whatever fill_tsurf_with_sst_and_tsk
+    // wrote stands, which is the correct answer for one-way and uncoupled runs.
+    if (m_coupled_sst_lev.empty() || !m_coupled_sst_lev[lev]) { return; }
+
+    // The loop below iterates t_surf and indexes the coupled arrays with the
+    // same MFIter, so the layouts must agree. They do for planar terrain, where
+    // t_surf is grids[lev] flattened with setRange(2,0) -- the same construction
+    // GetOceanToAtmosSurfaceLayout reports. Under EB terrain t_surf keeps the
+    // full 3D BoxArray and they would not, so fail loudly rather than read the
+    // wrong fab.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_coupled_sst_lev[lev]->boxArray()       == t_surf[lev]->boxArray() &&
+        m_coupled_sst_lev[lev]->DistributionMap() == t_surf[lev]->DistributionMap(),
+        "Coupled SST layout does not match the surface-layer layout.");
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // Absent coverage information we must assume nothing is covered: silently
+    // treating the whole field as valid is how an uncovered cell ends up holding
+    // the remap's zero fill.
+    const bool has_valid = (m_coupled_sst_valid_lev[lev] != nullptr);
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        if (gtbx.smallEnd(2) != klo) { continue; }
+
+        // NOTE: the coupled lane does not carry lateral ghost cells, so clamp
+        //       into the valid box exactly as get_lsm_tsurf does. FillBoundary
+        //       in update_fluxes picks up the interior and periodic directions.
+        Box vbx  = mfi.validbox();
+        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto coupled_sst_arr = m_coupled_sst_lev[lev]->const_array(mfi);
+        auto const& valid_arr = has_valid ? m_coupled_sst_valid_lev[lev]->const_array(mfi)
+                                          : Array4<const int>{};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (is_land) { return; }
+
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+
+            if (has_valid && valid_arr(li,lj,k) == 0) { return; }
+
+            t_surf_arr(i,j,k) = coupled_sst_arr(li,lj,k);
         });
     }
 }
@@ -1560,4 +1730,73 @@ SurfaceLayer::read_custom_roughness (const int& lev,
                        m_geom[lev].Domain(),ratio,
                        bcr, 0);
     }
+}
+
+/**
+ * Reads columns of data from a text file, returning each column in a vector.
+ *
+ * @param[in] fname       path to text file
+ * @param[in] skip_nlines number of lines to skip before reading data (e.g, header lines)
+ * @return Vector containing each column in the file as a vector
+ */
+amrex::Vector<amrex::Vector<amrex::Real>>
+SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+{
+    std::ifstream ifs(fname);
+    if (!ifs.is_open())
+    {
+        amrex::Error("Error opening input file " + fname);
+    }
+
+    amrex::Vector<amrex::Vector<amrex::Real>> col_data;
+    std::string line;
+    int nlines = 0;
+    int ncols = -1;
+
+    const auto print_err = [](const std::string &err_fname, int lineno, int cols, int expected_cols) {
+        amrex::Error("Error reading file '" + err_fname + "': expected line " +
+                     std::to_string(lineno) + " to have " + std::to_string(expected_cols) +
+                     " columns, but got " + std::to_string(cols));
+    };
+
+    while (std::getline(ifs, line))
+    {
+        nlines++;
+        if (nlines <= skip_nlines) continue;
+        if (line.empty()) continue;
+
+        std::istringstream iss(line);
+
+        amrex::Real tmp;
+        // Get the number of columns in the file
+        if (ncols == -1) {
+            int j = 0;
+            while (iss >> tmp) {
+                col_data.push_back(amrex::Vector<amrex::Real>());
+                j+= 1;
+            }
+
+            ncols = j;
+            iss = std::istringstream(line);
+        }
+
+        int j = 0;
+        while (iss >> tmp) {
+            // verify each line has the same number of columns
+            if (j >= ncols) {
+                print_err(fname, nlines, j+1, ncols);
+            }
+            col_data[j].push_back(tmp);
+            j+= 1;
+        }
+
+        // throw error if there are fewer columns in the line than expected
+        if (j != ncols) {
+            print_err(fname, nlines, j, ncols);
+        }
+    }
+
+    ifs.close();
+
+    return col_data;
 }

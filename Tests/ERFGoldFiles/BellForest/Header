@@ -1,0 +1,35 @@
+HyperCLaw-V1.1
+7
+density
+x_velocity
+y_velocity
+z_velocity
+theta
+pressure
+z_phys
+3
+0.10000000000000001
+0
+0 0 0 
+2000 2000 1000 
+
+((0,0,0) (15,15,15) (0,0,0)) 
+1 
+125 125 62.5 
+0
+0
+0 2 0.10000000000000001
+1
+0 2000
+0 1000
+0 1000
+0 2000
+1000 2000
+0 1000
+Level_0/Cell
+1
+3
+amrexvec_nu_x
+amrexvec_nu_y
+amrexvec_nu_z
+Level_0/Nu_nd

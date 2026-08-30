@@ -63,6 +63,8 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/PBLschemes.rst
    theory/Forcings.rst
    Particles.rst
+   SuperDroplets.rst
+   ProblemInputs.rst
    theory/Forest.rst
    theory/HindCast.rst
    theory/UnitsAndConstants.rst

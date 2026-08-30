@@ -153,9 +153,9 @@ int main (int argc, char* argv[])
         tmp_erf.PerformDataAssimilation(da_iter);
     }
 
-        BL_PROFILE_VAR_STOP(pmain);
+    BL_PROFILE_VAR_STOP(pmain);
 
-        amrex::Finalize();
+    amrex::Finalize();
 
 #ifdef AMREX_USE_MPI
     MPI_Finalize();

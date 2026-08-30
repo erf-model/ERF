@@ -70,10 +70,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     //     which one is the parent of the fine region we are trying to create
                     AMREX_ALWAYS_ASSERT(subdomains[levc].size() == 1);
 
-                    if ((solverChoice.init_type == InitType::WRFInput) && ((ref_ratio[levc][2]) != 1)) {
-                        amrex::Abort("The ref_ratio specified in the inputs file must have 1 in the z direction; please use ref_ratio_vect rather than ref_ratio");
-                    }
-
                     if ( levf_start_time <= (levc_start_time + t_new[levc]) ) {
                         if (solverChoice.init_type == InitType::WRFInput) {
                             amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
@@ -91,10 +87,27 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
                             amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
                             amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
-                            amrex::Abort("These must be the same -- please edit your inputs file and try again.");
+                            amrex::Abort("These must be the same in the horizontal -- please edit your inputs file and try again.");
                         }
 
-                        subdomain.coarsen(ref_ratio[levc]);
+                        if (solverChoice.init_type == InitType::WRFInput) {
+                            //
+                            // A WRF nest is refined in the horizontal only: wrfinput_d02 carries
+                            // exactly the eta levels of wrfinput_d01.  The z extent just read is
+                            // therefore already in the PARENT's vertical index space, so only the
+                            // horizontal directions are coarsened here; any vertical refinement is
+                            // applied when the box is refined below.  Clip that extent to the
+                            // parent's domain in case the file carries more layers than this run
+                            // was given cells in z.
+                            //
+                            subdomain.setSmall(2, amrex::max(subdomain.smallEnd(2),
+                                                             geom[levc].Domain().smallEnd(2)));
+                            subdomain.setBig  (2, amrex::min(subdomain.bigEnd(2),
+                                                             geom[levc].Domain().bigEnd(2)));
+                            subdomain.coarsen(IntVect(ref_ratio[levc][0],ref_ratio[levc][1],1));
+                        } else {
+                            subdomain.coarsen(ref_ratio[levc]);
+                        }
 
                         // Recall we asserted that there is only one box at level levc
                         Box coarser_level(subdomains[levc][0].minimalBox());
@@ -106,7 +119,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 
                         Box new_fine(subdomain);
                         if (solverChoice.init_type == InitType::WRFInput) {
-                            new_fine.refine(IntVect(ratio,ratio,1));
+                            // The horizontal ratio comes from the file (and was just checked
+                            // against the inputs file); the vertical one is whatever the inputs
+                            // file asked for, since the file itself has nothing to say about it.
+                            new_fine.refine(IntVect(ratio,ratio,ref_ratio[levc][2]));
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             new_fine.refine(ref_ratio[levc]);
                         }
@@ -299,8 +315,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             }
         } else if (ref_tags[t].Field() == "max_reflectivity")
         {
-            if (solverChoice.moisture_type == MoistureType::Morrison ||
-                solverChoice.moisture_type == MoistureType::SAM) {
+            // NOTE: this tests the data layout the reflectivity kernel assumes rather
+            //       than enumerating moisture models, so it picks up any scheme that
+            //       carries rain/snow/graupel in RhoQ4/RhoQ5/RhoQ6
+            if (solverChoice.moisture_indices.has_reflectivity_species()) {
                 // NOTE: this takes a max over the column so we must not tile in z
                 for (MFIter mfi(*mf, TileNoZ()); mfi.isValid(); ++mfi)
                 {
@@ -312,7 +330,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dermaxreflectivity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
                 }
             } else {
-                Abort("Max reflectivity is only available with Morrison and SAM microphysics.");
+                Abort("Max reflectivity requires a microphysics model carrying rain, snow and graupel.");
             }
         // This allows dynamic refinement based on the terrain blanking
         } else if ( (SolverChoice::terrain_type == TerrainType::ImmersedForcing) &&
@@ -448,7 +466,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             ParmParse ppr(ref_prefix);
 
             double ref_start_time = -1.0;
-            ppr.query("start_time",ref_start_time);
+            ppr.queryAdd("start_time",ref_start_time);
 
             if (time >= ref_start_time) {
 

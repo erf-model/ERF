@@ -2,6 +2,8 @@
  * \file ERF_Diagnostics.cpp
  */
 
+#include <limits>
+
 #include "ERF.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_Utils.H"
@@ -97,14 +99,29 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
             });
         }
     }
+    // This compares two pressures, so the tolerance has to be scaled to the
+    // pressure rather than fixed in Pa.  The base state is O(1e5) Pa, where one
+    // single-precision ulp is already ~1e-2 Pa, so the absolute 1e-8 Pa bound
+    // used here previously could never be met in single precision even for a
+    // perfectly consistent base state.  The double-precision coefficient below
+    // reproduces that 1e-8 bound at 1e5 Pa, so the check is unchanged there.
+#ifdef AMREX_USE_FLOAT
+    const Real eos_rel_tol = Real(1.e-5);
+#else
+    const Real eos_rel_tol = Real(1.e-13);
+#endif
+    const Real p_hse_max = p_hse.max(0);
+    const Real eos_tol = eos_rel_tol * p_hse_max;
+
     Real max_diff = dp.max(0);
-    if (max_diff > 1.e-8) {
+    if (max_diff > eos_tol) {
         IntVect max_loc = dp.maxIndex(0);
         Print() << "Max value of |p_hse - p_eos| is " << max_diff << std::endl;
         Print() << " with max in cell " << max_loc << std::endl;
         Abort("Base state violates EOS ");
     } else {
-        Print() << "Max value of |p_hse - p_eos| is less than 1e-8" << std::endl;
+        Print() << "Max value of |p_hse - p_eos| is " << max_diff
+                << ", less than the tolerance " << eos_tol << std::endl;
     }
 
     // *******************************************************************************
@@ -173,16 +190,24 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         }
     }
 
-    Real tol;
-#ifdef AMREX_USE_FLOAT
-    tol = Real(1.e-4);
-#else
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        tol = 1.e-4;
-    } else {
-        tol = 1.e-8;
-    }
-#endif
+    // The residual tested below, dp0/dz + rho0*|g|, is a cancellation between two
+    // terms of size rho0*|g|.  The smallest value it can take is therefore set by
+    // the roundoff in p0 spread over one vertical cell, eps*|p0|/dz.  That floor
+    // is grid dependent -- in single precision it is ~1e-4 Pa/m at dz = 100 m but
+    // ~3e-4 Pa/m at dz = 40 m -- so no fixed tolerance can work across the range
+    // of meshes the tests cover.  Use the larger of the historical fixed value and
+    // that floor.  In double the floor is O(1e-12), so the fixed value always wins
+    // and this check keeps exactly its previous behavior.
+    const Real tol_fixed = (solverChoice.terrain_type == TerrainType::EB) ? Real(1.e-4)
+                                                                         : Real(1.e-8);
+
+    const Real dz_for_tol = (lev < static_cast<int>(dz_min.size()) && dz_min[lev] > Real(0))
+                          ? dz_min[lev] : geom[lev].CellSize(2);
+
+    const Real tol_roundoff = Real(16) * std::numeric_limits<Real>::epsilon()
+                            * p_hse_max / dz_for_tol;
+
+    const Real tol = std::max(tol_fixed, tol_roundoff);
 
     Real min_gpz = gradp_temp[2].min(zface_domain,comp);
     Real max_gpz = gradp_temp[2].max(zface_domain,comp);
@@ -281,7 +306,6 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Print() << "Min/max value of moist dp/dz + rho_m*|g|             are " << min_gpz << " " << max_gpz;
                 if (min_loc[2] != klo && min_loc[2] != khi) amrex::Print() << " with min at face " << min_loc;
                 if (max_loc[2] != klo && max_loc[2] != khi) amrex::Print() << " with max at face " << max_loc;
-                Print() << std::endl;
             } else {
                 Print() << "Min/max value of moist dp/dz + rho_m*|g|  are zero " << std::endl;
             }
@@ -306,19 +330,19 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     // Compute the gradient of the perturbational pressure exactly as the dycore does
     // *******************************************************************************
 
-    Vector<MultiFab> gradp;  gradp.resize(AMREX_SPACEDIM);
-    gradp[GpVars::gpx].define(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpx].setVal(0.);
-    gradp[GpVars::gpy].define(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpy].setVal(0.);
-    gradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
-    gradp[GpVars::gpz].setVal(0.);
+    Vector<MultiFab> lgradp;  lgradp.resize(AMREX_SPACEDIM);
+    lgradp[GpVars::gpx].define(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpx].setVal(0.);
+    lgradp[GpVars::gpy].define(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpy].setVal(0.);
+    lgradp[GpVars::gpz].define(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, 0);
+    lgradp[GpVars::gpz].setVal(0.);
 
     MultiFab p0(base_state[lev], make_alias, BaseState::p0_comp, 1);
 
     make_gradp_pert(lev, solverChoice, geom[lev], lev_new, p0,
                     *z_phys_nd[lev].get(), *z_phys_cc[lev].get(), mapfac[lev],
-                    get_eb(lev), gradp);
+                    get_eb(lev), lgradp);
 
     // *******************************************************************************
     // Compute the buoyancy term exactly as the dycore does
@@ -339,7 +363,7 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     cons_to_prim(lev_new[Vars::cons], S_prim, 1);
 
     // Initialize to zero because buoyancy is not defined on the faces at the top and bottom of the domain
-    MultiFab buoyancy(gradp[GpVars::gpz].boxArray(), gradp[GpVars::gpz].DistributionMap(), 1, 0);
+    MultiFab buoyancy(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
     buoyancy.setVal(0.);
 
     make_buoyancy(lev, lev_new, S_prim, qt, buoyancy, geom[lev], solverChoice, base_state[lev],
@@ -352,11 +376,11 @@ ERF::compute_max_buoyancy_gradp_diagnostic (int lev)
     //      (i.e. buoyancy_type = 1) then this is identically zero
     // *******************************************************************************
 
-    MultiFab combined(gradp[GpVars::gpz].boxArray(), gradp[GpVars::gpz].DistributionMap(), 1, 0);
+    MultiFab combined(lgradp[GpVars::gpz].boxArray(), lgradp[GpVars::gpz].DistributionMap(), 1, 0);
     combined.setVal(0.);
 
     MultiFab::Copy    (combined, buoyancy          , 0, 0, 1, 0);
-    MultiFab::Subtract(combined, gradp[GpVars::gpz], 0, 0, 1, 0);
+    MultiFab::Subtract(combined, lgradp[GpVars::gpz], 0, 0, 1, 0);
 
     // Don't include the top and bottom faces of the domain, where neither term is defined
     Box zface_domain = surroundingNodes(geom[lev].Domain(), 2);
