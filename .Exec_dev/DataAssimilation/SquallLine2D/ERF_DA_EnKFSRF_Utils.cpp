@@ -616,6 +616,33 @@ update_ensemble (const int Nens,
     compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
 }
 
+void
+ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
+{
+    // --------------------------------------------------------
+    // Set up member-specific output directories
+    // --------------------------------------------------------
+    std::string member_dir;
+
+    std::stringstream ss;
+    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
+    member_dir = ss.str();
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        fs::create_directories(member_dir + "/plotfiles");
+        fs::create_directories(member_dir + "/chkfiles");
+        fs::create_directories(member_dir + "/pertfiles");
+    }
+
+    ParallelDescriptor::Barrier();
+
+    // Only change the basename/prefix.
+    // ERF will handle the step numbering as before.
+    check_file = member_dir + "/chkfiles/chk";
+    plot3d_file_1  = member_dir + "/plotfiles/plt";
+}
+
 // da_iter : DA iteration number
 // ens_no  : Ensemble number
 
@@ -656,7 +683,7 @@ ERF::GetEnsembleCheckpointName (int da_iter, int ens_no)
     chk_name << da_dir
              << "/chk_"
              << std::setw(2) << std::setfill('0') << ens_no
-             << "_";
+             << "_" <<  "00000";
 
     restart_chkfile = chk_name.str();
 }
