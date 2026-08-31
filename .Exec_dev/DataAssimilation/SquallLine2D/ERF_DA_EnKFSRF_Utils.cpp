@@ -86,7 +86,7 @@ std::vector<std::string>
 get_plotfile_list(const int da_iter)
 {
     const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
-    
+
     std::vector<std::string> pltfiles;
     const std::string member_prefix = da_dir + "member_";
 
@@ -160,13 +160,13 @@ read_plot_file(PlotFileData& pf,
 }
 
 MultiFab
-read_member_multifab(const int da_iter, 
+read_member_multifab(const int da_iter,
                      const int n,
                      const std::string& pf_name,
                      const Vector<std::string>& varnames)
 {
-    
-    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";    
+
+    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
 
     const std::string member_prefix = da_dir + "member_";
     std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
@@ -186,7 +186,7 @@ read_member_multifab(const int da_iter,
 }
 
 MultiFab
-compute_ensemble_mean(const int da_iter, 
+compute_ensemble_mean(const int da_iter,
                       const int Nens,
                       const std::string& pf_name,
                       const Vector<std::string>& varnames)
@@ -388,7 +388,7 @@ compute_yf_prime (const int da_iter,
 }
 
 void
-compute_S_matrix(const int da_iter, 
+compute_S_matrix(const int da_iter,
                  Matrix& S,
                  const int& Nens,
                  const MultiFab& mean_H_xf,
@@ -468,7 +468,7 @@ compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
 }
 
 void
-compute_r_vec (const int da_iter, 
+compute_r_vec (const int da_iter,
                int Nens,
                const std::string& last_pf_name,
                const Vector<std::string>& varnames,
@@ -520,7 +520,7 @@ compute_alpha_vec (const int& Nens,
 // column-vector element multiply
 
 void
-compute_Xf_prime_times_vector (const int da_iter, 
+compute_Xf_prime_times_vector (const int da_iter,
                                const int Nens,
                                const std::string& last_pf_name,
                                const Vector<std::string>& varnames,
@@ -532,7 +532,7 @@ compute_Xf_prime_times_vector (const int da_iter,
 
     // Read first member to define result
     MultiFab xf_0 =
-        read_member_multifab(da_iter, 
+        read_member_multifab(da_iter,
                              0,
                              last_pf_name,
                              varnames);
@@ -613,7 +613,7 @@ compute_T_matrix (const Matrix& S_mat,
 
 
 void
-update_ensemble (const int da_iter, 
+update_ensemble (const int da_iter,
                  const int Nens,
                  const std::string& last_pf_name,
                  const Vector<std::string>& varnames,
@@ -630,7 +630,7 @@ update_ensemble (const int da_iter,
 }
 
 void
-ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int da_iter, 
+ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int da_iter,
                                              const int ens_no)
 {
     // --------------------------------------------------------

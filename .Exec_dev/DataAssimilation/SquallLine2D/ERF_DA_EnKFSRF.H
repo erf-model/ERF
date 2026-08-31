@@ -129,13 +129,13 @@ read_plot_file(amrex::PlotFileData& pf,
                amrex::MultiFab& mf);
 
 amrex::MultiFab
-read_member_multifab(const int da_iter, 
+read_member_multifab(const int da_iter,
                      const int n,
                      const std::string& pf_name,
                      const amrex::Vector<std::string>& varnames);
 
 amrex::MultiFab
-compute_ensemble_mean(const int da_iter, 
+compute_ensemble_mean(const int da_iter,
                       const int Nens,
                       const std::string& pf_name,
                       const amrex::Vector<std::string>& varnames);
@@ -164,7 +164,7 @@ void compute_mean_H_xf(const int da_iter,
                        const std::string& last_pf_name,
                        const amrex::Vector<std::string>& varnames);
 
-void compute_r_vec (const int da_iter, 
+void compute_r_vec (const int da_iter,
                     int Nens,
                     const std::string& last_pf_name,
                     const amrex::Vector<std::string>& varnames,
@@ -185,7 +185,7 @@ void compute_Xf_prime_times_vector (const int da_iter,
                                     const amrex::Vector<amrex::Real>& vec_in,
                                     amrex::MultiFab& result);
 
-void update_ensemble (const int da_iter, 
+void update_ensemble (const int da_iter,
                       const int Nens,
                       const std::string& last_pf_name,
                       const amrex::Vector<std::string>& varnames,
@@ -206,7 +206,7 @@ Matrix matrix_multiply(const Matrix& A, const Matrix& B);
 void matrix_print(const Matrix& A);
 void lapack_testing();
 
-void compute_S_matrix(const int da_iter, 
+void compute_S_matrix(const int da_iter,
                       Matrix& S,
                       const int& Nens,
                       const amrex::MultiFab& mean_H_xf,
