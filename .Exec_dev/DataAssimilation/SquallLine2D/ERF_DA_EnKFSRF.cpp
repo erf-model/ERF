@@ -140,10 +140,10 @@ WriteUpdatedEnsembleToERFClassData (const MultiFab& mf_cc_fine,
 }
 
 void
-ERF::ComputeAndWriteEnsemblePerturbations()
+ERF::ComputeAndWriteEnsemblePerturbations(const int da_iter)
 {
 
-    auto pltfiles = get_plotfile_list();
+    auto pltfiles = get_plotfile_list(da_iter);
 
     // Step 2: loop over all plotfiles (timestamps at which the plotfiles are written)
     // ie.find the ensemble mean at iteration 100, loop over the plt00100 file in each of the
@@ -153,13 +153,13 @@ ERF::ComputeAndWriteEnsemblePerturbations()
     const std::string member_prefix = "member_";
     for (const auto& pf_name : pltfiles)
     {
-        MultiFab mf_mean = compute_ensemble_mean(Nens, pf_name, varnames);
+        MultiFab mf_mean = compute_ensemble_mean(da_iter, Nens, pf_name, varnames);
         // -------------------------------
         // Step 3 & 4: Compute perturbations and write plotfiles
         // -------------------------------
         for (int n = 0; n < Nens; ++n)
         {
-            MultiFab mf_pert = read_member_multifab(n, pf_name, varnames);
+            MultiFab mf_pert = read_member_multifab(da_iter, n, pf_name, varnames);
             MultiFab::Subtract(mf_pert, mf_mean, 0, 0, mf_mean.nComp(), mf_mean.nGrow());
 
             // Create output directory
@@ -187,7 +187,7 @@ ERF::PerformDataAssimilation(int da_iter)
 {
     //lapack_testing();
 
-    auto pltfiles = get_plotfile_list();
+    auto pltfiles = get_plotfile_list(da_iter);
     std::string last_pf_name;
     if (!pltfiles.empty()) {
         last_pf_name = pltfiles.back();
@@ -205,7 +205,7 @@ ERF::PerformDataAssimilation(int da_iter)
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
 
     // Compute the ensemble mean
-    MultiFab xf_bar = compute_ensemble_mean(Nens, last_pf_name, varnames);
+    MultiFab xf_bar = compute_ensemble_mean(da_iter, Nens, last_pf_name, varnames);
 
     Print() << "Computing ensemble mean complete" << std::endl;
 
@@ -220,7 +220,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute the mean of forecast observations yf_bar = Hx_f
     MultiFab mean_H_xf;
-    compute_mean_H_xf(mean_H_xf, Nens, last_pf_name, varnames);
+    compute_mean_H_xf(da_iter, mean_H_xf, Nens, last_pf_name, varnames);
 
     Print() << "compute_mean_H_xf complete" << std::endl;
 
@@ -279,13 +279,13 @@ ERF::PerformDataAssimilation(int da_iter)
 
     // Compute r = Y'^Td'
     Vector<Real> r_vec;
-    compute_r_vec(Nens, last_pf_name, varnames, mean_H_xf, d_prime_vec, r_vec);
+    compute_r_vec(da_iter, Nens, last_pf_name, varnames, mean_H_xf, d_prime_vec, r_vec);
 
     Print() << "compute_r_vec complete" << std::endl;
 
     // Compute the S matrix
     Matrix S_mat(Nens);
-    compute_S_matrix(S_mat, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
+    compute_S_matrix(da_iter, S_mat, Nens, mean_H_xf, R_diag, last_pf_name, varnames);
 
     Print() << "compute_S_matrix complete" << std::endl;
 
@@ -295,7 +295,7 @@ ERF::PerformDataAssimilation(int da_iter)
     Print() << "compute_alpha_vec complete" << std::endl;
 
     MultiFab Xf_prime_alpha;
-    compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, alpha_vec, Xf_prime_alpha);
+    compute_Xf_prime_times_vector(da_iter, Nens, last_pf_name, varnames, xf_bar, alpha_vec, Xf_prime_alpha);
 
     Print() << "compute_Xf_prime_times_vector complete" << std::endl;
 
@@ -332,7 +332,7 @@ ERF::PerformDataAssimilation(int da_iter)
     for(int n=0; n< Nens; n++) {
         Print() << "Updating for ensemble " << n << std::endl;
         MultiFab mf_ens_pert;
-        update_ensemble(Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert);
+        update_ensemble(da_iter, Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert);
 
         // Update the ensemble
         MultiFab mf_ens_updated;

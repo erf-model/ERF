@@ -158,7 +158,7 @@ int main (int argc, char* argv[])
 
         ERF tmp_erf;
         // This is only a post-processing step for visualization
-        //tmp_erf.ComputeAndWriteEnsemblePerturbations();
+        //tmp_erf.ComputeAndWriteEnsemblePerturbations(da_iter);
 
         // After all ensemble runs are complete, perform data assimilation
         tmp_erf.PerformDataAssimilation(da_iter);

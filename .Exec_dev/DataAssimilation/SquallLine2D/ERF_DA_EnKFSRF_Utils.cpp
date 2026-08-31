@@ -82,12 +82,13 @@ lapack_testing()
     }
 }
 
-
 std::vector<std::string>
-get_plotfile_list()
+get_plotfile_list(const int da_iter)
 {
+    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
+    
     std::vector<std::string> pltfiles;
-    const std::string member_prefix = "member_";
+    const std::string member_prefix = da_dir + "member_";
 
     std::string pf_dir = member_prefix + "00/plotfiles";
 
@@ -159,11 +160,15 @@ read_plot_file(PlotFileData& pf,
 }
 
 MultiFab
-read_member_multifab(int n,
+read_member_multifab(const int da_iter, 
+                     const int n,
                      const std::string& pf_name,
                      const Vector<std::string>& varnames)
 {
-    const std::string member_prefix = "member_";
+    
+    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";    
+
+    const std::string member_prefix = da_dir + "member_";
     std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
     std::string pf_path = member_dir + "/plotfiles/" + pf_name;
 
@@ -181,7 +186,8 @@ read_member_multifab(int n,
 }
 
 MultiFab
-compute_ensemble_mean(int Nens,
+compute_ensemble_mean(const int da_iter, 
+                      const int Nens,
                       const std::string& pf_name,
                       const Vector<std::string>& varnames)
 {
@@ -191,7 +197,7 @@ compute_ensemble_mean(int Nens,
     for (int n = 0; n < Nens; ++n)
     {
         std::cout << "Reading ensembles for compute_ensemble_mean = " << n << std::endl;
-        MultiFab mf_tmp = read_member_multifab(n, pf_name, varnames);
+        MultiFab mf_tmp = read_member_multifab(da_iter, n, pf_name, varnames);
 
         if (!initialized) {
             mf_mean.define(mf_tmp.boxArray(),
@@ -270,7 +276,8 @@ compute_d_prime_vec(MultiFab& d_prime_vec,
 }
 
 void
-compute_mean_H_xf(MultiFab& mean_H_xf,
+compute_mean_H_xf(const int da_iter,
+                  MultiFab& mean_H_xf,
                   const int Nens,
                   const std::string& last_pf_name,
                   const Vector<std::string>& varnames)
@@ -278,7 +285,7 @@ compute_mean_H_xf(MultiFab& mean_H_xf,
 
     for (int n = 0; n < Nens; ++n)
     {
-        MultiFab xf_i = read_member_multifab(n, last_pf_name, varnames);
+        MultiFab xf_i = read_member_multifab(da_iter, n, last_pf_name, varnames);
         if (n==0) {
             mean_H_xf.define(xf_i.boxArray(),
                              xf_i.DistributionMap(),
@@ -346,14 +353,15 @@ Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
 }
 
 void
-compute_yf_prime (int i,
-                const std::string& last_pf_name,
-                const Vector<std::string>& varnames,
-                const MultiFab& mean_H_xf,
-                MultiFab& yf_prime_i)
+compute_yf_prime (const int da_iter,
+                  const int i,
+                  const std::string& last_pf_name,
+                  const Vector<std::string>& varnames,
+                  const MultiFab& mean_H_xf,
+                  MultiFab& yf_prime_i)
 {
     // Read ensemble member
-    MultiFab xf_i = read_member_multifab(i, last_pf_name, varnames);
+    MultiFab xf_i = read_member_multifab(da_iter, i, last_pf_name, varnames);
 
     // Apply observation operator
     MultiFab H_xf_i;
@@ -380,7 +388,8 @@ compute_yf_prime (int i,
 }
 
 void
-compute_S_matrix(Matrix& S,
+compute_S_matrix(const int da_iter, 
+                 Matrix& S,
                  const int& Nens,
                  const MultiFab& mean_H_xf,
                  const Vector<Real>& R_diag,
@@ -389,11 +398,11 @@ compute_S_matrix(Matrix& S,
 {
     for (int i = 0; i < Nens; ++i) {
         MultiFab yf_prime_i;
-        compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
+        compute_yf_prime(da_iter, i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
 
         for (int j = 0; j < Nens; ++j) {
             MultiFab yf_prime_j;
-            compute_yf_prime(j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
+            compute_yf_prime(da_iter, j, last_pf_name, varnames, mean_H_xf, yf_prime_j);
             Real val = Compute_yf_prime_i_T_Rinv_yf_prime_j(yf_prime_i, yf_prime_j, R_diag);
             S(i,j) = val/(Nens-1);
             if(i==j) {
@@ -459,7 +468,8 @@ compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
 }
 
 void
-compute_r_vec (int Nens,
+compute_r_vec (const int da_iter, 
+               int Nens,
                const std::string& last_pf_name,
                const Vector<std::string>& varnames,
                const MultiFab& mean_H_xf,
@@ -472,7 +482,7 @@ compute_r_vec (int Nens,
     {
         MultiFab yf_prime_i;
 
-        compute_yf_prime(i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
+        compute_yf_prime(da_iter, i, last_pf_name, varnames, mean_H_xf, yf_prime_i);
 
         r_vec[i] = compute_yf_prime_T_d_prime_vec(yf_prime_i, d_prime_vec);
     }
@@ -510,18 +520,20 @@ compute_alpha_vec (const int& Nens,
 // column-vector element multiply
 
 void
-compute_Xf_prime_times_vector (const int Nens,
-                            const std::string& last_pf_name,
-                            const Vector<std::string>& varnames,
-                            const MultiFab& xf_bar,
-                            const Vector<Real>& vec_in,
-                            MultiFab& result)
+compute_Xf_prime_times_vector (const int da_iter, 
+                               const int Nens,
+                               const std::string& last_pf_name,
+                               const Vector<std::string>& varnames,
+                               const MultiFab& xf_bar,
+                               const Vector<Real>& vec_in,
+                               MultiFab& result)
 {
     AMREX_ALWAYS_ASSERT(vec_in.size() == Nens);
 
     // Read first member to define result
     MultiFab xf_0 =
-        read_member_multifab(0,
+        read_member_multifab(da_iter, 
+                             0,
                              last_pf_name,
                              varnames);
 
@@ -534,7 +546,7 @@ compute_Xf_prime_times_vector (const int Nens,
 
     for (int n = 0; n < Nens; ++n)
     {
-        MultiFab xf_n = read_member_multifab(n, last_pf_name, varnames);
+        MultiFab xf_n = read_member_multifab(da_iter, n, last_pf_name, varnames);
 
         AMREX_ALWAYS_ASSERT(xf_n.boxArray() == result.boxArray());
         AMREX_ALWAYS_ASSERT(xf_n.DistributionMap() == result.DistributionMap());
@@ -601,7 +613,8 @@ compute_T_matrix (const Matrix& S_mat,
 
 
 void
-update_ensemble (const int Nens,
+update_ensemble (const int da_iter, 
+                 const int Nens,
                  const std::string& last_pf_name,
                  const Vector<std::string>& varnames,
                  const MultiFab& xf_bar,
@@ -613,7 +626,7 @@ update_ensemble (const int Nens,
     for (int i = 0; i < Nens; ++i) {
         T_colvec[i] = T(i,n);
     }
-    compute_Xf_prime_times_vector(Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
+    compute_Xf_prime_times_vector(da_iter, Nens, last_pf_name, varnames, xf_bar, T_colvec, result);
 }
 
 void
@@ -651,16 +664,16 @@ std::string
 MakeEnsembleCheckpointName (int da_iter, int ens_no)
 {
     // Create CheckpointAfterDA if needed
-    const std::string base_dir = "/DACycle_" + std::to_string(da_iter);
-    fs::create_directories(base_dir);
-
-    const std::string da_dir = base_dir + "CheckpointAfterDA";
-
-    // Create DACycle_<da_iter>/CheckpointAfterDA
+    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
     fs::create_directories(da_dir);
 
+    const std::string chk_after_da_dir = da_dir + "CheckpointAfterDA";
+
+    // Create DA_Cycle_<da_iter>/CheckpointAfterDA
+    fs::create_directories(chk_after_da_dir);
+
     std::ostringstream chk_name;
-    chk_name << da_dir
+    chk_name << chk_after_da_dir
              << "/chk_"
              << std::setw(2) << std::setfill('0') << ens_no
              << "_";
@@ -672,15 +685,15 @@ void
 ERF::GetEnsembleCheckpointName (int da_iter, int ens_no)
 {
     // Create CheckpointAfterDA if needed
-    const std::string base_dir = "/DACycle_" + std::to_string(da_iter);
-    fs::create_directories(base_dir);
-
-    // Create CheckpointAfterDA/DACycle_<da_iter>
-    const std::string da_dir = base_dir + "CheckpointAfterDA";
+    const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
     fs::create_directories(da_dir);
 
+    // Create CheckpointAfterDA/DA_Cycle_<da_iter>
+    const std::string chk_after_da_dir = da_dir + "CheckpointAfterDA";
+    fs::create_directories(chk_after_da_dir);
+
     std::ostringstream chk_name;
-    chk_name << da_dir
+    chk_name << chk_after_da_dir
              << "/chk_"
              << std::setw(2) << std::setfill('0') << ens_no
              << "_" <<  "00000";

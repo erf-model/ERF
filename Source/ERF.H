@@ -708,7 +708,7 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations ();
+    void ComputeAndWriteEnsemblePerturbations (const int da_iter);
 
     void PerformDataAssimilation (int da_iter);
 

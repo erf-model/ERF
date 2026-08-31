@@ -129,12 +129,14 @@ read_plot_file(amrex::PlotFileData& pf,
                amrex::MultiFab& mf);
 
 amrex::MultiFab
-read_member_multifab(int n,
+read_member_multifab(const int da_iter, 
+                     const int n,
                      const std::string& pf_name,
                      const amrex::Vector<std::string>& varnames);
 
 amrex::MultiFab
-compute_ensemble_mean(int Nens,
+compute_ensemble_mean(const int da_iter, 
+                      const int Nens,
                       const std::string& pf_name,
                       const amrex::Vector<std::string>& varnames);
 
@@ -142,7 +144,7 @@ void Apply_H(const amrex::MultiFab& x_mf, amrex::MultiFab& y_mf);
 
 void read_in_observations(const int& da_iter, amrex::MultiFab& y_obs);
 
-std::vector<std::string> get_plotfile_list();
+std::vector<std::string> get_plotfile_list(const int da_iter);
 void read_in_observations(const int& da_iter,
                           const amrex::Vector<std::string>& varnames,
                           amrex::MultiFab& y_obs);
@@ -156,12 +158,14 @@ void compute_d_prime_vec(amrex::MultiFab& d_prime_vec,
                     const amrex::MultiFab& d_vec,
                     const amrex::Vector<amrex::Real>& R_diag);
 
-void compute_mean_H_xf(amrex::MultiFab& mean_H_xf,
+void compute_mean_H_xf(const int da_iter,
+                       amrex::MultiFab& mean_H_xf,
                        const int Nens,
                        const std::string& last_pf_name,
                        const amrex::Vector<std::string>& varnames);
 
-void compute_r_vec (int Nens,
+void compute_r_vec (const int da_iter, 
+                    int Nens,
                     const std::string& last_pf_name,
                     const amrex::Vector<std::string>& varnames,
                     const amrex::MultiFab& mean_H_xf,
@@ -173,14 +177,16 @@ void compute_alpha_vec (const int& Nens,
                         const amrex::Vector<amrex::Real>& r_vec,
                         amrex::Vector<amrex::Real>& alpha_vec);
 
-void compute_Xf_prime_times_vector (const int Nens,
-                            const std::string& last_pf_name,
-                            const amrex::Vector<std::string>& varnames,
-                            const amrex::MultiFab& xf_bar,
-                            const amrex::Vector<amrex::Real>& vec_in,
-                            amrex::MultiFab& result);
+void compute_Xf_prime_times_vector (const int da_iter,
+                                    const int Nens,
+                                    const std::string& last_pf_name,
+                                    const amrex::Vector<std::string>& varnames,
+                                    const amrex::MultiFab& xf_bar,
+                                    const amrex::Vector<amrex::Real>& vec_in,
+                                    amrex::MultiFab& result);
 
-void update_ensemble (const int Nens,
+void update_ensemble (const int da_iter, 
+                      const int Nens,
                       const std::string& last_pf_name,
                       const amrex::Vector<std::string>& varnames,
                       const amrex::MultiFab& xf_bar,
@@ -200,7 +206,8 @@ Matrix matrix_multiply(const Matrix& A, const Matrix& B);
 void matrix_print(const Matrix& A);
 void lapack_testing();
 
-void compute_S_matrix(Matrix& S,
+void compute_S_matrix(const int da_iter, 
+                      Matrix& S,
                       const int& Nens,
                       const amrex::MultiFab& mean_H_xf,
                       const amrex::Vector<amrex::Real>& R_diag,
