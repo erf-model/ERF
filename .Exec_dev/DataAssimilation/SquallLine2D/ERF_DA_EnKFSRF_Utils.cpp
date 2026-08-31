@@ -617,16 +617,19 @@ update_ensemble (const int Nens,
 }
 
 void
-ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
+ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int da_iter, 
+                                             const int ens_no)
 {
     // --------------------------------------------------------
-    // Set up member-specific output directories
+    // Set up cycle- and member-specific output directories
     // --------------------------------------------------------
-    std::string member_dir;
+    std::stringstream cycle_ss;
+    cycle_ss << "DA_Cycle_" << da_iter;
+    std::string cycle_dir = cycle_ss.str();
 
-    std::stringstream ss;
-    ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
-    member_dir = ss.str();
+    std::stringstream member_ss;
+    member_ss << "member_" << std::setw(2) << std::setfill('0') << ens_no;
+    std::string member_dir = cycle_dir + "/" + member_ss.str();
 
     if (ParallelDescriptor::IOProcessor())
     {
@@ -637,12 +640,10 @@ ERF::SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no)
 
     ParallelDescriptor::Barrier();
 
-    // Only change the basename/prefix.
-    // ERF will handle the step numbering as before.
-    check_file = member_dir + "/chkfiles/chk";
-    plot3d_file_1  = member_dir + "/plotfiles/plt";
+    // Set file prefixes under the specific cycle and member path
+    check_file   = member_dir + "/chkfiles/chk";
+    plot3d_file_1 = member_dir + "/plotfiles/plt";
 }
-
 // da_iter : DA iteration number
 // ens_no  : Ensemble number
 
@@ -650,12 +651,12 @@ std::string
 MakeEnsembleCheckpointName (int da_iter, int ens_no)
 {
     // Create CheckpointAfterDA if needed
-    const std::string base_dir = "CheckpointAfterDA";
+    const std::string base_dir = "/DACycle_" + std::to_string(da_iter);
     fs::create_directories(base_dir);
 
-    // Create CheckpointAfterDA/DACycle_<da_iter>
-    const std::string da_dir =
-        base_dir + "/DACycle_" + std::to_string(da_iter);
+    const std::string da_dir = base_dir + "CheckpointAfterDA";
+
+    // Create DACycle_<da_iter>/CheckpointAfterDA
     fs::create_directories(da_dir);
 
     std::ostringstream chk_name;
@@ -671,12 +672,11 @@ void
 ERF::GetEnsembleCheckpointName (int da_iter, int ens_no)
 {
     // Create CheckpointAfterDA if needed
-    const std::string base_dir = "CheckpointAfterDA";
+    const std::string base_dir = "/DACycle_" + std::to_string(da_iter);
     fs::create_directories(base_dir);
 
     // Create CheckpointAfterDA/DACycle_<da_iter>
-    const std::string da_dir =
-        base_dir + "/DACycle_" + std::to_string(da_iter);
+    const std::string da_dir = base_dir + "CheckpointAfterDA";
     fs::create_directories(da_dir);
 
     std::ostringstream chk_name;
@@ -686,4 +686,12 @@ ERF::GetEnsembleCheckpointName (int da_iter, int ens_no)
              << "_" <<  "00000";
 
     restart_chkfile = chk_name.str();
+}
+
+std::string
+MakeFullPath (const std::string& filename, const int da_iter)
+{
+    std::stringstream ss;
+    ss << "DA_Cycle_" << da_iter << "/" << filename;
+    return ss.str();
 }

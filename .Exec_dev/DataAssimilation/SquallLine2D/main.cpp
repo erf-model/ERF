@@ -118,7 +118,7 @@ int main (int argc, char* argv[])
             ERF erf;
 
             if(is_init_for_ensemble) {
-                erf.SetDirsForPlotfilesAndCheckpointsForDA(ens_no);
+                erf.SetDirsForPlotfilesAndCheckpointsForDA(da_iter, ens_no);
             }
             // InitData() handles all the initialization including when doing a
             // restart. But in the inputs file, for DA runs, we do not specify a

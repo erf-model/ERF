@@ -210,7 +210,7 @@ ERF::PerformDataAssimilation(int da_iter)
     Print() << "Computing ensemble mean complete" << std::endl;
 
     // Construct perturbation plotfile name
-    std::string pltname = "plt_ens_mean";
+    std::string pltname = MakeFullPath("plt_ens_mean", da_iter);
     WriteSingleLevelPlotfile(pltname,
                              xf_bar,
                              varnames,
@@ -226,7 +226,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     Vector<std::string> varnames1 = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
     // Construct perturbation plotfile name
-    std::string pltname1 = "plt_mean_H_xf";
+    std::string pltname1 = MakeFullPath("plt_mean_H_xf", da_iter);
     WriteSingleLevelPlotfile(pltname1,
                              mean_H_xf,
                              varnames1,
@@ -240,7 +240,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     Print() << "Observation reading complete" << std::endl;
 
-    /*std::string pltname2 = "plt_y_obs";
+    /*std::string pltname2 = WriteSingleLevelPlotfile("plt_y_obs", da_iter);
     Vector<std::string> varnames2 = {"x_velocity", "y_velocity"};
     WriteSingleLevelPlotfile(pltname2,
                             y_obs,
@@ -299,7 +299,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     Print() << "compute_Xf_prime_times_vector complete" << std::endl;
 
-    /*std::string pltname3 = "plt_Xf_prime_alpha";
+    /*std::string pltname3 = WriteSingleLevelPlotfile("plt_Xf_prime_alpha", da_iter);
     Vector<std::string> varnames3 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
     WriteSingleLevelPlotfile(pltname3,
                             Xf_prime_alpha,
@@ -314,7 +314,7 @@ ERF::PerformDataAssimilation(int da_iter)
 
     Print() << "add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated) complete" << std::endl;
 
-    /*std::string pltname4 = "plt_xf_bar_updated";
+    /*std::string pltname4 = WriteSingleLevelPlotfile("plt_xf_bar_updated", da_iter);
     Vector<std::string> varnames4 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
     WriteSingleLevelPlotfile(pltname4,
                             xf_bar_updated,

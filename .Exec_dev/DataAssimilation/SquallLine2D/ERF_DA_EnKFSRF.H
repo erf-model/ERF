@@ -208,4 +208,7 @@ void compute_S_matrix(Matrix& S,
                       const amrex::Vector<std::string>& varnames);
 std::string
 MakeEnsembleCheckpointName (int da_iter, int ens_no);
+
+std::string
+MakeFullPath (const std::string& filename, const int da_iter);
 #endif
