@@ -821,13 +821,24 @@ ERF::InitData_post ()
     setPlotVariables2D("plot2d_vars_2", plot2d_var_names_2);
 
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one and if two way coupling
+    // Make sure that detJ is the average of the data on a finer level if there is one and if two way coupling
     //
     if (SolverChoice::mesh_type != MeshType::ConstantDz) {
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
                 average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
             }
         }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
@@ -1975,13 +1986,22 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
 {
     if (lev == 0) { return; }
 
+    //
+    // These fields have no vertical extent: ba2d collapses z to a single index at both
+    // levels, so there is nothing in the vertical for the interpolation to do.  It must
+    // therefore be handed a ratio of 1 in z even when the levels really are refined in
+    // the vertical -- a ratio greater than 1 makes the interpolator ask for a layer of
+    // coarse ghost cells in z that a 2-D MultiFab does not, and cannot, carry.
+    //
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+
     if (lon_m[lev-1] && !lon_m[lev]) {
         auto ngv = lon_m[lev-1]->nGrowVect(); ngv[2] = 0;
         lon_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
         InterpFromCoarseLevel(*lon_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                               *lon_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (lat_m[lev-1] && !lat_m[lev]) {
@@ -1990,7 +2010,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         InterpFromCoarseLevel(*lat_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                               *lat_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (sinPhi_m[lev-1] && !sinPhi_m[lev]) {
@@ -1999,7 +2019,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         InterpFromCoarseLevel(*sinPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                               *sinPhi_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (cosPhi_m[lev-1] && !cosPhi_m[lev]) {
@@ -2008,7 +2028,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         InterpFromCoarseLevel(*cosPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                               *cosPhi_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
     if (sst_lev[lev-1][0]) {
@@ -2033,7 +2053,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                 InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                       *sst_lev[lev-1][n], 0, 0, 1,
                                       geom[lev-1], geom[lev],
-                                      refRatio(lev-1), &cell_cons_interp,
+                                      rr2d, &cell_cons_interp,
                                       domain_bcs_type, BCVars::cons_bc);
             }
         }
@@ -2060,7 +2080,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                 InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
                                       *tsk_lev[lev-1][n], 0, 0, 1,
                                       geom[lev-1], geom[lev],
-                                      refRatio(lev-1), &cell_cons_interp,
+                                      rr2d, &cell_cons_interp,
                                       domain_bcs_type, BCVars::cons_bc);
             }
         }
@@ -2078,7 +2098,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         FillPatchTwoLevels(*lat_m[lev].get(), ngv, IntVect(0,0,0),
                            time_for_fp, cmf, ctime, fmf, ftime,
                            0, 0, 1, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
+                           rr2d, mapper, domain_bcs_type,
                            BCVars::cons_bc);
     }
     if (lon_m[lev]) {
@@ -2090,7 +2110,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         FillPatchTwoLevels(*lon_m[lev].get(), ngv, IntVect(0,0,0),
                            time_for_fp, cmf, ctime, fmf, ftime,
                            0, 0, 1, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
+                           rr2d, mapper, domain_bcs_type,
                            BCVars::cons_bc);
     } // lon_m
     if (sinPhi_m[lev]) {
@@ -2102,7 +2122,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         FillPatchTwoLevels(*sinPhi_m[lev].get(), ngv, IntVect(0,0,0),
                            time_for_fp, cmf, ctime, fmf, ftime,
                            0, 0, 1, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
+                           rr2d, mapper, domain_bcs_type,
                            BCVars::cons_bc);
     } // sinPhi
     if (cosPhi_m[lev]) {
@@ -2114,7 +2134,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         FillPatchTwoLevels(*cosPhi_m[lev].get(), ngv, IntVect(0,0,0),
                            time_for_fp, cmf, ctime, fmf, ftime,
                            0, 0, 1, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
+                           rr2d, mapper, domain_bcs_type,
                            BCVars::cons_bc);
     } // cosPhi
     if (sst_lev[lev][0]) {
@@ -2137,7 +2157,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             FillPatchTwoLevels(*sst_lev[lev][n].get(), ngv, IntVect(0,0,0),
                                time_for_fp, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
+                               rr2d, mapper, domain_bcs_type,
                                BCVars::cons_bc);
         } // ntimes
     } // sst_lev
@@ -2161,7 +2181,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             FillPatchTwoLevels(*tsk_lev[lev][n].get(), ngv, IntVect(0,0,0),
                                time_for_fp, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               refRatio(lev-1), mapper, domain_bcs_type,
+                               rr2d, mapper, domain_bcs_type,
                                BCVars::cons_bc);
         } // ntimes
     } // tsk_lev
@@ -2356,7 +2376,54 @@ ERF::init_only (int lev, double elapsed_time)
     }
     else if (solverChoice.init_type == InitType::WRFInput && nc_init_file[lev].empty())
     {
-        amrex::Abort("This pathway is not quite implemented yet");
+        //
+        // A refined level with no wrfinput file of its own: the level was created by
+        // ERF's own refinement machinery rather than read from a wrfinput_d0*.  Level 0
+        // must always have a file (checked in ParameterSanityChecks), so this is lev > 0.
+        //
+        // Note the caller has already built the terrain at this level for us -- see the
+        // ordering in MakeNewLevelFromScratch -- because unlike the has-a-file case there
+        // is no file here to build z_phys from, and the base state below needs it.
+        //
+        AMREX_ALWAYS_ASSERT(lev > 0);
+        AMREX_ALWAYS_ASSERT(z_phys_cc[lev] != nullptr);
+
+        make_physbcs(lev);
+
+        // Fill the part of this level that lies inside the domain but outside the fine
+        // grids, and the fine ghost cells, from the coarser level.
+        interp_base_state_from_coarse(lev);
+
+        // Now build the base state on the fine grids by exactly the construction level 0
+        // used: the analytic reference profile from the level-0 parameters, evaluated at
+        // this level's cell-centered heights, followed by the discrete hydrostatic
+        // rebalance.  Running the same procedure on both levels is what makes their base
+        // states agree; interpolating the coarse base state instead would leave this level
+        // not discretely hydrostatic on its own mesh.
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
+        // The state itself is interpolated from the coarser level.  This must come after the
+        // base state, since it interpolates perturbational quantities relative to it.
+        FillCoarsePatch(lev, elapsed_time);
+
+        // The 2D/surface arrays likewise have no file to come from at this level
+        Interp2DArrays(lev, ba2d[lev], dmap[lev]);
+
+        // PSFC is read from the file at a level that has one; here it can only be
+        // interpolated from the parent.  The surface layer and the LSM both read it.
+        if (mf_PSFC[lev-1] && mf_PSFC[lev]) {
+            auto ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+            // Ratio of 1 in z: PSFC lives on ba2d, which has no vertical extent (see the
+            // note in Interp2DArrays)
+            const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+            InterpFromCoarseLevel(*mf_PSFC[lev], ngv,
+                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
+                                  *mf_PSFC[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  rr2d, &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {

@@ -115,6 +115,19 @@ init_terrain_from_wrfinput (int lev,
                             const bool& avg_grid_faces_to_nodes);
 
 /**
+ * Interpolate a field read from a wrfinput file onto a vertical grid that is refined
+ * relative to the one the file is written on.
+ *
+ * @param[in] crse_fab Fab holding the data on the file's vertical grid.
+ * @param[out] fine_fab Fab to fill on this level's (vertically refined) grid.
+ * @param[in] rr_z Vertical refinement ratio between the two.
+ */
+void
+refine_fab_in_z (const FArrayBox& crse_fab,
+                 FArrayBox& fine_fab,
+                 int rr_z);
+
+/**
  * Initialize hydrostatic base state data from a WRF dataset.
  *
  * The profile is built analytically from the six WRF reference-state parameters
@@ -130,12 +143,8 @@ init_terrain_from_wrfinput (int lev,
  * @param[in] mf_PB MultiFab holding WRF data specifying base state pressure (currently unused).
  * @param[in] mf_ALB MultiFab holding inverse density perturbation data (currently unused).
  * @param[in] z_phys_cc Cell-centered z-coordinate MultiFab; required, must not be null.
- * @param[in] T00 Sea-level base-state temperature.
- * @param[in] P00 Sea-level base-state pressure.
- * @param[in] TLP Base-state lapse rate.
- * @param[in] TISO Isothermal stratosphere temperature.
- * @param[in] TLP_STRAT Stratospheric lapse rate.
- * @param[in] P_STRAT Pressure at the stratosphere transition.
+ * @param[in] bsp Reference-state parameters and the layer interfaces derived from them;
+ *                set_layer_interfaces() must already have been called on it.
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
@@ -148,12 +157,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& mf_PB,
                                MultiFab* mf_ALB,
                                MultiFab* z_phys_cc,
-                               const Real& T00,
-                               const Real& P00,
-                               const Real& TLP,
-                               const Real& TISO,
-                               const Real& TLP_STRAT,
-                               const Real& P_STRAT);
+                               const BaseStateParams& bsp);
 
 /**
  * Read start_time from the first WRF input file.
@@ -197,22 +201,20 @@ read_start_time_from_wrfinput (int lev, const std::string& fname)
  * Read WRF base-state thermodynamic parameters from a NetCDF file.
  *
  * @param fname Path to the WRF input file
- * @param T00 Sea-level base-state temperature
- * @param P00 Sea-level base-state pressure
- * @param TLP Base-state lapse rate
- * @param TISO Isothermal stratosphere temperature
- * @param TLP_STRAT Stratospheric lapse rate
- * @param P_STRAT Pressure at the stratosphere transition
+ * @param bsp Reference-state parameters to fill; any value the file does not supply
+ *            (or supplies as invalid) keeps the value bsp already held.
  */
 void
 read_base_state_params_from_wrfinput (const std::string& fname,
-                                      Real& T00,
-                                      Real& P00,
-                                      Real& TLP,
-                                      Real& TISO,
-                                      Real& TLP_STRAT,
-                                      Real& P_STRAT)
+                                      BaseStateParams& bsp)
 {
+    Real& T00       = bsp.T00;
+    Real& P00       = bsp.P00;
+    Real& TLP       = bsp.TLP;
+    Real& TISO      = bsp.TISO;
+    Real& TLP_STRAT = bsp.TLP_STRAT;
+    Real& P_STRAT   = bsp.P_STRAT;
+
     if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
@@ -410,16 +412,61 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     MultiFab mf_PH, mf_PB, mf_P;      // For geopotential and base state
     std::unique_ptr<MultiFab> mf_ALB; // For density
 
-    // Read base state params (used if ALB is not read)
-    Real T00 = Real(290.0);
-    Real P00 = p_0;
-    Real TLP = Real(50.0);
-    Real TISO = Real(200.0);
-    Real TLP_STRAT = Real(-11.0);
-    Real P_STRAT   = zero;
-    read_base_state_params_from_wrfinput(nc_init_file[lev][0],
-                                         T00, P00, TLP, TISO,
-                                         TLP_STRAT, P_STRAT);
+    // **************************************************************************
+    // Read the six parameters that define the analytic reference profile.
+    //
+    // These are read from the LEVEL 0 file only, and every finer level then uses the
+    // level-0 values.  The whole base state is built from these six numbers, so two
+    // levels that disagree about them cannot have base states that agree across the
+    // coarse/fine interface -- and a nested wrfinput file very often does disagree,
+    // because idealized and hand-built files routinely declare T00/P00/TLP but leave
+    // them zero-filled, in which case read_base_state_params_from_wrfinput falls back
+    // to the ERF defaults.  Previously each level read its own file and could silently
+    // end up on a different profile than its parent.
+    //
+    // If the file at this level does carry its own values and they differ from level
+    // zero's, say so rather than picking one silently.
+    // **************************************************************************
+    if (lev == 0) {
+        read_base_state_params_from_wrfinput(nc_init_file[lev][0], wrf_bsp);
+        wrf_bsp.set_layer_interfaces();
+    } else {
+        BaseStateParams lev_bsp;
+        read_base_state_params_from_wrfinput(nc_init_file[lev][0], lev_bsp);
+        if (!lev_bsp.same_params_as(wrf_bsp)) {
+            Print() << "WARNING: the base state parameters in " << nc_init_file[lev][0]
+                    << " differ from those at level 0:\n";
+            Print() << "         level " << lev << " file: (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
+                    << lev_bsp.T00 << ", " << lev_bsp.P00 << ", " << lev_bsp.TLP << ", "
+                    << lev_bsp.TISO << ", " << lev_bsp.TLP_STRAT << ", " << lev_bsp.P_STRAT << ")\n";
+            Print() << "         level 0     : (T00, P00, TLP, TISO, TLP_STRAT, P_STRAT) = ("
+                    << wrf_bsp.T00 << ", " << wrf_bsp.P00 << ", " << wrf_bsp.TLP << ", "
+                    << wrf_bsp.TISO << ", " << wrf_bsp.TLP_STRAT << ", " << wrf_bsp.P_STRAT << ")\n";
+            Print() << "         Using the level 0 values at every level, so that the base states "
+                       "of the two levels are built from one reference profile.\n";
+        }
+    }
+    AMREX_ALWAYS_ASSERT(wrf_bsp.is_set);
+
+    // **************************************************************************
+    // Vertical refinement of this level's grid relative to the wrfinput files.
+    //
+    // A WRF nest is refined in the horizontal only: wrfinput_d02 carries exactly the
+    // eta levels of wrfinput_d01, so every file in the set is written on level 0's
+    // vertical grid.  If the ref_ratio in the inputs file asks for refinement in z as
+    // well, then this level's grid has rr_z times as many layers as the file we are
+    // about to read, and each field has to be interpolated onto that finer grid as it
+    // is read in.  The ratio to undo is therefore the cumulative one from level 0 up
+    // to this level, not just the ratio across the last coarse/fine interface.
+    // **************************************************************************
+    int rr_z = 1;
+    for (int l = 0; l < lev; ++l) { rr_z *= ref_ratio[l][2]; }
+    if (rr_z > 1) {
+        Print() << "Level " << lev << " is refined by " << rr_z << " in the vertical relative to "
+                << "the wrfinput files; each field read from the file will be interpolated onto "
+                << "the refined vertical grid, and the terrain, the state and the base state will "
+                << "all be built there.\n";
+    }
 
     // Temporary MFs for derived quantities
     auto& ba    = lev_new[Vars::cons].boxArray();
@@ -496,6 +543,13 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         shift_by[i] -= var_fab_from_file.box().smallEnd(i);
                     }
+                    // The fab just read lives on the file's vertical grid, so when this level
+                    // is refined in the vertical the z part of the shift has to be expressed
+                    // there too rather than in this level's index space.
+                    if (rr_z > 1) {
+                        shift_by[2] = amrex::coarsen(shift_by_box.smallEnd(2), rr_z)
+                                    - var_fab_from_file.box().smallEnd(2);
+                    }
                     var_fab_from_file.shift(shift_by);
                 }
 
@@ -536,46 +590,90 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
                     subdomain_to_fill_typed.growHi(1,1);
                 }
 
+                // *********************************************************************
+                // Decide whether this particular field has to be interpolated in the
+                // vertical as it is read.
+                //
+                // Two kinds of field are read on the file's z indexing but must NOT be
+                // refined: the surface fields, which carry a single z index, and the soil
+                // fields, whose third index is a soil layer rather than an atmospheric
+                // level even though their fab is staggered in z.
+                // *********************************************************************
+                const bool is_soil_var = (var_name == "TSLB" || var_name == "SMOIS" ||
+                                          var_name == "SH2O" || var_name == "ZS"    ||
+                                          var_name == "DZS");
+                const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
+
                 Box subdomain_crse(subdomain_to_fill_typed);
-                if (lev > 0) {
-                    subdomain_crse.coarsen(IntVect(1,1,ref_ratio[lev-1][2]));
-                    if (ref_ratio[lev-1][2] > 1) {
-                        amrex::Abort("This pathway in init_from_wrfinput not ready yet");
-                    }
+                if (refine_in_z) {
+                    subdomain_crse.coarsen(IntVect(1,1,rr_z));
+                    //
+                    // Grow by one layer of the file's grid at each end so that the fine
+                    // cells at the bottom and at the top of the patch have both of the
+                    // source values that bracket them.  This matters for a nest whose
+                    // patch stops partway up the column -- the normal way to nest an LES
+                    // region inside a mesoscale parent -- since without it the topmost
+                    // fine cells would have to fall back on a one-sided value.  Clipping
+                    // to the file's own z extent keeps us from asking for layers the file
+                    // does not carry.
+                    //
+                    subdomain_crse.grow(2,1);
+                    subdomain_crse.setSmall(2, amrex::max(subdomain_crse.smallEnd(2),
+                                                          var_fab_from_file.box().smallEnd(2)));
+                    subdomain_crse.setBig  (2, amrex::min(subdomain_crse.bigEnd(2),
+                                                          var_fab_from_file.box().bigEnd(2)));
                 }
+
 #ifdef AMREX_USE_GPU
                 var_fab.resize(subdomain_to_fill_typed, 1, amrex::The_Pinned_Arena());
-                var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena());
+                if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena()); }
 #else
                 var_fab.resize(subdomain_to_fill_typed, 1);
-                var_fab_crse.resize(subdomain_crse, 1);
+                if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1); }
 #endif
-                Box intersection = var_fab.box() & var_fab_from_file.box();
+
+                // The file data lands in the coarse-in-z fab when this level's vertical
+                // grid is refined relative to the file, and straight into the destination
+                // otherwise.
+                FArrayBox& read_fab = (refine_in_z) ? var_fab_crse : var_fab;
+
+                Box intersection = read_fab.box() & var_fab_from_file.box();
                 if (intersection.ok()) {
-#if 0
-                    var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-#else
-                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
-                        var_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-                    } else {
-                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
-                    }
-#endif
+                    // When we are about to interpolate in the vertical, every cell of the
+                    // coarse-in-z fab has to have come from the file: the interpolation
+                    // clamps at the ends of that fab, so a plane left uninitialized here
+                    // would be smeared into the refined data rather than simply dropped.
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!refine_in_z || intersection.contains(read_fab.box()),
+                                                     "ERF::init_from_wrfinput: the wrfinput file does not "
+                                                     "cover the region needed to refine this level in the vertical");
+                    read_fab.template copy<RunOn::Device>(var_fab_from_file,intersection,0,intersection,0,1);
                 } else if (nx == 1 and ny == 1) {
-                    Print() << " Copying 1D FAB from " << var_fab_from_file.box() << " to " << var_fab.box() << std::endl;
-#if 0
-                    var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
-#else
-                    if (lev == 0 || ref_ratio[lev-1][2] == 1) {
-                        var_fab.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
-                    } else {
-                        var_fab_crse.template copy<RunOn::Device>(var_fab_from_file,var_fab_from_file.box(),0,var_fab.box(),0,1);
+                    //
+                    // A column that the file holds at (0,0) but that we hold at this box's
+                    // (i,j).  Shift the source onto the destination column and copy the z
+                    // range the two have in common; when this level's patch spans the whole
+                    // column that is the entire fab, and when it stops partway up it is the
+                    // part of the file that the patch actually covers.
+                    //
+                    Print() << " Copying 1D FAB from " << var_fab_from_file.box()
+                            << " to " << read_fab.box() << std::endl;
+                    IntVect shift_ij(AMREX_D_DECL(read_fab.box().smallEnd(0) - var_fab_from_file.box().smallEnd(0),
+                                                  read_fab.box().smallEnd(1) - var_fab_from_file.box().smallEnd(1),
+                                                  0));
+                    var_fab_from_file.shift(shift_ij);
+                    Box isect_1d = read_fab.box() & var_fab_from_file.box();
+                    if (isect_1d.ok()) {
+                        read_fab.template copy<RunOn::Device>(var_fab_from_file,isect_1d,0,isect_1d,0,1);
                     }
-#endif
+                    var_fab_from_file.shift(-shift_ij);
                 } else {
-                    Print() <<"var_fab_crse.box()      " << subdomain_crse << std::endl;
+                    Print() <<"read_fab.box()          " << read_fab.box() << std::endl;
                     Print() <<"var_fab_from_file.box() " << var_fab_from_file.box() << std::endl;
                     amrex::Error("ERF::init_from_wrfinput: Region we want not contained in region we have");
+                }
+
+                if (refine_in_z) {
+                    refine_fab_in_z(var_fab_crse, var_fab, rr_z);
                 }
             }
 
@@ -1328,6 +1426,39 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         int klo   = geom[lev].Domain().smallEnd(2);
         int khi   = geom[lev].Domain().bigEnd(2);
 
+        //
+        // KNOWN LIMITATION for a level whose grids do not reach the top of the domain
+        // (a nest refined over only the lower part of the column).
+        //
+        // The remap below searches the wrfinput column (mf_PH + mf_PHB) for the interval
+        // bracketing each ERF cell-centered height, and interpolates cons_tmp between the
+        // two bracketing source cells.  All three of those MultiFabs live on this level's
+        // grids with no ghost cells in z, so above the top of a grid there is no source
+        // geopotential AND no source state to interpolate from.  The cells near the top of
+        // such a grid therefore keep the values read straight from the file rather than the
+        // remapped ones.  (Before the box bound was introduced, the search instead ran to
+        // the top of the domain and read past the end of those FABs.)
+        //
+        // Fixing this properly means reading PH, PHB and the state over a box grown upward
+        // in z beyond the grid, remapping, and then discarding the extra planes.
+        //
+        {
+            int max_grid_khi = -1;
+            for (int i = 0; i < lev_new[Vars::cons].boxArray().size(); ++i) {
+                max_grid_khi = std::max(max_grid_khi, lev_new[Vars::cons].boxArray()[i].bigEnd(2));
+            }
+            if (max_grid_khi < khi) {
+                Print() << "WARNING: the grids at level " << lev << " reach only k = " << max_grid_khi
+                        << " of a domain whose top is k = " << khi << ".\n";
+                Print() << "         The vertical remap of the wrfinput state onto the ERF grid "
+                           "cannot be completed in the cells near the top of those grids, because "
+                           "neither the source geopotential nor the source state is available "
+                           "above them; those cells retain the values read from the file.\n";
+                Print() << "         The BASE STATE is not affected -- it is an analytic function "
+                           "of height and is built (and rebalanced) correctly over the whole patch.\n";
+            }
+        }
+
         MultiFab cons_tmp(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), ncons, 0);
         MultiFab xvel_tmp(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1    , 0);
         MultiFab yvel_tmp(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1    , 0);
@@ -1340,6 +1471,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             const Box& bx  = mfi.tilebox();
             const Box& bxx = mfi.tilebox(IntVect(1,0,0));
             const Box& bxy = mfi.tilebox(IntVect(0,1,0));
+
+            //
+            // mf_PH and mf_PHB are defined on the zvel BoxArray with ZERO ghost cells in
+            // z (see their define() calls above), so within this box they only hold the
+            // nodes [vbx.smallEnd(2), vbx.bigEnd(2)+1].  The bracket searches below read
+            // ph_arr(...,lk+1), so lk must stop at vbx.bigEnd(2).  Bounding those searches
+            // by the *domain* top instead would walk off the end of the FAB for any box
+            // that does not reach the top of the domain -- which is precisely the case on
+            // a refined level whose patch covers only the lower part of the domain.
+            //
+            // For a box that does span the domain in z this is exactly the old bound, so
+            // full-height runs are unaffected.
+            //
+            const Box& vbx     = mfi.validbox();
+            const int  khi_src = amrex::min(khi, vbx.bigEnd(2));
 
             const Array4<      Real>& cons_arr = lev_new[Vars::cons].array(mfi);
             const Array4<      Real>& xvel_arr = lev_new[Vars::xvel].array(mfi);
@@ -1365,7 +1511,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                 bool found = false;
                 int kend   = kstart;
-                for (int lk(kstart+1); lk<=khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi_src; ++lk) {
                     Real z_hi_src = Real(0.5) *
                         ( ph_arr(i,j,lk  ) + phb_arr(i,j,lk  ) +
                           ph_arr(i,j,lk+1) + phb_arr(i,j,lk+1)) / CONST_GRAV;
@@ -1409,7 +1555,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                 bool found = false;
                 int kend   = kstart;
-                for (int lk(kstart+1); lk<=khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi_src; ++lk) {
                     Real z_hi_src = Real(0.25) *
                     ( ph_arr(ii ,j,lk  ) + phb_arr(ii ,j,lk  ) +
                       ph_arr(ii ,j,lk+1) + phb_arr(ii ,j,lk+1) +
@@ -1454,7 +1600,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
                 bool found = false;
                 int kend   = kstart;
-                for (int lk(kstart+1); lk<=khi; ++lk) {
+                for (int lk(kstart+1); lk<=khi_src; ++lk) {
                     Real z_hi_src = Real(0.25) *
                     ( ph_arr(i,jj ,lk  ) + phb_arr(i,jj ,lk  ) +
                       ph_arr(i,jj ,lk+1) + phb_arr(i,jj ,lk+1) +
@@ -1520,23 +1666,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // **************************************************************************
     // Initialize the base state
     // **************************************************************************
+    rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+
+    // rho0 is consumed below by read_and_convert_from_wrfbdy (via scale_bdy_normal_by_rho0),
+    // including one cell outside the domain -- which is why the routine above fills the
+    // base state's ghost cells as well as its valid region.
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
-    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
-    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
-    MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
-    MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
-
-    init_base_state_from_wrfinput(boxes_at_level[lev][0], l_rdOcp,
-                                  p_hse, pi_hse, th_hse, qv_hse, r_hse,
-                                  mf_PB, mf_ALB.get(), z_phys_cc[lev].get(),
-                                  T00, P00, TLP, TISO, TLP_STRAT, P_STRAT);
-
-    // FillBoundary to populate the internal ghost cells (no averaging in above call)
-     r_hse.FillBoundary(geom[lev].periodicity());
-     p_hse.FillBoundary(geom[lev].periodicity());
-    pi_hse.FillBoundary(geom[lev].periodicity());
-    th_hse.FillBoundary(geom[lev].periodicity());
-    qv_hse.FillBoundary(geom[lev].periodicity());
 
     // *******************************************************************************************
     // Initialize the bdy data
@@ -1770,12 +1905,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
  * @param mf_PB            MultiFab holding WRF data specifying base state pressure; currently unused
  * @param mf_ALB           MultiFab holding inverse density perturbation data; currently unused
  * @param z_phys_cc        Cell-centered z-coordinate MultiFab; required, must not be null
- * @param T00              Sea-level base-state temperature
- * @param P00              Sea-level base-state pressure
- * @param TLP              Base-state lapse rate
- * @param TISO             Isothermal stratosphere temperature
- * @param TLP_STRAT        Stratospheric lapse rate
- * @param P_STRAT          Pressure at the stratosphere transition
+ * @param bsp              Reference-state parameters and the layer interfaces derived from
+ *                         them; set_layer_interfaces() must already have been called
  */
 void
 init_base_state_from_wrfinput (const Box& subdomain,
@@ -1788,15 +1919,9 @@ init_base_state_from_wrfinput (const Box& subdomain,
                                MultiFab& /*mf_PB*/,
                                MultiFab* /*mf_ALB*/,
                                MultiFab* z_phys_cc,
-                               const Real& T00,
-                               const Real& P00,
-                               const Real& TLP,
-                               const Real& TISO,
-                               const Real& TLP_STRAT,
-                               const Real& P_STRAT)
+                               const BaseStateParams& bsp)
 {
     const auto& dom_lo = lbound(subdomain);
-    const auto& dom_hi = ubound(subdomain);
 
     // The analytic inversion below is a function of the true cell-centered
     // height, so z_phys_cc is required here -- it is dereferenced unconditionally
@@ -1808,35 +1933,25 @@ init_base_state_from_wrfinput (const Box& subdomain,
     //   (1) troposphere      T = T00  + TLP       * ln(p/P00)         p >  P_iso
     //   (2) isothermal layer T = TISO                       P_STRAT < p <= P_iso
     //   (3) stratosphere     T = TISO + TLP_STRAT * ln(p/P_STRAT)     p <= P_STRAT
-    // Each piece inverts to p(z) in closed form under dp/dz = -rho g; here we
-    // precompute the two interface heights so the inversion can branch on z.
+    // Each piece inverts to p(z) in closed form under dp/dz = -rho g.  The two
+    // interface heights were precomputed once by bsp.set_layer_interfaces(), which
+    // is also where the parameters were validated and reported; here we only need
+    // to copy them into locals that the device kernel can capture.
     // **************************************************************************
-    const Real x_iso = (TISO - T00) / TLP;
-    const Real P_iso = P00 * std::exp(x_iso);
-    const Real z_iso = -(R_d/CONST_GRAV) * (T00*x_iso + myhalf*TLP*x_iso*x_iso);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bsp.is_set,
+                                     "init_base_state_from_wrfinput requires that "
+                                     "set_layer_interfaces() has been called on bsp");
 
-    // The upper stratospheric layer is optional (P_STRAT == 0 or TLP_STRAT == 0
-    // disables it) and is only meaningful if it begins above the isothermal layer,
-    // i.e. if P_STRAT is below the pressure at which the isothermal layer starts.
-    const bool want_strat = (P_STRAT > zero) && (TLP_STRAT != zero);
-    const bool use_strat  = want_strat && (P_STRAT < P_iso);
-    const Real z_strat    = (use_strat) ? z_iso + (R_d*TISO/CONST_GRAV)*std::log(P_iso/P_STRAT)
-                                        : z_iso;
-
-    // A configured stratospheric layer that lies at or below the isothermal
-    // transition cannot be represented, so say so rather than dropping it quietly.
-    if (want_strat && !use_strat) {
-        Print() << "WARNING: the WRF stratospheric layer is being ignored: P_STRAT = "
-                << P_STRAT << " Pa is not below the pressure at the base of the "
-                << "isothermal layer, P_iso = " << P_iso << " Pa.\n";
-        Print() << "         TLP_STRAT = " << TLP_STRAT << " will have no effect and "
-                << "the atmosphere above z_iso will be isothermal at TISO = "
-                << TISO << " K.\n";
-    }
-
-    Print() << "WRF base state layer interfaces: z_iso = " << z_iso << " m";
-    if (use_strat) Print() << ", z_strat = " << z_strat << " m";
-    Print() << "\n";
+    const Real T00        = bsp.T00;
+    const Real P00        = bsp.P00;
+    const Real TLP        = bsp.TLP;
+    const Real TISO       = bsp.TISO;
+    const Real TLP_STRAT  = bsp.TLP_STRAT;
+    const Real P_STRAT    = bsp.P_STRAT;
+    const Real P_iso      = bsp.P_iso;
+    const Real z_iso      = bsp.z_iso;
+    const Real z_strat    = bsp.z_strat;
+    const bool use_strat  = bsp.use_strat;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -1913,7 +2028,6 @@ init_base_state_from_wrfinput (const Box& subdomain,
     // discretely satisfy dp0/dz = -rho0 g on the ERF grid
     // **************************************************************************
     int k_dom_lo = dom_lo.z;
-    int k_dom_hi = dom_hi.z;
 
     // The vertical integration below is seeded with the analytic profile in the
     // lowest cell of each column, z_cc(i,j,klo) and p_hse(i,j,klo), not with
@@ -1934,7 +2048,31 @@ init_base_state_from_wrfinput (const Box& subdomain,
             int klo = bx.smallEnd(2);
             int khi = bx.bigEnd(2);
 
-            AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+            //
+            // The integration below is bottom-up: the value in cell k depends only on
+            // cells at or below k.  A box that stops below the top of the region is
+            // therefore perfectly well defined -- it produces exactly the values the
+            // full-height column would have had in the cells it does contain -- so we
+            // deliberately do NOT require khi to reach the top.  That is what lets a
+            // refined level cover only the lower part of the domain, which is the normal
+            // way to nest an LES patch inside a mesoscale parent.  Cells above such a
+            // patch simply do not exist at this level; they are covered by the parent.
+            //
+            // klo is a different matter: each column is seeded from the analytic profile
+            // in its lowest cell and then marched upward, so a box whose klo is in the
+            // interior would restart the discrete integration there and put a kink in
+            // p_0 at the box boundary.  (With amr.refine_grid_layout_z = 0, which is the
+            // ERF default set in main.cpp, grids are never chopped in z and this holds.)
+            //
+            // NOTE: TileNoZ() above guarantees that klo/khi are the *box's* z extent
+            //       rather than a tile's, so each column is integrated exactly once.
+            //
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == k_dom_lo,
+                                             "init_base_state_from_wrfinput requires boxes that "
+                                             "reach the bottom of the region being initialized: "
+                                             "each column is seeded there and integrated upward. "
+                                             "Set erf.max_grid_size_z large enough that the grids "
+                                             "are not decomposed in z.");
             bx.makeSlab(2,klo);
 
             const Array4<Real>&  r_hse_arr = r_hse.array(mfi);
@@ -1997,6 +2135,52 @@ init_base_state_from_wrfinput (const Box& subdomain,
                 }
             });
     } // mfi
+}
+
+/**
+ * Build the WRF base state on the grids of base_state_mf at this level.
+ *
+ * This is the construction init_from_wrfinput performs at initialization, factored out so
+ * that a level remade by a regrid can run exactly the same procedure rather than inheriting
+ * a base state interpolated from its parent.  Every level uses the SAME reference
+ * parameters (wrf_bsp, read from the level-0 file), evaluated at this level's own
+ * cell-centered heights -- that is what makes the base states of the levels consistent
+ * with one another.
+ *
+ * @param lev            Level to build the base state at
+ * @param base_state_mf  Base state MultiFab to fill (base_state[lev], or a temporary
+ *                       standing in for it during a regrid)
+ */
+void
+ERF::rebuild_base_state_from_wrfinput (int lev, MultiFab& base_state_mf)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_cc[lev] != nullptr);
+
+    MultiFab r_hse (base_state_mf, make_alias, BaseState::r0_comp, 1);
+    MultiFab p_hse (base_state_mf, make_alias, BaseState::p0_comp, 1);
+    MultiFab pi_hse(base_state_mf, make_alias, BaseState::pi0_comp, 1);
+    MultiFab th_hse(base_state_mf, make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(base_state_mf, make_alias, BaseState::qv0_comp, 1);
+
+    // mf_PB / mf_ALB are unused by the routine (the base state is built entirely from the
+    // six reference parameters and z_phys_cc), so there is nothing to hand it here.
+    //
+    // We pass the level's Domain rather than boxes_at_level[lev][0] because the only thing
+    // the routine takes from this box is the k index at which each column starts, and the
+    // two agree there; the Domain is also always available, whereas boxes_at_level[lev] is
+    // only populated when the refinement was specified as an explicit box.
+    MultiFab dummy_PB;
+    init_base_state_from_wrfinput(geom[lev].Domain(), solverChoice.rdOcp,
+                                  p_hse, pi_hse, th_hse, qv_hse, r_hse,
+                                  dummy_PB, nullptr, z_phys_cc[lev].get(),
+                                  wrf_bsp);
+
+    // FillBoundary to populate the internal ghost cells (no averaging in above call)
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
 }
 
 /**
@@ -2168,6 +2352,77 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
 }
 
 /**
+ * Interpolate a field read from a wrfinput file onto a vertical grid that is refined
+ * by rr_z relative to the grid the file is written on.
+ *
+ * A WRF nest shares its parent's eta levels, so a wrfinput file for a level that ERF
+ * refines in the vertical carries only every rr_z-th layer of that level's grid.  The
+ * interpolation here is linear in the vertical index -- that is, in the eta coordinate
+ * the file is discretized on -- and it is applied in the same way to the geopotential
+ * (PH and PHB) as to the state.  That is what keeps the two collocated: the nodal
+ * heights built from the refined PH + PHB split each WRF layer into rr_z sublayers of
+ * equal eta thickness, and the state is interpolated onto the centers of exactly those
+ * sublayers.  The vertical remap that follows in init_from_wrfinput therefore has
+ * essentially nothing left to move, rather than smoothing the profile a second time.
+ *
+ * Fine points whose bracketing coarse values lie outside the fab we were given fall
+ * back on the nearest value we do have.  That happens only at the top of a patch that
+ * stops below the top of the domain and is high enough that the file cannot supply the
+ * layer above it.
+ *
+ * @param[in] crse_fab Fab holding the data on the file's vertical grid
+ * @param[out] fine_fab Fab to fill on this level's vertical grid
+ * @param[in] rr_z Vertical refinement ratio between the two
+ */
+void
+refine_fab_in_z (const FArrayBox& crse_fab,
+                 FArrayBox& fine_fab,
+                 int rr_z)
+{
+    AMREX_ALWAYS_ASSERT(rr_z > 1);
+
+    const Box& cbx = crse_fab.box();
+    const Box& fbx = fine_fab.box();
+
+    // The two fabs must agree in the horizontal; only the vertical is being changed
+    AMREX_ALWAYS_ASSERT(cbx.smallEnd(0) == fbx.smallEnd(0) && cbx.bigEnd(0) == fbx.bigEnd(0));
+    AMREX_ALWAYS_ASSERT(cbx.smallEnd(1) == fbx.smallEnd(1) && cbx.bigEnd(1) == fbx.bigEnd(1));
+
+    const int clo = cbx.smallEnd(2);
+    const int chi = cbx.bigEnd(2);
+
+    //
+    // A field that is staggered in z (PH, PHB, W) lives on the layer interfaces, where
+    // every rr_z-th fine point coincides exactly with a coarse one.  A field that is
+    // cell-centered in z lives at the layer midpoints, where the fine and the coarse
+    // points interleave; the half-cell offsets below are what account for that.
+    //
+    const bool z_nodal = fbx.ixType().nodeCentered(2);
+
+    const Array4<const Real>& crse_arr = crse_fab.const_array();
+    const Array4<      Real>& fine_arr = fine_fab.array();
+
+    const Real rr = static_cast<Real>(rr_z);
+
+    ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // Position of this fine point in the file's vertical index coordinate
+        const Real xi = (z_nodal) ? static_cast<Real>(k) / rr
+                                  : (static_cast<Real>(k) + myhalf) / rr - myhalf;
+
+        const Real xi_lo = std::floor(xi);
+        const int  kc    = static_cast<int>(xi_lo);
+        const Real frac  = xi - xi_lo;
+
+        const int kc_lo = amrex::min(amrex::max(kc  , clo), chi);
+        const int kc_hi = amrex::min(amrex::max(kc+1, clo), chi);
+
+        fine_arr(i,j,k) = (one - frac) * crse_arr(i,j,kc_lo) + frac * crse_arr(i,j,kc_hi);
+    });
+    Gpu::streamSynchronize();
+}
+
+/**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
  * The unused level argument is retained for interface compatibility.
@@ -2212,6 +2467,20 @@ init_terrain_from_wrfinput (int /*lev*/,
             int klo = z_face_box.smallEnd()[2];
             int khi = z_face_box.bigEnd()[2];
 
+            //
+            // z_top is the height of the top of the *domain*, so it is only the correct
+            // value for the node at the top of the domain.  khi above is the top node of
+            // `subdomain`, which for a refined level is boxes_at_level[lev][0] -- and that
+            // box need not reach the domain top: a nested LES patch is routinely refined
+            // over only the lower part of the column.  Forcing z_top at khi in that case
+            // would stretch the fine column all the way to the model top and produce a
+            // terrain mapping that has nothing to do with the parent's.  So only pin the
+            // top node to z_top when this really is the top of the domain; otherwise keep
+            // the height averaged from the file, and extrapolate above it from that.
+            //
+            const int  khi_dom    = surroundingNodes(geom.Domain(),2).bigEnd(2);
+            const bool box_at_top = (khi == khi_dom);
+
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int ii = std::max(std::min(i,ihi),ilo);
@@ -2238,16 +2507,23 @@ init_terrain_from_wrfinput (int /*lev*/,
                                                   nc_ph_arr (ii,jm,khi-1) + nc_ph_arr (im,jm,khi-1) +
                                                   nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(im,jj,khi-1) +
                                                   nc_phb_arr(ii,jm,khi-1) + nc_phb_arr(im,jm,khi-1) ) / CONST_GRAV;
-                    // Extrapolate linearly above the top of the domain -- note that
-                    // z_phys_nd has more than one ghost node in the vertical, so this
-                    // must depend on k rather than filling every ghost node with one value
-                    z_arr(i, j, k) = z_top + static_cast<Real>(k-khi) * (z_top - z_khim1);
+                    Real z_khi   = Real(0.25) * ( nc_ph_arr (ii,jj,khi  ) + nc_ph_arr (im,jj,khi  ) +
+                                                  nc_ph_arr (ii,jm,khi  ) + nc_ph_arr (im,jm,khi  ) +
+                                                  nc_phb_arr(ii,jj,khi  ) + nc_phb_arr(im,jj,khi  ) +
+                                                  nc_phb_arr(ii,jm,khi  ) + nc_phb_arr(im,jm,khi  ) ) / CONST_GRAV;
+                    // Extrapolate linearly above the top node -- note that z_phys_nd has
+                    // more than one ghost node in the vertical, so this must depend on k
+                    // rather than filling every ghost node with one value.  The reference
+                    // is z_top only if this box reaches the top of the domain; for a patch
+                    // that stops lower down it is that patch's own top height.
+                    Real z_ref = (box_at_top) ? z_top : z_khi;
+                    z_arr(i, j, k) = z_ref + static_cast<Real>(k-khi) * (z_ref - z_khim1);
                 } else if (k == khi) {
-                    z_arr(i, j, k) = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
-                                                    nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
-                                                    nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
-                                                    nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
-                    z_arr(i, j, k) = z_top;
+                    Real z_khi = Real(0.25) * ( nc_ph_arr (ii,jj,k) + nc_ph_arr (im,jj,k) +
+                                                nc_ph_arr (ii,jm,k) + nc_ph_arr (im,jm,k) +
+                                                nc_phb_arr(ii,jj,k) + nc_phb_arr(im,jj,k) +
+                                                nc_phb_arr(ii,jm,k) + nc_phb_arr(im,jm,k) ) / CONST_GRAV;
+                    z_arr(i, j, k) = (box_at_top) ? z_top : z_khi;
                 } else {
                     // Note: wrfinput geopotentials ph, phb are only staggered in the vertical, i.e.,
                     //       they have dims (bottom_top_stag, south_north, west_east). On k==klo, we
