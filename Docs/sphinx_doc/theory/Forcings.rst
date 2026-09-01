@@ -170,9 +170,21 @@ Currently the target condition to which the sponge zones should be forced toward
 where RHS are the other right-hand side terms. The parameters to be set by the user are -- `A` is the sponge amplitude,
 `n` is the sponge strength and the :math:`Q_\mathrm{target}` -- the target solution in the sponge.
 :math:`\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end.
+Sponge damping may be switched on independently at any of the six domain
+boundaries, with ``erf.use_xlo_sponge_damping``, ``erf.use_xhi_sponge_damping``,
+``erf.use_ylo_sponge_damping``, ``erf.use_yhi_sponge_damping``,
+``erf.use_zlo_sponge_damping`` and ``erf.use_zhi_sponge_damping``.  Each side
+that is switched on also requires the coordinate at which its sponge ends
+(``erf.xlo_sponge_end``, ``erf.ylo_sponge_end``, ``erf.zlo_sponge_end``) or
+starts (``erf.xhi_sponge_start``, ``erf.yhi_sponge_start``,
+``erf.zhi_sponge_start``); the run aborts if that coordinate is not given.  The
+full list of sponge inputs, with acceptable values and defaults, is in
+:ref:`sec:SpongeInputs`.
+
 An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder`` and is given below.
 This list of inputs specifies sponge zones in the inlet and outlet of the domain in the x-direction
-and the outlet of the domain in the z-direction. The `start` and `end` parameters specify the starting
+and the outlet of the domain in the z-direction; the y-direction and low-z sides are configured the
+same way with their own inputs. The `start` and `end` parameters specify the starting
 and ending of the sponge zones. At the inlet, the sponge starts at :math:`x=0` and at the outlet
 the sponge ends at :math:`x=L` -- the end of the domain. The sponge amplitude `A` has to be adjusted in a
 problem-specific manner.
