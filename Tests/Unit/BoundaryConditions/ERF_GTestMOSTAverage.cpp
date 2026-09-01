@@ -74,6 +74,33 @@ make_geometry ()
     return Geometry(domain, &real_box, 0, is_periodic.data());
 }
 
+Geometry
+make_terrain_geometry ()
+{
+    const Box domain(IntVect(0), IntVect(2, 3, 4));
+    const RealBox real_box({AMREX_D_DECL(10.0, 20.0, 30.0)},
+                           {AMREX_D_DECL(13.0, 24.0, 35.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+void
+initialize_uniform_terrain_height (MultiFab& z_phys_nd, const Geometry& geom)
+{
+    const Real zlo = geom.ProbLo(2);
+    const Real dz = geom.CellSize(2);
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        Box zbox = z_phys_nd.boxArray()[mfi.index()];
+        zbox.grow(z_phys_nd.nGrowVect());
+        auto z_arr = z_phys_nd.array(mfi);
+        ParallelFor(zbox, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = zlo + static_cast<Real>(k) * dz;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 std::array<Orientation, 6>
 all_faces ()
 {
@@ -130,8 +157,8 @@ struct MOSTAverageFields
     std::unique_ptr<MultiFab> z_phys_nd;
     Vector<MultiFab*> vars_old;
 
-    MOSTAverageFields ()
-        : geom(make_geometry()),
+    explicit MOSTAverageFields (const Geometry& geometry = make_geometry())
+        : geom(geometry),
           domain(geom.Domain()),
           ba(domain),
           dm(ba),
@@ -315,6 +342,191 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                         << "policy=" << policy << ", zref=" << use_zref
                         << ", direction=" << dir << ", high=" << !face.isLow();
                 }
+            }
+        }
+    }
+}
+
+// Motivation: set_k_indices_N is the fallback path for non-terrain meshes and
+// must apply the same low/high wall conventions on every Cartesian face.
+TEST(MOSTAverage, NonTerrainKIndicesAreSetOnEveryWall)
+{
+    MOSTAverageFields fields;
+    const auto& geom = fields.geom;
+    const auto& domain = fields.domain;
+    const Real requested_distance = Real(4.0);
+    const auto faces = all_faces();
+
+    for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+        const auto& face = faces[face_index];
+        const int dir = face.coordDir();
+        const Real dz = geom.CellSize(dir);
+        const bool zlo_absolute = (dir == 2 && face.isLow());
+        const Real requested_zref = zlo_absolute
+            ? geom.ProbLo(dir) + requested_distance
+            : requested_distance;
+        const std::string prefix =
+            "unit_most_nonterrain_k_indices_" + std::to_string(face_index);
+        ScopedMOSTParams params(prefix.c_str());
+        params.add_zref(requested_zref);
+
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false, prefix,
+                             MeshType::ConstantDz, TerrainType::None);
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        Gpu::streamSynchronize();
+
+        const int wall_offset = static_cast<int>(
+            std::floor(requested_distance / dz - myhalf));
+        const int expected_index = face.isLow()
+            ? domain.smallEnd(dir) + wall_offset
+            : domain.bigEnd(dir) - wall_offset;
+        const Real expected_wall_distance =
+            (static_cast<Real>(wall_offset) + myhalf) * dz;
+        const Real expected_zref = zlo_absolute
+            ? geom.ProbLo(dir) + expected_wall_distance
+            : expected_wall_distance;
+
+        const auto* k_indices = averages.get_k_indices(0);
+        EXPECT_EQ(k_indices->min(0), expected_index)
+            << "direction=" << dir << ", high=" << !face.isLow();
+        EXPECT_EQ(k_indices->max(0), expected_index)
+            << "direction=" << dir << ", high=" << !face.isLow();
+
+        const auto* zref = averages.get_zref(0);
+        EXPECT_NEAR(zref->min(0), expected_zref, tolerance(expected_zref))
+            << "direction=" << dir << ", high=" << !face.isLow();
+        EXPECT_NEAR(zref->max(0), expected_zref, tolerance(expected_zref))
+            << "direction=" << dir << ", high=" << !face.isLow();
+    }
+}
+
+// Motivation: set_k_indices_T must select the cell containing the requested
+// wall-relative reference point on every Cartesian face.  Lateral terrain
+// faces use the wall-normal path, while the z faces search the nodal terrain
+// heights directly.
+TEST(MOSTAverage, TerrainKIndicesAreSetOnEveryWall)
+{
+    const Geometry geom = make_terrain_geometry();
+    const Box domain = geom.Domain();
+    const Real requested_distance = Real(1.5);
+    const auto faces = all_faces();
+
+    for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+        MOSTAverageFields fields(geom);
+        const auto& face = faces[face_index];
+        const std::string prefix =
+            "unit_most_terrain_k_indices_" + std::to_string(face_index);
+        ScopedMOSTParams params(prefix.c_str(), 0, 0);
+        params.add_zref(requested_distance);
+
+        BoxArray ba_nd(fields.ba);
+        ba_nd.surroundingNodes();
+        auto z_phys_nd = std::make_unique<MultiFab>(ba_nd, fields.dm, 1, 1);
+        initialize_uniform_terrain_height(*z_phys_nd, geom);
+
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false, prefix,
+                              MeshType::ConstantDz,
+                              TerrainType::StaticFittedMesh);
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, z_phys_nd);
+        Gpu::streamSynchronize();
+
+        const int dir = face.coordDir();
+        const int wall_offset = static_cast<int>(
+            std::floor(requested_distance / geom.CellSize(dir) - myhalf));
+        const int expected_index = face.isLow()
+            ? domain.smallEnd(dir) + wall_offset
+            : domain.bigEnd(dir) - wall_offset;
+        const auto* k_indices = averages.get_k_indices(0);
+        EXPECT_EQ(k_indices->min(0), expected_index)
+            << "direction=" << dir << ", high=" << !face.isLow();
+        EXPECT_EQ(k_indices->max(0), expected_index)
+            << "direction=" << dir << ", high=" << !face.isLow();
+
+        const auto* zref = averages.get_zref(0);
+        EXPECT_NEAR(zref->min(0), requested_distance,
+                    tolerance(requested_distance))
+            << "direction=" << dir << ", high=" << !face.isLow();
+        EXPECT_NEAR(zref->max(0), requested_distance,
+                    tolerance(requested_distance))
+            << "direction=" << dir << ", high=" << !face.isLow();
+    }
+}
+
+// Motivation: terrain k-indices are consumed by both averaging policies on
+// every face.  Vary the scalar along the face normal so sampling a neighboring
+// cell is observable for x, y, and z low/high faces.
+TEST(MOSTAverage, TerrainKIndexDrivesBothAveragingPoliciesOnEveryWall)
+{
+    const Geometry geom = make_terrain_geometry();
+    const Box domain = geom.Domain();
+    const Real requested_distance = Real(1.5);
+    const auto faces = all_faces();
+
+    for (std::size_t face_index = 0; face_index < faces.size(); ++face_index) {
+        const auto& face = faces[face_index];
+        const int dir = face.coordDir();
+        const int wall_offset = static_cast<int>(
+            std::floor(requested_distance / geom.CellSize(dir) - myhalf));
+        const int expected_index = face.isLow()
+            ? domain.smallEnd(dir) + wall_offset
+            : domain.bigEnd(dir) - wall_offset;
+        const Real expected_theta = Real(100.0) + Real(10.0) * expected_index;
+
+        for (const int policy : {0, 1}) {
+            MOSTAverageFields fields(geom);
+            for (MFIter mfi(*fields.theta, false); mfi.isValid(); ++mfi) {
+                auto theta_arr = fields.theta->array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    const int normal_index = (dir == 0) ? i : ((dir == 1) ? j : k);
+                    theta_arr(i,j,k) = Real(100.0) + Real(10.0) * normal_index;
+                });
+            }
+            Gpu::streamSynchronize();
+
+            const std::string prefix =
+                "unit_most_terrain_average_" + std::to_string(face_index) +
+                "_" + std::to_string(policy);
+            ScopedMOSTParams params(prefix.c_str(), policy, 0);
+            params.add_zref(requested_distance);
+
+            BoxArray ba_nd(fields.ba);
+            ba_nd.surroundingNodes();
+            auto z_phys_nd = std::make_unique<MultiFab>(ba_nd, fields.dm, 1, 1);
+            initialize_uniform_terrain_height(*z_phys_nd, geom);
+
+            MOSTAverage averages(face, Vector<Geometry>{geom}, false, prefix,
+                                  MeshType::ConstantDz,
+                                  TerrainType::StaticFittedMesh);
+            averages.make_MOSTAverage_at_level(
+                0, fields.vars_old, fields.theta, fields.qv,
+                fields.qr, z_phys_nd);
+            Gpu::streamSynchronize();
+
+            const auto* k_indices = averages.get_k_indices(0);
+            EXPECT_EQ(k_indices->min(0), expected_index)
+                << "policy=" << policy << ", direction=" << dir
+                << ", high=" << !face.isLow();
+            EXPECT_EQ(k_indices->max(0), expected_index)
+                << "policy=" << policy << ", direction=" << dir
+                << ", high=" << !face.isLow();
+
+            averages.compute_averages(0);
+            Gpu::streamSynchronize();
+            if (policy == 0) {
+                const auto plane_average = averages.get_plane_average(0);
+                ASSERT_GE(plane_average.size(), static_cast<std::size_t>(4));
+                EXPECT_NEAR(plane_average[3], expected_theta,
+                            tolerance(expected_theta))
+                    << "direction=" << dir << ", high=" << !face.isLow();
+            } else {
+                EXPECT_NEAR(averages.get_average(0, 3)->min(0), expected_theta,
+                            tolerance(expected_theta))
+                    << "direction=" << dir << ", high=" << !face.isLow();
             }
         }
     }

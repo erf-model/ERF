@@ -1246,7 +1246,7 @@ ERF::InitData_post ()
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     bool updated_prim = false;
-    // Count number of surface layer boundaries to determine correct parm parse prefix
+    // Count number of surface layer boundaries to determine correct parser prefix
     int n_faces = 0;
     amrex::GpuArray<int, AMREX_SPACEDIM*2> surface_layer_faces{};
     for (OrientationIter oit; oit; ++oit) {

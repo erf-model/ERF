@@ -870,7 +870,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         // Allow semi-implicit discretization of the vertical diffusive terms
         Real zflux_lo;
-        if ( use_SurfLayer &&
+        if ( SurfLayer_zlo &&
              k == dom_lo.z &&
              qty_index != RhoTheta_comp &&
              qty_index != RhoQ1_comp ) {
