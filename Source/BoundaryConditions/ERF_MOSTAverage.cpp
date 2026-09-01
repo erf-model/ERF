@@ -626,7 +626,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
         const int dom_hi = m_geom[lev].Domain().bigEnd(dir);
 
         if (zlo) {
-            // Exisiting behavior: zlo input is an absolute coordinate.
+            // Existing behavior: zlo input is an absolute coordinate.
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
                                              "Query point must be past first z-cell!");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
