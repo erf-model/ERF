@@ -494,12 +494,6 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp);
-    } else if (flux_type == FluxCalcType::DONELAN) {
-        donelan_flux flux_comp;
-        compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
-                                 xheat_flux, yheat_flux, zheat_flux,
-                                 xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp;
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
@@ -638,12 +632,16 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto *const t_mean     = m_ma.get_average(lev,2);
         const auto *const q_mean     = m_ma.get_average(lev,3);
         const auto *const u_mag_mean = m_ma.get_average(lev,5);
+        const auto *const zref_ptr   = m_ma.get_zref(lev);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
         const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);
+
+        const auto zref_arr = zref_ptr->array(mfi);
+        const auto z0_arr   = z_0[lev].array(mfi);
 
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
@@ -666,9 +664,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
             if (toLower(m_lsm_flux_name[n]) == "t_flux")      { lsm_t_flux_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
             if (toLower(m_lsm_flux_name[n]) == "soil_t_flux") { soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "q_flux")      { lsm_q_flux_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau13")       { lsm_tau13_arr   = m_lsm_flux_lev[lev][n]->array(mfi); }
+            if (toLower(m_lsm_flux_name[n]) == "tau23")       { lsm_tau23_arr   = m_lsm_flux_lev[lev][n]->array(mfi); }
         }
 
         const bool has_lsm_t_flux = static_cast<bool>(lsm_t_flux_arr);
@@ -877,9 +875,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         // NOTE: For LSM, this has been handled in "compute_sfc_params_from_lsm_fluxes"
         // NOTE: Fluxes here are for conserved quantities, we divide by rho
-        if (flux_type == FluxCalcType::BULK_COEFF ||
-            flux_type == FluxCalcType::DONELAN) {
-            constexpr Real eps = std::numeric_limits<Real>::epsilon();
+        if (flux_type == FluxCalcType::BULK_COEFF) {
+            constexpr Real eps  = std::numeric_limits<Real>::epsilon();
             bool l_use_moisture = use_moisture;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/)
             {
@@ -904,8 +901,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
                 }
-                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                olen_arr(i,j,0) = ( u_star_arr(i,j,0)  * u_star_arr(i,j,0) * Thv ) /
+                                  ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                z0_arr(i,j,0)  = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
+                                                   umm_arr(i,j,0), u_star_arr(i,j,0));
             });
         }
 

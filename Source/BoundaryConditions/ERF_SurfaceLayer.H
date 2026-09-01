@@ -16,6 +16,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_MOSTUtils.H"
 #include "ERF_EBMOSTStress.H"
 #include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
@@ -93,12 +94,10 @@ public:
           if (read_flux) {
               flux_string = amrex::toLower(flux_string_in);
           }
-          if (flux_string == "donelan") {
-              flux_type = FluxCalcType::DONELAN;
-          } else if (flux_string == "moeng") {
+          if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
           } else if (flux_string == "rico") {
-                flux_type = FluxCalcType::RICO;
+              flux_type = FluxCalcType::RICO;
           } else if (flux_string == "bulk_coeff") {
               flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
@@ -1203,9 +1202,8 @@ public:
   read_cols(const std::string& fname, const int skip_nlines = 1);
 
   enum struct FluxCalcType {
-    MOENG = 0, ///< Moeng functional form
-    DONELAN,   ///< Donelan functional form
-    CUSTOM,    ///< Custom constant flux functional form
+    MOENG = 0,  ///< Moeng functional form
+    CUSTOM,     ///< Custom constant flux functional form
     BULK_COEFF, ///< Bulk transfer coefficient functional form
     ROTATE,     ///< Terrain rotation flux functional form
     RICO
@@ -1268,7 +1266,7 @@ private:
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
   amrex::Real cnk_a{amrex::Real(0.0185)};
-  bool cnk_visc{false};
+  bool cnk_visc{true};
   amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};

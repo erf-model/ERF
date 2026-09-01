@@ -2866,9 +2866,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | Parameter                             | Definition                                               | Acceptable Values   | Default          |
 +=======================================+==========================================================+=====================+==================+
-| **erf.surface_layer.flux_type**       | how the surface fluxes are computed                      | moeng, donelan,     | moeng            |
-|                                       |                                                          | rico, bulk_coeff,   |                  |
-|                                       |                                                          | custom              |                  |
+| **erf.surface_layer.flux_type**       | how the surface fluxes are computed                      | moeng, rico,        | moeng            |
+|                                       |                                                          | bulk_coeff, custom  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.z0**                       | constant surface roughness length [m]                    | Real > 0            | 0.1              |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
@@ -2935,7 +2934,7 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | variable COARE3.0 parameter.  Read only when             |                     |                  |
 |                                       | ``roughness_type_sea`` = ``charnock``                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.charnock_viscosity**       | include the viscous term in the Charnock relation.  Read | Boolean             | false            |
+| **erf.most.charnock_viscosity**       | include the viscous term in the Charnock relation.  Read | Boolean             | true             |
 |                                       | only when ``roughness_type_sea`` = ``charnock``          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real > 0            | 30.0             |
