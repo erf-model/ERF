@@ -11,7 +11,6 @@
 
 RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            const std::string& diag_file,
-                                           int amr_level,
                                            bool diag_enable,
                                            bool diag_stdout_enable,
                                            bool diag_tagged_enable,
@@ -19,7 +18,7 @@ RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            bool diag_csv_enable,
                                            const std::string& diag_callsite_mode,
                                            amrex::Real diag_dedup_tol)
-  : m_verbosity(verbosity), m_diag_file(diag_file), m_amr_level(amr_level),
+  : m_verbosity(verbosity), m_diag_file(diag_file), 
     m_diag_enable(diag_enable), m_diag_stdout_enable(diag_stdout_enable),
     m_diag_tagged_enable(diag_tagged_enable),
     m_diag_regtest_line_enable(diag_regtest_line_enable),

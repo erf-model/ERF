@@ -257,7 +257,7 @@ amrex::Real resolve_surface_temp_k(
  * @return Vertical cell thickness [m]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_dz_for_level(int k, const Geometry& geom)
+amrex::Real get_dz_for_level(int /*k*/, const Geometry& geom)
 {
     // No-op stub: currently always use uniform grid
     // Future: when z_phys_cc is available in device scope, use per-level spacing
@@ -540,7 +540,7 @@ amrex::Real diagnose_cloud_fraction_prognostic(
     int i, int j, int k,
     const Array4<const amrex::Real>& state_arr,
     const RadChoice& rad_choice,
-    const Geometry& geom)
+    const Geometry& /*geom*/)
 {
     // If prognostic cloud fraction is disabled, return 0 (no effect)
     if (!rad_choice.cloud_fraction_prog_enable) {
@@ -710,9 +710,9 @@ void vertical_two_stream_sweep(
     amrex::Real dz_level[MAX_RAD_LEVELS];
     
     // Compute per-level dz from z_phys_cc if available
-    bool using_nonuniform_dz = false;
+    //bool using_nonuniform_dz = false;
     if (z_phys_cc) {
-        using_nonuniform_dz = true;
+        //using_nonuniform_dz = true;
         for (int k = 0; k < nlev && (kmin + k) < kmax; ++k) {
             // Compute layer thickness from cell-centered heights
             // Layer k extends from z_phys_cc(i,j,k) to z_phys_cc(i,j,k+1)
@@ -724,7 +724,7 @@ void vertical_two_stream_sweep(
             } else {
                 // Fallback to uniform if computed dz is invalid
                 dz_level[k] = dz_uniform;
-                using_nonuniform_dz = false;  // Mark as fallback used
+                //using_nonuniform_dz = false;  // Mark as fallback used
             }
         }
         // Handle top level (kmax): use uniform spacing as fallback
@@ -1178,7 +1178,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     }
 
     // Create RadiationDiagnostics instance for this level with controls
-    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev,
+    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, 
                                    rad_choice.diag_enable, rad_choice.diag_stdout_enable,
                                    rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
                                    rad_choice.diag_csv_enable, rad_choice.diag_callsite_mode,
@@ -1295,10 +1295,10 @@ void ERF::compute_twostream_radiation_diagnostics(
 
             // Get z_phys_cc for nonuniform dz support if available
             Array4<const amrex::Real> z_phys_cc_arr;
-            bool has_z_phys = false;
+            //bool has_z_phys = false;
             if (z_phys_cc[lev] != nullptr) {
                 z_phys_cc_arr = z_phys_cc[lev]->const_array(mfi);
-                has_z_phys = true;
+                //has_z_phys = true;
             }
 
             //  Wire LSM surface property fields or use standalone fallback MultiFabs
