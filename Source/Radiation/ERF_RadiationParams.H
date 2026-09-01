@@ -8,9 +8,9 @@
  * @brief Parameters for two-stream radiation solvers.
  *
  * This file contains optical properties and parameters for the two-stream
- * radiation model. Phase 1 implements only constant, uniform optical
- * properties (Beer-Lambert SW and gray-gas LW). Later phases will extend
- * this to include vertical profiles, clouds, scattering, etc.
+ * radiation model. Implements constant, uniform optical properties
+ * (Beer-Lambert SW and gray-gas LW). Future work will extend this to include
+ * vertical profiles, clouds, scattering, etc.
  *
  * References:
  * -----------
@@ -31,8 +31,8 @@
  * @class RadiationParams
  * @brief Container for optical properties in the two-stream model.
  *
- * In Phase 1, all optical properties are uniform (constant in space and time).
- * Future phases will add:
+ * Provides constant, uniform optical properties across space and time.
+ * Future work will add:
  * - Per-layer vertical profiles of optical depth
  * - Cloud optical properties and coverage
  * - Scattering effects
@@ -48,8 +48,8 @@ struct RadiationParams
    * Used in Beer-Lambert direct-beam attenuation:
    *   F_dir(k) = S0 * cos(zenith) * exp(-tau_sw_cumulative(k) / cos(zenith))
    *
-   * Phase 1: uniform constant value for all layers.
-   * Future phases: vertically varying profile, function of clouds/aerosols.
+   * Uniform constant value for all layers.
+   * Future work: vertically varying profile based on clouds/aerosols.
    */
   amrex::Real tau_sw = 0.05;
 
@@ -59,8 +59,8 @@ struct RadiationParams
    * Used in gray-gas LW two-stream sweeps:
    *   F_up(k+1) = F_up(k) * exp(-tau_lw_k) + sigma * T(k)^4 * (1 - exp(-tau_lw_k))
    *
-   * Phase 1: uniform constant value for all layers.
-   * Future phases: vertically varying profile, function of humidity/clouds.
+   * Uniform constant value for all layers.
+   * Future work: vertically varying profile based on humidity/clouds.
    */
   amrex::Real tau_lw = 1.0;
 
@@ -79,8 +79,8 @@ struct RadiationParams
    * @brief Solar constant (top-of-atmosphere irradiance) in W/m^2.
    *
    * Typical value: 1361 W/m^2 (TSI).
-   * Phase 1: constant global value.
-   * Future phases: account for solar cycle variability.
+   * Constant global value.
+   * Future work: account for solar cycle variability.
    */
   amrex::Real S0 = 1361.0;
 
@@ -98,7 +98,7 @@ struct RadiationParams
   /**
    * @brief Constructor with default parameters.
    *
-   * Initializes optical properties to sensible defaults for Phase 1.
+   * Initializes optical properties to sensible defaults.
    * Parameters can be overridden via the RadChoice initialization.
    */
   AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

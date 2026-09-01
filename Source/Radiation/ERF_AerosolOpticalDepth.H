@@ -7,7 +7,7 @@
 
 /**
  * @file ERF_AerosolOpticalDepth.H
- * @brief Phase 15: Prescribed bulk aerosol/turbidity optical depth diagnosis.
+ * @brief Prescribed bulk aerosol/turbidity optical depth diagnosis.
  *
  * Implements profile-based aerosol optical depth diagnosis for use in TwoStream radiation.
  * Supports Constant, Exponential, and Table (future) profile types.
@@ -26,7 +26,7 @@
  *
  * References:
  * -----------
- * - Phase 15 Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md)
+ * - See Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md) for implementation details.
  */
 
 /**

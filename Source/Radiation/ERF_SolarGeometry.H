@@ -7,7 +7,7 @@
 
 /**
  * @file ERF_SolarGeometry.H
- * @brief Solar geometry calculations for time-varying solar position (Phase 16).
+ * @brief Solar geometry calculations for time-varying solar position.
  *
  * Provides GPU-safe helper functions to compute solar position from:
  * - Simulation time (UTC seconds from day start or absolute time)

@@ -41,71 +41,37 @@ void fill_or_copy_seb_field(
 
 /**
  * @file ERF_AdvanceTwoStreamRadiation.cpp
- * @brief Phase 5 two-stream radiation driver: adds per-level (SW, LW)
- * heating-rate output (mirroring the RRTMGP qheating_rates MultiFab
- * convention: component 0 = SW, component 1 = LW, units K/s), on top of
- * the Phase 4 real per-column vertical integration, optional height-varying
- * (cloud layer) optical depth, cloud fraction masking, and diffuse
- * (scattering) SW flux contribution.
+ * @brief Two-stream radiation driver with per-level heating rates.
  *
- * Computes SW/LW fluxes and heating rates using real, per-column vertical
- * sweeps over the actual atmospheric grid. Reads temperature and density
+ * Computes SW/LW fluxes and per-level heating rates using real per-column
+ * vertical sweeps over the atmospheric grid. Reads temperature and density
  * from the state and properly accumulates optical depth through all
  * vertical levels.
  *
- * Phase 3 improvements over Phase 2d:
+ * Capabilities include:
  * - Height-varying optical depth: optional "cloud_layer" tau_profile_type
  *   adds cloud_tau_per_layer on top of the clear-sky background within
  *   [cloud_base_height_m, cloud_top_height_m].
  * - Cloud fraction masking: blends clear-sky and cloudy-column fluxes via
- *   F = (1 - cloud_fraction) * F_clear + cloud_fraction * F_cloudy.
- * - Default tau_profile_type="constant" and cloud_fraction=0.0 reduce
- *   EXACTLY to Phase 2d output (see RAD_DEVELOPMENT.md Phase 3 section for
- *   hand-traced verification).
- *
- * Phase 4 improvements over Phase 3:
+ *   F = (1 - cloud_fraction) * F_clear + cloud_fraction) * F_cloudy.
  * - Diffuse (scattered) SW flux: during the downward SW sweep, each layer's
- *   direct-beam attenuation now also generates a diffuse flux contribution
+ *   direct-beam attenuation also generates a diffuse flux contribution
  *   via compute_sw_diffuse_flux() (Meador-Weaver two-stream scattering),
- *   accumulated layer-by-layer alongside the direct beam. Clear-sky levels
- *   use rad_choice.single_scattering_albedo / asymmetry_factor; levels
- *   within the Phase 3 cloud layer (only on the "cloudy" column evaluation)
- *   use rad_choice.cloud_single_scattering_albedo / cloud_asymmetry_factor
- *   instead.
- * - Total SW flux at any level = direct-beam flux + accumulated diffuse
- *   flux. Heating rate divergence and surface flux now include both terms.
- * - Default single_scattering_albedo = cloud_single_scattering_albedo = 0.0
- *   means compute_sw_diffuse_flux() returns exactly 0.0 at every level, so
- *   Phase 4 reduces EXACTLY to Phase 3 output when scattering is not
- *   configured (see RAD_DEVELOPMENT.md Phase 4 section for hand-traced
- *   verification).
+ *   accumulated layer-by-layer alongside the direct beam.
+ * - Per-level heating rate output: writes SW/LW heating rates to a
+ *   2-component heating-rate MultiFab (component 0 = SW, component 1 = LW),
+ *   mirroring the RRTMGP convention.
  *
- * Phase 5 improvements over Phase 4 (this file):
- * - vertical_two_stream_sweep() now accepts a mutable per-column
- *   Array4<amrex::Real> `qheating_arr` (2 components) and writes the SW
- *   heating rate to qheating_arr(i,j,k,0) and the LW heating rate to
- *   qheating_arr(i,j,k,1) at EVERY level k in [kmin, kmax], instead of only
- *   reducing to a domain-max scalar for diagnostics. This mirrors exactly
- *   the (SW, LW) 2-component convention used by the RRTMGP qheating_rates
- *   MultiFab (see Source/ERF_MakeNewArrays.cpp and
- *   Source/SourceTerms/ERF_MakeSources.cpp), so both radiation paths can
- *   share the same downstream RhoTheta source-term injection code.
- * - LW heating rate is now actually computed: compute_lw_heating_rate()
- *   (defined in ERF_TwoStreamLW.H since Phase 1) was previously dead code —
- *   never called anywhere in the Phase 1-4 driver. Phase 5 adds a local,
- *   fixed-capacity per-column buffer (capped at MAX_RAD_LEVELS, asserted at
- *   runtime) to store the upward/downward LW flux profile from the
- *   existing two sweeps, then computes the net-flux-divergence heating
- *   rate layer-by-layer.
- * - compute_twostream_radiation_diagnostics() (see Step 3+ of Phase 5) will
- *   pass a real qheating_rates MultiFab pointer down to this kernel; when
- *   cloud_fraction > 0, the clear-sky and cloudy-column heating rates are
- *   blended into it exactly as sw_surface_flux/lw_net_surface already are,
- *   via a scratch MultiFab for the cloudy-column evaluation.
+ * Includes support for:
+ * - Height-varying surface properties (albedo, emissivity, temperature)
+ * - Dynamic cloud fraction from relative humidity and cloud water
+ * - Prescribed bulk aerosol optical depth
+ * - Dynamic solar geometry (time-varying solar position)
+ * - Surface energy balance diagnostics and prognostic updates
  *
- * Note: CSV diagnostics (SW_surface, heating_rate_max, etc.) are
- * unchanged; heating_rate_max is still the max(|Q_sw|+|Q_lw|) observed,
- * kept for backward RegTest compatibility.
+ * Note: CSV diagnostics (SW_surface, heating_rate_max, etc.) are maintained
+ * for backward RegTest compatibility. heating_rate_max is the max(|Q_sw|+|Q_lw|)
+ * observed during the column evaluation.
  */
 
 /**
@@ -114,7 +80,7 @@ void fill_or_copy_seb_field(
  * Converts specific enthalpy form (RhoTheta) to absolute temperature using:
  *   T = (RhoTheta / Rho) * (p / p_ref)^(R_d / cp)
  *
- * For simplicity in Phase 2/3, we use a constant reference pressure approximation.
+ * For simplicity, we use a constant reference pressure approximation.
  *
  * @param[in] rho_theta RhoTheta component [K·kg/m^3]
  * @param[in] rho Density [kg/m^3]
@@ -130,7 +96,7 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
         return 288.15;  // Defensive: fallback
     }
 
-    // Simplified: assume theta ≈ T for Phase 2/3 (ignores Exner function)
+    // Simplified: assume theta approximately T (ignores Exner function)
     // Real implementation would use background state and pressure profile
     amrex::Real theta = rho_theta / rho;
 
@@ -142,7 +108,7 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
 }
 
 /**
- * @brief (Phase 11) Clamp a real value to [min, max], with fallback for invalid (NaN/Inf).
+ * @brief Clamp a real value to [min, max], with fallback for invalid (NaN/Inf).
  *
  * If the value is not finite (NaN, Inf), returns fallback. Otherwise returns
  * value clamped to [min, max].
@@ -166,7 +132,7 @@ amrex::Real clamp_finite(amrex::Real value, amrex::Real min, amrex::Real max,
 }
 
 /**
- * @brief (Phase 11) Check if a real value is finite and positive.
+ * @brief Check if a real value is finite and positive.
  *
  * @param[in] value Value to check
  * @return true if finite and > 0, false otherwise
@@ -178,7 +144,7 @@ bool is_finite_positive(amrex::Real value)
 }
 
 /**
- * @brief (Phase 11) Resolve per-column shortwave surface albedo from hetero field or fallback.
+ * @brief Resolve per-column shortwave surface albedo from hetero field or fallback.
  *
  * Precedence:
  * 1. If hetero_alb_sw array available and value at (i,j) is finite ∈ [0,1], use it
@@ -211,7 +177,7 @@ amrex::Real resolve_surface_albedo_sw(
 }
 
 /**
- * @brief (Phase 11) Resolve per-column longwave surface emissivity from hetero field or fallback.
+ * @brief Resolve per-column longwave surface emissivity from hetero field or fallback.
  *
  * Precedence:
  * 1. If hetero_emiss_lw array available and value at (i,j) is finite ∈ [0,1], use it
@@ -244,7 +210,7 @@ amrex::Real resolve_surface_emissivity_lw(
 }
 
 /**
- * @brief (Phase 11) Resolve per-column surface temperature from hetero field or fallback.
+ * @brief Resolve per-column surface temperature from hetero field or fallback.
  *
  * Precedence:
  * 1. If t_sfc array available and value at (i,j) is finite & positive, use it
@@ -277,7 +243,7 @@ amrex::Real resolve_surface_temp_k(
 }
 
 /**
- * @brief (Phase 10) Compute vertical thickness of a single layer.
+ * @brief Compute vertical thickness of a single layer.
  *
  * For uniform grids: dz = geom.CellSize(2)
  * For nonuniform/terrain-aware grids: dz = z_cc(k) - z_cc(k+1)
@@ -293,7 +259,7 @@ amrex::Real resolve_surface_temp_k(
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real get_dz_for_level(int k, const Geometry& geom)
 {
-    // Phase 9 stub: currently always use uniform grid
+    // No-op stub: currently always use uniform grid
     // Future: when z_phys_cc is available in device scope, use per-level spacing
     return geom.CellSize(2);
 }
@@ -305,7 +271,7 @@ amrex::Real level_height_m(int k, int kmin, amrex::Real dz)
 
 /**
  * @brief GPU-safe helper to determine whether level k falls within the
- * Phase 3 cloud layer band [cloud_base_height_m, cloud_top_height_m].
+ * cloud layer band [cloud_base_height_m, cloud_top_height_m].
  *
  * @param[in] k Vertical index.
  * @param[in] kmin Lowest vertical index.
@@ -322,11 +288,11 @@ bool is_cloud_level(int k, int kmin, amrex::Real dz, const RadChoice& rad_choice
 
 /**
  * @brief GPU-safe helper to compute the per-layer optical depth at level k,
- * given the base (clear-sky) optical depth and Phase 3 cloud-layer
+ * given the base (clear-sky) optical depth and cloud-layer
  * parameters.
  *
  * When rad_choice.tau_profile_type == Constant, returns tau_base unchanged
- * (byte-identical to Phase 2d). When == CloudLayer, adds
+ * (byte-identical). When == CloudLayer, adds
  * rad_choice.cloud_tau_per_layer whenever the level height falls within
  * [cloud_base_height_m, cloud_top_height_m].
  *
@@ -354,12 +320,12 @@ amrex::Real tau_layer_value(
 }
 
 /**
- * @brief (Phase 12) GPU-safe helper to diagnose dynamic shortwave optical depth
+ * @brief GPU-safe helper to diagnose dynamic shortwave optical depth
  * from per-level water vapor and cloud liquid water.
  *
  * Computes tau_sw = tau_sw_coeff_qv * qv + tau_sw_coeff_qc * qc + tau_base,
  * where qv and qc are retrieved from the state array at the given (i,j,k).
- * When coefficients are 0, reduces exactly to tau_base (Phase 11 behavior).
+ * When coefficients are 0, reduces exactly to tau_base (behavior).
  *
  * Guards against invalid values:
  * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
@@ -391,7 +357,7 @@ amrex::Real diagnose_tau_sw_dynamic(
 
    // Retrieve water vapor and cloud liquid water mixing ratios
    // Assume state_arr has components in order: Rho, RhoTheta, RhoQv, RhoQc, ...
-   // Phase 12 uses hardcoded indices: RhoQv_comp and RhoQc_comp from ERF_Index.H
+   // uses hardcoded indices: RhoQv_comp and RhoQc_comp from ERF_Index.H
    amrex::Real qv = 0.0;
    amrex::Real qc = 0.0;
 
@@ -432,12 +398,12 @@ amrex::Real diagnose_tau_sw_dynamic(
 }
 
 /**
- * @brief (Phase 12) GPU-safe helper to diagnose dynamic longwave optical depth
+ * @brief GPU-safe helper to diagnose dynamic longwave optical depth
  * from per-level water vapor and cloud liquid water.
  *
  * Computes tau_lw = tau_lw_coeff_qv * qv + tau_lw_coeff_qc * qc + tau_base,
  * where qv and qc are retrieved from the state array at the given (i,j,k).
- * When coefficients are 0, reduces exactly to tau_base (Phase 11 behavior).
+ * When coefficients are 0, reduces exactly to tau_base (behavior).
  *
  * Guards against invalid values:
  * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
@@ -508,7 +474,7 @@ amrex::Real diagnose_tau_lw_dynamic(
 }
 
 /**
- * @brief (Phase 4) GPU-safe helper to select the single-scattering albedo
+ * @brief GPU-safe helper to select the single-scattering albedo
  * and asymmetry factor to use for level k's diffuse SW calculation.
  *
  * When this column evaluation applies the cloud-layer enhancement
@@ -518,7 +484,7 @@ amrex::Real diagnose_tau_lw_dynamic(
  * Otherwise, the clear-sky scattering properties (single_scattering_albedo,
  * asymmetry_factor) are used. Both default to 0.0, so by default this
  * function always yields omega == 0.0, and compute_sw_diffuse_flux()
- * returns exactly 0.0 (Phase 1-3 direct-beam-only behavior preserved).
+ * returns exactly 0.0 (direct-beam-only behavior preserved).
  *
  * @param[in] k Vertical index.
  * @param[in] kmin Lowest vertical index.
@@ -548,7 +514,7 @@ void select_scattering_props(
 }
 
 /**
- * @brief (Phase 14) GPU-safe helper to diagnose prognostic cloud fraction
+ * @brief GPU-safe helper to diagnose prognostic cloud fraction
  * from per-level relative humidity and cloud liquid water.
  *
  * Computes cloud fraction from RH and qc using:
@@ -636,7 +602,7 @@ amrex::Real diagnose_cloud_fraction_prognostic(
 }
 
 /**
- * @brief (Phase 5) Maximum number of vertical levels supported by the
+ * @brief Maximum number of vertical levels supported by the
  * fixed-capacity per-column LW flux buffers in vertical_two_stream_sweep().
  *
  * The LW heating-rate computation requires the full upward and downward LW
@@ -659,16 +625,16 @@ constexpr int MAX_RAD_LEVELS = 512;
  * Performs a vertical sweep over each (i,j) column:
  * 1. Initialize fluxes at TOA
  * 2. Sweep downward (k: TOA → surface), accumulating optical depth and
- *    (Phase 4) diffuse SW flux; writes per-level SW heating rate to
- *    qheating_arr(i,j,k,0) at every level (Phase 5).
- * 3. Sweep upward then downward for LW (as in Phase 2c), storing the full
+ *    diffuse SW flux; writes per-level SW heating rate to
+ *    qheating_arr(i,j,k,0) at every level.
+ * 3. Sweep upward then downward for LW (in the downward pass), storing the full
  *    per-level flux profiles in local buffers, then computes per-level LW
  *    heating rate from net-flux divergence and writes to
- *    qheating_arr(i,j,k,1) at every level (Phase 5).
+ *    qheating_arr(i,j,k,1) at every level.
  * 4. Reduction-based scalar diagnostics (max heating rate, surface fluxes)
- *    are still produced for CSV/console output, unchanged from Phase 4.
+ *    are still produced for CSV/console output, unchanged.
  *
- * (Phase 11) Integrates per-column heterogeneous surface properties (albedo,
+ * Integrates per-column heterogeneous surface properties (albedo,
  * emissivity, surface temperature) from optional fields with robust fallback
  * to RadChoice scalar parameters. If hetero fields unavailable or contain
  * invalid values, falls back silently to scalar/hard defaults.
@@ -683,24 +649,24 @@ constexpr int MAX_RAD_LEVELS = 512;
  * @param[in] state_arr Array proxy to state data (read-only)
  * @param[in] rad_choice Radiation parameters
  * @param[in] cloudy If true and tau_profile_type == CloudLayer, apply the
- * cloud-layer optical depth enhancement (and, Phase 4, cloud scattering
+ * cloud-layer optical depth enhancement (and cloud scattering
  * properties); if false, always use the clear-sky (constant) tau and
  * clear-sky scattering properties regardless of tau_profile_type. This lets
  * the caller compute both F_clear and F_cloudy for cloud-fraction blending.
- * @param[out] qheating_arr (Phase 5) Mutable per-column array; component 0
+ * @param[out] qheating_arr Mutable per-column array; component 0
  * receives the SW heating rate [K/s] and component 1 the LW heating rate
  * [K/s] at every level k in [kmin, kmax]. Must have at least 2 components
  * and cover the full vertical extent of bx.
  * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed (device-side scalar)
  * @param[out] sw_surface_flux Downwelling SW at surface (direct + diffuse) (device-side scalar)
  * @param[out] lw_net_surface Net LW at surface (device-side scalar)
- * @param[in] z_phys_cc (Phase 10) Optional physical height array for nonuniform dz support
- * @param[in] has_hetero_alb_sw (Phase 11) true if hetero_alb_sw is available
- * @param[in] hetero_alb_sw (Phase 11) Optional per-column SW surface albedo field
- * @param[in] has_hetero_emiss_lw (Phase 11) true if hetero_emiss_lw is available
- * @param[in] hetero_emiss_lw (Phase 11) Optional per-column LW surface emissivity field
- * @param[in] has_t_sfc (Phase 11) true if t_sfc is available
- * @param[in] t_sfc (Phase 11) Optional per-column surface temperature field [K]
+ * @param[in] z_phys_cc Optional physical height array for nonuniform dz support
+ * @param[in] has_hetero_alb_sw true if hetero_alb_sw is available
+ * @param[in] hetero_alb_sw Optional per-column SW surface albedo field
+ * @param[in] has_hetero_emiss_lw true if hetero_emiss_lw is available
+ * @param[in] hetero_emiss_lw Optional per-column LW surface emissivity field
+ * @param[in] has_t_sfc true if t_sfc is available
+ * @param[in] t_sfc Optional per-column surface temperature field [K]
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
@@ -733,17 +699,17 @@ void vertical_two_stream_sweep(
     amrex::Real cp_air = 1005.0;         // Specific heat at constant pressure [J/(kg·K)]
 
     // Get vertical grid spacing from geometry
-    // Phase 10: Compute per-level dz from z_phys_cc differences for nonuniform grids;
+    // Compute per-level dz from z_phys_cc differences for nonuniform grids;
     // fall back to CellSize(2) if z_phys_cc unavailable.
     amrex::Real dz_uniform = geom.CellSize(2);  // Uniform vertical cell spacing [m] (fallback)
     
-    // (Phase 10) Per-level dz array for nonuniform grid support.
+    // Per-level dz array for nonuniform grid support.
     // Attempt to compute from z_phys_cc; fall back to uniform if unavailable.
     // Defensive: If nlev > MAX_RAD_LEVELS, this will still work but degrade to
     // uniform spacing (the AMREX_ALWAYS_ASSERT in the caller will catch over-tall domains).
     amrex::Real dz_level[MAX_RAD_LEVELS];
     
-    // Phase 10: Compute per-level dz from z_phys_cc if available
+    // Compute per-level dz from z_phys_cc if available
     bool using_nonuniform_dz = false;
     if (z_phys_cc) {
         using_nonuniform_dz = true;
@@ -772,10 +738,10 @@ void vertical_two_stream_sweep(
         }
     }
 
-    // Compute solar zenith angle (Phase 16: optionally dynamic from solar geometry)
+    // Compute solar zenith angle (optionally dynamic from solar geometry)
     amrex::Real cos_zenith;
     if (rad_choice.solar_geometry_dynamic_enable) {
-        // Phase 16: Compute cos_zenith dynamically from solar position
+        // Compute cos_zenith dynamically from solar position
         cos_zenith = compute_cos_zenith_angle(
             time_utc_seconds,
             rad_choice.latitude_deg,
@@ -783,7 +749,7 @@ void vertical_two_stream_sweep(
             rad_choice.day_of_year,
             rad_choice.time_zone_offset_hours);
     } else {
-        // Phase 15 and earlier: Use fixed solar zenith angle (bitwise-identical)
+        // and earlier: Use fixed solar zenith angle (bitwise-identical)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
@@ -796,7 +762,7 @@ void vertical_two_stream_sweep(
     // Initialize accumulators
     amrex::Real tau_sw_cum = 0.0;      // Cumulative SW optical depth (TOA → current level)
     amrex::Real F_sw_dir_prev = 0.0;   // SW direct flux at previous level
-    amrex::Real F_sw_diff_prev = 0.0;  // (Phase 4) SW diffuse flux at previous level
+    amrex::Real F_sw_diff_prev = 0.0;  // SW diffuse flux at previous level
     amrex::Real F_lw_down_curr = 0.0;  // LW downwelling at current level (from downward sweep)
 
     amrex::Real local_max_heating = 0.0;
@@ -817,7 +783,7 @@ void vertical_two_stream_sweep(
 
     // ========================================================================
     // DOWNWARD PASS: Accumulate optical depth and compute SW direct-beam plus
-    // (Phase 4) diffuse flux; (Phase 5) write per-level SW heating rate.
+    // diffuse flux; write per-level SW heating rate.
     // ========================================================================
     for (int k = kmin; k <= kmax; ++k) {
         // Read state at this level
@@ -828,17 +794,17 @@ void vertical_two_stream_sweep(
         if (rho <= 0.0) rho = 1.0;
         if (rho_theta <= 0.0) rho_theta = 288.15;
 
-    // Phase 3: per-level optical depth (constant, or +cloud within layer)
+    // per-level optical depth (constant, or +cloud within layer)
         // NOTE: Use uniform dz for cloud-layer height detection (to keep cloud
         // position logic unchanged from prior phases)
         amrex::Real tau_sw = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, cloudy);
 
-        // (Phase 12) Apply dynamic tau diagnosis if enabled
+        // Apply dynamic tau diagnosis if enabled
         if (rad_choice.tau_sw_dynamic_enable) {
             tau_sw = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau_sw, rad_choice);
         }
 
-        // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+        // Apply prognostic cloud fraction modulation if enabled
         // Scale the cloud optical depth contribution by the diagnosed cf(k)
         if (rad_choice.cloud_fraction_prog_enable && cloudy && 
             rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
@@ -850,7 +816,7 @@ void vertical_two_stream_sweep(
             tau_sw = tau_sw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
         }
 
-        // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+        // Apply prescribed bulk aerosol optical depth if enabled
         // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
         if (rad_choice.aerosol_enable) {
             amrex::Real tau_aerosol = 0.0;
@@ -888,7 +854,7 @@ void vertical_two_stream_sweep(
         // SW: Compute direct-beam flux at current level using Beer-Lambert
         amrex::Real F_sw_dir_curr = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
 
-        // Phase 4: select scattering properties for this level (clear-sky vs
+        // select scattering properties for this level (clear-sky vs
         // cloud, depending on the "cloudy" column flag and whether this level
         // falls within the cloud band). Use uniform dz for cloud detection.
         amrex::Real omega = 0.0;
@@ -911,12 +877,12 @@ void vertical_two_stream_sweep(
          amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
          amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
 
-         // Phase 5: SW heating in this layer, written at EVERY level (not
-         // just k < kmax as in Phase 1-4's max-only reduction), so that the
+         // SW heating in this layer, written at EVERY level (not
+         // just k < kmax as in earlier max-only reduction), so that the
          // per-level qheating_arr output has a physically meaningful value
          // covering the whole column.
          // 
-         // Phase 9: Use per-level dz for heating divergence (supports nonuniform grids).
+         // Use per-level dz for heating divergence (supports nonuniform grids).
          // Currently all levels use uniform spacing; fallback is automatic.
          int k_idx = k - kmin;
          amrex::Real dz_heating = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
@@ -934,7 +900,7 @@ void vertical_two_stream_sweep(
     }
 
     // ========================================================================
-    // (Phase 5) LW: store full per-level upward/downward flux profiles in
+    // LW: store full per-level upward/downward flux profiles in
     // local, fixed-capacity buffers so a per-level net-flux-divergence
     // heating rate can be computed after both sweeps complete.
     // ========================================================================
@@ -961,15 +927,15 @@ void vertical_two_stream_sweep(
 
         amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
 
-        // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
+        // per-level LW optical depth (constant, or +cloud within layer)
         amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
 
-        // (Phase 12) Apply dynamic tau diagnosis if enabled
+        // Apply dynamic tau diagnosis if enabled
         if (rad_choice.tau_lw_dynamic_enable) {
             tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
         }
 
-        // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+        // Apply prognostic cloud fraction modulation if enabled
         // Scale the cloud optical depth contribution by the diagnosed cf(k)
         if (rad_choice.cloud_fraction_prog_enable && cloudy && 
             rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
@@ -980,10 +946,10 @@ void vertical_two_stream_sweep(
             tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
         }
 
-        // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+        // Apply prescribed bulk aerosol optical depth if enabled
         // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
         // Note: LW aerosol support introduced here as part of full implementation
-        // (separate enable flag for LW-only control can be added in Phase 16 if needed)
+        // (separate enable flag for LW-only control can be added in if needed)
         if (rad_choice.aerosol_enable) {
             amrex::Real tau_aerosol = 0.0;
              
@@ -1016,7 +982,7 @@ void vertical_two_stream_sweep(
 
         if (k == kmax) {
             // Surface: initialize upwelling flux
-            // (Phase 11) Resolve surface temperature and emissivity from hetero fields or fallback
+            // Resolve surface temperature and emissivity from hetero fields or fallback
             amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc);
             amrex::Real emiss_lw = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
             
@@ -1031,7 +997,7 @@ void vertical_two_stream_sweep(
     }
 
     // ========================================================================
-    // DOWNWARD PASS (Phase 2c): Compute real LW downwelling flux
+    // DOWNWARD PASS: Compute real LW downwelling flux
     // ========================================================================
     if (!rad_choice.isothermal_test) {
         // For non-isothermal case, compute real downward two-stream sweep
@@ -1047,15 +1013,15 @@ void vertical_two_stream_sweep(
 
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
 
-            // Phase 3: per-level LW optical depth (constant, or +cloud within layer)
+            // per-level LW optical depth (constant, or +cloud within layer)
             amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
 
-            // (Phase 12) Apply dynamic tau diagnosis if enabled
+            // Apply dynamic tau diagnosis if enabled
             if (rad_choice.tau_lw_dynamic_enable) {
                 tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
             }
 
-            // (Phase 14) Apply prognostic cloud fraction modulation if enabled
+            // Apply prognostic cloud fraction modulation if enabled
             // Scale the cloud optical depth contribution by the diagnosed cf(k)
             if (rad_choice.cloud_fraction_prog_enable && cloudy && 
                 rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
@@ -1066,7 +1032,7 @@ void vertical_two_stream_sweep(
                 tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
             }
 
-            // (Phase 15) Apply prescribed bulk aerosol optical depth if enabled
+            // Apply prescribed bulk aerosol optical depth if enabled
             // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
             if (rad_choice.aerosol_enable) {
                 amrex::Real tau_aerosol = 0.0;
@@ -1116,7 +1082,7 @@ void vertical_two_stream_sweep(
     }
 
     // ========================================================================
-    // (Phase 5) Per-level LW heating rate from net-flux divergence.
+    // Per-level LW heating rate from net-flux divergence.
     // ========================================================================
     for (int k = kmin; k <= kmax; ++k) {
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
@@ -1139,7 +1105,7 @@ void vertical_two_stream_sweep(
         }
         F_net_bot = F_lw_up_profile[k - kmin] - F_lw_down_profile[k - kmin];
 
-        // Phase 9: Use per-level dz for LW heating divergence (supports nonuniform grids).
+        // Use per-level dz for LW heating divergence (supports nonuniform grids).
         // Currently all levels use uniform spacing; fallback is automatic.
         int k_idx = k - kmin;
         amrex::Real dz_heating_lw = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
@@ -1159,14 +1125,14 @@ void vertical_two_stream_sweep(
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     if (rad_choice.sw_enabled) {
-        // (Phase 11) Resolve per-column SW albedo from hetero field or fallback
+        // Resolve per-column SW albedo from hetero field or fallback
         amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
         
         if (rad_choice.isothermal_test) {
             // Isothermal test: compute direct-beam at surface, apply albedo
             sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum) * (1.0 - alb_sw);
         } else {
-            // Normal mode: Phase 4 includes both direct and diffuse terms, apply albedo
+            // Normal mode: includes both direct and diffuse terms, apply albedo
             sw_surface_flux = (F_sw_dir_prev + F_sw_diff_prev) * (1.0 - alb_sw);
         }
     } else {
@@ -1211,7 +1177,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         return;
     }
 
-    // Create RadiationDiagnostics instance for this level with Phase 7 controls
+    // Create RadiationDiagnostics instance for this level with controls
     RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, lev,
                                    rad_choice.diag_enable, rad_choice.diag_stdout_enable,
                                    rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
@@ -1219,7 +1185,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                                    rad_choice.diag_dedup_tol);
 
     // ========================================
-    // Phase 5: GPU-Safe ParallelFor Implementation with Cloud Fraction
+    // GPU-Safe ParallelFor Implementation with Cloud Fraction
     // Blending, Diffuse (Scattering) SW Flux, and Per-Level Heating Rate
     // Output (qheating_rates MultiFab)
     // ========================================
@@ -1233,7 +1199,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real seb_residual_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
     
-    // (Phase 19b) Prognostic SEB surface temperature and moisture diagnostics
+    //  Prognostic SEB surface temperature and moisture diagnostics
     amrex::Real t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real t_s_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
@@ -1246,7 +1212,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     if (state_cons.nComp() > 0 ) {
 
     // Prepare to compute TOA values (used for diagnostics output)
-    // (Phase 16) Compute dynamic cos_zenith if enabled, otherwise use static value
+    // Compute dynamic cos_zenith if enabled, otherwise use static value
     amrex::Real cos_zenith;
     if (rad_choice.solar_geometry_dynamic_enable) {
         // Convert absolute simulation time to UTC seconds within the day [0, 86400)
@@ -1259,7 +1225,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             rad_choice.day_of_year,
             rad_choice.time_zone_offset_hours);
     } else {
-        // Phase 15 and earlier: Use static solar zenith angle
+        // and earlier: Use static solar zenith angle
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
@@ -1271,35 +1237,34 @@ void ERF::compute_twostream_radiation_diagnostics(
         amrex::Real lw_net_sum = 0.0;
         amrex::Long n_columns_total = 0;
 
-        // (Phase 18) SEB residual diagnostics
+        // SEB residual diagnostics
         amrex::Real seb_residual_sum = 0.0;
         amrex::Long n_seb_columns = 0;
 
-        // Phase 3: cloud fraction used to blend clear-sky and cloudy-column results.
+        // cloud fraction used to blend clear-sky and cloudy-column results.
         // cloud_fraction == 0.0 (default) means only the clear-sky column is
         // ever evaluated, and the blend below reduces to F = F_clear exactly.
         amrex::Real cloud_fraction = rad_choice.cloud_fraction;
 
-        // (Phase 16) Compute UTC seconds within the day for dynamic solar geometry
+        // Compute UTC seconds within the day for dynamic solar geometry
         amrex::Real time_utc_seconds = 0.0;
         if (rad_choice.solar_geometry_dynamic_enable) {
             time_utc_seconds = std::fmod(t_old[lev], 86400.0);
             if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
         }
 
-        // (Phase 5) Note: qheating_rates[lev] is expected to be allocated with
+        // Note: qheating_rates[lev] is expected to be allocated with
         // 2 components by the caller whenever rad_choice.rad_type ==
-        // RadType::TwoStream (see Source/ERF_MakeNewArrays.cpp, Step 3 of
-        // Phase 5). If not yet allocated (e.g. before that change lands),
-        // this function still safely computes and logs CSV diagnostics but
-        // skips the per-level heating write.
+        // RadType::TwoStream (see Source/ERF_MakeNewArrays.cpp). If not yet
+        // allocated (e.g. before initialization), this function still safely
+        // computes and logs CSV diagnostics but skips the per-level heating write.
         MultiFab* qheating_mf = qheating_rates[lev].get();
 
         if (rad_choice.seb_enable) {
             fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
              
-            // (Phase 20) Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
+            // Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
             //fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
@@ -1313,7 +1278,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
             fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
              
-            // (Phase 20) Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.
+            // Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
             }
@@ -1328,7 +1293,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             const auto& state_arr = state_cons.const_array(mfi);
             const Geometry& geom_lev = geom[lev];
 
-            // (Phase 10) Get z_phys_cc for nonuniform dz support if available
+            // Get z_phys_cc for nonuniform dz support if available
             Array4<const amrex::Real> z_phys_cc_arr;
             bool has_z_phys = false;
             if (z_phys_cc[lev] != nullptr) {
@@ -1336,14 +1301,14 @@ void ERF::compute_twostream_radiation_diagnostics(
                 has_z_phys = true;
             }
 
-            // (Phase 14A) Wire LSM surface property fields or use standalone fallback MultiFabs
+            //  Wire LSM surface property fields or use standalone fallback MultiFabs
             // Priority:
             // 1. If LSM is active (lsm.Get_DataIdx() returns >=0), use real LSM fields
             // 2. Otherwise, use standalone fallback MultiFabs (allocated and constant-filled from RadChoice scalars)
             // The resolve_surface_*() helpers implement the full precedence chain with finite guards
             
             // SW albedo: Try LSM field "sfc_alb_dir_vis" (simplified: broadband approx from vis-direct only;
-            // future phases may handle full 4-band vis/nir dir/dif; see Phase 14A doc).
+            // future work: full 4-band vis/nir dir/dif support is planned).
             bool has_hetero_alb_sw = false;
             Array4<const amrex::Real> hetero_alb_sw_arr;
             {
@@ -1412,7 +1377,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                                  static_cast<amrex::Long>(bx.length(1));
             n_columns_total += n_cols;
 
-            // (Phase 5) Clear-sky-column heating rates are written directly
+            // Clear-sky-column heating rates are written directly
             // into the real qheating_rates MultiFab when available.
             // Fall back to a throwaway local FArrayBox otherwise (keeps the
             // kernel call GPU-safe even if qheating_rates isn't allocated).
@@ -1425,7 +1390,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                 qheating_clear_arr = qheating_fallback_fab.array();
             }
 
-            // (Phase 5) Cloudy-column heating rates always go into a scratch
+            // Cloudy-column heating rates always go into a scratch
             // FArrayBox; only used/blended when cloud_fraction > 0.
             FArrayBox qheating_cloudy_fab;
             Array4<amrex::Real> qheating_cloudy_arr;
@@ -1450,7 +1415,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                 [=] AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ReduceTuple
                 {
                     // Clear-sky column (always evaluated; this is the sole
-                    // contributor when cloud_fraction == 0.0, matching Phase 2d)
+                    // contributor when cloud_fraction == 0.0, matching earlier behavior)
                     amrex::Real max_heating_clear = 0.0;
                     amrex::Real sw_flux_clear = 0.0;
                     amrex::Real lw_net_clear = 0.0;
@@ -1470,7 +1435,7 @@ void ERF::compute_twostream_radiation_diagnostics(
 
                     // Cloudy column only needs to be evaluated when there is a
                     // nonzero cloud fraction; this keeps the cloud_fraction==0
-                    // path numerically and computationally identical to Phase 2d.
+                    // path numerically and computationally identical.
                     if (cloud_fraction > 0.0) {
                          amrex::Real max_heating_cloudy = 0.0;
                          amrex::Real sw_flux_cloudy = 0.0;
@@ -1492,7 +1457,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                                      cloud_fraction * lw_net_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
 
-                        // (Phase 5) Blend per-level heating rates in place
+                        // Blend per-level heating rates in place
                         // into qheating_clear_arr (which is the real output
                         // MultiFab when qheating_mf != nullptr).
                         int kmin = bx.smallEnd(2);
@@ -1526,7 +1491,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             lw_net_sum += lw_sum_box;
         }
 
-         // (Phase 18) Warn if diagnostic is requested but SEB infrastructure isn't enabled
+         // Warn if diagnostic is requested but SEB infrastructure isn't enabled
         if (rad_choice.seb_diagnostic_enable && !rad_choice.seb_enable) {
             static bool warned_seb_misconfig = false;
             if (!warned_seb_misconfig && ParallelDescriptor::IOProcessor()) {
@@ -1537,7 +1502,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                 warned_seb_misconfig = true;
             }
         }
-        // (Phase 18) Compute SEB residual diagnostics if enabled
+        // Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable) {
             seb_residual_max = 0.0; 
             // Second loop over boxes to compute SEB residual from populated SEB MultiFabs
@@ -1574,7 +1539,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                         amrex::Real lh = lh_arr(i, j, 0);
                         amrex::Real grdflx = grdflx_arr(i, j, 0);
 
-                        // Compute residual using Phase 18 helper function
+                        // Compute residual using helper function
                         amrex::Real residual = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
 
                         // Return sum and abs(max) of residual
@@ -1595,7 +1560,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             }
         }
 
-        // (Phase 19b) Prognostic SEB surface temperature and moisture evolution
+        //  Prognostic SEB surface temperature and moisture evolution
         // Only run if prognostic mode is enabled and Noah-MP is NOT driving LSM at this level
         if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable &&
             call_site == "post_dycore") {
@@ -1724,7 +1689,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                 }
             } else {
                 // Noah-MP is active; skip prognostic update for this level
-                // Leave t_s and q_s as populated by Phase 17 LSM passthrough
+                // Leave t_s and q_s as populated by LSM passthrough
                 t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
                 t_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
@@ -1733,19 +1698,18 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
         // equivalent to a single-column value for spatially UNIFORM atmospheres
         // (as in the current SW_ClearSky_Analytical / LW_Isothermal RegTests).
-        // Phase 3's SW_Cloud_Layer and Phase 4's SW_Scattering_Cloud RegTests
-        // are ALSO spatially uniform (identical cloud/tau/scattering
-        // parameters applied to every column), so the domain-averaged value
-        // still equals the true single-column flux there. True horizontal
-        // heterogeneity (e.g., patchy clouds varying by column) remains
-        // deferred to a future phase; see Gap G5 in RAD_DEVELOPMENT.md.
+        // Cloud layer and scattering tests are ALSO spatially uniform (identical
+        // cloud/tau/scattering parameters applied to every column), so the
+        // domain-averaged value still equals the true single-column flux there.
+        // True horizontal heterogeneity (e.g., patchy clouds varying by column)
+        // remains deferred to future work; see RAD_DEVELOPMENT.md.
         if (n_columns_total > 0) {
             SW_surface = sw_surface_sum / static_cast<amrex::Real>(n_columns_total);
             F_up_surface = lw_net_sum / static_cast<amrex::Real>(n_columns_total);
         }
         heating_rate_max = max_heating_global;
 
-        // (Phase 18) Compute SEB residual mean from sum
+        // Compute SEB residual mean from sum
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable && n_seb_columns > 0) {
             seb_residual_mean = seb_residual_sum / static_cast<amrex::Real>(n_seb_columns);
         } else {
@@ -1765,7 +1729,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
     }
 
-    // Logging (Phase 2c: use verbosity to guard output)
+    // Logging output
     if (rad_choice.verbosity >= 1 && ParallelDescriptor::IOProcessor()) {
         Print() << "Radiation diagnostics at step " << nstep << ":\n"
                 << "  SW TOA = " << SW_TOA << " W/m^2\n"

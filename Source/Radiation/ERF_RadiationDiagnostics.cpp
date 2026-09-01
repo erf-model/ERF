@@ -61,11 +61,11 @@ void RadiationDiagnostics::write_header_if_needed()
 
   // Only write header if file is new
   if (!file_exists) {
-    // Base columns (Phase 1-7): always present
+    // Base columns: always present
     outfile << "step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max";
-    // Phase 18: SEB diagnostic columns (added at end for backward compatibility)
+    // SEB diagnostic columns (added at end for backward compatibility)
     outfile << ",SEB_residual_mean,SEB_residual_max";
-    // Phase 19b: SEB prognostic surface temperature and moisture columns
+    // SEB prognostic surface temperature and moisture columns
     outfile << ",T_s_mean,T_s_max,q_s_mean,q_s_max";
     outfile << "\n";
   }
@@ -84,12 +84,12 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
                                   amrex::Real q_s_mean,
                                   amrex::Real q_s_max)
 {
-  // Phase 7: Master enable gate
+  // Master enable gate
   if (!m_diag_enable) {
     return;
   }
 
-  // Phase 7: Call-site mode filtering
+  // Call-site mode filtering
   bool should_emit_pre = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "pre_only");
   bool should_emit_post = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "post_only");
   
@@ -101,7 +101,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
     return;
   }
 
-  // Phase 9: Guard against duplicate writes using 3-tuple identity:
+  // Guard against duplicate writes using 3-tuple identity:
   //   (step, call_site, time)
   // This ensures:
   // 1. Accidental repeated calls at same (step, call_site, time) are suppressed.
@@ -124,13 +124,12 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // Print debug output (if verbosity >= 1, and IOProcessor only)
   //
   // NOTE: The bracketed tag below is intentionally NOT hardcoded to a
-  // specific phase (e.g., "[Phase1]"). This diagnostics module is shared
-  // by every phase of the radiation development (Phase 1 through the
-  // current Phase 4 scattering work and beyond); using a static phase
-  // label here was a latent bug — it silently kept printing "[Phase1]"
-  // even after Phase 2/3/4 functionality was added, misleading anyone
-  // grepping logs by phase. Use the module-generic "[RAD]" tag plus the
-  // call-site tag, which remains accurate and grepable across all phases.
+  // specific phase. This diagnostics module is shared by all radiation
+  // development features; using a static phase label here was a latent
+  // bug — it silently kept printing "[Phase1]" even after later
+  // functionality was added, misleading anyone grepping logs by phase.
+  // Use the module-generic "[RAD]" tag plus the call-site tag, which remains
+  // accurate and grepable across all features.
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor() &&
       m_diag_tagged_enable && m_diag_stdout_enable) {
     amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
@@ -173,10 +172,10 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
           << SW_surface << "," << SW_TOA << "," << F_up_surface << "," << F_down_toa
           << "," << heating_rate_max;
 
-  // Phase 18: Append SEB residual columns if finite (backward compatible: write NaN if not available)
+  // Append SEB residual columns (backward compatible: write NaN if not available)
   outfile << "," << seb_residual_mean << "," << seb_residual_max;
   
-  // Phase 19b: Append prognostic T_s and q_s columns (backward compatible: write NaN if not available)
+  // Append prognostic T_s and q_s columns (backward compatible: write NaN if not available)
   outfile << "," << t_s_mean << "," << t_s_max << "," << q_s_mean << "," << q_s_max;
   
   outfile << "\n";
