@@ -212,6 +212,17 @@ public:
                 solverChoice.moisture_indices.qi != -1);
     }
 
+    // Which atmos->ocean lanes PackAtmosphericStates actually writes here, as
+    // 0/1 in that routine's slot order: the 9-lane state view when
+    // state_contract, else the 8-lane flux view.
+    //
+    // A lane reported 0 is one the pack leaves untouched, so handing it over
+    // would pass the driver's own prefill off as an atmospheric value.
+    // HasRadiation()/HasCloudWater() answer this for two lanes; this covers all
+    // of them, and lives beside the pack so the gates cannot drift apart.
+    void GetFillableAtmosToOceanLanes (bool state_contract,
+                                       amrex::Vector<int>& can_fill) const;
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
