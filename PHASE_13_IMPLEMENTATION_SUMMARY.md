@@ -160,7 +160,7 @@ grep -n "rad_tend\|limiter\|smooth_strength" ERF_ComputeDiffusivityMRF.cpp
 
 ## 6. Regtest Source Template
 
-**Source Reference Case**: `Phase5_RhoTheta_Coupling/`
+**Source Reference Case**: `TwoStream_RhoTheta_Coupling/`
 - Copied inputs structure, sounding, and checker pattern
 - Modified for YSUNew instead of MRF
 - Added Phase 13 parameters to input file

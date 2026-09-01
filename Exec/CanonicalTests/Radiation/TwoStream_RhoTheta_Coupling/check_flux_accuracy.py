@@ -91,7 +91,7 @@ def check_rhotheta_coupling_smoke_test():
     if data is None:
         return False
 
-    # Test parameters (must match Phase5_RhoTheta_Coupling/inputs)
+    # Test parameters (must match TwoStream_RhoTheta_Coupling/inputs)
     S0 = 1361.0
     zenith_deg = 60.0
     cos_zenith = math.cos(math.radians(zenith_deg))

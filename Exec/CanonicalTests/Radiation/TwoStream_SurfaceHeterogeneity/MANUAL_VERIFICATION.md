@@ -270,7 +270,7 @@ for test in \
   LW_Isothermal \
   SW_Cloud_Layer \
   SW_Scattering_Cloud \
-  Phase5_RhoTheta_Coupling \
+  TwoStream_RhoTheta_Coupling \
   TwoStream_NonuniformDZ \
   TwoStream_SurfaceHeterogeneity; do
   

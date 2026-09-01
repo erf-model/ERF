@@ -4,7 +4,7 @@
 # This case validates that diag_callsite_mode="pre_only" correctly filters
 # to emit only pre_dycore diagnostic records (1 row per step instead of 2).
 #
-# Key difference from Phase6_TimeIntegration/inputs:
+# Key difference from TwoStream_TimeIntegration/inputs:
 #   - diag_callsite_mode = pre_only  (Phase 6 uses default "both")
 
 erf.prob_name = "ABL"

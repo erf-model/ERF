@@ -1062,13 +1062,13 @@ def validate_case(case, csv_path):
 #!/bin/bash
 # Run all 5 benchmark cases
 cd Exec/CanonicalTests/Radiation
-for case in SW_ClearSky_Analytical LW_Isothermal SW_Cloud_Layer SW_Scattering_Cloud Phase8_Benchmark_Suite/cases/phase6_timing; do
+for case in SW_ClearSky_Analytical LW_Isothermal SW_Cloud_Layer SW_Scattering_Cloud TwoStream_Benchmark_Suite/cases/phase6_timing; do
     cd $case && mpirun -np 1 erf.ex inputs || exit 1
     cd -
 done
 
 # Validate all outputs
-cd Phase8_Benchmark_Suite
+cd TwoStream_Benchmark_Suite
 python3 run_benchmark_suite.py --verbose
 # Exit code 0 = all pass; 1 = any fail
 exit $?
