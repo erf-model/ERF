@@ -7,7 +7,7 @@
 Inputs
 ******
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 3
 
 The ERF executable reads run-time information from an inputs file which you name on the command line.
 This section describes the inputs which can be specified either in the inputs file or on the command line.
@@ -3165,19 +3165,6 @@ see **ERF/Build/cmake_with_radiation.sh**.
 
 If building with gmake, set ``USE_RRTMGP = TRUE`` and ``USE_NETCDF = TRUE`` in the GNUmakefile.
 
-Two-Stream Radiation Model
----------------------------
-
-The two-stream radiation model is a simplified but physically-consistent radiative transfer solver 
-suitable for idealized and process studies. It includes Beer-Lambert shortwave direct-beam attenuation, 
-Meador-Weaver (1980) two-stream diffuse/scattering approximation, gray-gas longwave two-stream 
-(Toon et al. 1989), prescribed and prognostic cloud optical depth, bulk aerosol/turbidity effects, 
-time-varying solar geometry based on astronomical calculations, heterogeneous/LSM-coupled surface 
-albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional 
-Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface 
-temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``; 
-other options are ``None`` and ``RRTMGP``.
-
 Notes
 -----
 
@@ -3186,19 +3173,17 @@ Notes
 -  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
    | and **erf.rad_cons_lon**.
 
+
+
 List of Parameters
 ------------------
-
-RRTMGP Parameters
-^^^^^^^^^^^^^^^^^
-
 
 
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | Parameter                             | Definition                                               | Acceptable Values  | Default / Notes                    |
 +=======================================+==========================================================+====================+====================================+
 | **erf.radiation_model**               | which radiation model to use; ``Simple`` is a prescribed | None, RRTMGP,      | None                               |
-|                                       | cooling/heating profile with no radiative transfer,      | Simple             |                                    |
+|                                       | cooling/heating profile with no radiative transfer,      | Simple, TwoStream  |                                    |
 |                                       | ``RRTMGP`` is the full radiative transfer solver         |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_nvar**                      | Size of block memory allocation                          | Integer > 0        | 12                                 |
@@ -3264,197 +3249,6 @@ RRTMGP Parameters
 | **erf.four_stream_radiation**         | use the four-stream radiation approximation              | Boolean            | false                              |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 
-Two-Stream Radiation Model Parameters
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                                        | Definition                                               | Acceptable Values  | Default          |
-+==================================================+==========================================================+====================+==================+
-| **erf.radiation_type**                           | Selects the radiation model: ``None``, ``TwoStream``,    | None, TwoStream,   | None             |
-|                                                  | or ``RRTMGP``                                            | RRTMGP             |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Shortwave/Longwave Base Parameters**           |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.sw_enabled**                     | Enable shortwave (solar) radiation computation           | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.lw_enabled**                     | Enable longwave (thermal) radiation computation          | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_per_layer**                  | Shortwave optical depth per layer (Beer-Lambert direct  | Real >= 0          | 0.05             |
-|                                                  | beam); uniform for all layers                            |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_lw_per_layer**               | Longwave optical depth per layer (gray-gas two-stream); | Real >= 0          | 1.0              |
-|                                                  | uniform for all layers                                   |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.solar_zenith_deg**               | Solar zenith angle [degrees]; used if dynamic solar      | Real [0,180]       | 45.0             |
-|                                                  | geometry disabled                                        |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.S0**                             | Solar constant (top-of-atmosphere irradiance) [W/m²]    | Real > 0           | 1361.0           |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.isothermal_test**                | Enable isothermal LW test mode (all T = T_iso_K)        | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.T_iso_K**                        | Isothermal temperature for LW test [K]                   | Real > 0           | 288.15           |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Cloud Optical Depth Parameters**               |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_profile_type**               | Cloud optical depth profile: ``constant`` (uniform,      | "constant" or      | "constant"       |
-|                                                  | Phase 2 behavior) or ``cloud_layer`` (height-varying)   | "cloud_layer"      |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_base_height_m**            | Cloud layer base height [m]; only used if tau_profile   | Real >= 0          | 500.0            |
-|                                                  | _type = cloud_layer                                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_top_height_m**             | Cloud layer top height [m]; must be >= cloud_base      | Real >= 0          | 1000.0           |
-|                                                  | _height_m                                                |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_tau_per_layer**            | Additional cloud optical depth per layer (added on top  | Real >= 0          | 0.5              |
-|                                                  | of tau_per_layer/tau_lw_per_layer within cloud layer)   |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction**                 | Cloud fraction [0,1] for blending clear/cloudy columns  | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Scattering Parameters**                        |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.single_scattering_albedo**       | Clear-sky single-scattering albedo [0,1] for SW diffuse | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.asymmetry_factor**               | Clear-sky scattering asymmetry factor [-1,1]; 0=isotropic| Real [-1,1]        | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_single_scattering_albedo** | Cloud single-scattering albedo [0,1]; used instead of   | Real [0,1]         | 0.0              |
-|                                                  | single_scattering_albedo in cloud layers                 |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_asymmetry_factor**         | Cloud scattering asymmetry factor [-1,1]; used instead   | Real [-1,1]        | 0.0              |
-|                                                  | of asymmetry_factor in cloud layers                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Surface Heterogeneity/Fallback Parameters**    |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.surface_albedo_sw**              | Shortwave surface albedo [0,1] fallback (when LSM/hetero | Real [0,1]         | 0.3              |
-|                                                  | fields unavailable)                                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.surface_emissivity_lw**          | Longwave surface emissivity [0,1] fallback               | Real [0,1]         | 0.99             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.surface_temp_k**                 | Surface temperature [K] fallback (LW boundary condition) | Real > 0           | 300.0            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Dynamic Optical Depth Parameters**             |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_sw_dynamic_enable**          | Enable dynamic SW optical depth diagnosis from qv/qc    | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_lw_dynamic_enable**          | Enable dynamic LW optical depth diagnosis from qv/qc    | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_sw_coeff_qv**                | Coefficient for water vapor contribution to SW tau      | Real >= 0          | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_sw_coeff_qc**                | Coefficient for cloud liquid water contribution to SW   | Real >= 0          | 0.0              |
-|                                                  | tau                                                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_lw_coeff_qv**                | Coefficient for water vapor contribution to LW tau      | Real >= 0          | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_lw_coeff_qc**                | Coefficient for cloud liquid water contribution to LW   | Real >= 0          | 0.0              |
-|                                                  | tau                                                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Prognostic Cloud Fraction Parameters**         |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_prog_enable**     | Enable prognostic cloud fraction diagnosis from RH/qc   | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_rh_min**          | Minimum RH threshold for cloud fraction ramp [0,1]      | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_rh_max**          | Maximum RH threshold for cloud fraction saturation [0,1]| Real [0,1]         | 1.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_qc_scale**        | Scaling coefficient for qc contribution to cloud fraction | Real >= 0         | 1.0e-3           |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_smooth_enable**   | Enable temporal smoothing of prognostic cloud fraction   | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_smooth_alpha**    | EMA blending parameter for cloud fraction smoothing [0,1]| Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Aerosol/Turbidity Parameters**                 |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.aerosol_enable**                 | Enable prescribed bulk aerosol optical depth            | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.aerosol_profile_type**           | Aerosol profile type: ``constant``, ``exponential``, or | "constant",        | "constant"       |
-|                                                  | ``table``                                                | "exponential",     |                  |
-|                                                  |                                                          | "table"            |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.aerosol_tau_per_layer**          | Constant aerosol optical depth per layer (for Constant  | Real >= 0          | 0.0              |
-|                                                  | profile)                                                 |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.aerosol_tau_surface**            | Total-column aerosol optical depth at surface (for      | Real >= 0          | 0.0              |
-|                                                  | Exponential profile)                                     |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.aerosol_scale_height_m**         | Scale height for exponential aerosol decay [m]          | Real > 0           | 2000.0           |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Solar Geometry (Dynamic) Parameters**          |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.solar_geometry_dynamic_enable**  | Enable time-varying solar geometry from diurnal cycle   | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.latitude_deg**                   | Site latitude [degrees]; -90 (south) to +90 (north)     | Real [-90,90]      | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.longitude_deg**                  | Site longitude [degrees]; -180 (west) to +180 (east)    | Real [-180,180]    | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.day_of_year**                    | Reference day-of-year at simulation start [1-366]       | Real [1,366]       | 172.0            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.time_zone_offset_hours**         | Time zone offset from UTC [hours]                        | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Simplified Surface Energy Balance (SEB) Parameters** |                                                      |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_enable**                     | Master switch for SEB infrastructure                     | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_diagnostic_enable**          | Enable diagnostic SEB residual computation               | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_enable**          | Enable prognostic SEB surface T_s and q_s evolution      | Boolean            | false            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_sw_flux_default**            | Fallback SEB net shortwave flux [W/m²]                   | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_lw_flux_default**            | Fallback SEB net longwave flux [W/m²]                    | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_hfx_default**                | Fallback SEB sensible heat flux [W/m²]                   | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_lh_default**                 | Fallback SEB latent heat flux [W/m²]                     | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_grdflx_default**             | Fallback SEB ground heat flux [W/m²]                     | Real               | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_q_sfc_default**              | Fallback SEB surface moisture [kg/kg]                    | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_t_deep_default**             | Fallback SEB deep soil temperature [K]                   | Real > 0           | 300.0            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_q_deep_default**             | Fallback SEB deep soil moisture [kg/kg]                  | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_surface_heat_capacity**      | Effective surface heat capacity [J/(m²·K)]              | Real > 0           | 2.0e4            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_restore_timescale_s**        | Force-restore timescale for surface temperature [s]     | Real > 0           | 86400.0 (1 day)  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_moisture_layer_depth_m**     | Effective surface moisture layer depth [m]              | Real > 0           | 0.1              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_moisture_restore_timescale_s**| Force-restore timescale for surface moisture [s]       | Real > 0           | 86400.0 (1 day)  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_t_min_k**         | Minimum clamping bound for prognostic surface T [K]     | Real > 0           | 200.0            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_t_max_k**         | Maximum clamping bound for prognostic surface T [K]     | Real > 0           | 340.0            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_q_min**           | Minimum clamping bound for prognostic surface q [kg/kg] | Real [0,1]         | 0.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_q_max**           | Maximum clamping bound for prognostic surface q [kg/kg] | Real [0,1]         | 1.0              |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **Diagnostics Control Parameters**               |                                                          |                    |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.v**                              | Verbosity level for radiation debug output (0=off)       | Integer >= 0       | 0                |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_file**                      | Output file path for radiation diagnostics CSV           | String             | "radiation_diag  |
-|                                                  |                                                          |                    | .dat"            |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_enable**                    | Master switch for radiation diagnostics emission         | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_stdout_enable**             | Enable human-readable stdout diagnostics block           | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_tagged_enable**             | Enable tagged [RAD][...] debug lines                     | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_regtest_line_enable**       | Enable RADIATION_DIAG: regtest-parsing line              | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_csv_enable**                | Enable CSV file append behavior for diagnostics          | Boolean            | true             |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_callsite_mode**             | Call-site filtering mode: "both" (default), "pre_only",  | "both",            | "both"           |
-|                                                  | or "post_only"                                           | "pre_only",        |                  |
-|                                                  |                                                          | "post_only"        |                  |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_dedup_tol**                 | Tolerance for time equality in duplicate guard [s]       | Real >= 0          | 1.0e-12          |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-
-
-
 Notes
 =====
 
@@ -3479,6 +3273,209 @@ netCDF "No such file or directory" error.
 .. note::
 
    Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`sec:building` for build instructions.
+
+
+Two-Stream Radiation Model
+---------------------------
+
+The two-stream radiation model is a simplified but physically-consistent radiative transfer solver 
+suitable for idealized and process studies. It includes Beer-Lambert shortwave direct-beam attenuation, 
+Meador-Weaver (1980) two-stream diffuse/scattering approximation, gray-gas longwave two-stream 
+(Toon et al. 1989), prescribed and prognostic cloud optical depth, bulk aerosol/turbidity effects, 
+time-varying solar geometry based on astronomical calculations, heterogeneous/LSM-coupled surface 
+albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional 
+Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface 
+temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``; 
+other options are ``None`` and ``RRTMGP``.
+
+
+
+Two-Stream Radiation Model Parameters
+-------------------------------------
+
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| Parameter                                          | Definition                                                 | Acceptable Values  | Default          |
++====================================================+============================================================+====================+==================+
+| **Shortwave/Longwave Base Parameters**             |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_enabled**                       | Enable shortwave (solar) radiation computation             | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.lw_enabled**                       | Enable longwave (thermal) radiation computation            | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_per_layer**                    | Shortwave optical depth per layer                          | Real >= 0          | 0.05             |
+|                                                    | (Beer-Lambert direct beam); uniform for all layers         |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_lw_per_layer**                 | Longwave optical depth per layer (gray-gas two-stream);    | Real >= 0          | 1.0              |
+|                                                    | uniform for all layers                                     |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.solar_zenith_deg**                 | Solar zenith angle [degrees]; used if dynamic solar        | Real [0,180]       | 45.0             |
+|                                                    | geometry disabled                                          |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.S0**                               | Solar constant (top-of-atmosphere irradiance) [W/m²]       | Real > 0           | 1361.0           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.isothermal_test**                  | Enable isothermal LW test mode (all T = T_iso_K)           | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.T_iso_K**                          | Isothermal temperature for LW test [K]                     | Real > 0           | 288.15           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Cloud Optical Depth Parameters**                 |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_profile_type**                 | Cloud optical depth profile: ``constant`` (uniform,        | "constant" or      | "constant"       |
+|                                                    | Phase 2 behavior) or ``cloud_layer`` (height-varying)      | "cloud_layer"      |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_base_height_m**              | Cloud layer base height [m]; only used if                  | Real               | 500.0            |
+|                                                    | tau_profile_type = cloud_layer                             |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_top_height_m**               | Cloud layer top height [m]; must be >=                     | Real               | 1000.0           |
+|                                                    | cloud_base_height_m                                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_tau_per_layer**              | Additional cloud optical depth per layer (added on top     | Real.              | 0.5              |
+|                                                    | of tau_per_layer/tau_lw_per_layer within cloud layer)      |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction**                   | Cloud fraction [0,1] for blending clear/cloudy columns     | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Scattering Parameters**                          |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.single_scattering_albedo**         | Clear-sky single-scattering albedo [0,1] for SW diffuse    | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.asymmetry_factor**                 | Clear-sky scattering asymmetry factor [-1,1]; 0=isotropic  | Real [-1,1]        | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_single_scattering_albedo**   | Cloud single-scattering albedo [0,1]; used instead of      | Real [0,1]         | 0.0              |
+|                                                    | single_scattering_albedo in cloud layers                   |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_asymmetry_factor**           | Cloud scattering asymmetry factor [-1,1]; used instead     | Real [-1,1]        | 0.0              |
+|                                                    | of asymmetry_factor in cloud layers                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Surface Heterogeneity/Fallback Parameters**      |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.surface_albedo_sw**                | Shortwave surface albedo [0,1] fallback (when LSM/hetero   | Real [0,1]         | 0.3              |
+|                                                    | fields unavailable)                                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.surface_emissivity_lw**            | Longwave surface emissivity [0,1] fallback                 | Real [0,1]         | 0.99             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.surface_temp_k**                   | Surface temperature [K] fallback (LW boundary condition)   | Real               | 300.0            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Dynamic Optical Depth Parameters**               |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_sw_dynamic_enable**            | Enable dynamic SW optical depth diagnosis from qv/qc       | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_lw_dynamic_enable**            | Enable dynamic LW optical depth diagnosis from qv/qc       | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_sw_coeff_qv**                  | Coefficient for water vapor contribution to SW tau         | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_sw_coeff_qc**                  | Coefficient for cloud liquid water contribution to SW      | Real               | 0.0              |
+|                                                    | tau                                                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_lw_coeff_qv**                  | Coefficient for water vapor contribution to LW tau         | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_lw_coeff_qc**                  | Coefficient for cloud liquid water contribution to LW      | Real               | 0.0              |
+|                                                    | tau                                                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Prognostic Cloud Fraction Parameters**           |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_prog_enable**       | Enable prognostic cloud fraction diagnosis from RH/qc      | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_rh_min**            | Minimum RH threshold for cloud fraction ramp [0,1]         | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_rh_max**            | Maximum RH threshold for cloud fraction saturation [0,1]   | Real [0,1]         | 1.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_qc_scale**          | Scaling coefficient for qc contribution to cloud fraction  | Real >= 0          | 1.0e-3           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_smooth_enable**     | Enable temporal smoothing of prognostic cloud fraction     | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.cloud_fraction_smooth_alpha**      | EMA blending parameter for cloud fraction smoothing [0,1]  | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Aerosol/Turbidity Parameters**                   |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.aerosol_enable**                   | Enable prescribed bulk aerosol optical depth               | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.aerosol_profile_type**             | Aerosol profile type: ``constant``, ``exponential``, or    | "constant",        | "constant"       |
+|                                                    | ``table``                                                  | "exponential",     |                  |
+|                                                    |                                                            | "table"            |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.aerosol_tau_per_layer**            | Constant aerosol optical depth per layer                   | Real               | 0.0              |
+|                                                    | (for Constantprofile)                                      |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.aerosol_tau_surface**              | Total-column aerosol optical depth at surface (for         | Real               | 0.0              |
+|                                                    | Exponential profile)                                       |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.aerosol_scale_height_m**           | Scale height for exponential aerosol decay [m]             | Real               | 2000.0           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Solar Geometry (Dynamic) Parameters**            |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.solar_geometry_dynamic_enable**    | Enable time-varying solar geometry from diurnal cycle      | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.latitude_deg**                     | Site latitude [degrees]; -90 (south) to +90 (north)        | Real [-90,90]      | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.longitude_deg**                    | Site longitude [degrees]; -180 (west) to +180 (east)       | Real [-180,180]    | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.day_of_year**                      | Reference day-of-year at simulation start [1-366]          | Real [1,366]       | 172.0            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.time_zone_offset_hours**           | Time zone offset from UTC [hours]                          | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Simplified Surface Energy Balance (SEB) Params** |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_enable**                       | Master switch for SEB infrastructure                       | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_lw_flux_default**              | Fallback SEB net longwave flux [W/m²]                      | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_hfx_default**                  | Fallback SEB sensible heat flux [W/m²]                     | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_lh_default**                   | Fallback SEB latent heat flux [W/m²]                       | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_grdflx_default**               | Fallback SEB ground heat flux [W/m²]                       | Real               | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_q_sfc_default**                | Fallback SEB surface moisture [kg/kg]                      | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_t_deep_default**               | Fallback SEB deep soil temperature [K]                     | Real               | 300.0            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_q_deep_default**               | Fallback SEB deep soil moisture [kg/kg]                    | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]                 | Real               | 2.0e4            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real               | 86400.0 (1 day)  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real               | 0.1              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_moisture_restore_timescale_s** | Force-restore timescale for surface moisture [s]           | Real               | 86400.0 (1 day)  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_prognostic_t_min_k**           | Minimum clamping bound for prognostic surface T [K]        | Real               | 200.0            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_prognostic_t_max_k**           | Maximum clamping bound for prognostic surface T [K]        | Real               | 340.0            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_prognostic_q_min**             | Minimum clamping bound for prognostic surface q [kg/kg]    | Real [0,1]         | 0.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_prognostic_q_max**             | Maximum clamping bound for prognostic surface q [kg/kg]    | Real [0,1]         | 1.0              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **Diagnostics Control Parameters**                 |                                                            |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.v**                                | Verbosity level for radiation debug output (0=off)         | Integer            | 0                |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_file**                        | Output file path for radiation diagnostics CSV             | String             | "radiation_diag  |
+|                                                    |                                                            |                    | .dat"            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_enable**                      | Master switch for radiation diagnostics emission           | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_stdout_enable**               | Enable human-readable stdout diagnostics block             | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_tagged_enable**               | Enable tagged [RAD][...] debug lines                       | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_regtest_line_enable**         | Enable RADIATION_DIAG: regtest-parsing line                | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_csv_enable**                  | Enable CSV file append behavior for diagnostics            | Boolean            | true             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_callsite_mode**               | Call-site filtering mode: "both" (default), "pre_only",    | "both",            | "both"           |
+|                                                    | or "post_only"                                             | "pre_only",        |                  |
+|                                                    |                                                            | "post_only"        |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.diag_dedup_tol**                   | Tolerance for time equality in duplicate guard [s]         | Real               | 1.0e-12          |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+
 
 .. _inputs-shoc:
 

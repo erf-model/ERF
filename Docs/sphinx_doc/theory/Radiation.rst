@@ -17,15 +17,10 @@ attenuation for shortwave radiation, Meador-Weaver two-stream diffuse/scattering
 two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
 
 Shortwave Radiation
-===================
-
-The shortwave (solar) radiation calculation in the two-stream model is split into direct-beam 
-and diffuse components.
-
-Direct-Beam Attenuation (Beer-Lambert)
 --------------------------------------
 
-The shortwave direct-beam radiation is attenuated through the atmosphere according to the 
+The shortwave (solar) radiation calculation in the two-stream model is split into direct-beam 
+and diffuse components. The shortwave direct-beam radiation is attenuated through the atmosphere according to the 
 Beer-Lambert law:
 
 .. math::
@@ -45,8 +40,6 @@ or dynamically diagnosed from water vapor and cloud liquid water content, parame
 where :math:`\tau_{\text{cloud}}(k)` is added only within the prescribed cloud layer, and the coefficients 
 :math:`c_{\text{qv}}` and :math:`c_{\text{qc}}` are zero by default.
 
-Diffuse Shortwave and Scattering (Meador-Weaver Two-Stream)
------------------------------------------------------------
 
 The diffuse (scattered) shortwave component is computed using the Meador and Weaver (1980) two-stream 
 approximation. In each layer :math:`k`, the radiative transfer equation is discretized into upward and 
@@ -95,15 +88,10 @@ liquid water clouds). The cloud/clear-sky distinction is blended according to th
    F_{\text{sw,net}} = (1 - C_f) F_{\text{sw,net}}^{\text{clear}} + C_f F_{\text{sw,net}}^{\text{cloudy}}
 
 Longwave Radiation
-==================
+--------------------------------------
 
 The longwave (thermal) radiation employs a gray-gas two-stream formulation (Toon et al. 1989) 
-to compute upward and downward fluxes.
-
-Gray-Gas Two-Stream Formulation
---------------------------------
-
-Assume local thermodynamic equilibrium (LTE): each layer emits radiation according to the 
+to compute upward and downward fluxes. Assume local thermodynamic equilibrium (LTE): each layer emits radiation according to the 
 Planck function :math:`B(T)` weighted by the emissivity of the gray gas. The optical depth is 
 parameterized similarly to shortwave:
 
@@ -147,7 +135,7 @@ The net longwave flux divergence in each layer drives the longwave heating rate:
 where :math:`\rho` is air density and :math:`c_p` is the specific heat at constant pressure.
 
 Surface Energy Balance
-======================
+--------------------------------------
 
 The surface energy balance residual is defined as the net radiative flux minus the turbulent and 
 ground heat fluxes:
@@ -161,8 +149,6 @@ ground heat fluxes:
 where :math:`H` is the sensible heat flux, :math:`\text{LE}` is the latent heat flux (evaporation), 
 and :math:`G` is the ground heat flux conducted into the soil.
 
-Force-Restore Method for Prognostic Surface Temperature and Moisture
-=====================================================================
 
 When the Simplified SEB prognostic mode is enabled (``seb_prognostic_enable = true``), the surface 
 temperature and moisture are evolved forward in time using a force-restore formulation 
@@ -218,14 +204,15 @@ and Noah-MP's own surface prognostics (which include soil heat conduction and ex
 are used instead. This prevents double-counting of surface energy and moisture evolution.
 
 Cloud Fraction Diagnosis
-========================
+--------------------------------
+
 
 When ``cloud_fraction_prog_enable = true``, the cloud fraction is diagnosed at each level from the 
 relative humidity (RH) and cloud liquid water content (qc):
 
 .. math::
 
-   C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh\_min}}{\text{rh\_max} - \text{rh\_min}} \right) + c_{\text{qc}} q_c \right)
+   C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + c_{\text{qc}} q_c \right)
 
 where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage 
 (RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional 
@@ -239,7 +226,7 @@ scaling of liquid water content's contribution. Optional temporal smoothing via 
 where :math:`\alpha` is the blending parameter.
 
 Solar Geometry and Diurnal Cycle
-================================
+--------------------------------
 
 When ``solar_geometry_dynamic_enable = true``, the solar zenith angle is computed dynamically from 
 astronomical formulas based on the simulation time, latitude, longitude, day-of-year, and time-zone offset.
@@ -264,7 +251,7 @@ where :math:`\phi` is the latitude. When :math:`\cos(\theta_z) \le 0`, the sun i
 and the direct-beam contribution is zero.
 
 References
-==========
+--------------------------------------
 
 Beer, A. (1852). Bestimmung der Absorption des rothen Lichts in farbigen Flüssigkeiten. *Annalen der Physik und Chemie*, 86(5), 78–88.
 
