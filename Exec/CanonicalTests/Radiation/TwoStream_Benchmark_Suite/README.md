@@ -54,7 +54,7 @@ The suite includes 5 benchmark cases, each testing a specific aspect of the radi
 
 #### Case 5: Coupled SW+LW time-stepping
 - **Physics:** Coupled SW + LW radiation with RhoTheta heating over 10 steps
-- **Config:** `../Phase6_TimeIntegration/inputs` (modified for pre_only mode)
+- **Config:** `../TwoStream_TimeIntegration/inputs` (modified for pre_only mode)
 - **Parameters:** dt=0.5s, stop_time=5.0s (10 steps), diag_callsite_mode=pre_only
 - **Key metrics:** Stable heating rates, no NaN/Inf, correct row count for pre_only
 - **Expected behavior:** Demonstrates time-stepping consistency and diagnostics mode control
@@ -68,7 +68,7 @@ The suite includes 5 benchmark cases, each testing a specific aspect of the radi
 
 ### Quick Start
 
-From the `Phase8_Benchmark_Suite` directory:
+From the `TwoStream_Benchmark_Suite` directory:
 
 ```bash
 # Run validation on existing outputs (assumes cases have been run)
@@ -89,13 +89,13 @@ Example for single case (manual):
 ```bash
 cd ../SW_ClearSky_Analytical
 mpirun -np 1 erf.ex inputs
-cd ../../Phase8_Benchmark_Suite
+cd ../../TwoStream_Benchmark_Suite
 python3 run_benchmark_suite.py --verbose
 ```
 
 ### Output Artifacts
 
-After running validation, the following files are generated in `Phase8_Benchmark_Suite/`:
+After running validation, the following files are generated in `TwoStream_Benchmark_Suite/`:
 
 - **`benchmark_summary.json`** — Machine-readable results with:
   - Overall pass/fail status

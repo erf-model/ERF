@@ -85,7 +85,7 @@ With `enable_ysu_rad_tend_limiter = false` (default):
 - `Source/PBL/ERF_ComputeDiffusivityYSUNew.cpp` — Limiter implementation
 
 ### Regtest Patterns (Reference Cases)
-- Phase 5: `Phase5_RhoTheta_Coupling/` — Radiation coupling wiring validation
+- Phase 5: `TwoStream_RhoTheta_Coupling/` — Radiation coupling wiring validation
 - Phase 12: `TwoStream_DynamicTau_MoistCloud/` — Dynamic optical depth
 - Phase 11: `TwoStream_SurfaceHeterogeneity/` — Surface property heterogeneity
 
