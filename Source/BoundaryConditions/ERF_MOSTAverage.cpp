@@ -605,11 +605,13 @@ MOSTAverage::set_k_indices_N (const int& lev)
 
     const int dir = m_face.coordDir();
     const bool is_lo_face = m_face.isLow();
+    const bool zlo = (dir == 2 && is_lo_face);
 
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
         const Real m_dz = m_geom[lev].CellSize(dir);
-        zref_tmp = myhalf * m_dz;
+        zref_tmp = zlo ? m_geom[lev].ProbLo(dir) + myhalf * m_dz
+                       : myhalf * m_dz;
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
     }
@@ -619,25 +621,48 @@ MOSTAverage::set_k_indices_N (const int& lev)
         const Real m_zlo = m_geom[lev].ProbLo(dir);
         const Real m_zhi = m_geom[lev].ProbHi(dir);
         const Real m_dz  = m_geom[lev].CellSize(dir);
-        const Real domain_length = m_zhi - m_zlo;
 
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= myhalf * m_dz,
-                                         "Query distance must reach the first cell center!");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= domain_length - myhalf * m_dz,
-                                         "Query distance must remain inside the domain!");
+        const int dom_lo = m_geom[lev].Domain().smallEnd(dir);
+        const int dom_hi = m_geom[lev].Domain().bigEnd(dir);
 
-        const int wall_offset = static_cast<int>(floor(zref_tmp / m_dz - myhalf));
-        const int lk = is_lo_face
-                     ? m_geom[lev].Domain().smallEnd(dir) + wall_offset
-                     : m_geom[lev].Domain().bigEnd(dir) - wall_offset;
+        if (zlo) {
+            // Exisiting behavior: zlo input is an absolute coordinate.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
+                                             "Query point must be past first z-cell!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
+                                             "Query point must be below the last z-cell!");
 
-        AMREX_ALWAYS_ASSERT(wall_offset >= m_radius);
+            const int wall_offset =
+                static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
 
-        // MOST uses distance from the wall, snapped to the selected cell center.
-        m_zref[lev]->setVal((static_cast<Real>(wall_offset) + myhalf) * m_dz);
+            AMREX_ALWAYS_ASSERT(wall_offset >= m_radius);
 
-        // The reference index is constant over a planar wall.
-        m_k_indx[lev]->setVal(lk);
+            m_k_indx[lev]->setVal(dom_lo + wall_offset);
+            m_zref[lev]->setVal(m_zlo +
+                                (static_cast<Real>(wall_offset) + myhalf) * m_dz);
+        } else {
+            const Real domain_length = m_zhi - m_zlo;
+
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= myhalf * m_dz,
+                                             "Query distance must reach the first cell center!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= domain_length - myhalf * m_dz,
+                                             "Query distance must remain inside the domain!");
+
+            const int wall_offset = static_cast<int>(floor(zref_tmp / m_dz - myhalf));
+            const int lk = is_lo_face ? dom_lo + wall_offset : dom_hi - wall_offset;
+
+            AMREX_ALWAYS_ASSERT(wall_offset >= m_radius);
+
+            const Real zref_abs = is_lo_face
+                ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
+                : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
+            const Real zref_height = is_lo_face
+                ? zref_abs - m_zlo
+                : m_zhi - zref_abs;
+
+            m_k_indx[lev]->setVal(lk);
+            m_zref[lev]->setVal(zref_height);
+        }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
         const int dom_lo = m_geom[lev].Domain().smallEnd(dir);
@@ -651,7 +676,15 @@ MOSTAverage::set_k_indices_N (const int& lev)
         m_k_indx[lev]->setVal(m_k_in[lev]);
 
         const Real m_dz = m_geom[lev].CellSize(dir);
-        m_zref[lev]->setVal((static_cast<Real>(wall_offset) + myhalf) * m_dz);
+        const Real m_zlo = m_geom[lev].ProbLo(dir);
+        const Real m_zhi = m_geom[lev].ProbHi(dir);
+        const Real zref_abs = is_lo_face
+            ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
+            : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
+
+        m_zref[lev]->setVal(zlo
+            ? zref_abs
+            : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
     }
 }
 

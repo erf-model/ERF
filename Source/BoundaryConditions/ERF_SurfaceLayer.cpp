@@ -652,6 +652,19 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     //const int klo = m_geom[lev].Domain().smallEnd(dir);
     const int klo = sm_index;
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
+    const Box domain = m_geom[lev].Domain();
+    const int xlo_node = domain.smallEnd(0);
+    const int xhi_node = domain.bigEnd(0) + 1;
+    const int ylo_node = domain.smallEnd(1);
+    const int yhi_node = domain.bigEnd(1) + 1;
+    const int zlo_node = domain.smallEnd(2);
+    const int zhi_node = domain.bigEnd(2) + 1;
+    const bool xlo_surface = m_surface_layer_faces[Orientation::xlo()];
+    const bool xhi_surface = m_surface_layer_faces[Orientation::xhi()];
+    const bool ylo_surface = m_surface_layer_faces[Orientation::ylo()];
+    const bool yhi_surface = m_surface_layer_faces[Orientation::yhi()];
+    const bool zlo_surface = m_surface_layer_faces[Orientation::zlo()];
+    const bool zhi_surface = m_surface_layer_faces[Orientation::zhi()];
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Get field arrays
@@ -689,8 +702,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         auto t11_arr = (m_rotate) ? Tau_lev[TauType::tau11]->array(mfi) : Array4<Real>{};
         auto t22_arr = (m_rotate) ? Tau_lev[TauType::tau22]->array(mfi) : Array4<Real>{};
         auto t33_arr = (m_rotate) ? Tau_lev[TauType::tau33]->array(mfi) : Array4<Real>{};
-        auto t12_arr = (m_rotate || dir == 1) ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
-        auto t21_arr = (m_rotate || dir == 0) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
+        auto t12_arr = Tau_lev[TauType::tau12]
+                     ? Tau_lev[TauType::tau12]->array(mfi) : Array4<Real>{};
+        auto t21_arr = Tau_lev[TauType::tau21]
+                     ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
 
         auto hfx1_arr = (m_rotate || dir == 0) ? xheat_flux->array(mfi) : Array4<Real>{};
         auto hfx2_arr = (m_rotate || dir == 1) ? yheat_flux->array(mfi) : Array4<Real>{};
@@ -955,13 +970,25 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // write out to corresponding face
                 if (dir == 0) {
                     t21_arr(i,j,k) = stressx;
-                    if (t12_arr) { t12_arr(i,j,k) = stressx; }
+                    if (t12_arr &&
+                        (!ylo_surface || j != ylo_node) &&
+                        (!yhi_surface || j != yhi_node)) {
+                        t12_arr(i,j,k) = stressx;
+                    }
                 } else if (dir == 1) {
                     t12_arr(i,j,k) = stressx;
-                    if (t21_arr) { t21_arr(i,j,k) = stressx; }
+                    if (t21_arr &&
+                        (!xlo_surface || i != xlo_node) &&
+                        (!xhi_surface || i != xhi_node)) {
+                        t21_arr(i,j,k) = stressx;
+                    }
                 } else {
                     t13_arr(i,j,k) = stressx;
-                    if (t31_arr) { t31_arr(i,j,k) = stressx; }
+                    if (t31_arr &&
+                        (!xlo_surface || i != xlo_node) &&
+                        (!xhi_surface || i != xhi_node)) {
+                        t31_arr(i,j,k) = stressx;
+                    }
                 }
             });
 
@@ -1012,13 +1039,25 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // write out to corresponding face
                 if (dir == 0) {
                     t31_arr(i,j,k) = stressy;
-                    if (t13_arr) { t13_arr(i,j,k) = stressy; }
+                    if (t13_arr &&
+                        (!zlo_surface || k != zlo_node) &&
+                        (!zhi_surface || k != zhi_node)) {
+                        t13_arr(i,j,k) = stressy;
+                    }
                 } else if (dir == 1) {
                     t32_arr(i,j,k) = stressy;
-                    if (t23_arr) { t23_arr(i,j,k) = stressy; }
+                    if (t23_arr &&
+                        (!zlo_surface || k != zlo_node) &&
+                        (!zhi_surface || k != zhi_node)) {
+                        t23_arr(i,j,k) = stressy;
+                    }
                 } else {
                     t23_arr(i,j,k) = stressy;
-                    if (t32_arr) { t32_arr(i,j,k) = stressy; }
+                    if (t32_arr &&
+                        (!ylo_surface || j != ylo_node) &&
+                        (!yhi_surface || j != yhi_node)) {
+                        t32_arr(i,j,k) = stressy;
+                    }
                 }
             });
         } else {

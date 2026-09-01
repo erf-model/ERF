@@ -1248,10 +1248,12 @@ ERF::InitData_post ()
     bool updated_prim = false;
     // Count number of surface layer boundaries to determine correct parm parse prefix
     int n_faces = 0;
+    amrex::GpuArray<int, AMREX_SPACEDIM*2> surface_layer_faces{};
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
             n_faces += 1;
+            surface_layer_faces[static_cast<int>(ori)] = 1;
         }
     }
     for (OrientationIter oit; oit; ++oit) {
@@ -1300,6 +1302,7 @@ ERF::InitData_post ()
                                                                  zero, zero, zero,
 #endif
                                                                  eb_ptrs);
+            m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
             // This call will allocate the arrays at each level. If we regrid later, either changing

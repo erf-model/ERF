@@ -332,7 +332,7 @@ void ERF::init_bcs ()
     bool has_non_zlo_surface_layer = false;
     for (OrientationIter oit; oit; ++oit) {
         const Orientation ori = oit();
-        const bool is_zlo = (ori.coordDir() == Direction::z &&
+        const bool is_zlo = (ori.coordDir() == static_cast<int>(Direction::z) &&
                              ori.faceDir() == Orientation::low);
         if (!is_zlo && phys_bc_type[ori] == ERF_BC::surface_layer) {
             has_non_zlo_surface_layer = true;

@@ -82,6 +82,11 @@ public:
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
 
+      // Keep standalone SurfaceLayer instances compatible with the historical
+      // single-face behavior. ERF replaces this with the complete active-face
+      // set after constructing all SurfaceLayer objects.
+      m_surface_layer_faces[static_cast<int>(face)] = 1;
+
       // Get roughness
       amrex::ParmParse pp(a_pp_prefix);
       pp.queryAdd("most.z0", z0_const);
@@ -1224,6 +1229,17 @@ public:
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
   /**
+   * Set the domain faces that use the surface-layer boundary condition.
+   *
+   * The face set is used to suppress transpose stress writes at shared edges;
+   * the face-normal component remains owned by its corresponding face path.
+   */
+  void set_surface_layer_faces (const amrex::GpuArray<int, AMREX_SPACEDIM*2>& active_faces)
+  {
+      m_surface_layer_faces = active_faces;
+  }
+
+  /**
    * Reads columns of data from a text file, returning each column in a vector.
    *
    * @param[in] fname       path to text file
@@ -1276,6 +1292,7 @@ private:
   amrex::Orientation m_face;
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
+  amrex::GpuArray<int, AMREX_SPACEDIM*2> m_surface_layer_faces{};
   double m_start_low_time;
   double m_final_low_time;
   double m_low_time_interval;
