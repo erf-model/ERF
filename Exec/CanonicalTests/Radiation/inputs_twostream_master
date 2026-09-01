@@ -1,0 +1,165 @@
+#------------------------------------------------------------------------------
+# inputs_twostream_master
+#
+# PURPOSE:
+#   This is a COMPLETE REFERENCE listing of every ParmParse parameter
+#   understood by ERF's two-stream radiation model
+#   (see Source/Radiation/ and Source/DataStructs/ERF_RadStruct.H).
+#
+#   This file is NOT a runnable regression test. It intentionally omits
+#   the base ERF problem/geometry/grid setup needed to actually run a
+#   simulation. Its sole purpose is to document, in one place, every
+#   available "erf.radiation.*" knob together with its default value,
+#   valid range, units, and which two-stream capability it controls.
+#
+#   To exercise any of these features in an actual run, copy the
+#   relevant lines into a full inputs file (see the other
+#   Exec/CanonicalTests/Radiation/* subdirectories for runnable
+#   examples), together with the required base ERF inputs
+#   (geometry, grid, timestepping, problem setup, etc.).
+#
+#   All parameter names, types, and default values below were
+#   cross-checked directly against:
+#     - Source/DataStructs/ERF_RadStruct.H  (RadChoice::init_params())
+#     - Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp
+#
+#   Enable the two-stream model with:
+#     erf.radiation_type = "TwoStream"
+#------------------------------------------------------------------------------
+
+# ==============================================================================
+# Radiation model selection
+# ==============================================================================
+erf.radiation_type = "TwoStream"   # None (default), TwoStream, RRTMGP
+
+# ==============================================================================
+# SECTION 1: Base two-stream shortwave (SW) / longwave (LW) parameters
+# ==============================================================================
+erf.radiation.sw_enabled              = true      # Enable shortwave (solar) radiation. Bool. Default: true
+erf.radiation.lw_enabled              = true      # Enable longwave (thermal) radiation. Bool. Default: true
+erf.radiation.tau_per_layer           = 0.05      # Uniform SW optical depth per layer (Beer-Lambert), unitless. Default: 0.05
+erf.radiation.tau_lw_per_layer        = 1.0       # Uniform LW optical depth per layer (gray-gas two-stream), unitless. Default: 1.0
+erf.radiation.solar_zenith            = 45.0      # Solar zenith angle [degrees], used when solar_geometry_dynamic_enable=false. Default: 45.0
+erf.radiation.S0                      = 1361.0    # Solar constant / TOA irradiance [W/m^2]. Default: 1361.0
+erf.radiation.isothermal_test         = false     # Force all layer temperatures to T_iso_K for analytical LW verification. Bool. Default: false
+erf.radiation.T_iso_K                 = 288.15    # Isothermal test temperature [K]; only used if isothermal_test=true. Default: 288.15
+erf.radiation.surface_albedo_sw       = 0.3       # Fallback SW surface albedo [0,1], used when no heterogeneous LSM/radiation albedo field is available. Default: 0.3
+erf.radiation.surface_emissivity_lw   = 0.99      # Fallback LW surface emissivity [0,1], used when no heterogeneous LSM/radiation emissivity field is available. Default: 0.99
+erf.radiation.surface_temp_k          = 300.0     # Fallback surface temperature [K], used as LW boundary condition when no heterogeneous t_sfc field is available. Default: 300.0
+
+# ------------------------------------------------------------------------------
+# Diagnostics / verbosity controls (shared across all two-stream capabilities)
+# ------------------------------------------------------------------------------
+erf.radiation.v                         = 0                        # Debug verbosity level (0=off, 1+=debug output). Integer. Default: 0
+erf.radiation.diag_file                 = "radiation_diag.dat"     # Output CSV path for radiation diagnostics (relative to run dir). Default: "radiation_diag.dat"
+erf.radiation.diag_enable               = true                     # Master switch for radiation diagnostics emission. Bool. Default: true
+erf.radiation.diag_stdout_enable        = true                     # Enable human-readable stdout diagnostics block. Bool. Default: true
+erf.radiation.diag_tagged_enable        = true                     # Enable tagged [RAD][...] debug lines. Bool. Default: true
+erf.radiation.diag_regtest_line_enable  = true                     # Enable RADIATION_DIAG: regression-test parsing line. Bool. Default: true
+erf.radiation.diag_csv_enable           = true                     # Enable CSV file append behavior. Bool. Default: true
+erf.radiation.diag_callsite_mode        = "both"                   # Call-site filtering: "both", "pre_only", or "post_only". Default: "both"
+erf.radiation.diag_dedup_tol            = 1.0e-12                  # Time-equality tolerance [s] for duplicate-row guard. Real >= 0. Default: 1.0e-12
+
+# ==============================================================================
+# SECTION 2: Cloud optical depth (height-varying tau profile + cloud fraction blend)
+# ==============================================================================
+erf.radiation.tau_profile_type       = "constant"   # Optical depth profile: "constant" (default) or "cloud_layer". Default: "constant"
+erf.radiation.cloud_base_height_m    = 500.0        # Cloud layer base height [m]; used only if tau_profile_type="cloud_layer". Default: 500.0
+erf.radiation.cloud_top_height_m     = 1000.0       # Cloud layer top height [m], must be >= cloud_base_height_m. Default: 1000.0
+erf.radiation.cloud_tau_per_layer    = 0.5          # Additional cloud optical depth per layer, added on top of clear-sky tau within the cloud band. Default: 0.5
+erf.radiation.cloud_fraction         = 0.0          # Cloud fraction [0,1] used to blend clear-sky and cloudy-column fluxes. Default: 0.0 (fully clear sky)
+
+# ==============================================================================
+# SECTION 3: Scattering (Meador-Weaver two-stream diffuse SW)
+# ==============================================================================
+erf.radiation.single_scattering_albedo       = 0.0   # Clear-sky single-scattering albedo [0,1] for diffuse SW. 0=purely absorbing. Default: 0.0
+erf.radiation.asymmetry_factor               = 0.0   # Clear-sky scattering asymmetry factor [-1,1] (0=isotropic). Default: 0.0
+erf.radiation.cloud_single_scattering_albedo = 0.0   # Cloud single-scattering albedo [0,1], used within the cloud band instead of the clear-sky value. Default: 0.0 (typical cloud droplets ~0.9999)
+erf.radiation.cloud_asymmetry_factor         = 0.0   # Cloud scattering asymmetry factor [-1,1], used within the cloud band. Default: 0.0 (typical cloud droplets ~0.85)
+
+# ==============================================================================
+# SECTION 4: Dynamic (moisture/cloud-aware) optical depth diagnosis
+# ==============================================================================
+erf.radiation.tau_sw_dynamic_enable = false   # Enable dynamic SW tau diagnosis from qv/qc. Bool. Default: false
+erf.radiation.tau_lw_dynamic_enable = false   # Enable dynamic LW tau diagnosis from qv/qc. Bool. Default: false
+erf.radiation.tau_sw_coeff_qv       = 0.0     # SW tau coefficient for water vapor [dimensionless]: tau_sw += coeff_qv * qv. Default: 0.0
+erf.radiation.tau_sw_coeff_qc       = 0.0     # SW tau coefficient for cloud liquid water [dimensionless]: tau_sw += coeff_qc * qc. Default: 0.0
+erf.radiation.tau_lw_coeff_qv       = 0.0     # LW tau coefficient for water vapor [dimensionless]: tau_lw += coeff_qv * qv. Default: 0.0
+erf.radiation.tau_lw_coeff_qc       = 0.0     # LW tau coefficient for cloud liquid water [dimensionless]: tau_lw += coeff_qc * qc. Default: 0.0
+
+# ==============================================================================
+# SECTION 5: Prognostic cloud fraction (diagnosed from RH and qc)
+# ==============================================================================
+erf.radiation.cloud_fraction_prog_enable   = false   # Enable prognostic (RH/qc-diagnosed) cloud fraction instead of static cloud_fraction. Bool. Default: false
+erf.radiation.cloud_fraction_rh_min        = 0.0     # RH [0,1] below which diagnosed cloud fraction is 0. Default: 0.0
+erf.radiation.cloud_fraction_rh_max        = 1.0     # RH [0,1] at/above which diagnosed cloud fraction saturates to 1; must be >= rh_min. Default: 1.0
+erf.radiation.cloud_fraction_qc_scale      = 1.0e-3  # Scaling coefficient converting qc [kg/kg] into an additional cloud-fraction contribution. Default: 1.0e-3
+erf.radiation.cloud_fraction_smooth_enable = false   # Enable exponential-moving-average temporal smoothing of diagnosed cloud fraction. Bool. Default: false
+erf.radiation.cloud_fraction_smooth_alpha  = 0.0     # EMA smoothing weight [0,1]; 0=no update, 1=instant update. Default: 0.0
+
+# ==============================================================================
+# SECTION 6: Bulk aerosol / turbidity (prescribed optical depth)
+# ==============================================================================
+erf.radiation.aerosol_enable         = false        # Enable prescribed bulk aerosol optical depth (added on top of tau_base + cloud + dynamic tau). Bool. Default: false
+erf.radiation.aerosol_profile_type   = "constant"   # Aerosol profile: "constant", "exponential", or "table" (table reserved for future use). Default: "constant"
+erf.radiation.aerosol_tau_per_layer  = 0.0          # Uniform aerosol optical depth per layer [dimensionless]; used when aerosol_profile_type="constant". Default: 0.0
+erf.radiation.aerosol_tau_surface    = 0.0          # Total-column aerosol optical depth at the surface [dimensionless]; used when aerosol_profile_type="exponential". Default: 0.0
+erf.radiation.aerosol_scale_height_m = 2000.0       # Aerosol exponential decay scale height [m]; used when aerosol_profile_type="exponential". Default: 2000.0
+
+# ==============================================================================
+# SECTION 7: Time-varying solar geometry (diurnal cycle)
+# ==============================================================================
+erf.radiation.solar_geometry_dynamic_enable = false   # Enable dynamic solar zenith angle from simulation time/lat/lon/day-of-year (else uses static solar_zenith). Bool. Default: false
+erf.radiation.latitude_deg                  = 0.0     # Site latitude [degrees, -90 to 90, positive north]. Default: 0.0 (equator)
+erf.radiation.longitude_deg                 = 0.0     # Site longitude [degrees, -180 to 180, positive east; wrapped if outside range]. Default: 0.0 (prime meridian)
+erf.radiation.day_of_year                   = 172.0   # Reference day-of-year at simulation start [1-366]. Default: 172.0 (~June 21, summer solstice NH)
+erf.radiation.time_zone_offset_hours        = 0.0     # Time zone offset from UTC [hours], positive east of Greenwich. Default: 0.0 (UTC)
+
+# ==============================================================================
+# SECTION 8: Simplified Surface Energy Balance (SEB) infrastructure
+#            (MultiFab allocation + Noah-MP passthrough fallback defaults)
+# ==============================================================================
+erf.radiation.seb_enable            = false    # Master switch for SEB infrastructure (MultiFab allocation for sw/lw/hfx/lh/grdflx/t_sfc/q_sfc/t_deep/q_deep). Bool. Default: false
+erf.radiation.seb_sw_flux_default   = 0.0      # Fallback net SW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_lw_flux_default   = 0.0      # Fallback net LW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_hfx_default       = 0.0      # Fallback sensible heat flux [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_lh_default        = 0.0      # Fallback latent heat flux [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_grdflx_default    = 0.0      # Fallback ground heat flux [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_q_sfc_default     = 0.0      # Fallback surface moisture [kg/kg], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_t_deep_default    = 300.0    # Fallback deep-soil temperature [K] (force-restore reservoir target). Default: 300.0
+erf.radiation.seb_q_deep_default    = 0.0      # Fallback deep-soil moisture [kg/kg] (force-restore reservoir target). Default: 0.0
+
+# ==============================================================================
+# SECTION 9: SEB diagnostic mode
+#            (residual = R_net - H - LE - G, reported only; no state update)
+# ==============================================================================
+erf.radiation.seb_diagnostic_enable = false   # Enable diagnostic SEB residual computation/reporting. Requires seb_enable=true (auto-enabled if needed). Bool. Default: false
+
+# ==============================================================================
+# SECTION 10: SEB prognostic mode (force-restore surface temperature/moisture)
+#             dT_s/dt = SEB_residual/C_s - (2*pi/tau)*(T_s - T_deep)
+#             dq_s/dt = -(LE/(L_v*rho_w*d_s)) - (1/tau_q)*(q_s - q_deep)
+#             Only active where Noah-MP is NOT driving surface fields at that level.
+# ==============================================================================
+erf.radiation.seb_prognostic_enable             = false     # Enable prognostic T_s/q_s force-restore evolution. Requires seb_enable & seb_diagnostic_enable=true (auto-enabled if needed). Bool. Default: false
+erf.radiation.seb_surface_heat_capacity         = 2.0e4      # Effective surface heat capacity C_s [J/(m^2*K)]. Must be > 0. Default: 2.0e4
+erf.radiation.seb_restore_timescale_s           = 86400.0    # Force-restore timescale tau for T_s toward T_deep [s]. Must be > 0. Default: 86400.0 (1 day)
+erf.radiation.seb_moisture_layer_depth_m        = 0.1        # Effective surface moisture layer depth d_s [m]. Must be > 0. Default: 0.1
+erf.radiation.seb_moisture_restore_timescale_s  = 86400.0    # Force-restore timescale tau_q for q_s toward q_deep [s]. Must be > 0. Default: 86400.0 (1 day)
+erf.radiation.seb_prognostic_t_min_k            = 200.0      # Lower clamp bound for prognostic T_s after each update [K]. Default: 200.0
+erf.radiation.seb_prognostic_t_max_k            = 340.0      # Upper clamp bound for prognostic T_s after each update [K]. Default: 340.0
+erf.radiation.seb_prognostic_q_min              = 0.0        # Lower clamp bound for prognostic q_s after each update [kg/kg]. Default: 0.0
+erf.radiation.seb_prognostic_q_max              = 1.0        # Upper clamp bound for prognostic q_s after each update [kg/kg]. Default: 1.0
+
+#------------------------------------------------------------------------------
+# End of two-stream radiation parameter reference.
+# See Source/Radiation/RAD_DEVELOPMENT.md for the full capability history,
+# and the other Exec/CanonicalTests/Radiation/* directories for runnable
+# scenario-specific examples (e.g., SW_ClearSky_Analytical, LW_Isothermal,
+# SW_Cloud_Layer, SW_Scattering_Cloud, TwoStream_Aerosol_Turbidity,
+# TwoStream_DiurnalSolarGeometry, TwoStream_DynamicTau_MoistCloud,
+# TwoStream_ProgCloudFraction, TwoStream_SEB_MultiFabInfra,
+# TwoStream_SEB_Diagnostic, TwoStream_SEB_Prognostic,
+# TwoStream_SurfaceHeterogeneity, TwoStream_NonuniformDZ,
+# TwoStream_PBL_MRF_YSU_Coupling).
+#------------------------------------------------------------------------------
