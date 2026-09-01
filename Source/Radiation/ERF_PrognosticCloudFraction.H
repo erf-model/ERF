@@ -7,7 +7,7 @@
 
 /**
  * @file ERF_PrognosticCloudFraction.H
- * @brief Phase 14: Prognostic cloud fraction diagnosis from relative humidity and cloud water.
+ * @brief Prognostic cloud fraction diagnosis from relative humidity and cloud water.
  *
  * Implements RH/qc-based cloud fraction diagnosis for use in TwoStream radiation.
  * The diagnosed cloud fraction cf(k) can optionally be temporally smoothed.
@@ -17,12 +17,12 @@
  *   cf_qc(k) = min(1, qc_scale * qc(k))  [qc contribution]
  *   cf_diag(k) = min(1, cf_rh(k) + cf_qc(k))  [combined with saturation]
  *
- * When smoothing enabled (Phase 14):
+ * When smoothing enabled:
  *   cf_smooth(k, t+dt) = alpha * cf_diag(k, t+dt) + (1 - alpha) * cf_smooth(k, t)
  *
  * References:
  * -----------
- * - Phase 14 Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md)
+ * - See Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md) for implementation details.
  */
 
 /**

@@ -9,7 +9,7 @@
  * @file ERF_TwoStreamLW.H
  * @brief Longwave (thermal) radiation using gray-gas two-stream model.
  *
- * Implements a simplified, clear-sky longwave radiation model for Phase 1
+ * Implements a simplified, clear-sky longwave radiation model
  * using the gray-gas two-stream approximation (Toon et al. 1989):
  *
  * UPWARD SWEEP (from surface to TOA):
@@ -22,7 +22,7 @@
  * ---------------
  *   F_down(k) = F_down(k+1) * exp(-tau_lw) + sigma * T(k)^4 * (1 - exp(-tau_lw))
  *
- *   Initial condition: F_down(TOA) = 0 (no incoming from space, Phase 1)
+ *   Initial condition: F_down(TOA) = 0 (no incoming from space)
  *
  * NET FLUX AND HEATING:
  * ---------------------
@@ -31,7 +31,7 @@
  *         = [F_up(k+1) - F_down(k+1)] - [F_up(k) - F_down(k)]
  *   Q_lw = -dF/dz / (rho * cp)  [K/s]
  *
- * PHASE 1 SIMPLIFICATIONS:
+ * MODEL SIMPLIFICATIONS:
  * -------------------------
  * - Uniform optical depth (tau_lw) per layer
  * - No scattering
@@ -152,7 +152,7 @@ compute_lw_flux_up(amrex::Real F_up_below, amrex::Real T_layer,
  *
  *   F_down_current = F_down_above * exp(-tau_lw) + sigma * T^4 * (1 - exp(-tau_lw))
  *
- * This is called iteratively from the TOA (where F_down_toa = 0 in Phase 1)
+ * This is called iteratively from the TOA (where F_down_toa = 0)
  * downward to the surface.
  *
  * @param[in] F_down_above Downwelling flux from the layer above [W/m^2].
@@ -190,7 +190,7 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
  * Note: Positive F_net indicates cooling (more upward than downward flux);
  *       positive dF_net/dz indicates warming within the layer.
  *
- * **Phase 9: Nonuniform dz Support & Sanity Checks**
+ * **Nonuniform dz Support & Sanity Checks**
  *
  * This function accepts per-level dz values to support terrain-aware or
  * nonuniform vertical grids. When dz <= 0, or rho <= 0, or cp <= 0,
@@ -202,7 +202,7 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
  * @param[in] F_net_top Net flux at the top of the layer [W/m^2].
  * @param[in] F_net_bot Net flux at the bottom of the layer [W/m^2].
  * @param[in] dz Vertical thickness of the layer [m]. Must be positive.
- *              For nonuniform grids (Phase 9+), use per-level spacing.
+ *              For nonuniform grids, use per-level spacing.
  * @param[in] rho Density [kg/m^3]. Must be positive.
  * @param[in] cp Specific heat at constant pressure [J/(kg·K)]. Must be positive.
  *

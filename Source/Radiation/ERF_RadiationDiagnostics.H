@@ -46,12 +46,12 @@
  * @class RadiationDiagnostics
  * @brief CSV logger and debug-print manager for radiation module.
  *
- * Manages output of Phase 1 radiation diagnostics including:
+ * Manages output of radiation diagnostics including:
  * - Tagged debug prints (when verbosity >= 1)
  * - CSV rows for flux/heating diagnostics
  * - RADIATION_DIAG: lines for RegTest parsing
  *
- * **Phase 9 Dedup Contract:**
+ * **Dedup Contract:**
  *
  * Duplicate detection uses a 3-tuple identity (step, call_site, time):
  * - step: timestep number (int)
@@ -76,13 +76,13 @@ public:
    * @param[in] verbosity Debug verbosity level (0=off, 1+=print).
    * @param[in] diag_file Output CSV file path (relative to working directory).
    * @param[in] amr_level AMR level index.
-   * @param[in] diag_enable (Phase 7) Master switch for all diagnostics.
-   * @param[in] diag_stdout_enable (Phase 7) Enable human-readable stdout block.
-   * @param[in] diag_tagged_enable (Phase 7) Enable tagged debug lines.
-   * @param[in] diag_regtest_line_enable (Phase 7) Enable RADIATION_DIAG: lines.
-   * @param[in] diag_csv_enable (Phase 7) Enable CSV file writes.
-   * @param[in] diag_callsite_mode (Phase 7) Call-site filter: "both", "pre_only", "post_only".
-   * @param[in] diag_dedup_tol (Phase 7) Tolerance for time equality in duplicate guard.
+   * @param[in] diag_enable Master switch for all diagnostics.
+   * @param[in] diag_stdout_enable Enable human-readable stdout block.
+   * @param[in] diag_tagged_enable Enable tagged debug lines.
+   * @param[in] diag_regtest_line_enable Enable RADIATION_DIAG: lines.
+   * @param[in] diag_csv_enable Enable CSV file writes.
+   * @param[in] diag_callsite_mode Call-site filter: "both", "pre_only", "post_only".
+   * @param[in] diag_dedup_tol Tolerance for time equality in duplicate guard.
    */
   RadiationDiagnostics(int verbosity, const std::string& diag_file, int amr_level,
                       bool diag_enable = true, bool diag_stdout_enable = true,
@@ -98,11 +98,11 @@ public:
   /**
    * @brief Append a diagnostic row to the CSV file.
    *
-   * Records a row of Phase 1 radiation diagnostics for the current timestep:
+   * Records a row of radiation diagnostics for the current timestep:
    *
    * CSV columns (order):
    *   step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
-   *   [optional Phase 18]: SEB_residual_mean, SEB_residual_max (only if seb_diagnostic_enable=true)
+   *   [optional]: SEB_residual_mean, SEB_residual_max (only if seb_diagnostic_enable=true)
    *
    * Also prints tagged debug output and RADIATION_DIAG: line for RegTest parsing.
    *
@@ -152,7 +152,7 @@ private:
   std::string m_last_write_call_site = "";
   amrex::Real m_last_write_time = -1.0;
 
-  // Phase 7 diagnostics controls
+  // Diagnostics controls
   bool m_diag_enable = true;
   bool m_diag_stdout_enable = true;
   bool m_diag_tagged_enable = true;

@@ -7,7 +7,7 @@
 
 /**
  * @file ERF_SimplifiedSEB.H
- * @brief Phase 18: Simplified SEB — Diagnostic mode residual computation.
+ * @brief Simplified SEB — Diagnostic mode residual computation.
  *
  * Implements diagnostic-only surface energy balance residual diagnosis.
  * No prognostic update to surface temperature or fluxes; residual is computed
@@ -31,7 +31,7 @@
  *
  * References:
  * -----------
- * - Phase 18 Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md)
+ * - See Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md) for implementation details.
  * - Oke, T. R., 1987: Boundary Layer Climates (2nd ed.), Routledge.
  */
 

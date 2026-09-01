@@ -8,15 +8,15 @@
 /**
  * @file ERF_TwoStreamSW.H
  * @brief Shortwave (solar) radiation using Beer-Lambert direct-beam model
- * plus (Phase 4) a two-stream diffuse (scattering) approximation.
+ * plus a two-stream diffuse (scattering) approximation.
  *
- * Implements a simplified, clear-sky shortwave radiation model for Phase 1
+ * Implements a simplified, clear-sky shortwave radiation model
  * using the Beer-Lambert law:
  *
  *   F_dir(z) = S0 * cos(zenith) * exp(-tau_cumulative(z) / cos(zenith))
  *
  * where tau_cumulative is the cumulative optical depth from TOA down to level z.
- * For Phase 1 (uniform optical depth per layer):
+ * For uniform optical depth per layer:
  *
  *   tau_cumulative(k) = tau_per_layer * k
  *
@@ -24,12 +24,12 @@
  *
  *   dF/dz = -d(F_dir)/dz = F_dir(z) * (tau_per_layer / (rho * cp * cos(zenith)))
  *
- * Phase 4 adds a diffuse SW flux contribution using the Meador-Weaver
+ * The model includes a diffuse SW flux contribution using the Meador-Weaver
  * (1980) two-stream scattering approximation, parameterized by the
  * single-scattering albedo (omega) and asymmetry factor (g) of each
- * layer. When omega == 0 (the Phase 1-3 default), the diffuse
+ * layer. When omega == 0 (the default for direct-beam-only mode), the diffuse
  * contribution below is identically zero and the total SW flux reduces
- * EXACTLY to the pre-Phase-4 direct-beam-only result.
+ * EXACTLY to the direct-beam-only result.
  *
  * References:
  * -----------
@@ -65,7 +65,7 @@
  * parallel kernels.
  *
  * @tparam D Direction of calculation: -1 for downward (TOA → surface),
- *           +1 for upward (surface → TOA). Phase 1 only uses downward.
+ *           +1 for upward (surface → TOA). Downward is typically used.
  *
  * @param[in] tau_cumulative Cumulative optical depth from TOA to this level [unitless].
  * @param[in] S0 Solar constant at TOA [W/m^2].
@@ -100,7 +100,7 @@ compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
  * The factor (rho * cp)^{-1} converts radiative flux divergence [W/m^3] into
  * a temperature tendency [K/s].
  *
- * **Phase 9: Nonuniform dz Support & Sanity Checks**
+ * **Nonuniform dz Support & Sanity Checks**
  *
  * This function accepts per-level dz values to support terrain-aware or
  * nonuniform vertical grids. When dz <= 0, or rho <= 0, or cp <= 0,
@@ -112,7 +112,7 @@ compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
  * @param[in] flux_top Downwelling flux at the top of the layer [W/m^2].
  * @param[in] flux_bot Downwelling flux at the bottom of the layer [W/m^2].
  * @param[in] dz Vertical thickness of the layer [m]. Must be positive.
- *              For nonuniform grids (Phase 9+), use per-level spacing.
+ *              For nonuniform grids, use per-level spacing.
  * @param[in] rho Density [kg/m^3]. Must be positive.
  * @param[in] cp Specific heat at constant pressure [J/(kg·K)]. Must be positive.
  *
@@ -146,7 +146,7 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
 }
 
 /**
- * @brief (Phase 4) Compute the diffuse (scattered) downwelling SW flux at
+ * @brief Compute the diffuse (scattered) downwelling SW flux at
  * the base of a single homogeneous layer using the Meador-Weaver (1980)
  * two-stream scattering approximation, driven by the direct-beam flux
  * incident at the top of that layer.
@@ -197,7 +197,7 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
  *                 + F_dir_top * Tdir * R_diff * gamma3
  *
  * which reduces to the physically-required limits:
- *   - omega == 0  => F_diff_base == 0 exactly (pure direct-beam, Phase 1-3)
+ *   - omega == 0  => F_diff_base == 0 exactly (pure direct-beam)
  *   - omega -> 1, g -> 1 (strong forward scattering) => most of the
  *     scattered energy remains in the forward (downward) direction
  *
@@ -221,11 +221,11 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
  *   evaluated at the layer base [W/m^2]. Always >= 0.
  *
  * @note If cos_zenith <= 0 (night) or omega <= 0 (purely absorbing),
- *   returns exactly 0.0 — this is the Phase 1-3 direct-beam-only limit.
+ *   returns exactly 0.0 — this is the direct-beam-only limit.
  * @note This single-layer formulation does not itself accumulate
  *   diffuse transmission from layers above; the calling vertical sweep
  *   is expected to add contributions layer-by-layer (see
- *   ERF_AdvanceTwoStreamRadiation.cpp Phase 4 section).
+ *   ERF_AdvanceTwoStreamRadiation.cpp).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -233,7 +233,7 @@ compute_sw_diffuse_flux(amrex::Real tau, amrex::Real F_dir_top,
                         amrex::Real cos_zenith, amrex::Real omega,
                         amrex::Real g)
 {
-  // Exact zero-scattering limit: byte-identical to Phase 1-3 behavior.
+  // Exact zero-scattering limit: byte-identical to direct-beam-only behavior.
   if (omega <= 0.0 || cos_zenith <= 0.0 || F_dir_top <= 0.0 || tau <= 0.0) {
     return 0.0;
   }
