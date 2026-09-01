@@ -227,8 +227,10 @@ that predicts mass mixing ratios for water vapor and five hydrometeor species (c
 ice, rain, snow, and graupel) but diagnoses number concentrations from assumed size distributions.
 WSM6 is suitable for simulating deep convection and winter precipitation.
 
-ERF's WSM6 implementation is derived from WRF's `module_mp_wsm6.F`_ and provides both CPU
-(via Fortran-C++ bridge) and GPU (native C++ implementation) execution paths.
+ERF's WSM6 implementation is derived from WRF's `module_mp_wsm6.F`_. It is available in two
+forms: a native C++ implementation, which is what a default build runs and which executes on
+both CPU and GPU, and an optional Fortran bridge to the WRF source, which is CPU-only and is
+compiled only when explicitly enabled at build time.
 
 .. _`module_mp_wsm6.F`: https://github.com/wrf-model/WRF/blob/master/phys/module_mp_wsm6.F
 
@@ -250,14 +252,19 @@ while the snow intercept parameter has a temperature dependence.
 Implementation
 ~~~~~~~~~~~~~~
 
-ERF provides two execution paths for WSM6:
+ERF provides two implementations of WSM6. They are distinguished by what they are, not by
+where they run: the Fortran bridge never executes on the device, and the native C++ path runs
+on CPU as well as GPU.
 
-**CPU execution (Fortran bridge):** The original WRF Fortran code is called from C++ via a
-Fortran-C interface. This path ensures reproducibility with WRF results and serves
-as a reference implementation.
+**Fortran bridge (optional, CPU only):** The original WRF Fortran code is called from C++ via a
+Fortran-C interface. This path reproduces the WRF source it was taken from and is ERF's
+reference implementation for validating the native C++ path. It is compiled only when the
+build option below is set and requires double precision. It never executes on the device: in a
+GPU build the bridge's working arrays are allocated from the pinned arena so the Fortran can be
+called on the host.
 
-**GPU execution (native C++):** A native C++ implementation of all WSM6 microphysical processes
-enables efficient execution on GPUs.
+**Native C++ (default, CPU and GPU):** A native C++ implementation of all WSM6 microphysical
+processes. This is the path a default build takes on both CPU and GPU.
 
 Configuration
 ~~~~~~~~~~~~~
@@ -307,6 +314,7 @@ Example Cases
 
 WSM6 is used in several test cases:
 
+- ``Tests/test_files/SHOC_Unstable_Cloud/SHOC_Unstable_Cloud_WSM6.i``: unstable cloud case with native SHOC; this is the only WSM6 configuration registered with CTest (as ``SHOC_Unstable_Cloud_WSM6`` in ``Tests/CTestList.cmake``) and so the one exercised by the regression suite
 - ``Exec/RegTests/Bubble/inputs_BF02_moist_bubble``: Moist bubble test case (requires setting ``erf.moisture_model = WSM6`` to enable WSM6 physics; the default configuration uses Kessler)
 - ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MRF_smag2d``: Hurricane Katrina simulation with WSM6 and MRF PBL scheme
 - ``Exec/CanonicalTests/Hurricanes/InputFiles/Katrina/inputs_Katrina_adv_most_bulk_WSM6_MYJ_smag2d``: Hurricane Katrina simulation with WSM6 and MYJ PBL scheme
@@ -326,10 +334,10 @@ number concentration (:math:`n_n`), enabling improved representation of cloud-ae
 interactions and warm-rain precipitation processes. Ice-phase species (cloud ice, snow, and
 graupel/hail) retain the single-moment treatment from WSM6.
 
-ERF's WDM6 implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_ and supports both
-CPU execution through the Fortran-C++ bridge and GPU execution through the native C++
-implementation. The scheme transports six water species (including water vapor) and three
-number concentration fields.
+ERF's WDM6 implementation is derived from WRF v4.7.1's `module_mp_wdm6.F`_. As with WSM6, it
+is available as a native C++ implementation, which is the default and runs on both CPU and
+GPU, and as an optional CPU-only Fortran bridge used for validation. The scheme transports six
+water species (including water vapor) and three number concentration fields.
 
 .. _`module_mp_wdm6.F`: https://github.com/wrf-model/WRF/blob/v4.7.1/phys/module_mp_wdm6.F
 
@@ -357,11 +365,13 @@ the scheme to represent aerosol indirect effects on cloud and precipitation deve
 Implementation
 ~~~~~~~~~~~~~~
 
-ERF provides two execution paths for WDM6:
+ERF provides two implementations of WDM6. As with WSM6, the Fortran bridge is CPU-only and the
+native C++ path runs on both CPU and GPU.
 
-**CPU execution (Fortran bridge):** ERF calls a locally maintained version of the WRF Fortran
-implementation through a Fortran-C interface. The source was verified against WRF v4.7.1 and
-serves as the reference implementation for validation of the native C++ path.
+**Fortran bridge (optional, CPU only):** ERF calls a locally maintained version of the WRF
+Fortran implementation through a Fortran-C interface. The source was verified against WRF
+v4.7.1 and serves as the reference implementation for validation of the native C++ path. It is
+compiled only when the build option below is set and cannot execute on the device.
 
 ERF applies two numerical consistency safeguards to both implementations:
 
@@ -384,8 +394,27 @@ Future WRF updates can be assessed by visually diffing ``ERF_module_mp_wdm6.F90`
 corresponding upstream ``phys/module_mp_wdm6.F`` and reviewing the documented ERF-specific
 changes as a separate patch.
 
-**GPU execution (native C++):** A native C++ implementation of all WDM6 microphysical processes
-enables efficient execution on GPUs. The native implementation can also run on CPUs.
+**Native C++ (default, CPU and GPU):** A native C++ implementation of all WDM6 microphysical
+processes. This is the path a default build takes, on CPU as well as GPU.
+
+The two implementations have been compared to different standards on CPU and on GPU, and the
+distinction matters when interpreting results:
+
+- On serial CPU, the native C++ path agrees with the Fortran bridge to roughly 1e-11 relative
+  over 100 steps of the moist Bubble case, with the residual dominated by the number
+  concentrations; a per-step restart comparison over the same interval shows no step at which
+  either path computes a materially different answer from identical input.
+- On GPU, bridge-versus-native agreement is *not* at that level after the first step: the worst
+  relative differences reach order unity (1.06 on ``rhoQ4`` at step 10, 0.43 on ``nr`` at step
+  100), confined to the warm-rain fields, while density, temperature, pressure and the ice
+  fields stay under 0.1%. The evidence attributes this to the hard, unsmoothed autoconversion
+  gate being crossed differently under the GPU's roundoff floor rather than to a defect in the
+  port, and the divergence is bounded and decays rather than growing. The comparison that would
+  settle it -- native C++ on GPU against native C++ on CPU -- has not been run, so the GPU path
+  should not be described as validated to the CPU standard.
+
+``Source/Microphysics/WDM6/README`` records these measurements, their scope, and what remains
+outstanding on GPU; consult it before relying on WDM6 results from a GPU build.
 
 The implementation handles both graupel and hail regimes via the ``hail_opt`` parameter, which
 modifies fall speed coefficients and size distribution parameters for the graupel/hail category.

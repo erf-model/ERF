@@ -1,6 +1,7 @@
 #ifndef ERF_INPUT_SOUNDING_DATA_H_
 #define ERF_INPUT_SOUNDING_DATA_H_
 
+#include <limits>
 #include <string>
 #include <iostream>
 
@@ -235,7 +236,6 @@ public:
          * from the surface up through the air column to get the dry density
          * and moist pressure.
          */
-        const amrex::Real tol = amrex::Real(1.0e-12);
         const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
@@ -278,6 +278,23 @@ public:
         {
             // Vertical grid spacing
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
+
+            // The Newton residual F below is a pressure, so the tolerance it is
+            // tested against has to be scaled to the pressure being solved for.
+            // The iterate cannot do better than settle into a one-ulp limit
+            // cycle about the true root, which puts a hard floor of roughly
+            // ulp(p) on |F| -- 3.6e-12 for a 1.6e4 Pa pressure in double, and
+            // ~1e-2 Pa at 1e5 Pa in single.  The fixed 1e-12 Pa tolerance used
+            // here previously sat below that floor, so the iteration burned all
+            // of its allowed passes and reported a spurious non-convergence
+            // warning for a column that had in fact converged to roundoff.
+#ifdef AMREX_USE_FLOAT
+            const amrex::Real tol = amrex::Real(4)
+                                  * std::numeric_limits<amrex::Real>::epsilon()
+                                  * pm_integ[k-1];
+#else
+            const amrex::Real tol = amrex::Real(1.0e-12);
+#endif
 
             // Establish known constant
             rho_tot_lo = rhod_integ[k-1] * (one + qv_inp_sound[itime][k-1]);

@@ -148,3 +148,48 @@ where :math:`p_0 = 1e5 \, \text{N/m}^2` is the pressure at the base. Hence, we d
     F(p(0)) \equiv p(0) - p_0 + \rho(0)g\frac{\Delta z}{2},
 
 and the Newton-Raphson procedure is the same.
+
+.. _subsec:base-state-refined:
+
+The base state on a refined mesh
+----------------------------------------------------------------------------
+
+With mesh refinement, the base state is constructed **independently on each level**,
+against that level's own cell-centered heights :math:`z_{cc}`, by the same procedure
+described above.  Running the same construction on every level, rather than
+interpolating the coarse answer, is what leaves each level in discrete hydrostatic
+balance on its own mesh.
+
+Before that construction runs, the base state on a refined level is filled by
+conservative interpolation from its parent, and the physical boundary conditions for the
+base state are applied.  That is what gives values to the part of the refined level that
+lies inside the domain but outside the refined grids, and to the ghost cells; the
+per-level construction then overwrites only the refined grids.
+
+Two consequences are worth stating explicitly.
+
+**A refined level need not span the depth of the domain.**  The vertical integration is
+causal upward: the value in a cell depends only on the cells at or below it.  A refined
+region that stops partway up the domain therefore gets exactly the base state it would
+have had if it had been refined all the way to the model top -- the values in the cells it
+does contain are unchanged.  What the integration does require is a valid starting value
+in the lowest cell of each column, which is why the grids must not be decomposed in the
+vertical (see :ref:`subsec:no-vertical-decomposition`); ``amr.refine_grid_layout_z``
+defaults to 0 in ERF, so this holds unless it is overridden.
+
+**The base state does not depend on the coupling type.**  Under two-way coupling ERF
+averages :math:`\det J` down from fine to coarse, so that the volume weighting used when
+averaging the state down telescopes and remains conservative.  The cell-centered heights
+:math:`z_{cc}` are deliberately **not** averaged down.  Were they, the coarse heights
+would change after the coarse base state had already been built against them, leaving that
+base state out of hydrostatic balance with the heights the dynamics subsequently use for
+vertical gradients, Rayleigh damping and the sponge zones.  Not averaging them also keeps
+:math:`z_{cc}` consistent with the nodal heights :math:`z_{nd}` it is derived from, which
+are not averaged down either.
+
+Note that the base states of two levels will not be identical to one another wherever
+their terrain differs -- for instance when a finer level resolves topography that its
+parent does not, either because it re-reads a terrain file at its own resolution or
+because it reads a nested wrfinput file.  Each level is individually hydrostatic; the
+difference between them is set by the difference in surface elevation and is carried up
+the column as an essentially constant offset in pressure.

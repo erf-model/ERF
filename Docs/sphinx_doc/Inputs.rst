@@ -13,40 +13,62 @@ The ERF executable reads run-time information from an inputs file which you name
 This section describes the inputs which can be specified either in the inputs file or on the command line.
 A value specified on the command line will override a value specified in the inputs file.
 
+Inputs with the ``prob.`` prefix are not listed here: they are read by the
+individual problem setups rather than by ERF itself, so the same name means
+different things in different problems.  They are indexed by problem in
+:ref:`sec:ProblemInputs`.
+
+.. _inputs-governing-equations:
+
 Governing Equations
 ===================
-+--------------------------+-----------------------------+---------------+-------------+
-| Parameter                | Definition                  | Acceptable    | Default     |
-|                          |                             | Values        |             |
-+==========================+=============================+===============+=============+
-| **erf.anelastic**        | if 1, solve the anelastic   | 0, 1          | 0           |
-|                          | equations (instead of       |               |             |
-|                          | the compressible equations);|               |             |
-|                          | can be a single value (for  |               |             |
-|                          | all amr levels) or a list of|               |             |
-|                          | values (one per level)      |               |             |
-+--------------------------+-----------------------------+---------------+-------------+
-| **erf.buoyancy_type**    | Controls how buoyancy is    | 1, 2, 3, 4    | 1 (may be   |
-|                          | calculated: 1=density       |               | auto-set to |
-|                          | perturbation, 2/3=temp.     |               | 2 or 3 based|
-|                          | perturbation, 4=potential   |               | on moisture |
-|                          | temp. perturbation.         |               | and solver) |
-|                          | See :ref:`Buoyancy` for     |               |             |
-|                          | details                     |               |             |
-+--------------------------+-----------------------------+---------------+-------------+
-| **erf.use_fft**          | use FFT rather than         | Boolean       | false       |
-|                          | multigrid to solve the      |               |             |
-|                          | the Poisson equations       |               |             |
-+--------------------------+-----------------------------+---------------+-------------+
-| **erf.mg_v**             | verbosity of the multigrid  | Integer >= 0  | 0           |
-|                          | solver if used              |               |             |
-|                          | the Poisson equations       |               |             |
-+--------------------------+-----------------------------+---------------+-------------+
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                       | Definition                                               | Acceptable Values  | Default          |
++=================================+==========================================================+====================+==================+
+| **erf.anelastic**               | if 1, solve the anelastic equations rather than the      | 0, 1               | 0                |
+|                                 | fully compressible equations (per-level).  Setting this  |                    |                  |
+|                                 | to 1 at a level also forces ``project_initial_velocity`` |                    |                  |
+|                                 | = 1, ``fixed_density`` = 1, ``buoyancy_type`` = 3 and    |                    |                  |
+|                                 | ``substepping_type`` = None at that level                |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buoyancy_type**           | Controls how buoyancy is calculated: 1=density           | 1, 2, 3, 4         | 1 (3 if          |
+|                                 | perturbation, 2/3=temp. perturbation, 4=potential temp.  |                    | anelastic)       |
+|                                 | perturbation. See :ref:`Buoyancy` for details            |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_fft**                 | use FFT rather than multigrid to solve the the Poisson   | Boolean            | false            |
+|                                 | equations                                                |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mg_v**                    | verbosity of the multigrid solver if used the Poisson    | Integer >= 0       | 0                |
+|                                 | equations                                                |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.fixed_density**           | if 1, hold the density fixed in time (per-level)         | 0, 1               | 0 (1 if          |
+|                                 |                                                          |                    | anelastic)       |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.c_p**                     | specific heat at constant pressure for dry air           | Real > 0           | 1004.5           |
+|                                 | [J/(kg-K)]                                               |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
+|                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |
+|                                 | dp/dz correction, 1 for the gradient of the vertically   |                    |                  |
+|                                 | interpolated pressure (Klemp 2011)                       |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
+|                                 | equation uses horizontal derivatives of the              |                    |                  |
+|                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.transport_scalar**        | transport the passive scalar component                   | Boolean            | true             |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_lagged_delta_rt**     | use the lagged (rho*theta) increment in the fast         | Boolean            | true             |
+|                                 | integrator; may only be set to false when                |                    |                  |
+|                                 | ``terrain_type`` = ``MovingFittedMesh``                  |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
 
    To use the FFT solver if running with anelastic, you must set USE_FFT = TRUE if using gmake
    or ERF_ENABLE_FFT if using cmake.
+
+.. _inputs-problem-geometry:
 
 Problem Geometry
 ================
@@ -111,6 +133,8 @@ Examples of Usage
 -  **geometry.is_periodic** = 0 1 0
    says the domain is periodic in the y-direction only.
 
+.. _inputs-domain-boundary-conditions:
+
 Domain Boundary Conditions
 ==========================
 Domain boundary conditions in ERF may be broadly categorized as ``ideal`` or ``real`` where
@@ -121,34 +145,131 @@ ideal BC types are ``inflow``, ``inflow_outflow``, ``outflow``, ``ho_outflow``, 
 ``slipwall``, ``noslipwall``, ``symmetry`` and ``surface_layer``. The type strings are matched
 case-insensitively, so e.g. ``NoSlipWall`` and ``noslipwall`` are equivalent.
 
+The ``<face>`` keys above may also be given with an ``erf.`` prefix -- ERF looks
+for ``erf.xlo.type`` first and falls back to ``xlo.type`` -- but every inputs
+file in the repository uses the un-prefixed form shown here.
+
+The inputs that configure a ``surface_layer`` boundary are collected in
+:ref:`sec:SurfaceLayerInputs`, and :ref:`sec:surface_layer` gives the
+formulation.
+
+One further family is documented on its own page rather than here:
+
+* the inputs that configure the inflow perturbation selected by
+  ``erf.perturbation_type`` -- ``erf.perturbation_box_dims``,
+  ``erf.perturbation_direction``, ``erf.perturbation_layers``,
+  ``erf.perturbation_offset``, ``erf.perturbation_nondimensional``,
+  ``erf.perturbation_T_infinity``, ``erf.perturbation_T_intensity``,
+  ``erf.perturbation_Ug``, ``erf.perturbation_w_amp``, ``erf.perturbation_klo``
+  and ``erf.perturbation_khi`` -- are described in
+  :ref:`sec:InflowTurbulenceGeneration`.
+
 
 .. _list-of-parameters-1:
 
 List of Parameters
 ------------------
 
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| Parameter       | Definition                        | Acceptable Values                                                         | Default                        |
-+=================+===================================+===========================================================================+================================+
-| **xlo.type**    | boundary type of the xlo face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| **xhi.type**    | boundary type of the xhi face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| **ylo.type**    | boundary type of the ylo face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| **yhi.type**    | boundary type of the yhi face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| **zlo.type**    | boundary type of the zlo face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
-| **zhi.type**    | boundary type of the zhi face     | inflow, outflow, inflow_outflow, open, ho_outflow, slipwall, noslipwall,  | must be set if the direction   |
-|                 |                                   | symmetry, surface_layer                                                   | is not periodic                |
-+-----------------+-----------------------------------+---------------------------------------------------------------------------+--------------------------------+
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                   | Definition                                               | Acceptable Values  | Default          |
++=============================+==========================================================+====================+==================+
+| **xlo.type**                | boundary type of the xlo face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **xhi.type**                | boundary type of the xhi face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **ylo.type**                | boundary type of the ylo face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **yhi.type**                | boundary type of the yhi face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **zlo.type**                | boundary type of the zlo face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **zhi.type**                | boundary type of the zhi face                            | inflow, outflow,   | must be set if   |
+|                             |                                                          | inflow_outflow,    | the direction is |
+|                             |                                                          | open, ho_outflow,  | not periodic     |
+|                             |                                                          | slipwall,          |                  |
+|                             |                                                          | noslipwall,        |                  |
+|                             |                                                          | symmetry,          |                  |
+|                             |                                                          | surface_layer      |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.perturbation_type**   | type of inflow turbulence generation used at a level     | None, Source,      | None             |
+|                             | (per-level).  See :ref:`sec:InflowTurbulenceGeneration`  | Direct, CPM, CPM_W |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.density**          | density imposed at a ``slipwall`` or ``noslipwall``      | Real > 0           | not set          |
+|                             | face; may not be combined with ``<face>.density_grad``,  |                    |                  |
+|                             | and is rejected for anelastic runs                       |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.density_grad**     | Neumann gradient of density imposed at a ``slipwall`` or | Real               | 0.0              |
+|                             | ``noslipwall`` face; may not be combined with            |                    |                  |
+|                             | ``<face>.density``, and is rejected for anelastic runs   |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.theta**            | potential temperature imposed at a ``slipwall`` or       | Real > 0           | not set          |
+|                             | ``noslipwall`` face; may not be combined with            |                    |                  |
+|                             | ``<face>.theta_grad``                                    |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.theta_grad**       | Neumann gradient of potential temperature imposed at a   | Real               | 0.0              |
+|                             | ``slipwall`` or ``noslipwall`` face; a face with neither |                    |                  |
+|                             | key defaults to a zero gradient (adiabatic)              |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.qv**               | water-vapor mixing ratio imposed at a ``noslipwall``     | Real >= 0          | not set          |
+|                             | face; read only for no-slip walls and with an active     |                    |                  |
+|                             | moisture model                                           |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.velocity**         | velocity imposed at an ``inflow`` face.  Required on an  | 3 Reals            | must be set      |
+|                             | inflow face unless ``<face>.dirichlet_file`` is given    |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.dirichlet_file**   | file of height-varying Dirichlet inflow data, used in    | String             | None             |
+|                             | place of ``<face>.velocity``                             |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.read_prim_theta**  | the ``dirichlet_file`` supplies theta rather than        | Boolean            | true             |
+|                             | (rho*theta); read only when that file is given           |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.nonreflecting**    | let upstream-propagating acoustic waves leave through    | Boolean            | false            |
+|                             | the face instead of reflecting off the Dirichlet         |                    |                  |
+|                             | boundary                                                 |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.scalar**           | passive-scalar value imposed at an ``inflow`` face;      | Real               | 0.0              |
+|                             | ignored when the scalar is ingested from boundary planes |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.qc**               | cloud-water mixing ratio imposed at an ``inflow`` face;  | Real >= 0          | not set          |
+|                             | read only with an active moisture model, and ignored     |                    |                  |
+|                             | when ingested from boundary planes                       |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **<face>.KE**               | turbulent kinetic energy imposed at an ``inflow`` face;  | Real >= 0          | not set          |
+|                             | ignored when ingested from boundary planes               |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
+
+.. _inputs-resolution:
 
 Resolution
 ==========
@@ -158,54 +279,35 @@ Resolution
 List of Parameters
 ------------------
 
-+-----------------------------------+--------------------+-----------------+-------------+
-| Parameter                         | Definition         | Acceptable      | Default     |
-|                                   |                    | Values          |             |
-+===================================+====================+=================+=============+
-| **amr.n_cell**                    | number of cells    | Integer > 0     | must be set |
-|                                   | in each            |                 |             |
-|                                   | direction at       |                 |             |
-|                                   | the coarsest       |                 |             |
-|                                   | level              |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.max_level**                 | number of          | Integer >= 0    | must be set |
-|                                   | levels of          |                 |             |
-|                                   | refinement         |                 |             |
-|                                   | above the          |                 |             |
-|                                   | coarsest level     |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.ref_ratio**                 | ratio of coarse    | Integer >= 1    | 2 for all   |
-|                                   | to fine grid       | (one per level) | levels      |
-|                                   | spacing between    |                 |             |
-|                                   | subsequent levels, |                 |             |
-|                                   | in every direction |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.ref_ratio_vect**            | ratio of coarse    | 3 integers >= 1 | 2 for all   |
-|                                   | to fine grid       | per level, one  | levels and  |
-|                                   | spacing between    | per coordinate  | directions  |
-|                                   | subsequent levels, | direction       |             |
-|                                   | per direction      |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.regrid_int**                | how often to       | Integer > 0     | -1          |
-|                                   | regrid             | (if negative,   |             |
-|                                   |                    | no regridding)  |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.regrid_on_restart**         | should we          | 0 or 1          | 0           |
-|                                   | regrid             |                 |             |
-|                                   | immediately        |                 |             |
-|                                   | after              |                 |             |
-|                                   | restarting         |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.regrid_level_0_on_restart** | should we          | Boolean         | false       |
-|                                   | regrid level       |                 |             |
-|                                   | immediately        |                 |             |
-|                                   | after              |                 |             |
-|                                   | restarting         |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
-| **amr.iterate_grids**             | do we iterate      | Boolean         | true        |
-|                                   | on the grids?      |                 |             |
-|                                   |                    |                 |             |
-+-----------------------------------+--------------------+-----------------+-------------+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **amr.n_cell**                     | number of cells in each direction at the coarsest level  | Integer > 0        | must be set      |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.max_level**                  | number of levels of refinement above the coarsest level  | Integer >= 0       | must be set      |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.ref_ratio**                  | ratio of coarse to fine grid spacing between subsequent  | Integer >= 1 (one  | 2 for all levels |
+|                                    | levels, in every direction                               | per level)         |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.ref_ratio_vect**             | ratio of coarse to fine grid spacing between subsequent  | 3 integers >= 1    | 2 for all levels |
+|                                    | levels, per direction                                    | per level, one per | and directions   |
+|                                    |                                                          | coordinate         |                  |
+|                                    |                                                          | direction          |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.regrid_int**                 | how often to regrid                                      | Integer > 0 (if    | -1               |
+|                                    |                                                          | negative, no       |                  |
+|                                    |                                                          | regridding)        |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.regrid_on_restart**          | should we regrid immediately after restarting            | 0 or 1             | 0                |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.regrid_level_0_on_restart**  | should we regrid level immediately after restarting      | Boolean            | false            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **amr.iterate_grids**              | do we iterate on the grids?                              | Boolean            | true             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.n_cell**                     | number of cells in each coordinate direction; an         | 3 Integers         | must set this or |
+|                                    | accepted alternative to ``amr.n_cell``.  Specifying both |                    | ``amr.n_cell``   |
+|                                    | aborts the run                                           |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
@@ -246,13 +348,17 @@ Examples of Usage
      has the same vertical grid spacing as the coarse level.  Note that
      **amr.ref_ratio** cannot express this, since it applies a single ratio in
      all three directions; see :ref:`MeshRefinement` for the distinction between
-     refining in z and creating a finer level over a region.
+     refining in z and creating a finer level over a region.  With
+     **erf.init_type** = WRFInput, the third slot also decides whether the wrfinput
+     data is refined in the vertical as it is read; see :ref:`sec:nested-wrfinput`.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new
      level-1 grids will be created every 2 level-0 time steps, and new
      level-2 grids will be created every 2 level-1 time steps.
 
+
+.. _inputs-grid-stretching:
 
 Grid Stretching
 ===============
@@ -269,24 +375,30 @@ from 0 (at the surface) to the domain height.
 List of Parameters
 ------------------
 
-+-------------------------------+-----------------+-----------------+-------------+
-| Parameter                     | Definition      | Acceptable      | Default     |
-|                               |                 | Values          |             |
-+===============================+=================+=================+=============+
-| **erf.grid_stretching_ratio** | scaling factor  | Real > 1        | 0 (no grid  |
-|                               | applied to      |                 | stretching) |
-|                               | delta z at each |                 |             |
-|                               | level           |                 |             |
-+-------------------------------+-----------------+-----------------+-------------+
-| **erf.initial_dz**            | vertical grid   | Real > 0        | must be set |
-|                               | spacing for the |                 | if grid     |
-|                               | cell above the  |                 | stretching  |
-|                               | bottom surface  |                 | ratio is set|
-+-------------------------------+-----------------+-----------------+-------------+
-| **erf.terrain_z_levels**      | nominal         | List of Real    | NONE        |
-|                               | staggered       |                 |             |
-|                               | z levels        |                 |             |
-+-------------------------------+-----------------+-----------------+-------------+
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
+| Parameter                      | Definition                                               | Acceptable Values  | Default                        |
++================================+==========================================================+====================+================================+
+| **erf.grid_stretching_ratio**  | ratio by which each vertical cell size is increased      | 0, or Real >= 1    | 0 (no stretching)              |
+|                                | relative to the one below it.  If set, the mesh type     |                    |                                |
+|                                | becomes ``StretchedDz`` and ``erf.initial_dz`` must also |                    |                                |
+|                                | be given                                                 |                    |                                |
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
+| **erf.initial_dz**             | vertical cell size of the lowest cell when generating a  | Real > 0           | must be set if                 |
+|                                | stretched vertical mesh; required when                   |                    | ``erf.grid_stretching_ratio``  |
+|                                | ``grid_stretching_ratio`` >= 1                           |                    | is set                         |
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
+| **erf.terrain_z_levels**       | explicit list of nominal (terrain-free) staggered z      | List of Reals      | None                           |
+|                                | levels; specifying these makes the mesh type             |                    |                                |
+|                                | ``StretchedDz``.  See :ref:`sec:Meshing`                 |                    |                                |
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
+| **erf.zsurface**               | nominal surface height used when generating a stretched  | Real               | 0.0                            |
+|                                | vertical mesh; read only when ``grid_stretching_ratio``  |                    |                                |
+|                                | >= 1                                                     |                    |                                |
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
+| **erf.mesh_type**              | vertical mesh type; normally set from the terrain and    | ConstantDz,        | set from other inputs          |
+|                                | stretching options rather than directly                  | StretchedDz,       |                                |
+|                                |                                                          | VariableDz         |                                |
++--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 
 .. _notes-1:
 
@@ -309,6 +421,8 @@ Examples of Usage
    | the first cell center would be at z=2.5
 
 
+.. _inputs-regridding:
+
 Regridding
 ==========
 
@@ -319,6 +433,9 @@ The user defines how to tag individual cells at a given level for refinement.
 This list of tagged cells is sent to a grid generation routine, which uses the
 Berger-Rigoutsos algorithm to create rectangular grids that contain the tagged cells.
 
+``erf.regrid_int``, which sets how often the grids are re-made, is documented in
+:ref:`MeshRefinement` together with the tagging criteria.
+
 See :ref:`MeshRefinement` for more details on how to specify regions for
 refinement.
 
@@ -327,67 +444,118 @@ refinement.
 List of Parameters
 ------------------
 
-+------------------------------+----------------------------------+-----------------+---------------------+
-| Parameter                    | Definition                       | Acceptable      | Default             |
-|                              |                                  | Values          |                     |
-+==============================+==================================+=================+=====================+
-| **amr.regrid_file**          | name of file from which to read  | text            | no file             |
-|                              | the grids                        |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.grid_eff**             | grid efficiency at coarse level  | Real > 0, < 1   | 0.7                 |
-|                              | at which grids are created       |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.n_error_buf**          | radius of additional tagging     | Integer >= 0    | 0                   |
-|                              | around already tagged cells      |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.n_error_buf_x**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
-|                              | the x-direction                  |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.n_error_buf_y**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
-|                              | the y-direction                  |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.n_error_buf_z**        | radius of additional tagging in  | Integer >= 0    | **n_error_buf**     |
-|                              | the z-direction                  |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.n_proper**             | minimum number of coarse cells   | Integer > 0     | 2                   |
-|                              | between coarse-fine boundaries   |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.max_grid_size**        | maximum size of a grid in every  | Integer > 0     | 2048                |
-|                              | direction                        |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.max_grid_size_x**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
-|                              | x-direction                      |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.max_grid_size_y**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
-|                              | y-direction                      |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.max_grid_size_z**      | maximum size of a grid in the    | Integer > 0     | **max_grid_size**   |
-|                              | z-direction                      |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.blocking_factor**      | grid size must be a multiple of  | Integer > 0     | 1                   |
-|                              | this in every direction          |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.blocking_factor_x**    | grid size in x must be a         | Integer > 0     | **blocking_factor** |
-|                              | multiple of this                 |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.blocking_factor_y**    | grid size in y must be a         | Integer > 0     | **blocking_factor** |
-|                              | multiple of this                 |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.blocking_factor_z**    | grid size in z must be a         | Integer > 0     | **blocking_factor** |
-|                              | multiple of this                 |                 |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.refine_grid_layout**   | chop grids further if # of       | 0 if false, 1   | 1                   |
-|                              | processors > # of grids          | if true         |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.refine_grid_layout_x** | chop in x when refining the grid | 0 if false, 1   | 1                   |
-|                              | layout                           | if true         |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.refine_grid_layout_y** | chop in y when refining the grid | 0 if false, 1   | 1                   |
-|                              | layout                           | if true         |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
-| **amr.refine_grid_layout_z** | chop in z when refining the grid | 0 if false, 1   | 0                   |
-|                              | layout                           | if true         |                     |
-+------------------------------+----------------------------------+-----------------+---------------------+
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| Parameter                                        | Definition                                               | Acceptable Values  | Default              |
++==================================================+==========================================================+====================+======================+
+| **amr.regrid_file**                              | name of file from which to read the grids                | text               | no file              |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.grid_eff**                                 | grid efficiency at coarse level at which grids are       | Real > 0, < 1      | 0.7                  |
+|                                                  | created                                                  |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.n_error_buf**                              | radius of additional tagging around already tagged cells | Integer >= 0       | 0                    |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.n_error_buf_x**                            | radius of additional tagging in the x-direction          | Integer >= 0       | **n_error_buf**      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.n_error_buf_y**                            | radius of additional tagging in the y-direction          | Integer >= 0       | **n_error_buf**      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.n_error_buf_z**                            | radius of additional tagging in the z-direction          | Integer >= 0       | **n_error_buf**      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.n_proper**                                 | minimum number of coarse cells between coarse-fine       | Integer > 0        | 2                    |
+|                                                  | boundaries                                               |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.max_grid_size**                            | maximum size of a grid in every direction                | Integer > 0        | 2048                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.max_grid_size_x**                          | maximum size of a grid in the x-direction                | Integer > 0        | **max_grid_size**    |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.max_grid_size_y**                          | maximum size of a grid in the y-direction                | Integer > 0        | **max_grid_size**    |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.max_grid_size_z**                          | maximum size of a grid in the z-direction                | Integer > 0        | **max_grid_size**    |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.blocking_factor**                          | grid size must be a multiple of this in every direction  | Integer > 0        | 1                    |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.blocking_factor_x**                        | grid size in x must be a multiple of this                | Integer > 0        | **blocking_factor**  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.blocking_factor_y**                        | grid size in y must be a multiple of this                | Integer > 0        | **blocking_factor**  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.blocking_factor_z**                        | grid size in z must be a multiple of this                | Integer > 0        | **blocking_factor**  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.refine_grid_layout**                       | chop grids further if # of processors > # of grids       | 0 if false, 1 if   | 1                    |
+|                                                  |                                                          | true               |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.refine_grid_layout_x**                     | chop in x when refining the grid layout                  | 0 if false, 1 if   | 1                    |
+|                                                  |                                                          | true               |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.refine_grid_layout_y**                     | chop in y when refining the grid layout                  | 0 if false, 1 if   | 1                    |
+|                                                  |                                                          | true               |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.refine_grid_layout_z**                     | chop in z when refining the grid layout                  | 0 if false, 1 if   | 0                    |
+|                                                  |                                                          | true               |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.regrid_level_0_on_restart**                | allow the level-0 grids to be re-made when restarting    | Boolean            | false                |
+|                                                  | from a checkpoint                                        |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_width**                                 | total width, in cells, of the coarse/fine interior ghost | Integer >= 0       | 0                    |
+|                                                  | region used for the two-way coupling                     |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_set_width**                             | width, in cells, of the region within ``erf.cf_width``   | Integer >= 0       | 0                    |
+|                                                  | in which the fine solution is set from the coarse one    |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.interpolation_type**                       | what is interpolated when filling a fine level from the  | FullState,         | FullState            |
+|                                                  | coarse one                                               | Perturbational     |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.refinement_indicators**                    | names of the refinement indicators to apply; each name   | List of Strings    | None                 |
+|                                                  | becomes the prefix of its own group of options below     |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.field_name**                   | field the indicator tests.  ``hurricane_tracker`` is a   | String             | None                 |
+|                                                  | reserved indicator name that needs no field              |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.value_greater**                | tag cells where the field exceeds this value, one value  | List of Reals      | None                 |
+|                                                  | per level                                                |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.value_less**                   | tag cells where the field falls below this value, one    | List of Reals      | None                 |
+|                                                  | value per level                                          |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.adjacent_difference_greater**  | tag cells where the difference between adjacent values   | List of Reals      | None                 |
+|                                                  | exceeds this, one value per level                        |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.max_level**                    | finest level at which the indicator is applied.          | Integer >= 1       | finest level         |
+|                                                  | Optional when the box is given in real coordinates;      |                    |                      |
+|                                                  | **required** when it is given in index space             |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.start_time**                   | simulation time [s] at which the indicator becomes       | Real               | start of run         |
+|                                                  | active                                                   |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.end_time**                     | simulation time [s] after which the indicator is         | Real               | end of run           |
+|                                                  | inactive                                                 |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_lo**                    | low corner, in physical coordinates, of the region the   | 2 or 3 Reals       | None                 |
+|                                                  | indicator tags                                           |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_hi**                    | high corner, in physical coordinates                     | 2 or 3 Reals       | None                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_lo_indices**            | low corner in fine-level index space; may not be         | 3 Integers         | None                 |
+|                                                  | combined with the real-coordinate form                   |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_hi_indices**            | high corner in fine-level index space                    | 3 Integers         | None                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_lo_indices_crse**       | low corner in coarse-level index space                   | 3 Integers         | None                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.in_box_hi_indices_crse**       | high corner in coarse-level index space                  | 3 Integers         | None                 |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.move_speed_x**                 | x-speed at which the tagged box moves                    | Real               | 0.0                  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.move_speed_y**                 | y-speed at which the tagged box moves                    | Real               | 0.0                  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.move_start_time**              | start times of the intervals over which the box moves;   | List of Reals      | None                 |
+|                                                  | must pair with ``move_stop_time``, and the intervals     |                    |                      |
+|                                                  | must not overlap                                         |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.move_stop_time**               | stop times of those intervals; each must be later than   | List of Reals      | None                 |
+|                                                  | the matching start time                                  |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.<indicator>.max_radius**                   | radius within which cells are tagged; **required** by    | Real > 0           | must be set          |
+|                                                  | the ``hurricane_tracker`` indicator                      |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 
 .. _notes-2:
 
@@ -520,6 +688,8 @@ See the `Gridding`_ section of the AMReX documentation for details.
 
 .. _`Gridding`: https://amrex-codes.github.io/amrex/docs_html/ManagingGridHierarchy_Chapter.html
 
+.. _inputs-simulation-time:
+
 Simulation Time
 ===============
 
@@ -576,6 +746,8 @@ Examples of Usage
 will end the calculation when either the simulation time reaches 1.0 or
 the number of level-0 steps taken equals 1000, whichever comes first.
 
+.. _inputs-time-step:
+
 Time Step
 =========
 
@@ -591,86 +763,73 @@ which means it is determined by the fluid speed rather than the sound speed and 
 List of Parameters
 ------------------
 
-+-------------------------------------+----------------------+----------------+---------------------+
-| Parameter                           | Definition           | Acceptable     | Default             |
-|                                     |                      | Values         |                     |
-+=====================================+======================+================+=====================+
-| **erf.substepping_type**            | Should we substep in | "Implicit" or  | "Implicit" if       |
-|                                     | each RK stage?       | "None"         | compressible,       |
-|                                     |                      |                | "None" if anelastic |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit**               | Do vertical implicit | Boolean        | true if compressible|
-|                                     | solve for diffusion  |                | false if anelastic  |
-|                                     | of u, v, theta, KE,  |                |                     |
-|                                     | and qv with default  |                |                     |
-|                                     | time-centering in    |                |                     |
-|                                     | each stage           |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.vert_implicit_fac**           | How much implicit    | Real >= 0      | 1.0, 1.0, 0.0       |
-|                                     | vertical diffusion   | (explicit) and |                     |
-|                                     | to include in each   | <= 1 (implicit)|                     |
-|                                     | RK stage?            |                |                     |
-|                                     |                      |                |                     |
-|                                     | Specify either one   |                |                     |
-|                                     | (the same for all    |                |                     |
-|                                     | stages) or three     |                |                     |
-|                                     | values, one per stage|                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.implicit_thermal_diffusion**  | Do vertical implicit | Boolean        | true                |
-|                                     | for theta?           |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.implicit_moisture_diffusion** | Do vertical implicit | Boolean        | true                |
-|                                     | for Qv?              |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.implicit_ke_diffusion**       | Do vertical implicit | Boolean        | true                |
-|                                     | for KE?              |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.implicit_momentum_diffusion** | Do vertical implicit | Boolean        | true                |
-|                                     | for U & V?           |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.cfl**                         | CFL number used to   | Real > 0 and   | 0.8                 |
-|                                     | compute level 0 dt   | <= 1           |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.substepping_cfl**             | CFL number used to   | Real > 0 and   | 1.0                 |
-|                                     | compute the number   | <= 1           |                     |
-|                                     | of substeps          |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_dt**                    | set level 0 dt       | Real > 0       | unused if not       |
-|                                     | as this value        |                | set                 |
-|                                     | regardless of        |                |                     |
-|                                     | cfl or other         |                |                     |
-|                                     | settings             |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_fast_dt**               | set fast dt          | Real > 0       | unused if not       |
-|                                     | as this value        |                | set                 |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.fixed_mri_dt_ratio**          | set fast dt          | even int > 0   | only relevant if    |
-|                                     | as slow dt /         |                | substepping_type    |
-|                                     | this ratio           |                | is not None         |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.init_shrink**                 | factor by which      | Real > 0 and   | 1.0                 |
-|                                     | to shrink the        | <= 1           |                     |
-|                                     | initial dt           |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.change_max**                  | factor by which      | Real >= 1      | 1.1                 |
-|                                     | dt can grow          |                |                     |
-|                                     | in subsequent        |                |                     |
-|                                     | steps                |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.dt_max**                      | maximum adaptive     | Real > 0       | 1e9                 |
-|                                     | timestep             |                |                     |
-|                                     | allowed by time      |                |                     |
-|                                     | stepping             |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.dt_max_initial**              | maximum initial      | Real > 0       | 1.0                 |
-|                                     | timestep             |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
-| **erf.dt_ref_ratio**                | ratio of coarse      | Integer >= 1   | same as             |
-|                                     | to fine grid         | (one per level)| maximum over        |
-|                                     | time steps between   |                | directions of       |
-|                                     | subsequent           |                | ref_ratio           |
-|                                     | levels               |                |                     |
-+-------------------------------------+----------------------+----------------+---------------------+
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| Parameter                            | Definition                                               | Acceptable Values  | Default           |
++======================================+==========================================================+====================+===================+
+| **erf.substepping_type**             | acoustic substepping strategy for the compressible       | None, Implicit     | Implicit (None if |
+|                                      | solver (per-level).  Forced to ``None`` at any level     |                    | anelastic)        |
+|                                      | where ``anelastic`` = 1                                  |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.vert_implicit**                | Do vertical implicit solve for diffusion of u, v, theta, | Boolean            | true              |
+|                                      | KE, and qv with default time-centering in each stage     |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.vert_implicit_fac**            | time-centering factor for the vertical diffusive terms,  | 1 or 3 Reals in    | 1.0 1.0 0.0       |
+|                                      | where 0 is fully explicit and 1 is fully implicit.       | [0,1]              |                   |
+|                                      | Specify either one value used in all Runge-Kutta stages, |                    |                   |
+|                                      | or three values, one per stage                           |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_thermal_diffusion**   | include the implicit contribution to vertical thermal    | Boolean            | true              |
+|                                      | diffusion                                                |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_moisture_diffusion**  | include the implicit contribution to vertical moisture   | Boolean            | true              |
+|                                      | diffusion                                                |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_ke_diffusion**        | include the implicit contribution to vertical turbulent  | Boolean            | true              |
+|                                      | kinetic energy diffusion                                 |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_momentum_diffusion**  | include the implicit contributions in tau13 and tau23    | Boolean            | true              |
+|                                      | (and tau33 if built with ``ERF_IMPLICIT_W``) used to     |                    |                   |
+|                                      | correct the momenta                                      |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.cfl**                          | CFL number used to compute level 0 dt                    | Real > 0 and <= 1  | 0.8               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.substepping_cfl**              | CFL number used to compute the number of substeps        | Real > 0 and <= 1  | 1.0               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.fixed_dt**                     | set level 0 dt as this value regardless of cfl or other  | Real > 0           | unused if not set |
+|                                      | settings                                                 |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.fixed_fast_dt**                | set fast dt as this value                                | Real > 0           | unused if not set |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.fixed_mri_dt_ratio**           | set fast dt as slow dt / this ratio                      | even int > 0       | only relevant if  |
+|                                      |                                                          |                    | substepping_type  |
+|                                      |                                                          |                    | is not None       |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.init_shrink**                  | factor by which to shrink the initial dt                 | Real > 0 and <= 1  | 1.0               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.change_max**                   | factor by which dt can grow in subsequent steps          | Real >= 1          | 1.1               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.dt_max**                       | maximum adaptive timestep allowed by time stepping       | Real > 0           | 1e9               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.dt_max_initial**               | maximum initial timestep                                 | Real > 0           | 1.0               |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.dt_ref_ratio**                 | ratio of coarse to fine grid time steps between          | Integer >= 1 (one  | same as maximum   |
+|                                      | subsequent levels                                        | per level)         | over directions   |
+|                                      |                                                          |                    | of ref_ratio      |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.substepping_diag**             | print additional CFL diagnostics for the compressible    | Boolean            | false             |
+|                                      | solver with substepping                                  |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.force_stage1_single_substep**  | if 1, take a single substep in the first Runge-Kutta     | 0, 1               | 1                 |
+|                                      | stage                                                    |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.ncorr**                        | number of correction iterations in the projection        | Integer >= 1       | 1                 |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.poisson_abstol**               | absolute tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
+|                                      | 1.e-6 in single precision builds                         |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.poisson_reltol**               | relative tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
+|                                      | 1.e-6 in single precision builds                         |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------
@@ -734,10 +893,16 @@ Examples of Usage of Additional Parameters
      Note that the time step can shrink by any factor; this only
      controls the extent to which it can grow.
 
+.. _inputs-restart-capability:
+
 Restart Capability
 ==================
 
 See :ref:`sec:Checkpoint` for how to control the checkpoint/restart capability.
+The parameters documented there, rather than on this page, are
+
+* ``amr.restart``, ``erf.check_file``, ``erf.check_int``, ``erf.check_per``,
+  ``erf.restart``.
 
 Additional Checkpoint Controls
 ------------------------------
@@ -764,11 +929,27 @@ Notes
 - These are in addition to the main checkpoint controls described in
   :ref:`sec:Checkpoint`.
 
+.. _inputs-plotfiles:
+
 PlotFiles
 ===============================
 
 See :ref:`sec:Plotfiles` for how to control the types and frequency of plotfile
-generation.
+generation.  The parameters documented there, rather than on this page, are
+
+* ``erf.file_name_digits``, ``erf.plot2d_file_1``, ``erf.plot2d_file_2``,
+  ``erf.plot2d_int_1``, ``erf.plot2d_int_2``, ``erf.plot2d_per_1``, ``erf.plot2d_per_2``,
+  ``erf.plot_face_vels``, ``erf.plot_file_1``, ``erf.plot_file_2``, ``erf.plot_int_1``,
+  ``erf.plot_int_2``, ``erf.plot_per_1``, ``erf.plot_per_2``, ``erf.plotfile2d_type``,
+  ``erf.plotfile2d_type_1``, ``erf.plotfile2d_type_2``, ``erf.plotfile_type``,
+  ``erf.plotfile_type_1``, ``erf.plotfile_type_2``, ``erf.subvol.dxdydz``,
+  ``erf.subvol.chunk_size``, ``erf.subvol.nxnynz``, ``erf.subvol.origin``, ``erf.subvol_file``, ``erf.subvol_int``,
+  ``erf.subvol_per``, ``erf.use_real_time_in_pltname``.
+
+The names of the fields that may be selected are listed in
+:ref:`sec:Plotfile3DReference` and :ref:`sec:Plotfile2DReference`.
+
+.. _inputs-boundary-files:
 
 Boundary Files
 ==============
@@ -831,6 +1012,8 @@ accumulating. A plotfile written shortly after a regrid can therefore mix
 per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
 
 
+.. _inputs-screen-output:
+
 Screen Output
 =============
 
@@ -874,6 +1057,8 @@ Examples of Usage
    | for example. If this line is commented out then it will not compute
      and print these quantities.
 
+.. _inputs-diagnostic-outputs:
+
 Diagnostic Outputs
 ==================
 
@@ -898,30 +1083,50 @@ For **real simulation domains**, users should use 2-D and 3-D :ref:`sec:Plotfile
 List of Parameters
 ------------------
 
-+-------------------------------+------------------+----------------+----------------+
-| Parameter                     | Definition       | Acceptable     | Default        |
-|                               |                  | Values         |                |
-+===============================+==================+================+================+
-| **erf.data_log**              | Output           | Up to five     | NONE           |
-|                               | filename(s)      | strings        |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.der_data_log**          | Output           | Up to four     | NONE           |
-|                               | filename(s) for  | strings        |                |
-|                               | derived data     |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.energy_data_log**       | Output           | Up to four     | NONE           |
-|                               | filename(s) for  | strings        |                |
-|                               | total energy     |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.profile_int**           | Interval (number)| Integer        | -1             |
-|                               | of steps between |                |                |
-|                               | outputs          |                |                |
-+-------------------------------+------------------+----------------+----------------+
-| **erf.destag_profiles**       | Interpolate all  | Boolean        | true           |
-|                               | outputs to       |                |                |
-|                               | cell-center      |                |                |
-|                               | heights          |                |                |
-+-------------------------------+------------------+----------------+----------------+
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                           | Definition                                               | Acceptable Values  | Default          |
++=====================================+==========================================================+====================+==================+
+| **erf.data_log**                    | Output filename(s)                                       | Up to five strings | NONE             |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.der_data_log**                | Output filename(s) for derived data                      | Up to four strings | NONE             |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.energy_data_log**             | Output filename(s) for total energy                      | Up to four strings | NONE             |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.profile_int**                 | Interval (number) of steps between outputs               | Integer            | -1               |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.destag_profiles**             | Interpolate all outputs to cell-center heights           | Boolean            | true             |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ave_Plane**                   | index of the direction normal to the planes used when    | 0, 1, 2            | 2                |
+|                                     | computing horizontal averages                            |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.time_avg_vel**                | accumulate and output time-averaged velocity fields      | Boolean            | false            |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.test_mapfactor**              | set the map scale factors to 0.5 instead of 1 for        | Boolean            | false            |
+|                                     | testing; see :ref:`sec:MapFactors`                       |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sum_period**                  | wall-clock-independent simulation-time interval [s]      | Real               | -1.0 (not used)  |
+|                                     | between integrated-quantity summaries; an alternative to |                    |                  |
+|                                     | ``erf.sum_interval``                                     |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pert_interval**               | number of steps between reports of the perturbational    | Integer            | -1 (not used)    |
+|                                     | diagnostics                                              |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.profile_rad_int**             | number of steps between writes of the radiation profile  | Integer            | -1 (not used)    |
+|                                     | log; read only in an RRTMGP build                        |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_rad**                    | write the radiation fields to the plotfile; read only in | Boolean            | false            |
+|                                     | an RRTMGP build                                          |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_face_terrain_blanking**  | write the face-based terrain blanking mask to the        | Boolean            | false            |
+|                                     | plotfile                                                 |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.write_eb_surface**            | write the embedded-boundary surface as a separate file   | Boolean            | false            |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rad.datalog**                 | name of the log file to which radiation diagnostics are  | String             | None             |
+|                                     | written                                                  |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 All profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
 that are destaggered by interpolating to cell centers where appropriate.
@@ -1083,6 +1288,8 @@ The requested output files have the following columns:
    the bottom and top boundaries; they are zero at the domain edges.
 
 
+.. _inputs-data-sampling-outputs:
+
 Data Sampling Outputs
 =====================
 
@@ -1153,62 +1360,64 @@ slot is never sampled.
 List of Parameters
 ------------------
 
-+-----------------------------------+------------------+----------------+----------------+
-| Parameter                         | Definition       | Acceptable     | Default        |
-|                                   |                  | Values         |                |
-+===================================+==================+================+================+
-| **erf.line_sampling_interval**,   | Output           | Integer        | -1             |
-| **erf.plane_sampling_interval**   | frequency (steps)|                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.line_sampling_per**,        | Output           | Real           | -1             |
-| **erf.plane_sampling_per**        | frequency (time) |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.do_line_sampling**          | Flag to do line  | Boolean        | false          |
-|                                   | sampling         |                |                |
-|                                   |                  |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.do_plane_sampling**         | Flag to do plane | Boolean        | false          |
-|                                   | sampling         |                |                |
-|                                   |                  |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_dir**           | Directionality   | Integer        | None           |
-|                                   | of the line      |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_dir**          | Directionality   | Integer        | None           |
-|                                   | of the plane     |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_lo/hi**         | Bounding (i,j,k) | 3 Integers per | None           |
-|                                   | on the line(s)   | line           |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_lo_real/**      | Bounding point   | 3 Reals per    | None           |
-| **hi_real**                       | on the line(s)   | line           |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_lo/hi**        | Bounding point   | 3 Reals per    | None           |
-|                                   | on the plane(s)  | plane          |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_line_name**          | Output prefix of | One string per | None           |
-|                                   | each line        | sample line    |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.sample_plane_name**         | Output prefix of | One string per | None           |
-|                                   | each plane       | sample plane   |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.line_sampling_text_output** | Write text files | Boolean        | false          |
-|                                   | instead of AMReX |                |                |
-|                                   | plotfiles        |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.line_sampling_vars**        | Specify sampled  | List of strings| theta, magvel  |
-|                                   | variables; SGS   |                |                |
-|                                   | fields are line- |                |                |
-|                                   | only             |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.plane_sampling_vars**       | Specify sampled  | List of strings| theta, magvel  |
-|                                   | variables        |                |                |
-+-----------------------------------+------------------+----------------+----------------+
-| **erf.plane_sampling_max_level**  | Cap on finest    | Integer        | -1 (all        |
-|                                   | level written to |                | intersecting   |
-|                                   | the plane        |                | levels)        |
-|                                   | plotfile         |                |                |
-+-----------------------------------+------------------+----------------+----------------+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.line_sampling_interval**,    | Output frequency (steps)                                 | Integer            | -1               |
+| **erf.plane_sampling_interval**    |                                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.line_sampling_per**,         | Output frequency (time)                                  | Real               | -1               |
+| **erf.plane_sampling_per**         |                                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.do_line_sampling**           | Flag to do line sampling                                 | Boolean            | false            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.do_plane_sampling**          | Flag to do plane sampling                                | Boolean            | false            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_dir**            | Directionality of the line                               | Integer            | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_plane_dir**           | Directionality of the plane                              | Integer            | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_lo/hi**          | Bounding (i,j,k) on the line(s)                          | 3 Integers per     | None             |
+|                                    |                                                          | line               |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_lo_real**,       | Bounding point on the line(s)                            | 3 Reals per line   | None             |
+| **erf.sample_line_hi_real**        |                                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_plane_lo/hi**         | Bounding point on the plane(s)                           | 3 Reals per plane  | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_name**           | Output prefix of each line                               | One string per     | None             |
+|                                    |                                                          | sample line        |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_plane_name**          | Output prefix of each plane                              | One string per     | None             |
+|                                    |                                                          | sample plane       |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.line_sampling_text_output**  | Write text files instead of AMReX plotfiles              | Boolean            | false            |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.line_sampling_vars**         | Specify sampled variables; SGS fields are line- only     | List of strings    | theta, magvel    |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plane_sampling_vars**        | Specify sampled variables                                | List of strings    | theta, magvel    |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plane_sampling_max_level**   | Cap on finest level written to the plane plotfile        | Integer            | -1 (all          |
+|                                    |                                                          |                    | intersecting     |
+|                                    |                                                          |                    | levels)          |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_point**               | points at which the state is written to a log, given as  | List of Integers,  | None             |
+|                                    | flattened (i,j,k) index triples                          | in triples         |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_point_log**           | log-file name for each sampled point; exactly one name   | List of Strings    | None             |
+|                                    | per point is required                                    |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line**                | lines along which the state is written to a log, given   | List of Integers,  | None             |
+|                                    | as flattened (i,j,k) index triples; may not be combined  | in triples         |                  |
+|                                    | with ``erf.sample_line_real``                            |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_real**           | as above, but the lines are given as flattened (x,y,z)   | List of Reals, in  | None             |
+|                                    | physical-coordinate triples; may not be combined with    | triples            |                  |
+|                                    | ``erf.sample_line``                                      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_log**            | log-file name for each sampled line; exactly one name    | List of Strings    | None             |
+|                                    | per line is required                                     |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _examples-of-usage-10b:
 
@@ -1230,6 +1439,8 @@ Example of Usage
    erf.sample_plane_dir  = 2                 # One plane with z normal
 
 
+.. _inputs-advection-schemes:
+
 Advection Schemes
 =================
 
@@ -1238,38 +1449,47 @@ Advection Schemes
 List of Parameters
 ------------------
 
-+----------------------------------+--------------------+---------------------+--------------+
-| Parameter                        | Definition         | Acceptable          | Default      |
-|                                  |                    | Values              |              |
-+==================================+====================+=====================+==============+
-| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Upwind_3rd   |
-|                                  | advection type     |                     |              |
-|                                  | for dycore vars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Upwind_3rd   |
-|                                  | advection type     |                     |              |
-|                                  | for dycore vars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Upwind_3rd   |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Upwind_3rd   |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.moistscal_horiz_adv_type** | Horizontal         | see below           | WENO3        |
-|                                  | advection type     |                     |              |
-|                                  | for moist scalars  |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.moistscal_vert_adv_type**  | Vertical           | see below           | WENO3        |
-|                                  | advection type     |                     |              |
-|                                  | for moist scalars  |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_efficient_advection**  | Use efficient      | Boolean             | false        |
-|                                  | advection scheme   |                     |              |
-|                                  | for scalars        |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                         | Definition                                               | Acceptable Values  | Default          |
++===================================+==========================================================+====================+==================+
+| **erf.dycore_horiz_adv_type**     | Horizontal advection type for dycore vars                | see below          | Upwind_3rd       |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dycore_vert_adv_type**      | Vertical advection type for dycore vars                  | see below          | Upwind_3rd       |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dryscal_horiz_adv_type**    | Horizontal advection type for dry scalars                | see below          | Upwind_3rd       |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dryscal_vert_adv_type**     | Vertical advection type for dry scalars                  | see below          | Upwind_3rd       |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.moistscal_horiz_adv_type**  | Horizontal advection type for moist scalars              | see below          | WENO3            |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.moistscal_vert_adv_type**   | Vertical advection type for moist scalars                | see below          | WENO3            |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_efficient_advection**   | Use efficient advection scheme for scalars               | Boolean            | false            |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dycore_horiz_upw_frac**     | fraction of the upwind stencil blended into the          | Real in [0,1]      | 1.0              |
+|                                   | horizontal advection of the dycore variables; 1 is fully |                    |                  |
+|                                   | upwind-biased and 0 is fully centered                    |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dycore_vert_upw_frac**      | as above, for the vertical advection of the dycore       | Real in [0,1]      | 1.0              |
+|                                   | variables                                                |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dryscal_horiz_upw_frac**    | as above, for the horizontal advection of dry scalars    | Real in [0,1]      | 1.0              |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dryscal_vert_upw_frac**     | as above, for the vertical advection of dry scalars      | Real in [0,1]      | 1.0              |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.moistscal_horiz_upw_frac**  | as above, for the horizontal advection of moist scalars  | Real in [0,1]      | 1.0              |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
+|                                   | is forced to zero                                        | triples            |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
+|                                   | is forced to zero                                        | triples            |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
+|                                   | is forced to zero                                        | triples            |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 The allowed advection types for the dycore variables are:
 
@@ -1311,6 +1531,8 @@ and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roug
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
 
 
+.. _inputs-diffusive-physics:
+
 Diffusive Physics
 =================
 
@@ -1319,83 +1541,85 @@ Diffusive Physics
 List of Parameters
 ------------------
 
-+----------------------------------+--------------------+---------------------+--------------+
-| Parameter                        | Definition         | Acceptable          | Default      |
-|                                  |                    | Values              |              |
-+==================================+====================+=====================+==============+
-| **erf.alpha_T**                  | Diffusion coeff.   | Real                | 0.0          |
-|                                  | for temperature    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.alpha_C**                  | Diffusion coeff.   | Real                | 0.0          |
-|                                  | for scalar         |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.rho0_trans**               | Reference density  | Real                | 1.0          |
-|                                  | to compute const.  |                     |              |
-|                                  | rho*Alpha          |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.les_type**                 | Using an LES       | "None",             | "None"       |
-|                                  | model, and if so,  | "Smagorinsky",      |              |
-|                                  | which type?        | "Deardorff"         |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.rans_type**                | Using a RANS       | "None" or "kEqn"    | "None"       |
-|                                  | model, and if so,  |                     |              |
-|                                  | which type?        |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.molec_diff_type**          | Using molecular    | "None",             | "None"       |
-|                                  | viscosity and      | "Constant", or      |              |
-|                                  | diffusivity?       | "ConstantAlpha"     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dynamic_viscosity**        | Viscous coeff. if  | Real                | 0.0          |
-|                                  | DNS                |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Cs**                       | Constant           | Real                | 0.0          |
-|                                  | Smagorinsky coeff. |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_moist_Ri_correction**  | Apply moist        | Boolean             | false        |
-|                                  | Richardson number  |                     |              |
-|                                  | limiter to the     |                     |              |
-|                                  | Smagorinsky model  |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Ck**                       | Constant           | Real                | 0.1          |
-|                                  | Deardorff k coeff. |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Ce**                       | Constant           | Real                | 0.93         |
-|                                  | Deardorff epsilon  |                     |              |
-|                                  | coeff.             |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Ce_wall**                  | Constant           | Real                | 0.0          |
-|                                  | Deardorff epsilon  |                     |              |
-|                                  | coeff. at the wall;|                     |              |
-|                                  | if > 0, then set   |                     |              |
-|                                  | Ce to this at k=0  |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.sigma_k**                  | Constant Deardorff | Real                | 0.5          |
-|                                  | coeff. in          |                     |              |
-|                                  | downgradient       |                     |              |
-|                                  | diffusion term     |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.theta_ref**                | Reference potential| Real                | 0.0          |
-|                                  | temperature used   |                     |              |
-|                                  | to characterize    |                     |              |
-|                                  | stable             |                     |              |
-|                                  | stratficiation;    |                     |              |
-|                                  | constant if > 0,   |                     |              |
-|                                  | otherwise the      |                     |              |
-|                                  | instantaneous local|                     |              |
-|                                  | value is used      |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
-|                                  | Number             |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
-|                                  | Number             |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.num_diff_coeff**           | Coefficient for    | Real                | 0.0          |
-|                                  | 6th-order          | [0.0,  1.0]         |              |
-|                                  | numerical          |                     |              |
-|                                  | diffusion, set to 0|                     |              |
-|                                  | to disable         |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                        | Definition                                               | Acceptable Values  | Default          |
++==================================+==========================================================+====================+==================+
+| **erf.alpha_T**                  | Diffusion coeff. for temperature                         | Real               | 0.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.alpha_C**                  | Diffusion coeff. for scalar                              | Real               | 0.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rho0_trans**               | Reference density to compute const. rho*Alpha            | Real               | 1.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.les_type**                 | Using an LES model, and if so, which type?               | "None",            | "None"           |
+|                                  |                                                          | "Smagorinsky",     |                  |
+|                                  |                                                          | "Deardorff"        |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_type**                | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.molec_diff_type**          | Using molecular viscosity and diffusivity?               | "None",            | "None"           |
+|                                  |                                                          | "Constant", or     |                  |
+|                                  |                                                          | "ConstantAlpha"    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dynamic_viscosity**        | Viscous coeff. if DNS                                    | Real               | 0.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cs**                       | Constant Smagorinsky coeff.                              | Real               | 0.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_moist_Ri_correction**  | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
+|                                  | model                                                    |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ck**                       | Constant Deardorff k coeff.                              | Real               | 0.1              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce**                       | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce_wall**                  | Constant Deardorff epsilon coeff. at the wall; if > 0,   | Real               | 0.0              |
+|                                  | then set Ce to this at k=0                               |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sigma_k**                  | Constant Deardorff coeff. in downgradient diffusion term | Real               | 0.5              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.theta_ref**                | Reference potential temperature used to characterize     | Real               | 0.0              |
+|                                  | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
+|                                  | instantaneous local value is used                        |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Pr_t**                     | Turbulent Prandtl Number                                 | Real               | 1.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Sc_t**                     | Turbulent Schmidt Number                                 | Real               | 1.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.num_diff_coeff**           | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
+|                                  | turns it off                                             |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_before_substep**  | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
+|                                  | before the acoustic substepping rather than after.       |                    |                  |
+|                                  | Forced to true if any level has ``substepping_type`` =   |                    |                  |
+|                                  | ``None``                                                 |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.thermal_stratification**   | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
+|                                  | quantify thermal stratification (per-level)              | thetal             |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mix_isotropic**            | use an isotropic mixing length (per-level);              | Boolean            | true             |
+|                                  | automatically turned off for 2-D Smagorinsky             |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_Ri_correction**        | apply the Richardson-number correction to the            | Boolean            | true             |
+|                                  | Smagorinsky coefficient (per-level)                      |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ri_crit**                  | critical Richardson number used by that correction       | Real               | 0.25             |
+|                                  | (per-level)                                              |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cmu0**                     | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cb**                       | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_crit**                  | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
+|                                  | closure (per-level)                                      |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_min**                   | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
+|                                  | closure (per-level)                                      |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.max_geom_lscale**          | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
+|                                  | (per-level)                                              |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dirichlet_k**              | impose a Dirichlet condition on the turbulent kinetic    | Boolean            | false            |
+|                                  | energy at the wall (per-level)                           |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
@@ -1422,6 +1646,8 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+.. _inputs-pbl-scheme:
+
 PBL Scheme
 ==========
 
@@ -1430,117 +1656,91 @@ PBL Scheme
 List of Parameters
 ------------------
 
-+-----------------------------------------+--------------------+---------------------+-------------+
-| Parameter                               | Definition         | Acceptable          | Default     |
-|                                         |                    | Values              |             |
-+=========================================+====================+=====================+=============+
-| **erf.pbl_type**                        | Name of PBL Scheme | "None", "MYNN25",   | "None"      |
-|                                         | to be used         | "MYNNEDMF", "MYJ",  |             |
-|                                         |                    | "YSU", "YSUNew",    |             |
-|                                         |                    | "MRF",              |             |
-|                                         |                    | "NATIVE_SHOC",      |             |
-|                                         |                    | "EAMXX_SHOC";       |             |
-|                                         |                    | legacy "SHOC" is    |             |
-|                                         |                    | deprecated and maps |             |
-|                                         |                    | to "EAMXX_SHOC"     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.tke_min**                         | Minimum initial    | Real                | 1.e-6       |
-|                                         | TKE used when a    |                     |             |
-|                                         | prognostic-TKE     |                     |             |
-|                                         | closure is active  |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_A1**                     | MYNN Constant A1   | Real                | 1.18        |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_A2**                     | MYNN Constant A2   | Real                | 0.665       |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_B1**                     | MYNN Constant B1   | Real                | 24.0        |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_B2**                     | MYNN Constant B2   | Real                | 15.0        |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C1**                     | MYNN Constant C1   | Real                | 0.137       |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C2**                     | MYNN Constant C2   | Real                | 0.75        |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C3**                     | MYNN Constant C3   | Real                | 0.352       |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C4**                     | MYNN Constant C4   | Real                | 0.0         |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_C5**                     | MYNN Constant C5   | Real                | 0.2         |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_SQfactor**               | MYNN ratio of      | Real                | 3.0         |
-|                                         | stability functions|                     |             |
-|                                         | SQ / SM            |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mynn_diffuse_moistvars**      | Diffuse moisture   | Boolean             | false       |
-|                                         | variables using    |                     |             |
-|                                         | modeled eddy       |                     |             |
-|                                         | diffusivity        |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.advect_QKE**                      | Include advection  | Boolean             | true        |
-|                                         | terms in QKE eqn   |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.diffuse_QKE_3D**                  | Include horizontal | Boolean             | false       |
-|                                         | turb. diffusion    |                     |             |
-|                                         | terms in QKE eqn.  |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_force_over_water**        | Treat whole domain | Boolean             | false       |
-|                                         | as over water for  |                     |             |
-|                                         | YSU PBL scheme     |                     |             |
-|                                         | regardless of      |                     |             |
-|                                         | LSM/other inputs   |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_land_Ribcr**              | Over land critical | Real                | 0.25        |
-|                                         | Richardson number  |                     |             |
-|                                         | for YSU PBL Scheme |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_unst_Ribcr**              | Unstable critical  | Real                | 0.0         |
-|                                         | Richardson number  |                     |             |
-|                                         | for YSU PBL Scheme |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
-|                                         | for YSU PBL Scheme |                     |             |
-|                                         | (1e-4 in WRF)      |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_ysu_use_consistent_coriolis** | Ignore above param | Boolean             | false       |
-|                                         | and use the value  |                     |             |
-|                                         | from ERF coriolis  |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf_coriolis_freq**           | Coriolis frq. used | Real                | 1.0e-4      |
-|                                         | for MRF PBL Scheme |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf_Ribcr**                   | Over land critical | Real                | 0.5         |
-|                                         | Richardson number  |                     |             |
-|                                         | for MRF PBL Scheme |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf_const_b**                 | Coefficient for the| Real                | 7.8         |
-|                                         | countergradient    |                     |             |
-|                                         | term               |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf_sf**                      | ratio of surface   | Real                | 0.1         |
-|                                         | layer height to    |                     |             |
-|                                         | boundary layer     |                     |             |
-|                                         | height             |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.mrf_moistvars**                   | Diffuse moisture   | Boolean             | false       |
-|                                         | variables using    |                     |             |
-|                                         | modeled eddy       |                     |             |
-|                                         | diffusivity        |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.enable_mrf_countergradient**      | Enable             | Boolean             | false       |
-|                                         | countergradient    |                     |             |
-|                                         | correction terms   |                     |             |
-|                                         | in MRF PBL scheme  |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_mrf_highres_bounds**          | Enable alternative | Boolean             | false       |
-|                                         | high-resolution    |                     |             |
-|                                         | grid-dependent     |                     |             |
-|                                         | diffusivity bounds |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
-| **erf.enable_mrf_unbounded_vpert**      | Enable physically  | Boolean             | false       |
-|                                         | superior           |                     |             |
-|                                         | unbounded VPERT    |                     |             |
-|                                         | in MRF PBL scheme  |                     |             |
-+-----------------------------------------+--------------------+---------------------+-------------+
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                                | Definition                                               | Acceptable Values  | Default          |
++==========================================+==========================================================+====================+==================+
+| **erf.pbl_type**                         | Name of PBL Scheme to be used                            | "None", "MYNN25",  | "None"           |
+|                                          |                                                          | "MYNNEDMF", "MYJ", |                  |
+|                                          |                                                          | "YSU", "YSUNew",   |                  |
+|                                          |                                                          | "MRF",             |                  |
+|                                          |                                                          | "NATIVE_SHOC",     |                  |
+|                                          |                                                          | "EAMXX_SHOC";      |                  |
+|                                          |                                                          | legacy "SHOC" is   |                  |
+|                                          |                                                          | deprecated and     |                  |
+|                                          |                                                          | maps to            |                  |
+|                                          |                                                          | "EAMXX_SHOC"       |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.tke_min**                          | Minimum initial TKE used when a prognostic-TKE closure   | Real               | 1.e-6            |
+|                                          | is active                                                |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_A1**                      | MYNN Constant A1                                         | Real               | 1.18             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_A2**                      | MYNN Constant A2                                         | Real               | 0.665            |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_B1**                      | MYNN Constant B1                                         | Real               | 24.0             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_B2**                      | MYNN Constant B2                                         | Real               | 15.0             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_C1**                      | MYNN Constant C1                                         | Real               | 0.137            |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_C2**                      | MYNN Constant C2                                         | Real               | 0.75             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_C3**                      | MYNN Constant C3                                         | Real               | 0.352            |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_C4**                      | MYNN Constant C4                                         | Real               | 0.0              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_C5**                      | MYNN Constant C5                                         | Real               | 0.2              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_SQfactor**                | MYNN ratio of stability functions SQ / SM                | Real               | 3.0              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_diffuse_moistvars**       | Diffuse moisture variables using modeled eddy            | Boolean            | false            |
+|                                          | diffusivity                                              |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ysu_force_over_water**         | Treat whole domain as over water for YSU PBL scheme      | Boolean            | false            |
+|                                          | regardless of LSM/other inputs                           |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ysu_land_Ribcr**               | Over land critical Richardson number for YSU PBL Scheme  | Real               | 0.25             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ysu_unst_Ribcr**               | Unstable critical Richardson number for YSU PBL Scheme   | Real               | 0.0              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ysu_coriolis_freq**            | Coriolis frq. used for YSU PBL Scheme (1e-4 in WRF)      | Real               | 1.0e-4           |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_coriolis_freq**            | Coriolis frq. used for MRF PBL Scheme                    | Real               | 1.0e-4           |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_const_b**                  | Coefficient for the countergradient term                 | Real               | 7.8              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_sf**                       | ratio of surface layer height to boundary layer height   | Real               | 0.1              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mrf_moistvars**                    | Diffuse moisture variables using modeled eddy            | Boolean            | false            |
+|                                          | diffusivity                                              |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_mrf_countergradient**       | Enable countergradient correction terms in MRF PBL       | Boolean            | false            |
+|                                          | scheme                                                   |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_highres_bounds**           | Enable alternative high-resolution grid-dependent        | Boolean            | false            |
+|                                          | diffusivity bounds                                       |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_mrf_unbounded_vpert**       | Enable physically superior unbounded VPERT in MRF PBL    | Boolean            | false            |
+|                                          | scheme                                                   |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.advect_tke**                       | advect the turbulent kinetic energy (per-level); read    | Boolean            | true             |
+|                                          | only when the PBL scheme carries TKE                     |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.diffuse_tke_3D**                   | apply three-dimensional numerical diffusion to the       | Boolean            | true             |
+|                                          | turbulent kinetic energy (per-level)                     |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.init_tke_from_ustar**              | initialize the turbulent kinetic energy from the         | Boolean            | false            |
+|                                          | friction velocity (per-level); read only when a          |                    |                  |
+|                                          | TKE-carrying closure is active                           |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note that both PBL schemes must be used in conjunction with a MOST boundary condition
 at the surface (Zlo) boundary. The YSU scheme is work in progress currently.
@@ -1557,6 +1757,8 @@ initialization are applied.
 
 Parameters for PBL schemes can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
+
+.. _inputs-forest-canopy:
 
 Forest Canopy
 =============
@@ -1622,7 +1824,7 @@ required; ERF does not assume a unit-spacing grid when metadata is absent.
      - Real
      - 0.8
    * - **erf.forest_substep**
-     - Apply canopy momentum source during fast substeps
+     - Apply the forest canopy source terms during the acoustic substeps only
      - Boolean
      - false
    * - **erf.forest_biophysics**
@@ -1657,6 +1859,8 @@ configured as follows:
    erf.forest_biophysics_heat  = true
    erf.forest_leaf_theta_fixed = 301.0
 
+.. _inputs-forcing-terms:
+
 Forcing Terms
 =============
 
@@ -1665,34 +1869,76 @@ Forcing Terms
 ABL Driver and Geostrophic Forcing
 ----------------------------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.abl_driver_type**               | Type of external forcing term                          | None,                | None             |
-|                                       |                                                        | PressureGradient     |                  |
-|                                       |                                                        | GeostrophicWind      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.abl_pressure_grad**             | Pressure gradient forcing term (only if                | 3 Reals              | (0.,0.,0.)       |
-|                                       | erf.abl_driver_type = PressureGradient)                |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.abl_geo_wind**                  | Geostrophic forcing term (only if erf.abl_driver_type  | 3 Reals              | (0.,0.,0.)       |
-|                                       | = GeostrophicWind)                                     |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.abl_geo_forcing**               | Constant body force applied to momentum equations      | 3 Reals              | (0.,0.,0.)       |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.abl_geo_wind_table**            | Path to text file containing a geostrophic wind        | String               | None             |
-|                                       | profile (with z, Ug, and Vg whitespace delimited       |                      |                  |
-|                                       | columns)                                               |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                   | Definition                                               | Acceptable Values  | Default          |
++=============================+==========================================================+====================+==================+
+| **erf.abl_driver_type**     | type of large-scale forcing used to drive the boundary   | None,              | None             |
+|                             | layer                                                    | PressureGradient,  |                  |
+|                             |                                                          | GeostrophicWind    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.abl_pressure_grad**   | imposed horizontal pressure gradient vector, used when   | 3 Reals            | 0.0 0.0 0.0      |
+|                             | ``abl_driver_type`` = ``PressureGradient``               |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.abl_geo_wind**        | geostrophic wind vector from which the geostrophic       | 3 Reals            | 0.0 0.0 0.0      |
+|                             | forcing is computed; read only when ``use_coriolis`` is  |                    |                  |
+|                             | true and ``abl_driver_type`` = ``GeostrophicWind``, and  |                    |                  |
+|                             | ignored if ``abl_geo_wind_table`` is given               |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.abl_geo_forcing**     | geostrophic forcing vector applied directly, rather than | 3 Reals            | 0.0 0.0 0.0      |
+|                             | being computed from a geostrophic wind                   |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.abl_geo_wind_table**  | file containing a height-varying geostrophic wind        | String             | None             |
+|                             | profile; may not be combined with                        |                    |                  |
+|                             | ``add_custom_geostrophic_profile``                       |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:WindFarmForcingInputs:
 
 Wind Farm Forcing
 -----------------
 
-The wind farm parameterizations are selected with ``erf.windfarm_type``;
-that option and its companion parameters are listed in
-:ref:`sec:WindFarmModelInputs`.
+The wind farm parameterization is selected with ``erf.windfarm_type``.
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.windfarm_type**              | which wind farm parametrization to use                   | None, Fitch, EWP,  | None             |
+|                                    |                                                          | SimpleAD,          |                  |
+|                                    |                                                          | GeneralAD          |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_loc_type**          | coordinate system in which the turbine locations are     | None, lat_lon, x_y | None             |
+|                                    | given                                                    |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_loc_table**         | file listing the turbine locations                       | String             | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_spec_table**        | file containing the turbine specifications               | String             | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_spec_table_extra**  | file containing additional turbine specifications        | String             | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_blade_table**       | file containing the blade geometry, used by the          | String             | None             |
+|                                    | generalized actuator disk                                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_airfoil_tables**    | directory containing the airfoil tables, used by the     | String             | None             |
+|                                    | generalized actuator disk                                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sampling_distance_by_D**     | distance upstream of the turbine, as a multiple of the   | Real > 0           | -1.0 (must be    |
+|                                    | rotor diameter, at which the incoming free stream        |                    | set)             |
+|                                    | velocity is sampled; required with ``windfarm_type`` =   |                    |                  |
+|                                    | ``SimpleAD``                                             |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.turb_disk_angle_from_x**     | angle [degrees] of the face of the turbine disk from the | Real > 0           | -1.0 (must be    |
+|                                    | x axis; a turbine facing flow in the x direction has a   |                    | set)             |
+|                                    | value of 90.  Required with ``windfarm_type`` =          |                    |                  |
+|                                    | ``SimpleAD`` or ``GeneralAD``                            |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_x_shift**           | distance by which the bounding box of the wind farm is   | Real > 0           | -1.0 (must be    |
+|                                    | shifted from the x axis; required with                   |                    | set)             |
+|                                    | ``windfarm_loc_type`` = ``lat_lon``                      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.windfarm_y_shift**           | distance by which the bounding box of the wind farm is   | Real > 0           | -1.0 (must be    |
+|                                    | shifted from the y axis; required with                   |                    | set)             |
+|                                    | ``windfarm_loc_type`` = ``lat_lon``                      |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 - Wind farm parameterization requires ``USE_WINDFARM=TRUE`` (gmake)
   or ``-DERF_ENABLE_WINDFARM`` (cmake) at build time.
@@ -1703,116 +1949,199 @@ that option and its companion parameters are listed in
 Constant Mass Flux
 ------------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.const_massflux_u**              | Include a momentum source at each time, (e.g.,         | Real                 | 0.               |
-| **erf.const_massflux_v**              | representing a background driving pressure gradient),  |                      |                  |
-|                                       | to obtain a desired mass flux with the specified bulk  |                      |                  |
-|                                       | velocity in x,y                                        |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.const_massflux_layer_lo**       | Two heights defining the layer over which the mass     | Real                 | None             |
-| **erf.const_massflux_layer_hi**       | flux is integrated and compared to the desired         |                      |                  |
-|                                       | input(s) specified above                               |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.const_massflux_tau**            | Timescale over which to adjust the background pressure | Real                 | None             |
-|                                       | gradient to match the specified mass flux              |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                        | Definition                                               | Acceptable Values  | Default          |
++==================================+==========================================================+====================+==================+
+| **erf.const_massflux_u**         | target mass flux in the x direction; requires periodic   | Real               | 0.0              |
+|                                  | boundaries in x                                          |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.const_massflux_v**         | representing a background driving pressure gradient), to | Real               | 0.0              |
+|                                  | obtain a desired mass flux with the specified bulk       |                    |                  |
+|                                  | velocity in x,y                                          |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.const_massflux_layer_lo**  | height of the bottom of the layer over which the         | Real               | bottom of domain |
+|                                  | constant mass flux is enforced                           |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.const_massflux_layer_hi**  | height of the top of the layer over which the constant   | Real               | top of domain    |
+|                                  | mass flux is enforced                                    |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.const_massflux_tau**       | Timescale over which to adjust the background pressure   | Real > 0           | 1.0              |
+|                                  | gradient to match the specified mass flux                |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:GravityCoriolisInputs:
 
 Gravity and Coriolis
 --------------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.use_gravity**                   | Include gravity in momentum update? If true, there is  | Boolean              | false            |
-|                                       | buoyancy                                               |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.use_coriolis**                  | Include Coriolis forcing                               | Boolean              | false            |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.variable_coriolis**             | Include Coriolis forcing that varies with latitude     | Boolean              | false            |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rotational_time_period**        | Used to calculate the Coriolis frequency               | Real                 | 86400.0          |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.latitude**                      | Used to calculate the Coriolis frequency               | Real                 | 90.0             |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.coriolis_3d**                   | Include z component in the Coriolis forcing            | true / false         | true             |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                       | Definition                                               | Acceptable Values  | Default          |
++=================================+==========================================================+====================+==================+
+| **erf.use_gravity**             | include the gravitational source term; primarily an      | Boolean            | false            |
+|                                 | option for unit testing.  Forced to true if              |                    |                  |
+|                                 | ``init_type`` is ``WRFInput`` or ``Metgrid``             |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_coriolis**            | include the Coriolis forcing                             | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.variable_coriolis**       | allow the Coriolis frequency to vary spatially rather    | Boolean            | false            |
+|                                 | than using a single latitude                             |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rotational_time_period**  | rotational period of the planet [s], used to form the    | Real > 0           | 86400.0          |
+|                                 | Coriolis factor; read only if ``use_coriolis`` is true   |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.latitude**                | latitude [degrees] at which the constant-latitude        | Real               | 90.0             |
+|                                 | Coriolis frequency is evaluated; read only if            |                    |                  |
+|                                 | ``use_coriolis`` is true                                 |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.coriolis_3d**             | include the vertical (cosine of latitude) Coriolis terms | Boolean            | true             |
+|                                 | in addition to the traditional terms                     |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:RayleighDampingInputs:
 
 Rayleigh Damping
 ----------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.rayleigh_damping_type**         | Rayleigh damping type. Leave all rayleigh_damp_* flags | "SlowExplicit",      | "SlowExplicit"   |
-|                                       | false to disable                                       | "FastExplicit",      |                  |
-|                                       |                                                        | "FastImplicit"       |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_damp_U**               | Include explicit Rayleigh damping in the x-momentum    | Boolean              | false            |
-|                                       | equation                                               |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_damp_V**               | Include explicit Rayleigh damping in the y-momentum    | Boolean              | false            |
-|                                       | equation                                               |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_damp_W**               | Include Rayleigh damping in the z-momentum equation    | Boolean              | false            |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_damp_T**               | Include explicit Rayleigh damping in the potential     | Boolean              | false            |
-|                                       | temperature equation                                   |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_dampcoef**             | Inverse damping timescale multiplying the vertical     | Real [1/s]           | 0.2              |
-|                                       | damping weight                                         |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.rayleigh_zdamp**                | Depth of upper damping layer below model top where     | Real [m]             | 500.0            |
-|                                       | sine-squared ramp is nonzero                           |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                      | Definition                                               | Acceptable Values  | Default          |
++================================+==========================================================+====================+==================+
+| **erf.rayleigh_damping_type**  | how the Rayleigh damping terms are integrated in time:   | SlowExplicit,      | SlowExplicit     |
+|                                | ``SlowExplicit`` applies them explicitly in the slow     | FastExplicit,      |                  |
+|                                | (Runge-Kutta) update, while ``FastExplicit`` and         | FastImplicit       |                  |
+|                                | ``FastImplicit`` apply them explicitly or implicitly     |                    |                  |
+|                                | within the acoustic substeps.  Case sensitive; an        |                    |                  |
+|                                | unrecognized value aborts                                |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_damp_U**        | Include explicit Rayleigh damping in the x-momentum      | Boolean            | false            |
+|                                | equation                                                 |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_damp_V**        | Include explicit Rayleigh damping in the y-momentum      | Boolean            | false            |
+|                                | equation                                                 |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_damp_W**        | Include Rayleigh damping in the z-momentum equation      | Boolean            | false            |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_damp_T**        | Include explicit Rayleigh damping in the potential       | Boolean            | false            |
+|                                | temperature equation                                     |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_dampcoef**      | inverse damping time scale [1/s] multiplying the         | Real > 0 [1/s]     | 0.2              |
+|                                | vertical damping weight                                  |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rayleigh_zdamp**         | Depth of upper damping layer below model top where       | Real > 0 [m]       | 500.0            |
+|                                | sine-squared ramp is nonzero                             |                    |                  |
++--------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:NudgingInputs:
+
+.. _sec:SpongeInputs:
+
+Sponge Zones
+------------
+
+Sponge zones relax the solution toward a target state near a domain boundary,
+to keep waves from reflecting back into the interior.  See :ref:`Forcings` for
+the formulation and for complete example inputs.  Damping may be applied at any
+of the six domain boundaries; each side that is switched on also requires the
+coordinate at which its sponge ends or starts.
+
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                       | Definition                                               | Acceptable Values  | Default          |
++=================================+==========================================================+====================+==================+
+| **erf.sponge_type**             | which sponge formulation to use.  ``Standard`` relaxes   | None, Standard,    | Standard         |
+|                                 | toward the constant target values below;                 | Input_Sponge       |                  |
+|                                 | ``Input_Sponge`` reads a *u*, *v* profile from a file    |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_strength**         | sponge amplitude *A*.  Setting it to zero disables the   | Real               | 0.0              |
+|                                 | sponge, regardless of ``erf.sponge_type``                |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.input_sponge_file**       | text file of *z*, *u*, *v* columns giving the sponge     | String             | None             |
+|                                 | target profile; required when ``erf.sponge_type`` =      |                    |                  |
+|                                 | ``Input_Sponge``                                         |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_xlo_sponge_damping**  | apply sponge damping at the low-x boundary               | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_xhi_sponge_damping**  | apply sponge damping at the high-x boundary              | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_ylo_sponge_damping**  | apply sponge damping at the low-y boundary               | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_yhi_sponge_damping**  | apply sponge damping at the high-y boundary              | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_zlo_sponge_damping**  | apply sponge damping at the low-z boundary               | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_zhi_sponge_damping**  | apply sponge damping at the high-z boundary              | Boolean            | false            |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.xlo_sponge_end**          | x-coordinate at which the low-x sponge ends; required    | Real               | must be set      |
+|                                 | when ``erf.use_xlo_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.xhi_sponge_start**        | x-coordinate at which the high-x sponge starts; required | Real               | must be set      |
+|                                 | when ``erf.use_xhi_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ylo_sponge_end**          | y-coordinate at which the low-y sponge ends; required    | Real               | must be set      |
+|                                 | when ``erf.use_ylo_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.yhi_sponge_start**        | y-coordinate at which the high-y sponge starts; required | Real               | must be set      |
+|                                 | when ``erf.use_yhi_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.zlo_sponge_end**          | z-coordinate at which the low-z sponge ends; required    | Real               | must be set      |
+|                                 | when ``erf.use_zlo_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.zhi_sponge_start**        | z-coordinate at which the high-z sponge starts; required | Real               | must be set      |
+|                                 | when ``erf.use_zhi_sponge_damping`` is true              |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_density**          | target density in the sponge zone                        | Real               | -1.0 (not used)  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_rhotheta**         | target (rho*theta) in the sponge zone                    | Real               | -1.0 (not used)  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_rhomoist**         | target (rho*qv) in the sponge zone; any other moisture   | Real               | -1.0 (not used)  |
+|                                 | species are damped toward zero                           |                    |                  |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_x_velocity**       | target x-velocity in the sponge zone                     | Real               | 0.0              |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_y_velocity**       | target y-velocity in the sponge zone                     | Real               | 0.0              |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sponge_z_velocity**       | target z-velocity in the sponge zone                     | Real               | 0.0              |
++---------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Nudging from Input Soundings
 ----------------------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.nudging_from_input_sounding**   | Add momentum source terms to nudge the solution        | Boolean              | false            |
-|                                       | towards the initial sounding profile                   |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_u**                     | Nudge u,v towards the sounding when                    | Boolean              | true             |
-|                                       | ``nudging_from_input_sounding`` is true. Does not      |                      |                  |
-|                                       | affect LSF-based wind nudging (see                     |                      |                  |
-|                                       | :ref:`sec:LargeScaleForcingInputs`)                    |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_t**                     | Nudge potential temperature towards the sounding when  | Boolean              | true             |
-|                                       | ``nudging_from_input_sounding`` is true                |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_q**                     | Nudge water vapor towards the sounding when            | Boolean              | true             |
-|                                       | ``nudging_from_input_sounding`` is true                |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_u_z1**                  | Bottom of the height range over which u,v are nudged   | Real [m]             | -1.0e36          |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_u_z2**                  | Top of the same range                                  | Real [m]             | 1.0e36           |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_t_z1**                  | Bottom of the height range over which potential        | Real [m]             | 0.0              |
-|                                       | temperature is nudged                                  |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_t_z2**                  | Top of the same range                                  | Real [m]             | 10000.0          |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_q_z1**                  | Bottom of the height range over which water vapor is   | Real [m]             | 0.0              |
-|                                       | nudged                                                 |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.nudging_q_z2**                  | Top of the same range                                  | Real [m]             | 10000.0          |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.input_sounding_file**           | Name(s) of the input sounding file(s)                  | String(s)            | input_sounding   |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.input_sounding_time**           | Time(s) of the input sounding file(s)                  | Real(s)              | 0.0              |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.tau_nudging**                   | Time scale for nudging                                 | Real                 | 5.0              |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                            | Definition                                               | Acceptable Values  | Default          |
++======================================+==========================================================+====================+==================+
+| **erf.nudging_from_input_sounding**  | nudge the solution towards the time-varying profiles     | Boolean            | false            |
+|                                      | given in the input sounding files                        |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_u**                    | nudge u,v towards the sounding (takes effect only when   | Boolean            | true             |
+|                                      | ``nudging_from_input_sounding`` is true; does not affect |                    |                  |
+|                                      | LSF-based wind nudging, see ``large_scale_forcing``)     |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_t**                    | nudge potential temperature towards the sounding (takes  | Boolean            | true             |
+|                                      | effect only when ``nudging_from_input_sounding`` is      |                    |                  |
+|                                      | true)                                                    |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_q**                    | nudge water vapor towards the sounding (takes effect     | Boolean            | true             |
+|                                      | only when ``nudging_from_input_sounding`` is true)       |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_u_z1**                 | Bottom of the height range over which u,v are nudged     | Real [m]           | -1.0e36          |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_u_z2**                 | height above which u,v are not nudged                    | Real [m]           | 1.0e36           |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_t_z1**                 | Bottom of the height range over which potential          | Real [m]           | 0.0              |
+|                                      | temperature is nudged                                    |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_t_z2**                 | height above which temperature is not nudged             | Real [m]           | 10000.0          |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_q_z1**                 | Bottom of the height range over which water vapor is     | Real [m]           | 0.0              |
+|                                      | nudged                                                   |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.nudging_q_z2**                 | height above which moisture is not nudged                | Real [m]           | 10000.0          |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.input_sounding_time**          | Time(s) of the input sounding file(s)                    | Real(s)            | 0.0              |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.tau_nudging**                  | Time scale for nudging                                   | Real               | 5.0              |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+``erf.input_sounding_file`` is documented under :ref:`Initialization <inputs-initialization>`;
+more than one file may be named there, paired with ``erf.input_sounding_time``.
 
 If ``erf.nudging_from_input_sounding`` is true, it is expected that at least one input sounding
 file is available.  If there is only one, and no specification of time is made, it is assumed that
@@ -1826,22 +2155,29 @@ in ``input_*_sounding_*_time``.
 Lateral Boundary Nudging
 ------------------------
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.bdy_nudge_factor**              | Sets real bc nudging strength as 1/(VAL*dt)            | Real                 | 10.0             |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.bdy_rho_nudge_factor**          | Density Davies factor; non-positive uses               | Real                 | -1.0             |
-|                                       | ``bdy_nudge_factor``                                   |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.bdy_moist_nudge_type**          | Which strategy for nudging of moist vars               | int 0,1,2 or 3       | 1                |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.use_wrf_bdy_density**           | Use WRF-reconstructed dry-air density for real WRF     | Boolean              | true             |
-|                                       | boundaries                                             |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.use_wrf_bdy_qc_qi**             | Ingest WRF ``QCLOUD`` and active ``QICE`` at real      | Boolean              | false            |
-|                                       | boundaries                                             |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
+| Parameter                     | Definition                                               | Acceptable Values  | Default                    |
++===============================+==========================================================+====================+============================+
+| **erf.bdy_nudge_factor**      | strength of the Davies relaxation in the lateral         | Real > 0           | 10.0                       |
+|                               | boundary region; the nudging rate is                     |                    |                            |
+|                               | 1/(``bdy_nudge_factor`` * dt)                            |                    |                            |
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
+| **erf.bdy_rho_nudge_factor**  | Davies factor used for density specifically; a           | Real               | -1.0 (use                  |
+|                               | non-positive value means ``bdy_nudge_factor`` is used    |                    | ``erf.bdy_nudge_factor``)  |
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
+| **erf.bdy_moist_nudge_type**  | which approach is used to nudge the moist variables in   | 0, 1, 2, 3         | 1                          |
+|                               | the boundary region; 3 requires ``use_wrf_bdy_qc_qi`` =  |                    |                            |
+|                               | true                                                     |                    |                            |
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
+| **erf.use_wrf_bdy_density**   | use the dry-air density reconstructed from the           | Boolean            | true                       |
+|                               | ``wrfbdy`` data.  Ignored (set to false) unless real     |                    |                            |
+|                               | boundary conditions are used with ``init_type`` =        |                    |                            |
+|                               | ``WRFInput``                                             |                    |                            |
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
+| **erf.use_wrf_bdy_qc_qi**     | ingest cloud water and cloud ice from ``wrfinput`` and   | Boolean            | false                      |
+|                               | ``wrfbdy``; requires an active moisture model and real   |                    |                            |
+|                               | boundary conditions with ``init_type`` = ``WRFInput``    |                    |                            |
++-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
 
 For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
 ``QVAPOR``. Type 1 applies a ``qv`` tendency based on ERF ``qv+qc+qi`` versus
@@ -1861,58 +2197,34 @@ a function of time and/or height. Implementation entails modifying problem
 source code inside the Exec directory and overriding the ``update_*_sources()``
 function(s).
 
-+--------------------------------------------+-------------------+-------------------+-------------+
-| Parameter                                  | Definition        | Acceptable        | Default     |
-|                                            |                   | Values            |             |
-+============================================+===================+===================+=============+
-| **erf.custom_forcing_uses_primitive_vars** | User-defined      | Boolean           | false       |
-|                                            | source terms set  |                   |             |
-|                                            | the tendency of   |                   |             |
-|                                            | primitive         |                   |             |
-|                                            | variables instead |                   |             |
-|                                            | of conserved      |                   |             |
-|                                            | quantities        |                   |             |
-|                                            | (rho*prim_var)    |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_custom_rhotheta_forcing**        | Apply the         | Boolean           | false       |
-|                                            | user-defined      |                   |             |
-|                                            | temperature source|                   |             |
-|                                            | term              |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_custom_moisture_forcing**        | Apply the         | Boolean           | false       |
-|                                            | user-defined      |                   |             |
-|                                            | qv source         |                   |             |
-|                                            | term              |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_custom_w_subsidence**            | Apply the         | Boolean           | false       |
-|                                            | user-defined      |                   |             |
-|                                            | vertical velocity |                   |             |
-|                                            | profile for use in|                   |             |
-|                                            | calculating       |                   |             |
-|                                            | subsidence source |                   |             |
-|                                            | terms             |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_do_theta_advection**             | When using custom | Boolean           | true        |
-|                                            | w subsidence,     |                   |             |
-|                                            | apply the         |                   |             |
-|                                            | subsidence source |                   |             |
-|                                            | term to the       |                   |             |
-|                                            | (rho*theta)       |                   |             |
-|                                            | equation          |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_do_mom_advection**               | When using custom | Boolean           | true        |
-|                                            | w subsidence,     |                   |             |
-|                                            | apply the         |                   |             |
-|                                            | subsidence source |                   |             |
-|                                            | terms to the      |                   |             |
-|                                            | momentum          |                   |             |
-|                                            | equations         |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
-| **erf.add_custom_geostrophic_profile**     | Apply the         | Boolean           | false       |
-|                                            | user-defined      |                   |             |
-|                                            | geostrophic wind  |                   |             |
-|                                            | profile           |                   |             |
-+--------------------------------------------+-------------------+-------------------+-------------+
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                                   | Definition                                               | Acceptable Values  | Default          |
++=============================================+==========================================================+====================+==================+
+| **erf.custom_forcing_uses_primitive_vars**  | User-defined source terms set the tendency of primitive  | Boolean            | false            |
+|                                             | variables instead of conserved quantities (rho*prim_var) |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_custom_rhotheta_forcing**         | add the problem-specific (rho*theta) source term         | Boolean            | false            |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_custom_moisture_forcing**         | add the problem-specific moisture source term            | Boolean            | false            |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_custom_w_subsidence**             | Apply the user-defined vertical velocity profile for use | Boolean            | false            |
+|                                             | in calculating subsidence source terms                   |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_do_theta_advection**              | apply the custom subsidence to the (rho*theta) equation; | Boolean            | true             |
+|                                             | only used with ``add_custom_w_subsidence``               |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_do_mom_advection**                | apply the custom subsidence to the momentum equations;   | Boolean            | true             |
+|                                             | only used with ``add_custom_w_subsidence``               |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.add_custom_geostrophic_profile**      | use the problem-specific height-varying geostrophic wind | Boolean            | false            |
+|                                             | profile; may not be combined with ``abl_geo_wind_table`` |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.spatial_rhotheta_forcing**            | the custom (rho*theta) forcing varies horizontally as    | Boolean            | false            |
+|                                             | well as vertically                                       |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.spatial_moisture_forcing**            | the custom moisture forcing varies horizontally as well  | Boolean            | false            |
+|                                             | as vertically                                            |                    |                  |
++---------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note that ``erf.add_custom_geostrophic_profile`` cannot be used in combination
 with an ``erf.abl_geo_wind_table``.
@@ -1927,17 +2239,17 @@ Large Scale Forcing
 Large-scale forcing can be used to prescribe time-varying vertical profiles for
 temperature, water vapor, horizontal wind, and vertical subsidence.
 
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| Parameter                             | Definition                                             | Acceptable Values    | Default          |
-+=======================================+========================================================+======================+==================+
-| **erf.large_scale_forcing**           | Apply time-varying large-scale tendencies and          | Boolean              | false            |
-|                                       | subsidence read from a forcing file                    |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.large_scale_forcing_file**      | Name of the large-scale forcing file                   | String               | None             |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
-| **erf.forcing_timescale**             | Relaxation time scale for the u and v large-scale      | Real [s]             | 0.0              |
-|                                       | nudging; 0 disables it                                 |                      |                  |
-+---------------------------------------+--------------------------------------------------------+----------------------+------------------+
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                         | Definition                                               | Acceptable Values  | Default          |
++===================================+==========================================================+====================+==================+
+| **erf.large_scale_forcing**       | Apply time-varying large-scale tendencies and subsidence | Boolean            | false            |
+|                                   | read from a forcing file                                 |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.large_scale_forcing_file**  | Name of the large-scale forcing file                     | String             | None             |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.forcing_timescale**         | Relaxation time scale for the u and v large-scale        | Real [s]           | 0.0              |
+|                                   | nudging; 0 disables it                                   |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 To enable it, set::
 
@@ -1998,40 +2310,104 @@ Example file format for large scale forcing:
    5000.0   500.00 -8.000e-06  0.000e+00  6.5  3.2  0.000e+00
 
 
+.. _inputs-boundary-plane-i-o-coupling-support:
+
+.. _sec:HindcastInputs:
+
+Hindcast Forcing and Hurricane Tracking
+---------------------------------------
+
+Hindcast forcing drives a simulation from a sequence of externally supplied
+data files, optionally with lateral and upper sponge layers, and can track a
+hurricane eye through the run.
+
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                                 | Definition                                               | Acceptable Values  | Default          |
++===========================================+==========================================================+====================+==================+
+| **erf.hindcast_lateral_forcing**          | drive the lateral boundaries from hindcast data          | Boolean            | false            |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_boundary_data_dir**        | directory containing the hindcast lateral boundary data; | String             | None (must be    |
+|                                           | required if ``hindcast_lateral_forcing`` is true         |                    | set)             |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_data_interval_in_hrs**     | time interval [hr] between successive hindcast data      | Real > 0           | -1.0 (must be    |
+|                                           | files; required if ``hindcast_lateral_forcing`` is true  |                    | set)             |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_lateral_sponge_strength**  | strength of the lateral sponge used with hindcast        | Real > 0           | -1.0 (must be    |
+|                                           | forcing; required if ``hindcast_lateral_forcing`` is     |                    | set)             |
+|                                           | true                                                     |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_lateral_sponge_length**    | width of the lateral sponge region used with hindcast    | Real > 0           | -1.0 (must be    |
+|                                           | forcing; required if ``hindcast_lateral_forcing`` is     |                    | set)             |
+|                                           | true                                                     |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_zhi_sponge_damping**       | apply sponge damping near the upper boundary with        | Boolean            | false            |
+|                                           | hindcast forcing                                         |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_zhi_sponge_length**        | depth of the upper sponge region; required if            | Real > 0           | -1.0 (must be    |
+|                                           | ``hindcast_zhi_sponge_damping`` is true                  |                    | set)             |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_zhi_sponge_strength**      | strength of the upper sponge; required if                | Real > 0           | -1.0 (must be    |
+|                                           | ``hindcast_zhi_sponge_damping`` is true                  |                    | set)             |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_surface_bcs**              | set the surface boundary conditions from hindcast data   | Boolean            | false            |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hindcast_surface_data_dir**         | directory containing the hindcast surface data; read     | String             | None             |
+|                                           | only if ``hindcast_surface_bcs`` is true                 |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.io_hurricane_eye_tracker**          | write out files tracking the eye of a hurricane          | Boolean            | false            |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hurricane_eye_latitude**            | approximate latitude of the hurricane eye in the initial | Real               | must be set      |
+|                                           | condition; required if ``io_hurricane_eye_tracker`` is   |                    |                  |
+|                                           | true                                                     |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.hurricane_eye_longitude**           | approximate longitude of the hurricane eye in the        | Real               | must be set      |
+|                                           | initial condition; required if                           |                    |                  |
+|                                           | ``io_hurricane_eye_tracker`` is true                     |                    |                  |
++-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
 Boundary Plane I/O (Coupling Support)
 =====================================
 
 These options control writing and reading boundary-plane data for coupling
 workflows (e.g., AMR-Wind). See :ref:`CouplingToAMRWind` for examples.
 
+The one-dimensional column output used by the same coupling is configured with
+``erf.output_1d_column``, ``erf.column_file_name``, ``erf.column_interval``,
+``erf.column_per``, ``erf.column_loc_x`` and ``erf.column_loc_y``, all of which
+are documented on that page rather than here.
+
 List of Parameters
 ------------------
 
-+--------------------------------------+---------------------------------+---------------------+---------+
-| Parameter                            | Definition                      | Acceptable Values   | Default |
-+======================================+=================================+=====================+=========+
-| **erf.output_bndry_planes**          | Enable boundary-plane output    | 0 or 1              | 0       |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.input_bndry_planes**           | Enable boundary-plane input     | 0 or 1              | 0       |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_planes_interval** | Output interval (steps)         | Integer >= 0        | -1      |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_planes_per**      | Output interval (time)          | Real >= 0           | -1.0    |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_start_time**      | Start time for output           | Real >= 0           | 0.0     |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_planes_file**     | Output directory                | String              | None    |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_box_lo**          | Lower-left (x,y) of output box  | 2 Reals             | None    |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_box_hi**          | Upper-right (x,y) of output box | 2 Reals             | None    |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_output_var_names**       | Variables to write              | List of strings     | All     |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_file**                   | Input boundary-plane directory  | String              | None    |
-+--------------------------------------+---------------------------------+---------------------+---------+
-| **erf.bndry_input_var_names**        | Variables to read               | List of strings     | All     |
-+--------------------------------------+---------------------------------+---------------------+---------+
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                             | Definition                                               | Acceptable Values  | Default          |
++=======================================+==========================================================+====================+==================+
+| **erf.output_bndry_planes**           | Enable boundary-plane output                             | 0 or 1             | 0                |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.input_bndry_planes**            | Enable boundary-plane input                              | 0 or 1             | 0                |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_planes_interval**  | Output interval (steps)                                  | Integer >= 0       | -1               |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_planes_per**       | Output interval (time)                                   | Real >= 0          | -1.0             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_start_time**       | Start time for output                                    | Real >= 0          | 0.0              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_planes_file**      | Output directory                                         | String             | None             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_box_lo**           | Lower-left (x,y) of output box                           | 2 Reals            | None             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_box_hi**           | Upper-right (x,y) of output box                          | 2 Reals            | None             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_output_var_names**        | Variables to write                                       | List of strings    | All              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_file**                    | Input boundary-plane directory                           | String             | None             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.bndry_input_var_names**         | Variables to read                                        | List of strings    | All              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
+|                                       | boundary from which the boundary planes are written and  |                    |                  |
+|                                       | into which they are read                                 |                    |                  |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Notes
 -----
@@ -2041,6 +2417,8 @@ Notes
 
 .. _sec:NumericalStability:
 
+.. _inputs-numerical-stability:
+
 Numerical Stability
 ===================
 
@@ -2049,22 +2427,26 @@ To enhance numerical stability, e.g., for operational runs, we provide some addi
 List of Parameters
 ------------------
 
-+----------------------------+----------------------------------+-------------------+-------------+
-| Parameter                  | Definition                       | Acceptable Values | Default     |
-+============================+==================================+===================+=============+
-| **erf.beta_s**             | Time off-centering coefficient   | Real              | 0.1         |
-+----------------------------+----------------------------------+-------------------+-------------+
-| **erf.w_damping**          | Enable vertical-velocity         | Boolean           | false       |
-|                            | damping                          |                   |             |
-+----------------------------+----------------------------------+-------------------+-------------+
-| **erf.w_damping_cfl**      | Critical vertical advective      | Real              | 1.0         |
-|                            | CFL for w-damping to be applied, |                   |             |
-|                            | if ``erf.w_damping`` is true     |                   |             |
-+----------------------------+----------------------------------+-------------------+-------------+
-| **erf.w_damping_const**    | w-damping coefficient (m/s2)     | Real              | -1          |
-+----------------------------+----------------------------------+-------------------+-------------+
-| **erf.w_damping_coeff**    | w-damping coefficient (-)        | Real              | -1          |
-+----------------------------+----------------------------------+-------------------+-------------+
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                | Definition                                               | Acceptable Values  | Default          |
++==========================+==========================================================+====================+==================+
+| **erf.beta_s**           | time off-centering coefficient used in the acoustic      | Real               | 0.1              |
+|                          | substepping; positive values weight the update towards   |                    |                  |
+|                          | the new time                                             |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping**        | enable vertical-velocity damping                         | Boolean            | false            |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_cfl**    | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |
+|                          | applied, if ``erf.w_damping`` is true                    |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_const**  | constant damping coefficient [m/s^2], as used by WRF     | Real               | -1.0 (not used)  |
+|                          | (which uses 0.3); a positive value selects this          |                    |                  |
+|                          | formulation                                              |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_coeff**  | dimensionless damping factor giving a grid-dependent     | Real               | -1.0 (not used)  |
+|                          | coefficient proportional to dz/dt^2; a positive value    |                    |                  |
+|                          | selects this formulation                                 |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
 
 If ``erf.w_damping`` is true, then either ``erf.w_damping_const`` or ``erf.w_damping_coeff`` must
 be specified. For WRF-like damping, set ``erf.w_damping_const = 0.3`` to give
@@ -2093,6 +2475,8 @@ This approach gives a damping coefficient that is sensitive to the vertical grid
 robustly damps towards the critical Courant number.
 
 
+.. _inputs-initialization:
+
 Initialization
 ==============
 
@@ -2102,173 +2486,123 @@ The initialization strategy is determined at runtime by ``init_type``, which has
 
 See :ref:`sec:Initialization` for more detail about how to provide initial conditions for an ERF simulation.
 
+A few inputs read at initialization are documented with the feature they belong
+to rather than here: ``erf.init_vels_from_checkpoint`` reuses the velocity field
+from a checkpoint while re-initializing the rest of the state (see
+:ref:`sec:Initialization`), ``erf.prob_name`` selects the built-in problem setup,
+``erf.nc_low_file`` supplies the low-resolution NetCDF data used by
+:ref:`sec:HindCast`, ``erf.buildings_file_name`` supplies the building geometry
+used by the immersed-forcing path (see :ref:`Forcings`), and
+``erf.cloud_chamber_budget_interval`` controls the budget output of the cloud
+chamber case (see :ref:`CloudChamber`).
+
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.
 
 List of Parameters
 ------------------
 
-+----------------------------------+---------------------+--------------------+-----------------------+
-| Parameter                        | Definition          | Acceptable         | Default               |
-|                                  |                     | Values             |                       |
-+==================================+=====================+====================+=======================+
-| **erf.init_type**                | Initialization      | "None",            | "None"                |
-|                                  | type                | "Uniform"          |                       |
-|                                  |                     | "ConstantDensity", |                       |
-|                                  |                     | "Isentropic",      |                       |
-|                                  |                     | "MoistBaseState",  |                       |
-|                                  |                     | "Input_Sounding"   |                       |
-|                                  |                     | "Hindcast",        |                       |
-|                                  |                     | "WRFInput",        |                       |
-|                                  |                     | "Metgrid"          |                       |
-|                                  |                     | "NCFile"           |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.input_sounding_file**      | Path to WRF-style   |  String            | "input_sounding"      |
-|                                  | input sounding      |                    |                       |
-|                                  | file                |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.sounding_type**            | How to interpret    | "Ideal",           | Ideal                 |
-|                                  | the sounding        | "Isentropic",      |                       |
-|                                  | provided with       | "DryIsentropic",   |                       |
-|                                  | init_type =         | "ConstantDensity"  |                       |
-|                                  | "input_sounding"    |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.use_real_bcs**             | If init_type is     | Boolean            | true if               |
-|                                  | WRFInput or Metgrid |                    | if init_type          |
-|                                  | do we want to use   |                    | is WRFInput or        |
-|                                  | these bcs?          |                    | Metgrid;              |
-|                                  |                     |                    | else false            |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.nc_init_file**             | NetCDF file with    |  String            | NONE                  |
-|                                  | initial mesoscale   |                    |                       |
-|                                  | data                |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.nc_bdy_file**              | NetCDF file with    |  String            | NONE                  |
-|                                  | mesoscale data at   |                    |                       |
-|                                  | lateral boundaries  |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.project_initial_velocity** | project initial     |  0 or 1            | 1 if anelastic;       |
-|                                  | velocity?           |                    | 0 if compressible     |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.real_width**               | Lateral boundary    |  Integer           | 0                     |
-|                                  | total width if      |                    |                       |
-|                                  | use_real_bcs is     |                    |                       |
-|                                  | true                |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.avg_grid_faces_to_nodes**  | avg the wrfinput /  |  Boolean           | false                 |
-|                                  | metgrid heights     |                    |                       |
-|                                  | onto the nodes, or  |                    |                       |
-|                                  | reconstruct them?   |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.rebalance_wrf_input**      | rebalance state     |  Boolean           | true                  |
-|                                  | from wrfinput and   |                    |                       |
-|                                  | wrfbdy?             |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.real_extrap_w**            | First-order         |  Boolean           | true                  |
-|                                  | extrapolation of    |                    |                       |
-|                                  | vertical velocities |                    |                       |
-|                                  | on lateral          |                    |                       |
-|                                  | boundaries (instead |                    |                       |
-|                                  | of setting to 0) if |                    |                       |
-|                                  | use_real_bcs is     |                    |                       |
-|                                  | true                |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_debug_quiescent**  | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, overwrite  |                    |                       |
-|                                  | initial conditions  |                    |                       |
-|                                  | and boundary        |                    |                       |
-|                                  | conditions to be    |                    |                       |
-|                                  | quiescent.          |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_debug_isothermal** | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, overwrite  |                    |                       |
-|                                  | theta to be 300 in  |                    |                       |
-|                                  | initial conditions  |                    |                       |
-|                                  | and boundary        |                    |                       |
-|                                  | conditions.         |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_debug_dry**        | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, overwrite  |                    |                       |
-|                                  | qv to be dry in     |                    |                       |
-|                                  | initial conditions  |                    |                       |
-|                                  | and boundary        |                    |                       |
-|                                  | conditions.         |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_debug_msf**        | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, overwrite  |                    |                       |
-|                                  | map scale factors   |                    |                       |
-|                                  | to be 1.            |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_debug_psfc**       | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, overwrite  |                    |                       |
-|                                  | surface pressure    |                    |                       |
-|                                  | to be 10**5.        |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_interp_theta**     | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, calculate  |                    |                       |
-|                                  | theta on origin     |                    |                       |
-|                                  | model vertical      |                    |                       |
-|                                  | levels and then     |                    |                       |
-|                                  | interpolate onto    |                    |                       |
-|                                  | the ERF vertical    |                    |                       |
-|                                  | levels.             |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_basic_linear**     | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, use        |                    |                       |
-|                                  | linear vertical     |                    |                       |
-|                                  | interpolation and   |                    |                       |
-|                                  | no quality          |                    |                       |
-|                                  | control?            |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_use_below_sfc**    | If init_type is     |  Boolean           | true                  |
-|                                  | Metgrid, use the    |                    |                       |
-|                                  | origin data levels  |                    |                       |
-|                                  | below the surface?  |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_use_sfc**          | If init_type is     |  Boolean           | true                  |
-|                                  | Metgrid, use the    |                    |                       |
-|                                  | origin data level   |                    |                       |
-|                                  | at the surface?     |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_retain_sfc**       | If init_type is     |  Boolean           | false                 |
-|                                  | Metgrid, assign     |                    |                       |
-|                                  | the lowest level    |                    |                       |
-|                                  | directly using the  |                    |                       |
-|                                  | surface value from  |                    |                       |
-|                                  | the origin data?    |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_proximity**        | If init_type is     | Real               | 1000.                 |
-|                                  | Metgrid, pressure   |                    |                       |
-|                                  | differential for    |                    |                       |
-|                                  | detecting origin    |                    |                       |
-|                                  | levels that are     |                    |                       |
-|                                  | problematically     |                    |                       |
-|                                  | close together      |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_order**            | If init_type is     | Integer            | 2                     |
-|                                  | Metgrid, order of   |                    |                       |
-|                                  | the Lagrange        |                    |                       |
-|                                  | polynomial          |                    |                       |
-|                                  | interpolation       |                    |                       |
-|                                  | scheme for          |                    |                       |
-|                                  | vertical            |                    |                       |
-|                                  | interpolation       |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
-| **erf.metgrid_force_sfc_k**      | If init_type is     | Integer            | 0                     |
-|                                  | Metgrid, force the  |                    |                       |
-|                                  | origin data         |                    |                       |
-|                                  | surface level to    |                    |                       |
-|                                  | be included in the  |                    |                       |
-|                                  | interpolation for   |                    |                       |
-|                                  | this many ERF       |                    |                       |
-|                                  | vertical levels     |                    |                       |
-+----------------------------------+---------------------+--------------------+-----------------------+
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| Parameter                         | Definition                                               | Acceptable Values            | Default            |
++===================================+==========================================================+==============================+====================+
+| **erf.init_type**                 | source of the initial data; must be set.  See            | None, Input_Sounding,        | None               |
+|                                   | :ref:`sec:Initialization`                                | NCFile, WRFInput, Metgrid,   |                    |
+|                                   |                                                          | Uniform, ConstantDensity,    |                    |
+|                                   |                                                          | ConstantDensityLinearTheta,  |                    |
+|                                   |                                                          | Isentropic, MoistBaseState,  |                    |
+|                                   |                                                          | HindCast                     |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.input_sounding_file**       | Path to the WRF-style input sounding file.  When nudging | String(s)                    | "input_sounding"   |
+|                                   | from input soundings, more than one file may be named,   |                              |                    |
+|                                   | paired with ``erf.input_sounding_time``                  |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.sounding_type**             | how the profiles in an input sounding file are           | ConstantDensity, Ideal,      | Ideal              |
+|                                   | interpreted; read only when ``init_type`` =              | Isentropic, DryIsentropic    |                    |
+|                                   | ``Input_Sounding``                                       |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.use_real_bcs**              | use the real-data lateral boundary conditions from the   | Boolean                      | true if            |
+|                                   | boundary file.  Defaults to true when ``init_type`` is   |                              | ``erf.init_type``  |
+|                                   | ``WRFInput`` or ``Metgrid``, false otherwise, and may    |                              | is WRFInput or     |
+|                                   | only be used to turn the real boundary conditions off    |                              | Metgrid, else      |
+|                                   |                                                          |                              | false              |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.nc_bdy_file**               | name of the NetCDF (``wrfbdy``) lateral boundary file;   | String                       | None               |
+|                                   | read only when ``init_type`` = ``WRFInput``.  If not     |                              |                    |
+|                                   | given, ``use_real_bcs`` is set to false                  |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.project_initial_velocity**  | if 1, project the initial velocity field to make it      | 0, 1                         | 0 (1 if anelastic) |
+|                                   | satisfy the anelastic constraint (per-level)             |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.real_width**                | Lateral boundary total width if use_real_bcs is true     | Integer                      | 0                  |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.avg_grid_faces_to_nodes**   | average the ``wrfinput`` / ``met_em`` heights onto the   | Boolean                      | false              |
+|                                   | nodes rather than reconstructing nodal heights whose     |                              |                    |
+|                                   | four-node average reproduces them                        |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.rebalance_wrf_input**       | rebalance (hydrostatically re-integrate) the state read  | Boolean                      | true               |
+|                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
+|                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.real_extrap_w**             | First-order extrapolation of vertical velocities on      | Boolean                      | true               |
+|                                   | lateral boundaries (instead of setting to 0) if          |                              |                    |
+|                                   | use_real_bcs is true                                     |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_debug_quiescent**   | If init_type is Metgrid, overwrite initial conditions    | Boolean                      | false              |
+|                                   | and boundary conditions to be quiescent.                 |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_debug_isothermal**  | If init_type is Metgrid, overwrite theta to be 300 in    | Boolean                      | false              |
+|                                   | initial conditions and boundary conditions.              |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_debug_dry**         | If init_type is Metgrid, overwrite qv to be dry in       | Boolean                      | false              |
+|                                   | initial conditions and boundary conditions.              |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_debug_msf**         | If init_type is Metgrid, overwrite map scale factors to  | Boolean                      | false              |
+|                                   | be 1.                                                    |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_debug_psfc**        | If init_type is Metgrid, overwrite surface pressure to   | Boolean                      | false              |
+|                                   | be 10**5.                                                |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_interp_theta**      | If init_type is Metgrid, calculate theta on origin model | Boolean                      | false              |
+|                                   | vertical levels and then interpolate onto the ERF        |                              |                    |
+|                                   | vertical levels.                                         |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_basic_linear**      | If init_type is Metgrid, use linear vertical             | Boolean                      | false              |
+|                                   | interpolation and no quality control?                    |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_use_below_sfc**     | If init_type is Metgrid, use the origin data levels      | Boolean                      | true               |
+|                                   | below the surface?                                       |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_use_sfc**           | If init_type is Metgrid, use the origin data level at    | Boolean                      | true               |
+|                                   | the surface?                                             |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_retain_sfc**        | If init_type is Metgrid, assign the lowest level         | Boolean                      | false              |
+|                                   | directly using the surface value from the origin data?   |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_proximity**         | If init_type is Metgrid, pressure differential for       | Real                         | 1000.              |
+|                                   | detecting origin levels that are problematically close   |                              |                    |
+|                                   | together                                                 |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_order**             | If init_type is Metgrid, order of the Lagrange           | Integer                      | 2                  |
+|                                   | polynomial interpolation scheme for vertical             |                              |                    |
+|                                   | interpolation                                            |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.metgrid_force_sfc_k**       | If init_type is Metgrid, force the origin data surface   | Integer                      | 0                  |
+|                                   | level to be included in the interpolation for this many  |                              |                    |
+|                                   | ERF vertical levels                                      |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 
 Notes
 -----------------
 
 If **erf.init_type = WRFInput** or **erf.init_type = NCFile**,
 the problem is initialized with mesoscale data contained in a NetCDF file,
-provided via ``erf.nc_init_file`` (e.g., "wrfinput_d01").
+provided via ``erf.nc_init_file_0`` (e.g., "wrfinput_d01").
+
+A file may also be given for each refined level -- ``erf.nc_init_file_1`` (e.g.,
+"wrfinput_d02"), ``erf.nc_init_file_2``, and so on.  A file at level 0 is required;
+files at finer levels are optional.  A refined level given no file of its own is
+initialized by interpolation from its parent, and its base state is built from the
+level-0 reference profile evaluated at that level's own heights.  See
+:ref:`sec:nested-wrfinput` for the nesting options and their restrictions.
 
 In addition, if **erf.use_real_bcs = true**, the lateral boundary conditions must be supplied in a NetCDF files
 specified by ``erf.nc_bdy_file`` (e.g., "wrfbdy_d01").  (If **erf.use_real_bcs = false**, no file is read for the
@@ -2281,6 +2615,8 @@ Note that the **erf.project_initial_velocity** option is available for all **ini
 formulation this will be true regardless of the input; if using the compressible formulation the default is false but
 that can be over-written.
 
+.. _inputs-map-scale-factors:
+
 Map Scale Factors
 =================
 
@@ -2289,6 +2625,8 @@ unless specified in the initialization when **erf.init_type = WRFInput** or **er
 
 There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
+
+.. _inputs-terrain:
 
 Terrain
 =======
@@ -2356,25 +2694,53 @@ An example is given in Exec/CanonicalTests/ABL/erf_terrain_def.
 List of Parameters
 ------------------
 
-+-----------------------------+--------------------+--------------------+------------+
-| Parameter                   | Definition         | Acceptable         | Default    |
-|                             |                    | Values             |            |
-+=============================+====================+====================+============+
-| **erf.terrain_type**        | Is there terrain   | None               | None       |
-|                             | and if so, how is  | StaticFittedMesh   |            |
-|                             | it represented?    | MovingFittedMesh   |            |
-|                             |                    | ImmersedForcing    |            |
-|                             |                    | EB                 |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
-|                             | following          | 1,                 |            |
-|                             |                    | 2                  |            |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_file_name**   | filename           | String             | NONE       |
-+-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_file_name_nc**| NetCDF terrain     | String             | NONE       |
-|                             | filename           |                    |            |
-+-----------------------------+--------------------+--------------------+------------+
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                        | Definition                                               | Acceptable Values  | Default          |
++==================================+==========================================================+====================+==================+
+| **erf.terrain_type**             | how terrain and immersed boundaries are represented.     | None,              | None             |
+|                                  | Only ``StaticFittedMesh`` is allowed with ``init_type``  | StaticFittedMesh,  |                  |
+|                                  | = ``WRFInput`` or ``Metgrid``                            | MovingFittedMesh,  |                  |
+|                                  |                                                          | EB,                |                  |
+|                                  |                                                          | ImmersedForcing    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.amr_terrain_refinement**   | terrain refinement strategy for AMR with STF/Sullivan    | "interpolate",     | "interpolate"    |
+|                                  |                                                          | "transform"        |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.terrain_file_name**        | filename                                                 | String             | NONE             |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.terrain_file_name_nc**     | NetCDF terrain filename                                  | String             | NONE             |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`       | None,              | None             |
+|                                  |                                                          | ImmersedForcing    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
+|                                  | terrain surface; requires that terrain be used           |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.terrain_file_name_USGS**   | text file of terrain heights in USGS format; an          | String             | None             |
+|                                  | alternative to ``erf.terrain_file_name``                 |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.custom_terrain_type**     | selects the problem-specific terrain initialization; any | String             | None             |
+|                                  | value other than ``None`` calls                          |                    |                  |
+|                                  | ``init_my_custom_terrain``                               |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.dir**                     | direction of variation of the ``WoA`` custom terrain: 0  | 0, 1               | 0                |
+|                                  | for x, 1 for y                                           |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.L**                       | width scale [m] of the ``WoA`` and ``Cos4Hill`` custom   | Real > 0           | 100.0            |
+|                                  | terrain                                                  |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.hmax**                    | peak height [m] of the ``WoA`` and ``Cos4Hill`` custom   | Real               | 0.0              |
+|                                  | terrain                                                  |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.z_offset**                | vertical offset [m] applied by the ``WoA``,              | Real               | 0.0              |
+|                                  | ``RaisedFlat`` and ``Cos4Hill`` custom terrain           |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.Ampl**                    | amplitude [m] of the ``MovingSineWave`` custom terrain   | Real               | 0.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **prob.wavelength**              | wavelength [m] of the ``MovingSineWave`` custom terrain  | Real > 0           | 100.0            |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Examples of Usage
 -----------------
@@ -2392,12 +2758,240 @@ Examples of Usage
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.
 
+**erf.amr_terrain_refinement** is read only on levels finer than level 0 and only when
+``erf.terrain_smoothing`` is 1 or 2; it is ignored otherwise. Any value other than
+``"interpolate"`` or ``"transform"`` is an error, so that a misspelled mode cannot
+silently leave the fine mesh untransformed. Both modes are currently supported only for
+the idealized initialization types: with ``erf.init_type`` = ``WRFInput`` or ``Metgrid``,
+using ``erf.terrain_smoothing`` = 1 or 2 together with refinement still aborts, and
+support for those is planned for future work.
+
+-  **erf.amr_terrain_refinement**  = "interpolate"
+    Default mode for AMR with STF/Sullivan terrain smoothing (``terrain_smoothing=1`` or ``2``).
+    Fine levels use terrain coordinates interpolated from the coarse level, maintaining
+    smooth consistency across refinement levels.
+
+-  **erf.amr_terrain_refinement**  = "transform"
+    Advanced mode for AMR with STF/Sullivan (``terrain_smoothing=1`` or ``2``). Fine levels read the
+    higher-resolution terrain data for the surface (``k=0``) and add it to the interpolated
+    mesh as a correction that decays linearly to zero at the top of the fine grids, so that
+    the fine mesh still matches the coarse one at the coarse/fine boundary. This captures
+    finer terrain features, at the cost of requiring that every box on a fine level reach
+    the surface; if the fine grids are chopped in the vertical the run aborts and asks you
+    to raise ``amr.max_grid_size_z`` or to use ``"interpolate"`` instead.
+
 -  When setting **erf.terrain_file_name**, the format of the file is expected to
     be (in raw text): the integer nx on the first line, the integer ny on the second line,
     then the nx values of the x-coordinate, then the ny values of
     the y-coordinate, then the (nx times ny) values of the z-coordinate associated
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
+
+.. _inputs-land-surface-model:
+
+.. _sec:ImmersedForcingInputs:
+
+Immersed Forcing
+----------------
+
+These inputs configure the immersed-forcing representation of solid bodies,
+selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
+``erf.buildings_type`` = ``ImmersedForcing``.  At most one of
+``erf.if_surf_temp_flux``, ``erf.if_init_surf_temp`` and ``erf.if_Olen`` may be set.
+
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                         | Definition                                               | Acceptable Values  | Default          |
++===================================+==========================================================+====================+==================+
+| **erf.immersed_forcing_substep**  | apply the immersed forcing source terms during the       | Boolean            | true if          |
+|                                   | acoustic substeps only                                   |                    | compressible,    |
+|                                   |                                                          |                    | false if         |
+|                                   |                                                          |                    | anelastic        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_Cd_momentum**            | immersed forcing drag coefficient for momentum           | Real > 0           | 500.0 if         |
+|                                   |                                                          |                    | compressible,    |
+|                                   |                                                          |                    | 50.0 if          |
+|                                   |                                                          |                    | anelastic        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_Cd_scalar**              | immersed forcing drag coefficient for scalars            | Real > 0           | 50.0 if          |
+|                                   |                                                          |                    | compressible,    |
+|                                   |                                                          |                    | 5.0 if anelastic |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_implicit_drag**          | use a point-implicit (linearly implicit) form of the     | Boolean            | false            |
+|                                   | immersed forcing drag rather than an explicit            |                    |                  |
+|                                   | forward-Euler source                                     |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
+|                                   | model                                                    |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_surf_temp_flux**         | surface temperature flux [K m/s] imposed at immersed     | Real               | 1.e-8            |
+|                                   | surfaces; only one of ``if_surf_temp_flux``,             |                    |                  |
+|                                   | ``if_init_surf_temp`` and ``if_Olen`` may be set         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_init_surf_temp**         | surface temperature [K] imposed at immersed surfaces;    | Real               | 0.0              |
+|                                   | only one of ``if_surf_temp_flux``, ``if_init_surf_temp`` |                    |                  |
+|                                   | and ``if_Olen`` may be set                               |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_surf_heating_rate**      | rate of change [K/hr] of the immersed surface            | Real               | 0.0              |
+|                                   | temperature (converted internally to K/s)                |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_Olen**                   | Obukhov length [m] imposed at immersed surfaces; only    | Real               | 1.e-8            |
+|                                   | one of ``if_surf_temp_flux``, ``if_init_surf_temp`` and  |                    |                  |
+|                                   | ``if_Olen`` may be set                                   |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
+|                                   | immersed surfaces                                        |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |
+|                                   | forcing similarity functions; use with caution for       |                    |                  |
+|                                   | horizontal walls                                         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_ws_floor**               | lower bound [m/s] on the wind speed used by the immersed | Real > 0           | 0.001            |
+|                                   | forcing wall model                                       |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
+|                                   | model                                                    |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. _sec:SurfaceLayerInputs:
+
+Surface Layer (MOST)
+====================
+
+These inputs configure the Monin-Obukhov similarity surface layer used by a
+``surface_layer`` lower boundary.  See :ref:`sec:surface_layer` for the
+formulation and for worked examples.  Which of them are read depends on
+``erf.surface_layer.flux_type``; the entries below say so where it matters, and
+the ones marked **Required** abort the run if they are not given.
+
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| Parameter                             | Definition                                               | Acceptable Values   | Default          |
++=======================================+==========================================================+=====================+==================+
+| **erf.surface_layer.flux_type**       | how the surface fluxes are computed                      | moeng, donelan,     | moeng            |
+|                                       |                                                          | rico, bulk_coeff,   |                  |
+|                                       |                                                          | custom              |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.z0**                       | constant surface roughness length [m]                    | Real > 0            | 0.1              |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.include_wstar**            | add the free-convection velocity scale *w*\* to the mean | Boolean             | false            |
+|                                       | surface velocity (Beljaars 1995); requires               |                     |                  |
+|                                       | ``erf.most.pblh_calc`` to be set                         |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
+|                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_temp**                | prescribed surface temperature [K]; a positive value     | Real > 0            | -1.0 (not set)   |
+|                                       | selects the surface-temperature formulation              |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
+|                                       | active moisture model                                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
+|                                       | temperature; may not be combined with                    |                     |                  |
+|                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |
+|                                       | combined with ``erf.most.surf_heating_rate``             |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_moist_flux**          | prescribed surface moisture flux; used when              | Real                | 0.0              |
+|                                       | ``erf.most.surf_moist`` is not set                       |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.ustar**                    | prescribed friction velocity [m/s].  **Required** when   | Real                | must be set      |
+|                                       | ``flux_type`` is ``custom`` or ``rico``                  |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.tstar**                    | prescribed surface temperature scale [K].  **Required**  | Real                | must be set      |
+|                                       | when ``flux_type`` is ``custom`` or ``rico``             |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.qstar**                    | prescribed surface moisture scale.  **Required** when    | Real                | must be set      |
+|                                       | ``flux_type`` is ``custom`` or ``rico``; a non-zero      |                     |                  |
+|                                       | value requires an active moisture model                  |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.rhosurf**                  | surface density used with the prescribed fluxes instead  | Real                | 0.0 (use first   |
+|                                       | of the density in the first cell                         |                     | cell)            |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.Cd**                       | bulk transfer coefficient for momentum.  **Required**    | Real                | must be set      |
+|                                       | when ``flux_type`` = ``bulk_coeff``                      |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.Ch**                       | bulk transfer coefficient for heat.  **Required** when   | Real                | must be set      |
+|                                       | ``flux_type`` = ``bulk_coeff``                           |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.Cq**                       | bulk transfer coefficient for moisture.  **Required**    | Real                | must be set      |
+|                                       | when ``flux_type`` = ``bulk_coeff``                      |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.rico.theta_z0**            | surface potential temperature [K] used by the RICO       | Real                | 298.0            |
+|                                       | formulation                                              |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.rico.qsat_z0**             | surface saturation mixing ratio used by the RICO         | Real                | 0.001            |
+|                                       | formulation                                              |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.roughness_type_land**      | how the roughness length is computed over land           | constant            | constant         |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.roughness_type_sea**       | how the roughness length is computed over water          | charnock, coare3.0, | charnock         |
+|                                       |                                                          | donelan,            |                  |
+|                                       |                                                          | modified_charnock,  |                  |
+|                                       |                                                          | wave_coupled,       |                  |
+|                                       |                                                          | constant            |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.charnock_constant**        | Charnock constant *a*; a non-positive value selects the  | Real                | 0.0185           |
+|                                       | variable COARE3.0 parameter.  Read only when             |                     |                  |
+|                                       | ``roughness_type_sea`` = ``charnock``                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.charnock_viscosity**       | include the viscous term in the Charnock relation.  Read | Boolean             | false            |
+|                                       | only when ``roughness_type_sea`` = ``charnock``          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real > 0            | 30.0             |
+|                                       | Read only when ``roughness_type_sea`` =                  |                     |                  |
+|                                       | ``modified_charnock``                                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.roughness_file_name**      | text file of (x, y, z0) giving a spatially varying       | String, or list of  | None             |
+|                                       | roughness length; may be given once or once per level.   | Strings             |                  |
+|                                       | Read only when ``flux_type`` is ``moeng`` or when        |                     |                  |
+|                                       | surface-flux rotation is active                          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.ignore_sst**               | use the skin temperature rather than the sea-surface     | Boolean             | false            |
+|                                       | temperature from the input data                          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_sfc_fluxes**           | read time-varying sensible and latent heat fluxes and    | Boolean             | false            |
+|                                       | friction velocity from a text file; may not be combined  |                     |                  |
+|                                       | with ``erf.most.use_sfc_sst``                            |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_sfc_sst**              | read a time-varying sea-surface temperature from a text  | Boolean             | false            |
+|                                       | file; may not be combined with                           |                     |                  |
+|                                       | ``erf.most.use_sfc_fluxes``                              |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.sfc_file**                 | text file supplying the surface forcing; **required**    | String              | must be set      |
+|                                       | when either of the two options above is true.  Not       |                     |                  |
+|                                       | supported with EB terrain                                |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.average_policy**           | how the MOST average is formed: 0 is a planar average    | 0, 1                | 0 (1 if the mesh |
+|                                       | and 1 is a local region average                          |                     | has variable dz) |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.radius**                   | radius, in cells, of the local region used when          | Integer >= 0        | 0                |
+|                                       | ``erf.most.average_policy`` = 1                          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.time_average**             | apply an exponential moving average in time to the MOST  | Boolean             | false            |
+|                                       | average                                                  |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.time_window**              | width of the exponential filter, normalized by the time  | Real > 0            | 1.0e-16          |
+|                                       | step; read only when ``erf.most.time_average`` is true   |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.zref**                     | height [m] above the surface at which the MOST           | Real > 0            | 10.0             |
+|                                       | quantities are evaluated                                 |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.k_arr_in**                 | vertical cell index at which the MOST quantities are     | List of Integers    | None             |
+|                                       | evaluated, one per level; an alternative to              |                     |                  |
+|                                       | ``erf.most.zref``                                        |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_interpolation**        | interpolate to the query point rather than using the     | Boolean             | false            |
+|                                       | containing cell                                          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_normal_vector**        | locate the query point along the surface normal rather   | Boolean             | false            |
+|                                       | than vertically; for terrain-fitted meshes               |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.terrain_rotate**           | rotate the averaged vectors into the terrain-following   | Boolean             | false            |
+|                                       | frame                                                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.include_subgrid_vel**      | add a subgrid contribution to the mean surface velocity  | Boolean             | false            |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 
 Land Surface Model
 ==================
@@ -2407,18 +3001,25 @@ The land surface model provides energy and moisture fluxes at the lower boundary
 List of Parameters
 ------------------
 
-+--------------------------------+----------------------------+--------------------+-------------+
-| Parameter                      | Definition                 | Acceptable         | Default     |
-|                                |                            | Values             |             |
-+================================+============================+====================+=============+
-| **erf.land_surface_model**     | Enables land surface       | "None",            | "None"      |
-|                                | energy and moisture        | "NOAHMP",          |             |
-|                                | fluxes                     | "SLM"              |             |
-+--------------------------------+----------------------------+--------------------+-------------+
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                   | Definition                                               | Acceptable Values  | Default          |
++=============================+==========================================================+====================+==================+
+| **erf.land_surface_model**  | Enables land surface energy and moisture fluxes          | None, SLM, NOAHMP  | None             |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.is_land**             | whether each AMR level is treated as land (1) or water   | 0, 1               | 1                |
+|                             | (0) (per-level)                                          |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.lsm_nsoil**           | number of soil layers; must match ``NSOIL`` in the       | Integer >= 1       | 4                |
+|                             | Noah-MP namelist, and also sets how many                 |                    |                  |
+|                             | ``smois_<layer>`` / ``sh2o_<layer>`` / ``tslb_<layer>``  |                    |                  |
+|                             | 2-D diagnostics exist                                    |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+
+.. _inputs-ocean-surface-model:
 
 Ocean Surface Model
 ===================
@@ -2428,14 +3029,14 @@ The ocean surface model provides energy fluxes at the lower boundary when that l
 List of Parameters
 ------------------
 
-+--------------------------------+----------------------------+--------------------+-------------+
-| Parameter                      | Definition                 | Acceptable         | Default     |
-|                                |                            | Values             |             |
-+================================+============================+====================+=============+
-| **erf.use_coupled_sst**        | Expect sea-surface         | Boolean            | false       |
-|                                | temperature from an        |                    |             |
-|                                | external ocean coupler     |                    |             |
-+--------------------------------+----------------------------+--------------------+-------------+
++--------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                | Definition                                               | Acceptable Values  | Default          |
++==========================+==========================================================+====================+==================+
+| **erf.use_coupled_sst**  | an external ocean coupler supplies the sea surface       | Boolean            | false            |
+|                          | temperature for some or all water cells; this must be    |                    |                  |
+|                          | set at problem definition time because the surface layer |                    |                  |
+|                          | uses it to select its temperature boundary treatment     |                    |                  |
++--------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
 
@@ -2444,6 +3045,8 @@ List of Parameters
    the water cells the coupler actually covers: land keeps its land surface model, and
    water the ocean grid does not reach keeps the ``wrflowinp`` value. A coupled run can
    therefore also run Noah-MP or the SLM over land.
+
+.. _inputs-coupling-type-data-exchange:
 
 Coupling Type (Data Exchange)
 ==============================
@@ -2454,14 +3057,13 @@ For coupled simulations with AMR-Wind or WaveWatch3, this controls the direction
 List of Parameters
 ------------------
 
-+--------------------------------+----------------------------+--------------------+-------------+
-| Parameter                      | Definition                 | Acceptable         | Default     |
-|                                |                            | Values             |             |
-+================================+============================+====================+=============+
-| **erf.coupling_type**          | Coupling mode for          | "OneWay",          | "None"      |
-|                                | coupled simulations with   | "TwoWay"           |             |
-|                                | AMR-Wind or WaveWatch3     |                    |             |
-+--------------------------------+----------------------------+--------------------+-------------+
++------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter              | Definition                                               | Acceptable Values  | Default          |
++========================+==========================================================+====================+==================+
+| **erf.coupling_type**  | how data is exchanged between AMR levels.  Forced to     | OneWay, TwoWay     | TwoWay           |
+|                        | ``OneWay`` if some levels are anelastic and others       |                    |                  |
+|                        | compressible                                             |                    |                  |
++------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Notes
 -----
@@ -2470,6 +3072,8 @@ Notes
 - **OneWay**: ERF receives forcing but doesn't send data back
 
 See :ref:`CouplingToAMRWind` and :ref:`CouplingToWW3` for more information.
+
+.. _inputs-moisture:
 
 Moisture
 ========
@@ -2483,40 +3087,52 @@ The following run-time options control how the full moisture model is used.
 List of Parameters
 ------------------
 
-+---------------------------------+--------------------------+-----------------------+------------+
-| Parameter                       | Definition               | Acceptable            | Default    |
-|                                 |                          | Values                |            |
-+=================================+==========================+=======================+============+
-| **erf.moisture_model**          | Name of moisture model   |  "None", "SAM",       | "None"     |
-|                                 |                          |  "Kessler", "SatAdj"  |            |
-|                                 |                          |  "Kessler_NoRain",    |            |
-|                                 |                          |  "Morrison",          |            |
-|                                 |                          |  "Morrison_NoIce",    |            |
-|                                 |                          |  "SAM_NoPrecip_NoIce",|            |
-|                                 |                          |  "SAM_NoIce", "WSM6", |            |
-|                                 |                          |  "WDM6", "P3",        |            |
-|                                 |                          |  "MoistNoCondensation"|            |
-+---------------------------------+--------------------------+-----------------------+------------+
-| **erf.moisture_tight_coupling** | If true, advance         |  Boolean              | false      |
-|                                 | microphysics after every |                       |            |
-|                                 | slow step in the dycore; |                       |            |
-|                                 | otherwise, update after  |                       |            |
-|                                 | the dycore has been      |                       |            |
-|                                 | advanced at each timestep|                       |            |
-+---------------------------------+--------------------------+-----------------------+------------+
-| **erf.morrison_ndcnst**         | Constant cloud-droplet   | Positive real         | 250        |
-|                                 | number concentration for | (cm^-3)               | (cm^-3)    |
-|                                 | Morrison when constant   |                       |            |
-|                                 | droplet number is active |                       |            |
-+---------------------------------+--------------------------+-----------------------+------------+
-| **wdm6.hail_opt**               | Graupel/hail regime      | 0, 1                  | 0          |
-|                                 | selector for WDM6:       |                       |            |
-|                                 | 0 = graupel regime,      |                       |            |
-|                                 | 1 = hail regime          |                       |            |
-+---------------------------------+--------------------------+-----------------------+------------+
-| **wdm6.ccn0**                   | Background CCN number    | Positive real         | 100.0e6    |
-|                                 | concentration for WDM6   | (m^-3)                | (m^-3)     |
-+---------------------------------+--------------------------+-----------------------+------------+
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| Parameter                         | Definition                                               | Acceptable Values    | Default          |
++===================================+==========================================================+======================+==================+
+| **erf.moisture_model**            | which moisture / microphysics model to use               | None, SatAdj,        | None             |
+|                                   |                                                          | Kessler,             |                  |
+|                                   |                                                          | Kessler_NoRain, SAM, |                  |
+|                                   |                                                          | SAM_NoIce,           |                  |
+|                                   |                                                          | SAM_NoPrecip_NoIce,  |                  |
+|                                   |                                                          | Morrison,            |                  |
+|                                   |                                                          | Morrison_NoIce,      |                  |
+|                                   |                                                          | WSM6, WDM6,          |                  |
+|                                   |                                                          | SuperDroplets,       |                  |
+|                                   |                                                          | MoistNoCondensation  |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
+|                                   | the dycore; otherwise, update after the dycore has been  |                      |                  |
+|                                   | advanced at each timestep                                |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.morrison_ndcnst**           | Constant cloud-droplet number concentration for Morrison | Positive real        | 250 (cm^-3)      |
+|                                   | when constant droplet number is active                   | (cm^-3)              |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **wdm6.hail_opt**                 | Graupel/hail regime selector for WDM6: 0 = graupel       | 0, 1                 | 0                |
+|                                   | regime, 1 = hail regime                                  |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **wdm6.ccn0**                     | Background CCN number concentration for WDM6             | Positive real (m^-3) | 100.0e6 (m^-3)   |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.microphysics_debug**        | verbosity of the WSM6 and WDM6 microphysics debug        | 0, 1, 2              | 0                |
+|                                   | output; values outside the range are clamped into it     |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.micro_diag_target_column**  | (i,j) column at which the WSM6 and WDM6 per-column       | 2 Integers           | None             |
+|                                   | microphysics diagnostics are collected                   |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.micro_diag_mode**           | which WSM6 microphysics diagnostics are emitted;         | canonical, forensic, | canonical        |
+|                                   | ``forensic`` and ``both`` enable the per-process         | both                 |                  |
+|                                   | forensic output, matched case-insensitively.  Read only  |                      |                  |
+|                                   | in a build with the WSM6 Fortran bridge enabled          |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.micro_diag_tags**           | tags selecting which WSM6 forensic diagnostics are       | List of Strings      | standing         |
+|                                   | emitted                                                  |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.micro_diag_expr**           | expressions evaluated for the WSM6 forensic diagnostics  | List of Strings      | standing         |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+
+.. _inputs-radiation:
 
 Radiation
 =========
@@ -2539,73 +3155,77 @@ Notes
 List of Parameters
 ------------------
 
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| Parameter                           | Definition                             | Acceptable Values | Default / Notes                   |
-+=====================================+========================================+===================+===================================+
-| **erf.radiation_model**             | Enable radiation model                 | "None", "RRTMGP", | "None". "Simple" is a prescribed  |
-|                                     |                                        | "Simple"          | cooling/heating profile with no   |
-|                                     |                                        |                   | radiative transfer.               |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_nvar**                    | Size of block memory allocation        | Integer > 0       | 12                                |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_t_sfc**                   | Surface temperature if no LSM          | Real              | Must be set without LSM           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_freq_in_steps**           | Radiation update frequency (steps)     | Integer >= 1      | 1                                 |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_ncol_chunk**              | Columns per RRTMGP kernel launch.      | Integer >= 1      | 5000. Lower values reduce peak    |
-|                                     | Controls peak GPU memory by processing |                   | GPU memory; higher values reduce  |
-|                                     | radiation in batches of this size.     |                   | kernel launch overhead.           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_write_fluxes**            | Write radiation fluxes to plotfiles    | Boolean           | false                             |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_do_subcol_sampling**      | Enable MCICA subcolumn sampling        | Boolean           | true                              |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_orbital_year**            | Fixed orbital year for zenith calcs    | Integer           | < 0 uses timestamp year           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_orbital_eccentricity**    | Override orbital eccentricity          | Real              | < 0 uses computed value           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_orbital_obliquity**       | Override orbital obliquity             | Real              | < 0 uses computed value           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_orbital_mvelp**           | Override mean longitude of perihelion  | Real              | < 0 uses computed value           |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_cons_lat**                | Constant latitude for idealized cases  | Real              | 39.809860                         |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_cons_lon**                | Constant longitude for idealized cases | Real              | -98.555183                        |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.fixed_total_solar_irradiance**| Fixed total solar irradiance (TOA)     | Real              | < 0 disables                      |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.fixed_solar_zenith_angle**    | Fixed solar zenith (passed as ``mu0``) | Real              | <= 0 disables                     |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.co2vmr**                      | CO2 volume mixing ratio                | Real              | 388.717e-6                        |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.o3vmr**                       | O3 volume mixing ratio profile         | Real or list      | From dataset if unset             |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.n2ovmr**                      | N2O volume mixing ratio                | Real              | 323.141e-9                        |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.covmr**                       | CO volume mixing ratio                 | Real              | 1.0e-7                            |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.ch4vmr**                      | CH4 volume mixing ratio                | Real              | 1807.851e-9                       |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.o2vmr**                       | O2 volume mixing ratio                 | Real              | 0.209448                          |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.n2vmr**                       | N2 volume mixing ratio                 | Real              | 0.7906                            |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_do_aerosol**              | Enable aerosol forcing in radiation    | Boolean           | true                              |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_extra_clnclrsky_diag**    | Extra clean and clear-sky diagnostics  | Boolean           | false                             |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rad_extra_clnsky_diag**       | Extra clean-sky diagnostics            | Boolean           | false                             |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rrtmgp_file_path**            | Path to RRTMGP data files              | String            | "."                               |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_sw**            | Shortwave k-distribution file          | String            | rrtmgp-data-sw-g224-2018-12-04.nc |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rrtmgp_coeffs_lw**            | Longwave k-distribution file           | String            | rrtmgp-data-lw-g256-2018-12-04.nc |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rrtmgp_cloud_optics_sw**      | Shortwave cloud optics file            | String            | rrtmgp-cloud-optics-coeffs-sw.nc  |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
-| **erf.rrtmgp_cloud_optics_lw**      | Longwave cloud optics file             | String            | rrtmgp-cloud-optics-coeffs-lw.nc  |
-+-------------------------------------+----------------------------------------+-------------------+-----------------------------------+
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| Parameter                             | Definition                                               | Acceptable Values  | Default / Notes                    |
++=======================================+==========================================================+====================+====================================+
+| **erf.radiation_model**               | which radiation model to use; ``Simple`` is a prescribed | None, RRTMGP,      | None                               |
+|                                       | cooling/heating profile with no radiative transfer,      | Simple             |                                    |
+|                                       | ``RRTMGP`` is the full radiative transfer solver         |                    |                                    |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_nvar**                      | Size of block memory allocation                          | Integer > 0        | 12                                 |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_t_sfc**                     | Surface temperature if no LSM                            | Real               | Must be set without LSM            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_freq_in_steps**             | Radiation update frequency (steps)                       | Integer >= 1       | 1                                  |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_ncol_chunk**                | Columns per RRTMGP kernel launch. Controls peak GPU      | Integer >= 1       | 5000. Lower values reduce peak GPU |
+|                                       | memory by processing radiation in batches of this size.  |                    | memory; higher values reduce       |
+|                                       |                                                          |                    | kernel launch overhead.            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_write_fluxes**              | Write radiation fluxes to plotfiles                      | Boolean            | false                              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_orbital_eccentricity**      | Override orbital eccentricity                            | Real               | < 0 uses computed value            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_orbital_obliquity**         | Override orbital obliquity                               | Real               | < 0 uses computed value            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_orbital_mvelp**             | Override mean longitude of perihelion                    | Real               | < 0 uses computed value            |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_cons_lat**                  | Constant latitude for idealized cases                    | Real               | 39.809860                          |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_cons_lon**                  | Constant longitude for idealized cases                   | Real               | -98.555183                         |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.fixed_total_solar_irradiance**  | Fixed total solar irradiance (TOA)                       | Real               | < 0 disables                       |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.fixed_solar_zenith_angle**      | Fixed solar zenith (passed as ``mu0``)                   | Real               | <= 0 disables                      |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.co2vmr**                        | CO2 volume mixing ratio                                  | Real               | 388.717e-6                         |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.o3vmr**                         | O3 volume mixing ratio profile                           | Real or list       | From dataset if unset              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.n2ovmr**                        | N2O volume mixing ratio                                  | Real               | 323.141e-9                         |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.covmr**                         | CO volume mixing ratio                                   | Real               | 1.0e-7                             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.ch4vmr**                        | CH4 volume mixing ratio                                  | Real               | 1807.851e-9                        |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.o2vmr**                         | O2 volume mixing ratio                                   | Real               | 0.209448                           |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.n2vmr**                         | N2 volume mixing ratio                                   | Real               | 0.7906                             |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_do_aerosol**                | Enable aerosol forcing in radiation                      | Boolean            | true                               |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_extra_clnclrsky_diag**      | Extra clean and clear-sky diagnostics                    | Boolean            | false                              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_extra_clnsky_diag**         | Extra clean-sky diagnostics                              | Boolean            | false                              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rrtmgp_file_path**              | Path to RRTMGP data files                                | String             | "."                                |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rrtmgp_coeffs_sw**              | Shortwave k-distribution file                            | String             | rrtmgp-data-sw-g224-2018-12-04.nc  |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rrtmgp_coeffs_lw**              | Longwave k-distribution file                             | String             | rrtmgp-data-lw-g256-2018-12-04.nc  |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rrtmgp_cloud_optics_sw**        | Shortwave cloud optics file                              | String             | rrtmgp-cloud-optics-coeffs-sw.nc   |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rrtmgp_cloud_optics_lw**        | Longwave cloud optics file                               | String             | rrtmgp-cloud-optics-coeffs-lw.nc   |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.four_stream_radiation**         | use the four-stream radiation approximation              | Boolean            | false                              |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+
+.. _inputs-notes:
 
 Notes
 =====
@@ -2631,6 +3251,8 @@ netCDF "No such file or directory" error.
 .. note::
 
    Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`sec:building` for build instructions.
+
+.. _inputs-shoc:
 
 SHOC
 ======================
@@ -2769,6 +3391,83 @@ Native SHOC ``pblh`` is reported in metres above local ground (AGL).
 The old value ``erf.shoc.transport_mode = tendencies`` is no longer accepted.
 Use ``state_update`` instead.
 
+Native SHOC debugging controls
+------------------------------
+
+These controls also apply to ``erf.pbl_type = NATIVE_SHOC``.  They exist for
+debugging and for regression testing rather than for production runs; the
+``debug_disable_*`` switches in particular deliberately break the scheme, and
+are what the ``SHOC_Mutation_*`` tests in ``Tests/CTestList.cmake`` use to
+confirm that each state update actually changes the answer.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 44 46 16 14
+
+   * - Parameter
+     - Definition
+     - Acceptable Values
+     - Default
+   * - **erf.shoc.column_conservation_check**
+     - Check column-integrated conservation after each native SHOC advance
+     - true / false
+     - false
+   * - **erf.shoc.allow_tendency_microphysics_overlap**
+     - Permit native SHOC tendencies to be applied in the same step as the microphysics update
+     - true / false
+     - false
+   * - **erf.shoc.debug_bad_column**
+     - Detect and report columns whose tendencies or stratification exceed the thresholds below
+     - true / false
+     - false
+   * - **erf.shoc.debug_bad_column_abort**
+     - Abort when such a column is found, rather than only reporting it
+     - true / false
+     - true
+   * - **erf.shoc.debug_bad_column_max_reports**
+     - Maximum number of bad-column reports emitted; must be positive
+     - Integer > 0
+     - 8
+   * - **erf.shoc.debug_bad_column_theta_tend_threshold**
+     - Potential-temperature tendency above which a column is flagged; must be positive
+     - Real > 0
+     - 10.0
+   * - **erf.shoc.debug_bad_column_q_tend_threshold**
+     - Moisture tendency above which a column is flagged; must be positive
+     - Real > 0
+     - 1.0e-2
+   * - **erf.shoc.debug_bad_column_brunt_threshold**
+     - Brunt-Vaisala frequency above which a column is flagged; must be positive
+     - Real > 0
+     - 1.0
+   * - **erf.shoc.debug_bad_column_min_dz**
+     - Layer thickness [m] below which a column is flagged; must be positive
+     - Real > 0
+     - 1.0
+   * - **erf.shoc.debug_bad_column_scalar_moment_threshold**
+     - Scalar higher-moment magnitude above which a column is flagged; must be positive
+     - Real > 0
+     - 1.0e4
+   * - **erf.shoc.debug_disable_pdf_cloud_increment**
+     - Skip the PDF cloud increment. Debugging only
+     - true / false
+     - false
+   * - **erf.shoc.debug_disable_theta_state_update**
+     - Skip the potential-temperature state update. Debugging only
+     - true / false
+     - false
+   * - **erf.shoc.debug_disable_moisture_state_update**
+     - Skip the moisture state update. Debugging only
+     - true / false
+     - false
+   * - **erf.shoc.debug_disable_tke_state_update**
+     - Skip the TKE state update. Debugging only
+     - true / false
+     - false
+
+Each threshold is validated on read, and a non-positive value aborts the run
+with a message naming the input.
+
 EAMxx SHOC interface inputs
 ---------------------------
 
@@ -2832,6 +3531,8 @@ The corresponding runtime selection is:
    zlo.type = "surface_layer"
    erf.pbl_type = EAMXX_SHOC
 
+.. _inputs-runtime-error-checking:
+
 Runtime Error Checking
 ======================
 
@@ -2862,6 +3563,8 @@ List of Parameters
 | **amrex.fpe_trap_overflow** | Raise errors for overflow |  0 / 1            | 0          |
 +-----------------------------+---------------------------+-------------------+------------+
 
+.. _inputs-reproducibility:
+
 Reproducibility
 ===============
 
@@ -2880,33 +3583,102 @@ List of Parameters
 |                          | ``erf.fix_random_seed`` is 1  |                     |         |
 +--------------------------+-------------------------------+---------------------+---------+
 
+.. _inputs-embedded-boundary-eb-tuning:
+
 Embedded Boundary (EB) Tuning
 =============================
 
 List of Parameters
 ------------------
 
-+------------------------+-----------------------------------------+---------------------+-----------+
-| Parameter              | Definition                              | Acceptable Values   | Default   |
-+========================+=========================================+=====================+===========+
-| **eb2.small_volfrac**  | Volume-fraction threshold used          | Real > 0            | 1.0e-14   |
-|                        | to treat cells as effectively empty     |                     |           |
-+------------------------+-----------------------------------------+---------------------+-----------+
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                     | Definition                                               | Acceptable Values  | Default          |
++===============================+==========================================================+====================+==================+
+| **eb2.small_volfrac**         | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
+|                               | effectively empty                                        |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_boundary_type**      | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
+|                               |                                                          | NoSlipWall,        |                  |
+|                               |                                                          | SurfaceLayer       |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_x**  | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
+|                               | the embedded boundary; read only when                    |                    |                  |
+|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_y**  | apply the tangential-diffusion constraint on y-faces at  | Boolean            | false            |
+|                               | the embedded boundary; read only when                    |                    |                  |
+|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_z**  | apply the tangential-diffusion constraint on z-faces at  | Boolean            | false            |
+|                               | the embedded boundary; read only when                    |                    |                  |
+|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.geometry**              | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
+|                               | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_point**           | a point on the cutting plane.  Read only when            | 3 Reals            | 0.0 0.0 0.0      |
+|                               | ``eb2.geometry`` = ``plane``                             |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_normal**          | normal of the cutting plane, pointing into the solid     | 3 Reals            | 0.0 0.0 -1.0     |
+|                               | region.  Read only when ``eb2.geometry`` = ``plane``     |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_lo**                | low corner of the embedded box.  Read only when          | 3 Reals            | 0.0 0.0 0.0      |
+|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_hi**                | high corner of the embedded box.  Read only when         | 3 Reals            | 0.0 0.0 0.0      |
+|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
++-------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. _inputs-particles:
 
 Particles
 =========
 
+ERF carries two particle containers.  Tracer particles are configured with the
+inputs below; see :ref:`Particles` for worked examples.  The super-droplet
+container, used by ``erf.moisture_model = SuperDroplets``, has its own set of
+inputs under the ``super_droplets_moisture`` prefix, documented in
+:ref:`sec:SuperDroplets`.
+
 List of Parameters
 ------------------
 
-+--------------------------+------------------------------+---------------------+---------+
-| Parameter                | Definition                   | Acceptable Values   | Default |
-+==========================+==============================+=====================+=========+
-| **particles.disable_plt**| Disable particle plotfile    | Boolean             | false   |
-|                          | output                       |                     |         |
-+--------------------------+------------------------------+---------------------+---------+
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                                        | Definition                                               | Acceptable Values  | Default          |
++==================================================+==========================================================+====================+==================+
+| **particles.disable_plt**                        | Disable particle plotfile output                         | Boolean            | false            |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_tracer_particles**                     | create the tracer particle container                     | Boolean            | false            |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.initial_distribution_type**   | how the initial particle positions are chosen            | box, uniform       | box              |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.particle_box_lo**             | low corner of the region seeded with particles; read     | 3 Reals            | domain low       |
+|                                                  | only when ``initial_distribution_type`` = ``box``        |                    | corner           |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.particle_box_hi**             | high corner of that region; read only when               | 3 Reals            | domain high      |
+|                                                  | ``initial_distribution_type`` = ``box``                  |                    | corner           |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.place_randomly_in_cells**     | place the particles at random positions within each cell | Boolean            | false            |
+|                                                  | rather than at fixed offsets                             |                    |                  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.initial_particles_per_cell**  | number of particles created per cell                     | Integer > 0        | 1                |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.advect_with_flow**            | advect the particles with the resolved velocity field    | Boolean            | true             |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.advect_with_gravity**         | add a gravitational contribution to the particle motion  | Boolean            | false            |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.start_time**                  | simulation time [s] at which the particles are           | Real               | 0.0              |
+|                                                  | introduced                                               |                    |                  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.stable_redistribute**         | use the stable (order-preserving) particle               | Boolean            | false            |
+|                                                  | redistribution                                           |                    |                  |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **tracer_particles.verbose**                     | verbosity of the particle container                      | Integer >= 0       | 0                |
++--------------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:EnsembleInitialization:
+
+.. _inputs-ensemble-initialization:
 
 Ensemble Initialization
 =======================
@@ -2944,576 +3716,144 @@ List of Parameters
 Solver Options in ``SolverChoice``
 ==================================
 
-The parameters in this section are the complete set of inputs read by
-``SolverChoice`` in ``Source/DataStructs/ERF_DataStruct.H``, which holds most of
-the algorithmic and physics-selection options for a run.  Unless noted
-otherwise, every parameter below uses the ``erf.`` prefix.  Many of these
-parameters also appear in the topic-oriented sections above, and in the theory
-chapters, where their meaning is discussed in more detail; this section is
-intended as a single reference list.
+This section is an index, not a second set of definitions.  It lists the
+complete set of inputs read by ``SolverChoice`` in
+``Source/DataStructs/ERF_DataStruct.H``, which holds most of the algorithmic and
+physics-selection options for a run, grouped the way the code reads them.  Every
+parameter is defined exactly once, in the topic section linked beside it; follow
+the link for its acceptable values, default and meaning.  Unless noted
+otherwise, every parameter uses the ``erf.`` prefix.
+
+The one exception is :ref:`sec:DeprecatedInputs` at the end, which documents
+inputs that no longer exist and so have no topic section of their own.
 
 .. note::
 
-   Several of the parameters below may be specified either as a single value,
-   which is then used at every AMR level, or as a space-separated list with one
-   value per level, e.g. ``erf.anelastic = 1 0 0``.  These are identified as
-   "per-level" in the tables below.  For a list, the number of values given must
-   be at least ``amr.max_level + 1``.
+   Several of these parameters may be specified either as a single value, which
+   is then used at every AMR level, or as a space-separated list with one value
+   per level, e.g. ``erf.anelastic = 1 0 0``.  Their definitions are marked
+   "per-level".  For a list, the number of values given must be at least
+   ``amr.max_level + 1``.
 
 Equation Set
 ------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.anelastic**                              | if 1, solve the anelastic equations rather than the    | 0, 1                           | 0                      |
-|                                                | fully compressible equations (per-level).  Setting     |                                |                        |
-|                                                | this to 1 at a level also forces                       |                                |                        |
-|                                                | ``project_initial_velocity`` = 1, ``fixed_density`` =  |                                |                        |
-|                                                | 1, ``buoyancy_type`` = 3 and ``substepping_type`` =    |                                |                        |
-|                                                | None at that level                                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fixed_density**                          | if 1, hold the density fixed in time (per-level)       | 0, 1                           | 0 (1 if anelastic)     |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.project_initial_velocity**               | if 1, project the initial velocity field to make it    | 0, 1                           | 0 (1 if anelastic)     |
-|                                                | satisfy the anelastic constraint (per-level)           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.buoyancy_type**                          | which expression to use for the buoyancy term          | 1, 2, 3, 4                     | 1 (3 if anelastic)     |
-|                                                | (per-level); see :ref:`Buoyancy`                       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_gravity**                            | include the gravitational source term; primarily an    | Boolean                        | false                  |
-|                                                | option for unit testing.  Forced to true if            |                                |                        |
-|                                                | ``init_type`` is ``WRFInput`` or ``Metgrid``           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.c_p**                                    | specific heat at constant pressure for dry air         | Real > 0                       | 1004.5                 |
-|                                                | [J/(kg-K)]                                             |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.gradp_type**                             | which horizontal pressure gradient formulation to use  | 0, 1                           | 0                      |
-|                                                | with terrain-fitted coordinates: 0 for dp/dx with a    |                                |                        |
-|                                                | dp/dz correction, 1 for the gradient of the vertically |                                |                        |
-|                                                | interpolated pressure (Klemp 2011)                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_pert_pres_gradient**                 | if true, the lateral pressure gradient in the momentum | Boolean                        | true                   |
-|                                                | equation uses horizontal derivatives of the            |                                |                        |
-|                                                | perturbational pressure; if false, of the full         |                                |                        |
-|                                                | pressure                                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.transport_scalar**                       | transport the passive scalar component                 | Boolean                        | true                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_lagged_delta_rt**                    | use the lagged (rho*theta) increment in the fast       | Boolean                        | true                   |
-|                                                | integrator; may only be set to false when              |                                |                        |
-|                                                | ``terrain_type`` = ``MovingFittedMesh``                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.coupling_type**                          | how data is exchanged between AMR levels.  Forced to   | OneWay, TwoWay                 | TwoWay                 |
-|                                                | ``OneWay`` if some levels are anelastic and others     |                                |                        |
-|                                                | compressible                                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Coupling Type (Data Exchange) <inputs-coupling-type-data-exchange>` --
+  ``erf.coupling_type``
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
+* :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.anelastic``,
+  ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
+  ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+* :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 
 Acoustic Substepping and the Poisson Solve
 ------------------------------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.substepping_type**                       | acoustic substepping strategy for the compressible     | None, Implicit                 | Implicit               |
-|                                                | solver (per-level).  Forced to ``None`` at any level   |                                |                        |
-|                                                | where ``anelastic`` = 1                                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.substepping_diag**                       | print additional CFL diagnostics for the compressible  | Boolean                        | false                  |
-|                                                | solver with substepping                                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.beta_s**                                 | time off-centering coefficient used in the acoustic    | Real                           | 0.1                    |
-|                                                | substepping; positive values weight the update towards |                                |                        |
-|                                                | the new time                                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.force_stage1_single_substep**            | if 1, take a single substep in the first Runge-Kutta   | 0, 1                           | 1                      |
-|                                                | stage                                                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.ncorr**                                  | number of correction iterations in the projection      | Integer >= 1                   | 1                      |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.poisson_abstol**                         | absolute tolerance for the Poisson solve; raised to    | Real > 0                       | 1.e-8                  |
-|                                                | 1.e-6 in single precision builds                       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.poisson_reltol**                         | relative tolerance for the Poisson solve; raised to    | Real > 0                       | 1.e-8                  |
-|                                                | 1.e-6 in single precision builds                       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Numerical Stability <inputs-numerical-stability>` -- ``erf.beta_s``
+* :ref:`Time Step <inputs-time-step>` -- ``erf.force_stage1_single_substep``, ``erf.ncorr``,
+  ``erf.poisson_abstol``, ``erf.poisson_reltol``, ``erf.substepping_diag``,
+  ``erf.substepping_type``
 
 Initialization, Terrain and Vertical Mesh
 -----------------------------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.init_type**                              | source of the initial data; must be set.  See          | Input_Sounding, NCFile,        | must be set            |
-|                                                | :ref:`sec:Initialization`                              | WRFInput, Metgrid, Uniform,    |                        |
-|                                                |                                                        | ConstantDensity,               |                        |
-|                                                |                                                        | ConstantDensityLinearTheta,    |                        |
-|                                                |                                                        | Isentropic, MoistBaseState,    |                        |
-|                                                |                                                        | HindCast                       |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.sounding_type**                          | how the profiles in an input sounding file are         | ConstantDensity, Ideal,        | Ideal                  |
-|                                                | interpreted; read only when ``init_type`` =            | Isentropic, DryIsentropic      |                        |
-|                                                | ``Input_Sounding``                                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nc_bdy_file**                            | name of the NetCDF (``wrfbdy``) lateral boundary file; | String                         | None                   |
-|                                                | read only when ``init_type`` = ``WRFInput``.  If not   |                                |                        |
-|                                                | given, ``use_real_bcs`` is set to false                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_real_bcs**                           | use the real-data lateral boundary conditions from the | Boolean                        | set by ``init_type``   |
-|                                                | boundary file.  Defaults to true when ``init_type`` is |                                |                        |
-|                                                | ``WRFInput`` or ``Metgrid``, false otherwise, and may  |                                |                        |
-|                                                | only be used to turn the real boundary conditions off  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.terrain_type**                           | how terrain and immersed boundaries are represented.   | None, StaticFittedMesh,        | None                   |
-|                                                | Only ``StaticFittedMesh`` is allowed with              | MovingFittedMesh, EB,          |                        |
-|                                                | ``init_type`` = ``WRFInput`` or ``Metgrid``            | ImmersedForcing                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.buildings_type**                         | how buildings are represented; see :ref:`Forcings`     | None, ImmersedForcing          | None                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.grid_stretching_ratio**                  | ratio by which each vertical cell size is increased    | 0 or Real >= 1                 | 0 (no stretching)      |
-|                                                | relative to the one below it.  If set, the mesh type   |                                |                        |
-|                                                | becomes ``StretchedDz`` and ``erf.initial_dz`` must    |                                |                        |
-|                                                | also be given                                          |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.zsurface**                               | nominal surface height used when generating a          | Real                           | 0.0                    |
-|                                                | stretched vertical mesh; read only when                |                                |                        |
-|                                                | ``grid_stretching_ratio`` >= 1                         |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.initial_dz**                             | vertical cell size of the lowest cell when generating  | Real > 0                       | must be set            |
-|                                                | a stretched vertical mesh; required when               |                                |                        |
-|                                                | ``grid_stretching_ratio`` >= 1                         |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.terrain_z_levels**                       | explicit list of nominal (terrain-free) staggered z    | List of Reals                  | None                   |
-|                                                | levels; specifying these makes the mesh type           |                                |                        |
-|                                                | ``StretchedDz``.  See :ref:`sec:Meshing`               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.avg_grid_faces_to_nodes**                | average the ``wrfinput`` / ``met_em`` heights onto the | Boolean                        | false                  |
-|                                                | nodes rather than reconstructing nodal heights whose   |                                |                        |
-|                                                | four-node average reproduces them                      |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rebalance_wrf_input**                    | rebalance (hydrostatically re-integrate) the state     | Boolean                        | true                   |
-|                                                | read from ``wrfinput`` and ``wrfbdy``.  Forced to true |                                |                        |
-|                                                | if ``avg_grid_faces_to_nodes`` is false                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Grid Stretching <inputs-grid-stretching>` -- ``erf.grid_stretching_ratio``,
+  ``erf.initial_dz``, ``erf.terrain_z_levels``, ``erf.zsurface``
+* :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
+  ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
+  ``erf.sounding_type``, ``erf.use_real_bcs``
+* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.terrain_type``
 
 Physics Model Selection
 -----------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.moisture_model**                         | which moisture / microphysics model to use             | None, SatAdj, Kessler,         | None                   |
-|                                                |                                                        | Kessler_NoRain, SAM,           |                        |
-|                                                |                                                        | SAM_NoIce, SAM_NoPrecip_NoIce, |                        |
-|                                                |                                                        | Morrison, Morrison_NoIce,      |                        |
-|                                                |                                                        | WSM6, WDM6, SuperDroplets,     |                        |
-|                                                |                                                        | MoistNoCondensation            |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.moisture_tight_coupling**                | tightly couple the moisture update to the dynamics;    | Boolean                        | false                  |
-|                                                | read only when a moisture model is active              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.land_surface_model**                     | which land surface model to use                        | None, SLM, NOAHMP              | None                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_coupled_sst**                        | an external ocean coupler supplies the sea surface     | Boolean                        | false                  |
-|                                                | temperature for some or all water cells; this must be  |                                |                        |
-|                                                | set at problem definition time because the surface     |                                |                        |
-|                                                | layer uses it to select its temperature boundary       |                                |                        |
-|                                                | treatment                                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.is_land**                                | whether each AMR level is treated as land (1) or water | 0, 1                           | 1                      |
-|                                                | (0) (per-level)                                        |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.radiation_model**                        | which radiation model to use; ``RRTMGP`` requires that | None, RRTMGP, Simple           | None                   |
-|                                                | ERF was built with RRTMGP enabled                      |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.four_stream_radiation**                  | use the four-stream radiation approximation            | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Land Surface Model <inputs-land-surface-model>` -- ``erf.is_land``,
+  ``erf.land_surface_model``
+* :ref:`Moisture <inputs-moisture>` -- ``erf.moisture_model``,
+  ``erf.moisture_tight_coupling``
+* :ref:`Ocean Surface Model <inputs-ocean-surface-model>` -- ``erf.use_coupled_sst``
+* :ref:`Radiation <inputs-radiation>` -- ``erf.four_stream_radiation``,
+  ``erf.radiation_model``
 
 Implicit Vertical Diffusion
 ---------------------------
 
-These parameters control the time-centering of the vertical differences in the
-diffusive terms.  The implicit solve is turned off automatically if there is no
-molecular or turbulent diffusion, if the level is anelastic, if ``terrain_type``
-= ``EB``, or if the active PBL scheme owns *all* of the vertical diffusion
-itself.  That last case covers ``erf.pbl_type = EAMXX_SHOC`` (which always owns
-both scalar and momentum diffusion) and ``erf.pbl_type = NATIVE_SHOC`` when
-``erf.shoc.transport_mode = state_update`` *and*
-``erf.shoc.momentum_transport`` is ``state_update`` or ``none``.
-
-When a SHOC-family scheme is active, the ``erf.implicit_*_diffusion`` flags are
-additionally restricted to the components that SHOC hands back to the host:
-``erf.shoc.momentum_transport = host_diffusion`` (the native default) keeps
-``erf.implicit_momentum_diffusion``, and ``erf.shoc.transport_mode =
-host_diffusion`` keeps ``erf.implicit_thermal_diffusion``,
-``erf.implicit_moisture_diffusion``, and ``erf.implicit_ke_diffusion``.
-Requesting a component that SHOC owns is ignored, with a message in the run
-log.  ``erf.vert_implicit`` and ``erf.vert_implicit_fac`` are always honored,
-so the solve can still be disabled entirely from the inputs file.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.vert_implicit**                          | if false, turn off the vertical implicit solve at all  | Boolean                        | true                   |
-|                                                | levels                                                 |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.vert_implicit_fac**                      | time-centering factor for the vertical diffusive       | 1 or 3 Reals in [0,1]          | 1.0 1.0 0.0            |
-|                                                | terms, where 0 is fully explicit and 1 is fully        |                                |                        |
-|                                                | implicit.  Specify either one value used in all        |                                |                        |
-|                                                | Runge-Kutta stages, or three values, one per stage     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.implicit_thermal_diffusion**             | include the implicit contribution to vertical thermal  | Boolean                        | true                   |
-|                                                | diffusion                                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.implicit_moisture_diffusion**            | include the implicit contribution to vertical moisture | Boolean                        | true                   |
-|                                                | diffusion                                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.implicit_ke_diffusion**                  | include the implicit contribution to vertical          | Boolean                        | true                   |
-|                                                | turbulent kinetic energy diffusion                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.implicit_momentum_diffusion**            | include the implicit contributions in tau13 and tau23  | Boolean                        | true                   |
-|                                                | (and tau33 if built with ``ERF_IMPLICIT_W``) used to   |                                |                        |
-|                                                | correct the momenta                                    |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.implicit_before_substep**                | if true, the vertical implicit diffusive solve is done | Boolean                        | true                   |
-|                                                | before the acoustic substepping rather than after.     |                                |                        |
-|                                                | Forced to true if any level has ``substepping_type`` = |                                |                        |
-|                                                | ``None``                                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Diffusive Physics <inputs-diffusive-physics>` -- ``erf.implicit_before_substep``
+* :ref:`Time Step <inputs-time-step>` -- ``erf.implicit_ke_diffusion``,
+  ``erf.implicit_moisture_diffusion``, ``erf.implicit_momentum_diffusion``,
+  ``erf.implicit_thermal_diffusion``, ``erf.vert_implicit``, ``erf.vert_implicit_fac``
 
 Coriolis and Large-Scale ABL Forcing
 ------------------------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.use_coriolis**                           | include the Coriolis forcing                           | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.coriolis_3d**                            | include the vertical (cosine of latitude) Coriolis     | Boolean                        | true                   |
-|                                                | terms in addition to the traditional terms             |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.variable_coriolis**                      | allow the Coriolis frequency to vary spatially rather  | Boolean                        | false                  |
-|                                                | than using a single latitude                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rotational_time_period**                 | rotational period of the planet [s], used to form the  | Real > 0                       | 86400.0                |
-|                                                | Coriolis factor; read only if ``use_coriolis`` is true |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.latitude**                               | latitude [degrees] at which the constant-latitude      | Real                           | 90.0                   |
-|                                                | Coriolis frequency is evaluated; read only if          |                                |                        |
-|                                                | ``use_coriolis`` is true                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.abl_driver_type**                        | type of large-scale forcing used to drive the boundary | None, PressureGradient,        | None                   |
-|                                                | layer                                                  | GeostrophicWind                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.abl_pressure_grad**                      | imposed horizontal pressure gradient vector, used when | 3 Reals                        | 0.0 0.0 0.0            |
-|                                                | ``abl_driver_type`` = ``PressureGradient``             |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.abl_geo_forcing**                        | geostrophic forcing vector applied directly, rather    | 3 Reals                        | 0.0 0.0 0.0            |
-|                                                | than being computed from a geostrophic wind            |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.abl_geo_wind**                           | geostrophic wind vector from which the geostrophic     | 3 Reals                        | 0.0 0.0 0.0            |
-|                                                | forcing is computed; read only when ``use_coriolis``   |                                |                        |
-|                                                | is true and ``abl_driver_type`` = ``GeostrophicWind``, |                                |                        |
-|                                                | and ignored if ``abl_geo_wind_table`` is given         |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.abl_geo_wind_table**                     | file containing a height-varying geostrophic wind      | String                         | None                   |
-|                                                | profile; may not be combined with                      |                                |                        |
-|                                                | ``add_custom_geostrophic_profile``                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.const_massflux_u**                       | target mass flux in the x direction; requires periodic | Real                           | 0.0 (not used)         |
-|                                                | boundaries in x                                        |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.const_massflux_v**                       | target mass flux in the y direction; requires periodic | Real                           | 0.0 (not used)         |
-|                                                | boundaries in y                                        |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.const_massflux_tau**                     | relaxation time scale used by the constant-mass-flux   | Real > 0                       | 1.0                    |
-|                                                | forcing                                                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.const_massflux_layer_lo**                | height of the bottom of the layer over which the       | Real                           | bottom of domain       |
-|                                                | constant mass flux is enforced                         |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.const_massflux_layer_hi**                | height of the top of the layer over which the constant | Real                           | top of domain          |
-|                                                | mass flux is enforced                                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.abl_driver_type``,
+  ``erf.abl_geo_forcing``, ``erf.abl_geo_wind``, ``erf.abl_geo_wind_table``,
+  ``erf.abl_pressure_grad``, ``erf.const_massflux_layer_hi``,
+  ``erf.const_massflux_layer_lo``, ``erf.const_massflux_tau``, ``erf.const_massflux_u``,
+  ``erf.const_massflux_v``, ``erf.coriolis_3d``, ``erf.latitude``,
+  ``erf.rotational_time_period``, ``erf.use_coriolis``, ``erf.variable_coriolis``
 
 Custom, Nudging and Numerical Diffusion Forcing
 -----------------------------------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.add_custom_rhotheta_forcing**            | add the problem-specific (rho*theta) source term       | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.add_custom_moisture_forcing**            | add the problem-specific moisture source term          | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.add_custom_w_subsidence**                | add the problem-specific vertical subsidence velocity  | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.add_do_theta_advection**                 | apply the custom subsidence to the (rho*theta)         | Boolean                        | true                   |
-|                                                | equation; only used with ``add_custom_w_subsidence``   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.add_do_mom_advection**                   | apply the custom subsidence to the momentum equations; | Boolean                        | true                   |
-|                                                | only used with ``add_custom_w_subsidence``             |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.add_custom_geostrophic_profile**         | use the problem-specific height-varying geostrophic    | Boolean                        | false                  |
-|                                                | wind profile; may not be combined with                 |                                |                        |
-|                                                | ``abl_geo_wind_table``                                 |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.custom_forcing_uses_primitive_vars**     | interpret the custom forcing terms as sources for the  | Boolean                        | false                  |
-|                                                | primitive variables rather than the conserved          |                                |                        |
-|                                                | variables                                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.spatial_rhotheta_forcing**               | the custom (rho*theta) forcing varies horizontally as  | Boolean                        | false                  |
-|                                                | well as vertically                                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.spatial_moisture_forcing**               | the custom moisture forcing varies horizontally as     | Boolean                        | false                  |
-|                                                | well as vertically                                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_from_input_sounding**            | nudge the solution towards the time-varying profiles   | Boolean                        | false                  |
-|                                                | given in the input sounding files                      |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_q_z1**                           | height below which moisture is not nudged              | Real                           | 0.0                    |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_q_z2**                           | height above which moisture is not nudged              | Real                           | 10000.0                |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_u_z1**                           | height below which u,v are not nudged                  | Real                           | -1.0e36                |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_u_z2**                           | height above which u,v are not nudged                  | Real                           | 1.0e36                 |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_t_z1**                           | height below which temperature is not nudged           | Real                           | 0.0                    |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_t_z2**                           | height above which temperature is not nudged           | Real                           | 10000.0                |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_u**                              | nudge u,v towards the sounding (takes effect only      | Boolean                        | true                   |
-|                                                | when ``nudging_from_input_sounding`` is true; does     |                                |                        |
-|                                                | not affect LSF-based wind nudging, see                 |                                |                        |
-|                                                | ``large_scale_forcing``)                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_t**                              | nudge potential temperature towards the sounding       | Boolean                        | true                   |
-|                                                | (takes effect only when ``nudging_from_input_sounding``|                                |                        |
-|                                                | is true)                                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.nudging_q**                              | nudge water vapor towards the sounding (takes          | Boolean                        | true                   |
-|                                                | effect only when ``nudging_from_input_sounding``       |                                |                        |
-|                                                | is true)                                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.large_scale_forcing**                    | apply the large-scale forcing read from a forcing file | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.num_diff_coeff**                         | coefficient of the sixth-order numerical diffusion; 0  | Real in [0,1]                  | 0.0                    |
-|                                                | turns it off                                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Diffusive Physics <inputs-diffusive-physics>` -- ``erf.num_diff_coeff``
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.add_custom_geostrophic_profile``,
+  ``erf.add_custom_moisture_forcing``, ``erf.add_custom_rhotheta_forcing``,
+  ``erf.add_custom_w_subsidence``, ``erf.add_do_mom_advection``,
+  ``erf.add_do_theta_advection``, ``erf.custom_forcing_uses_primitive_vars``,
+  ``erf.large_scale_forcing``, ``erf.nudging_from_input_sounding``, ``erf.nudging_q``,
+  ``erf.nudging_q_z1``, ``erf.nudging_q_z2``, ``erf.nudging_t``, ``erf.nudging_t_z1``,
+  ``erf.nudging_t_z2``, ``erf.nudging_u``, ``erf.nudging_u_z1``, ``erf.nudging_u_z2``,
+  ``erf.spatial_moisture_forcing``, ``erf.spatial_rhotheta_forcing``
 
 Immersed Forcing and Canopy Source Terms
 ----------------------------------------
 
-See :ref:`Forcings` for the formulation of the immersed forcing terms and for
-guidance on choosing the drag coefficients, which have different defaults for
-the compressible and anelastic solvers.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.immersed_forcing_substep**               | apply the immersed forcing source terms during the     | Boolean                        | true if compressible,  |
-|                                                | acoustic substeps only                                 |                                | false if anelastic     |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.forest_substep**                         | apply the forest canopy source terms during the        | Boolean                        | false                  |
-|                                                | acoustic substeps only                                 |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_Cd_momentum**                         | immersed forcing drag coefficient for momentum         | Real > 0                       | 500.0 if compressible, |
-|                                                |                                                        |                                | 50.0 if anelastic      |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_Cd_scalar**                           | immersed forcing drag coefficient for scalars          | Real > 0                       | 50.0 if compressible,  |
-|                                                |                                                        |                                | 5.0 if anelastic       |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_implicit_drag**                       | use a point-implicit (linearly implicit) form of the   | Boolean                        | false                  |
-|                                                | immersed forcing drag rather than an explicit          |                                |                        |
-|                                                | forward-Euler source                                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_z0**                                  | roughness length [m] used by the immersed forcing wall | Real > 0                       | 0.1                    |
-|                                                | model                                                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_surf_temp_flux**                      | surface temperature flux [K m/s] imposed at immersed   | Real                           | 1.e-8                  |
-|                                                | surfaces; only one of ``if_surf_temp_flux``,           |                                |                        |
-|                                                | ``if_init_surf_temp`` and ``if_Olen`` may be set       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_init_surf_temp**                      | surface temperature [K] imposed at immersed surfaces;  | Real                           | 0.0                    |
-|                                                | only one of ``if_surf_temp_flux``,                     |                                |                        |
-|                                                | ``if_init_surf_temp`` and ``if_Olen`` may be set       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_surf_heating_rate**                   | rate of change [K/hr] of the immersed surface          | Real                           | 0.0                    |
-|                                                | temperature (converted internally to K/s)              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_Olen**                                | Obukhov length [m] imposed at immersed surfaces; only  | Real                           | 1.e-8                  |
-|                                                | one of ``if_surf_temp_flux``, ``if_init_surf_temp``    |                                |                        |
-|                                                | and ``if_Olen`` may be set                             |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_use_most**                            | use the Monin-Obukhov similarity theory wall model at  | Boolean                        | false                  |
-|                                                | immersed surfaces                                      |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_stability_correction**                | include the stability corrections in the immersed      | Boolean                        | false                  |
-|                                                | forcing similarity functions; use with caution for     |                                |                        |
-|                                                | horizontal walls                                       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_ws_floor**                            | lower bound [m/s] on the wind speed used by the        | Real > 0                       | 0.001                  |
-|                                                | immersed forcing wall model                            |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.if_damp_alpha**                          | damping coefficient used in the immersed forcing wall  | Real                           | 0.5                    |
-|                                                | model                                                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_rotate_surface_flux**                | rotate the MOST surface stresses to be normal to the   | Boolean                        | false                  |
-|                                                | terrain surface; requires that terrain be used         |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forest Canopy <inputs-forest-canopy>` -- ``erf.forest_substep``
+* :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
+  ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
+  ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
+  ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
+  ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 
 Lateral Boundary Nudging for Real-Data Runs
 -------------------------------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.bdy_nudge_factor**                       | strength of the Davies relaxation in the lateral       | Real > 0                       | 10.0                   |
-|                                                | boundary region; the nudging rate is                   |                                |                        |
-|                                                | 1/(``bdy_nudge_factor`` * dt)                          |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.bdy_rho_nudge_factor**                   | Davies factor used for density specifically; a         | Real                           | -1.0 (use              |
-|                                                | non-positive value means ``bdy_nudge_factor`` is used  |                                | ``bdy_nudge_factor``)  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_wrf_bdy_density**                    | use the dry-air density reconstructed from the         | Boolean                        | true                   |
-|                                                | ``wrfbdy`` data.  Ignored (set to false) unless real   |                                |                        |
-|                                                | boundary conditions are used with ``init_type`` =      |                                |                        |
-|                                                | ``WRFInput``                                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.use_wrf_bdy_qc_qi**                      | ingest cloud water and cloud ice from ``wrfinput`` and | Boolean                        | false                  |
-|                                                | ``wrfbdy``; requires an active moisture model and real |                                |                        |
-|                                                | boundary conditions with ``init_type`` = ``WRFInput``  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.bdy_moist_nudge_type**                   | which approach is used to nudge the moist variables in | 0, 1, 2, 3                     | 1                      |
-|                                                | the boundary region; 3 requires ``use_wrf_bdy_qc_qi``  |                                |                        |
-|                                                | = true                                                 |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.bdy_moist_nudge_type``,
+  ``erf.bdy_nudge_factor``, ``erf.bdy_rho_nudge_factor``, ``erf.use_wrf_bdy_density``,
+  ``erf.use_wrf_bdy_qc_qi``
 
 Inflow Perturbation
 -------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.perturbation_type**                      | type of inflow turbulence generation used at a level   | None, Source, Direct, CPM,     | None                   |
-|                                                | (per-level).  See                                      | CPM_W                          |                        |
-|                                                | :ref:`sec:InflowTurbulenceGeneration`                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-
-.. _sec:WindFarmModelInputs:
+* :ref:`Domain Boundary Conditions <inputs-domain-boundary-conditions>` --
+  ``erf.perturbation_type``
 
 Wind Farm Models
 ----------------
 
-See :ref:`sec:WindFarmModels` for a description of the wind farm
-parametrizations and the format of the tables below.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.windfarm_type**                          | which wind farm parametrization to use                 | None, Fitch, EWP, SimpleAD,    | None                   |
-|                                                |                                                        | GeneralAD                      |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_loc_type**                      | coordinate system in which the turbine locations are   | None, lat_lon, x_y             | None                   |
-|                                                | given                                                  |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_loc_table**                     | file listing the turbine locations                     | String                         | None                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_spec_table**                    | file containing the turbine specifications             | String                         | None                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_spec_table_extra**              | file containing additional turbine specifications      | String                         | None                   |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_blade_table**                   | file containing the blade geometry, used by the        | String                         | None                   |
-|                                                | generalized actuator disk                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_airfoil_tables**                | directory containing the airfoil tables, used by the   | String                         | None                   |
-|                                                | generalized actuator disk                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.sampling_distance_by_D**                 | distance upstream of the turbine, as a multiple of the | Real > 0                       | -1.0 (must be set)     |
-|                                                | rotor diameter, at which the incoming free stream      |                                |                        |
-|                                                | velocity is sampled; required with ``windfarm_type`` = |                                |                        |
-|                                                | ``SimpleAD``                                           |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.turb_disk_angle_from_x**                 | angle [degrees] of the face of the turbine disk from   | Real > 0                       | -1.0 (must be set)     |
-|                                                | the x axis; a turbine facing flow in the x direction   |                                |                        |
-|                                                | has a value of 90.  Required with ``windfarm_type`` =  |                                |                        |
-|                                                | ``SimpleAD`` or ``GeneralAD``                          |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_x_shift**                       | distance by which the bounding box of the wind farm is | Real > 0                       | -1.0 (must be set)     |
-|                                                | shifted from the x axis; required with                 |                                |                        |
-|                                                | ``windfarm_loc_type`` = ``lat_lon``                    |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.windfarm_y_shift**                       | distance by which the bounding box of the wind farm is | Real > 0                       | -1.0 (must be set)     |
-|                                                | shifted from the y axis; required with                 |                                |                        |
-|                                                | ``windfarm_loc_type`` = ``lat_lon``                    |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.sampling_distance_by_D``,
+  ``erf.turb_disk_angle_from_x``, ``erf.windfarm_airfoil_tables``,
+  ``erf.windfarm_blade_table``, ``erf.windfarm_loc_table``, ``erf.windfarm_loc_type``,
+  ``erf.windfarm_spec_table``, ``erf.windfarm_spec_table_extra``, ``erf.windfarm_type``,
+  ``erf.windfarm_x_shift``, ``erf.windfarm_y_shift``
 
 Hindcast Forcing and Hurricane Tracking
 ---------------------------------------
 
-See :ref:`sec:HindCast` for a description of the hindcast forcing capability
-and the expected format of the boundary and surface data.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.hindcast_lateral_forcing**               | drive the lateral boundaries from hindcast data        | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_boundary_data_dir**             | directory containing the hindcast lateral boundary     | String                         | None (must be set)     |
-|                                                | data; required if ``hindcast_lateral_forcing`` is true |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_data_interval_in_hrs**          | time interval [hr] between successive hindcast data    | Real > 0                       | -1.0 (must be set)     |
-|                                                | files; required if ``hindcast_lateral_forcing`` is     |                                |                        |
-|                                                | true                                                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_lateral_sponge_strength**       | strength of the lateral sponge used with hindcast      | Real > 0                       | -1.0 (must be set)     |
-|                                                | forcing; required if ``hindcast_lateral_forcing`` is   |                                |                        |
-|                                                | true                                                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_lateral_sponge_length**         | width of the lateral sponge region used with hindcast  | Real > 0                       | -1.0 (must be set)     |
-|                                                | forcing; required if ``hindcast_lateral_forcing`` is   |                                |                        |
-|                                                | true                                                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_zhi_sponge_damping**            | apply sponge damping near the upper boundary with      | Boolean                        | false                  |
-|                                                | hindcast forcing                                       |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_zhi_sponge_length**             | depth of the upper sponge region; required if          | Real > 0                       | -1.0 (must be set)     |
-|                                                | ``hindcast_zhi_sponge_damping`` is true                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_zhi_sponge_strength**           | strength of the upper sponge; required if              | Real > 0                       | -1.0 (must be set)     |
-|                                                | ``hindcast_zhi_sponge_damping`` is true                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_surface_bcs**                   | set the surface boundary conditions from hindcast data | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hindcast_surface_data_dir**              | directory containing the hindcast surface data; read   | String                         | None                   |
-|                                                | only if ``hindcast_surface_bcs`` is true               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.io_hurricane_eye_tracker**               | write out files tracking the eye of a hurricane        | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hurricane_eye_latitude**                 | approximate latitude of the hurricane eye in the       | Real                           | must be set            |
-|                                                | initial condition; required if                         |                                |                        |
-|                                                | ``io_hurricane_eye_tracker`` is true                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.hurricane_eye_longitude**                | approximate longitude of the hurricane eye in the      | Real                           | must be set            |
-|                                                | initial condition; required if                         |                                |                        |
-|                                                | ``io_hurricane_eye_tracker`` is true                   |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.hindcast_boundary_data_dir``,
+  ``erf.hindcast_data_interval_in_hrs``, ``erf.hindcast_lateral_forcing``,
+  ``erf.hindcast_lateral_sponge_length``, ``erf.hindcast_lateral_sponge_strength``,
+  ``erf.hindcast_surface_bcs``, ``erf.hindcast_surface_data_dir``,
+  ``erf.hindcast_zhi_sponge_damping``, ``erf.hindcast_zhi_sponge_length``,
+  ``erf.hindcast_zhi_sponge_strength``, ``erf.hurricane_eye_latitude``,
+  ``erf.hurricane_eye_longitude``, ``erf.io_hurricane_eye_tracker``
 
 Diagnostics and Testing
 -----------------------
 
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.Ave_Plane**                              | index of the direction normal to the planes used when  | 0, 1, 2                        | 2                      |
-|                                                | computing horizontal averages                          |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.time_avg_vel**                           | accumulate and output time-averaged velocity fields    | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.test_mapfactor**                         | set the map scale factors to 0.5 instead of 1 for      | Boolean                        | false                  |
-|                                                | testing; see :ref:`sec:MapFactors`                     |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Diagnostic Outputs <inputs-diagnostic-outputs>` -- ``erf.Ave_Plane``,
+  ``erf.test_mapfactor``, ``erf.time_avg_vel``
 
 Ensemble Initialization
 -----------------------
@@ -3521,6 +3861,8 @@ Ensemble Initialization
 ``erf.is_init_for_ensemble`` is read here, and when it is true the remaining
 ``ensemble.*`` parameters listed in :ref:`sec:EnsembleInitialization` are read
 as well.
+
+.. _sec:DeprecatedInputs:
 
 Deprecated and Removed Inputs
 -----------------------------
@@ -3554,68 +3896,21 @@ ignoring them.
 Damping Options in ``DampingChoice``
 ====================================
 
-The parameters in this section are the complete set of inputs read by
-``DampingChoice`` in ``Source/DataStructs/ERF_DampingStruct.H``, which holds the
-Rayleigh damping and vertical-velocity damping options.  All of them use the
-``erf.`` prefix.
+This section is an index, not a second set of definitions.  It lists the
+complete set of inputs read by ``DampingChoice`` in
+``Source/DataStructs/ERF_DampingStruct.H``, which holds the Rayleigh damping and
+vertical-velocity damping options.  Each is defined in the topic section linked
+beside it.  All of them use the ``erf.`` prefix.
 
 Rayleigh Damping
 ----------------
 
-Rayleigh damping relaxes the solution towards a reference state within a layer
-of depth ``erf.rayleigh_zdamp`` below the model top, using a sine-squared ramp
-that is zero at the bottom of that layer.  It is off unless at least one of the
-``erf.rayleigh_damp_*`` flags is set.  See :ref:`Forcings` for the form of the
-damping terms.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.rayleigh_damping_type**                  | how the Rayleigh damping terms are integrated in time: | SlowExplicit, FastExplicit,    | SlowExplicit           |
-|                                                | ``SlowExplicit`` applies them explicitly in the slow   | FastImplicit                   |                        |
-|                                                | (Runge-Kutta) update, while ``FastExplicit`` and       |                                |                        |
-|                                                | ``FastImplicit`` apply them explicitly or implicitly   |                                |                        |
-|                                                | within the acoustic substeps.  Case sensitive; an      |                                |                        |
-|                                                | unrecognized value aborts                              |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_damp_U**                        | apply Rayleigh damping in the x-momentum equation      | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_damp_V**                        | apply Rayleigh damping in the y-momentum equation      | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_damp_W**                        | apply Rayleigh damping in the z-momentum equation      | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_damp_T**                        | apply Rayleigh damping in the potential temperature    | Boolean                        | false                  |
-|                                                | equation                                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_dampcoef**                      | inverse damping time scale [1/s] multiplying the       | Real > 0                       | 0.2                    |
-|                                                | vertical damping weight                                |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.rayleigh_zdamp**                         | depth [m] of the damping layer below the model top     | Real > 0                       | 500.0                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.rayleigh_damp_T``,
+  ``erf.rayleigh_damp_U``, ``erf.rayleigh_damp_V``, ``erf.rayleigh_damp_W``,
+  ``erf.rayleigh_dampcoef``, ``erf.rayleigh_damping_type``, ``erf.rayleigh_zdamp``
 
 Vertical-Velocity Damping
 -------------------------
 
-Vertical-velocity damping adds a source term that opposes vertical motion
-wherever the vertical advective Courant number exceeds ``erf.w_damping_cfl``.
-If ``erf.w_damping`` is true, at least one of ``erf.w_damping_const`` or
-``erf.w_damping_coeff`` must be given a positive value, otherwise the run
-aborts; if both are positive, ``erf.w_damping_const`` is used.  See
-:ref:`sec:NumericalStability` for the two damping formulations.
-
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| Parameter                                      | Definition                                             | Acceptable Values              | Default                |
-+================================================+========================================================+================================+========================+
-| **erf.w_damping**                              | enable vertical-velocity damping                       | Boolean                        | false                  |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.w_damping_cfl**                          | critical vertical advective Courant number above which | Real > 0                       | 1.0                    |
-|                                                | the damping is applied                                 |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.w_damping_const**                        | constant damping coefficient [m/s^2], as used by WRF   | Real                           | -1.0 (not used)        |
-|                                                | (which uses 0.3); a positive value selects this        |                                |                        |
-|                                                | formulation                                            |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
-| **erf.w_damping_coeff**                        | dimensionless damping factor giving a grid-dependent   | Real                           | -1.0 (not used)        |
-|                                                | coefficient proportional to dz/dt^2; a positive value  |                                |                        |
-|                                                | selects this formulation                               |                                |                        |
-+------------------------------------------------+--------------------------------------------------------+--------------------------------+------------------------+
+* :ref:`Numerical Stability <inputs-numerical-stability>` -- ``erf.w_damping``,
+  ``erf.w_damping_cfl``, ``erf.w_damping_coeff``, ``erf.w_damping_const``

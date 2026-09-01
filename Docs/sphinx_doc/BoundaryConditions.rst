@@ -204,6 +204,15 @@ Couette regression test example, in which we specify
     zlo.velocity    = 0.0 0.0 0.0
     zhi.velocity    = 2.0 0.0 0.0
 
+Density may be prescribed at a solid wall in the same two ways as potential
+temperature: ``<face>.density`` sets a Dirichlet value and ``<face>.density_grad``
+sets a Neumann gradient.  Only one of the two may be given on a face, and neither
+is accepted for an anelastic run, where the density is not a free variable.
+
+For a ``noslipwall`` face in a simulation with an active moisture model, the
+water-vapor mixing ratio may likewise be prescribed with ``<face>.qv``.  It is
+not read for ``slipwall`` faces.
+
 We also note that in the case of a ``slipwall`` boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
