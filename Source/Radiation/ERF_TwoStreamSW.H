@@ -196,7 +196,13 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
  *   F_diff_base = omega * (F_dir_top - F_dir_top * Tdir) * (gamma3 + gamma4) / 2
  *                 + F_dir_top * Tdir * R_diff * gamma3
  *
- * which reduces to the physically-required limits:
+ * The code below computes gamma3 and gamma4 explicitly and evaluates
+ * (gamma3 + gamma4) / 2 directly (rather than assuming the algebraic
+ * identity gamma3 + gamma4 == 1 and hard-coding 0.5), so that the
+ * implementation stays literally consistent with the formula above and
+ * with the Meador-Weaver gamma definitions.
+ *
+ * This reduces to the physically-required limits:
  *   - omega == 0  => F_diff_base == 0 exactly (pure direct-beam)
  *   - omega -> 1, g -> 1 (strong forward scattering) => most of the
  *     scattered energy remains in the forward (downward) direction
@@ -277,12 +283,16 @@ compute_sw_diffuse_flux(amrex::Real tau, amrex::Real F_dir_top,
 
   // Single-scattering source of diffuse flux at the layer base: energy
   // scattered from the direct beam as it passes through the layer,
-  // partitioned into the downward hemisphere via (gamma3+gamma4)/2 = 0.5
-  // (by construction gamma3+gamma4=1, so this reduces to a factor of 0.5,
-  // i.e. symmetric single-scattering source), plus additional downward
-  // diffuse flux from the direct beam that reached the layer base being
-  // partially backscattered by the layer's own diffuse reflectance.
-  amrex::Real F_diff_base = w0 * F_dir_attenuated * 0.5
+  // partitioned into the downward hemisphere via (gamma3+gamma4)/2
+  // (evaluated explicitly here from gamma3/gamma4 rather than assumed
+  // to be a hard-coded 0.5, keeping the code literally consistent with
+  // the Meador-Weaver formula documented above; algebraically
+  // gamma3+gamma4 == 1, so this still numerically reduces to a factor
+  // of 0.5, i.e. a symmetric single-scattering source), plus additional
+  // downward diffuse flux from the direct beam that reached the layer
+  // base being partially backscattered by the layer's own diffuse
+  // reflectance.
+  amrex::Real F_diff_base = w0 * F_dir_attenuated * (gamma3 + gamma4) * 0.5
                              + F_dir_bot * R_diff * gamma3;
 
   if (F_diff_base < 0.0) F_diff_base = 0.0;  // Defensive: non-negative flux
