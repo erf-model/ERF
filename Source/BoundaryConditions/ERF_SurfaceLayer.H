@@ -547,6 +547,22 @@ public:
       amrex::BoxArray ba_flux;
       amrex::IntVect ng{1,1,0};
 
+      // The lateral-wall implementation uses the two-dimensional land-mask
+      // layout to identify grids on the requested face.  Until those kernels
+      // obtain their z bounds from the corresponding three-dimensional FAB,
+      // every grid must contain a complete vertical column.
+      if (dir != 2) {
+          const int dom_lo_z = m_geom[lev].Domain().smallEnd(2);
+          const int dom_hi_z = m_geom[lev].Domain().bigEnd(2);
+          for (int ibox = 0; ibox < ba.size(); ++ibox) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                  ba[ibox].smallEnd(2) == dom_lo_z && ba[ibox].bigEnd(2) == dom_hi_z,
+                  "Surface layer boundaries on x/y faces require grids that span the "
+                  "full level z domain; partial-height refined grids and grids decomposed "
+                  "in z are not supported. Set erf.max_grid_size_z accordingly.");
+          }
+      }
+
       if (m_terrain_type == TerrainType::EB) {
           // Use full 3D BoxArray for EB terrain
           ba_flux = ba;

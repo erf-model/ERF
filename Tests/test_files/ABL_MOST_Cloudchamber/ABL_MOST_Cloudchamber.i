@@ -21,7 +21,7 @@ xhi.type = "surface_layer"
 ylo.type = "surface_layer"
 yhi.type = "surface_layer"
 
-erf.xlo.surface_layer.flux_type = MOENG 
+erf.xlo.surface_layer.flux_type = MOENG
 erf.ylo.surface_layer.flux_type = MOENG
 erf.zlo.surface_layer.flux_type = MOENG
 erf.xhi.surface_layer.flux_type = MOENG
@@ -35,11 +35,11 @@ erf.xhi.most.surf_temp = 289.5
 erf.ylo.most.surf_temp = 289.5
 erf.yhi.most.surf_temp = 289.5
 
-erf.zlo.most.surf_moist = 0.02143 
-erf.zhi.most.surf_moist = 0.00623 
-erf.xlo.most.surf_moist = 0.00765 # 65% saturation 
-erf.xhi.most.surf_moist = 0.00765 
-erf.ylo.most.surf_moist = 0.00765 
+erf.zlo.most.surf_moist = 0.02143
+erf.zhi.most.surf_moist = 0.00623
+erf.xlo.most.surf_moist = 0.00765 # 65% saturation
+erf.xhi.most.surf_moist = 0.00765
+erf.ylo.most.surf_moist = 0.00765
 erf.yhi.most.surf_moist = 0.00765
 
 erf.zlo.most.z0 = 0.000035
@@ -59,7 +59,7 @@ erf.zhi.most.zref = 0.03125
 # Regional MOST at point
 erf.zlo.most.average_policy = 1
 erf.zlo.most.radius = 0
-erf.zhi.most.average_policy = 1 
+erf.zhi.most.average_policy = 1
 erf.zhi.most.radius = 0
 erf.xlo.most.average_policy = 1
 erf.xlo.most.radius = 0
@@ -83,7 +83,7 @@ erf.terrain_type = StaticFittedMesh
 
 # TIME STEP CONTROL
 erf.anelastic = 1
-#erf.use_fft = 1 
+#erf.use_fft = 1
 erf.fixed_dt           = 0.025  # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 
@@ -103,13 +103,13 @@ erf.check_int       = 20 number of timesteps between checkpoints
 erf.plot_file_1     = plt
 erf.plot_int_1      = 10
 
-erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt pressure density 
-#erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt pressure density Tau11 Tau12 Tau13 Tau21 Tau22 Tau23 Tau31 Tau32 Tau33 hfx1 hfx2 hfx3 q1fx1 q1fx2 q1fx3 
+erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt pressure density
+#erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt pressure density Tau11 Tau12 Tau13 Tau21 Tau22 Tau23 Tau31 Tau32 Tau33 hfx1 hfx2 hfx3 q1fx1 q1fx2 q1fx3
 
 # SOLVER CHOICE
 erf.alpha_T = 0
 erf.alpha_C = 0
-erf.use_gravity = true 
+erf.use_gravity = true
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"

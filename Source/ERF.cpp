@@ -1331,11 +1331,6 @@ ERF::InitData_post ()
                 }
             }
 
-            if (restart_chkfile != "") {
-                // Update surface fields if needed (and available)
-                ReadCheckpointFileSurfaceLayer();
-            }
-
             // We now configure ABLMost params here so that we can print the averages at t=0
             // Note we don't fill ghost cells here because this is just for diagnostics
             for (int lev = 0; lev <= finest_level; ++lev)
@@ -1401,6 +1396,11 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    if (!restart_chkfile.empty()) {
+        // All active faces now exist, so restore every surface-layer field once.
+        ReadCheckpointFileSurfaceLayer();
+    }
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {

@@ -7,7 +7,7 @@
 
     [[maybe_unused]] const bool SurfLayer_xlo = SurfLayer[0] != nullptr;
     [[maybe_unused]] const bool SurfLayer_ylo = SurfLayer[1] != nullptr;
-    [[maybe_unused]] const bool SurfLayer_zlo = SurfLayer[2] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zlo = use_SurfLayer && SurfLayer[2] != nullptr;
     [[maybe_unused]] const bool SurfLayer_xhi = SurfLayer[3] != nullptr;
     [[maybe_unused]] const bool SurfLayer_yhi = SurfLayer[4] != nullptr;
     [[maybe_unused]] const bool SurfLayer_zhi = SurfLayer[5] != nullptr;

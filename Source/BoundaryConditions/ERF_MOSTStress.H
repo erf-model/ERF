@@ -1338,16 +1338,18 @@ struct surface_temp
         amrex::Real t_surf   = t_surf_arr(i,j,k);
         amrex::Real t_mean   = tm_arr(i,j,k);
 
-        // Water vapor in atmos and surface
+        // Water vapor in the atmosphere and at the surface
+        const amrex::Real qv_a_raw = qvm_arr(i,j,k);
+        const amrex::Real qv_s_raw = q_surf_arr(i,j,k);
         amrex::Real qv_s, qv_a;
-        if (q_surf_arr(i,j,k) > zero) {
-            qv_s = q_surf_arr(i,j,k);
+        if (qv_s_raw > zero) {
+            qv_s = qv_s_raw;
         } else {
             // First iteration and no qv_surf was specified
             // Use mean since there will be no flux
-            qv_s = qvm_arr(i,j,k);
+            qv_s = qv_a_raw;
         }
-        qv_a = qvm_arr(i,j,k);
+        qv_a = qv_a_raw;
 
         amrex::Real thv_s = t_surf_arr(i,j,k) * (one + epsv*qv_s);
         amrex::Real thv_a =     tm_arr(i,j,k) * (one + epsv*qv_a);
@@ -1359,7 +1361,7 @@ struct surface_temp
             t_mean = t_surf;
             t_surf = tm_arr(i,j,k);
             qv_a = qv_s;
-            qv_s = qvm_arr(i,j,k);
+            qv_s = qv_a_raw;
         }
 
         // update w* and Umagmean from Beljaars (1995)
@@ -1414,13 +1416,19 @@ struct surface_temp
                                 (u_star_arr(i,j,k) * mdata.kappa) + qv_a;
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qv_a - qv_s) / (C - psi_h);
+            // q_star follows the raw atmospheric/surface contrast.  The
+            // existing high-z orientation reverses this contrast, matching
+            // the corresponding thermodynamic and flux calculations above.
+            const amrex::Real qv_delta = (dir == 2 && !is_low)
+                ? (qv_s_raw - qv_a_raw)
+                : (qv_a_raw - qv_s_raw);
+            q_star_arr(i,j,k) = mdata.kappa * qv_delta / (C - psi_h);
         }
     }
 
 private:
     most_data mdata;
-    bool spec_qflux;
+    bool spec_qflux{false};
     similarity_funs sfuns;
     int dir; // coordinate direction (X,Y,Z)
     bool is_low = true; // whether this is on the low or hi side face
@@ -2252,35 +2260,44 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& /*wm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
-        amrex::Real velx, vely;
-        if (dir == 0) {
-            // X-face: y/z velocity, velx = vely, vely = velz here
-            velx  = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                             + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-            vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j  ,k+1)
-                             + velz_arr(i-1,j,k) + velz_arr(i-1,j  ,k+1) );
-        } else if (dir == 1) {
-            // Y-face: x/z velocity, vely = velz here
-            velx  = velx_arr(i,j,k);
-            vely  = fourth * ( velz_arr(i  ,j,k) + velz_arr(i  ,j,k+1)
-                             + velz_arr(i-1,j,k) + velz_arr(i-1,j,k+1) );
-        } else {
-            // Z face: x/y velocity
-            velx = velx_arr(i,j,k);
-            vely = fourth * ( vely_arr(i  ,j,k) + vely_arr(i  ,j+1,k)
-                            + vely_arr(i-1,j,k) + vely_arr(i-1,j+1,k) );
-        }
-        amrex::Real rho   = myhalf  * ( cons_arr(i-1,j,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
+        // The caller supplies indices on the stress face. On a high wall the
+        // normal index is one past the adjacent cell, so use the interior cell
+        // for all input fields while retaining the stress index tangentially.
+        const int ic = (!is_low && dir == 0) ? i - 1 : i;
+        const int jc = (!is_low && dir == 1) ? j - 1 : j;
+        const int kc = (!is_low && dir != 0 && dir != 1) ? k - 1 : k;
 
-        amrex::Real umean;
+        amrex::Real velx, vely, rho, umean, ustar, wsp_mean;
         if (dir == 0) {
-            umean = vm_arr(i, j, k);
+            // X wall: V-momentum flux at tau21. V is already y-nodal;
+            // interpolate W and the cell-centered fields to that y node.
+            velx = vely_arr(ic,j,kc);
+            vely = fourth * ( velz_arr(ic,j-1,kc  ) + velz_arr(ic,j,kc  )
+                            + velz_arr(ic,j-1,kc+1) + velz_arr(ic,j,kc+1) );
+            rho = myhalf * (cons_arr(ic,j-1,kc,Rho_comp) + cons_arr(ic,j,kc,Rho_comp));
+            umean = vm_arr(ic,j,kc);
+            ustar = myhalf * (u_star_arr(ic,j-1,kc) + u_star_arr(ic,j,kc));
+            wsp_mean = myhalf * (umm_arr(ic,j-1,kc) + umm_arr(ic,j,kc));
+        } else if (dir == 1) {
+            // Y wall: U-momentum flux at tau12. U is already x-nodal;
+            // interpolate W and the cell-centered fields to that x node.
+            velx = velx_arr(i,jc,kc);
+            vely = fourth * ( velz_arr(i-1,jc,kc  ) + velz_arr(i,jc,kc  )
+                            + velz_arr(i-1,jc,kc+1) + velz_arr(i,jc,kc+1) );
+            rho = myhalf * (cons_arr(i-1,jc,kc,Rho_comp) + cons_arr(i,jc,kc,Rho_comp));
+            umean = um_arr(i,jc,kc);
+            ustar = myhalf * (u_star_arr(i-1,jc,kc) + u_star_arr(i,jc,kc));
+            wsp_mean = myhalf * (umm_arr(i-1,jc,kc) + umm_arr(i,jc,kc));
         } else {
-            umean = um_arr(i, j, k);
+            // Z wall: U-momentum flux at tau13.
+            velx = velx_arr(i,j,kc);
+            vely = fourth * ( vely_arr(i-1,j  ,kc) + vely_arr(i,j  ,kc)
+                            + vely_arr(i-1,j+1,kc) + vely_arr(i,j+1,kc) );
+            rho = myhalf * (cons_arr(i-1,j,kc,Rho_comp) + cons_arr(i,j,kc,Rho_comp));
+            umean = um_arr(i,j,kc);
+            ustar = myhalf * (u_star_arr(i-1,j,kc) + u_star_arr(i,j,kc));
+            wsp_mean = myhalf * (umm_arr(i-1,j,kc) + umm_arr(i,j,kc));
         }
-        amrex::Real ustar    = myhalf * ( u_star_arr(i-1,j,k) + u_star_arr(i,j,k) );
-        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
-        amrex::Real wsp_mean = myhalf * (    umm_arr(i-1,j,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_xz by
@@ -2293,6 +2310,7 @@ struct moeng_flux
 
         // NOTE: this is rho*<u'w'> = -K dudz
         amrex::Real stressx = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+        stressx = (is_low) ? stressx : -stressx;
 
         return stressx;
     }
@@ -2321,36 +2339,43 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& wm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr) const
     {
-        amrex::Real velx, vely;
+        // See compute_u_flux: stress indices on high walls must be mapped back
+        // to the adjacent cell before reading cell-centered or tangential data.
+        const int ic = (!is_low && dir == 0) ? i - 1 : i;
+        const int jc = (!is_low && dir == 1) ? j - 1 : j;
+        const int kc = (!is_low && dir != 0 && dir != 1) ? k - 1 : k;
+
+        amrex::Real velx, vely, rho, vmean, ustar, wsp_mean;
         if (dir == 0) {
-            // X-face: y/z velocity, velx = vely, vely = velz here
-            velx  = vely_arr(i,j,k);
-            vely  = fourth * ( velz_arr(i,j  ,k) + velz_arr(i  ,j  ,k+1)
-                             + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+            // X wall: W-momentum flux at tau31. W is already z-nodal;
+            // interpolate V and the cell-centered fields to that z node.
+            velx = fourth * ( vely_arr(ic,j  ,k-1) + vely_arr(ic,j+1,k-1)
+                            + vely_arr(ic,j  ,k  ) + vely_arr(ic,j+1,k  ) );
+            vely = velz_arr(ic,j,k);
+            rho = myhalf * (cons_arr(ic,j,k-1,Rho_comp) + cons_arr(ic,j,k,Rho_comp));
+            vmean = wm_arr(ic,j,k);
+            ustar = myhalf * (u_star_arr(ic,j,k-1) + u_star_arr(ic,j,k));
+            wsp_mean = myhalf * (umm_arr(ic,j,k-1) + umm_arr(ic,j,k));
         } else if (dir == 1) {
-            // Y-face: x/z velocity, vely = velz here
-            velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                             + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-            vely  = fourth * ( velz_arr(i,j  ,k) + velz_arr(i  ,j  ,k+1)
-                             + velz_arr(i,j-1,k) + velz_arr(i  ,j-1,k+1) );
+            // Y wall: W-momentum flux at tau32. W is already z-nodal;
+            // interpolate U and the cell-centered fields to that z node.
+            velx = fourth * ( velx_arr(i  ,jc,k-1) + velx_arr(i+1,jc,k-1)
+                            + velx_arr(i  ,jc,k  ) + velx_arr(i+1,jc,k  ) );
+            vely = velz_arr(i,jc,k);
+            rho = myhalf * (cons_arr(i,jc,k-1,Rho_comp) + cons_arr(i,jc,k,Rho_comp));
+            vmean = wm_arr(i,jc,k);
+            ustar = myhalf * (u_star_arr(i,jc,k-1) + u_star_arr(i,jc,k));
+            wsp_mean = myhalf * (umm_arr(i,jc,k-1) + umm_arr(i,jc,k));
         } else {
-            velx  = fourth * ( velx_arr(i,j  ,k) + velx_arr(i+1,j  ,k)
-                             + velx_arr(i,j-1,k) + velx_arr(i+1,j-1,k) );
-            vely  = vely_arr(i,j,k);
+            // Z wall: V-momentum flux at tau23.
+            velx = fourth * ( velx_arr(i  ,j-1,kc) + velx_arr(i+1,j-1,kc)
+                            + velx_arr(i  ,j  ,kc) + velx_arr(i+1,j  ,kc) );
+            vely = vely_arr(i,j,kc);
+            rho = myhalf * (cons_arr(i,j-1,kc,Rho_comp) + cons_arr(i,j,kc,Rho_comp));
+            vmean = vm_arr(i,j,kc);
+            ustar = myhalf * (u_star_arr(i,j-1,kc) + u_star_arr(i,j,kc));
+            wsp_mean = myhalf * (umm_arr(i,j-1,kc) + umm_arr(i,j,kc));
         }
-
-        amrex::Real rho   = myhalf  * ( cons_arr(i,j-1,k,Rho_comp) + cons_arr(i,j,k,Rho_comp) );
-
-        amrex::Real vmean;
-        if (dir == 2) {
-            vmean = vm_arr(i, j, k);
-        } else {
-            vmean = wm_arr(i, j, k);
-        }
-
-        amrex::Real ustar     = myhalf * ( u_star_arr(i,j-1,k) + u_star_arr(i,j,k) );
-        // NOTE: umm here will be either mean x/y velocity if on a Z-face, x/z velocity if on a Y-face, or y/z velocity if on an X-face
-        amrex::Real wsp_mean  = myhalf * (    umm_arr(i,j-1,k) +    umm_arr(i,j,k) );
         wsp_mean = std::max(wsp_mean, WSMIN);
 
         // Note: The surface mean shear stress is decomposed into tau_yz by
@@ -2363,6 +2388,7 @@ struct moeng_flux
 
         // NOTE: this is rho*<v'w'> = -K dvdz
         amrex::Real stressy = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+        stressy = (is_low) ? stressy : -stressy;
 
         return stressy;
     }

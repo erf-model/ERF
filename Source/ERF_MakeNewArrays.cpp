@@ -715,6 +715,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         }
         SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
         SFS_q1fx1_lev[lev] = nullptr; SFS_q1fx2_lev[lev] = nullptr; SFS_q1fx3_lev[lev] = nullptr;
+        SFS_q2fx3_lev[lev] = nullptr;
         SFS_diss_lev[lev] = nullptr;
     }
 

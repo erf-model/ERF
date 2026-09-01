@@ -89,7 +89,8 @@ SurfaceLayer::update_fluxes (const int& lev,
                 }
             } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
                 if (rough_type_land == RoughCalcType::CONSTANT) {
-                    surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux, m_face.coordDir(), m_face.isLow());
+                    surface_temp most_flux(surf_temp_flux, surf_moist_flux, cons_qflux,
+                                           m_face.coordDir(), m_face.isLow());
                     compute_fluxes(lev, max_iters, cons_in, most_flux, is_land);
                 } else {
                     amrex::Abort("Unknown value for rough_type_land");
@@ -902,12 +903,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         if (!rotate) {
             // Rho*u flux
             //============================================================================
-            Box bxx = surroundingNodes(bx,0);
-            if (m_face.isLow()) {
-                bxx.setBig(dir, klo);
-            } else {
-                bxx.setSmall(dir, bxx.bigEnd(dir));
-            }
+            const IntVect stressx_nodal = (dir == 2) ? IntVect(1,0,1) : IntVect(1,1,0);
+            Box bxx = convert(bx, stressx_nodal);
+            const int stressx_face_index = is_low_face
+                                         ? m_geom[lev].Domain().smallEnd(dir)
+                                         : m_geom[lev].Domain().bigEnd(dir) + 1;
+            bxx.setRange(dir, stressx_face_index);
             ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Valid tau13 from LSM and over land. A side that is land but
@@ -953,28 +954,25 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
                 // write out to corresponding face
                 if (dir == 0) {
-                    const int out_ind = (is_low_face) ? j : j+1; // (1, 1, 0) on X faces
-                    t21_arr(i,out_ind,k) = stressx;
-                    if (t12_arr) { t12_arr(i,out_ind,k) = stressx; }
+                    t21_arr(i,j,k) = stressx;
+                    if (t12_arr) { t12_arr(i,j,k) = stressx; }
                 } else if (dir == 1) {
-                    const int out_ind = (is_low_face) ? j : j+1; // (1, 1, 0) on Y faces
-                    t12_arr(i,out_ind,k) = stressx;
-                    if (t21_arr) { t21_arr(i,out_ind,k) = stressx; }
+                    t12_arr(i,j,k) = stressx;
+                    if (t21_arr) { t21_arr(i,j,k) = stressx; }
                 } else {
-                    const int out_ind = (is_low_face) ? k : k+1; // (1, 0, 1) on Z faces
-                    t13_arr(i,j,out_ind) = stressx;
-                    if (t31_arr) { t31_arr(i,j,out_ind) = stressx; }
+                    t13_arr(i,j,k) = stressx;
+                    if (t31_arr) { t31_arr(i,j,k) = stressx; }
                 }
             });
 
             // Rho*v flux
             //============================================================================
-            Box bxy = surroundingNodes(bx,1);
-            if (m_face.isLow()) {
-                bxy.setBig(dir, klo);
-            } else {
-                bxy.setSmall(dir, bxy.bigEnd(dir));
-            }
+            const IntVect stressy_nodal = (dir == 0) ? IntVect(1,0,1) : IntVect(0,1,1);
+            Box bxy = convert(bx, stressy_nodal);
+            const int stressy_face_index = is_low_face
+                                         ? m_geom[lev].Domain().smallEnd(dir)
+                                         : m_geom[lev].Domain().bigEnd(dir) + 1;
+            bxy.setRange(dir, stressy_face_index);
             ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Valid tau23 from LSM and over land (sentinel side -> MOST stress)
@@ -1013,17 +1011,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
                 // write out to corresponding face
                 if (dir == 0) {
-                    const int out_ind = (is_low_face) ? k : k+1; // (1, 0, 1) on X faces
-                    t31_arr(i,j,out_ind) = stressy;
-                    if (t13_arr) { t13_arr(i,j,out_ind) = stressy; }
+                    t31_arr(i,j,k) = stressy;
+                    if (t13_arr) { t13_arr(i,j,k) = stressy; }
                 } else if (dir == 1) {
-                    const int out_ind = (is_low_face) ? k : k+1; // (0, 1, 1) on Y faces
-                    t32_arr(i,j,out_ind) = stressy;
-                    if (t23_arr) { t23_arr(i,j,out_ind) = stressy; }
+                    t32_arr(i,j,k) = stressy;
+                    if (t23_arr) { t23_arr(i,j,k) = stressy; }
                 } else {
-                    const int out_ind = (is_low_face) ? k : k+1; // (0, 1, 1) on Z faces
-                    t23_arr(i,j,out_ind) = stressy;
-                    if (t32_arr) { t32_arr(i,j,out_ind) = stressy; }
+                    t23_arr(i,j,k) = stressy;
+                    if (t32_arr) { t32_arr(i,j,k) = stressy; }
                 }
             });
         } else {

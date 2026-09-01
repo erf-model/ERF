@@ -1816,6 +1816,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             }
         }
 
+        const bool plot_tau =
+            containerHasElement(plot_var_names, "Tau11") ||
+            containerHasElement(plot_var_names, "Tau12") ||
+            containerHasElement(plot_var_names, "Tau13") ||
+            containerHasElement(plot_var_names, "Tau21") ||
+            containerHasElement(plot_var_names, "Tau22") ||
+            containerHasElement(plot_var_names, "Tau23") ||
+            containerHasElement(plot_var_names, "Tau31") ||
+            containerHasElement(plot_var_names, "Tau32") ||
+            containerHasElement(plot_var_names, "Tau33");
+        if (plot_tau) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                Tau[lev][TauType::tau11] != nullptr,
+                "Tau plot variables require diffusion to be enabled");
+        }
+
         if (containerHasElement(plot_var_names, "Tau11")) {
             MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
             mf_comp ++;
