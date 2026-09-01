@@ -208,7 +208,7 @@ To integrate Phase 12 test into the ERF regression suite:
 
 ```bash
 # Identify where other radiation regressions are registered
-grep -r "TwoStream_SurfaceHeterogeneity\|Phase6_TimeIntegration" \
+grep -r "TwoStream_SurfaceHeterogeneity\|TwoStream_TimeIntegration" \
   /path/to/regression/suite/config
 
 # Add Phase 12 test to the appropriate regtest harness:
