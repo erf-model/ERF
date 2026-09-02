@@ -242,6 +242,53 @@ public:
     }
 
     /**
+     * @brief Get mutable fuel moisture field for checkpoint restart.
+     * @return Mutable pointer to fire_fuel_mc MultiFab (5 components).
+     */
+    amrex::MultiFab* get_fuel_mc_mut()
+    {
+        return fire_fuel_mc.get();
+    }
+
+    /**
+     * @brief Get the FARSITE sub-cell displacement accumulator.
+     * @return Pointer to fire_disp_accum MultiFab (2 components), or nullptr.
+     */
+    const amrex::MultiFab* get_disp_accum() const
+    {
+        return fire_disp_accum.get();
+    }
+
+    /**
+     * @brief Get mutable displacement accumulator for checkpoint restart.
+     * @return Mutable pointer to fire_disp_accum MultiFab.
+     */
+    amrex::MultiFab* get_disp_accum_mut()
+    {
+        return fire_disp_accum.get();
+    }
+
+    /**
+     * @brief Get mutable crown activation state for checkpoint restart.
+     * @return Mutable pointer to fire_crown_active MultiFab, or nullptr when
+     *         crown fire is disabled.
+     */
+    amrex::MultiFab* get_crown_active_mut()
+    {
+        return fire_crown_active.get();
+    }
+
+    /**
+     * @brief Get mutable remaining crown fuel load for checkpoint restart.
+     * @return Mutable pointer to fire_crown_load MultiFab, or nullptr when
+     *         crown fire is disabled.
+     */
+    amrex::MultiFab* get_crown_load_mut()
+    {
+        return fire_crown_load.get();
+    }
+
+    /**
      * @brief Get fire geometry for plotfile output.
      * @return Const reference to the fire grid geometry.
      */

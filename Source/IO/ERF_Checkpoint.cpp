@@ -592,6 +592,26 @@ ERF::WriteCheckpointFile () const
             amrex::Print() << "Writing fire fuel load to checkpoint" << std::endl;
             VisMF::Write(*fuel, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireFuelLoad"));
         }
+        // Fuel moisture evolves under erf.fire.moisture_dynamic, so without it a
+        // restart silently reverts to the inputs-file moisture.
+        if (const amrex::MultiFab* mc = m_fire_layer->get_fuel_mc()) {
+            amrex::Print() << "Writing fire fuel moisture to checkpoint" << std::endl;
+            VisMF::Write(*mc, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireFuelMC"));
+        }
+        // Sub-cell displacement carried between FARSITE substeps.
+        if (const amrex::MultiFab* disp = m_fire_layer->get_disp_accum()) {
+            amrex::Print() << "Writing fire displacement accumulator to checkpoint" << std::endl;
+            VisMF::Write(*disp, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireDispAccum"));
+        }
+        // Crown state; both are null unless erf.fire.crown.enable is set.
+        if (const amrex::MultiFab* ca = m_fire_layer->get_crown_active()) {
+            amrex::Print() << "Writing fire crown activation to checkpoint" << std::endl;
+            VisMF::Write(*ca, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireCrownActive"));
+        }
+        if (const amrex::MultiFab* cl = m_fire_layer->get_crown_load()) {
+            amrex::Print() << "Writing fire crown load to checkpoint" << std::endl;
+            VisMF::Write(*cl, MultiFabFileFullPrefix(0, checkpointname, "Level_", "FireCrownLoad"));
+        }
         if (amrex::ParallelDescriptor::IOProcessor()) {
             amrex::Print() << "[FIRE] Fire state written to checkpoint " << checkpointname << "\n";
         }
@@ -1780,4 +1800,25 @@ ERF::ReadCheckpointFileFire ()
 
     VisMF::Read(*m_fire_layer->get_fuel_load_mut(),
         amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "FireFuelLoad"));
+
+    // The fields below were added after the original three. A checkpoint written
+    // by an older build will not contain them, so each is restored only if it is
+    // actually present; anything missing keeps the value initialize() gave it,
+    // which is the behaviour every restart had before.
+    auto restore_optional = [&] (amrex::MultiFab* mf, const char* name)
+    {
+        if (mf == nullptr) { return; }
+        const std::string header = restart_chkfile + "/Level_0/" + name + "_H";
+        if (!amrex::FileExists(header)) {
+            amrex::Print() << "[FIRE] Checkpoint has no " << name
+                           << "; keeping the initialized values.\n";
+            return;
+        }
+        VisMF::Read(*mf, amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", name));
+    };
+
+    restore_optional(m_fire_layer->get_fuel_mc_mut(),      "FireFuelMC");
+    restore_optional(m_fire_layer->get_disp_accum_mut(),   "FireDispAccum");
+    restore_optional(m_fire_layer->get_crown_active_mut(), "FireCrownActive");
+    restore_optional(m_fire_layer->get_crown_load_mut(),   "FireCrownLoad");
 }
