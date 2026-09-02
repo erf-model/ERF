@@ -1,6 +1,20 @@
 
     ParmParse pp("prob");
 
+    int deterministic_ic_pert = 0;
+    int fix_random_seed = 0;
+    long random_seed = -1;
+    {
+        amrex::ParmParse pp_erf("erf");
+        pp_erf.query("deterministic_ic_pert", deterministic_ic_pert);
+        pp_erf.query("fix_random_seed", fix_random_seed);
+        pp_erf.query("random_seed", random_seed);
+    }
+    const std::uint64_t ic_pert_seed = fix_random_seed
+        ? std::uint64_t(1024)
+        : ((random_seed >= 0) ? static_cast<std::uint64_t>(random_seed) : std::uint64_t(0));
+    constexpr int temperature_hash_comp = 0;
+
     Real rho_0 = amrex::Real(0); pp.query("rho_0", rho_0);
     Real T_0   = amrex::Real(0); pp.query("T_0", T_0);
     Real A_0   = amrex::Real(1); pp.query("A_0", A_0);
@@ -80,7 +94,13 @@
 
         // Add temperature perturbations
         if ((z <= pert_ref_height) && (T_0_Pert_Mag != amrex::Real(0))) {
-            Real rand_double = amrex::Random(engine); // Between zero and one
+            Real rand_double;
+            if (deterministic_ic_pert) {
+                rand_double = erf_hash_rng::hash_uniform(
+                    i, j, k, temperature_hash_comp, lev, ic_pert_seed);
+            } else {
+                rand_double = amrex::Random(engine); // Between zero and one
+            }
             state_pert(i, j, k, RhoTheta_comp) = (rand_double*amrex::Real(2) - amrex::Real(1))*T_0_Pert_Mag;
             if (!pert_rhotheta) {
                 // we're perturbing theta, not rho*theta
