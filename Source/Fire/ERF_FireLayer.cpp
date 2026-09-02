@@ -6,7 +6,90 @@
 #include <ERF_FireWindExtract.H>
 #include <ERF_TerrainSlope.H>
 
+#include <AMReX_Reduce.H>
+
 using namespace amrex;
+
+// Debug diagnostics over the fire grid.
+//
+// These run as AMReX device reductions rather than host loops: with
+// the_arena_is_managed defaulting to false, a MultiFab's data is device-only
+// under CUDA and cannot be dereferenced from the host at all.
+//
+// Namespace scope, not FireLayer members, because nvcc forbids an extended
+// __device__ lambda inside a function with private or protected class access.
+namespace erf_fire_diag {
+
+struct BurningRosStats {
+    amrex::Real max_ros  = 0.0;   ///< Max ROS over burning cells [m/s]
+    amrex::Real mean_ros = 0.0;   ///< Mean ROS over burning cells [m/s]
+    long        n_cells  = 0;     ///< Number of burning cells
+};
+
+// Masked ROS statistics over burning cells (phi < 0), reduced across ranks.
+// With no burning cells anywhere, max and mean are both 0, matching the
+// host-loop version this replaces.
+BurningRosStats burning_ros_stats (const amrex::MultiFab& ros,
+                                   const amrex::MultiFab& phi)
+{
+    ReduceOps<ReduceOpMax, ReduceOpSum, ReduceOpSum> reduce_op;
+    ReduceData<Real, Real, unsigned long long> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(ros); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const ros_arr = ros.const_array(mfi);
+        auto const phi_arr = phi.const_array(mfi);
+        reduce_op.eval(bx, reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            if (phi_arr(i,j,k,0) < 0.0_rt) {
+                const Real r = ros_arr(i,j,k,0);
+                return {r, r, 1ull};
+            }
+            return {0.0_rt, 0.0_rt, 0ull};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real max_ros = amrex::get<0>(hv);
+    Real sum_ros = amrex::get<1>(hv);
+    long n_cells = static_cast<long>(amrex::get<2>(hv));
+
+    ParallelDescriptor::ReduceRealMax(max_ros);
+    ParallelDescriptor::ReduceRealSum(sum_ros);
+    ParallelDescriptor::ReduceLongSum(n_cells);
+
+    BurningRosStats stats;
+    stats.max_ros  = max_ros;
+    stats.n_cells  = n_cells;
+    stats.mean_ros = (n_cells > 0) ? sum_ros / Real(n_cells) : 0.0_rt;
+    return stats;
+}
+
+// Number of cells with phi < 0, reduced across ranks.
+long count_burning_cells (const amrex::MultiFab& phi)
+{
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<unsigned long long> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const phi_arr = phi.const_array(mfi);
+        reduce_op.eval(bx, reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            return { (phi_arr(i,j,k,0) < 0.0_rt) ? 1ull : 0ull };
+        });
+    }
+
+    long n = static_cast<long>(amrex::get<0>(reduce_data.value(reduce_op)));
+    ParallelDescriptor::ReduceLongSum(n);
+    return n;
+}
+
+} // namespace erf_fire_diag
 
 void FireLayer::initialize(const ERF& erf,
                             const SurfaceLayer* surface_layer_ptr,
@@ -479,35 +562,11 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         compute_ros_field(*fire_ros, *fire_wind_eff, *fire_slopes, m_rc);
     }
     if (m_params.fire_debug) {
-        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
-        amrex::Real ros_max_burning = 0.0_rt;
-        amrex::Real ros_sum_burning = 0.0_rt;
-        long n_burning_cells = 0;
+        // Masked ROS diagnostics (only for burning cells where phi < 0)
+        const auto ros_stats = erf_fire_diag::burning_ros_stats(*fire_ros, *fire_phi);
 
-        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
-            const amrex::Box& bx = mfi.tilebox();
-            auto ros_arr = fire_ros->const_array(mfi);
-            auto phi_arr = fire_phi->const_array(mfi);
-            
-            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-                if (phi_arr(i, j, k, 0) < 0.0_rt) {
-                    amrex::Real ros_val = ros_arr(i, j, k, 0);
-                    if (ros_val > ros_max_burning) {
-                        ros_max_burning = ros_val;
-                    }
-                    ros_sum_burning += ros_val;
-                    ++n_burning_cells;
-                }
-            });
-        }
-
-        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
-        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
-        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
-
-        amrex::Real ros_mean_burning = (n_burning_cells > 0) ? ros_sum_burning / static_cast<amrex::Real>(n_burning_cells) : 0.0_rt;
-        amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << ros_max_burning
-                       << " m/s, Mean: " << ros_mean_burning
+        amrex::Print() << "[FIRE DEBUG] Rate-of-spread computed. Max: " << ros_stats.max_ros
+                       << " m/s, Mean: " << ros_stats.mean_ros
                        << " m/s" << std::endl;
     }
 
@@ -587,16 +646,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Fire front propagation completed with "
                        << n_substeps << " fire subcycles" << std::endl;
-        long num_fire_cells = 0;
-        for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.tilebox();
-            Array4<const Real> phi_arr = fire_phi->array(mfi);
-            for (int k=bx.smallEnd(2); k<=bx.bigEnd(2); ++k)
-                for (int j=bx.smallEnd(1); j<=bx.bigEnd(1); ++j)
-                    for (int i=bx.smallEnd(0); i<=bx.bigEnd(0); ++i)
-                        if (phi_arr(i,j,k) < 0.0_rt) ++num_fire_cells;
-        }
-        amrex::ParallelDescriptor::ReduceLongSum(num_fire_cells);
+        const long num_fire_cells = erf_fire_diag::count_burning_cells(*fire_phi);
         amrex::Print() << "[FIRE DEBUG] Number of active fire cells: " << num_fire_cells << std::endl;
     }
 
@@ -635,34 +685,11 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Real phi_min  = fire_phi->min(0, 0);   // nghost=0
         amrex::Real phi_max  = fire_phi->max(0, 0);
         
-        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
-        amrex::Real ros_max_burning = 0.0_rt;
-        amrex::Real ros_sum_burning = 0.0_rt;
-        long n_burning_cells = 0;
+        // Masked ROS diagnostics (only for burning cells where phi < 0)
+        const auto ros_stats = erf_fire_diag::burning_ros_stats(*fire_ros, *fire_phi);
 
-        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
-            const amrex::Box& bx = mfi.tilebox();
-            auto ros_arr = fire_ros->const_array(mfi);
-            auto phi_arr = fire_phi->const_array(mfi);
-            
-            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-                if (phi_arr(i, j, k, 0) < 0.0_rt) {
-                    amrex::Real ros_val = ros_arr(i, j, k, 0);
-                    if (ros_val > ros_max_burning) {
-                        ros_max_burning = ros_val;
-                    }
-                    ros_sum_burning += ros_val;
-                    ++n_burning_cells;
-                }
-            });
-        }
-
-        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
-        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
-        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
-
-        amrex::Real ros_max = ros_max_burning;
-        amrex::Real ros_mean = (n_burning_cells > 0) ? ros_sum_burning / static_cast<amrex::Real>(n_burning_cells) : 0.0_rt;
+        amrex::Real ros_max  = ros_stats.max_ros;
+        amrex::Real ros_mean = ros_stats.mean_ros;
         
         amrex::Real Q_max    = fire_heat_flux ? fire_heat_flux->max(0) : 0.0;
         amrex::Real I_B_max  = fire_fireline_intensity ? fire_fireline_intensity->max(0) : 0.0;
@@ -769,35 +796,12 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
     Real tau_sav_floor = (m_params.tau_residence_s > 0.0_rt) ? m_params.tau_residence_s : tau_sav;
 
     if (m_params.fire_debug) {
-        // Compute masked ROS diagnostics (only for burning cells where phi < 0)
-        amrex::Real ros_max_burning = 0.0_rt;
-        amrex::Real ros_sum_burning = 0.0_rt;
-        long n_burning_cells = 0;
-
-        for (amrex::MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
-            const amrex::Box& bx = mfi.tilebox();
-            auto ros_arr = fire_ros->const_array(mfi);
-            auto phi_arr = fire_phi->const_array(mfi);
-            
-            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-                if (phi_arr(i, j, k, 0) < 0.0_rt) {
-                    amrex::Real ros_val = ros_arr(i, j, k, 0);
-                    if (ros_val > ros_max_burning) {
-                        ros_max_burning = ros_val;
-                    }
-                    ros_sum_burning += ros_val;
-                    ++n_burning_cells;
-                }
-            });
-        }
-
-        amrex::ParallelDescriptor::ReduceRealMax(ros_max_burning);
-        amrex::ParallelDescriptor::ReduceRealSum(ros_sum_burning);
-        amrex::ParallelDescriptor::ReduceLongSum(n_burning_cells);
+        // Masked ROS diagnostics (only for burning cells where phi < 0)
+        const auto ros_stats = erf_fire_diag::burning_ros_stats(*fire_ros, *fire_phi);
 
         amrex::Print() << "[FIRE DEBUG] tau_sav=" << tau_sav
                        << " s  (dx_fire=" << m_fg.geom.CellSize(0)
-                       << " m, max_ROS=" << ros_max_burning << " m/s)" << std::endl;
+                       << " m, max_ROS=" << ros_stats.max_ros << " m/s)" << std::endl;
     }
 
     fill_fire_heat_flux(*fire_heat_flux, *fire_fuel_load,
