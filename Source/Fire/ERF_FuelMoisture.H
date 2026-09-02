@@ -60,8 +60,8 @@ amrex::Real compute_emc_adsorption(amrex::Real RH) noexcept
 {
     // Convert RH% to fraction and clamp
     amrex::Real H = (RH / 100.0);
-    H = amrex::min(amrex::max(H, FuelMoistureConst::RH_MIN),
-                   FuelMoistureConst::RH_MAX);
+    H = amrex::min(amrex::max(H, amrex::Real(FuelMoistureConst::RH_MIN)),
+                   amrex::Real(FuelMoistureConst::RH_MAX));
 
     // Nelson (2000) adsorption polynomial
     constexpr amrex::Real a0 = 0.03229;
@@ -90,8 +90,8 @@ amrex::Real compute_emc_desorption(amrex::Real RH) noexcept
 {
     // Convert RH% to fraction and clamp
     amrex::Real H = (RH / 100.0);
-    H = amrex::min(amrex::max(H, FuelMoistureConst::RH_MIN),
-                   FuelMoistureConst::RH_MAX);
+    H = amrex::min(amrex::max(H, amrex::Real(FuelMoistureConst::RH_MIN)),
+                   amrex::Real(FuelMoistureConst::RH_MAX));
 
     // Nelson (2000) desorption polynomial
     constexpr amrex::Real d0 = 0.05800;
@@ -193,8 +193,8 @@ amrex::Real advance_fuel_moisture_one_class(
     amrex::Real tau_hours) noexcept
 {
     // Ensure M_current is in valid range
-    M_current = amrex::min(amrex::max(M_current, FuelMoistureConst::M_MIN),
-                           FuelMoistureConst::M_MAX);
+    M_current = amrex::min(amrex::max(M_current, amrex::Real(FuelMoistureConst::M_MIN)),
+                           amrex::Real(FuelMoistureConst::M_MAX));
 
     // Compute equilibrium moisture with hysteresis
     const amrex::Real M_e = compute_emc_with_hysteresis(RH, M_current);
@@ -218,8 +218,8 @@ amrex::Real advance_fuel_moisture_one_class(
     amrex::Real M_new = M_current + dt_hours * dM_dt;
 
     // Clamp to physical range
-    M_new = amrex::min(amrex::max(M_new, FuelMoistureConst::M_MIN),
-                       FuelMoistureConst::M_MAX);
+    M_new = amrex::min(amrex::max(M_new, amrex::Real(FuelMoistureConst::M_MIN)),
+                       amrex::Real(FuelMoistureConst::M_MAX));
 
     return M_new;
 }

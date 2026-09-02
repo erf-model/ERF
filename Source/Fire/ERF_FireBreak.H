@@ -132,8 +132,8 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
     amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                      h_radius.begin(), h_radius.end(), d_radius.begin());
 
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const amrex::Real* dx      = geom.CellSize();
+    const auto prob_lo = geom.ProbLoArray();
+    const auto dx      = geom.CellSizeArray();
 
     const auto* d_types_p  = d_types.data();
     const auto* d_x_lo_p   = d_x_lo.data();
@@ -175,6 +175,9 @@ inline void apply_firebreaks(amrex::MultiFab& fire_phi,
             }
         });
     }
+    // The ParallelFor above is asynchronous while the Gpu::DeviceVectors free their
+    // device allocations at scope exit; let the kernels finish reading them first.
+    amrex::Gpu::streamSynchronize();
 }
 
 #endif  // ERF_FIREBREAK_H

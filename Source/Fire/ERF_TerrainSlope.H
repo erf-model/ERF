@@ -25,7 +25,9 @@
  * atmospheric terrain data.
  *
  * @param[out] fire_slopes    2-component MultiFab (dz/dx, dz/dy) on fire grid [m/m]
- * @param[in]  z_phys_nd      Nodal terrain height from ERF [m]
+ * @param[in]  z_phys_nd      Nodal terrain height from ERF [m], or nullptr for
+ *                            flat terrain (TerrainType::None), in which case the
+ *                            slopes are set to zero
  * @param[in]  geom_atm       Atmospheric level-0 geometry
  * @param[in]  fg             Fire grid structure
  * @param[in]  terrain_fname  Path to terrain file; empty string uses z_phys_nd (default: "")
@@ -46,7 +48,7 @@
  */
 void compute_terrain_slopes(
     amrex::MultiFab& fire_slopes,
-    const amrex::MultiFab& z_phys_nd,
+    const amrex::MultiFab* z_phys_nd,
     const amrex::Geometry& geom_atm,
     const FireGrid& fg,
     const std::string& terrain_fname = "");

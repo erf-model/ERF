@@ -55,8 +55,8 @@ void advance_farsite_one_step(
 {
     using namespace amrex;
 
-    const auto* prob_lo = geom_fire.ProbLo();
-    const auto* dx      = geom_fire.CellSize();
+    const auto prob_lo = geom_fire.ProbLoArray();
+    const auto dx      = geom_fire.CellSizeArray();
     const Real dxi = 1.0 / dx[0];
     const Real dyi = 1.0 / dx[1];
     const Real stamp_threshold = amrex::min(dx[0], dx[1]);
@@ -231,10 +231,21 @@ void advance_farsite_one_step(
                     }
                 });
             }
+            // ParallelFor is asynchronous while the Gpu::DeviceVector frees its device
+            // allocation at scope exit; let the kernels finish reading it first.
+            amrex::Gpu::streamSynchronize();
         } else {
             Real sigma = (fp.gaussian_sigma > 0.0) ? fp.gaussian_sigma : dx[0];
-            const Real* x_ptr = xarray_all.data();
-            const Real* y_ptr = yarray_all.data();
+            // xarray_all/yarray_all are host std::vectors; their raw pointers cannot
+            // be dereferenced from a device lambda. Stage them on the device first,
+            // exactly as the gaussian_sigma < 0 branch above does.
+            amrex::Gpu::DeviceVector<Real> d_xg(npts_global), d_yg(npts_global);
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             xarray_all.begin(), xarray_all.end(), d_xg.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             yarray_all.begin(), yarray_all.end(), d_yg.begin());
+            const Real* x_ptr = d_xg.data();
+            const Real* y_ptr = d_yg.data();
             int npts = npts_global;
             for (MFIter mfi(phi, false); mfi.isValid(); ++mfi) {
                 auto p = phi.array(mfi);
@@ -249,6 +260,9 @@ void advance_farsite_one_step(
                     }
                 });
             }
+            // ParallelFor is asynchronous while the Gpu::DeviceVector frees its device
+            // allocation at scope exit; let the kernels finish reading it first.
+            amrex::Gpu::streamSynchronize();
         }
     }
 
@@ -277,7 +291,7 @@ amrex::Real compute_fire_dt(
     using namespace amrex;
     Real max_ros = R_mf.max(0);
     if (max_ros < 1.0e-10) { return dt_atm; }
-    const auto* dx = geom_fire.CellSize();
+    const auto dx = geom_fire.CellSizeArray();
     return cfl_fire * amrex::min(dx[0], dx[1]) / max_ros;
 }
 

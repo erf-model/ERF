@@ -297,8 +297,8 @@ void apply_scheduled_ignitions(
 {
     using namespace amrex;
 
-    const auto* prob_lo = geom_fire.ProbLo();
-    const auto* dx      = geom_fire.CellSize();
+    const auto prob_lo = geom_fire.ProbLoArray();
+    const auto dx      = geom_fire.CellSizeArray();
 
     // Collect events that should fire in this timestep, in priority order
     std::vector<IgnitionEvent*> events_to_fire;

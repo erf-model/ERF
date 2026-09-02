@@ -131,7 +131,9 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     turbPert, true);
+                     turbPert,
+                     r_avg_to_pass, t_avg_to_pass,
+                     true);
         // ******************************************************************************
         // Phase 10/11/12: Add dust emission flux, settling tendency, and deposition to cc_src
         // This must happen AFTER make_sources so it is not overwritten.
@@ -185,9 +187,6 @@
                 istep[level]);
         }
 #endif
-                     turbPert,
-                     r_avg_to_pass, t_avg_to_pass,
-                     true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
