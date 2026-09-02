@@ -10,34 +10,61 @@
  * @brief Sussman reinitialization of the level-set function
  *
  * Ported from wildfire_levelset/src/reinitialization.H
- * Resets φ to be a signed-distance function via Sussman's method.
+ * Resets φ to a normalized signed-distance function via Sussman's method.
+ *
+ * NOTE ON UNITS. The textbook Sussman update drives |∇φ| → 1, which presumes φ
+ * is a signed distance measured in metres. ERF-Hazard's φ is not: it is
+ * normalized and clamped to [-1, 1] (initialize_ignition sets φ = (d - r)/r,
+ * and the FARSITE path and ember spotting use the same convention). Applying
+ * the textbook form to a normalized φ leaves the bracket (1 - |∇φ|) near 1 for
+ * every cell, so each iteration added ~dtau and the field diverged by
+ * n_iters * dtau per call. The update below instead targets |∇φ| = 1/L for an
+ * explicit band length L, so φ reaches ±1 at distance L from the front, which
+ * is the convention the rest of the module already uses.
  */
 
 namespace fire_levelset {
 
 /**
- * @brief Reinitialize φ to be a signed-distance function
+ * @brief Reinitialize φ to a normalized signed-distance function
  *
- * Solves the reinitialization PDE:
- *   ∂φ/∂τ = sgn(φ₀) * (1 - |∇φ|)
+ * Solves the band-normalized reinitialization PDE
  *
- * using a pseudo-time iterate with explicit Euler or Runge-Kutta stepping.
+ *   ∂φ/∂τ = sgn(φ₀) * (1 - L |∇φ|) / L
+ *
+ * by explicit Euler in pseudo-time. The fixed point is |∇φ| = 1/L, i.e. φ
+ * varies linearly from 0 at the front to ±1 at distance L, matching the
+ * normalization initialize_ignition applies. φ is clamped to [-1, 1] after
+ * every iteration, which pins the far field (where |∇φ| = 0 and the update
+ * would otherwise push φ past ±1 indefinitely).
+ *
+ * Each iteration moves φ by at most dtau/L, so with the default
+ * dtau = 0.5*min(dx,dy) the change per iteration is half a cell measured in
+ * band lengths.
  *
  * @param[in,out] phi      Level-set field; modified in-place
  * @param[in]     geom     Domain geometry
  * @param[in]     n_iters  Number of Sussman iterations
- * @param[in]     dtau     Pseudo-timestep for reinitialization
+ * @param[in]     dtau     Pseudo-timestep [m] for reinitialization
+ * @param[in]     band_m   Band half-width L [m]: the distance from the front at
+ *                         which φ reaches ±1. Values <= 0 select 3*min(dx,dy).
  */
 inline void reinitialize_phi(amrex::MultiFab& phi,
                               const amrex::Geometry& geom,
                               int n_iters,
-                              amrex::Real dtau)
+                              amrex::Real dtau,
+                              amrex::Real band_m = -1.0)
 {
     using namespace amrex;
     
     const auto* dx = geom.CellSize();
     const Real dxi = 1.0 / dx[0];
     const Real dyi = 1.0 / dx[1];
+
+    // Band half-width. The default spreads the [-1, 1] range over three cells,
+    // the usual interface thickness for a level-set band.
+    const Real L    = (band_m > 0.0) ? band_m : 3.0 * amrex::min(dx[0], dx[1]);
+    const Real Linv = 1.0 / L;
     
     // Make a working copy for pseudo-time iteration
     MultiFab phi_work(phi.boxArray(), phi.DistributionMap(), 1, 3);
@@ -71,20 +98,40 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
                 Real dym = (phi_arr(i, j, k) - phi_arr(i, j-1, k)) * dyi;
                 Real dyp = (phi_arr(i, j+1, k) - phi_arr(i, j, k)) * dyi;
                 
-                // Use upwind Godunov for norm
-                Real phi_x = (dxm * dxm > dxp * dxp) ? dxm : dxp;
-                Real phi_y = (dym * dym > dyp * dyp) ? dym : dyp;
-                Real norm_grad = std::sqrt(phi_x * phi_x + phi_y * phi_y + 1.0e-14);
-                
                 // Sign of original level-set
                 Real sgn_phi0 = (phi_in(i, j, k) > 0.0) ? 1.0 :
                                 (phi_in(i, j, k) < 0.0) ? -1.0 : 0.0;
+
+                // Godunov upwind norm for the reinitialization Hamiltonian.
+                // The one-sided difference is selected by the sign of phi_0, not
+                // by which has the larger magnitude: taking the larger magnitude
+                // unconditionally is not the Godunov scheme and is unstable near
+                // extrema, which showed up as the front flooding the domain once
+                // enough pseudo-time iterations were taken.
+                Real gx2, gy2;
+                if (sgn_phi0 > 0.0_rt) {
+                    Real a = amrex::max(dxm, 0.0_rt), b = amrex::min(dxp, 0.0_rt);
+                    gx2 = amrex::max(a * a, b * b);
+                    Real c = amrex::max(dym, 0.0_rt), d = amrex::min(dyp, 0.0_rt);
+                    gy2 = amrex::max(c * c, d * d);
+                } else {
+                    Real a = amrex::min(dxm, 0.0_rt), b = amrex::max(dxp, 0.0_rt);
+                    gx2 = amrex::max(a * a, b * b);
+                    Real c = amrex::min(dym, 0.0_rt), d = amrex::max(dyp, 0.0_rt);
+                    gy2 = amrex::max(c * c, d * d);
+                }
+                Real norm_grad = std::sqrt(gx2 + gy2 + 1.0e-14);
                 
-                // Sussman RHS: sgn(φ₀) * (1 - |∇φ|)
-                Real rhs = sgn_phi0 * (1.0_rt - norm_grad);
-                
-                // Forward Euler step
-                phi_out(i, j, k) = phi_arr(i, j, k) + dtau * rhs;
+                // Band-normalized Sussman RHS: sgn(φ₀) * (1 - L|∇φ|) / L.
+                // The fixed point is |∇φ| = 1/L rather than 1, because φ here is
+                // normalized to [-1, 1] rather than measured in metres.
+                Real rhs = sgn_phi0 * (1.0_rt - L * norm_grad) * Linv;
+
+                // Forward Euler step, clamped to the normalization range. The
+                // clamp is what pins the far field: there |∇φ| = 0, so the
+                // update would otherwise drive φ away from zero without limit.
+                Real phi_new = phi_arr(i, j, k) + dtau * rhs;
+                phi_out(i, j, k) = amrex::max(-1.0_rt, amrex::min(1.0_rt, phi_new));
             });
         }
 

@@ -70,6 +70,7 @@ struct FireParams
     amrex::Real       levelset_eps_visc       = 0.4;   ///< Artificial viscosity coefficient ε
     int               levelset_reinit_every   = 5;     ///< Reinitialize φ every N fire subcycles
     int               levelset_reinit_iters   = 10;    ///< Sussman reinitialization iterations
+    amrex::Real       levelset_reinit_band_m  = -1.0;  ///< Band half-width L [m] where |phi| reaches 1; <=0 selects 3*min(dx,dy)
     amrex::Real       levelset_reinit_dtau    = -1.0;  ///< Reinitialization pseudo-dt (<0 = auto = 0.5*min(dx,dy))
 
     // Terrain file for fine-grid terrain data
@@ -287,6 +288,7 @@ struct FireParams
        pp.query("levelset.eps_visc", levelset_eps_visc);
        pp.query("levelset.reinit_every", levelset_reinit_every);
        pp.query("levelset.reinit_iters", levelset_reinit_iters);
+       pp.query("levelset.reinit_band_m", levelset_reinit_band_m);
        pp.query("levelset.reinit_dtau", levelset_reinit_dtau);
 
        // Terrain file

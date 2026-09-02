@@ -1,0 +1,111 @@
+# KNOWN LIMITATION: signed-distance reinitialization erodes the fire front.
+#
+# Committed as a reproducer, not as a passing test. The run completes cleanly;
+# what is wrong is the burned area, so a clean exit is not success.
+#
+# Symptom:
+#   One reinitialization pass destroys burned cells that were correctly marked.
+#   Measured immediately before and after a single pass on this configuration:
+#     iters = 5    32 -> 24 cells   (25% lost)
+#     iters = 10   32 -> 24 cells
+#     iters = 20   32 -> 24 cells
+#     iters = 40   32 -> 16 cells   (50% lost)
+#   The loss is permanent: unlike the FARSITE path, which rebuilds phi from
+#   fire_arrival_time on every step, the level-set path has no reconstruction,
+#   so an eroded front never recovers. Run to the 100 s stop time the fire is
+#   extinguished outright: 24 -> 16 -> 12 -> ... -> 0 burned cells, ending with
+#   phi_min = +0.24, i.e. no burning cell anywhere in the domain.
+#
+# Cause:
+#   The Sussman iteration does not preserve the zero level set. Displacement of
+#   the interface is a well-known property of the basic scheme and is normally
+#   handled with a subcell fix (Russo & Smereka 2000), which constrains cells
+#   adjacent to the interface using the pre-reinitialization values instead of
+#   letting the pseudo-time update move them. That fix is not implemented here.
+#
+# Already fixed, for the record. Three separate defects were repaired before
+# this one was isolated, and this case would not even reach the erosion without
+# them:
+#   - the update targeted |grad phi| = 1, appropriate to a signed distance in
+#     metres, while ERF-Hazard's phi is normalized to [-1, 1]; phi diverged to
+#     ~1e7 within 20 steps
+#   - the gradient took the larger-magnitude one-sided difference rather than
+#     the Godunov upwind, which flooded over half the domain with burned cells
+#   - the default dtau sat exactly on the dtau <= dx/2 stability limit and went
+#     unstable at 10 or more iterations
+#
+# Expected once a subcell fix lands:
+#   Burned-cell count is unchanged across a reinitialization pass, and the
+#   baseline case can re-enable reinitialization and run past 100 s without
+#   phi's magnitude drifting.
+#
+# Configuration:
+#   - reinit_every = 1 so the erosion appears on the first step.
+
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 2000.0 2000.0 500.0
+amr.n_cell = 40 40 50
+
+geometry.is_periodic = 1 1 0
+amr.max_level = 0
+amr.max_grid_size = 100
+amr.max_grid_size_z = 50
+
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+
+erf.most.z0 = 0.1
+erf.molec_diff_type = "ConstantAlpha"
+erf.les_type = "None"
+erf.rans_type = "None"
+erf.init_type = "uniform"
+erf.theta_ref = 300.0
+erf.geostrophic_wind_x = 5.0
+erf.geostrophic_wind_y = 0.0
+
+erf.fixed_dt = 1.0
+stop_time = 100.0
+max_step = 1000
+
+erf.sum_interval = 50
+erf.v = 1
+amr.v = 1
+erf.check_int = -1
+erf.plot_int = 100
+erf.plot_vars = theta qv u v w
+erf.fire_plot_file = plt_fire_levelset_reinit_erosion_
+erf.fire_plot_int = 100
+
+erf.fire.enable = true
+erf.fire.fire_debug = true
+erf.fire.grid_ratio = 5
+erf.fire.fuel_model_id = 1
+erf.fire.moisture_1hr = 0.08
+erf.fire.moisture_10hr = 0.10
+erf.fire.moisture_100hr = 0.12
+erf.fire.moisture_dynamic = false
+erf.fire.ignition_x = 1000.0
+erf.fire.ignition_y = 1000.0
+erf.fire.ignition_r = 30.0
+erf.fire.wind_ref_ht = 6.1
+erf.fire.use_waf = true
+erf.fire.waf_formula = "andrews"
+erf.fire.use_wind_limit = true
+erf.fire.use_terrain_wind = false
+erf.fire.ros_model = "rothermel"
+erf.fire.farsite.cfl_fire = 0.5
+erf.fire.coupling_type = "passive"
+erf.fire.write_fire_stats_csv = true
+erf.fire.flame_temp_method = "byram_radiant"
+erf.fire.compute_flame_tilt = false
+erf.fire.fire_stats_csv_file = "fire_stats_levelset_reinit_erosion.csv"
+
+# ---------------------------------------------------------------------------
+# Level-set propagation, reinitialization-heavy
+# ---------------------------------------------------------------------------
+erf.fire.propagation_method = "levelset"
+erf.fire.levelset.cfl = 0.25
+erf.fire.levelset.eps_visc = 0.2
+erf.fire.levelset.reinit_every = 1
+erf.fire.levelset.reinit_iters = 20
+erf.fire.levelset.reinit_dtau = 2.0

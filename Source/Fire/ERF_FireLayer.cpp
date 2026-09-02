@@ -621,11 +621,15 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
 
             ++m_levelset_subcycle_count;
             if (m_levelset_subcycle_count % m_params.levelset_reinit_every == 0) {
+                // Sussman reinitialization is stable for dtau <= dx/2; 0.5*dx sits
+                // exactly on that limit and went unstable once enough iterations
+                // were taken, so default to half of it.
                 amrex::Real dtau = (m_params.levelset_reinit_dtau > 0.0)
                     ? m_params.levelset_reinit_dtau
-                    : 0.5 * std::min(m_fg.geom.CellSize()[0], m_fg.geom.CellSize()[1]);
+                    : 0.25 * std::min(m_fg.geom.CellSize()[0], m_fg.geom.CellSize()[1]);
                 fire_levelset::reinitialize_phi(*fire_phi, m_fg.geom,
-                                      m_params.levelset_reinit_iters, dtau);
+                                      m_params.levelset_reinit_iters, dtau,
+                                      m_params.levelset_reinit_band_m);
                 fire_phi->FillBoundary(m_fg.geom.periodicity());
             }
 
