@@ -50,42 +50,24 @@ far-corner distance, unclamped.
 
 The table above is measured at `OMP_NUM_THREADS=1`.
 
-### Open defect: the reinitialized result depends on thread count
+### Determinism
 
-| Threads | 150 s | 300 s | 450 s | 600 s |
-|---|---|---|---|---|
-| 1 | 36 | 52 | 60 | 64 |
-| 2 | 36 | 52 | 62 | 98 |
-| 4 | 36 | 52 | 86 | 118 |
+Repeat runs agree exactly, and both cases are clean under
+`amrex.init_snan=1 amrex.fpe_trap_invalid=1`.
 
-Repeatable within a thread count, different across. `inputs_fire_levelset_no_reinit`
-is thread-independent (32/44/52/52 at both 1 and 4 threads), which localises the
-defect to the reinitialization rather than the advection. Compare against the
-single-thread column until it is resolved.
+Neither was true before the fire `Geometry` was given the atmospheric
+periodicity. `create_fire_grid()` hard-coded `{false, false, false}`, so every
+`FillBoundary` on the fire grid was a no-op: the fire grid is a single box
+spanning the domain, which makes all of its ghost cells domain-boundary ghosts.
+The WENO5-Z stencil reaches three cells past the box edge and was reading
+whatever the allocator supplied, so the burned area varied run to run — 64, 82,
+106, 118 and 126 cells at 600 s across five identical runs.
 
-A separate non-determinism — differing run to run at a fixed thread count — was
-traced to the Jacobi scratch fab being left uninitialized, so the result depended
-on whatever the allocator handed over; that one is fixed.
-
-A CPU threading defect of this kind usually has a GPU counterpart, so this is
-worth resolving before the level-set path is trusted on device.
-
-**Reinitialization must be converged.** It propagates information roughly
-`n_iters * dtau` metres per call, so the default 10 iterations only reaches
-about 25 m here and leaves the field short of a signed distance further out.
-That shows up as the front over-spreading — 122 cells at 600 s against 64 with
-100 iterations. Scale `reinit_iters` to the size of the burned region, not to
-the cell size.
-
-Two further properties are worth checking because they are not visible in a
-single-rank run:
-
-- **No box-boundary artefacts in `phi`.** The RK3 stages fill ghost cells before
-  every WENO5-Z reconstruction, whose stencil reaches three cells past a box
-  edge. Run on several ranks and look for structure aligned with box boundaries.
-- **Bitwise reproducibility.** Both the advection and the reinitialization read
-  neighbours while writing the centre cell, so both are done Jacobi-style into
-  scratch. Repeat runs should agree exactly, on CPU and GPU alike.
+The FARSITE path was unaffected, which matches operational experience with
+periodic atmospheres. It rebuilds `phi` from `fire_arrival_time` every step so
+nothing accumulates, and its neighbour access is guarded with in-box bounds
+(`i+1 <= hi.x`) rather than reaching into ghosts. It exits cleanly under the
+signaling-NaN trap that made the level-set path abort.
 
 ## Defects fixed in the reinitializer
 

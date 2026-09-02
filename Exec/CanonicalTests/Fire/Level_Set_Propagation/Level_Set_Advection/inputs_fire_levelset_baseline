@@ -11,19 +11,11 @@
 #     this case                    36 /  52 /  60 /  64
 #     FARSITE reference            32 /  32 /  32 /  68
 #
-# OPEN DEFECT: the result depends on the OpenMP thread count. Same binary, same
-# input, repeatable within a thread count but not across:
-#     threads = 1                  36 /  52 /  60 /  64
-#     threads = 2                  36 /  52 /  62 /  98
-#     threads = 4                  36 /  52 /  86 / 118
-# inputs_fire_levelset_no_reinit is thread-independent (32/44/52/52 at 1 and 4),
-# so this sits in the reinitialization, not the advection. Compare against the
-# single-thread column until it is resolved. A CPU threading defect of this kind
-# usually has a GPU counterpart, so this wants resolving before the level-set
-# path is trusted on device.
-#   - Burned area grows monotonically and tracks the analytic front.
-#   - phi stays a sensible signed distance: phi_min about -38 m near the centre
-#     of the burn, phi_max about the far-corner distance.
+# Deterministic: repeat runs agree exactly, and the case is clean under
+# amrex.init_snan=1 amrex.fpe_trap_invalid=1. It was neither until the fire
+# Geometry was given the atmospheric periodicity; before that every
+# FillBoundary on the fire grid was a no-op and the WENO5-Z stencil read
+# uninitialized memory three cells past the box edge.
 #
 # Configuration:
 #   - Reinitialization every 5 subcycles with 100 iterations.
