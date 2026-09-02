@@ -348,12 +348,16 @@ ERF::PerformDataAssimilation(int da_iter)
 
         m_plot3d_int_1 = -1;
         m_check_int = -1;
-        // This handles all the initialization including when doing a
-        // restart. But in the inputs file, we do not specify a
+        // InitData() handles all the initialization including when doing a
+        // restart. But when doing data assimilation, in the inputs file, we do not specify a
         // erf.restart. So, the ERF class does not know it is a restart.
-        // So, whenever InitData() is called, it just does the from scratch
-        // initialization. All the restart has to be explicitly handled by
-        // specifying the restart_chkfile variable for the corresponding ensemble
+        // So, whenever InitData() is called without assigning a restart_chkfile,
+        // it just does the from scratch initialization. This function is called by the
+        // temporararily created erf class - tmp_erf, from main.cpp. We simply want to fill all the data
+        // structures here by calling InitData(), and then the WriteUpdatedEnsembleToERFClassData will write
+        // all the updated ensemble data into the lev_new data structure, which will then be
+        // written into the checkpoint files by MakeEnsembleCheckpointName.
+
         InitData();
         auto& lev_new = vars_new[0];
 

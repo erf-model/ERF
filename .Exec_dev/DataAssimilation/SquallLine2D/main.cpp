@@ -124,14 +124,17 @@ int main (int argc, char* argv[])
             // restart. But in the inputs file, for DA runs, we do not specify a
             // erf.restart. So, the ERF class does not know it is a restart.
             // So, whenever InitData() is called, it just does the from-scratch
-            // initialization. All the restart has to be explicitly handled by
-            // specifying the restart_chkfile variable for the corresponding ensemble
+            // initialization, if restart_chkfile is not speficied.
+            // So, for InitData () to do the restart pathway, the restart has
+            // to be explicitly handled by specifying the restart_chkfile variable
+            // for the corresponding ensemble.
 
-
-            // So, for da_iter=0, it starts from scratch, and for iteration da_iter>=1
-            // there has to be a erf.restart_chkfile specified, which is the checkpoint file
-            // which contains the latest updated ensemble after data assimilation for that ensemble.
-            // The InitData reads that restart file
+            // So, for da_iter=0, ie. the first DA cycle, the simulation starts from scratch
+            // for all ensembles, and for iteration da_iter>=1,
+            // there has to be a erf.restart_chkfile specified (for each ensemble),
+            // which is the checkpoint file which contains the latest updated ensemble after
+            // data assimilation for that ensemble. The InitData then reads that checkpoint file
+            // and continues the simulation from that.
 
             // This call will fill the restart_chkfile string
             if(da_iter > 0){

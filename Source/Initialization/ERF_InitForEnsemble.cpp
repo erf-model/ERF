@@ -10,6 +10,18 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+perturb_scale[8] =
+{
+    0.01,       // density [kg/m3]
+    1.0,        // theta [K]
+    1.0,        // u [m/s]
+    1.0,        // v [m/s]
+    0.5,        // w [m/s]
+    5.0e-4,     // qv [kg/kg]
+    1.0e-4,      // qc [kg/kg]
+    1.0e-4      // qrain [kg/kg]
+};
+
 /**
  * Create a cell-centered MultiFab of random perturbations for one AMR level.
  *
@@ -94,52 +106,66 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
 }
 
 /**
- * Apply horizontal Gaussian smoothing to cell-centered perturbations.
+ * Apply 3D isotropic/anisotropic Gaussian smoothing to cell-centered perturbations.
  *
  * @param lev Integer specifying the current level
  * @param mf_cc_pert MultiFab containing perturbations to smooth in place
  */
 void
 ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
-                                               MultiFab& mf_cc_pert)
+                                                MultiFab& mf_cc_pert)
 {
     const Geometry& gm = geom[lev];
     const Real dx = gm.CellSize(0);
     const Real dy = gm.CellSize(1);
+    const Real dz = gm.CellSize(2);
 
-    const Real dmesh = std::min(dx, dy);
+    // Dynamic scale selection based on minimum grid spacing
+    const Real dmesh = std::min({dx, dy, dz});
 
-    // ---- User choice ----
+    // Correlation radius (sigma) from solverChoice
     const Real sigma = solverChoice.ens_pert_correlated_radius;
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);
+
+    // Truncate stencil at 3*sigma
+    const int rx = static_cast<int>(std::ceil(3.0 * sigma / dx));
+    const int ry = static_cast<int>(std::ceil(3.0 * sigma / dy));
+    const int rz = static_cast<int>(std::ceil(3.0 * sigma / dz));
 
     const int ncomp = mf_cc_pert.nComp();
 
-    // ---- Precompute Gaussian weights ----
-    const int wsize = 2*r + 1;
-    Vector<Real> w_host(wsize * wsize);
+    // ---- Precompute 3D Gaussian weights on Host ----
+    const int wx_size = 2 * rx + 1;
+    const int wy_size = 2 * ry + 1;
+    const int wz_size = 2 * rz + 1;
+
+    Vector<Real> w_host(wx_size * wy_size * wz_size);
 
     Real Z = zero;
-    for (int m = -r; m <= r; ++m) {
-        for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)
-                                 /(two*sigma*sigma));
-            w_host[(m+r)*wsize + (n+r)] = val;
-            Z += val;
+    for (int m = -rx; m <= rx; ++m) {
+        for (int n = -ry; n <= ry; ++n) {
+            for (int p = -rz; p <= rz; ++p) {
+                Real r_sq = (m * m * dx * dx) + (n * n * dy * dy) + (p * p * dz * dz);
+                Real val  = std::exp(-r_sq / (two * sigma * sigma));
+
+                int idx = (m + rx) * (wy_size * wz_size) + (n + ry) * wz_size + (p + rz);
+                w_host[idx] = val;
+                Z += val;
+            }
         }
     }
 
+    // Normalize weights
     for (auto& v : w_host) {
         v /= Z;
     }
 
+    // Copy weights to Device memory
     Gpu::DeviceVector<Real> w_dev(w_host.size());
     Gpu::copy(Gpu::hostToDevice, w_host.begin(), w_host.end(), w_dev.begin());
-
     Real const* w = w_dev.data();
 
-    // ---- Create a grown copy (for stencil access) ----
-    IntVect ngrow_big(AMREX_D_DECL(r, r, 0));
+    // ---- Create a grown copy in 3D for stencil ghost access ----
+    IntVect ngrow_big(AMREX_D_DECL(rx, ry, rz));
 
     MultiFab mf_copy(mf_cc_pert.boxArray(),
                      mf_cc_pert.DistributionMap(),
@@ -150,7 +176,7 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
                          IntVect(0), ngrow_big,
                          gm.periodicity());
 
-    // ---- Apply smoothing ----
+    // ---- Apply 3D Smoothing Kernel ----
     for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -163,16 +189,21 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
         {
             Real sum = zero;
 
-            for (int m = -r; m <= r; ++m) {
-                for (int nn = -r; nn <= r; ++nn) {
-                    Real wij = w[(m+r)*wsize + (nn+r)];
-                    sum += wij * in(i+m, j+nn, k, n);
+            for (int m = -rx; m <= rx; ++m) {
+                for (int nn = -ry; nn <= ry; ++nn) {
+                    for (int p = -rz; p <= rz; ++p) {
+                        int w_idx = (m + rx) * (wy_size * wz_size) + (nn + ry) * wz_size + (p + rz);
+                        Real wij  = w[w_idx];
+                        sum += wij * in(i + m, j + nn, k + p, n);
+                    }
                 }
             }
 
-            out(i,j,k,n) = sum;
+            out(i, j, k, n) = sum;
         });
     }
+
+    // Preserve component variance scaling post-smoothing
     NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
@@ -602,9 +633,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = std::max(tmp_rho*tmp_qv,0.0);
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = std::max(tmp_rho*tmp_qc,0.0);
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = std::max(tmp_rho*tmp_qrain,0.0);
         });
     }
 
@@ -675,7 +706,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = ens_pert_amplitude*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*perturb_scale*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }
