@@ -42,6 +42,7 @@
 #include <fstream>
 #include <string>
 #include <iomanip>
+#include <ERF_HostFabView.H>
 
 /**
  * @brief Write dust_deposition_rate to PHREEQC input file.
@@ -67,8 +68,8 @@ inline void write_phreeqc_deposition_file(
     // Collect cell data to IOProcessor via ReduceReal.
     // For each cell, gather (x_c, y_c, dep) on host.
     // Pattern: ERF_FirePrerequisites.cpp LoopOnCpu + IOProcessor write.
-    const auto& dx  = geom_dust.CellSize();
-    const auto& lo  = geom_dust.ProbLo();
+    const auto dx  = geom_dust.CellSizeArray();
+    const auto lo  = geom_dust.ProbLoArray();
     const amrex::Box& domain = geom_dust.Domain();
     const int ni = domain.length(0);
     const int nj = domain.length(1);
@@ -76,9 +77,12 @@ inline void write_phreeqc_deposition_file(
     // Collect deposition values into a host vector (index = j*ni + i).
     amrex::Vector<amrex::Real> dep_host(ni * nj, 0.0);
 
+    // Gather into a flat host vector ahead of the MPI reduce and the file write,
+    // staging each FAB because the MultiFab is device-only under CUDA.
     for (amrex::MFIter mfi(dep_rate); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto dep_arr = dep_rate.const_array(mfi);
+        const ERFHostFabView dep_view(dep_rate[mfi]);
+        auto dep_arr = dep_view.array();
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) noexcept {
             int idx = j * ni + i;
             dep_host[idx] = dep_arr(i,j,k);
@@ -136,18 +140,21 @@ inline void append_phreeqc_site_summary(
     amrex::Real                         cur_time,
     const amrex::Vector<std::string>&   site_names)
 {
-    const auto& dx = geom_dust.CellSize();
+    const auto dx = geom_dust.CellSizeArray();
     const amrex::Real cell_area = dx[0] * dx[1];
     int n_sites = (int)site_names.size();
 
     // Sum deposition per site (site 0 = unassigned).
     amrex::Vector<amrex::Real> site_dep(n_sites + 1, 0.0);
 
+    // Per-site bins again, so host loop over staged views.
     for (amrex::MFIter mfi(dep_rate); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto dep_arr = dep_rate.const_array(mfi);
+        const ERFHostFabView dep_view(dep_rate[mfi]);
+        auto dep_arr = dep_view.array();
         if (site_id) {
-            auto sid_arr = site_id->const_array(mfi);
+            const ERFHostFabView sid_view((*site_id)[mfi]);
+            auto sid_arr = sid_view.array();
             amrex::LoopOnCpu(bx, [&](int i, int j, int k) noexcept {
                 int s = amrex::max(0, amrex::min(n_sites, (int)sid_arr(i,j,k)));
                 site_dep[s] += dep_arr(i,j,k) * cell_area;

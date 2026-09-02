@@ -1,4 +1,5 @@
 #include <ERF_FireDustCoupling.H>
+#include <ERF_HostFabView.H>
 
 #if defined(ERF_ENABLE_FIRE) && defined(ERF_USE_DUST)
 
@@ -35,7 +36,12 @@ void FireDustCoupling::apply_burned_area_to_crust(
 
     for (MFIter mfi_f(*fire_phi_mf); mfi_f.isValid(); ++mfi_f) {
         const Box& bx_f = mfi_f.validbox();
-        auto phi_arr = fire_phi_mf->const_array(mfi_f);
+        // amrex::Loop runs on the host, and under CUDA the fire level set lives
+        // in device memory, so stage the FAB before reading it. Gathering into a
+        // flat host vector is the right shape here: the result feeds an MPI
+        // reduce so every rank ends up with the whole fire field.
+        const ERFHostFabView phi_view((*fire_phi_mf)[mfi_f]);
+        auto phi_arr = phi_view.array();
         amrex::Loop(bx_f, [&](int i, int j, int /*k*/) {
             int ii = i - fi_lo;
             int jj = j - fj_lo;
@@ -110,6 +116,10 @@ void FireDustCoupling::apply_burned_area_to_crust(
             }
         });
     }
+
+    // ParallelFor is asynchronous; phi_device frees its device allocation at the
+    // end of this function. Let the kernels finish reading it.
+    amrex::Gpu::streamSynchronize();
 
     // Report debug info
     amrex::Real crust_min = dust_crust_index.min(0);

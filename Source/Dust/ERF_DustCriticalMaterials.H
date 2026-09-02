@@ -38,6 +38,7 @@
 #include <AMReX_Vector.H>
 #include <fstream>
 #include <string>
+#include <ERF_HostFabView.H>
 
 /**
  * @brief Compute critical material emission flux from dust emission flux.
@@ -102,17 +103,21 @@ inline void append_cm_budget(
     int                               nstep,
     const amrex::Vector<std::string>& site_names)
 {
-    const auto& dx   = geom_dust.CellSize();
+    const auto dx = geom_dust.CellSizeArray();
     const amrex::Real cell_area = dx[0] * dx[1];
     int n_sites = (int)site_names.size();
 
     amrex::Vector<amrex::Real> site_cm(n_sites + 1, 0.0);
 
+    // Scatter-accumulation into named per-site bins, so it stays a host loop --
+    // but the MultiFabs are device-only under CUDA, hence the staged views.
     for (amrex::MFIter mfi(cm_flux); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto cm_arr = cm_flux.const_array(mfi);
+        const ERFHostFabView cm_view(cm_flux[mfi]);
+        auto cm_arr = cm_view.array();
         if (site_id) {
-            auto sid = site_id->const_array(mfi);
+            const ERFHostFabView sid_view((*site_id)[mfi]);
+            auto sid = sid_view.array();
             amrex::LoopOnCpu(bx, [&](int i, int j, int k) noexcept {
                 int s = amrex::max(0, amrex::min(n_sites, (int)sid(i,j,k)));
                 site_cm[s] += cm_arr(i,j,k) * cell_area;

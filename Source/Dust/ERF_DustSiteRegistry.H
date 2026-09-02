@@ -35,6 +35,8 @@
 #include <AMReX_MFIter.H>
 #include <AMReX_Vector.H>
 #include <string>
+#include <ERF_HostFabView.H>
+#include <AMReX_Gpu.H>
 
 /**
  * @brief Populate dust_site_id with per-cell site indices.
@@ -60,25 +62,44 @@ inline void populate_dust_site_id(
     const int n_sites = (int)x_lo.size();
     if (n_sites == 0) return;
 
-    const auto& dx  = geom_dust.CellSize();
-    const auto& lo  = geom_dust.ProbLo();
+    // GpuArray by value; the raw pointers CellSize()/ProbLo() return cannot be
+    // dereferenced inside the kernel below.
+    const auto dx = geom_dust.CellSizeArray();
+    const auto lo = geom_dust.ProbLoArray();
+
+    // Site assignment is pure per-cell geometry, so it runs on the device rather
+    // than as a host loop over device-resident site_id. The bounding boxes come
+    // from host Vectors, so stage them first.
+    amrex::Gpu::DeviceVector<amrex::Real> d_x_lo(n_sites), d_y_lo(n_sites),
+                                          d_x_hi(n_sites), d_y_hi(n_sites);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, x_lo.begin(), x_lo.end(), d_x_lo.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, y_lo.begin(), y_lo.end(), d_y_lo.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, x_hi.begin(), x_hi.end(), d_x_hi.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, y_hi.begin(), y_hi.end(), d_y_hi.begin());
+
+    const amrex::Real* p_x_lo = d_x_lo.data();
+    const amrex::Real* p_y_lo = d_y_lo.data();
+    const amrex::Real* p_x_hi = d_x_hi.data();
+    const amrex::Real* p_y_hi = d_y_hi.data();
 
     for (amrex::MFIter mfi(site_id, amrex::TilingIfNotGPU());
          mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.tilebox();
         auto sid = site_id.array(mfi);
-        // CPU loop — site assignment is a one-time initialisation.
-        amrex::LoopOnCpu(bx, [&](int i, int j, int k) noexcept {
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             amrex::Real xc = lo[0] + (i + 0.5) * dx[0];
             amrex::Real yc = lo[1] + (j + 0.5) * dx[1];
+            // Last matching site wins, exactly as the host loop did.
             for (int s = 0; s < n_sites; ++s) {
-                if (xc >= x_lo[s] && xc <= x_hi[s] &&
-                    yc >= y_lo[s] && yc <= y_hi[s]) {
+                if (xc >= p_x_lo[s] && xc <= p_x_hi[s] &&
+                    yc >= p_y_lo[s] && yc <= p_y_hi[s]) {
                     sid(i,j,k) = amrex::Real(s + 1); // 1-based index
                 }
             }
         });
     }
+    // The device vectors above free at scope exit while ParallelFor is async.
+    amrex::Gpu::streamSynchronize();
 }
 
 /**
@@ -94,9 +115,12 @@ inline amrex::Vector<long> count_site_cells(
     const amrex::MultiFab& site_id, int n_sites)
 {
     amrex::Vector<long> counts(n_sites + 1, 0L);
+    // Counting into named bins, so a host loop -- over a staged view, because
+    // site_id is device-only under CUDA.
     for (amrex::MFIter mfi(site_id); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        auto sid = site_id.const_array(mfi);
+        const ERFHostFabView sid_view(site_id[mfi]);
+        auto sid = sid_view.array();
         amrex::LoopOnCpu(bx, [&](int i, int j, int k) noexcept {
             int s = (int)sid(i,j,k);
             if (s >= 0 && s <= n_sites) ++counts[s];

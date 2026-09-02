@@ -15,34 +15,8 @@
 #include <ERF_FireParams.H>
 #include <ERF_Rothermel.H>
 #include <ERF_ScottSpottingTable.H>
+#include <ERF_HostFabView.H>
 
-// Host-readable view of one FAB.
-//
-// Albini spotting integrates firebrand trajectories serially with a host RNG,
-// so the input fields genuinely have to be read on the host. Under CUDA a
-// MultiFab's data is device-only (the_arena_is_managed defaults to false), so a
-// direct host dereference faults. Stage the FAB into pinned memory first. On CPU
-// builds this is a plain alias, so host runs pay nothing.
-//
-// ERF_FarsiteEllipse.H stages the same way inline; the two could be unified.
-struct FireHostFabView
-{
-#ifdef AMREX_USE_GPU
-    amrex::FArrayBox fab;
-    explicit FireHostFabView (const amrex::FArrayBox& dev_fab)
-        : fab(dev_fab.box(), dev_fab.nComp(), amrex::The_Pinned_Arena())
-    {
-        amrex::Gpu::dtoh_memcpy_async(fab.dataPtr(), dev_fab.dataPtr(),
-                                      dev_fab.size() * sizeof(amrex::Real));
-        amrex::Gpu::streamSynchronize();
-    }
-    [[nodiscard]] amrex::Array4<const amrex::Real> array () const { return fab.const_array(); }
-#else
-    const amrex::FArrayBox* dev;
-    explicit FireHostFabView (const amrex::FArrayBox& dev_fab) : dev(&dev_fab) {}
-    [[nodiscard]] amrex::Array4<const amrex::Real> array () const { return dev->const_array(); }
-#endif
-};
 
 /**
  * @file ERF_AlbiniSpotting.H
@@ -278,17 +252,17 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
 
     for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
         const Box& bx    = mfi.validbox();
-        const FireHostFabView phi_v (phi[mfi]);
-        const FireHostFabView wind_v(wind_eff[mfi]);
-        const FireHostFabView ros_v (ros[mfi]);
+        const ERFHostFabView phi_v (phi[mfi]);
+        const ERFHostFabView wind_v(wind_eff[mfi]);
+        const ERFHostFabView ros_v (ros[mfi]);
         auto phi_arr     = phi_v.array();
         auto wind_arr    = wind_v.array();
         auto ros_arr     = ros_v.array();
-        std::unique_ptr<FireHostFabView> fuel_v;
+        std::unique_ptr<ERFHostFabView> fuel_v;
         amrex::Array4<const amrex::Real> fuel_arr;
         bool has_fuel = false;
         if (fuel_load) {
-            fuel_v   = std::make_unique<FireHostFabView>((*fuel_load)[mfi]);
+            fuel_v   = std::make_unique<ERFHostFabView>((*fuel_load)[mfi]);
             fuel_arr = fuel_v->array();
             has_fuel = true;
         }
@@ -316,7 +290,7 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
         std::fill(h_fuel.begin(), h_fuel.end(), 0.0);
         for (MFIter mfi(*fuel_load); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
-            const FireHostFabView fuel_v((*fuel_load)[mfi]);
+            const ERFHostFabView fuel_v((*fuel_load)[mfi]);
             auto fuel_arr = fuel_v.array();
             LoopOnCpu(bx, [&](int i, int j, int /*k*/) {
                 h_fuel[j * nx + i] = fuel_arr(i, j, 0, 0);
