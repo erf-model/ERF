@@ -182,5 +182,10 @@ bool read_terrain_onto_fire_grid(
         });
     }
 
+    // ParallelFor is asynchronous, and x_device/y_device/z_device free their
+    // device allocations when this function returns. Let the kernels finish
+    // reading them first.
+    Gpu::streamSynchronize();
+
     return true;
 }
