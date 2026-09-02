@@ -54,9 +54,17 @@ create_fire_grid(const BoxArray& ba_atm,
     RealBox prob_domain_2d = geom_atm.ProbDomain();
     prob_domain_2d.setHi(2, prob_domain_2d.lo(2) + 1.0); // z extent = 1 m (dummy)
 
+    // Inherit the atmospheric periodicity in x and y. Hard-coding this
+    // non-periodic silently disabled every FillBoundary on the fire grid: the
+    // fire grid is one box spanning the domain, so all of its ghost cells are
+    // domain-boundary ghosts, and a non-periodic Periodicity() leaves them
+    // untouched. The WENO5-Z level-set stencil reaches three cells past the box
+    // edge and was reading whatever the allocator happened to supply, which is
+    // what made the level-set path differ from run to run. z is a dummy 1 m slab
+    // and stays non-periodic.
     Geometry geom_fire_2d(fire_domain, prob_domain_2d,
                           CoordSys::cartesian,
-                          {false, false, false});
+                          {geom_atm.isPeriodic(0), geom_atm.isPeriodic(1), 0});
 
     fg.ba = ba_fire;
     fg.dm = dm_fire;

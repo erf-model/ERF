@@ -65,6 +65,24 @@ void verify_fire_prerequisites(const ERF& erf,
         erf.Geom(0).Domain().smallEnd(2) == 0,
         "[FIRE] Domain z requires start at index 0 (AMR not supported)");
 
+    // Check 11b: Domain x/y indices start at 0.
+    //
+    // The fire grid maps a fire cell back to its atmospheric cell with plain
+    // integer division, i_a = i_f / C, in ERF_FireLayer.cpp,
+    // ERF_FireWindExtract.cpp and ERF_TerrainSlope.cpp. That is only the inverse
+    // of create_fire_grid()'s index scaling when the domain starts at zero:
+    // create_fire_grid scales the hi end by C but carries the lo end over
+    // unscaled. ERF_TerrainSlope.cpp then adds smallEnd back on top of i_f / C,
+    // which double-counts the offset unless it is zero.
+    //
+    // Every ERF domain in practice is zero-based, so this asserts the assumption
+    // rather than reworking the mapping. Without it a shifted domain would
+    // silently sample terrain and wind from the wrong atmospheric cells.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        erf.Geom(0).Domain().smallEnd(0) == 0 && erf.Geom(0).Domain().smallEnd(1) == 0,
+        "[FIRE] Domain x and y require start at index 0: the fire-to-atmosphere "
+        "index mapping assumes a zero-based domain");
+
     // Check 12: Domain height > wind_ref_ht
     Real prob_hi_z = erf.Geom(0).ProbHi(2);
     std::string msg12 = std::string("[FIRE] Domain height ")

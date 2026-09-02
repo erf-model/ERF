@@ -34,7 +34,8 @@ inline
 void initialize_ignition(
     amrex::MultiFab& phi,
     const amrex::Geometry& geom_fire,
-    amrex::Real cx, amrex::Real cy, amrex::Real radius)
+    amrex::Real cx, amrex::Real cy, amrex::Real radius,
+    bool normalized = true)
 {
     using namespace amrex;
     
@@ -51,8 +52,22 @@ void initialize_ignition(
             Real dist = std::sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
             
             // Signed distance: negative inside ignition circle, positive outside.
-            // Clamped to [-1, 1] to bound the level-set values.
-            p(i,j,k) = amrex::max(amrex::min((dist - radius) / radius, 1.0_rt), -1.0_rt);
+            //
+            // normalized = true  : divided by the radius and clamped to [-1, 1].
+            //   This is the convention the FARSITE path uses, where phi is
+            //   effectively an indicator and the magnitude only has to clear
+            //   farsite.phi_threshold.
+            //
+            // normalized = false : the true signed distance in metres, unclamped.
+            //   The level-set solver needs this. Its advection, its Godunov
+            //   Hamiltonian and the Russo-Smereka subcell term are all derived
+            //   for |grad phi| = 1 with phi in metres, and clamping flattens the
+            //   field outside the band so the front eventually advances into
+            //   ground carrying no gradient information.
+            const Real sdf = dist - radius;
+            p(i,j,k) = normalized
+                     ? amrex::max(amrex::min(sdf / radius, 1.0_rt), -1.0_rt)
+                     : sdf;
         });
     }
 }

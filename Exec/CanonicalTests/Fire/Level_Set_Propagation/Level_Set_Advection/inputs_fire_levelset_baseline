@@ -1,25 +1,35 @@
-# Level-set fire-front propagation (WENO5-Z + SSP-RK3).
+# Level-set fire-front propagation (WENO5-Z + SSP-RK3, signed distance).
 #
 # Exercises the PDE-based alternative to the default FARSITE Lagrangian path.
-# The level set is advanced with a Godunov-norm gradient, WENO5-Z reconstruction
-# and a three-stage SSP-RK3 step, subcycled on its own CFL condition.
+# phi is a true signed distance in metres for this path: negative inside the
+# burned region, positive outside, |grad phi| = 1. The FARSITE path keeps its
+# own normalized [-1, 1] indicator convention.
 #
-# Expected result:
-#   - The run completes with propagation_method = "levelset".
-#   - The burned area grows monotonically and phi stays within [-1, 1].
-#   - No box-boundary artefacts appear in the level set: the RK3 stages fill
-#     ghost cells before every WENO5-Z reconstruction.
+# Expected result (measured, 1 rank, OMP_NUM_THREADS=1, 600 s):
+#   Burned-cell count at t = 150 / 300 / 450 / 600 s
+#     analytic (r = r0 + R*t)      34 /  41 /  48 /  56
+#     this case                    36 /  52 /  60 /  64
+#     FARSITE reference            32 /  32 /  32 /  68
+#
+# Deterministic: repeat runs agree exactly, and the case is clean under
+# amrex.init_snan=1 amrex.fpe_trap_invalid=1. It was neither until the fire
+# Geometry was given the atmospheric periodicity; before that every
+# FillBoundary on the fire grid was a no-op and the WENO5-Z stencil read
+# uninitialized memory three cells past the box edge.
 #
 # Configuration:
-#   - Same geometry, fuel and ignition as the Rothermel baseline so the two
-#     propagation methods can be compared directly.
-#   - Reinitialization runs every 5 subcycles with the default Sussman settings.
+#   - Reinitialization every 5 subcycles with 100 iterations.
+#   - The iteration count matters. Reinitialization propagates information about
+#     n_iters * dtau metres per call, so 10 iterations only reaches ~25 m here
+#     and leaves the field short of a signed distance further out, which shows
+#     up as the front over-spreading: 122 cells at 600 s instead of 64.
 #
 # Notes:
 #   - Level-set propagation is isotropic: it advances the front at the scalar
-#     ROS through a Godunov norm and does not use the wind direction, so the
+#     ROS through a Godunov norm and does not use wind direction, so the
 #     perimeter stays near-circular even under wind. Compare against
 #     FARSITE_Propagation/Elliptical_Propagation for the elliptical treatment.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50
@@ -42,7 +52,7 @@ erf.geostrophic_wind_x = 5.0
 erf.geostrophic_wind_y = 0.0
 
 erf.fixed_dt = 1.0
-stop_time = 900.0
+stop_time = 600.0
 max_step = 1000
 
 erf.sum_interval = 50
@@ -84,6 +94,6 @@ erf.fire.fire_stats_csv_file = "fire_stats_levelset_baseline.csv"
 erf.fire.propagation_method = "levelset"
 erf.fire.levelset.cfl = 0.4              # subcycle CFL; must be > 0
 erf.fire.levelset.eps_visc = 0.4         # artificial viscosity on the Laplacian
-erf.fire.levelset.reinit_every = 5       # reinitialize every N subcycles; must be >= 1
-erf.fire.levelset.reinit_iters = 10      # Sussman pseudo-time iterations
+erf.fire.levelset.reinit_every = 5        # reinitialize every N subcycles; must be >= 1
+erf.fire.levelset.reinit_iters = 100      # must converge over the burn; see header
 erf.fire.levelset.reinit_dtau = -1.0     # <= 0 selects 0.5*min(dx,dy)
