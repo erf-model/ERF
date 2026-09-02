@@ -904,7 +904,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 olen_arr(i,j,0) = ( u_star_arr(i,j,0)  * u_star_arr(i,j,0) * Thv ) /
                                   ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
                 z0_arr(i,j,0)  = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
-                                                   umm_arr(i,j,0), u_star_arr(i,j,0));
+                                                    umm_arr(i,j,0), u_star_arr(i,j,0));
             });
         }
 
@@ -1144,6 +1144,8 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
     Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const auto *const umm_ptr  = m_ma.get_average(lev,5); // horizontal velocity magnitude
+    const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
 
         Box vbx = mfi.validbox();
@@ -1158,6 +1160,10 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         const auto t_star_arr = t_star[lev]->array(mfi);
         const auto q_star_arr = q_star[lev]->array(mfi);
         const auto olen_arr   = olen[lev]->array(mfi);
+
+        const auto umm_arr  = umm_ptr->array(mfi);
+        const auto zref_arr = zref_ptr->array(mfi);
+        const auto z0_arr   = z_0[lev].array(mfi);
 
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
@@ -1197,8 +1203,10 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
                 }
-                olen_arr(i,j,0)   = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                    ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                olen_arr(i,j,0) = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
+                                  ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                z0_arr(i,j,0)   = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
+                                                    umm_arr(i,j,0), u_star_arr(i,j,0));
             }
         });
     } // mfi

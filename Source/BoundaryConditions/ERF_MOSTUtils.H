@@ -306,7 +306,7 @@ Compute_roughness (amrex::Real zref,
 {
     similarity_funs sfuns;
     amrex::Real zeta  = zref / Olen;
-    amrex::Real psi_m = sfuns.calc_psi_m(zeta);
+    amrex::Real psi_m = sfuns.calc_psi_m2(zeta);
     amrex::Real z0    = zref / std::exp(KAPPA*umm/ustar + psi_m);
     return std::max(z0, amrex::Real(1.0e-7));
 }
