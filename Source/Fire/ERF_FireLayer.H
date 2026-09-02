@@ -513,6 +513,8 @@ private:
     // comp 1: remaining crown fuel load [kg/m²]
     std::unique_ptr<amrex::MultiFab>         fire_crown_active;       // Crown fire status: 1=active, 0=surface (Phase 9)
     std::unique_ptr<amrex::MultiFab>         fire_crown_load;         // Remaining crown fuel load [kg/m²] (Phase 9)
+    std::unique_ptr<amrex::MultiFab>         fire_crown_ros_active;   // Active crown ROS [m/s], carried from
+                                                                      // apply_crown_fire_ros() to the heat-flux pass
     std::unique_ptr<amrex::MultiFab>         fire_crown_fraction_burned; // Crown fraction burned [0-1] (Phase 9)
 
     // Phase 8: Albini spotting diagnostics (4 comp, on fire grid)
@@ -600,6 +602,17 @@ private:
     // protected class access, and both methods below launch ParallelFor kernels, so
     // they are public even though they are only called from advance().
 public:
+
+    /**
+     * @brief Apply the crown-fire rate-of-spread enhancement to fire_ros.
+     *
+     * Must be called from advance() BEFORE the front is propagated: the whole
+     * point of the enhancement is that the perimeter moves at the crowning rate.
+     * It also latches fire_crown_active and records the active crown ROS in
+     * fire_crown_ros_active, which compute_heat_flux_and_diagnostics() then uses
+     * for the crown heat release and canopy fuel depletion.
+     */
+    void apply_crown_fire_ros();
 
     /**
      * @brief Update fire_fuel_mc and fire_mext for one atmospheric timestep.

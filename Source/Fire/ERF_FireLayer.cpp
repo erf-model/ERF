@@ -132,6 +132,7 @@ void FireLayer::initialize(const ERF& erf,
     if (m_params.crown.enable) {
         fire_crown_active = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
         fire_crown_load = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+        fire_crown_ros_active = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     }
 
     fire_phi->setVal(1.0);
@@ -158,6 +159,9 @@ void FireLayer::initialize(const ERF& erf,
     }
     if (fire_crown_load) {
         fire_crown_load->setVal(m_params.crown.canopy_bulk_den * m_params.crown.canopy_depth);
+    }
+    if (fire_crown_ros_active) {
+        fire_crown_ros_active->setVal(0.0_rt);
     }
 
     // Phase 6: fire-atmosphere coupling MultiFabs
@@ -590,6 +594,11 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                                 m_params.fire_debug);
     }
 
+    // Phase 9: crown-fire ROS enhancement.
+    // Must run before propagation so the front actually advances at the
+    // crowning rate; it also latches crown activation for the heat-flux pass.
+    apply_crown_fire_ros();
+
     int n_substeps = 0;
     
     if (m_params.propagation_method == "levelset") {
@@ -812,98 +821,31 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
     const Real h_kJ_per_kg = fp.heat_content * 2.326_rt;
     const Real h_fuel_Jkg = fp.heat_content * 2326.0_rt;
 
-    if (fire_crown_fraction_burned) {
-        fire_crown_fraction_burned->setVal(0.0_rt);
-    }
-
-    if (m_params.crown.enable && fire_crown_active && fire_crown_load) {
-        MultiFab surface_ros(m_fg.ba, m_fg.dm, 1, 0);
-        MultiFab surface_intensity(m_fg.ba, m_fg.dm, 1, 0);
-        MultiFab surface_flame_length(m_fg.ba, m_fg.dm, 1, 0);
-        MultiFab::Copy(surface_ros, *fire_ros, 0, 0, 1, 0);
-
-        fill_fire_diagnostics(surface_intensity, surface_flame_length,
-                              *fire_phi, surface_ros, *fire_fuel_load,
-                              m_fuel_load_initial_kg_m2, h_kJ_per_kg);
-
-        const auto& crown = m_params.crown;
-        const Real canopy_base_ht = crown.canopy_base_ht;
-        const Real canopy_bulk_den = crown.canopy_bulk_den;
-        const Real canopy_depth = crown.canopy_depth;
-        const Real foliar_moisture = crown.foliar_moisture;
-        const Real M_c = crown.M_c;
-        const Real default_moisture_10hr = m_params.moisture_10hr;
-        const Real I_B_crit = van_wagner_critical_intensity(
-            canopy_base_ht, foliar_moisture, M_c);
-        const Real fixed_u10_ms = (crown.wind_10m_kmh > 0.0_rt)
-            ? crown.wind_10m_kmh / 3.6_rt
-            : -1.0_rt;
-        const Real h_crown_Jkg = crown.h_crown_BTU_lb * 2326.0_rt;
-        const int crown_model_id = (crown.ros_model == "rothermel1991") ? 1
-            : (crown.ros_model == "van_wagner_proxy") ? 2 : 0;
-        const bool use_dynamic_mc = (m_params.moisture_dynamic && fire_fuel_mc != nullptr);
-        const bool use_passive_blend = crown.use_passive_blend;
+    // Phase 9 (part 2): crown heat release and canopy fuel depletion.
+    // The ROS enhancement and the crown-activation latch happen in
+    // apply_crown_fire_ros(), before the front is propagated; this pass only
+    // consumes what it recorded.
+    if (m_params.crown.enable && fire_crown_active && fire_crown_load && fire_crown_ros_active) {
+        const Real canopy_depth  = m_params.crown.canopy_depth;
+        const Real h_crown_Jkg   = m_params.crown.h_crown_BTU_lb * 2326.0_rt;
 
         for (MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
-            auto const phi_arr = fire_phi->const_array(mfi);
-            auto const wind_arr = fire_wind_eff->const_array(mfi);
-            auto const surface_ros_arr = surface_ros.const_array(mfi);
-            auto const surface_I_B_arr = surface_intensity.const_array(mfi);
-            Array4<const Real> mc_arr;
-            if (use_dynamic_mc) {
-                mc_arr = fire_fuel_mc->const_array(mfi);
-            }
-            auto ros_arr = fire_ros->array(mfi);
-            auto crown_active_arr = fire_crown_active->array(mfi);
+            auto const crown_active_arr = fire_crown_active->const_array(mfi);
+            auto const crown_ros_arr    = fire_crown_ros_active->const_array(mfi);
             auto crown_load_arr = fire_crown_load->array(mfi);
-            auto crown_frac_arr = fire_crown_fraction_burned->array(mfi);
-            auto heat_flux_arr = fire_heat_flux->array(mfi);
+            auto heat_flux_arr  = fire_heat_flux->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                if (phi_arr(i, j, k) >= 0.0_rt) {
-                    ros_arr(i, j, k) = surface_ros_arr(i, j, k);
-                    crown_active_arr(i, j, k) = 0.0_rt;
-                    crown_frac_arr(i, j, k) = 0.0_rt;
-                    return;
-                }
+                if (crown_active_arr(i, j, k) < 0.5_rt) { return; }
+                if (crown_load_arr(i, j, k) <= 0.0_rt)  { return; }
 
-                const Real R_surface = amrex::max(surface_ros_arr(i, j, k), 0.0_rt);
-                const Real I_surface = amrex::max(surface_I_B_arr(i, j, k), 0.0_rt);
-                const Real U10_ms = (fixed_u10_ms > 0.0_rt)
-                    ? fixed_u10_ms
-                    : std::sqrt(wind_arr(i, j, k, 0) * wind_arr(i, j, k, 0)
-                              + wind_arr(i, j, k, 1) * wind_arr(i, j, k, 1));
-                const Real moisture_10hr = use_dynamic_mc ? mc_arr(i, j, k, 1) : default_moisture_10hr;
+                const Real R_active  = crown_ros_arr(i, j, k);
+                const Real tau_crown = amrex::max(canopy_depth / amrex::max(R_active, 1.0e-6_rt), 1.0_rt);
 
-                Real R_active = R_surface;
-                if (crown_model_id == 1) {
-                    R_active = compute_rothermel_1991_crown_ros(R_surface);
-                } else if (crown_model_id == 2) {
-                    R_active = compute_van_wagner_proxy_ros(canopy_bulk_den, foliar_moisture);
-                } else {
-                    R_active = cruz_crown_ros(U10_ms, canopy_bulk_den, moisture_10hr);
-                }
-                R_active = amrex::max(R_active, R_surface);
-
-                const bool crown_now_active = (crown_active_arr(i, j, k) >= 0.5_rt) || (I_surface >= I_B_crit);
-                crown_active_arr(i, j, k) = crown_now_active ? 1.0_rt : 0.0_rt;
-
-                Real R_total = R_surface;
-                if (use_passive_blend) {
-                    R_total = compute_van_wagner_passive_blend(R_surface, R_active, I_surface, I_B_crit);
-                } else if (crown_now_active) {
-                    R_total = R_active;
-                }
-                ros_arr(i, j, k) = amrex::max(R_total, 0.0_rt);
-                crown_frac_arr(i, j, k) = compute_crown_fraction_burned(ros_arr(i, j, k), R_surface, R_active);
-
-                if (crown_now_active && crown_load_arr(i, j, k) > 0.0_rt) {
-                    const Real tau_crown = amrex::max(canopy_depth / amrex::max(R_active, 1.0e-6_rt), 1.0_rt);
-                    heat_flux_arr(i, j, k) += crown_load_arr(i, j, k) * h_crown_Jkg / tau_crown;
-                    crown_load_arr(i, j, k) *= std::exp(-dt_fire_s / tau_crown);
-                    crown_load_arr(i, j, k) = amrex::max(crown_load_arr(i, j, k), 0.0_rt);
-                }
+                heat_flux_arr(i, j, k) += crown_load_arr(i, j, k) * h_crown_Jkg / tau_crown;
+                crown_load_arr(i, j, k) *= std::exp(-dt_fire_s / tau_crown);
+                crown_load_arr(i, j, k) = amrex::max(crown_load_arr(i, j, k), 0.0_rt);
             });
         }
     }
@@ -933,6 +875,106 @@ void FireLayer::compute_heat_flux_and_diagnostics(Real dt_fire_s)
         fill_flame_tilt_angle(*fire_flame_tilt, *fire_fireline_intensity, *fire_wind_eff,
                               m_params.flame_tilt_rho_air, m_params.flame_tilt_T_amb,
                               m_params.fire_debug);
+    }
+}
+
+void FireLayer::apply_crown_fire_ros()
+{
+    if (!m_params.crown.enable || !fire_crown_active || !fire_crown_load
+        || !fire_crown_ros_active) {
+        return;
+    }
+
+    if (fire_crown_fraction_burned) {
+        fire_crown_fraction_burned->setVal(0.0_rt);
+    }
+
+    const FuelModelParams fp = get_anderson_fuel_params(m_params.fuel_model_id);
+    const Real h_kJ_per_kg   = fp.heat_content * 2.326_rt;
+
+    // Surface-only quantities: the crown criterion is driven by the surface
+    // fireline intensity, so both are evaluated from fire_ros before this
+    // routine overwrites it with the crown-enhanced value.
+    MultiFab surface_ros(m_fg.ba, m_fg.dm, 1, 0);
+    MultiFab surface_intensity(m_fg.ba, m_fg.dm, 1, 0);
+    MultiFab surface_flame_length(m_fg.ba, m_fg.dm, 1, 0);
+    MultiFab::Copy(surface_ros, *fire_ros, 0, 0, 1, 0);
+
+    fill_fire_diagnostics(surface_intensity, surface_flame_length,
+                          *fire_phi, surface_ros, *fire_fuel_load,
+                          m_fuel_load_initial_kg_m2, h_kJ_per_kg);
+
+    const auto& crown = m_params.crown;
+    const Real canopy_base_ht = crown.canopy_base_ht;
+    const Real canopy_bulk_den = crown.canopy_bulk_den;
+    const Real foliar_moisture = crown.foliar_moisture;
+    const Real M_c = crown.M_c;
+    const Real default_moisture_10hr = m_params.moisture_10hr;
+    const Real I_B_crit = van_wagner_critical_intensity(
+        canopy_base_ht, foliar_moisture, M_c);
+    const Real fixed_u10_ms = (crown.wind_10m_kmh > 0.0_rt)
+        ? crown.wind_10m_kmh / 3.6_rt
+        : -1.0_rt;
+    const int crown_model_id = (crown.ros_model == "rothermel1991") ? 1
+        : (crown.ros_model == "van_wagner_proxy") ? 2 : 0;
+    const bool use_dynamic_mc = (m_params.moisture_dynamic && fire_fuel_mc != nullptr);
+    const bool use_passive_blend = crown.use_passive_blend;
+
+    for (MFIter mfi(*fire_ros); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto const phi_arr = fire_phi->const_array(mfi);
+        auto const wind_arr = fire_wind_eff->const_array(mfi);
+        auto const surface_ros_arr = surface_ros.const_array(mfi);
+        auto const surface_I_B_arr = surface_intensity.const_array(mfi);
+        Array4<const Real> mc_arr;
+        if (use_dynamic_mc) {
+            mc_arr = fire_fuel_mc->const_array(mfi);
+        }
+        auto ros_arr = fire_ros->array(mfi);
+        auto crown_active_arr = fire_crown_active->array(mfi);
+        auto crown_ros_arr = fire_crown_ros_active->array(mfi);
+        auto crown_frac_arr = fire_crown_fraction_burned->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (phi_arr(i, j, k) >= 0.0_rt) {
+                ros_arr(i, j, k) = surface_ros_arr(i, j, k);
+                crown_active_arr(i, j, k) = 0.0_rt;
+                crown_ros_arr(i, j, k) = 0.0_rt;
+                crown_frac_arr(i, j, k) = 0.0_rt;
+                return;
+            }
+
+            const Real R_surface = amrex::max(surface_ros_arr(i, j, k), 0.0_rt);
+            const Real I_surface = amrex::max(surface_I_B_arr(i, j, k), 0.0_rt);
+            const Real U10_ms = (fixed_u10_ms > 0.0_rt)
+                ? fixed_u10_ms
+                : std::sqrt(wind_arr(i, j, k, 0) * wind_arr(i, j, k, 0)
+                          + wind_arr(i, j, k, 1) * wind_arr(i, j, k, 1));
+            const Real moisture_10hr = use_dynamic_mc ? mc_arr(i, j, k, 1) : default_moisture_10hr;
+
+            Real R_active = R_surface;
+            if (crown_model_id == 1) {
+                R_active = compute_rothermel_1991_crown_ros(R_surface);
+            } else if (crown_model_id == 2) {
+                R_active = compute_van_wagner_proxy_ros(canopy_bulk_den, foliar_moisture);
+            } else {
+                R_active = cruz_crown_ros(U10_ms, canopy_bulk_den, moisture_10hr);
+            }
+            R_active = amrex::max(R_active, R_surface);
+
+            const bool crown_now_active = (crown_active_arr(i, j, k) >= 0.5_rt) || (I_surface >= I_B_crit);
+            crown_active_arr(i, j, k) = crown_now_active ? 1.0_rt : 0.0_rt;
+            crown_ros_arr(i, j, k) = R_active;
+
+            Real R_total = R_surface;
+            if (use_passive_blend) {
+                R_total = compute_van_wagner_passive_blend(R_surface, R_active, I_surface, I_B_crit);
+            } else if (crown_now_active) {
+                R_total = R_active;
+            }
+            ros_arr(i, j, k) = amrex::max(R_total, 0.0_rt);
+            crown_frac_arr(i, j, k) = compute_crown_fraction_burned(ros_arr(i, j, k), R_surface, R_active);
+        });
     }
 }
 
