@@ -133,8 +133,23 @@ void advance_farsite_one_step(
     std::vector<Real> xarray, yarray;
 
     for (MFIter mfi(farsite_work, false); mfi.isValid(); ++mfi) {
-        const Box& bx   = mfi.validbox();
+        const Box& bx = mfi.validbox();
+
+#ifdef AMREX_USE_GPU
+        // farsite_work lives in device memory (The_Arena is unmanaged by default),
+        // so the loop below cannot read it directly. Stage the box into a pinned
+        // host FAB first. The staging FAB carries the device FAB's own box, so the
+        // Array4 below is indexed with the same global (i,j,k) either way.
+        const FArrayBox& dev_fab = farsite_work[mfi];
+        FArrayBox host_fab(dev_fab.box(), dev_fab.nComp(), The_Pinned_Arena());
+        Gpu::dtoh_memcpy_async(host_fab.dataPtr(), dev_fab.dataPtr(),
+                               dev_fab.size() * sizeof(Real));
+        Gpu::streamSynchronize();
+        auto spread_arr = host_fab.const_array();
+#else
         auto spread_arr = farsite_work.const_array(mfi);
+#endif
+
         for (int k = bx.smallEnd()[2]; k <= bx.bigEnd()[2]; ++k)
             for (int j = bx.smallEnd()[1]; j <= bx.bigEnd()[1]; ++j)
                 for (int i = bx.smallEnd()[0]; i <= bx.bigEnd()[0]; ++i) {
