@@ -56,7 +56,8 @@ erf.plot_int_1  = -1
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta
 
 # SOLVER
-erf.use_gravity     = true
+erf.use_gravity     = false   # init_type "uniform" asserts !use_gravity || anelastic
+                              # (ERF_Init1D.cpp); the fire uniform-init cases run the same way
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.theta_ref       = 300.0

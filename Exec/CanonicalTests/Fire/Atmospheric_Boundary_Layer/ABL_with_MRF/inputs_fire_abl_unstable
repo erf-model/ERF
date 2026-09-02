@@ -25,7 +25,9 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
 erf.most.zref = 48.0     # reference height [m]
-erf.most.surf_temp = 308.0  # surface temperature [K] (warm)
+erf.most.surf_temp = 303.0  # must equal the sounding surface value in input_sounding_MRF_unstable;
+                            # ERF aborts with 'Input sounding temp does not match most.surf_temp'.
+                            # The warming comes from surf_heating_rate = 5.0 K/h below.
 erf.most.surf_heating_rate = 5.0  # strong heating rate [K/h] for unstable convection
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.008  # stable layer (K/m) to define PBL top
@@ -44,6 +46,9 @@ erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity
 erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
+erf.pbl_type        = "MRF"   # required: zlo.type = surface_layer asserts that at least one of
+                              # molec_diff/les/rans/pbl is active (ERF.cpp has_diff), and MRF is
+                              # what this directory is for
 erf.theta_ref = 300.0
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding_MRF_unstable"
