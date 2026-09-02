@@ -68,10 +68,17 @@ write_wps_terrain_file ()
                  {"Time", "south_north", "west_east"});
     file.exit_def_mode();
 
-    file.put_attr("MAP_PROJ", std::vector<int>{6});
+    // MAP_PROJ = 1 is Lambert conformal, the usual WPS default.  It must be one
+    // of the projections the reader supports (1 Lambert, 2 polar, 3 Mercator):
+    // projection 6 (latitude/longitude) is deliberately rejected because WPS
+    // writes DX/DY in degrees for it, while everything downstream consumes them
+    // as metres.  Lambert additionally requires TRUELAT2 alongside TRUELAT1.
+    file.put_attr("MAP_PROJ", std::vector<int>{1});
     file.put_attr("CEN_LAT", std::vector<double>{40.0});
     file.put_attr("CEN_LON", std::vector<double>{-105.0});
     file.put_attr("STAND_LON", std::vector<double>{-105.0});
+    file.put_attr("TRUELAT1", std::vector<double>{30.0});
+    file.put_attr("TRUELAT2", std::vector<double>{60.0});
     file.put_attr("DX", std::vector<double>{1.0});
     file.put_attr("DY", std::vector<double>{1.0});
     file.put_attr("WEST-EAST_GRID_DIMENSION", std::vector<int>{3});
