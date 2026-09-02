@@ -39,7 +39,8 @@
  * @brief Pre-computed BEHAVE multi-class Rothermel state for one cell.
  *
  * Contains all pre-computed quantities that depend on fuel model and
- * per-cell moisture. Computed once per timestep on CPU, used in GPU ROS kernel.
+ * per-cell moisture. Computed once per timestep for the uniform-moisture path,
+ * or per cell inside the ROS kernel when moisture varies.
  */
 struct BehaveState
 {
@@ -106,7 +107,8 @@ struct BehaveState
  *
  * Reference: Andrews (2018) GTR-RMRS-371 pp. 16–38.
  */
-inline BehaveState compute_behave_state(
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+BehaveState compute_behave_state(
     const FuelModelParams& fp,
     amrex::Real mc_1hr,
     amrex::Real mc_10hr,
@@ -409,47 +411,35 @@ inline void fill_behave_ros(
             });
         }
     } else {
-        // Per-cell moisture path: compute BehaveState for each cell on CPU,
-        // store in temporary array, then run GPU kernel
-
-        // Allocate temporary per-cell BehaveState storage
-        // Pack into flat array: nRealPerBehaveState = sizeof(BehaveState)/sizeof(Real)
-        constexpr int nRealPerBehaveState = sizeof(BehaveState) / sizeof(amrex::Real);
-        auto bs_temp = std::make_unique<amrex::MultiFab>(
-            fire_ros.boxArray(), fire_ros.DistributionMap(),
-            nRealPerBehaveState, 0);
-
-        // CPU pass: Compute per-cell BehaveState
-        for (amrex::MFIter mfi(*fire_fuel_mc, false); mfi.isValid(); ++mfi) {
-            auto mc = fire_fuel_mc->const_array(mfi);
-            auto bs_arr = bs_temp->array(mfi);
-
-            // LoopOnCpu to compute BehaveState (not GPU-compatible)
-            amrex::LoopOnCpu(mfi.tilebox(), [&](int i, int j, int k) {
-                BehaveState bs = compute_behave_state(fp,
-                    mc(i,j,k,0), mc(i,j,k,1), mc(i,j,k,2),
-                    mc(i,j,k,3), mc(i,j,k,4));
-
-                // Pack BehaveState into flat Real array
-                BehaveState* bs_ptr = reinterpret_cast<BehaveState*>(&bs_arr(i,j,k,0));
-                *bs_ptr = bs;
-            });
-        }
-
-        // GPU pass: Compute ROS using per-cell BehaveState
+        // Per-cell moisture path: build the BehaveState inside the kernel from
+        // that cell's moisture.
+        //
+        // This previously ran compute_behave_state in a LoopOnCpu and stashed the
+        // result in a scratch MultiFab. That was wrong twice over. The host loop
+        // dereferenced device memory, which faults under CUDA. And the packing
+        // step assumed a BehaveState could be written contiguously through
+        // &bs_arr(i,j,k,0), but Array4 stores components plane-by-plane rather
+        // than interleaved per cell: component c sits numPts() Reals away, not
+        // one. Writing sizeof(BehaveState) bytes at that address therefore ran
+        // off the end of component 0 and overwrote other cells' data, and the
+        // matching read returned a struct assembled from unrelated cells.
+        //
+        // compute_behave_state is pure arithmetic (exp/pow/sqrt), so evaluating
+        // it per cell on the device removes the scratch fab, the host pass and
+        // the aliasing bug together.
         for (amrex::MFIter mfi(fire_ros, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const amrex::Box& bx = mfi.tilebox();
             auto ros = fire_ros.array(mfi);
             auto wind = fire_wind_eff.const_array(mfi);
             auto slopes = fire_slopes.const_array(mfi);
-            auto bs_arr = bs_temp->const_array(mfi);
+            auto mc = fire_fuel_mc->const_array(mfi);
 
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (const amrex::IntVect& iv) {
                 int i = iv[0], j = iv[1];
 
-                // Unpack BehaveState from flat Real array
-                const BehaveState* bs_ptr = reinterpret_cast<const BehaveState*>(&bs_arr(i,j,0,0));
-                const BehaveState& bs = *bs_ptr;
+                const BehaveState bs = compute_behave_state(fp,
+                    mc(i,j,0,0), mc(i,j,0,1), mc(i,j,0,2),
+                    mc(i,j,0,3), mc(i,j,0,4));
 
                 ros(i, j, 0) = behave_ros_cell(wind(i,j,0,0), wind(i,j,0,1),
                                                slopes(i,j,0,0), slopes(i,j,0,1),

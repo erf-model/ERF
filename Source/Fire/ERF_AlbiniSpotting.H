@@ -5,14 +5,44 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
+#include <AMReX_Gpu.H>
 #include <cmath>
 #include <vector>
 #include <random>
 #include <string>
+#include <memory>
 
 #include <ERF_FireParams.H>
 #include <ERF_Rothermel.H>
 #include <ERF_ScottSpottingTable.H>
+
+// Host-readable view of one FAB.
+//
+// Albini spotting integrates firebrand trajectories serially with a host RNG,
+// so the input fields genuinely have to be read on the host. Under CUDA a
+// MultiFab's data is device-only (the_arena_is_managed defaults to false), so a
+// direct host dereference faults. Stage the FAB into pinned memory first. On CPU
+// builds this is a plain alias, so host runs pay nothing.
+//
+// ERF_FarsiteEllipse.H stages the same way inline; the two could be unified.
+struct FireHostFabView
+{
+#ifdef AMREX_USE_GPU
+    amrex::FArrayBox fab;
+    explicit FireHostFabView (const amrex::FArrayBox& dev_fab)
+        : fab(dev_fab.box(), dev_fab.nComp(), amrex::The_Pinned_Arena())
+    {
+        amrex::Gpu::dtoh_memcpy_async(fab.dataPtr(), dev_fab.dataPtr(),
+                                      dev_fab.size() * sizeof(amrex::Real));
+        amrex::Gpu::streamSynchronize();
+    }
+    [[nodiscard]] amrex::Array4<const amrex::Real> array () const { return fab.const_array(); }
+#else
+    const amrex::FArrayBox* dev;
+    explicit FireHostFabView (const amrex::FArrayBox& dev_fab) : dev(&dev_fab) {}
+    [[nodiscard]] amrex::Array4<const amrex::Real> array () const { return dev->const_array(); }
+#endif
+};
 
 /**
  * @file ERF_AlbiniSpotting.H
@@ -225,8 +255,10 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
 {
     using namespace amrex;
 
-    const auto& dx      = geom.CellSize();
-    const auto& prob_lo = geom.ProbLo();
+    // GpuArray by value: CellSize()/ProbLo() hand back pointers into host
+    // Geometry members, which the stamping kernel below cannot dereference.
+    const auto dx      = geom.CellSizeArray();
+    const auto prob_lo = geom.ProbLoArray();
 
     // Fire grid dimensions
     const Box domain = geom.Domain();
@@ -246,13 +278,18 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
 
     for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
         const Box& bx    = mfi.validbox();
-        auto phi_arr     = phi.const_array(mfi);
-        auto wind_arr    = wind_eff.const_array(mfi);
-        auto ros_arr     = ros.const_array(mfi);
+        const FireHostFabView phi_v (phi[mfi]);
+        const FireHostFabView wind_v(wind_eff[mfi]);
+        const FireHostFabView ros_v (ros[mfi]);
+        auto phi_arr     = phi_v.array();
+        auto wind_arr    = wind_v.array();
+        auto ros_arr     = ros_v.array();
+        std::unique_ptr<FireHostFabView> fuel_v;
         amrex::Array4<const amrex::Real> fuel_arr;
         bool has_fuel = false;
         if (fuel_load) {
-            fuel_arr = fuel_load->const_array(mfi);
+            fuel_v   = std::make_unique<FireHostFabView>((*fuel_load)[mfi]);
+            fuel_arr = fuel_v->array();
             has_fuel = true;
         }
 
@@ -279,7 +316,8 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
         std::fill(h_fuel.begin(), h_fuel.end(), 0.0);
         for (MFIter mfi(*fuel_load); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
-            auto fuel_arr = fuel_load->const_array(mfi);
+            const FireHostFabView fuel_v((*fuel_load)[mfi]);
+            auto fuel_arr = fuel_v.array();
             LoopOnCpu(bx, [&](int i, int j, int /*k*/) {
                 h_fuel[j * nx + i] = fuel_arr(i, j, 0, 0);
             });
@@ -404,65 +442,113 @@ compute_albini_spotting(amrex::MultiFab&                  phi,
         // These are done after the loop to avoid MultiFab conflicts mid-loop.
     }
 
-    // Stamp phi at landing sites and update diagnostics
-    for (const auto& ls : landings) {
-        Real lx = ls.x;
-        Real ly = ls.y;
-        int  si = ls.src_i;
-        int  sj = ls.src_j;
+    // Stamp phi at landing sites and update source-cell diagnostics.
+    //
+    // Both of these were host loops over MultiFab data, which faults under CUDA.
+    // They are plain per-cell geometry, so they move onto the device as one fused
+    // kernel over the landing list.
+    //
+    // Equivalent to the two host loops it replaces: the phi min-stamp is
+    // order-independent, the active-spot flag and the fuel cap are idempotent,
+    // H_z is identical for every landing sharing a source cell (it is derived
+    // from h_ros at that cell), the brand count adds one per landing, and the
+    // landing distance is a max. Doing them in one pass over cells rather than
+    // one pass per landing also drops the cost from O(n_landings * ncells).
+    if (!landings.empty()) {
+        const int nland = static_cast<int>(landings.size());
 
-        // Stamp phi negative within spot_radius (SDF min-stamp, same as ignition)
+        Gpu::DeviceVector<Real> d_lx(nland), d_ly(nland), d_ldist(nland), d_lhz(nland);
+        Gpu::DeviceVector<int>  d_lsi(nland), d_lsj(nland);
+        {
+            std::vector<Real> h_lx(nland), h_ly(nland), h_ldist(nland), h_lhz(nland);
+            std::vector<int>  h_lsi(nland), h_lsj(nland);
+            for (int n = 0; n < nland; ++n) {
+                const auto& ls = landings[n];
+                h_lx[n]    = ls.x;
+                h_ly[n]    = ls.y;
+                h_ldist[n] = ls.dist;
+                h_lsi[n]   = ls.src_i;
+                h_lsj[n]   = ls.src_j;
+                // Same H_z the previous host loop recomputed per landing.
+                const Real rsp = h_ros[ls.src_j * nx + ls.src_i];
+                h_lhz[n] = albini_lofting_height(albini_byram_intensity(rsp, fp, rc),
+                                                 sp.I_B_min);
+            }
+            Gpu::copy(Gpu::hostToDevice, h_lx.begin(),    h_lx.end(),    d_lx.begin());
+            Gpu::copy(Gpu::hostToDevice, h_ly.begin(),    h_ly.end(),    d_ly.begin());
+            Gpu::copy(Gpu::hostToDevice, h_ldist.begin(), h_ldist.end(), d_ldist.begin());
+            Gpu::copy(Gpu::hostToDevice, h_lhz.begin(),   h_lhz.end(),   d_lhz.begin());
+            Gpu::copy(Gpu::hostToDevice, h_lsi.begin(),   h_lsi.end(),   d_lsi.begin());
+            Gpu::copy(Gpu::hostToDevice, h_lsj.begin(),   h_lsj.end(),   d_lsj.begin());
+        }
+
+        const Real* p_lx    = d_lx.data();
+        const Real* p_ly    = d_ly.data();
+        const Real* p_ldist = d_ldist.data();
+        const Real* p_lhz   = d_lhz.data();
+        const int*  p_lsi   = d_lsi.data();
+        const int*  p_lsj   = d_lsj.data();
+
+        const Real spot_radius = sp.spot_radius;
+        const bool cap_fuel    = (fire_fuel_load_ptr != nullptr) && (fuel_load_initial_kg_m2 > 0.0);
+        const Real fuel_cap    = 0.05 * fuel_load_initial_kg_m2;
+
         for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
-            const Box& bx  = mfi.validbox();
-            auto phi_arr   = phi.array(mfi);
-            auto alb_arr   = albini_data.array(mfi);
-            auto fuel_arr  = fire_fuel_load_ptr ? fire_fuel_load_ptr->array(mfi) : phi.array(mfi);  // dummy if nullptr
+            const Box& bx = mfi.validbox();
+            auto phi_arr  = phi.array(mfi);
+            auto alb_arr  = albini_data.array(mfi);
+            // Aliased to phi when there is no fuel field; never written in that case.
+            auto fuel_arr = fire_fuel_load_ptr ? fire_fuel_load_ptr->array(mfi) : phi.array(mfi);
 
-            LoopOnCpu(bx, [&](int i, int j, int /*k*/) {
-                Real ccx = prob_lo[0] + (i + 0.5) * dx[0];
-                Real ccy = prob_lo[1] + (j + 0.5) * dx[1];
-                Real d   = std::sqrt((ccx - lx) * (ccx - lx) + (ccy - ly) * (ccy - ly));
-                if (d <= sp.spot_radius) {
-                    // Normalize SDF by spot_radius to match the [-1, 1] convention used
-                    // throughout the level-set (same normalization as initialize_ignition).
-                    amrex::Real sdf_val = (d - sp.spot_radius) / sp.spot_radius;  // in [-1, 0]
-                    phi_arr(i, j, 0, 0) = std::min(phi_arr(i, j, 0, 0), sdf_val);
-                    alb_arr(i, j, 0, 3) = 1.0;  // active spot flag
-                    
-                    // Initialize fuel load at newly-ignited spot to a small fraction
-                    // to represent early burning stage before steady state
-                    if (fire_fuel_load_ptr != nullptr && fuel_load_initial_kg_m2 > 0.0) {
-                        fuel_arr(i, j, 0, 0) = amrex::min(fuel_arr(i, j, 0, 0), 0.05 * fuel_load_initial_kg_m2);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+            {
+                const Real ccx = prob_lo[0] + (i + 0.5) * dx[0];
+                const Real ccy = prob_lo[1] + (j + 0.5) * dx[1];
+
+                Real phi_new  = phi_arr(i, j, 0, 0);
+                bool spotted  = false;
+
+                Real hz_here  = 0.0;
+                Real n_brands = 0.0;
+                Real max_dist = alb_arr(i, j, 0, 2);
+
+                for (int n = 0; n < nland; ++n) {
+                    const Real ddx = ccx - p_lx[n];
+                    const Real ddy = ccy - p_ly[n];
+                    const Real d   = std::sqrt(ddx*ddx + ddy*ddy);
+                    if (d <= spot_radius) {
+                        // Normalize SDF by spot_radius to match the [-1, 1] convention
+                        // used throughout the level-set (as in initialize_ignition).
+                        const Real sdf_val = (d - spot_radius) / spot_radius;  // in [-1, 0]
+                        phi_new = amrex::min(phi_new, sdf_val);
+                        spotted = true;
+                    }
+                    if (i == p_lsi[n] && j == p_lsj[n]) {
+                        hz_here   = p_lhz[n];
+                        n_brands += 1.0;
+                        max_dist  = amrex::max(max_dist, p_ldist[n]);
                     }
                 }
 
-                // Source cell diagnostics
-                if (i == si && j == sj) {
-                    // Update max lofting height (comp 0) and brand count (comp 1)
-                    // at source. These accumulate across multiple landing events.
+                phi_arr(i, j, 0, 0) = phi_new;
+
+                if (spotted) {
+                    alb_arr(i, j, 0, 3) = 1.0;  // active spot flag
+                    // Initialize fuel load at newly-ignited spot to a small fraction
+                    // to represent early burning stage before steady state
+                    if (cap_fuel) {
+                        fuel_arr(i, j, 0, 0) = amrex::min(fuel_arr(i, j, 0, 0), fuel_cap);
+                    }
+                }
+
+                if (n_brands > 0.0) {
+                    alb_arr(i, j, 0, 0)  = hz_here;    // lofting height
+                    alb_arr(i, j, 0, 1) += n_brands;   // brand count
+                    alb_arr(i, j, 0, 2)  = max_dist;   // max landing dist
                 }
             });
         }
-    }
-
-    // Update source-cell diagnostics after stamping loop
-    for (const auto& ls : landings) {
-        int si = ls.src_i;
-        int sj = ls.src_j;
-        // Recompute H_z for this cell
-        int idx_s = sj * nx + si;
-        Real rsp  = h_ros[idx_s];
-        Real I_B  = albini_byram_intensity(rsp, fp, rc);
-        Real H_z  = albini_lofting_height(I_B, sp.I_B_min);
-
-        for (MFIter mfi(albini_data); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.validbox();
-            if (!bx.contains(IntVect(si, sj, 0))) { continue; }
-            auto alb_arr = albini_data.array(mfi);
-            alb_arr(si, sj, 0, 0) = H_z;            // lofting height
-            alb_arr(si, sj, 0, 1) += 1.0;           // brand count
-            alb_arr(si, sj, 0, 2) = std::max(alb_arr(si, sj, 0, 2), ls.dist);  // max landing dist
-        }
+        Gpu::streamSynchronize();
     }
 
     // Clamp phi to [-1, 1] after all spotting stamps
