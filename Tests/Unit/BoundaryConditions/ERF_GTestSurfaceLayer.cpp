@@ -9,6 +9,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../ERF_GTestAssertions.H"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -54,6 +56,16 @@ make_qsurf_geometry ()
                            {AMREX_D_DECL(3.0, 3.0, 3.0)});
     const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
     return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+BoxArray
+make_qsurf_box_array (const Box& domain)
+{
+    BoxArray ba(domain);
+    // Keep complete vertical columns while creating non-face FABs in both
+    // lateral directions for the ownership contract.
+    ba.maxSize(IntVect(AMREX_D_DECL(1, 1, 1024)));
+    return ba;
 }
 
 std::array<Orientation, 6>
@@ -167,22 +179,26 @@ struct SurfaceLayerFields
 
     Vector<MultiFab*> state;
 
-    explicit SurfaceLayerFields (const Geometry& geometry = make_geometry())
+    explicit SurfaceLayerFields (const Geometry& geometry = make_geometry(),
+                                 const bool split_lateral = false)
         : geom(geometry),
           domain(geom.Domain()),
-          ba(domain),
+          ba(split_lateral ? make_qsurf_box_array(domain) : BoxArray(domain)),
           dm(ba),
           cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
-          xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, test_velocity_ng),
-          yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, test_velocity_ng),
-          zvel(BoxArray(surroundingNodes(domain, 2)), dm, 1, test_velocity_ng),
+          xvel(convert(ba, IntVect(AMREX_D_DECL(1, 0, 0))), dm, 1,
+               test_velocity_ng),
+          yvel(convert(ba, IntVect(AMREX_D_DECL(0, 1, 0))), dm, 1,
+               test_velocity_ng),
+          zvel(convert(ba, IntVect(AMREX_D_DECL(0, 0, 1))), dm, 1,
+               test_velocity_ng),
           theta(std::make_unique<MultiFab>(
               ba, dm, 1,
               IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
                                    test_primitive_z_ng)))),
-          xheat_flux(BoxArray(surroundingNodes(domain, 0)), dm, 1, 1),
-          yheat_flux(BoxArray(surroundingNodes(domain, 1)), dm, 1, 1),
-          zheat_flux(BoxArray(surroundingNodes(domain, 2)), dm, 1, 1)
+          xheat_flux(convert(ba, IntVect(AMREX_D_DECL(1, 0, 0))), dm, 1, 1),
+          yheat_flux(convert(ba, IntVect(AMREX_D_DECL(0, 1, 0))), dm, 1, 1),
+          zheat_flux(convert(ba, IntVect(AMREX_D_DECL(0, 0, 1))), dm, 1, 1)
     {
         cons.setVal(Real(0.0));
         cons.setVal(test_rho, Rho_comp, 1);
@@ -462,13 +478,16 @@ TEST(SurfaceLayer, MoengWritesRequiredComponentsAndPreservesIsolatedSymmetry)
 
 // Motivation: the water path must match the saturation oracle on the
 // selected face and preserve the land sentinel on every other output box.
-// This is the single-box counterpart of the distributed qsurf ownership test.
+// This is the serial counterpart of the distributed qsurf ownership test.
 TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
 {
     ScopedSurfaceLayerParams params("unit_surface_layer_qsurf_serial");
 
     for (const auto& face : all_faces()) {
-        SurfaceLayerFields fields(make_qsurf_geometry());
+        SCOPED_TRACE(std::string("direction=") +
+                     std::to_string(face.coordDir()) +
+                     ", high=" + std::to_string(!face.isLow()));
+        SurfaceLayerFields fields(make_qsurf_geometry(), true);
         fields.lmask[0]->setVal(0);
         auto layer = fields.prepare_layer(
             face, active_faces({face}), "unit_surface_layer_qsurf_serial", true);
@@ -498,10 +517,10 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             const Real qsurf_max = get<1>(qsurf_range);
             if (selected) {
                 selected_count += static_cast<Long>(valid.numPts());
-                EXPECT_NEAR(qsurf_min, expected,
-                            qsat_tolerance(expected));
-                EXPECT_NEAR(qsurf_max, expected,
-                            qsat_tolerance(expected));
+                ERF_EXPECT_NEAR(qsurf_min, expected,
+                                qsat_tolerance(expected));
+                ERF_EXPECT_NEAR(qsurf_max, expected,
+                                qsat_tolerance(expected));
             } else {
                 EXPECT_EQ(qsurf_min, tau_sentinel);
                 EXPECT_EQ(qsurf_max, tau_sentinel);
@@ -509,6 +528,49 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
         }
         EXPECT_GT(selected_count, 0);
     }
+}
+
+// Motivation: tau31 and tau32 are optional away from their corresponding
+// lateral faces.  The optional paths must not dereference absent outputs.
+TEST(SurfaceLayer, OptionalTransposeStressCanBeAbsent)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_missing_tau");
+
+    const auto exercise = [] (const Orientation face,
+                              const bool omit_tau31,
+                              const bool omit_tau32) {
+        SCOPED_TRACE(std::string("direction=") +
+                     std::to_string(face.coordDir()) +
+                     ", high=" + std::to_string(!face.isLow()));
+        SurfaceLayerFields fields;
+        auto layer = fields.prepare_layer(
+            face, active_faces({face}), "unit_surface_layer_missing_tau");
+        if (omit_tau31) { fields.tau[TauType::tau31].reset(); }
+        if (omit_tau32) { fields.tau[TauType::tau32].reset(); }
+        fields.impose(*layer);
+
+        const IntVect point = face_point(fields.domain, face);
+        const MultiFab* required_a = nullptr;
+        const MultiFab* required_b = nullptr;
+        if (face.coordDir() == 0) {
+            required_a = fields.tau[TauType::tau21].get();
+            required_b = fields.tau[TauType::tau31].get();
+        } else if (face.coordDir() == 1) {
+            required_a = fields.tau[TauType::tau12].get();
+            required_b = fields.tau[TauType::tau32].get();
+        } else {
+            required_a = fields.tau[TauType::tau13].get();
+            required_b = fields.tau[TauType::tau23].get();
+        }
+        ASSERT_NE(required_a, nullptr);
+        ASSERT_NE(required_b, nullptr);
+        EXPECT_TRUE(is_changed(mf_value(*required_a, point)));
+        EXPECT_TRUE(is_changed(mf_value(*required_b, point)));
+    };
+
+    exercise(Orientation(Direction::x, Orientation::low), false, true);
+    exercise(Orientation(Direction::y, Orientation::low), true, false);
+    exercise(Orientation(Direction::z, Orientation::low), true, true);
 }
 
 // Motivation: when multiple surface-layer faces meet, transpose writes at

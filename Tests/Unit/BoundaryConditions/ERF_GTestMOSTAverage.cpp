@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include "../ERF_GTestAssertions.H"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -111,6 +113,62 @@ make_terrain_geometry ()
                            {AMREX_D_DECL(13.0, 24.0, 35.0)});
     const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
     return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+Geometry
+make_tangential_periodic_geometry (const int normal_dir)
+{
+    const Box domain(IntVect(0), IntVect(3, 3, 1));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                           {AMREX_D_DECL(4.0, 4.0, 2.0)});
+    Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    is_periodic[normal_dir] = 0;
+    return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+Real
+point_value (const MultiFab& mf, const IntVect& point)
+{
+    const Box point_box(point, point);
+    return mf.min(point_box, 0, 1, true);
+}
+
+void
+expect_periodic_copy (const MultiFab& mf,
+                      const Geometry& geom,
+                      const Orientation face,
+                      const int tangent_dir,
+                      const std::string& name)
+{
+    const Box& domain = geom.Domain();
+    const int dir = face.coordDir();
+    const int normal_index = face.isLow()
+        ? domain.smallEnd(dir) : domain.bigEnd(dir);
+
+    // Keep every coordinate other than the selected tangential direction
+    // fixed. A periodic copy changes only the coordinate that crosses the
+    // boundary; for z-faces, changing both tangential coordinates would test
+    // a diagonal corner copy instead of the requested one-dimensional wrap.
+    IntVect low_valid(domain.smallEnd());
+    IntVect high_valid(low_valid);
+    low_valid[dir] = normal_index;
+    high_valid[dir] = normal_index;
+    low_valid[tangent_dir] = domain.smallEnd(tangent_dir);
+    high_valid[tangent_dir] = domain.bigEnd(tangent_dir);
+
+    IntVect low_ghost(low_valid);
+    IntVect high_ghost(high_valid);
+    low_ghost[tangent_dir] -= 1;
+    high_ghost[tangent_dir] += 1;
+
+    const Real low_reference = point_value(mf, high_valid);
+    const Real high_reference = point_value(mf, low_valid);
+    ERF_EXPECT_NEAR(point_value(mf, low_ghost), low_reference,
+                    tolerance(low_reference))
+        << name << ": low ghost";
+    ERF_EXPECT_NEAR(point_value(mf, high_ghost), high_reference,
+                    tolerance(high_reference))
+        << name << ": high ghost";
 }
 
 Geometry
@@ -285,6 +343,62 @@ TEST(MOSTAverage, PlaneAverageIsIndependentOfLateralTiling)
         for (std::size_t comp = 0; comp < expected.size(); ++comp) {
             EXPECT_NEAR(plane_average[comp], expected[comp], tolerance(expected[comp]))
                 << "high=" << !face.isLow() << ", component=" << comp;
+        }
+    }
+}
+
+// Motivation: region averages consume periodic tangential ghost values on all
+// face orientations. The collapsed wall-normal periodicity must not suppress
+// copies in the remaining periodic directions.
+TEST(MOSTAverage, PeriodicTangentialGhostsAreFilledForRegionAverages)
+{
+    for (const auto& face : all_faces()) {
+        SCOPED_TRACE(std::string("direction=") +
+                     std::to_string(face.coordDir()) +
+                     ", high=" + std::to_string(!face.isLow()));
+        MOSTAverageFields fields(make_tangential_periodic_geometry(face.coordDir()));
+        const auto& geom = fields.geom;
+        for (MFIter mfi(*fields.theta, false); mfi.isValid(); ++mfi) {
+            const Box box = mfi.fabbox();
+            auto theta_arr = fields.theta->array(mfi);
+            auto qv_arr = fields.qv->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                theta_arr(i,j,k) = test_theta +
+                    Real(0.25) * static_cast<Real>(i) +
+                    Real(0.5) * static_cast<Real>(j);
+                qv_arr(i,j,k) = test_qv +
+                    Real(0.0001) * static_cast<Real>(i) +
+                    Real(0.0002) * static_cast<Real>(j);
+            });
+        }
+        Gpu::streamSynchronize();
+
+        const std::string prefix = "unit_most_periodic_tangential_" +
+            std::to_string(face.coordDir()) + (face.isLow() ? "_lo" : "_hi");
+        ScopedMOSTParams params(prefix.c_str(), 1, 0);
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false, prefix,
+                              MeshType::ConstantDz, TerrainType::None);
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        averages.compute_averages(0);
+        Gpu::streamSynchronize();
+
+        const std::array<int, 2> tangent_dirs = face.coordDir() == 2
+            ? std::array<int, 2>{0, 1}
+            : (face.coordDir() == 0
+                ? std::array<int, 2>{1, -1}
+                : std::array<int, 2>{0, -1});
+        const int n_tangential = face.coordDir() == 2 ? 2 : 1;
+        for (int n = 0; n < n_tangential; ++n) {
+            const int tangent_dir = tangent_dirs[n];
+            expect_periodic_copy(*averages.get_average(0, 3), geom, face,
+                                 tangent_dir, "temperature");
+            expect_periodic_copy(*averages.get_average(0, 5), geom, face,
+                                 tangent_dir, "virtual temperature");
+            expect_periodic_copy(*averages.get_average(0, 6), geom, face,
+                                 tangent_dir, "tangential speed");
         }
     }
 }

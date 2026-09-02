@@ -4,6 +4,7 @@
 #include "ERF_GTestSurfaceLayerCommon.H"
 
 #include <AMReX_FabArrayBase.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Reduce.H>
 #include <AMReX_iMultiFab.H>
@@ -14,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace erf_surface_layer_test {
 
@@ -85,6 +87,40 @@ collapse_z (const BoxArray& ba)
     return BoxArray(std::move(boxes));
 }
 
+constexpr Real u_star_seed = Real(710000.0);
+constexpr Real t_star_seed = Real(720000.0);
+constexpr Real q_star_seed = Real(730000.0);
+constexpr Real olen_seed = Real(740000.0);
+
+inline Real
+seeded_value (const Real base, const int box_index)
+{
+    return base + static_cast<Real>(box_index);
+}
+
+inline Real
+halo_tolerance (const Real expected)
+{
+    // Halo exchange copies the same computed value; allow a small
+    // backend-independent roundoff margin while retaining a scaled oracle.
+    return Real(256.0) * std::numeric_limits<Real>::epsilon() *
+           std::max(Real(1.0), std::abs(expected));
+}
+
+inline void
+set_fab_values (MultiFab& mf, const Real base)
+{
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Real value = seeded_value(base, mfi.index());
+        auto array = mf.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            array(i,j,k) = value;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 struct SurfaceLayerFields
 {
     Geometry geom;
@@ -110,7 +146,8 @@ struct SurfaceLayerFields
           domain(geom.Domain()),
           ba(make_parallel_box_array(domain)),
           dm(ba),
-          cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
+          cons(ba, dm, RhoQ1_comp + 1,
+               IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 1))),
           xvel(make_face_box_array(ba, 0), dm, 1, test_velocity_ng),
           yvel(make_face_box_array(ba, 1), dm, 1, test_velocity_ng),
           zvel(make_face_box_array(ba, 2), dm, 1, test_velocity_ng),
@@ -164,11 +201,44 @@ struct SurfaceLayerFields
         Gpu::streamSynchronize();
     }
 
+    void set_varying_surface_temperature ()
+    {
+        for (MFIter mfi(*theta, false); mfi.isValid(); ++mfi) {
+            const Box box = mfi.fabbox();
+            const Real box_offset = Real(2.0) * static_cast<Real>(mfi.index());
+            auto theta_arr = theta->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                theta_arr(i,j,k) = test_surface_temperature +
+                    box_offset +
+                    Real(0.25) * static_cast<Real>(i) +
+                    Real(0.5) * static_cast<Real>(j);
+            });
+        }
+        Gpu::streamSynchronize();
+    }
+
+    void set_varying_surface_humidity ()
+    {
+        if (!qv_prim[0]) { return; }
+        for (MFIter mfi(*qv_prim[0], false); mfi.isValid(); ++mfi) {
+            const Real box_offset = Real(0.001) * static_cast<Real>(mfi.index());
+            auto qv_arr = qv_prim[0]->array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                qv_arr(i,j,k) = test_qv + box_offset;
+            });
+        }
+        Gpu::streamSynchronize();
+    }
+
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active,
                    const std::string& prefix,
-                   const bool with_moisture = false)
+                   const bool with_moisture = false,
+                   const bool varying_inputs = false,
+                   const bool seed_outputs = false)
     {
         Vector<Geometry> geoms{geom};
         Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
@@ -179,6 +249,10 @@ struct SurfaceLayerFields
                 IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
                                      test_primitive_z_ng)));
             qv_prim[0]->setVal(test_qv);
+        }
+        if (varying_inputs) {
+            set_varying_surface_temperature();
+            set_varying_surface_humidity();
         }
         bool rotate = false;
         auto layer = std::make_unique<SurfaceLayer>(
@@ -195,6 +269,12 @@ struct SurfaceLayerFields
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, empty_mfs, empty_names,
             empty_mfs, empty_names, sst, tsk, lmask);
+        if (seed_outputs) {
+            set_fab_values(*layer->get_u_star(0), u_star_seed);
+            set_fab_values(*layer->get_t_star(0), t_star_seed);
+            set_fab_values(*layer->get_q_star(0), q_star_seed);
+            set_fab_values(*layer->get_olen(0), olen_seed);
+        }
         if (with_moisture) { layer->get_q_surf(0)->setVal(tau_sentinel); }
         layer->update_fluxes(0, 0.0, 0.0, cons, z_phys_nd[0],
                              no_walldist, 20);
@@ -248,6 +328,82 @@ mf_value (const MultiFab& mf, const IntVect& point)
     return value;
 }
 
+inline Real
+global_fab_value (const MultiFab& mf,
+                  const int fab_index,
+                  const IntVect& point,
+                  const bool include_ghost)
+{
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    const Box point_box(point, point, mf.boxArray().ixType());
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        if (mfi.index() != fab_index) { continue; }
+        const Box& available = include_ghost ? mfi.fabbox() : mfi.validbox();
+        const Box overlap = point_box & available;
+        if (overlap.isEmpty()) { continue; }
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+            { return {array(i,j,k)}; });
+    }
+    Gpu::streamSynchronize();
+    Real value = get<0>(reduce_data.value());
+    ParallelDescriptor::ReduceRealSum(value);
+    return value;
+}
+
+struct TangentialHaloPair
+{
+    int target_fab;
+    int neighbor_fab;
+    IntVect point;
+};
+
+inline std::vector<TangentialHaloPair>
+tangential_halo_pairs (const MultiFab& mf,
+                       const BoxArray& source_ba,
+                       const Box& domain,
+                       const Orientation face)
+{
+    std::vector<TangentialHaloPair> result;
+    const int dir = face.coordDir();
+    if (dir == 2) { return result; }
+    const int tangent_dir = 1 - dir;
+    const BoxArray& target_ba = mf.boxArray();
+
+    for (int ibox = 0; ibox < target_ba.size(); ++ibox) {
+        const Box& source = source_ba[ibox];
+        const bool selected = face.isLow()
+            ? source.smallEnd(dir) == domain.smallEnd(dir)
+            : source.bigEnd(dir) == domain.bigEnd(dir);
+        if (!selected) { continue; }
+
+        const Box& target = target_ba[ibox];
+        if (target.smallEnd(tangent_dir) > domain.smallEnd(tangent_dir)) {
+            IntVect point = target.smallEnd();
+            point[tangent_dir] -= 1;
+            for (int jbox = 0; jbox < target_ba.size(); ++jbox) {
+                if (jbox != ibox && target_ba[jbox].contains(point)) {
+                    result.push_back({ibox, jbox, point});
+                    break;
+                }
+            }
+        }
+        if (target.bigEnd(tangent_dir) < domain.bigEnd(tangent_dir)) {
+            IntVect point = target.bigEnd();
+            point[tangent_dir] += 1;
+            for (int jbox = 0; jbox < target_ba.size(); ++jbox) {
+                if (jbox != ibox && target_ba[jbox].contains(point)) {
+                    result.push_back({ibox, jbox, point});
+                    break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
 inline GlobalRange
 face_range (const MultiFab& mf, const Box& domain, const Orientation face)
 {
@@ -281,6 +437,68 @@ face_range (const MultiFab& mf, const Box& domain, const Orientation face)
     }
     Gpu::streamSynchronize();
     local_sentinel_count = get<0>(reduce_data.value());
+    ParallelDescriptor::ReduceLongSum(local_count);
+    ParallelDescriptor::ReduceLongSum(local_total_count);
+    ParallelDescriptor::ReduceLongSum(local_sentinel_count);
+    ParallelDescriptor::ReduceRealMin(local_lo);
+    ParallelDescriptor::ReduceRealMax(local_hi);
+    return {local_lo, local_hi, local_count, local_total_count,
+            local_sentinel_count};
+}
+
+// The lateral surface fields collapse the face-normal coordinate.  Therefore
+// a geometric plane intersects non-face source boxes as well; use the
+// original source ownership to identify the selected FABs.
+inline GlobalRange
+face_owned_range (const MultiFab& mf,
+                  const BoxArray& source_ba,
+                  const Box& domain,
+                  const Orientation face)
+{
+    const int dir = face.coordDir();
+    const int face_index = face.isLow()
+        ? domain.smallEnd(dir) : domain.bigEnd(dir);
+
+    Long local_count = 0;
+    Long local_total_count = 0;
+    Long local_sentinel_count = 0;
+    Real local_lo = std::numeric_limits<Real>::max();
+    Real local_hi = std::numeric_limits<Real>::lowest();
+
+    ReduceOps<ReduceOpMin, ReduceOpMax> range_op;
+    ReduceData<Real, Real> range_data(range_op);
+    ReduceOps<ReduceOpSum> sentinel_op;
+    ReduceData<Long> sentinel_data(sentinel_op);
+
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box& valid = mfi.validbox();
+        const auto array = mf.const_array(mfi);
+        local_total_count += static_cast<Long>(valid.numPts());
+        sentinel_op.eval(valid, sentinel_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Long>
+            { return {array(i,j,k) == tau_sentinel ? Long(1) : Long(0)}; });
+
+        const Box& source = source_ba[mfi.index()];
+        const bool selected = face.isLow()
+            ? source.smallEnd(dir) == face_index
+            : source.bigEnd(dir) == face_index;
+        if (!selected) { continue; }
+
+        local_count += static_cast<Long>(valid.numPts());
+        range_op.eval(valid, range_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                -> GpuTuple<Real, Real>
+            {
+                const Real value = array(i,j,k);
+                return {value, value};
+            });
+    }
+
+    Gpu::streamSynchronize();
+    const auto range = range_data.value();
+    local_lo = get<0>(range);
+    local_hi = get<1>(range);
+    local_sentinel_count = get<0>(sentinel_data.value());
     ParallelDescriptor::ReduceLongSum(local_count);
     ParallelDescriptor::ReduceLongSum(local_total_count);
     ParallelDescriptor::ReduceLongSum(local_sentinel_count);

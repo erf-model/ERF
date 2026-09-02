@@ -1,5 +1,7 @@
 #include "ERF_GTestSurfaceLayerParallelCommon.H"
 
+#include "../ERF_GTestAssertions.H"
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -46,6 +48,35 @@ stress_components (SurfaceLayerFields& fields,
         return {fields.tau[TauType::tau13].get(), fields.tau[TauType::tau31].get()};
     }
     return {fields.tau[TauType::tau23].get(), fields.tau[TauType::tau32].get()};
+}
+
+void
+expect_lateral_stresses (SurfaceLayerFields& fields, const Orientation face)
+{
+    const int dir = face.coordDir();
+    const std::array<int, 2> tangential_dirs = dir == 0
+        ? std::array<int, 2>{1, 2}
+        : std::array<int, 2>{0, 2};
+    for (const int tangential_dir : tangential_dirs) {
+        const auto stresses = stress_components(fields, dir, tangential_dir);
+        const auto required_range =
+            face_range(*stresses.required, fields.domain, face);
+        const auto transpose_range =
+            face_range(*stresses.transpose, fields.domain, face);
+        EXPECT_GT(required_range.count, 0);
+        EXPECT_TRUE(is_changed(required_range.lo));
+        EXPECT_TRUE(is_changed(required_range.hi));
+        EXPECT_TRUE(is_changed(transpose_range.lo));
+        EXPECT_TRUE(is_changed(transpose_range.hi));
+        EXPECT_EQ(required_range.sentinel_count,
+                  required_range.total_count - required_range.count);
+        EXPECT_EQ(transpose_range.sentinel_count,
+                  transpose_range.total_count - transpose_range.count);
+        ERF_EXPECT_NEAR(required_range.lo, transpose_range.lo,
+                        halo_tolerance(required_range.lo));
+        ERF_EXPECT_NEAR(required_range.hi, transpose_range.hi,
+                        halo_tolerance(required_range.hi));
+    }
 }
 
 TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
@@ -120,6 +151,74 @@ TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
     }
 }
 
+// Motivation: lateral surface parameters are computed only on face-owned
+// grids. Their tangential halos must nevertheless be communicated without
+// importing the sentinel values from interior grids that share the collapsed
+// wall plane.
+TEST(SurfaceLayerParallel, LateralSurfaceParameterGhostsAreFaceOwned)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    ScopedSurfaceLayerParams params("unit_surface_layer_parallel_halos");
+
+    for (const auto face : {
+             Orientation(Direction::x, Orientation::low),
+             Orientation(Direction::x, Orientation::high),
+             Orientation(Direction::y, Orientation::low),
+             Orientation(Direction::y, Orientation::high)}) {
+        SCOPED_TRACE(std::string("direction=") +
+                     std::to_string(face.coordDir()) +
+                     ", high=" + std::to_string(!face.isLow()));
+        SurfaceLayerFields fields;
+        auto layer = fields.prepare_layer(
+            face, active_face(face), "unit_surface_layer_parallel_halos",
+            true, true, true);
+
+        const auto pairs = tangential_halo_pairs(
+            *layer->get_u_star(0), fields.ba, fields.domain, face);
+        EXPECT_GT(pairs.size(), std::size_t(0));
+        if (pairs.empty()) { continue; }
+
+        const std::array<const MultiFab*, 4> parameters{{
+            layer->get_u_star(0), layer->get_t_star(0),
+            layer->get_q_star(0), layer->get_olen(0)}};
+        for (std::size_t parameter = 0; parameter < parameters.size(); ++parameter) {
+            for (const auto& pair : pairs) {
+                const Real halo = global_fab_value(
+                    *parameters[parameter], pair.target_fab, pair.point, true);
+                const Real reference = global_fab_value(
+                    *parameters[parameter], pair.neighbor_fab, pair.point, false);
+                ERF_EXPECT_NEAR(halo, reference, halo_tolerance(reference))
+                    << "parameter=" << parameter
+                    << ", target_fab=" << pair.target_fab
+                    << ", neighbor_fab=" << pair.neighbor_fab;
+            }
+        }
+
+        const int dir = face.coordDir();
+        for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+            const Box& source = fields.ba[ibox];
+            const bool selected = face.isLow()
+                ? source.smallEnd(dir) == fields.domain.smallEnd(dir)
+                : source.bigEnd(dir) == fields.domain.bigEnd(dir);
+            if (selected) { continue; }
+
+            const Box target_box = layer->get_u_star(0)->boxArray()[ibox];
+            const IntVect point = target_box.smallEnd();
+            EXPECT_EQ(global_fab_value(*layer->get_u_star(0), ibox, point, false),
+                      seeded_value(u_star_seed, ibox));
+            EXPECT_EQ(global_fab_value(*layer->get_t_star(0), ibox, point, false),
+                      seeded_value(t_star_seed, ibox));
+            EXPECT_EQ(global_fab_value(*layer->get_q_star(0), ibox, point, false),
+                      seeded_value(q_star_seed, ibox));
+            EXPECT_EQ(global_fab_value(*layer->get_olen(0), ibox, point, false),
+                      seeded_value(olen_seed, ibox));
+        }
+
+        fields.impose(*layer);
+        expect_lateral_stresses(fields, face);
+    }
+}
+
 // Motivation: qsat must be written only by tiles that contain the selected
 // boundary plane.  The distributed layout deliberately leaves other FABs on
 // each rank, so a valid result cannot be established from one local FAB.
@@ -157,7 +256,8 @@ TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
         EXPECT_EQ(counts.finite + counts.sentinel, counts.total)
             << "direction=" << dir << ", high=" << !face.isLow();
 
-        const auto selected = face_range(*qsurf, fields.domain, face);
+        const auto selected = face_owned_range(
+            *qsurf, fields.ba, fields.domain, face);
         EXPECT_EQ(selected.count, counts.finite)
             << "direction=" << dir << ", high=" << !face.isLow();
         const Real expected = expected_qsat(fields.geom);

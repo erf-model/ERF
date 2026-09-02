@@ -138,9 +138,10 @@ selected_average_range (const MultiFab& average,
         if (!owns_face) { continue; }
 
         const Box& valid = mfi.validbox();
+        const auto& fab = average[mfi];
         local_count += static_cast<Long>(valid.numPts());
-        local_lo = std::min(local_lo, average.min(valid, 0, 0, true));
-        local_hi = std::max(local_hi, average.max(valid, 0, 0, true));
+        local_lo = std::min(local_lo, fab.min(valid, 0));
+        local_hi = std::max(local_hi, fab.max(valid, 0));
     }
 
     ParallelDescriptor::ReduceLongSum(local_count);
@@ -181,15 +182,16 @@ region_range (const MultiFab& average,
             ? source.smallEnd(dir) == face_index
             : source.bigEnd(dir) == face_index;
         const Box& valid = mfi.validbox();
+        const auto& fab = average[mfi];
         const Long points = static_cast<Long>(valid.numPts());
         if (selected) {
             selected_count += points;
-            selected_lo = std::min(selected_lo, average.min(valid, 0, 0, true));
-            selected_hi = std::max(selected_hi, average.max(valid, 0, 0, true));
+            selected_lo = std::min(selected_lo, fab.min(valid, 0));
+            selected_hi = std::max(selected_hi, fab.max(valid, 0));
         } else {
             nonselected_count += points;
-            const Real lo = average.min(valid, 0, 0, true);
-            const Real hi = average.max(valid, 0, 0, true);
+            const Real lo = fab.min(valid, 0);
+            const Real hi = fab.max(valid, 0);
             if (lo != nonselected_value || hi != nonselected_value) {
                 nonselected_bad += points;
             }

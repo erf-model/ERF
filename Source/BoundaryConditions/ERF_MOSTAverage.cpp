@@ -6,6 +6,21 @@
 
 using namespace amrex;
 
+namespace {
+
+// The average fields are collapsed in the wall-normal direction. Preserve
+// periodic communication in the tangential directions while leaving the
+// selected wall plane non-periodic.
+Periodicity
+tangential_periodicity (const Geometry& geom, const int dir)
+{
+    IntVect period = geom.periodicity().intVect();
+    period[dir] = 0;
+    return Periodicity(period);
+}
+
+} // namespace
+
 /**
  * Constructor for MOSTAverage class.
  *
@@ -1554,6 +1569,7 @@ MOSTAverage::compute_region_averages (const int& lev)
     auto& k_indx   = m_k_indx[lev];
 
     const int dir = m_face.coordDir();
+    const Periodicity average_periodicity = tangential_periodicity(geom, dir);
 
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
@@ -1673,7 +1689,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[imf]->FillBoundary(averages[imf]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        averages[imf]->FillBoundary(averages[imf]->nGrowVect(), average_periodicity);
     } // imf
 
     //
@@ -1796,7 +1812,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), average_periodicity);
 
     }
     else // copy temperature
@@ -1940,10 +1956,10 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), average_periodicity);
         if (dir < 2) {
-            averages[iavg_xz]->FillBoundary(averages[iavg_xz]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
-            averages[iavg_yz]->FillBoundary(averages[iavg_yz]->nGrowVect(), Periodicity(IntVect::TheDimensionVector(m_face.coordDir())));
+            averages[iavg_xz]->FillBoundary(averages[iavg_xz]->nGrowVect(), average_periodicity);
+            averages[iavg_yz]->FillBoundary(averages[iavg_yz]->nGrowVect(), average_periodicity);
         }
     }
 
@@ -1955,6 +1971,9 @@ MOSTAverage::compute_region_averages (const int& lev)
     // Need to fill ghost cells outside the domain if not periodic
     bool not_per_x = !(geom.periodicity().isPeriodic(0));
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
+    const bool per_x = geom.periodicity().isPeriodic(0);
+    const bool per_y = geom.periodicity().isPeriodic(1);
+    const bool per_z = geom.periodicity().isPeriodic(2);
     Box cc_bnd_bx  = (m_fields[lev][3]->boxArray()).minimalBox();
     Box domain     = geom.Domain();
 
@@ -2016,6 +2035,14 @@ MOSTAverage::compute_region_averages (const int& lev)
 
                     ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
+                        // Periodic tangential ghosts were populated by the
+                        // FillBoundary above. Leave them untouched; this
+                        // kernel only supplies non-periodic ghost values.
+                        if ((per_y && (j < j_lo || j > j_hi)) ||
+                            (per_z && (k < k_lo || k > k_hi))) {
+                            return;
+                        }
+
                         int lj, lk;
                         lj = j  < j_lo ? j_lo : j;
                         lj = lj > j_hi ? j_hi : lj;
@@ -2029,6 +2056,14 @@ MOSTAverage::compute_region_averages (const int& lev)
                     int k_lo = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
                     ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
+                        // Periodic tangential ghosts were populated by the
+                        // FillBoundary above. Leave them untouched; this
+                        // kernel only supplies non-periodic ghost values.
+                        if ((per_x && (i < i_lo || i > i_hi)) ||
+                            (per_z && (k < k_lo || k > k_hi))) {
+                            return;
+                        }
+
                         int li, lk;
                         li = i  < i_lo ? i_lo : i;
                         li = li > i_hi ? i_hi : li;
@@ -2042,6 +2077,14 @@ MOSTAverage::compute_region_averages (const int& lev)
                     int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
                     ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
+                        // Periodic tangential ghosts were populated by the
+                        // FillBoundary above. Leave them untouched; this
+                        // kernel only supplies non-periodic ghost values.
+                        if ((per_x && (i < i_lo || i > i_hi)) ||
+                            (per_y && (j < j_lo || j > j_hi))) {
+                            return;
+                        }
+
                         int li, lj;
                         li = i  < i_lo ? i_lo : i;
                         li = li > i_hi ? i_hi : li;

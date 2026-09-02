@@ -1386,6 +1386,12 @@ private:
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
 
+  // Exchange surface parameters only among FABs that actually own the
+  // selected lateral face. A normal FillBoundary on the collapsed lateral
+  // layout would also use FABs from interior grids, whose values are not
+  // surface-layer data.
+  void fill_lateral_surface_parameter_ghosts (const int& lev);
+
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;
   amrex::Real theta_ref = zero;

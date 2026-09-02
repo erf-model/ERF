@@ -47,7 +47,8 @@ void expect_all_plane_values (const Vector<Real>& actual,
                               const bool distributed)
 {
     const auto expected = expected_average_values();
-    ASSERT_EQ(actual.size(), expected.size());
+    const std::size_t expected_size = expected.size();
+    ASSERT_EQ(actual.size(), expected_size);
     for (std::size_t comp = 0; comp < 7; ++comp) {
         EXPECT_NEAR(actual[comp], expected[comp], tolerance(expected[comp]))
             << "direction=" << face.coordDir()
@@ -98,12 +99,15 @@ TEST(MOSTAverageParallel, DistributedAndTiledPlaneAverageMatchesReference)
 // on every distributed low/high Cartesian face.
 TEST(MOSTAverageParallel, BothPoliciesSupportKAndZrefOnEveryWall)
 {
-    const Real requested_distance = Real(4.0);
     for (const int policy : {0, 1}) {
         for (const bool use_zref : {true, false}) {
             for (const auto& face : all_faces()) {
                 MOSTAverageFields fields(true);
                 const int dir = face.coordDir();
+                // The four-cell vertical domain only permits a reference
+                // point below its last cell center.  Keep the larger lateral
+                // distance while using a valid distance for Z faces.
+                const Real requested_distance = dir == 2 ? Real(1.0) : Real(4.0);
                 const Real dz = fields.geom.CellSize(dir);
                 const bool zlo_absolute = dir == 2 && face.isLow();
                 const Real requested_zref = zlo_absolute
@@ -257,7 +261,11 @@ TEST(MOSTAverageParallel, DistributedAndTiledRegionAverageMatchesReference)
                 EXPECT_GT(range.selected_count, 0);
                 EXPECT_NEAR(range.selected_lo, expected[comp], tolerance(expected[comp]));
                 EXPECT_NEAR(range.selected_hi, expected[comp], tolerance(expected[comp]));
-                if (distributed) {
+                // The distributed layout is split laterally but spans the
+                // full vertical domain, so every source box belongs to both
+                // Z faces.  Only lateral distributed faces have untouched
+                // source boxes.
+                if (distributed && face.coordDir() < 2) {
                     EXPECT_GT(range.nonselected_count, 0);
                 } else {
                     EXPECT_EQ(range.nonselected_count, 0);
