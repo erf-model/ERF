@@ -1569,17 +1569,23 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 
     // Populate q_surf with qsat over water
     auto dz = m_geom[lev].CellSize(2);
+    const int ng_z = amrex::min(cons_in.nGrowVect()[2],
+                                amrex::min(t_surf[lev]->nGrowVect()[2],
+                                           q_surf[lev]->nGrowVect()[2]));
     // NOTE: need to use lmask (defined over entire X/Y grid) for MFIter here so that we can properly detect if a box on a given MPI rank is not on the current face
     //       if u_star is used instead, then all ranks will participate, even if their boxes do not coincide with the face!
     //for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
-        Box vbx = mfi.validbox();
+        Box tbx = mfi.tilebox();
 
-        // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
-        // X and Y faces need the entire domain Z range, so resize the box accordingly
-        vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        // Since lmask is used in the MFIter, its Z dimension is 0.  These are
+        // temporary geometry boxes, so use the physical domain's Z range for
+        // face selection and for indexing the 3-D surface/state arrays.
+        tbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
+        tbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
@@ -1591,14 +1597,14 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                             Array4<const Real> {};
 
         if (m_face.isLow()) {
-            gtbx.grow(2, 3);
+            gtbx.grow(2, ng_z);
             gtbx.setBig(dir, sm_index);
         } else {
-            gtbx.grow(2, 3);
+            gtbx.grow(2, ng_z);
             gtbx.setSmall(dir, sm_index);
         }
 
-        if (vbx[m_face] != sm_index) {
+        if (tbx[m_face] != sm_index) {
             continue;
         }
 

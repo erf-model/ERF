@@ -1215,11 +1215,11 @@ MOSTAverage::compute_plane_averages (const int& lev)
             Box pbx = mfi.tilebox();  // This is the tile (not grid)
 
             if (m_face.isLow()) {
-                if (vbx.smallEnd(dir) != sm_index) {
+                if (pbx.smallEnd(dir) != sm_index) {
                     continue;
                 }
             } else {
-                if (vbx.bigEnd(dir) != sm_index) {
+                if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
             }
@@ -1595,15 +1595,14 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box vbx = mfi.validbox(); // This is the grid (not tile)
             Box pbx = mfi.tilebox();
 
             if (m_face.isLow()) {
-                if (vbx.smallEnd(dir) != sm_index) {
+                if (pbx.smallEnd(dir) != sm_index) {
                     continue;
                 }
             } else {
-                if (vbx.bigEnd(dir) != sm_index) {
+                if (pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
             }
