@@ -243,6 +243,8 @@ bool read_phreeqc_netcdf(MultiFab& mf, const DustGrid& dg,
                          const std::string& filename,
                          const std::string& varname, Real nodata_fill)
 {
+    // Both branches below abort, so nothing here consumes the arguments.
+    amrex::ignore_unused(mf, dg, filename, varname, nodata_fill);
 #ifdef ERF_USE_NETCDF
     amrex::Abort("[DUST] read_phreeqc_netcdf: implementation not yet complete. "
                  "Use CSV format for PHREEQC output.");

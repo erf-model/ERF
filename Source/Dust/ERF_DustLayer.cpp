@@ -511,6 +511,11 @@ DustLayer::advance(
   const amrex::Geometry* geom_atm,
   int nz)
 {
+  // Used only in the ERF_USE_PARTICLES block near the end of this function, so
+  // they are genuinely unused when particles are off. Naming them here keeps the
+  // signature intact for both configurations.
+  amrex::ignore_unused(zvel_mf, geom_atm);
+
   ++m_step;
   m_time += dt;
 
