@@ -38,6 +38,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuLaunch.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Reduce.H>
 #include <cmath>
 
 // ============================================================================
@@ -78,14 +79,25 @@ inline void apply_fire_acceleration_size_based(amrex::MultiFab&       R_mf,
 {
     const auto dx = geom.CellSize();
 
-    // Count burned cells (CPU loop; same pattern as perimeter counting)
+    // Count burned cells. Device reduction, not a host loop: under CUDA phi's
+    // data is device-only (the_arena_is_managed defaults to false), so reading
+    // it from the host faults.
     amrex::Long n_burned = 0;
-    for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto const p         = phi.const_array(mfi);
-        amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            if (p(i, j, k) < 0.0) ++n_burned;
-        });
+    {
+        amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+        amrex::ReduceData<unsigned long long> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+
+        for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.validbox();
+            auto const p         = phi.const_array(mfi);
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                return { (p(i, j, k) < 0.0) ? 1ull : 0ull };
+            });
+        }
+        n_burned = static_cast<amrex::Long>(amrex::get<0>(reduce_data.value(reduce_op)));
     }
     amrex::ParallelDescriptor::ReduceLongSum(n_burned);
 
@@ -155,15 +167,25 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
 
     // Compute fire perimeter to determine acceleration constant
     // (point ignition: A_point; line ignition: A_line)
+    // Device reduction for the same reason as the burned count above. Cell
+    // semantics are unchanged, including the in-box-only neighbour guards.
     amrex::Long n_perimeter = 0;
-    for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto const p         = phi.const_array(mfi);
-        const auto lo        = amrex::lbound(bx);
-        const auto hi        = amrex::ubound(bx);
-        
-        amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            if (p(i, j, k) < 0.0) {
+    {
+        amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+        amrex::ReduceData<unsigned long long> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+
+        for (amrex::MFIter mfi(phi); mfi.isValid(); ++mfi) {
+            const amrex::Box& bx = mfi.validbox();
+            auto const p         = phi.const_array(mfi);
+            const auto lo        = amrex::lbound(bx);
+            const auto hi        = amrex::ubound(bx);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                if (p(i, j, k) >= 0.0) { return {0ull}; }
+
                 // Check if this is a perimeter cell (has unburned neighbor)
                 // Guard all stencil accesses with validbox bounds
                 bool is_perimeter = false;
@@ -171,9 +193,10 @@ inline void apply_fire_acceleration_temporal(amrex::MultiFab&       R_mf,
                 if (i-1 >= lo.x && p(i-1, j, k) >= 0.0) is_perimeter = true;
                 if (j+1 <= hi.y && p(i, j+1, k) >= 0.0) is_perimeter = true;
                 if (j-1 >= lo.y && p(i, j-1, k) >= 0.0) is_perimeter = true;
-                if (is_perimeter) ++n_perimeter;
-            }
-        });
+                return { is_perimeter ? 1ull : 0ull };
+            });
+        }
+        n_perimeter = static_cast<amrex::Long>(amrex::get<0>(reduce_data.value(reduce_op)));
     }
     amrex::ParallelDescriptor::ReduceLongSum(n_perimeter);
 
