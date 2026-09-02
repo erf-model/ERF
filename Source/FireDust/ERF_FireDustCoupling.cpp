@@ -75,7 +75,6 @@ void FireDustCoupling::apply_burned_area_to_crust(
     const int fi_hi_int = fi_hi;
     const int fj_hi_int = fj_hi;
     const int fnx_int = fnx;
-    const int fny_int = fny;
 
     for (MFIter mfi(dust_crust_index, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();

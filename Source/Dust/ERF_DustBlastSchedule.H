@@ -262,7 +262,6 @@ void apply_blast_schedule(
     amrex::Real dt_safe = (dt_s > 1.0e-16) ? dt_s : 1.0e-16;
 
     // Get physical domain from dg
-    amrex::Box dust_domain = dg.ba.minimalBox();
     amrex::Geometry const& dust_geom = dg.geom;
     auto const& plo = dust_geom.ProbLo();
     auto const& dx = dust_geom.CellSize();

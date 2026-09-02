@@ -429,11 +429,16 @@ void FireLayer::initialize(const ERF& erf,
     }
 }
 
+// surface_layer is unused: the fire layer reads the atmospheric state it needs
+// through the wind, temperature and humidity MultiFabs passed alongside it. The
+// parameter stays for interface symmetry with initialize().
 void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                         const MultiFab& xvel, const MultiFab& yvel,
                         const MultiFab& z_phys_cc,
                         const MultiFab& T_atm_k0, const MultiFab& RH_atm_k0)
 {
+    amrex::ignore_unused(surface_layer);
+
     m_current_time = time;
     m_dt_atm       = dt;
     ++m_step;

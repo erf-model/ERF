@@ -159,7 +159,6 @@ bool read_ascii_surface_map(MultiFab& mf, const DustGrid& dg,
     const auto prob_lo = geom.ProbLoArray();
 
     // GPU kernel: bilinear interpolation over MultiFab tiles
-    int ncomp = 1;
     for (MFIter mfi(mf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         auto arr = mf.array(mfi);
@@ -235,6 +234,8 @@ bool read_netcdf_surface_map(MultiFab& mf, const DustGrid& dg,
                              const std::string& varname,
                              Real nodata_fill)
 {
+    // Both branches below abort, so nothing here consumes the arguments.
+    amrex::ignore_unused(mf, dg, filename, varname, nodata_fill);
 #ifdef ERF_USE_NETCDF
     // NetCDF-C API: https://docs.unidata.ucar.edu/netcdf-c/current/
     // Full implementation deferred. Use ESRI ASCII format for now.

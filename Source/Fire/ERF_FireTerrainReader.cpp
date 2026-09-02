@@ -16,7 +16,6 @@ bool read_terrain_onto_fire_grid(
         return false;
     }
 
-    int C = fg.C;
     int nx_terrain = 0;
     int ny_terrain = 0;
     std::vector<Real> x_coords;

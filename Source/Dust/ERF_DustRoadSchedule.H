@@ -165,6 +165,10 @@ inline void apply_road_schedule(
     const std::string&     diag_file,
     int                    nstep)
 {
+    // Documented above as kept for signature consistency with the other schedule
+    // appliers; the road flux is a rate and does not integrate over the step.
+    amrex::ignore_unused(dt);
+
     if (!schedule.loaded || schedule.roads.empty()) return;
 
     // GpuArray by value: CellSize()/ProbLo() return pointers into host Geometry
