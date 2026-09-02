@@ -4,6 +4,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Reduce.H>
 #include <fstream>
 #include <string>
 #include <cmath>
@@ -122,55 +123,80 @@ append_fire_stats(const amrex::MultiFab& phi,
 {
     using namespace amrex;
     
-    const auto dx = geom.CellSize();
+    // GpuArray by value: geom.CellSize() hands back a pointer into host Geometry
+    // members, which a device lambda cannot dereference.
+    const auto dx = geom.CellSizeArray();
     Real cell_area = dx[0] * dx[1];
 
     Long n_burned = 0, n_active = 0;
     Real perim_m = Real(0.0);
     Real head_ros = Real(0.0);
 
-    for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
-        auto const p  = phi.const_array(mfi);
-        auto const at = arrival_time.const_array(mfi);
-        const IntVect lo = bx.smallEnd();
-        const IntVect hi = bx.bigEnd();
+    // Device reduction: under CUDA these MultiFabs live in device memory
+    // (the_arena_is_managed defaults to false) and cannot be read on the host.
+    // Cell semantics below are kept exactly as the previous host loop had them,
+    // including the in-box-only neighbour tests.
+    {
+        ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpMax> reduce_op;
+        ReduceData<unsigned long long, unsigned long long, Real, Real> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
 
-        Array4<const Real> R_arr;
-        if (R_mf) R_arr = R_mf->const_array(mfi);
+        const bool has_R = (R_mf != nullptr);
 
-        amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-            bool burned = (at(i, j, k, 0) >= Real(0.0));
-            Real pv     = p(i, j, k, 0);
-            
-            if (burned) {
-                ++n_burned;
-                
-                // Track head ROS for perimeter cells
-                bool on_perim = false;
-                if (i > lo[0]) on_perim |= (at(i-1,j,k,0) < Real(0.0));
-                if (i < hi[0]) on_perim |= (at(i+1,j,k,0) < Real(0.0));
-                if (j > lo[1]) on_perim |= (at(i,j-1,k,0) < Real(0.0));
-                if (j < hi[1]) on_perim |= (at(i,j+1,k,0) < Real(0.0));
-                
-                if (on_perim && R_mf) {
-                    Real r = R_arr(i, j, k, 0);
-                    if (r > head_ros) head_ros = r;
+        for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto const p  = phi.const_array(mfi);
+            auto const at = arrival_time.const_array(mfi);
+            const IntVect lo = bx.smallEnd();
+            const IntVect hi = bx.bigEnd();
+
+            Array4<const Real> R_arr;
+            if (has_R) R_arr = R_mf->const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                unsigned long long burned_cnt = 0, active_cnt = 0;
+                Real perim = Real(0.0);
+                Real ros   = Real(0.0);
+
+                const bool burned = (at(i, j, k, 0) >= Real(0.0));
+                const Real pv     = p(i, j, k, 0);
+
+                if (burned) {
+                    burned_cnt = 1;
+
+                    // Track head ROS for perimeter cells
+                    bool on_perim = false;
+                    if (i > lo[0]) on_perim = on_perim || (at(i-1,j,k,0) < Real(0.0));
+                    if (i < hi[0]) on_perim = on_perim || (at(i+1,j,k,0) < Real(0.0));
+                    if (j > lo[1]) on_perim = on_perim || (at(i,j-1,k,0) < Real(0.0));
+                    if (j < hi[1]) on_perim = on_perim || (at(i,j+1,k,0) < Real(0.0));
+
+                    if (on_perim && has_R) { ros = R_arr(i, j, k, 0); }
+                } else if (pv < Real(0.1) && pv >= Real(0.0)) {
+                    active_cnt = 1;  // unburned cells within threshold of front
                 }
-            } else if (pv < Real(0.1) && pv >= Real(0.0)) {
-                ++n_active;  // unburned cells within threshold of front
-            }
-            
-            // Edge-crossing perimeter (arrival_time boundary)
-            if (i < hi[0]) {
-                bool burned_n = (at(i+1, j, k, 0) >= Real(0.0));
-                if (burned != burned_n) perim_m += dx[1];
-            }
-            if (j < hi[1]) {
-                bool burned_n = (at(i, j+1, k, 0) >= Real(0.0));
-                if (burned != burned_n) perim_m += dx[0];
-            }
-        });
+
+                // Edge-crossing perimeter (arrival_time boundary)
+                if (i < hi[0]) {
+                    const bool burned_n = (at(i+1, j, k, 0) >= Real(0.0));
+                    if (burned != burned_n) perim += dx[1];
+                }
+                if (j < hi[1]) {
+                    const bool burned_n = (at(i, j+1, k, 0) >= Real(0.0));
+                    if (burned != burned_n) perim += dx[0];
+                }
+
+                return {burned_cnt, active_cnt, perim, ros};
+            });
+        }
+
+        ReduceTuple hv = reduce_data.value(reduce_op);
+        n_burned = static_cast<Long>(amrex::get<0>(hv));
+        n_active = static_cast<Long>(amrex::get<1>(hv));
+        perim_m  = amrex::get<2>(hv);
+        head_ros = amrex::get<3>(hv);
     }
 
     ParallelDescriptor::ReduceLongSum(n_burned);
@@ -191,15 +217,25 @@ append_fire_stats(const amrex::MultiFab& phi,
     long  n_spot_fires   = 0;
     Real  max_spot_dist  = 0.0_rt;
     if (albini_mf) {
+        ReduceOps<ReduceOpSum, ReduceOpMax> reduce_op;
+        ReduceData<unsigned long long, Real> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+
         for (MFIter mfi(*albini_mf); mfi.isValid(); ++mfi) {
             const Box& bx  = mfi.validbox();
             auto alb_arr   = albini_mf->const_array(mfi);
-            amrex::LoopOnCpu(bx, [&](int i, int j, int k) {
-                if (alb_arr(i, j, k, 3) > 0.5_rt) { ++n_spot_fires; }
-                Real d = alb_arr(i, j, k, 2);
-                if (d > max_spot_dist) { max_spot_dist = d; }
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                return { (alb_arr(i, j, k, 3) > 0.5_rt) ? 1ull : 0ull,
+                         alb_arr(i, j, k, 2) };
             });
         }
+
+        ReduceTuple hv  = reduce_data.value(reduce_op);
+        n_spot_fires    = static_cast<long>(amrex::get<0>(hv));
+        max_spot_dist   = amrex::get<1>(hv);
+
         ParallelDescriptor::ReduceLongSum(n_spot_fires);
         ParallelDescriptor::ReduceRealMax(max_spot_dist);
     }
