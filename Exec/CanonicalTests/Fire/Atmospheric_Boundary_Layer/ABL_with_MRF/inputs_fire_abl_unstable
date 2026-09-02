@@ -18,7 +18,9 @@ max_step = 150
 amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_extent = 8000  8000  2048
-amr.n_cell           =  8   8   64
+amr.n_cell           =  40   40   64
+amr.max_grid_size    = 128
+amr.max_grid_size_z  = 64   # fire module forbids z-decomposition
 geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
@@ -58,10 +60,15 @@ erf.fire.enable = true
 erf.fire.fire_debug = false
 
 # Fire grid refinement (5x finer in horizontal)
-erf.fire.grid_ratio = 5
+erf.fire.grid_ratio = 5             # Fire cell = 8000/40/5 = 40 m
 
 # Fuel model: 4 (Chaparral - suitable for diverse fire scenarios)
 erf.fire.fuel_model_id = 4
+
+# Ignition at domain centre (default 0,0 r=20 marks no cell at this resolution)
+erf.fire.ignition_x = 4000.0
+erf.fire.ignition_y = 4000.0
+erf.fire.ignition_r = 400.0
 
 # Fuel moisture content (NFMD standard)
 erf.fire.moisture_1hr = 0.12

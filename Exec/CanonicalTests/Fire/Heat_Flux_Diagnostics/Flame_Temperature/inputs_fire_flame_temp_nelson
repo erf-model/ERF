@@ -1,18 +1,19 @@
-# Test fire acceleration parameterizations.
+# Flame temperature via the Nelson emissivity method.
 #
-# These cases compare disabled, size-based, and temporal acceleration options for fire growth, verifying the transient adjustment from ignition toward the steady spread regime.
+# Third of the flame-temperature formulations, completing coverage alongside
+# byram_radiant and mcalpine_heat.
 #
 # Expected result:
-#   - Acceleration-enabled cases ramp spread differently from the disabled control.
-#   - Selected acceleration mode changes early-time fire growth in the expected qualitative manner.
+#   - Flame temperature is finite and above ambient in burning cells.
+#   - Compared with the other two methods the values differ but stay within a
+#     physically plausible flame range.
 #
 # Configuration:
-#   - Acceleration model selection is the primary varying parameter across files.
-#   - Ignition and fuel settings are otherwise comparable.
+#   - flame_temp_method = "nelson_emissivity"; flame tilt is enabled so the
+#     tilt diagnostic is exercised alongside the temperature.
 #
 # Notes:
-#   - Review all files in this directory together to understand mode-to-mode differences.
-
+#   - Run all three flame-temperature cases together to compare.
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50
@@ -44,7 +45,7 @@ amr.v = 1
 erf.check_int = -1
 erf.plot_int = 100
 erf.plot_vars = theta qv u v w
-erf.fire_plot_file = plt_fire_
+erf.fire_plot_file = plt_fire_flame_temp_nelson_
 erf.fire_plot_int = 100
 
 erf.fire.enable = true
@@ -63,17 +64,10 @@ erf.fire.use_waf = true
 erf.fire.waf_formula = "andrews"
 erf.fire.use_wind_limit = true
 erf.fire.use_terrain_wind = false
+erf.fire.ros_model = "rothermel"
 erf.fire.farsite.cfl_fire = 0.5
 erf.fire.coupling_type = "passive"
 erf.fire.write_fire_stats_csv = true
-erf.fire.flame_temp_method = "byram_radiant"
-erf.fire.compute_flame_tilt = false
-
-erf.fire.accel.enable = true
-erf.fire.accel.use_temporal = true
-erf.fire.accel.A_point = 0.115
-erf.fire.accel.A_line = 0.886
-erf.fire.accel.perim_limit = 500.0
-erf.fire.accel.enable_wind_lag = false
-erf.fire.fire_stats_csv_file = "fire_stats_phase12_temporal.csv"
-erf.fire.accel.tau_wind = 60.0        # wind-lag time constant [s] for the temporal model
+erf.fire.flame_temp_method = "nelson_emissivity"
+erf.fire.compute_flame_tilt = true
+erf.fire.fire_stats_csv_file = "fire_stats_flame_temp_nelson.csv"
