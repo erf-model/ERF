@@ -605,6 +605,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         // --- Level-set path ---
         // CFL-based subcycling (same structure as FARSITE)
         amrex::Real time_remaining = dt;
+        int n_ls_substeps = 0;
         while (time_remaining > 1.0e-14) {
             amrex::Real max_ros = fire_ros->max(0);
             amrex::Real dt_ls   = (max_ros > 1.0e-10)
@@ -639,8 +640,18 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                 }
             }
             time_remaining -= dt_ls;
+
+            // Mirrors the guard the FARSITE path has had all along. Without it a
+            // pathological dt_ls turns this into a silent hang, and each pass
+            // costs a global fire_ros->max(0) reduction.
+            if (++n_ls_substeps > 1000) {
+                amrex::Abort("[FIRE] level-set subcycle: too many substeps in one "
+                             "atmospheric step; check erf.fire.levelset.cfl");
+            }
         }
-        n_substeps = m_levelset_subcycle_count;
+        // Substeps taken this step, not the run-to-date total that
+        // m_levelset_subcycle_count accumulates.
+        n_substeps = n_ls_substeps;
     } else {
         // --- Default: FARSITE Lagrangian path (unchanged) ---
         n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,

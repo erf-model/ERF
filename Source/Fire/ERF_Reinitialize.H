@@ -42,7 +42,15 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
     // Make a working copy for pseudo-time iteration
     MultiFab phi_work(phi.boxArray(), phi.DistributionMap(), 1, 3);
     phi_work.ParallelCopy(phi);
-    
+
+    // Jacobi scratch. The update below reads phi_work at i±1 / j±1 while writing
+    // the centre cell, so writing back into phi_work in place would be a
+    // read-write race between neighbouring GPU threads -- each cell would see
+    // either the old or the new neighbour depending on scheduling, making the
+    // result non-deterministic and different from the CPU sweep. Write into a
+    // separate fab and swap once the pass is complete.
+    MultiFab phi_next(phi.boxArray(), phi.DistributionMap(), 1, 3);
+
     for (int iter = 0; iter < n_iters; ++iter) {
         // Fill boundary ghosts
         phi_work.FillBoundary(geom.periodicity());
@@ -50,7 +58,8 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
         // Update RHS via Sussman reinitialization
         for (MFIter mfi(phi_work); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
-            auto phi_arr = phi_work.array(mfi);
+            auto phi_arr = phi_work.const_array(mfi);
+            auto phi_out = phi_next.array(mfi);
             auto phi_in  = phi.const_array(mfi);
             
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
@@ -75,9 +84,13 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
                 Real rhs = sgn_phi0 * (1.0_rt - norm_grad);
                 
                 // Forward Euler step
-                phi_arr(i, j, k) = phi_arr(i, j, k) + dtau * rhs;
+                phi_out(i, j, k) = phi_arr(i, j, k) + dtau * rhs;
             });
         }
+
+        // phi_next now holds the whole updated valid region; make it the input
+        // for the next sweep. Ghost cells are refilled at the top of the loop.
+        MultiFab::Copy(phi_work, phi_next, 0, 0, 1, 0);
     }
     
     // Copy result back to phi

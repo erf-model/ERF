@@ -148,6 +148,11 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
 
     // Stage 1: φ* = φ^n + Δt L(φ^n)
     phi_star.ParallelCopy(phi_n);
+    // ParallelCopy fills the valid region only, and phi_star was just allocated,
+    // so without this its three ghost cells are uninitialized -- and the WENO5-Z
+    // stencil in compute_levelset_rhs reads all three. Stages 2 and 3 already
+    // fill before their RHS; stage 1 was the one that did not.
+    phi_star.FillBoundary(geom.periodicity());
     compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc);
     for (MFIter mfi(phi_star); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();

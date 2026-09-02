@@ -74,5 +74,38 @@ void verify_fire_prerequisites(const ERF& erf,
                       + ". Increase geometry.prob_hi(2)";
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(prob_hi_z > fire_params.wind_ref_ht, msg12.c_str());
 
+    // Check 13: divisors and step sizes read straight from the inputs file.
+    // ParmParse applies no bounds, and a zero reaches the solver as an integer
+    // division by zero (SIGFPE) or, for cfl, a zero-length subcycle that never
+    // terminates. Each is only checked on the path that actually uses it.
+    if (fire_params.propagation_method == "levelset") {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            fire_params.levelset_reinit_every >= 1,
+            "[FIRE] erf.fire.levelset.reinit_every must be >= 1; it is used as a "
+            "modulus divisor, so 0 is an integer division by zero");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            fire_params.levelset_cfl > 0.0,
+            "[FIRE] erf.fire.levelset.cfl must be > 0; a non-positive value gives a "
+            "zero-length subcycle and the level-set loop never advances");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            fire_params.levelset_reinit_iters >= 0,
+            "[FIRE] erf.fire.levelset.reinit_iters must be >= 0");
+    }
+
+    if (fire_params.spotting.enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            fire_params.spotting.spotting_interval >= 1,
+            "[FIRE] erf.fire.spotting.spotting_interval must be >= 1; it is used as "
+            "a modulus divisor, so 0 is an integer division by zero");
+    }
+
+    // Check 14: the FARSITE subcycle divides by cfl_fire in the same way.
+    if (fire_params.propagation_method != "levelset") {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            fire_params.farsite_cfl_fire > 0.0,
+            "[FIRE] erf.fire.farsite.cfl_fire must be > 0; a non-positive value "
+            "makes every fire substep zero-length");
+    }
+
     amrex::Print() << "[FIRE] All prerequisites verified successfully" << std::endl;
 }
