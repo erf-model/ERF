@@ -1,6 +1,9 @@
+#include <AMReX_FabArrayBase.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParmParse.H>
+
+#include "ERF_GTestMOSTAverageCommon.H"
 
 #include <ERF_Constants.H>
 #include <ERF_MOSTAverage.H>
@@ -16,6 +19,14 @@
 #include <string>
 
 using namespace amrex;
+
+using erf_most_average_test::expected_average_values;
+using erf_most_average_test::tolerance;
+using erf_most_average_test::test_qv;
+using erf_most_average_test::test_theta;
+using erf_most_average_test::test_u;
+using erf_most_average_test::test_v;
+using erf_most_average_test::test_w;
 
 namespace {
 
@@ -64,6 +75,24 @@ private:
     }};
 };
 
+class ScopedMFIterTileSize
+{
+public:
+    explicit ScopedMFIterTileSize (const IntVect& tile_size)
+        : m_saved(FabArrayBase::mfiter_tile_size)
+    {
+        FabArrayBase::mfiter_tile_size = tile_size;
+    }
+
+    ~ScopedMFIterTileSize ()
+    {
+        FabArrayBase::mfiter_tile_size = m_saved;
+    }
+
+private:
+    IntVect m_saved;
+};
+
 Geometry
 make_geometry ()
 {
@@ -80,6 +109,19 @@ make_terrain_geometry ()
     const Box domain(IntVect(0), IntVect(2, 3, 4));
     const RealBox real_box({AMREX_D_DECL(10.0, 20.0, 30.0)},
                            {AMREX_D_DECL(13.0, 24.0, 35.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+Geometry
+make_tiled_geometry ()
+{
+    // The default CPU MFIter tile is eight cells wide in y.  This deliberately
+    // creates more than one y tile so a lateral plane cannot be counted once
+    // per tile.
+    const Box domain(IntVect(0, 0, 0), IntVect(2, 15, 3));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                           {AMREX_D_DECL(3.0, 16.0, 4.0)});
     const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
     return Geometry(domain, &real_box, 0, is_periodic.data());
 }
@@ -114,33 +156,6 @@ all_faces ()
     }};
 }
 
-Real
-tolerance (const Real expected)
-{
-    return Real(128.0) * std::numeric_limits<Real>::epsilon() *
-           std::max(Real(1.0), std::abs(expected));
-}
-
-const Real most_test_u = Real(3.0);
-const Real most_test_v = Real(4.0);
-const Real most_test_w = Real(12.0);
-const Real most_test_theta = Real(300.0);
-const Real most_test_qv = Real(0.01);
-
-std::array<Real, 7>
-expected_average_values ()
-{
-    return {{
-        most_test_u,
-        most_test_v,
-        most_test_w,
-        most_test_theta,
-        most_test_qv,
-        most_test_theta * (one + epsv * most_test_qv),
-        std::sqrt(most_test_u*most_test_u + most_test_v*most_test_v)
-    }};
-}
-
 struct MOSTAverageFields
 {
     Geometry geom;
@@ -170,11 +185,11 @@ struct MOSTAverageFields
           qv(std::make_unique<MultiFab>(ba, dm, 1, 1))
     {
         cons.setVal(Real(1.0));
-        xvel.setVal(most_test_u);
-        yvel.setVal(most_test_v);
-        zvel.setVal(most_test_w);
-        theta->setVal(most_test_theta);
-        qv->setVal(most_test_qv);
+        xvel.setVal(test_u);
+        yvel.setVal(test_v);
+        zvel.setVal(test_w);
+        theta->setVal(test_theta);
+        qv->setVal(test_qv);
 
         vars_old = {&cons, &xvel, &yvel, &zvel};
     }
@@ -223,7 +238,7 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
         ASSERT_EQ(plane_average.size(), static_cast<std::size_t>(averages.get_navg()));
 
         const auto expected = expected_average_values();
-        for (std::size_t comp = 0; comp < expected.size(); ++comp) {
+        for (std::size_t comp = 0; comp < 7; ++comp) {
             EXPECT_NEAR(plane_average[comp], expected[comp], tolerance(expected[comp]))
                 << "direction=" << dir << ", high=" << !face.isLow()
                 << ", component=" << comp;
@@ -231,11 +246,45 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
 
         if (dir < 2) {
             const Real expected_xz =
-                std::sqrt(most_test_u*most_test_u + most_test_w*most_test_w);
+                std::sqrt(test_u*test_u + test_w*test_w);
             const Real expected_yz =
-                std::sqrt(most_test_v*most_test_v + most_test_w*most_test_w);
+                std::sqrt(test_v*test_v + test_w*test_w);
             EXPECT_NEAR(plane_average[7], expected_xz, tolerance(expected_xz));
             EXPECT_NEAR(plane_average[8], expected_yz, tolerance(expected_yz));
+        }
+    }
+}
+
+// Motivation: a lateral plane must be selected per tile.  Testing a grid
+// deeper than the default y tile size catches summing the same plane once for
+// every y tile in the grid.
+TEST(MOSTAverage, PlaneAverageIsIndependentOfLateralTiling)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(1024, 4, 1024)));
+    MOSTAverageFields fields(make_tiled_geometry());
+    const auto& geom = fields.geom;
+    const auto expected = expected_average_values();
+
+    for (const auto face : {
+             Orientation(Direction::y, Orientation::low),
+             Orientation(Direction::y, Orientation::high)}) {
+        const std::string prefix = face.isLow()
+            ? "unit_most_tiled_plane_ylo"
+            : "unit_most_tiled_plane_yhi";
+        ScopedMOSTParams params(prefix.c_str());
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false, prefix,
+                              MeshType::ConstantDz, TerrainType::None);
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        averages.compute_averages(0);
+        Gpu::streamSynchronize();
+
+        const auto plane_average = averages.get_plane_average(0);
+        ASSERT_GE(plane_average.size(), expected.size());
+        for (std::size_t comp = 0; comp < expected.size(); ++comp) {
+            EXPECT_NEAR(plane_average[comp], expected[comp], tolerance(expected[comp]))
+                << "high=" << !face.isLow() << ", component=" << comp;
         }
     }
 }
@@ -319,7 +368,7 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                 averages.compute_averages(0);
                 Gpu::streamSynchronize();
                 const auto expected = expected_average_values();
-                for (std::size_t comp = 0; comp < expected.size(); ++comp) {
+                for (std::size_t comp = 0; comp < 7; ++comp) {
                     const Real actual =
                         averages.get_average(0, static_cast<int>(comp))->min(0);
                     EXPECT_NEAR(actual, expected[comp], tolerance(expected[comp]))
@@ -330,9 +379,9 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
 
                 if (dir < 2) {
                     const Real expected_xz =
-                        std::sqrt(most_test_u*most_test_u + most_test_w*most_test_w);
+                        std::sqrt(test_u*test_u + test_w*test_w);
                     const Real expected_yz =
-                        std::sqrt(most_test_v*most_test_v + most_test_w*most_test_w);
+                        std::sqrt(test_v*test_v + test_w*test_w);
                     EXPECT_NEAR(averages.get_average(0, 7)->min(0),
                                 expected_xz, tolerance(expected_xz))
                         << "policy=" << policy << ", zref=" << use_zref

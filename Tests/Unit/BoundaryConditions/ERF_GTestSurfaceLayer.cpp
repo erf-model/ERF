@@ -5,6 +5,7 @@
 #include "AMReX_Reduce.H"
 
 #include "ERF_SurfaceLayer.H"
+#include "ERF_GTestSurfaceLayerCommon.H"
 
 #include <gtest/gtest.h>
 
@@ -17,15 +18,38 @@
 #include <string>
 
 using namespace amrex;
+using erf_surface_layer_test::expected_qsat;
+using erf_surface_layer_test::qsat_tolerance;
+using erf_surface_layer_test::stress_has_expected_sign;
+using erf_surface_layer_test::stress_is_antisymmetric;
+using erf_surface_layer_test::tau_sentinel;
+using erf_surface_layer_test::test_rho;
+using erf_surface_layer_test::test_rho_theta;
+using erf_surface_layer_test::test_qv;
+using erf_surface_layer_test::test_primitive_z_ng;
+using erf_surface_layer_test::test_surface_temperature;
+using erf_surface_layer_test::test_state_ng;
+using erf_surface_layer_test::test_u;
+using erf_surface_layer_test::test_v;
+using erf_surface_layer_test::test_w;
+using erf_surface_layer_test::test_velocity_ng;
 
 namespace {
-
-constexpr Real tau_sentinel = Real(-987654.0);
 
 Geometry
 make_geometry ()
 {
     const Box domain(IntVect(2, 2, 2), IntVect(4, 4, 4));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                           {AMREX_D_DECL(3.0, 3.0, 3.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+Geometry
+make_qsurf_geometry ()
+{
+    const Box domain(IntVect(0), IntVect(2));
     const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
                            {AMREX_D_DECL(3.0, 3.0, 3.0)});
     const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
@@ -143,28 +167,35 @@ struct SurfaceLayerFields
 
     Vector<MultiFab*> state;
 
-    SurfaceLayerFields ()
-        : geom(make_geometry()),
+    explicit SurfaceLayerFields (const Geometry& geometry = make_geometry())
+        : geom(geometry),
           domain(geom.Domain()),
           ba(domain),
           dm(ba),
-          cons(ba, dm, 3, 2),
-          xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, 2),
-          yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, 2),
-          zvel(BoxArray(surroundingNodes(domain, 2)), dm, 1, 2),
-          theta(std::make_unique<MultiFab>(ba, dm, 1, 2)),
+          cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
+          xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, test_velocity_ng),
+          yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, test_velocity_ng),
+          zvel(BoxArray(surroundingNodes(domain, 2)), dm, 1, test_velocity_ng),
+          theta(std::make_unique<MultiFab>(
+              ba, dm, 1,
+              IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
+                                   test_primitive_z_ng)))),
           xheat_flux(BoxArray(surroundingNodes(domain, 0)), dm, 1, 1),
           yheat_flux(BoxArray(surroundingNodes(domain, 1)), dm, 1, 1),
           zheat_flux(BoxArray(surroundingNodes(domain, 2)), dm, 1, 1)
     {
-        cons.setVal(Real(1.0));
-        xvel.setVal(Real(3.0));
-        yvel.setVal(Real(4.0));
-        zvel.setVal(Real(5.0));
-        theta->setVal(Real(300.0));
+        cons.setVal(Real(0.0));
+        cons.setVal(test_rho, Rho_comp, 1);
+        cons.setVal(test_rho_theta, RhoTheta_comp, 1);
+        cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        xvel.setVal(test_u);
+        yvel.setVal(test_v);
+        zvel.setVal(test_w);
+        theta->setVal(test_surface_temperature);
 
         lmask.emplace_back(std::make_unique<iMultiFab>(
-            collapse_z(ba), dm, 1, IntVect(2, 2, 0)));
+            collapse_z(ba), dm, 1,
+            IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0))));
         lmask[0]->setVal(1);
 
         tau.resize(9);
@@ -199,12 +230,20 @@ struct SurfaceLayerFields
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active_faces,
-                   const std::string& prefix)
+                   const std::string& prefix,
+                   const bool with_moisture = false)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
         Vector<std::unique_ptr<MultiFab>> qv_prim(1);
         Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
+        if (with_moisture) {
+            qv_prim[0] = std::make_unique<MultiFab>(
+                ba, dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
+                                     test_primitive_z_ng)));
+            qv_prim[0]->setVal(test_qv);
+        }
         auto layer = std::make_unique<SurfaceLayer>(
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             MeshType::ConstantDz, TerrainType::None, TurbChoice{},
@@ -220,6 +259,9 @@ struct SurfaceLayerFields
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, empty_mfs, empty_names,
             empty_mfs, empty_names, sst, tsk, lmask);
+        if (with_moisture) {
+            layer->get_q_surf(0)->setVal(tau_sentinel);
+        }
         layer->update_fluxes(0, 0.0, 0.0, cons, z_phys_nd[0],
                              no_walldist, 20);
         return layer;
@@ -355,11 +397,13 @@ TEST(SurfaceLayer, MoengDirectionalFluxesAreFiniteOnEveryWall)
     }
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        EXPECT_LT(low_u[dir], Real(0.0)) << "direction=" << dir;
-        EXPECT_LT(low_v[dir], Real(0.0)) << "direction=" << dir;
-        EXPECT_NEAR(high_u[dir], -low_u[dir], Real(1.e-12))
+        EXPECT_TRUE(stress_has_expected_sign(low_u[dir], true))
             << "direction=" << dir;
-        EXPECT_NEAR(high_v[dir], -low_v[dir], Real(1.e-12))
+        EXPECT_TRUE(stress_has_expected_sign(low_v[dir], true))
+            << "direction=" << dir;
+        EXPECT_TRUE(stress_is_antisymmetric(low_u[dir], high_u[dir], Real(1.e-12)))
+            << "direction=" << dir;
+        EXPECT_TRUE(stress_is_antisymmetric(low_v[dir], high_v[dir], Real(1.e-12)))
             << "direction=" << dir;
     }
 }
@@ -413,6 +457,57 @@ TEST(SurfaceLayer, MoengWritesRequiredComponentsAndPreservesIsolatedSymmetry)
             << ", high=" << !face.isLow();
         EXPECT_NEAR(required_a_value, transpose_a_value, Real(1.e-10));
         EXPECT_NEAR(required_b_value, transpose_b_value, Real(1.e-10));
+    }
+}
+
+// Motivation: the water path must match the saturation oracle on the
+// selected face and preserve the land sentinel on every other output box.
+// This is the single-box counterpart of the distributed qsurf ownership test.
+TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_qsurf_serial");
+
+    for (const auto& face : all_faces()) {
+        SurfaceLayerFields fields(make_qsurf_geometry());
+        fields.lmask[0]->setVal(0);
+        auto layer = fields.prepare_layer(
+            face, active_faces({face}), "unit_surface_layer_qsurf_serial", true);
+        const MultiFab* qsurf = layer->get_q_surf(0);
+        const Real expected = expected_qsat(fields.geom);
+        Long selected_count = 0;
+        for (MFIter mfi(*qsurf, false); mfi.isValid(); ++mfi) {
+            const Box& source = fields.ba[mfi.index()];
+            const int dir = face.coordDir();
+            const bool selected = face.isLow()
+                ? source.smallEnd(dir) == fields.domain.smallEnd(dir)
+                : source.bigEnd(dir) == fields.domain.bigEnd(dir);
+            const Box& valid = mfi.validbox();
+            const auto qsurf_arr = qsurf->const_array(mfi);
+            ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+            ReduceData<Real, Real> reduce_data(reduce_op);
+            reduce_op.eval(valid, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    -> GpuTuple<Real, Real>
+                {
+                    const Real value = qsurf_arr(i,j,k);
+                    return {value, value};
+                });
+            Gpu::streamSynchronize();
+            const auto qsurf_range = reduce_data.value();
+            const Real qsurf_min = get<0>(qsurf_range);
+            const Real qsurf_max = get<1>(qsurf_range);
+            if (selected) {
+                selected_count += static_cast<Long>(valid.numPts());
+                EXPECT_NEAR(qsurf_min, expected,
+                            qsat_tolerance(expected));
+                EXPECT_NEAR(qsurf_max, expected,
+                            qsat_tolerance(expected));
+            } else {
+                EXPECT_EQ(qsurf_min, tau_sentinel);
+                EXPECT_EQ(qsurf_max, tau_sentinel);
+            }
+        }
+        EXPECT_GT(selected_count, 0);
     }
 }
 

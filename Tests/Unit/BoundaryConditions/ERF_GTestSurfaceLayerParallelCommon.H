@@ -1,0 +1,337 @@
+#ifndef ERF_GTEST_SURFACE_LAYER_PARALLEL_COMMON_H_
+#define ERF_GTEST_SURFACE_LAYER_PARALLEL_COMMON_H_
+
+#include "ERF_GTestSurfaceLayerCommon.H"
+
+#include <AMReX_FabArrayBase.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Reduce.H>
+#include <AMReX_iMultiFab.H>
+
+#include <array>
+#include <cmath>
+#include <limits>
+#include <memory>
+#include <string>
+#include <utility>
+
+namespace erf_surface_layer_test {
+
+inline Geometry
+make_parallel_geometry ()
+{
+    const Box domain(IntVect(0), IntVect(31, 31, 3));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                           {AMREX_D_DECL(32.0, 32.0, 4.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    return Geometry(domain, &real_box, 0, is_periodic.data());
+}
+
+inline BoxArray
+make_parallel_box_array (const Box& domain)
+{
+    BoxArray ba(domain);
+    // Lateral boxes span the full vertical domain, as required by the x/y
+    // surface-layer kernels, while still distributing the face ownership.
+    ba.maxSize(IntVect(AMREX_D_DECL(16, 16, 1024)));
+    return ba;
+}
+
+class ScopedSurfaceLayerParams
+{
+public:
+    explicit ScopedSurfaceLayerParams (const char* prefix)
+        : m_pp(prefix)
+    {
+        m_pp.add("most.average_policy", 0);
+        m_pp.add("most.z0", Real(0.1));
+    }
+
+    ~ScopedSurfaceLayerParams ()
+    {
+        m_pp.remove("most.average_policy");
+        m_pp.remove("most.z0");
+    }
+
+private:
+    ParmParse m_pp;
+};
+
+class ScopedMFIterTileSize
+{
+public:
+    explicit ScopedMFIterTileSize (const IntVect& tile_size)
+        : m_saved(FabArrayBase::mfiter_tile_size)
+    {
+        FabArrayBase::mfiter_tile_size = tile_size;
+    }
+
+    ~ScopedMFIterTileSize ()
+    {
+        FabArrayBase::mfiter_tile_size = m_saved;
+    }
+
+private:
+    IntVect m_saved;
+};
+
+inline BoxArray
+collapse_z (const BoxArray& ba)
+{
+    BoxList boxes = ba.boxList();
+    for (auto& box : boxes) {
+        box.setRange(2, 0);
+    }
+    return BoxArray(std::move(boxes));
+}
+
+struct SurfaceLayerFields
+{
+    Geometry geom;
+    Box domain;
+    BoxArray ba;
+    DistributionMapping dm;
+    MultiFab cons;
+    MultiFab xvel;
+    MultiFab yvel;
+    MultiFab zvel;
+    std::unique_ptr<MultiFab> theta;
+    Vector<std::unique_ptr<MultiFab>> qv_prim;
+    Vector<std::unique_ptr<iMultiFab>> lmask;
+    std::unique_ptr<MultiFab> no_walldist;
+    Vector<std::unique_ptr<MultiFab>> tau;
+    MultiFab xheat_flux;
+    MultiFab yheat_flux;
+    MultiFab zheat_flux;
+    Vector<MultiFab*> state;
+
+    SurfaceLayerFields ()
+        : geom(make_parallel_geometry()),
+          domain(geom.Domain()),
+          ba(make_parallel_box_array(domain)),
+          dm(ba),
+          cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
+          xvel(make_face_box_array(ba, 0), dm, 1, test_velocity_ng),
+          yvel(make_face_box_array(ba, 1), dm, 1, test_velocity_ng),
+          zvel(make_face_box_array(ba, 2), dm, 1, test_velocity_ng),
+          theta(std::make_unique<MultiFab>(
+              ba, dm, 1,
+              IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
+                                   test_primitive_z_ng)))),
+          qv_prim(1),
+          xheat_flux(make_face_box_array(ba, 0), dm, 1, 1),
+          yheat_flux(make_face_box_array(ba, 1), dm, 1, 1),
+          zheat_flux(make_face_box_array(ba, 2), dm, 1, 1)
+    {
+        cons.setVal(Real(0.0));
+        cons.setVal(test_rho, Rho_comp, 1);
+        cons.setVal(test_rho_theta, RhoTheta_comp, 1);
+        cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        xvel.setVal(test_u);
+        yvel.setVal(test_v);
+        zvel.setVal(test_w);
+        theta->setVal(test_surface_temperature);
+
+        lmask.emplace_back(std::make_unique<iMultiFab>(
+            collapse_z(ba), dm, 1,
+            IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0))));
+        lmask[0]->setVal(1);
+
+        tau.resize(9);
+        BoxArray ba12(ba); ba12.convert(IntVect(1, 1, 0));
+        BoxArray ba13(ba); ba13.convert(IntVect(1, 0, 1));
+        BoxArray ba23(ba); ba23.convert(IntVect(0, 1, 1));
+        tau[TauType::tau11] = std::make_unique<MultiFab>(ba, dm, 1, 1);
+        tau[TauType::tau22] = std::make_unique<MultiFab>(ba, dm, 1, 1);
+        tau[TauType::tau33] = std::make_unique<MultiFab>(ba, dm, 1, 1);
+        tau[TauType::tau12] = std::make_unique<MultiFab>(ba12, dm, 1, 1);
+        tau[TauType::tau13] = std::make_unique<MultiFab>(ba13, dm, 1, 1);
+        tau[TauType::tau23] = std::make_unique<MultiFab>(ba23, dm, 1, 1);
+        tau[TauType::tau21] = std::make_unique<MultiFab>(ba12, dm, 1, 1);
+        tau[TauType::tau31] = std::make_unique<MultiFab>(ba13, dm, 1, 1);
+        tau[TauType::tau32] = std::make_unique<MultiFab>(ba23, dm, 1, 1);
+
+        state = {&cons, &xvel, &yvel, &zvel};
+        reset_outputs();
+    }
+
+    void reset_outputs ()
+    {
+        for (auto& stress : tau) { stress->setVal(tau_sentinel); }
+        xheat_flux.setVal(tau_sentinel);
+        yheat_flux.setVal(tau_sentinel);
+        zheat_flux.setVal(tau_sentinel);
+        Gpu::streamSynchronize();
+    }
+
+    std::unique_ptr<SurfaceLayer>
+    prepare_layer (const Orientation face,
+                   const GpuArray<int, AMREX_SPACEDIM*2>& active,
+                   const std::string& prefix,
+                   const bool with_moisture = false)
+    {
+        Vector<Geometry> geoms{geom};
+        Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
+        qv_prim[0].reset();
+        if (with_moisture) {
+            qv_prim[0] = std::make_unique<MultiFab>(
+                ba, dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng,
+                                     test_primitive_z_ng)));
+            qv_prim[0]->setVal(test_qv);
+        }
+        bool rotate = false;
+        auto layer = std::make_unique<SurfaceLayer>(
+            face, geoms, rotate, prefix, qv_prim, z_phys_nd,
+            MeshType::ConstantDz, TerrainType::None, TurbChoice{}, 0.0, 0.0);
+        layer->set_surface_layer_faces(active);
+
+        std::unique_ptr<MultiFab> qr_prim;
+        Vector<MultiFab*> empty_mfs;
+        Vector<std::string> empty_names;
+        Vector<std::unique_ptr<MultiFab>> sst;
+        Vector<std::unique_ptr<MultiFab>> tsk;
+        layer->make_SurfaceLayer_at_level(
+            0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
+            nullptr, nullptr, nullptr, empty_mfs, empty_names,
+            empty_mfs, empty_names, sst, tsk, lmask);
+        if (with_moisture) { layer->get_q_surf(0)->setVal(tau_sentinel); }
+        layer->update_fluxes(0, 0.0, 0.0, cons, z_phys_nd[0],
+                             no_walldist, 20);
+        return layer;
+    }
+
+    void impose (SurfaceLayer& layer)
+    {
+        Vector<const MultiFab*> const_state{&cons, &xvel, &yvel, &zvel};
+        layer.impose_SurfaceLayer_bcs(
+            0, const_state, tau, &xheat_flux, &yheat_flux, &zheat_flux,
+            nullptr, nullptr, nullptr, nullptr);
+        Gpu::streamSynchronize();
+    }
+
+private:
+    static BoxArray make_face_box_array (const BoxArray& cell_ba, const int dir)
+    {
+        BoxArray face_ba(cell_ba);
+        face_ba.surroundingNodes(dir);
+        return face_ba;
+    }
+};
+
+struct GlobalRange
+{
+    Real lo{0};
+    Real hi{0};
+    Long count{0};
+    Long total_count{0};
+    Long sentinel_count{0};
+};
+
+inline Real
+mf_value (const MultiFab& mf, const IntVect& point)
+{
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    const Box point_box(point, point, mf.boxArray().ixType());
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box overlap = point_box & mfi.validbox();
+        if (overlap.isEmpty()) { continue; }
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+            { return {array(i,j,k)}; });
+    }
+    Gpu::streamSynchronize();
+    Real value = get<0>(reduce_data.value());
+    ParallelDescriptor::ReduceRealSum(value);
+    return value;
+}
+
+inline GlobalRange
+face_range (const MultiFab& mf, const Box& domain, const Orientation face)
+{
+    Box plane(domain);
+    plane.convert(mf.boxArray().ixType());
+    const int dir = face.coordDir();
+    const int index = face.isLow() ? plane.smallEnd(dir) : plane.bigEnd(dir);
+    plane.setSmall(dir, index);
+    plane.setBig(dir, index);
+
+    Long local_count = 0;
+    Long local_total_count = 0;
+    Long local_sentinel_count = 0;
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Long> reduce_data(reduce_op);
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box& valid = mfi.validbox();
+        local_total_count += static_cast<Long>(valid.numPts());
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(valid, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Long>
+            { return {array(i,j,k) == tau_sentinel ? Long(1) : Long(0)}; });
+        local_count += static_cast<Long>((plane & valid).numPts());
+    }
+
+    Real local_lo = std::numeric_limits<Real>::max();
+    Real local_hi = std::numeric_limits<Real>::lowest();
+    if (local_count > 0) {
+        local_lo = mf.min(plane, 0, 0, true);
+        local_hi = mf.max(plane, 0, 0, true);
+    }
+    Gpu::streamSynchronize();
+    local_sentinel_count = get<0>(reduce_data.value());
+    ParallelDescriptor::ReduceLongSum(local_count);
+    ParallelDescriptor::ReduceLongSum(local_total_count);
+    ParallelDescriptor::ReduceLongSum(local_sentinel_count);
+    ParallelDescriptor::ReduceRealMin(local_lo);
+    ParallelDescriptor::ReduceRealMax(local_hi);
+    return {local_lo, local_hi, local_count, local_total_count,
+            local_sentinel_count};
+}
+
+struct GlobalValueCounts { Long total{0}; Long finite{0}; Long sentinel{0}; };
+
+inline GlobalValueCounts
+value_counts (const MultiFab& mf)
+{
+    ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum> reduce_op;
+    ReduceData<Long, Long, Long> reduce_data(reduce_op);
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(mfi.validbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                -> GpuTuple<Long, Long, Long>
+            {
+                const Real value = array(i,j,k);
+                return {Long(1),
+                        (std::isfinite(value) && value != tau_sentinel)
+                            ? Long(1) : Long(0),
+                        value == tau_sentinel ? Long(1) : Long(0)};
+            });
+    }
+    Gpu::streamSynchronize();
+    auto counts = reduce_data.value();
+    Long total = get<0>(counts), finite = get<1>(counts), sentinel = get<2>(counts);
+    ParallelDescriptor::ReduceLongSum(total);
+    ParallelDescriptor::ReduceLongSum(finite);
+    ParallelDescriptor::ReduceLongSum(sentinel);
+    return {total, finite, sentinel};
+}
+
+inline bool is_changed (const Real value)
+{
+    return std::isfinite(value) && value != tau_sentinel;
+}
+
+inline GpuArray<int, AMREX_SPACEDIM*2>
+active_face (const Orientation face)
+{
+    GpuArray<int, AMREX_SPACEDIM*2> result{};
+    result[static_cast<int>(face)] = 1;
+    return result;
+}
+
+} // namespace erf_surface_layer_test
+
+#endif
