@@ -33,9 +33,12 @@
     Real pert_deltaV = amrex::Real(0); pp.query("pert_deltaV", pert_deltaV);
     Real pert_ref_height = amrex::Real(100.0); pp.query("pert_ref_height", pert_ref_height);
 
-    // sinusoidal perturbations for regression tests
+    // sinusoidal perturbations for regression tests.  pert_periods_T defaults to
+    // 5 to match pert_periods_U/V in ERF_InitCustomPertVels_ABL.H: a zero period
+    // would make cos(cval*(x-xc)) identically one, i.e. a uniform warm bias
+    // rather than a zero-mean perturbation.
     Real pert_deltaT    = amrex::Real(0); pp.query("pert_deltaT", pert_deltaT);
-    Real pert_periods_T = amrex::Real(0); pp.query("pert_periods_T", pert_periods_T);
+    Real pert_periods_T = amrex::Real(5.0); pp.query("pert_periods_T", pert_periods_T);
 
     // Capture by value for GPU
     const Real dx = geomdata.CellSize(0);
@@ -55,8 +58,15 @@
     // Sinusoidal perturbation wavenumber and amplitude factor.  These mirror
     // the divergence-free velocity perturbations in ERF_InitCustomPertVels_ABL.H
     // so that tfac*damp*z peaks at pert_deltaT when z = pert_ref_height.
+    // pert_ref_height <= 0 is used elsewhere in this file to mean "no
+    // perturbations", so guard the division: an infinite tfac would meet a zero
+    // damp inside the kernel and yield NaN under amrex.fpe_trap_invalid.
+    const bool add_sinusoidal_T = (pert_deltaT != amrex::Real(0)) &&
+                                  (pert_ref_height > amrex::Real(0));
     const Real cval = pert_periods_T * two * PI / (prob_hi_x - prob_lo_x);
-    const Real tfac = pert_deltaT * std::exp(myhalf) / pert_ref_height;
+    const Real tfac = add_sinusoidal_T
+                    ? pert_deltaT * std::exp(myhalf) / pert_ref_height
+                    : amrex::Real(0);
 
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const Real rdOcp        = sc.rdOcp;
@@ -76,11 +86,19 @@
                 amrex::Print() << "Adding random theta perturbations" << std::endl;
             }
         }
-        if (pert_deltaT != amrex::Real(0)) {
+        if (add_sinusoidal_T) {
             amrex::Print() << "Adding sinusoidal temperature perturbations "
                            << pert_deltaT << " over " << pert_periods_T
                            << " periods" << std::endl;
         }
+    }
+    // The sinusoidal temperature perturbation is carried entirely by the density
+    // perturbation, which ERF_InitCustomPertState.cpp drops when the level uses a
+    // fixed-in-time density (implied by erf.anelastic).  Say so rather than fail
+    // silently, since the companion velocity perturbations still apply.
+    if (add_sinusoidal_T && sc.fixed_density[lev]) {
+        amrex::Print() << "WARNING: prob.pert_deltaT has no effect at level " << lev
+                       << " because fixed_density is set there" << std::endl;
     }
 #endif
 
@@ -109,13 +127,25 @@
         }
 
         // Sinusoidal temperature perturbation for regression tests.  Unlike the
-        // random branch above, this is a pure function of position, so the
-        // initial state does not depend on the box decomposition, the MPI rank
-        // count, or the OpenMP tile size -- which is what a bitwise gold-file
-        // comparison requires.  The perturbation is isobaric: T is perturbed at
-        // fixed pressure, so it is carried by the density perturbation and
-        // rho*theta is left unchanged (matching ERF_InitCustomPert_SDMCongestus3D.H).
-        if (pert_deltaT != amrex::Real(0)) {
+        // random branch above, this is a pure function of position, so the initial
+        // state does not depend on the box decomposition, the MPI rank count, or
+        // the OpenMP tile size -- which is what a bitwise gold-file comparison
+        // requires.
+        //
+        // The perturbation is isobaric: T is perturbed at fixed pressure, so it is
+        // carried by the density perturbation while rho*theta stays unchanged.
+        // Because P = P(rho*theta, qv), holding P fixed also requires qv to be
+        // unchanged, so RhoQ1 has to be rescaled to track the new density --
+        // otherwise qv = RhoQ1/rho drifts and drags the pressure along with it.
+        //
+        // This deliberately differs from ERF_InitCustomPert_SDMCongestus3D.H, which
+        // assigns state_pert(RhoTheta_comp) = 0 at this point: that would discard
+        // any random perturbation written by the T_0_Pert_Mag branch above.  Leaving
+        // RhoTheta_comp alone is equivalent whenever T_0_Pert_Mag == 0 (state_pert is
+        // zero-initialized by the caller) and non-destructive when it is not -- but
+        // setting both knobs does perturb rho*theta, and the result is then no
+        // longer isobaric.
+        if (add_sinusoidal_T) {
             const Real zl   = z / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
@@ -131,6 +161,10 @@
             const Real rho_new   = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
             state_pert(i, j, k, Rho_comp) += rho_new - rho;
+            if (use_moisture) {
+                // Keep qv, and therefore P, fixed as the density changes.
+                state_pert(i, j, k, RhoQ1_comp) += (rho_new - rho) * qv;
+            }
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain

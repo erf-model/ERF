@@ -22,8 +22,12 @@ std::uint64_t hash_rng_case_word (const int case_id) noexcept
     const int i = (case_id * 37) % 509 - 254;
     const int j = (case_id * 53) % 401 - 200;
     const int k = (case_id * 29) % 97 - 48;
-    const int comp = case_id % 4;
-    const int lev = (case_id / 4) % 5;
+    // comp and lev must not be derived from case_id % 4, which selects the entry
+    // point in the switch below: sharing that expression would pin each entry
+    // point to a single component salt, so a host/device divergence confined to
+    // one (entry point, salt) pair would never be sampled.
+    const int comp = (case_id / 4) % 4;
+    const int lev = (case_id / 16) % 5;
     const std::uint64_t seed = kTestSeed ^ static_cast<std::uint64_t>(case_id / 20);
 
     switch (case_id % 4) {

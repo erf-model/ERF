@@ -176,8 +176,8 @@ TEST(HashRngParallel, DistributedLayoutsMatchIndexReference)
         fill_hash_field(field);
         const amrex::MultiFab field_host = make_host_mirror(field);
 
-        long local_checked = 0;
-        long local_mismatches = 0;
+        amrex::Long local_checked = 0;
+        amrex::Long local_mismatches = 0;
         LocatedMismatch local_worst;
         for (amrex::MFIter mfi(field_host); mfi.isValid(); ++mfi) {
             const amrex::Box& bx = mfi.validbox();
@@ -202,8 +202,8 @@ TEST(HashRngParallel, DistributedLayoutsMatchIndexReference)
             }
         }
 
-        long global_checked = local_checked;
-        long global_mismatches = local_mismatches;
+        amrex::Long global_checked = local_checked;
+        amrex::Long global_mismatches = local_mismatches;
         amrex::ParallelDescriptor::ReduceLongSum(global_checked);
         amrex::ParallelDescriptor::ReduceLongSum(global_mismatches);
 
@@ -217,13 +217,13 @@ TEST(HashRngParallel, DistributedLayoutsMatchIndexReference)
         // capacity -- deliberately NOT "enough boxes were produced", which would
         // make the guard true only when it is already trivially satisfied.
         if (layout.kind == LayoutKind::RankAdaptive &&
-            static_cast<long>(nprocs) <= domain.numPts()) {
-            EXPECT_GE(ba.size(), static_cast<long>(nprocs))
+            static_cast<amrex::Long>(nprocs) <= domain.numPts()) {
+            EXPECT_GE(ba.size(), static_cast<amrex::Long>(nprocs))
                 << "layout=" << layout.name
                 << " rank=" << rank
                 << " nprocs=" << nprocs
                 << " nboxes=" << ba.size();
-            EXPECT_GT(local_checked, 0L)
+            EXPECT_GT(local_checked, amrex::Long(0))
                 << "layout=" << layout.name
                 << " rank=" << rank
                 << " nprocs=" << nprocs
@@ -236,7 +236,7 @@ TEST(HashRngParallel, DistributedLayoutsMatchIndexReference)
             << " rank=" << rank
             << " nprocs=" << nprocs
             << " local_checked=" << local_checked;
-        EXPECT_EQ(global_mismatches, 0)
+        EXPECT_EQ(global_mismatches, amrex::Long(0))
             << "layout=" << layout.name
             << " max_size=" << max_size_string(layout)
             << " rank=" << rank

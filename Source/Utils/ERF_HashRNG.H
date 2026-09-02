@@ -11,8 +11,8 @@ namespace erf_hash_rng {
 /**
  * Apply the standard SplitMix64 integer avalanche to an input word.
  *
- * @params[in ] x input word
- * @params[  out]   mixed 64-bit word
+ * @param[in]x input word
+ * @return   mixed 64-bit word
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 std::uint64_t
@@ -27,13 +27,13 @@ splitmix64 (std::uint64_t x) noexcept
 /**
  * Construct a decomposition-independent key for one indexed component.
  *
- * @params[in ] i    global x index
- * @params[in ] j    global y index
- * @params[in ] k    global z index
- * @params[in ] comp component salt
- * @params[in ] lev  AMR level
- * @params[in ] seed user seed
- * @params[  out]      mixed 64-bit cell key
+ * @param[in]i    global x index
+ * @param[in]j    global y index
+ * @param[in]k    global z index
+ * @param[in]comp component salt
+ * @param[in]lev  AMR level
+ * @param[in]seed user seed
+ * @return      mixed 64-bit cell key
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 std::uint64_t
@@ -55,13 +55,13 @@ cell_key (int i, int j, int k, int comp, int lev, std::uint64_t seed) noexcept
 /**
  * Map an indexed cell key to a uniformly distributed value in [0, 1).
  *
- * @params[in ] i    global x index
- * @params[in ] j    global y index
- * @params[in ] k    global z index
- * @params[in ] comp component salt
- * @params[in ] lev  AMR level
- * @params[in ] seed user seed
- * @params[  out]      uniform value in [0, 1)
+ * @param[in]i    global x index
+ * @param[in]j    global y index
+ * @param[in]k    global z index
+ * @param[in]comp component salt
+ * @param[in]lev  AMR level
+ * @param[in]seed user seed
+ * @return      uniform value in [0, 1)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -78,13 +78,13 @@ hash_uniform (int i, int j, int k, int comp, int lev, std::uint64_t seed) noexce
 /**
  * Map an indexed cell key to a uniformly distributed value in [-1, 1).
  *
- * @params[in ] i    global x index
- * @params[in ] j    global y index
- * @params[in ] k    global z index
- * @params[in ] comp component salt
- * @params[in ] lev  AMR level
- * @params[in ] seed user seed
- * @params[  out]      symmetric value in [-1, 1)
+ * @param[in]i    global x index
+ * @param[in]j    global y index
+ * @param[in]k    global z index
+ * @param[in]comp component salt
+ * @param[in]lev  AMR level
+ * @param[in]seed user seed
+ * @return      symmetric value in [-1, 1)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
