@@ -1,5 +1,6 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
+#include "ERF_HashRNG.H"
 #include "ERF_Microphysics.H"
 #include "ERF_TerrainMetrics.H"
 
@@ -202,7 +203,7 @@ Problem::init_custom_pert_vels (
     Array4<Real const> const& mf_u,
     Array4<Real const> const& mf_v,
     const SolverChoice& sc,
-    const int /*lev*/)
+    const int lev)
 {
     ParmParse pp("erf");
     std::string my_prob_name; pp.get("prob_name",my_prob_name);
