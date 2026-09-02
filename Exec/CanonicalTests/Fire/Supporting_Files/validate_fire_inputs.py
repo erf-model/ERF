@@ -31,6 +31,11 @@ File references
   * fuel maps, polygon/polyline vertex lists, ignition schedules and terrain
     files must resolve relative to the case directory or the repository root.
 
+The duplicate-key check applies to any ERF inputs file, so this is also worth
+pointing at other canonical-test trees:
+
+    python3 Fire/Supporting_Files/validate_fire_inputs.py Dust
+
 Usage
 -----
     python3 Supporting_Files/validate_fire_inputs.py [root]
@@ -89,12 +94,35 @@ def real(d, key, idx=0):
         return None
 
 
+def duplicate_keys(path):
+    """Keys assigned more than once. AMReX aborts with 'Duplicate inputs
+    detected in inputs file', so this is fatal regardless of the values."""
+    seen, dups = {}, []
+    with open(path, errors="replace") as fh:
+        for n, line in enumerate(fh, 1):
+            line = line.split("#", 1)[0].strip()
+            if "=" not in line:
+                continue
+            key = line.split("=", 1)[0].strip()
+            if key in seen:
+                dups.append((key, seen[key], n))
+            else:
+                seen[key] = n
+    return dups
+
+
 def check(path, repo_root):
     d = parse(path)
     problems = []
 
+    # Applies to every ERF inputs file, fire or not.
+    for key, first, second in duplicate_keys(path):
+        problems.append(
+            f"'{key}' assigned twice (lines {first} and {second}); AMReX aborts "
+            "with 'Duplicate inputs detected in inputs file'")
+
     if d.get("erf.fire.enable", "false").lower() not in ("true", "1"):
-        return problems  # not a fire case
+        return problems  # remaining checks are fire-specific
 
     n_cell = ints(d, "amr.n_cell", 3)
     if not n_cell or len(n_cell) != 3:
@@ -194,7 +222,9 @@ def check(path, repo_root):
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..")
     root = os.path.abspath(root)
-    files = sorted(f for f in glob.glob(os.path.join(root, "**", "inputs_*"), recursive=True)
+    files = sorted(f for f in
+                   glob.glob(os.path.join(root, "**", "inputs_*"), recursive=True)
+                   + glob.glob(os.path.join(root, "**", "inputs"), recursive=True)
                    if os.path.isfile(f))
     total_bad = 0
     for path in files:

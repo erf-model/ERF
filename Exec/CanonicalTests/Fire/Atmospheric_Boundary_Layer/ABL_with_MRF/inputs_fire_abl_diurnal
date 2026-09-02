@@ -41,6 +41,9 @@ erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity
 erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
+erf.pbl_type        = "MRF"   # required: zlo.type = surface_layer asserts that at least one of
+                              # molec_diff/les/rans/pbl is active (ERF.cpp has_diff), and MRF is
+                              # what this directory is for
 erf.theta_ref = 300.0
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_sounding_MRF_diurnal"

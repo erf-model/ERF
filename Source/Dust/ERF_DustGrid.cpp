@@ -61,9 +61,16 @@ create_dust_grid(const BoxArray& ba_atm,
     RealBox prob_domain_2d = geom_atm.ProbDomain();
     prob_domain_2d.setHi(2, prob_domain_2d.lo(2) + 1.0); // z extent = 1 m (dummy)
 
+    // Inherit the atmospheric periodicity in x and y. Hard-coding this
+    // non-periodic silently disables every FillBoundary on the dust grid: the
+    // dust grid is one box spanning the domain, so all of its ghost cells are
+    // domain-boundary ghosts, and a non-periodic Periodicity() leaves them
+    // untouched. Anything that then reads a dust ghost cell picks up whatever
+    // the allocator supplied. Same defect, and same fix, as ERF_FireGrid.cpp.
+    // z is a dummy 1 m slab and stays non-periodic.
     Geometry geom_dust_2d(dust_domain, prob_domain_2d,
                           CoordSys::cartesian,
-                          {false, false, false});
+                          {geom_atm.isPeriodic(0), geom_atm.isPeriodic(1), 0});
 
     dg.ba = ba_dust;
     dg.dm = dm_dust;
