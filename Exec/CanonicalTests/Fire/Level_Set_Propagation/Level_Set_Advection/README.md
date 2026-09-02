@@ -15,62 +15,91 @@ signed-distance reinitialization.
 
 | Case | State |
 |---|---|
-| `inputs_fire_levelset_baseline` | Passing. Advection only; reinitialization disabled. |
-| `inputs_fire_levelset_reinit_erosion` | **Known limitation.** Reproducer for front erosion under reinitialization. |
+| `inputs_fire_levelset_baseline` | Passing. Advection with signed-distance reinitialization. |
+| `inputs_fire_levelset_no_reinit` | Passing. Control: advection only. |
+
+## The level-set path uses a true signed distance
+
+`phi` is in **metres** for this path — negative inside the burned region,
+positive outside, `|grad phi| = 1`. The FARSITE path keeps its own normalized
+`[-1, 1]` indicator convention, and `initialize_ignition` takes a flag to choose
+between them.
+
+This matters. A level-set method's advection, its Godunov Hamiltonian and the
+Russo-Smereka subcell term are all derived for a signed distance in metres.
+Running the solver on a `[-1, 1]`-clamped field flattens everything outside the
+band, so the front eventually advances into ground carrying no gradient
+information. That produced discontinuous jumps in burned area — 44 to 528 cells
+in a single step — and widening the band made it worse rather than better, which
+is what ruled out band width as the cause and indicted the normalization itself.
 
 ## Expected Results
 
-**Baseline.** Completes with a monotonically growing burned area and `phi` in
-`[-1, 1]`. Measured at the 100 s stop time on 1 rank: `phi` in `[-0.84, 1.0]`,
-34 burned cells. For reference the FARSITE path holds `phi` in `[-1, 0]`.
+Burned-cell count at t = 150 / 300 / 450 / 600 s, measured on 1 rank:
 
-Two further properties are worth checking explicitly because they are not
-visible in a single-rank run:
+| | 150 s | 300 s | 450 s | 600 s |
+|---|---|---|---|---|
+| analytic, `r = r0 + R*t` | 34 | 41 | 48 | 56 |
+| `inputs_fire_levelset_baseline` | 36 | 52 | 60 | 64 |
+| `inputs_fire_levelset_no_reinit` | 32 | 44 | 52 | 52 |
+| FARSITE reference | 32 | 32 | 32 | 68 |
+
+Both cases track the analytic front. `phi` behaves as a signed distance:
+`phi_min` about -38 m near the centre of the burn, `phi_max` about the
+far-corner distance, unclamped.
+
+The table above is measured at `OMP_NUM_THREADS=1`.
+
+### Open defect: the reinitialized result depends on thread count
+
+| Threads | 150 s | 300 s | 450 s | 600 s |
+|---|---|---|---|---|
+| 1 | 36 | 52 | 60 | 64 |
+| 2 | 36 | 52 | 62 | 98 |
+| 4 | 36 | 52 | 86 | 118 |
+
+Repeatable within a thread count, different across. `inputs_fire_levelset_no_reinit`
+is thread-independent (32/44/52/52 at both 1 and 4 threads), which localises the
+defect to the reinitialization rather than the advection. Compare against the
+single-thread column until it is resolved.
+
+A separate non-determinism — differing run to run at a fixed thread count — was
+traced to the Jacobi scratch fab being left uninitialized, so the result depended
+on whatever the allocator handed over; that one is fixed.
+
+A CPU threading defect of this kind usually has a GPU counterpart, so this is
+worth resolving before the level-set path is trusted on device.
+
+**Reinitialization must be converged.** It propagates information roughly
+`n_iters * dtau` metres per call, so the default 10 iterations only reaches
+about 25 m here and leaves the field short of a signed distance further out.
+That shows up as the front over-spreading — 122 cells at 600 s against 64 with
+100 iterations. Scale `reinit_iters` to the size of the burned region, not to
+the cell size.
+
+Two further properties are worth checking because they are not visible in a
+single-rank run:
 
 - **No box-boundary artefacts in `phi`.** The RK3 stages fill ghost cells before
   every WENO5-Z reconstruction, whose stencil reaches three cells past a box
   edge. Run on several ranks and look for structure aligned with box boundaries.
-- **Bitwise reproducibility.** Both the advection and the reinitialization update
-  read neighbours while writing the centre cell, so both are done Jacobi-style
-  into scratch. Repeat runs should agree exactly, on CPU and GPU alike.
+- **Bitwise reproducibility.** Both the advection and the reinitialization read
+  neighbours while writing the centre cell, so both are done Jacobi-style into
+  scratch. Repeat runs should agree exactly, on CPU and GPU alike.
 
-## Reinitialization: fixed defects and the one that remains
-
-Three defects were repaired in the reinitializer:
+## Defects fixed in the reinitializer
 
 | Defect | Symptom before the fix |
 |---|---|
-| Update targeted `\|grad phi\| = 1`, i.e. a signed distance in **metres**, but ERF-Hazard's `phi` is normalized to `[-1, 1]` | `phi` diverged to about `1e7` within 20 steps; the jump equalled `n_iters * dtau` exactly |
-| Gradient took the larger-magnitude one-sided difference instead of the Godunov upwind | Burned cells flooded from 32 to 20786, over half the domain |
-| Default `dtau = 0.5*dx` sat exactly on the `dtau <= dx/2` stability limit | Unstable at 10 or more iterations |
+| `phi` clamped to `[-1, 1]` rather than a signed distance in metres | Front advanced into a flat field; burned area jumped 44 to 528 cells in one step |
+| Update targeted `\|grad phi\| = 1` while `phi` was normalized | `phi` diverged to about `1e7` in 20 steps; the jump equalled `n_iters * dtau` exactly |
+| Gradient took the larger-magnitude one-sided difference, not the Godunov upwind | Burned cells flooded from 32 to 20786, over half the domain |
+| No subcell fix, so the iteration moved the zero level set | Each pass eroded the front: 32 to 24 cells, and the fire went out entirely by 100 s |
+| Default `dtau = 0.5*dx` sat exactly on the `dtau <= dx/2` limit | Unstable at 10 or more iterations |
 
-The update now targets `|grad phi| = 1/L` for an explicit band half-width `L`
-(`erf.fire.levelset.reinit_band_m`, default `3*min(dx,dy)`), selects the
-one-sided difference by the sign of `phi_0`, and defaults `dtau` to `0.25*dx`.
-
-**What remains.** The Sussman iteration still does not preserve the zero level
-set, so a reinitialization pass erodes the front:
-
-| Iterations | Burned cells across one pass |
-|---|---|
-| 5 | 32 -> 24 |
-| 10 | 32 -> 24 |
-| 20 | 32 -> 24 |
-| 40 | 32 -> 16 |
-
-Interface displacement is a known property of the basic scheme and is normally
-handled with a subcell fix (Russo & Smereka 2000), which constrains cells
-adjacent to the interface using the pre-reinitialization values. That is not
-implemented here. The loss is permanent: unlike the FARSITE path, which rebuilds
-`phi` from `fire_arrival_time` every step, the level-set path has no
-reconstruction, so an eroded front never recovers.
-
-**Consequence.** The baseline runs with reinitialization disabled and stops at
-100 s. Without reinitialization `phi`'s magnitude drifts — measured `phi_min` is
-`-0.84` at 100 s, `-1.57` at 300 s, `-3.40` at 600 s — while its sign, which is
-all the rest of the module reads, stays correct and the front keeps advancing.
-Until the subcell fix lands, treat the level-set path as experimental and prefer
-the FARSITE default for production runs.
+The Russo-Smereka (2000) subcell update now fixes the interface from `phi_0` for
+cells whose original neighbourhood straddles it, so a pass no longer erodes the
+front: 32 cells before and after, at every iteration count tested from 5 to 80.
 
 ## Key Parameters
 | Parameter | Value | Description |

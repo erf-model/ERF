@@ -1,33 +1,43 @@
-# Level-set fire-front propagation (WENO5-Z + SSP-RK3).
+# Level-set fire-front propagation (WENO5-Z + SSP-RK3, signed distance).
 #
 # Exercises the PDE-based alternative to the default FARSITE Lagrangian path.
-# The level set is advanced with a Godunov-norm gradient, WENO5-Z reconstruction
-# and a three-stage SSP-RK3 step, subcycled on its own CFL condition.
+# phi is a true signed distance in metres for this path: negative inside the
+# burned region, positive outside, |grad phi| = 1. The FARSITE path keeps its
+# own normalized [-1, 1] indicator convention.
 #
-# Expected result:
-#   - The run completes with propagation_method = "levelset".
-#   - The burned area grows monotonically and phi stays within [-1, 1].
-#     Measured at the 100 s stop time: phi in [-0.84, 1.0], 34 burned cells.
-#   - No box-boundary artefacts appear in the level set: the RK3 stages fill
-#     ghost cells before every WENO5-Z reconstruction.
+# Expected result (measured, 1 rank, OMP_NUM_THREADS=1, 600 s):
+#   Burned-cell count at t = 150 / 300 / 450 / 600 s
+#     analytic (r = r0 + R*t)      34 /  41 /  48 /  56
+#     this case                    36 /  52 /  60 /  64
+#     FARSITE reference            32 /  32 /  32 /  68
+#
+# OPEN DEFECT: the result depends on the OpenMP thread count. Same binary, same
+# input, repeatable within a thread count but not across:
+#     threads = 1                  36 /  52 /  60 /  64
+#     threads = 2                  36 /  52 /  62 /  98
+#     threads = 4                  36 /  52 /  86 / 118
+# inputs_fire_levelset_no_reinit is thread-independent (32/44/52/52 at 1 and 4),
+# so this sits in the reinitialization, not the advection. Compare against the
+# single-thread column until it is resolved. A CPU threading defect of this kind
+# usually has a GPU counterpart, so this wants resolving before the level-set
+# path is trusted on device.
+#   - Burned area grows monotonically and tracks the analytic front.
+#   - phi stays a sensible signed distance: phi_min about -38 m near the centre
+#     of the burn, phi_max about the far-corner distance.
 #
 # Configuration:
-#   - Same geometry, fuel and ignition as the Rothermel baseline so the two
-#     propagation methods can be compared directly.
-#   - Signed-distance reinitialization is DISABLED here. It no longer diverges,
-#     but it still erodes the front (see inputs_fire_levelset_reinit_erosion),
-#     so the advection scheme is baselined without it.
-#   - The run stops at 100 s deliberately. Without reinitialization phi's
-#     magnitude drifts: measured phi_min is -0.84 at 100 s, -1.57 at 300 s and
-#     -3.40 at 600 s. The sign stays correct throughout, and the sign is all the
-#     rest of the module reads, but past ~100 s the [-1, 1] normalization no
-#     longer holds. Keeping reinitialization is what would bound it.
+#   - Reinitialization every 5 subcycles with 100 iterations.
+#   - The iteration count matters. Reinitialization propagates information about
+#     n_iters * dtau metres per call, so 10 iterations only reaches ~25 m here
+#     and leaves the field short of a signed distance further out, which shows
+#     up as the front over-spreading: 122 cells at 600 s instead of 64.
 #
 # Notes:
 #   - Level-set propagation is isotropic: it advances the front at the scalar
-#     ROS through a Godunov norm and does not use the wind direction, so the
+#     ROS through a Godunov norm and does not use wind direction, so the
 #     perimeter stays near-circular even under wind. Compare against
 #     FARSITE_Propagation/Elliptical_Propagation for the elliptical treatment.
+
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50
@@ -50,7 +60,7 @@ erf.geostrophic_wind_x = 5.0
 erf.geostrophic_wind_y = 0.0
 
 erf.fixed_dt = 1.0
-stop_time = 100.0
+stop_time = 600.0
 max_step = 1000
 
 erf.sum_interval = 50
@@ -92,6 +102,6 @@ erf.fire.fire_stats_csv_file = "fire_stats_levelset_baseline.csv"
 erf.fire.propagation_method = "levelset"
 erf.fire.levelset.cfl = 0.4              # subcycle CFL; must be > 0
 erf.fire.levelset.eps_visc = 0.4         # artificial viscosity on the Laplacian
-erf.fire.levelset.reinit_every = 1000000  # disabled: reinitializer is divergent, see README
-erf.fire.levelset.reinit_iters = 10      # Sussman pseudo-time iterations
+erf.fire.levelset.reinit_every = 5        # reinitialize every N subcycles; must be >= 1
+erf.fire.levelset.reinit_iters = 100      # must converge over the burn; see header
 erf.fire.levelset.reinit_dtau = -1.0     # <= 0 selects 0.5*min(dx,dy)

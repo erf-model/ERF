@@ -38,6 +38,12 @@ namespace fire_levelset {
  * every iteration, which pins the far field (where |∇φ| = 0 and the update
  * would otherwise push φ past ±1 indefinitely).
  *
+ * Cells whose original neighbourhood straddles the interface use the
+ * Russo & Smereka (2000) subcell update instead, which fixes the interface
+ * location from φ₀ rather than letting the pseudo-time iteration move it.
+ * Without it each pass erodes the burned area, and because the level-set path
+ * never rebuilds φ from fire_arrival_time the loss is permanent.
+ *
  * Each iteration moves φ by at most dtau/L, so with the default
  * dtau = 0.5*min(dx,dy) the change per iteration is half a cell measured in
  * band lengths.
@@ -53,7 +59,8 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
                               const amrex::Geometry& geom,
                               int n_iters,
                               amrex::Real dtau,
-                              amrex::Real band_m = -1.0)
+                              amrex::Real band_m = -1.0,
+                              bool normalized = true)
 {
     using namespace amrex;
     
@@ -63,8 +70,18 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
 
     // Band half-width. The default spreads the [-1, 1] range over three cells,
     // the usual interface thickness for a level-set band.
-    const Real L    = (band_m > 0.0) ? band_m : 3.0 * amrex::min(dx[0], dx[1]);
+    // In signed-distance mode phi is already in metres, so the band length is
+    // 1 m: the update targets |grad phi| = 1 and nothing is clamped. In
+    // normalized mode phi is dimensionless and reaches +/-1 at distance L.
+    const Real L    = normalized ? ((band_m > 0.0) ? band_m
+                                                  : 3.0 * amrex::min(dx[0], dx[1]))
+                                 : 1.0;
     const Real Linv = 1.0 / L;
+
+    // Isotropic spacing for the Russo-Smereka subcell term. The fire grid is
+    // square in practice; min() is the conservative choice if it ever is not.
+    const Real h    = amrex::min(dx[0], dx[1]);
+    const Real hinv = 1.0 / h;
     
     // Make a working copy for pseudo-time iteration
     MultiFab phi_work(phi.boxArray(), phi.DistributionMap(), 1, 3);
@@ -77,6 +94,10 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
     // result non-deterministic and different from the CPU sweep. Write into a
     // separate fab and swap once the pass is complete.
     MultiFab phi_next(phi.boxArray(), phi.DistributionMap(), 1, 3);
+    // Freshly allocated fabs hold indeterminate values. Only the valid region is
+    // written and only the valid region is copied back, but leaving the ghosts
+    // indeterminate makes the run depend on whatever the allocator hands over.
+    phi_next.setVal(0.0);
 
     for (int iter = 0; iter < n_iters; ++iter) {
         // Fill boundary ghosts
@@ -127,11 +148,54 @@ inline void reinitialize_phi(amrex::MultiFab& phi,
                 // normalized to [-1, 1] rather than measured in metres.
                 Real rhs = sgn_phi0 * (1.0_rt - L * norm_grad) * Linv;
 
-                // Forward Euler step, clamped to the normalization range. The
-                // clamp is what pins the far field: there |∇φ| = 0, so the
-                // update would otherwise drive φ away from zero without limit.
                 Real phi_new = phi_arr(i, j, k) + dtau * rhs;
-                phi_out(i, j, k) = amrex::max(-1.0_rt, amrex::min(1.0_rt, phi_new));
+
+                // Russo-Smereka (2000) subcell fix.
+                //
+                // The plain Sussman iteration does not preserve the zero level
+                // set, so each pass walks the front and permanently erodes the
+                // burned area -- the level-set path never rebuilds phi from
+                // fire_arrival_time the way the FARSITE path does, so nothing
+                // puts it back. For cells whose ORIGINAL neighbourhood straddles
+                // the interface, replace the Godunov update with one driven by
+                // the distance to the interface implied by phi_0 itself, so the
+                // interface location is set by phi_0 and not by the iteration.
+                const Real p0c = phi_in(i, j, k);
+                const bool near_front =
+                    (p0c * phi_in(i+1, j, k) < 0.0_rt) ||
+                    (p0c * phi_in(i-1, j, k) < 0.0_rt) ||
+                    (p0c * phi_in(i, j+1, k) < 0.0_rt) ||
+                    (p0c * phi_in(i, j-1, k) < 0.0_rt);
+
+                if (near_front) {
+                    // Robust local |grad phi_0|*h estimate: the central
+                    // difference, floored by every one-sided difference so a
+                    // kink at the interface cannot make it vanish.
+                    const Real dcx = 0.5_rt * (phi_in(i+1, j, k) - phi_in(i-1, j, k));
+                    const Real dcy = 0.5_rt * (phi_in(i, j+1, k) - phi_in(i, j-1, k));
+                    Real dphi0 = std::sqrt(dcx * dcx + dcy * dcy);
+                    dphi0 = amrex::max(dphi0, std::abs(phi_in(i+1, j, k) - p0c));
+                    dphi0 = amrex::max(dphi0, std::abs(p0c - phi_in(i-1, j, k)));
+                    dphi0 = amrex::max(dphi0, std::abs(phi_in(i, j+1, k) - p0c));
+                    dphi0 = amrex::max(dphi0, std::abs(p0c - phi_in(i, j-1, k)));
+                    dphi0 = amrex::max(dphi0, 1.0e-12_rt);
+
+                    // Signed distance to the interface [m], then expressed in the
+                    // normalized units phi uses.
+                    const Real D = h * p0c / dphi0;
+
+                    phi_new = phi_arr(i, j, k)
+                            - dtau * hinv * (sgn_phi0 * std::abs(phi_arr(i, j, k)) - D * Linv);
+                }
+
+                // Clamp only in normalized mode, where it pins the far field:
+                // there |grad phi| = 0 and the update would otherwise drive phi
+                // past +/-1 without limit. In signed-distance mode phi is meant
+                // to keep growing with distance, so clamping is exactly the
+                // thing that breaks it.
+                phi_out(i, j, k) = normalized
+                    ? amrex::max(-1.0_rt, amrex::min(1.0_rt, phi_new))
+                    : phi_new;
             });
         }
 

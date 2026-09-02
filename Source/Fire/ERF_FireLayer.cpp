@@ -235,7 +235,11 @@ void FireLayer::initialize(const ERF& erf,
     m_ignition_y = fire_params.ignition_y;
     m_ignition_r = fire_params.ignition_r;
 
-    initialize_ignition(*fire_phi, m_fg.geom, m_ignition_x, m_ignition_y, m_ignition_r);
+    // The level-set solver needs a true signed distance in metres; the FARSITE
+    // path keeps the normalized [-1, 1] indicator convention.
+    const bool phi_normalized = (m_params.propagation_method != "levelset");
+    initialize_ignition(*fire_phi, m_fg.geom, m_ignition_x, m_ignition_y, m_ignition_r,
+                        phi_normalized);
     fire_phi->FillBoundary(m_fg.geom.periodicity());
 
     for (MFIter mfi(*fire_phi); mfi.isValid(); ++mfi) {
@@ -629,7 +633,8 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                     : 0.25 * std::min(m_fg.geom.CellSize()[0], m_fg.geom.CellSize()[1]);
                 fire_levelset::reinitialize_phi(*fire_phi, m_fg.geom,
                                       m_params.levelset_reinit_iters, dtau,
-                                      m_params.levelset_reinit_band_m);
+                                      m_params.levelset_reinit_band_m,
+                                      /*normalized=*/false);
                 fire_phi->FillBoundary(m_fg.geom.periodicity());
             }
 
