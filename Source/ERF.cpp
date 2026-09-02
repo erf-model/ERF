@@ -1508,8 +1508,10 @@ ERF::InitData_post ()
 
                 // Initialize fire layer after surface layer is fully initialized (lev=0)
 #ifdef ERF_ENABLE_FIRE
-                if (lev == 0 && m_fire_layer && z_phys_nd[0]) {
-                    m_fire_layer->initialize(*this, m_SurfaceLayer.get(), *z_phys_nd[0], m_fire_params);
+                // z_phys_nd[0] is null on flat terrain (TerrainType::None); the fire
+                // layer handles that case itself, so it must not gate initialization.
+                if (lev == 0 && m_fire_layer) {
+                    m_fire_layer->initialize(*this, m_SurfaceLayer.get(), z_phys_nd[0].get(), m_fire_params);
                     
                     // Verify that at least one cell was marked during fire initialization
                     if (const amrex::MultiFab* phi = m_fire_layer->get_levelset()) {

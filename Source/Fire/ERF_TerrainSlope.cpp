@@ -6,7 +6,7 @@ using namespace amrex;
 
 void compute_terrain_slopes(
     MultiFab& fire_slopes,
-    const MultiFab& z_phys_nd,
+    const MultiFab* z_phys_nd,
     const Geometry& geom_atm,
     const FireGrid& fg,
     const std::string& terrain_fname)
@@ -66,6 +66,11 @@ void compute_terrain_slopes(
                 slopes(i, j, 0, 1) = 0.5 * ((z_ul - z_ll) + (z_ur - z_lr)) / dy_fire;
             });
         }
+    } else if (z_phys_nd == nullptr) {
+        // Flat terrain (TerrainType::None): ERF never allocates z_phys_nd, so there
+        // is no terrain to differentiate and every slope is identically zero.
+        fire_slopes.setVal(0.0);
+
     } else {
         // Fallback: use atmospheric terrain with fixed centered bilinear average formula
         // This fixes the dead-code bug in the original implementation
@@ -73,7 +78,7 @@ void compute_terrain_slopes(
         for (MFIter mfi(fire_slopes, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
             Array4<Real> slopes = fire_slopes.array(mfi);
-            Array4<const Real> z_nd = z_phys_nd.array(mfi);
+            Array4<const Real> z_nd = z_phys_nd->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
                 int i_f = iv[0];

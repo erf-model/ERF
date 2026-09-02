@@ -38,8 +38,8 @@ void initialize_ignition(
 {
     using namespace amrex;
     
-    const auto* prob_lo = geom_fire.ProbLo();
-    const auto* dx      = geom_fire.CellSize();
+    const auto prob_lo = geom_fire.ProbLoArray();
+    const auto dx      = geom_fire.CellSizeArray();
     
     for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();

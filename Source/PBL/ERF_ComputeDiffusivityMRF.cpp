@@ -47,6 +47,15 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const MultiFab* qheating_rates,
                        const MultiFab* Q_fire_atm)
 {
+    // Shadow the namespace-scope constants from ERF_Constants.H with local copies.
+    // Passing those constants straight to amrex::min/max binds a const reference,
+    // which odr-uses them; under CUDA relocatable device code nvcc then wants a
+    // device-side symbol that is never emitted, and the extended __device__ lambdas
+    // below fail with 'identifier "zero" is undefined in device code'. Function-local
+    // constants are captured by value into the closure instead.
+    constexpr amrex::Real zero = amrex::Real(0.0);
+    constexpr amrex::Real one  = amrex::Real(1.0);
+
     /*
     ============================================================================
     Medium-Range Forecast (MRF) Boundary Layer Parameterization Scheme

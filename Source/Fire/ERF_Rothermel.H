@@ -65,7 +65,141 @@ struct FuelModelParams
  *
  * All 13 Anderson fuel models are hard-coded with standard values.
  */
-FuelModelParams get_anderson_fuel_params(int model_id);
+// Anderson FBFM13 fuel model database
+// Reference: Anderson, H.E. (1982) "Aids to determining fuel models..."
+// All values are standard published values for these fuel models
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+FuelModelParams get_anderson_fuel_params(int model_id)
+{
+    FuelModelParams fp;
+
+    // All fuel loads in lb/ft² (standard Anderson 1982)
+    // SAV in 1/ft (characteristic for 1-hour dead fuel; 10-hr = 109, 100-hr = 30 ft⁻¹ fixed)
+    // Heat content in BTU/lb
+    // Particle density in lb/ft³
+    // Depth in ft
+    // Reference: wildfire_levelset/src/fuel_database.H (Anderson 13 fuel models)
+
+    switch (model_id) {
+    case 1:  // Short grass (1 ft)
+        fp.w_d1 = 0.034;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 3500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.12;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 2:  // Timber (Grass and Understory)
+        fp.w_d1 = 0.046;   fp.w_d10 = 0.023;  fp.w_d100 = 0.023;
+        fp.w_lh = 0.023;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 3000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.15;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 3:  // Tall grass (2.5 ft)
+        fp.w_d1 = 0.138;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.5;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 4:  // Chaparral (6 ft)
+        fp.w_d1 = 0.230;   fp.w_d10 = 0.184;  fp.w_d100 = 0.092;
+        fp.w_lh = 0.230;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 1739.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 6.0;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 5:  // Brush (2 ft)
+        fp.w_d1 = 0.046;   fp.w_d10 = 0.023;  fp.w_d100 = 0.0;
+        fp.w_lh = 0.092;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 1739.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.0;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 6:  // Dormant Brush, Hardwood Slash
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.115;  fp.w_d100 = 0.115;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1750.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.5;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 7:  // Southern Rough
+        fp.w_d1 = 0.052;   fp.w_d10 = 0.086;  fp.w_d100 = 0.069;
+        fp.w_lh = 0.017;   fp.w_lw = 0.017;
+        fp.sigma_d1 = 1550.0;  fp.sigma_lh = 1550.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.5;    fp.Mx = 0.40;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 8:  // Closed Timber Litter
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.046;  fp.w_d100 = 0.115;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 2000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 0.2;    fp.Mx = 0.30;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 9:  // Hardwood Litter
+        fp.w_d1 = 0.134;   fp.w_d10 = 0.019;  fp.w_d100 = 0.007;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 2500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 0.2;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 10:  // Timber (Litter and Understory)
+        fp.w_d1 = 0.138;   fp.w_d10 = 0.092;  fp.w_d100 = 0.230;
+        fp.w_lh = 0.092;   fp.w_lw = 0.0;
+        fp.sigma_d1 = 2000.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 11:  // Light Logging Slash
+        fp.w_d1 = 0.069;   fp.w_d10 = 0.207;  fp.w_d100 = 0.253;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.15;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 12:  // Medium Logging Slash
+        fp.w_d1 = 0.184;   fp.w_d10 = 0.644;  fp.w_d100 = 0.759;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 2.3;    fp.Mx = 0.20;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    case 13:  // Heavy Logging Slash
+        fp.w_d1 = 0.322;   fp.w_d10 = 1.058;  fp.w_d100 = 1.288;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 1500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 3.0;    fp.Mx = 0.25;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+
+    default:
+        // GPU-safe fallback: an unknown id silently uses model 1. amrex::Print()
+        // and the recursive call this replaced are both illegal on device, and
+        // this function is called from inside ParallelFor kernels.
+        fp.w_d1 = 0.034;   fp.w_d10 = 0.0;    fp.w_d100 = 0.0;
+        fp.w_lh = 0.0;     fp.w_lw = 0.0;
+        fp.sigma_d1 = 3500.0;  fp.sigma_lh = 1500.0;  fp.sigma_lw = 0.0;
+        fp.delta = 1.0;    fp.Mx = 0.12;      fp.heat_content = 8000.0;
+        fp.rho_p = 32.0;
+        break;
+    }
+
+    return fp;
+}
 
 /**
  * @struct RothermelComputed

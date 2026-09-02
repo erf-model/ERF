@@ -122,14 +122,15 @@ public:
      *                               May be nullptr when called before the surface
      *                               layer is constructed (prereq check only).
      * @param[in] z_phys_nd_atm      Atmospheric nodal terrain-height MultiFab
-     *                               (pass *z_phys_nd[0] at the call site).
+     *                               (pass z_phys_nd[0].get() at the call site);
+     *                               nullptr on flat terrain (TerrainType::None).
      * @param[in] fire_params        Fire configuration struct.
      *
      * @throw amrex::Error if prerequisites not met.
      */
     void initialize(const ERF&            erf,
                     const SurfaceLayer*   surface_layer_ptr,
-                    const amrex::MultiFab& z_phys_nd_atm,
+                    const amrex::MultiFab* z_phys_nd_atm,
                     const FireParams&     fire_params);
 
     /**
@@ -594,6 +595,11 @@ private:
      * Multiplies fire_wind_eff by a scalar WAF. Used inside advance().
      */
     void apply_waf_to_wind();
+
+    // nvcc forbids an extended __device__ lambda inside a function with private or
+    // protected class access, and both methods below launch ParallelFor kernels, so
+    // they are public even though they are only called from advance().
+public:
 
     /**
      * @brief Update fire_fuel_mc and fire_mext for one atmospheric timestep.

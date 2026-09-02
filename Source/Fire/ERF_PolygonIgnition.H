@@ -229,8 +229,8 @@ void init_phi_from_polygon(
         amrex::Abort("Polygon vertices: xs and ys must have same non-zero size");
     }
 
-    const auto* prob_lo = geom_fire.ProbLo();
-    const auto* dx      = geom_fire.CellSize();
+    const auto prob_lo = geom_fire.ProbLoArray();
+    const auto dx      = geom_fire.CellSizeArray();
     int n_verts = static_cast<int>(xs.size());
 
     // Copy vertices to GPU if necessary
@@ -273,6 +273,9 @@ void init_phi_from_polygon(
             p(i, j, k) = amrex::min(p(i, j, k), new_phi);
         });
     }
+    // The ParallelFor above is asynchronous while the Gpu::DeviceVector frees its
+    // device allocation at scope exit; let the kernels finish reading it first.
+    amrex::Gpu::streamSynchronize();
 }
 
 /**
@@ -306,8 +309,8 @@ void init_phi_from_polyline(
         amrex::Abort("Polyline vertices: xs and ys must have same non-zero size");
     }
 
-    const auto* prob_lo = geom_fire.ProbLo();
-    const auto* dx      = geom_fire.CellSize();
+    const auto prob_lo = geom_fire.ProbLoArray();
+    const auto dx      = geom_fire.CellSizeArray();
     int n_verts = static_cast<int>(xs.size());
 
     // Copy vertices to GPU if necessary
@@ -346,6 +349,9 @@ void init_phi_from_polyline(
             p(i, j, k) = amrex::min(p(i, j, k), new_phi);
         });
     }
+    // The ParallelFor above is asynchronous while the Gpu::DeviceVector frees its
+    // device allocation at scope exit; let the kernels finish reading it first.
+    amrex::Gpu::streamSynchronize();
 }
 
 #endif // ERF_POLYGON_IGNITION_H

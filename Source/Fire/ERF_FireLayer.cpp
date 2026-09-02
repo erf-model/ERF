@@ -10,7 +10,7 @@ using namespace amrex;
 
 void FireLayer::initialize(const ERF& erf,
                             const SurfaceLayer* surface_layer_ptr,
-                            const MultiFab& z_phys_nd_atm,
+                            const MultiFab* z_phys_nd_atm,
                             const FireParams& fire_params)
 {
     m_params = fire_params;
