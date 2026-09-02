@@ -19,6 +19,10 @@
     Real pert_deltaV = amrex::Real(0); pp.query("pert_deltaV", pert_deltaV);
     Real pert_ref_height = amrex::Real(100.0); pp.query("pert_ref_height", pert_ref_height);
 
+    // sinusoidal perturbations for regression tests
+    Real pert_deltaT    = amrex::Real(0); pp.query("pert_deltaT", pert_deltaT);
+    Real pert_periods_T = amrex::Real(0); pp.query("pert_periods_T", pert_periods_T);
+
     // Capture by value for GPU
     const Real dx = geomdata.CellSize(0);
     const Real dy = geomdata.CellSize(1);
@@ -34,6 +38,15 @@
     const Real yc = myhalf * (prob_lo_y + prob_hi_y);
     const Real zc = myhalf * (prob_lo_z + prob_hi_z);
 
+    // Sinusoidal perturbation wavenumber and amplitude factor.  These mirror
+    // the divergence-free velocity perturbations in ERF_InitCustomPertVels_ABL.H
+    // so that tfac*damp*z peaks at pert_deltaT when z = pert_ref_height.
+    const Real cval = pert_periods_T * two * PI / (prob_hi_x - prob_lo_x);
+    const Real tfac = pert_deltaT * std::exp(myhalf) / pert_ref_height;
+
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    const Real rdOcp        = sc.rdOcp;
+
     if (KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
@@ -48,6 +61,11 @@
             } else {
                 amrex::Print() << "Adding random theta perturbations" << std::endl;
             }
+        }
+        if (pert_deltaT != amrex::Real(0)) {
+            amrex::Print() << "Adding sinusoidal temperature perturbations "
+                           << pert_deltaT << " over " << pert_periods_T
+                           << " periods" << std::endl;
         }
     }
 #endif
@@ -68,6 +86,31 @@
                 // we're perturbing theta, not rho*theta
                 state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
             }
+        }
+
+        // Sinusoidal temperature perturbation for regression tests.  Unlike the
+        // random branch above, this is a pure function of position, so the
+        // initial state does not depend on the box decomposition, the MPI rank
+        // count, or the OpenMP tile size -- which is what a bitwise gold-file
+        // comparison requires.  The perturbation is isobaric: T is perturbed at
+        // fixed pressure, so it is carried by the density perturbation and
+        // rho*theta is left unchanged (matching ERF_InitCustomPert_SDMCongestus3D.H).
+        if (pert_deltaT != amrex::Real(0)) {
+            const Real zl   = z / pert_ref_height;
+            const Real damp = std::exp(-myhalf * zl * zl);
+
+            const Real rho      = state(i,j,k,Rho_comp);
+            const Real rhotheta = state(i,j,k,RhoTheta_comp);
+            const Real qv       = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : amrex::Real(0);
+
+            const Real Told = getTgivenRandRTh(rho,rhotheta,qv);
+            const Real P    = getPgivenRTh(rhotheta,qv);
+
+            const Real Tnew      = Told + tfac * damp * z * std::cos(cval * (x - xc));
+            const Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
+            const Real rho_new   = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
+
+            state_pert(i, j, k, Rho_comp) += rho_new - rho;
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
