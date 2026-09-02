@@ -145,6 +145,10 @@ bool read_terrain_onto_dust_grid(
         });
     }
 
+    // ParallelFor is asynchronous; the Gpu::DeviceVectors above free their device
+    // allocations when this function returns. Let the kernels finish reading them.
+    Gpu::streamSynchronize();
+
     return true;
 }
 

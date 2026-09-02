@@ -167,8 +167,10 @@ inline void apply_road_schedule(
 {
     if (!schedule.loaded || schedule.roads.empty()) return;
 
-    const auto& dxd = geom_dust.CellSize();
-    const auto& lod = geom_dust.ProbLo();
+    // GpuArray by value: CellSize()/ProbLo() return pointers into host Geometry
+    // members, and the road-stamping kernel below dereferences these.
+    const auto dxd = geom_dust.CellSizeArray();
+    const auto lod = geom_dust.ProbLoArray();
     bool any_active = false;
 
     for (const auto& ev : schedule.roads) {

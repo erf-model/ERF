@@ -232,6 +232,10 @@ bool read_phreeqc_csv(MultiFab& mf, const DustGrid& dg,
         });
     }
 
+    // ParallelFor is asynchronous; d_data frees its device allocation when this
+    // function returns. Let the kernels finish reading it.
+    Gpu::streamSynchronize();
+
     return true;
 }
 

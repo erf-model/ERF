@@ -153,8 +153,10 @@ bool read_ascii_surface_map(MultiFab& mf, const DustGrid& dg,
 
     // Get dust grid data
     const Geometry& geom = dg.geom;
-    const Real* dx = geom.CellSize();
-    const Real* prob_lo = geom.ProbLo();
+    // GpuArray by value: CellSize()/ProbLo() return pointers into host Geometry
+    // members, and the interpolation kernel below dereferences these.
+    const auto dx = geom.CellSizeArray();
+    const auto prob_lo = geom.ProbLoArray();
 
     // GPU kernel: bilinear interpolation over MultiFab tiles
     int ncomp = 1;
@@ -220,6 +222,10 @@ bool read_ascii_surface_map(MultiFab& mf, const DustGrid& dg,
             arr(i, j, k, 0) = v;
         });
     }
+
+    // ParallelFor is asynchronous; d_data, x_src and y_src free their device
+    // allocations when this function returns. Let the kernels finish first.
+    Gpu::streamSynchronize();
 
     return true;
 }
