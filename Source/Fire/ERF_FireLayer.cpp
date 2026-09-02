@@ -615,7 +615,8 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
             dt_ls = std::min(dt_ls, time_remaining);
 
             fire_levelset::advect_levelset_weno5z_rk3(*fire_phi, *fire_wind_eff,
-                                            *fire_ros, m_fg.geom, dt_ls);
+                                            *fire_ros, m_fg.geom, dt_ls,
+                                            m_params.levelset_eps_visc);
             fire_phi->FillBoundary(m_fg.geom.periodicity());
 
             ++m_levelset_subcycle_count;

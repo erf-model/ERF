@@ -6,7 +6,7 @@ This directory collects related canonical ERF test cases under the Fire Atmosphe
 ## Physics / Model Features Exercised
 - Fire spread / ignition configuration
 - Atmospheric forcing and boundary-condition setup
-- Organizational grouping for: Lagged_Coupling, Passive_Baseline, Synchronous_Coupling
+- Organizational grouping for: Lagged_Coupling, Passive_Baseline, Smoke_Tracer, Synchronous_Coupling
 
 ## Expected Results
 See the input-file header comments in this directory for the specific validation target. In general, these cases should reproduce the documented analytical trend, qualitative regime change, or engineering diagnostic associated with the scenario.

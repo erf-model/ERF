@@ -123,17 +123,18 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
  * @param[in]     R_mf      Rate-of-spread field [m/s]
  * @param[in]     geom      Domain geometry
  * @param[in]     dt        Timestep
+ * @param[in]     eps_visc  Artificial viscosity coefficient (erf.fire.levelset.eps_visc)
  */
 inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
                                         const amrex::MultiFab& /*vel_eff*/,
                                         const amrex::MultiFab& R_mf,
                                         const amrex::Geometry& geom,
-                                        amrex::Real dt)
+                                        amrex::Real dt,
+                                        amrex::Real eps_visc)
 {
     using namespace amrex;
 
     const auto* dx = geom.CellSize();
-    constexpr Real eps_visc = 0.4_rt;  // Artificial viscosity coefficient
 
     // Allocate stage MultiFabs with 3 ghost cells for WENO5-Z
     const int nghost = 3;

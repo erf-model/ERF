@@ -1,18 +1,21 @@
-# Test fire acceleration parameterizations.
+# Smoke tracer emission from fire heat release.
 #
-# These cases compare disabled, size-based, and temporal acceleration options for fire growth, verifying the transient adjustment from ignition toward the steady spread regime.
+# Injects a passive smoke scalar proportional to the fire sensible heat flux,
+# carried as an extra conserved component and advected by the dycore.
 #
 # Expected result:
-#   - Acceleration-enabled cases ramp spread differently from the disabled control.
-#   - Selected acceleration mode changes early-time fire growth in the expected qualitative manner.
+#   - Smoke appears only where the fire is burning and is advected downwind.
+#   - Column-integrated smoke grows while fuel is being consumed and levels off
+#     once the fuel behind the front is exhausted.
 #
 # Configuration:
-#   - Acceleration model selection is the primary varying parameter across files.
-#   - Ignition and fuel settings are otherwise comparable.
+#   - Lagged coupling so the fire releases heat into the atmosphere.
+#   - smoke_emission_factor converts heat release to smoke mass; heat_of_comb
+#     sets the heat released per unit fuel.
 #
 # Notes:
-#   - Review all files in this directory together to understand mode-to-mode differences.
-
+#   - Smoke adds a conserved component, so plotfile component counts differ
+#     from the non-smoke cases.
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2000.0 2000.0 500.0
 amr.n_cell = 40 40 50
@@ -44,7 +47,7 @@ amr.v = 1
 erf.check_int = -1
 erf.plot_int = 100
 erf.plot_vars = theta qv u v w
-erf.fire_plot_file = plt_fire_
+erf.fire_plot_file = plt_fire_smoke_
 erf.fire_plot_int = 100
 
 erf.fire.enable = true
@@ -63,17 +66,17 @@ erf.fire.use_waf = true
 erf.fire.waf_formula = "andrews"
 erf.fire.use_wind_limit = true
 erf.fire.use_terrain_wind = false
+erf.fire.ros_model = "rothermel"
 erf.fire.farsite.cfl_fire = 0.5
-erf.fire.coupling_type = "passive"
+erf.fire.coupling_type = "lagged"
 erf.fire.write_fire_stats_csv = true
 erf.fire.flame_temp_method = "byram_radiant"
 erf.fire.compute_flame_tilt = false
+erf.fire.fire_stats_csv_file = "fire_stats_smoke.csv"
 
-erf.fire.accel.enable = true
-erf.fire.accel.use_temporal = true
-erf.fire.accel.A_point = 0.115
-erf.fire.accel.A_line = 0.886
-erf.fire.accel.perim_limit = 500.0
-erf.fire.accel.enable_wind_lag = false
-erf.fire.fire_stats_csv_file = "fire_stats_phase12_temporal.csv"
-erf.fire.accel.tau_wind = 60.0        # wind-lag time constant [s] for the temporal model
+# ---------------------------------------------------------------------------
+# Smoke tracer
+# ---------------------------------------------------------------------------
+erf.fire.smoke_enable = true
+erf.fire.smoke_emission_factor = 0.015     # kg smoke per kg fuel burned
+erf.fire.smoke_heat_of_comb = 18600000.0   # heat of combustion [J/kg]

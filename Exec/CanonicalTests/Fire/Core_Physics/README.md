@@ -6,7 +6,7 @@ This directory collects related canonical ERF test cases under the Core Physics 
 ## Physics / Model Features Exercised
 - Fire spread / ignition configuration
 - Atmospheric forcing and boundary-condition setup
-- Organizational grouping for: Fuel_Moisture_Sensitivity, Multiple_Fuel_Models, ROS_Basic_Calculation, ROS_Slope_Effects, ROS_Uniform_Grid, Wind_Speed_Variation
+- Organizational grouping for: Fuel_Moisture_Sensitivity, Multiple_Fuel_Models, ROS_Basic_Calculation, ROS_Slope_Effects, ROS_Uniform_Grid, Wind_Adjustment_Factor, Wind_Speed_Variation
 
 ## Expected Results
 See the input-file header comments in this directory for the specific validation target. In general, these cases should reproduce the documented analytical trend, qualitative regime change, or engineering diagnostic associated with the scenario.
