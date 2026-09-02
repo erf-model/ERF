@@ -60,9 +60,10 @@ namespace LsmVar_SLM {
       soil_relax_hgt,  // depth dependent soil relaxation function
       soilt_obs,
       soilw_obs,
-      // vegetation
-      rootF,           // fraction of total root length of a vegetation in each soil layer
-      w_s_FC,          // wetness at field capacity
+       // vegetation
+       rootF,           // fraction of total root length of a vegetation in each soil layer
+       soil_transp_frac,// normalized fraction of transpiration extracted from each soil layer
+       w_s_FC,          // wetness at field capacity
       w_s_WP,          // wetness at wilting point
       // soil parameters calculated from sand/clay
       sst_capa,        // heat capacity for soil solids
@@ -160,12 +161,42 @@ namespace SLM_Diag {
      ftd_nir,      // transmitted direct flux (NIR) - note: same as ftdd
      fti_vis,      // transmitted diffuse flux (VIS)
      fti_nir,      // transmitted diffuse flux (NIR)
-     albgrd_vis,   // ground albedo for direct (VIS) - note: same as albd
-     albgrd_nir,   // ground albedo for direct (NIR) - note: same as albd
-     albgri_vis,   // ground albedo for diffuse (VIS)
-     albgri_nir,   // ground albedo for diffuse (NIR)
-     NumVars
-   };
+      albgrd_vis,   // ground albedo for direct (VIS) - note: same as albd
+      albgrd_nir,   // ground albedo for direct (NIR) - note: same as albd
+      albgri_vis,   // ground albedo for diffuse (VIS)
+      albgri_nir,   // ground albedo for diffuse (NIR)
+      dt_canop_sfc, // t_canop - t_sfc driving canopy sensible heat flux [K]
+      dt_soil_sfc,  // soilt_top - t_sfc driving ground sensible heat flux [K]
+      dq_canop_sfc, // qsat_canop - q_sfc driving canopy evaporation [kg/kg]
+      dq_ground_sfc,// q_gr - q_sfc driving ground evaporation [kg/kg]
+      qsat_canop,   // saturation specific humidity at canopy temperature [kg/kg]
+      q_ground,     // near-surface ground specific humidity after soil moisture limiter [kg/kg]
+      soil_diff,    // soil evaporation diffusion factor [-]
+      soil_total_res,// total soil evaporation resistance [s/m]
+      cond_href,    // canopy-air temperature weight from reference air [-]
+      cond_hcnp,    // canopy-air temperature weight from canopy [-]
+      cond_hundercnp,// canopy-air temperature weight from undercanopy ground [-]
+      cond_vref,    // canopy-air humidity weight from reference air [-]
+      cond_vcnp,    // canopy-air humidity weight from canopy [-]
+      cond_vundercnp,// canopy-air humidity weight from undercanopy ground [-]
+      rc_fac_rad,   // Jarvis radiation factor in canopy stomatal resistance [-]
+      rc_fac_vpd,   // Jarvis vapor-pressure-deficit factor [-]
+      rc_fac_t,     // Jarvis temperature factor [-]
+      rc_fac_sw,    // Jarvis soil-water factor [-]
+      rc_tmp_radf,  // product of Jarvis factors used in r_c [-]
+      rc_vpd_q,     // qsat(t_cas)-q_cas used by VPD factor [kg/kg]
+      rc_root_depth,// active root-depth denominator used by soil-water factor [m]
+      rc_nroot,     // number of soil layers used by the soil-water factor [-]
+      rc_soil_numerator, // unfloored sum of layer thickness times moisture stress [m]
+      rd_cwpvt,     // class-specific canopy wind absorption parameter [-]
+      rd_vai,       // vegetation area index used by the under-canopy resistance [-]
+      rd_wind_ext,  // canopy wind extinction coefficient [-]
+      canopy_heat_capacity, // vegetation plus intercepted-water heat capacity [J/m2/K]
+      canopy_energy_residual, // net_rad1 - shf_canop - lhf_canop [W/m2]
+      canopy_storage_flux, // realized heat storage from canopy temperature change [W/m2]
+      canopy_delta_t, // canopy temperature change over this SLM step [K]
+      NumVars
+    };
 }
 
 // refers to device variables used in soil temperature and moisture update
@@ -675,7 +706,7 @@ public:
 
 private:
     // number of lsm variables (theta)
-    int m_lsm_data_size = 43;
+    int m_lsm_data_size = 44;
 
     // number of flux variables (qflux, tflux, uflux, vflux)
     int m_lsm_flux_size = 5;
@@ -805,6 +836,7 @@ private:
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
     amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
+    amrex::iMultiFab nroot; // number of rooted soil layers used by the Noah BTR=1 stress factor
     amrex::MultiFab LAI; // leaf area index
     amrex::MultiFab SAI; // stem area index
     amrex::MultiFab sstxy;
@@ -812,7 +844,9 @@ private:
     // Vegetation parameter lists
     amrex::iMultiFab vegetype; // vegetation type (0 - baresoil, non-zero for vegetated)
     amrex::MultiFab vege_YES; // 0-baresoil, 1-vegetated
-    amrex::MultiFab cp_vege; // heat capacity of vegetation
+    amrex::MultiFab cp_vege; // dry heat capacity of vegetation [J/m2/K]
+    amrex::MultiFab cbiom; // NoahMP canopy biomass heat capacity parameter [m]
+    amrex::MultiFab dleaf; // NoahMP characteristic leaf dimension [m]
     amrex::MultiFab z0_sfc; // surface level roughness: for vegetated z0_sfc=z0_vege, for non-vegetated, z0_sfc=z0_soil
     amrex::MultiFab Khai_L; // leaf distribution factor (called XL in NOAHMP radiation)
     amrex::MultiFab phi_1;
@@ -876,7 +910,7 @@ private:
     //   TODO: in the fortran version, these are scalar quantities but are updated over i,j?
     amrex::MultiFab r_a; // aerodynamic resistance between surface and ref level
     amrex::MultiFab r_b; // leaf boundary layer resistance
-    amrex::MultiFab r_c; // stomatal resistance
+    amrex::MultiFab r_c; // leaf-level stomatal resistance
     amrex::MultiFab r_d; // undercanopy aerodynamic resistance
     amrex::MultiFab r_soil;
     static constexpr amrex::Real r_litter = 0.0; // not used currently
@@ -1075,7 +1109,7 @@ private:
       "tsurf", "ustar", "tstar", "qstar", "ref_t", "ref_q", "ref_p", "ref_d", "ref_u", "ref_v", "ref_precip",
       "SW_dw_dir_vis", "SW_dw_dir_nir", "SW_dw_dif_vis", "SW_dw_dif_nir", "LW_dw", "zenith",
       "tveg", "mv", "tsoil", "wsoil", "sand", "clay", "soil_thickness", "node_z", "interface_z",
-      "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "rootF", "w_s_FC", "w_s_WP",
+      "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "rootF", "soil_transp_frac", "w_s_FC", "w_s_WP",
       "sst_capa", "sst_cond", "poro_soil", "theta_FC", "theta_WP", "m_pot_sat", "Bconst", "ks","lai","vegtype","soiltype",
       "veg_frac", "veg_frac_min", "veg_frac_max", "surface_u", "surface_v", "surface_vapor", "surface_heat", "precip_soil", "emis_sfc", "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"
     };
@@ -1142,7 +1176,37 @@ private:
         "albgrd_vis",
         "albgrd_nir",
         "albgri_vis",
-        "albgri_nir"
+        "albgri_nir",
+        "dt_canop_sfc",
+        "dt_soil_sfc",
+        "dq_canop_sfc",
+        "dq_ground_sfc",
+        "qsat_canop",
+        "q_ground",
+        "soil_diff",
+        "soil_total_res",
+        "cond_href",
+        "cond_hcnp",
+        "cond_hundercnp",
+        "cond_vref",
+        "cond_vcnp",
+        "cond_vundercnp",
+        "rc_fac_rad",
+        "rc_fac_vpd",
+        "rc_fac_t",
+        "rc_fac_sw",
+        "rc_tmp_radf",
+        "rc_vpd_q",
+        "rc_root_depth",
+        "rc_nroot",
+        "rc_soil_numerator",
+        "rd_cwpvt",
+        "rd_vai",
+        "rd_wind_ext",
+        "canopy_heat_capacity",
+        "canopy_energy_residual",
+        "canopy_storage_flux",
+        "canopy_delta_t"
     };
 
     inline static const std::vector<std::string> soilt_var_names = {

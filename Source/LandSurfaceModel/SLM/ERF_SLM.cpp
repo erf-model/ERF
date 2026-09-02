@@ -47,7 +47,8 @@ SLM::Init (const int& /*lev*/,
       LsmVar_SLM::soilt_nudge,   LsmVar_SLM::soilw_nudge,  LsmVar_SLM::lai,
       LsmVar_SLM::vegtype,       LsmVar_SLM::soiltype,     LsmVar_SLM::veg_frac, LsmVar_SLM::veg_frac_min, LsmVar_SLM::veg_frac_max,
       LsmVar_SLM::emis_sfc,      LsmVar_SLM::alb_nir_sfc,  LsmVar_SLM::alb_vis_sfc,
-      LsmVar_SLM::alb_nir_sfc_diff, LsmVar_SLM::alb_vis_sfc_diff};
+      LsmVar_SLM::alb_nir_sfc_diff, LsmVar_SLM::alb_vis_sfc_diff,
+      LsmVar_SLM::soil_transp_frac};
 
     LsmDataName.resize(m_lsm_data_size);
     LsmDataName = {"tsurf",         "ustar",          "tstar",
@@ -62,7 +63,8 @@ SLM::Init (const int& /*lev*/,
                   "ref_p",         "node_z",         "soilt_nudge",
                   "soilw_nudge",   "lai",            "vegtype",
                   "soiltype",      "veg_frac", "veg_frac_min", "veg_frac_max", "emis_sfc",
-                  "alb_nir_sfc",   "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"};
+                  "alb_nir_sfc",   "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff",
+                  "soil_transp_frac"};
 
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
@@ -158,6 +160,7 @@ SLM::Init (const int& /*lev*/,
     landmask.setVal(1);
 
     landtype.define(ba_lsm_2d, dm, 1, ng_2d);
+    nroot.define(ba_lsm_2d, dm, 1, ng_2d);
     LAI.define(ba_lsm_2d, dm, 1, ng_2d);
     SAI.define(ba_lsm_2d, dm, 1, ng_2d);
     sstxy.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -182,6 +185,8 @@ SLM::Init (const int& /*lev*/,
     vegetype.define(ba_lsm_2d, dm, 1, ng_2d);
     vege_YES.define(ba_lsm_2d, dm, 1, ng_2d);
     cp_vege.define(ba_lsm_2d, dm, 1, ng_2d);
+    cbiom.define(ba_lsm_2d, dm, 1, ng_2d);
+    dleaf.define(ba_lsm_2d, dm, 1, ng_2d);
     z0_sfc.define(ba_lsm_2d, dm, 1, ng_2d);
     Khai_L.define(ba_lsm_2d, dm, 1, ng_2d);
     phi_1.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -204,6 +209,8 @@ SLM::Init (const int& /*lev*/,
     IMPERV.define(ba_lsm_2d, dm, 1, ng_2d);
 
     cp_vege.setVal(0.0);
+    cbiom.setVal(0.02);
+    dleaf.setVal(0.04);
     z0_sfc.setVal(0.0);
     Khai_L.setVal(0.0);
     phi_1.setVal(0.0);
@@ -302,6 +309,7 @@ SLM::Init (const int& /*lev*/,
     init_from_file();
 
     landtype.setVal(landtype0);
+    nroot.setVal(m_nz_lsm);
     LAI.setVal(LAI0);
     SAI.setVal(0.0);
     sstxy.setVal(0.0);
@@ -933,6 +941,7 @@ void SLM::slm_init()
 
         auto vege_YES_arr = vege_YES.array(mfi);
         auto vegetype_arr = vegetype.const_array(mfi);
+        auto nroot_arr = nroot.array(mfi);
         auto landtype_arr = landtype.const_array(mfi);
 
         auto IR_emis_vege_arr = IR_emis_vege.array(mfi);
@@ -957,6 +966,7 @@ void SLM::slm_init()
                 if (vegetype_arr(i, j, 0) == 0) {
                     vege_YES_arr(i, j, 0) = 0.0;
                     veg_frac_arr(i, j, 0) = 0.0;
+                    nroot_arr(i, j, 0) = 0;
                 } else {
                     // set minimum LAI for vegetated land
                     LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
@@ -1793,102 +1803,72 @@ SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vec
     std::string fileCharPtrString(fileCharPtr.dataPtr());
     std::istringstream is(fileCharPtrString, std::istringstream::in);
 
-    std::string prev_line = "";
-    std::string line, word;
+    std::string line;
 
     std::unordered_map<std::string,
                        amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>> table;
 
-    bool invalid_line = false;
-    while(!is.eof()) {
-        std::getline(is, line, '&');
-        if (invalid_line) {
-            line = prev_line + line;
-            invalid_line = false;
-            prev_line = "";
+    const auto trim = [](std::string value) {
+        const auto first = value.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) { return std::string{}; }
+        const auto last = value.find_last_not_of(" \t\r\n");
+        return value.substr(first, last - first + 1);
+    };
+
+    std::string block_name;
+    while (std::getline(is, line)) {
+        const auto comment_pos = line.find('!');
+        if (comment_pos != std::string::npos) { line.erase(comment_pos); }
+        line = trim(line);
+        if (line.empty()) { continue; }
+
+        if (line[0] == '&') {
+            block_name = amrex::toLower(trim(line.substr(1)));
+            table.try_emplace(block_name);
+            continue;
         }
-        // catch if there is a stray '&' in the file in between blocks
-        if (is.peek() == ' ') {
-            invalid_line = true;
-            prev_line = line;
+        if (line[0] == '/') {
+            block_name.clear();
+            continue;
+        }
+        if (block_name.empty()) { continue; }
+
+        const auto equal_pos = line.find('=');
+        if (equal_pos == std::string::npos) { continue; }
+
+        const std::string varname = amrex::toLower(trim(line.substr(0, equal_pos)));
+        std::string values = trim(line.substr(equal_pos + 1));
+        if (varname == "veg_dataset_description") {
+            veg_categories.push_back(values);
+            continue;
+        }
+        if (varname == "sltype") {
+            soil_categories.push_back(values);
             continue;
         }
 
-        std::istringstream lis(line);
-        std::string sline;
-        std::string block_name;
-
-        lis >> block_name;
-        if (block_name.empty()) { continue; }
-
-        amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>> variables;
-        while (!lis.eof()) {
-            std::getline(lis, sline);
-            if (sline.empty() || sline[0] == '!' || sline == " ") { continue; }
-            {
-                std::istringstream var(sline);
-                int pos = 0;
-
-                bool save = true;
-                amrex::Vector<amrex::Real> var_values;
-                std::string varname;
-                while (var >> word) {
-                    // skip if empty line, or comment
-                    if (word.empty() || word[0] == '!' || word[0] == '/') {
-                        if (pos == 0) save = false; // make sure variables with end comments are still saved (pos > 0)
-                        break;
-                    }
-
-                    // handle veg and soil dataset names separately
-                    if (word == "veg_dataset_description") {
-                        var >> word; // '='
-                        var >> word;
-                        // amrex::Print() << " VEG CATEGORY '" << word << "'" << std::endl;
-                        veg_categories.push_back(word);
-                        save = false;
-                        break;
-                    } else if (word == "sltype") {
-                        var >> word; // '='
-                        var >> word;
-                        // amrex::Print() << " SOIL CATEGORY '" << word << "'" << std::endl;
-                        soil_categories.push_back(word);
-                        save = false;
-                        break;
-                    }
-
-                    // skip assignment, commas, end block '/'
-                    if (word == "=" || word == ",") { continue; }
-
-                    // save variable name
-                    if (pos == 0) {
-                        // check if there is an "=" next to the variable name, to catch instances of "var=" instead of "var = "
-                        auto tpos = word.find("=");
-                        if (tpos != std::string::npos) {
-                            varname = word.substr(0, tpos);
-                            word = word.substr(tpos+1);
-                            if (!word.empty()) {
-                                // if there is a value packed next to the variable name, such as var=1
-                                var_values.push_back(std::stod(word));
-                            }
-                        } else {
-                            varname = word;
-                        }
-                    } else {
-                        var_values.push_back(std::stod(word));
-                    }
-                    pos++;
+        std::replace(values.begin(), values.end(), ',', ' ');
+        std::replace(values.begin(), values.end(), 'D', 'E');
+        std::replace(values.begin(), values.end(), 'd', 'e');
+        std::istringstream value_stream(values);
+        std::string token;
+        amrex::Vector<amrex::Real> var_values;
+        while (value_stream >> token) {
+            try {
+                std::size_t parsed = 0;
+                const amrex::Real value = std::stod(token, &parsed);
+                if (parsed != token.size()) {
+                    amrex::Abort("SLM: invalid value '" + token + "' for parameter '" +
+                                 varname + "' in block '" + block_name + "'");
                 }
-
-                // store value if we should save it
-                if (save) {
-                    variables.push_back(std::make_pair(varname, var_values));
-                }
+                var_values.push_back(value);
+            } catch (const std::exception&) {
+                amrex::Abort("SLM: invalid value '" + token + "' for parameter '" +
+                             varname + "' in block '" + block_name + "'");
             }
-
         }
-
-        if (variables.size() > 0) {
-            table.insert(std::make_pair(block_name, variables));
+        if (!var_values.empty()) {
+            table[block_name].push_back(std::make_pair(varname, var_values));
         }
     }
 
@@ -1939,9 +1919,16 @@ void SLM::init_from_params()
     const amrex::Real *d_param_rgl = nullptr;
     const amrex::Real *d_param_xl = nullptr;
     const amrex::Real *d_param_hs = nullptr;
+    const amrex::Real *d_param_nroot = nullptr;
+    const amrex::Real *d_param_hvt = nullptr;
+    const amrex::Real *d_param_z0mvt = nullptr;
+    const amrex::Real *d_param_cbiom = nullptr;
+    const amrex::Real *d_param_dleaf = nullptr;
 
     // Check if vegetation parameters are available
     bool has_rs = false, has_rgl = false, has_xl = false, has_hs = false;
+    bool has_nroot = false, has_hvt = false, has_z0mvt = false;
+    bool has_cbiom = false, has_dleaf = false;
     if (d_veg_params.find("rs") != d_veg_params.end()) {
         d_param_rs = d_veg_params.at("rs")->data();
         has_rs = true;
@@ -1963,6 +1950,37 @@ void SLM::init_from_params()
         amrex::Print() << " SLM: Using HS (VPD sensitivity parameter) from NoahMP parameter file" << std::endl;
         amrex::Print() << " SLM: Note - VPD formula changed to match NoahMP: 1/(1+HS*VPD)" << std::endl;
     }
+    if (d_veg_params.find("nroot") != d_veg_params.end()) {
+        const auto& nroot_params = *d_veg_params.at("nroot");
+        for (const amrex::Real value : nroot_params) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                value >= 0.0 && value <= m_nz_lsm && value == std::floor(value),
+                "SLM: NoahMP NROOT must be an integer in [0, slm.nsoil]");
+        }
+        d_param_nroot = nroot_params.data();
+        has_nroot = true;
+        amrex::Print() << " SLM: Using NROOT from NoahMP parameter file for the BTR=1 soil-water stress factor" << std::endl;
+    }
+    if (d_veg_params.find("hvt") != d_veg_params.end()) {
+        d_param_hvt = d_veg_params.at("hvt")->data();
+        has_hvt = true;
+        amrex::Print() << " SLM: Using HVT (canopy top height) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("z0mvt") != d_veg_params.end()) {
+        d_param_z0mvt = d_veg_params.at("z0mvt")->data();
+        has_z0mvt = true;
+        amrex::Print() << " SLM: Using Z0MVT (vegetation momentum roughness) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("cbiom") != d_veg_params.end()) {
+        d_param_cbiom = d_veg_params.at("cbiom")->data();
+        has_cbiom = true;
+        amrex::Print() << " SLM: Using CBIOM (canopy biomass heat capacity parameter) from NoahMP parameter file" << std::endl;
+    }
+    if (d_veg_params.find("dleaf") != d_veg_params.end()) {
+        d_param_dleaf = d_veg_params.at("dleaf")->data();
+        has_dleaf = true;
+        amrex::Print() << " SLM: Using DLEAF (characteristic leaf dimension) from NoahMP parameter file" << std::endl;
+    }
 
     for ( amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx2d = mfi.tilebox();
@@ -1982,6 +2000,12 @@ void SLM::init_from_params()
         auto Rgl_arr = Rgl.array(mfi);
         auto Khai_L_arr = Khai_L.array(mfi);
         auto hs_rc_arr = hs_rc.array(mfi);
+        auto nroot_arr = nroot.array(mfi);
+        auto ztop_arr = ztop.array(mfi);
+        auto disp_hgt_arr = disp_hgt.array(mfi);
+        auto z0_sfc_arr = z0_sfc.array(mfi);
+        auto cbiom_arr = cbiom.array(mfi);
+        auto dleaf_arr = dleaf.array(mfi);
 
         amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
@@ -2018,6 +2042,22 @@ void SLM::init_from_params()
                         // NOTE: This only works with the hyperbolic VPD formula: 1/(1+HS*VPD)
                         // If using exponential formula exp(-hs*VPD), HS values are NOT compatible
                         hs_rc_arr(i, j, 0) = d_param_hs[ltype];
+                    }
+                    if (has_nroot && d_param_nroot != nullptr) {
+                        nroot_arr(i, j, 0) = static_cast<int>(d_param_nroot[ltype]);
+                    }
+                    if (has_hvt && d_param_hvt != nullptr) {
+                        ztop_arr(i, j, 0) = d_param_hvt[ltype];
+                        disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
+                    }
+                    if (has_z0mvt && d_param_z0mvt != nullptr) {
+                        z0_sfc_arr(i, j, 0) = d_param_z0mvt[ltype];
+                    }
+                    if (has_cbiom && d_param_cbiom != nullptr) {
+                        cbiom_arr(i, j, 0) = d_param_cbiom[ltype];
+                    }
+                    if (has_dleaf && d_param_dleaf != nullptr) {
+                        dleaf_arr(i, j, 0) = d_param_dleaf[ltype];
                     }
                 }
             }
@@ -2275,6 +2315,8 @@ SLM::AdvanceSLM ()
 
         auto BAI_arr = BAI.const_array(mfi);
         auto ztop_arr = ztop.const_array(mfi);
+        auto SAI_arr = SAI.const_array(mfi);
+        auto cbiom_arr = cbiom.const_array(mfi);
 
         auto shf_canop_arr = shf_canop.array(mfi);
         auto shf_soil_arr = shf_soil.array(mfi);
@@ -2302,6 +2344,8 @@ SLM::AdvanceSLM ()
         auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
 
         auto tsurf_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+        auto tveg_arr = lsm_fab_vars[LsmVar_SLM::tv]->array(mfi);
+        auto mveg_arr = lsm_fab_vars[LsmVar_SLM::mv]->array(mfi);
 
         auto r_a_arr = r_a.const_array(mfi);
         auto r_b_arr = r_b.const_array(mfi);
@@ -2369,12 +2413,14 @@ SLM::AdvanceSLM ()
             // Update output variables
             slm_diag_arr(i, j, 0, SLM_Diag::precip) = precip;
             
-            // from gSAM-SLM
-            // canapy heat capacity: assume 0.001 m leaf thickness, basal area in sq.feet/acre=43560 m2/m2,
-            // 900 kg/m3 density of leaves and wood, 2800 J/kg/K specific heat capacity.
-            cp_vege_arr(i, j, 0) = (LAI_arr(i, j, 0) * leaf_thickness * 0.001 + ztop_arr(i, j, 0)*BAI_arr(i, j, 0)/43560.)*900.*2800.;
-            // NOAH MP
-			//cp_vege_arr(i, j, 0) = LAI_arr(i, j, 0) * 0.02 * cp_water; 
+            // Original SLM formula:
+            // cp_vege_arr(i, j, 0) =
+            //     (LAI_arr(i, j, 0) * leaf_thickness * 0.001
+            //      + ztop_arr(i, j, 0) * BAI_arr(i, j, 0) / 43560.) * 900. * 2800.;
+
+            // NoahMP dry canopy heat capacity: CBIOM * effective VAI * volumetric water heat capacity.
+            const amrex::Real vai = std::min(6.0, LAI_arr(i, j, 0) + SAI_arr(i, j, 0));
+            cp_vege_arr(i, j, 0) = cbiom_arr(i, j, 0) * vai * cp_water * vege_YES_arr(i, j, 0);
             cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
 
             // Add to vegetiation moisture increment from SLM::vapor_fluxes()
@@ -2519,7 +2565,24 @@ SLM::AdvanceSLM ()
             }
             q_cas_arr(i, j, 0) = qref_arr(i, j, 0) * cond_vref + qsat_canop*cond_vcnp + q_gr*cond_vundercnp;
 
+            slm_diag_arr(i, j, 0, SLM_Diag::dt_canop_sfc) = t_canop_arr(i, j, 0) - t_sfc_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::dt_soil_sfc) = soilt_arr(i, j, d_khi_lsm) - t_sfc_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::dq_canop_sfc) = qsat_canop - q_sfc_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::dq_ground_sfc) = q_gr - q_sfc_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::qsat_canop) = qsat_canop;
+            slm_diag_arr(i, j, 0, SLM_Diag::q_ground) = q_gr;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_href) = cond_href;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_hcnp) = cond_hcnp;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_hundercnp) = cond_hundercnp;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_vref) = cond_vref;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_vcnp) = cond_vcnp;
+            slm_diag_arr(i, j, 0, SLM_Diag::cond_vundercnp) = cond_vundercnp;
+
             // Output variables
+            tveg_arr(i, j, 0) = t_canop_arr(i, j, 0);
+            tveg_arr(i, j, d_khi_lsm) = t_canop_arr(i, j, 0);
+            mveg_arr(i, j, 0) = mw_arr(i, j, 0);
+            mveg_arr(i, j, d_khi_lsm) = mw_arr(i, j, 0);
             tsurf_arr(i, j, d_khi_lsm) = t_skin_arr(i, j, 0); // TODO: ts in SLM is input and output - check how this should be coupled back to ERF
             tsurf_arr(i, j, 0) = tsurf_arr(i, j, d_khi_lsm); // make sure this is set at k=0 for radiation coupling
             flbq_arr(i, j, d_khi_lsm) = evp_air_arr(i, j, 0) / rhow; // kg/kg m/s
@@ -3026,6 +3089,7 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto box = mfi.tilebox();
 
     auto landmask_arr = landmask.const_array(mfi);
+    auto landtype_arr = landtype.const_array(mfi);
     auto vegetype_arr = vegetype.const_array(mfi);
 
     auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
@@ -3034,17 +3098,16 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
 
     auto LAI_arr = LAI.const_array(mfi);
+    auto SAI_arr = SAI.const_array(mfi);
     auto t_cas_arr = t_cas.const_array(mfi);
     auto q_cas_arr = q_cas.const_array(mfi);
     auto ustar_arr = lsm_fab_vars[LsmVar_SLM::ustar]->const_array(mfi);
     auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->const_array(mfi);
 
-    auto w_s_WP_arr = lsm_fab_vars[LsmVar_SLM::w_s_WP]->const_array(mfi);
-    auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->const_array(mfi);
-    auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->const_array(mfi);
     auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->const_array(mfi);
     auto theta_WP_arr = lsm_fab_vars[LsmVar_SLM::theta_WP]->const_array(mfi);
+    auto soil_transp_frac_arr = lsm_fab_vars[LsmVar_SLM::soil_transp_frac]->array(mfi);
 
     auto ztop_arr = ztop.const_array(mfi);
     auto disp_hgt_arr = disp_hgt.const_array(mfi);
@@ -3052,12 +3115,20 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto Rgl_arr = Rgl.const_array(mfi);
     auto Rc_min_arr = Rc_min.const_array(mfi);
     auto hs_rc_arr = hs_rc.const_array(mfi);
+    auto nroot_arr = nroot.const_array(mfi);
+    auto dleaf_arr = dleaf.const_array(mfi);
+    auto zrefxy_arr = zrefxy.const_array(mfi);
     auto net_rad_arr = net_rad.const_array(mfi);
+
+    auto ur_arr = lsm_fab_vars[LsmVar_SLM::uref]->const_array(mfi);
+    auto vr_arr = lsm_fab_vars[LsmVar_SLM::vref]->const_array(mfi);
 
     auto r_a_arr = r_a.const_array(mfi);
     auto r_b_arr = r_b.array(mfi);
     auto r_c_arr = r_c.array(mfi);
     auto r_d_arr = r_d.array(mfi);
+
+    auto slm_diag_arr = slm_diag.array(mfi);
 
     auto phi_1_arr = phi_1.array(mfi);
     auto phi_2_arr = phi_2.array(mfi);
@@ -3072,11 +3143,27 @@ void SLM::resistances(const amrex::MFIter &mfi)
             return;
         }
 
+        for (int k = 0; k < d_nz_lsm; k++) {
+            soil_transp_frac_arr(i, j, d_khi_lsm - k) = 0.0;
+        }
+
         if (vegetype_arr(i, j, 0) == 0)
         {
             // for baresoil, r_d = r_a
             // under canopy resistance
             r_d_arr(i, j, 0) = r_a_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_rad) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_vpd) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_t) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_sw) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_tmp_radf) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_vpd_q) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_root_depth) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_nroot) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_soil_numerator) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_cwpvt) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_vai) = 0.0;
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_wind_ext) = 0.0;
         }
         else
         {
@@ -3098,7 +3185,7 @@ void SLM::resistances(const amrex::MFIter &mfi)
             amrex::Real temp_diff = t_cas_arr(i, j, 0) - soilt_arr(i, j, d_khi_lsm);
 
             // Get CWPVT (canopy wind extinction parameter) for this vegetation type
-            int veg_idx = static_cast<int>(vegetype_arr(i, j, 0)) - 1;  // Convert to 0-based index
+            int veg_idx = landtype_arr(i, j, 0) - 1;  // Convert the vegetation class to a 0-based table index
             amrex::Real CanopyWindExtFac = (d_cwpvt != nullptr && veg_idx >= 0) ? d_cwpvt[veg_idx] : d_cwpvt_default;
 
             // Stability correction for undercanopy (MoStabCorrShUndCan)
@@ -3116,9 +3203,12 @@ void SLM::resistances(const amrex::MFIter &mfi)
             }
 
             // Wind extinction coefficient
-            amrex::Real VegAreaIndEff = std::min(6.0, LAI_arr(i, j, 0));  // Effective LAI (capped at 6.0)
+            amrex::Real VegAreaIndEff = std::min(6.0, LAI_arr(i, j, 0) + SAI_arr(i, j, 0));
             amrex::Real CanopyHeight = ztop_arr(i, j, 0);
             amrex::Real WindExtCoeffCanopy = std::sqrt(CanopyWindExtFac * VegAreaIndEff * CanopyHeight * MoStabCorrShUndCan);
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_cwpvt) = CanopyWindExtFac;
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_vai) = VegAreaIndEff;
+            slm_diag_arr(i, j, 0, SLM_Diag::rd_wind_ext) = WindExtCoeffCanopy;
 
             // Roughness lengths
             amrex::Real RoughLenShVegGrd = d_z0_soil;  // Ground roughness for heat under canopy
@@ -3172,8 +3262,23 @@ void SLM::resistances(const amrex::MFIter &mfi)
             // ===================================================
             // Leaf boundary layer resistance : r_b
             // ===================================================
-            // Simple empirical relationship from IFS
-            r_b_arr(i, j, 0) = 0.5 * r_a_arr(i, j, 0);
+            // Original SLM formula:
+            // r_b_arr(i, j, 0) = 0.5 * r_a_arr(i, j, 0);
+
+            // NoahMP leaf boundary resistance from ResistanceLeafToGroundMod.F90.
+            const amrex::Real wind_ref = std::max(
+                std::sqrt(ur_arr(i, j, 0) * ur_arr(i, j, 0)
+                          + vr_arr(i, j, 0) * vr_arr(i, j, 0)), MPE);
+            const amrex::Real wind_canopy_top = std::max(
+                wind_ref
+                    * std::log((CanopyHeight - ZeroPlaneDispSfc + RoughLenShCanopy)
+                               / RoughLenShCanopy)
+                    / std::log(zrefxy_arr(i, j, 0) / RoughLenShCanopy),
+                MPE);
+            const amrex::Real rb_factor = WindExtCoeffCanopy * 50.0
+                / std::max(1.0 - std::exp(-WindExtCoeffCanopy / 2.0), MPE);
+            r_b_arr(i, j, 0) = std::min(50.0, std::max(5.0,
+                rb_factor * std::sqrt(dleaf_arr(i, j, 0) / wind_canopy_top)));
 
             // Original SLM Method 1 (commented out for reference)
             // turbulent transfer coefficient between canopy surface and canopy air : Cv = 0.01m/s^-0.5
@@ -3238,41 +3343,49 @@ void SLM::resistances(const amrex::MFIter &mfi)
             // temperature factor
             rc_fac_t = std::max(0., 1.0 - 0.0016 * std::pow(d_T_opt - t_cas_arr(i, j, 0), 2));
 
-            // rootzone soil moisture factor
-            rc_fac_sw = 0.0;
+            // NoahMP BTR_OPTION=1 soil-moisture stress factor. All rooted
+            // layers remain in the depth denominator, including dry layers.
+            const int nroot_cell = nroot_arr(i, j, 0);
             d_root = 0.0;
-            for (int k = 0; k < d_nz_lsm; k++) {
+            for (int k = 0; k < nroot_cell; k++) {
                 const int lsm_k = d_khi_lsm - k;
-
-                if (rootF_arr(i, j, lsm_k) > 0.0)
-                {
-                    amrex::Real tmp;
-                    // soil layer with the root
-                    if (soilw_arr(i, j, lsm_k) > w_s_FC_arr(i, j, lsm_k))
-                    {
-                        // no water stree if water level exceeds the value at field capacity
-                        tmp = 1.0 * s_depth_arr(i, j, lsm_k) * rootF_arr(i, j, lsm_k);
-                        d_root += (s_depth_arr(i, j, lsm_k) * rootF_arr(i, j, lsm_k));
-                    }
-                    else if (soilw_arr(i, j, lsm_k) < w_s_WP_arr(i, j, lsm_k))
-                    {
-                        // below wilting point
-                        tmp = 0.0;
-                    }
-                    else
-                    {
-                        // otherwise
-                        tmp = s_depth_arr(i, j, lsm_k) * (soilw_arr(i, j, lsm_k) * poro_soil_arr(i, j, lsm_k) - theta_WP_arr(i, j, lsm_k)) / (theta_FC_arr(i, j, lsm_k) - theta_WP_arr(i, j, lsm_k)) * rootF_arr(i, j, lsm_k);
-                        d_root += (s_depth_arr(i, j, lsm_k) * rootF_arr(i, j, lsm_k));
-                    }
-                    rc_fac_sw += tmp;
-                }
+                d_root += s_depth_arr(i, j, lsm_k);
             }
 
-            rc_fac_sw = rc_fac_sw / std::max(1.0e-6, d_root);
+            rc_fac_sw = 0.0;
+            amrex::Real soil_numerator = 0.0;
+            for (int k = 0; k < nroot_cell; k++) {
+                const int lsm_k = d_khi_lsm - k;
+                const amrex::Real theta_liq = soilw_arr(i, j, lsm_k) * poro_soil_arr(i, j, lsm_k);
+                const amrex::Real moisture_range = theta_FC_arr(i, j, lsm_k) - theta_WP_arr(i, j, lsm_k);
+                const amrex::Real soil_wet_fac = std::min(1.0, std::max(0.0,
+                    (theta_liq - theta_WP_arr(i, j, lsm_k)) / moisture_range));
+                soil_numerator += s_depth_arr(i, j, lsm_k) * soil_wet_fac;
+                soil_transp_frac_arr(i, j, lsm_k) = std::max(1.0e-6,
+                    s_depth_arr(i, j, lsm_k) / std::max(1.0e-6, d_root) * soil_wet_fac);
+                rc_fac_sw += soil_transp_frac_arr(i, j, lsm_k);
+            }
+
+            rc_fac_sw = std::max(1.0e-6, rc_fac_sw);
+            for (int k = 0; k < nroot_cell; k++) {
+                const int lsm_k = d_khi_lsm - k;
+                soil_transp_frac_arr(i, j, lsm_k) /= rc_fac_sw;
+            }
 
             tmp_radf = std::max(1.0e-6, rc_fac_rad*rc_fac_vpd*rc_fac_t*rc_fac_sw);
-            r_c_arr(i, j, 0) = std::min(d_Rc_max, Rc_min_arr(i, j, 0) / LAI_arr(i, j, 0) / tmp_radf);
+            // Leaf-level stomatal resistance. LAI is applied once when this
+            // resistance is converted to canopy transpiration conductance.
+            r_c_arr(i, j, 0) = std::min(d_Rc_max, Rc_min_arr(i, j, 0) / tmp_radf);
+
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_rad) = rc_fac_rad;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_vpd) = rc_fac_vpd;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_t) = rc_fac_t;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_fac_sw) = rc_fac_sw;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_tmp_radf) = tmp_radf;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_vpd_q) = VPD_mixratio;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_root_depth) = d_root;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_nroot) = nroot_cell;
+            slm_diag_arr(i, j, 0, SLM_Diag::rc_soil_numerator) = soil_numerator;
 
             // ===================================================
             // r_litter : litter resistance - not used in this version
@@ -3305,7 +3418,6 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
     auto q_sfc_arr = q_sfc.const_array(mfi);
 
     auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
-    auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
     auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
 
     auto lhf_canop_arr = lhf_canop.array(mfi);
@@ -3331,8 +3443,6 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
     auto tr_arr = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
     auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->const_array(mfi);
     auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
-    auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->const_array(mfi);
-    auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->const_array(mfi);
     auto t_canop_arr = t_canop.array(mfi);
 
     auto r_a_arr = r_a.const_array(mfi);
@@ -3367,8 +3477,9 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
             amrex::Real drain0 = 0.;
             // SAM rhow[nz] = air density at vertical velocity levels, kg/m^3
             const amrex::Real rhow = dref_arr(i, j, 0); // TODO: double check this
-            amrex::Real qsat_canop, evapo_dry_original;
+            amrex::Real qsat_canop;
             amrex::Real cp_vege_tot, t_canop_inc;
+            const amrex::Real t_canop_old = t_canop_arr(i, j, 0);
 
             for (int iter = 0; iter < niter; iter++)
             {   
@@ -3392,18 +3503,6 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
         
                 // Transpiration - only ocurs when qsat_canop > qsfc
                 evapo_dry_arr(i, j, 0) = std::max(0.,(qsat_canop - q_sfc_arr(i, j, 0))*rhow*(1.0 - wet_canop_arr(i, j, 0))*LAI_arr(i, j, 0)/(r_b_arr(i, j, 0) + r_c_arr(i, j, 0))*vege_YES_arr(i, j, 0));
-                if (evapo_dry_arr(i, j, 0) > 0.)
-                {
-                    evapo_dry_original = evapo_dry_arr(i, j, 0);
-                    // Check soil moisture availability for transpiration
-                    for (int k = 0; k < d_nz_lsm; k++) { // TODO: switch to regular lsm k loop
-                        const int lsm_k = d_khi_lsm - k;
-                        if (soilw_arr(i, j, lsm_k) < 0.05)
-                        {
-                            evapo_dry_arr(i, j, 0) = evapo_dry_arr(i, j, 0) - evapo_dry_original * rootF_arr(i, j, lsm_k);
-                        }
-                    }
-                }   
 
                 // Convert evaporation (kg/m2/s) to latent heat flux (W/m2)
                 lhf_canop_arr(i, j, 0) = lcond*(evapo_wet+evapo_dry_arr(i, j, 0));
@@ -3433,6 +3532,13 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
             slm_diag_arr(i, j, 0, SLM_Diag::evapo_wet) = evapo_wet0 / static_cast<amrex::Real>(niter);
             slm_diag_arr(i, j, 0, SLM_Diag::evapo_dry) = evapo_dry0 / static_cast<amrex::Real>(niter);
             slm_diag_arr(i, j, 0, SLM_Diag::drain) += (drain0/static_cast<amrex::Real>(niter)); 
+            cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_heat_capacity) = cp_vege_tot;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_energy_residual) =
+                net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_delta_t) = t_canop_arr(i, j, 0) - t_canop_old;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_storage_flux) =
+                cp_vege_tot * slm_diag_arr(i, j, 0, SLM_Diag::canopy_delta_t) / dt;
         }
         else
         {
@@ -3444,6 +3550,10 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
             evapo_wet = 0.;
             evapo_dry_arr(i, j, 0) = 0.;
             t_canop_arr(i, j, 0) = tr_arr(i, j, 0);
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_heat_capacity) = 0.;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_energy_residual) = 0.;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_storage_flux) = 0.;
+            slm_diag_arr(i, j, 0, SLM_Diag::canopy_delta_t) = 0.;
         }   
     });
 }
@@ -3500,7 +3610,6 @@ void SLM::fluxes_soil(const amrex::MFIter &mfi)
     auto tr_arr = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
     auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->const_array(mfi);
     auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
-    auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->const_array(mfi);
     auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->const_array(mfi);
     auto t_canop_arr = t_canop.const_array(mfi);
 
@@ -3560,6 +3669,8 @@ void SLM::fluxes_soil(const amrex::MFIter &mfi)
             r_soil_arr(i, j, 0) = std::min(10000.0, std::max(50.0, r_d_arr(i, j, 0)*(1.0 / soil_diff - 1.0)));
             totalR_soil = r_soil_arr(i, j, 0) + r_d_arr(i, j, 0) + r_litter;
         }
+        slm_diag_arr(i, j, 0, SLM_Diag::soil_diff) = soil_diff;
+        slm_diag_arr(i, j, 0, SLM_Diag::soil_total_res) = totalR_soil;
 
         // Evaporation from soil top underneath the canopy
         evapo_s = vege_YES_arr(i, j, 0) * (q_gr_arr(i, j, 0) - q_sfc_arr(i, j, 0)) * rhow / totalR_soil;
@@ -3632,7 +3743,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
     auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
     auto w_s_WP_arr = lsm_fab_vars[LsmVar_SLM::w_s_WP]->const_array(mfi);
     auto w_s_FC_arr = lsm_fab_vars[LsmVar_SLM::w_s_FC]->const_array(mfi);
-    auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->const_array(mfi);
+    auto soil_transp_frac_arr = lsm_fab_vars[LsmVar_SLM::soil_transp_frac]->const_array(mfi);
 
     auto slm_diag_arr = slm_diag.array(mfi);
 
@@ -3751,7 +3862,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
             aa = 0.0;
             cc = -2.0 * dsw_vars(i, j, d_khi_lsm, SLM_DSW::sh_eff_cond)*dt/(dsw_vars(i, j, d_khi_lsm, SLM_DSW::sdepth_mm)*(dsw_vars(i, j, d_khi_lsm, SLM_DSW::sdepth_mm) + dsw_vars(i, j, d_khi_lsm - 1, SLM_DSW::sdepth_mm)));
             bb = 1.0 - cc + dsw_vars(i, j, d_khi_lsm, SLM_DSW::sh_eff_vel)*dt/dsw_vars(i, j, d_khi_lsm, SLM_DSW::sdepth_mm);
-            dd = soilw_arr(i, j, d_khi_lsm) - (std::max(0.,evp_soil_arr(i, j, 0))*evap + rootF_arr(i, j, d_khi_lsm)*evapo_dry_arr(i, j, 0)*dsw_vars(i, j, d_khi_lsm, SLM_DSW::sw_wgt) - precip_in)*dt / poro_soil_arr(i, j, d_khi_lsm) / dsw_vars(i, j, d_khi_lsm, SLM_DSW::sdepth_mm);
+            dd = soilw_arr(i, j, d_khi_lsm) - (std::max(0.,evp_soil_arr(i, j, 0))*evap + soil_transp_frac_arr(i, j, d_khi_lsm)*evapo_dry_arr(i, j, 0) - precip_in)*dt / poro_soil_arr(i, j, d_khi_lsm) / dsw_vars(i, j, d_khi_lsm, SLM_DSW::sdepth_mm);
 
             dsw_vars(i, j, d_khi_lsm, SLM_DSW::alpha) = cc / bb;
             dsw_vars(i, j, d_khi_lsm, SLM_DSW::beta) = dd / bb;
@@ -3782,7 +3893,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
                 aa = -1.0 * dt / sd * (sh_eff_vel_up + sh_eff_cond_up * 2.0 / (sd_up + sd));
                 cc = -1.0 * dt / sd * 2.0 * sh_eff_cond / (sd + sd_lo);
                 bb = 1.0 - cc + dt / sd * sh_eff_vel + 2.0 * dt / sd * sh_eff_cond_up / (sd_up + sd);
-                dd = soilw_arr(i, j, lsm_k) - rootF_arr(i, j, lsm_k) * evapo_dry_arr(i, j, 0) * dsw_vars(i, j, lsm_k, SLM_DSW::sw_wgt) * dt / poro_soil_arr(i, j, lsm_k) / sd; // current time step
+                dd = soilw_arr(i, j, lsm_k) - soil_transp_frac_arr(i, j, lsm_k) * evapo_dry_arr(i, j, 0) * dt / poro_soil_arr(i, j, lsm_k) / sd; // current time step
 
                 dsw_vars(i, j, lsm_k, SLM_DSW::alpha) = cc / (bb - aa * dsw_vars(i, j, lsm_k + 1, SLM_DSW::alpha));
                 dsw_vars(i, j, lsm_k, SLM_DSW::beta) = (dd - aa * dsw_vars(i, j, lsm_k + 1, SLM_DSW::beta)) / (bb - aa * dsw_vars(i, j, lsm_k + 1, SLM_DSW::alpha));
@@ -3803,7 +3914,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
 
             // drainage when it exceeds 1.0 mm/s
             amrex::Real drainage_flux = std::max(soilw_arr(i, j, d_klo_lsm) - 1.0, 0.0)*poro_soil_arr(i, j, d_klo_lsm)*dsw_vars(i, j, d_klo_lsm, SLM_DSW::sdepth_mm)/dt;
-            dd = soilw_arr(i, j, d_klo_lsm) - (rootF_arr(i, j, d_klo_lsm)*evapo_dry_arr(i, j, 0)*dsw_vars(i, j, d_klo_lsm, SLM_DSW::sw_wgt) + drainage_flux) * dt / poro_soil_arr(i, j, d_klo_lsm) / dsw_vars(i, j, d_klo_lsm, SLM_DSW::sdepth_mm);
+            dd = soilw_arr(i, j, d_klo_lsm) - (soil_transp_frac_arr(i, j, d_klo_lsm)*evapo_dry_arr(i, j, 0) + drainage_flux) * dt / poro_soil_arr(i, j, d_klo_lsm) / dsw_vars(i, j, d_klo_lsm, SLM_DSW::sdepth_mm);
 
             slm_diag_arr(i, j, 0, SLM_Diag::drain_flux) = drainage_flux;
 
@@ -4437,6 +4548,8 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     mf_data.push_back(&lhf_canop);
     mf_data.push_back(&lhf_soil);
     mf_data.push_back(&cp_vege);
+    mf_data.push_back(&cbiom);
+    mf_data.push_back(&dleaf);
 
     //mf_data.push_back(&ustar);
     //mf_data.push_back(&tstar);
@@ -4456,6 +4569,9 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     mf_data.push_back(&IR_emis_vege);
     mf_data.push_back(&IR_emis_soil);
     mf_data.push_back(&zrefxy);
+    mf_data.push_back(&ztop);
+    mf_data.push_back(&disp_hgt);
+    mf_data.push_back(&z0_sfc);
     mf_data.push_back(&vege_YES);
 
     mf_data.push_back(&LAI);
@@ -4518,6 +4634,8 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("lhf_canop");
     varnames.push_back("lhf_soil");
     varnames.push_back("cp_vege");
+    varnames.push_back("cbiom");
+    varnames.push_back("dleaf");
 
     //varnames.push_back("ustar");
     //varnames.push_back("tstar");
@@ -4537,6 +4655,9 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("IR_emis_veg");
     varnames.push_back("IR_emis_soil");
     varnames.push_back("zrefxy");
+    varnames.push_back("ztop");
+    varnames.push_back("disp_hgt");
+    varnames.push_back("z0_sfc");
     varnames.push_back("veg_flag");
 
     varnames.push_back("LAI");
