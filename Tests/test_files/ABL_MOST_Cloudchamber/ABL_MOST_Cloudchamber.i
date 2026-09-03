@@ -5,6 +5,10 @@ max_step = 20
 
 amrex.fpe_trap_invalid = 1
 
+# Use index-keyed perturbations so the initial condition is independent of MPI/box decomposition
+erf.deterministic_ic_pert = 1
+erf.random_seed = 1024
+
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
@@ -137,3 +141,5 @@ prob.T_0 = 289.5
 prob.T_0_Pert_Mag = 0.
 prob.pert_rhotheta = false
 prob.U_0_Pert_Mag = 0.05
+prob.V_0_Pert_Mag = 0.0
+prob.W_0_Pert_Mag = 0.0
