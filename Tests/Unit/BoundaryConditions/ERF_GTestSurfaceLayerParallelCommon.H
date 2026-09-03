@@ -30,13 +30,37 @@ make_parallel_geometry ()
 }
 
 inline BoxArray
-make_parallel_box_array (const Box& domain)
+make_parallel_box_array (const Box& domain, const bool single_box = false)
 {
     BoxArray ba(domain);
+    if (single_box) { return ba; }
     // Lateral boxes span the full vertical domain, as required by the x/y
     // surface-layer kernels, while still distributing the face ownership.
     ba.maxSize(IntVect(AMREX_D_DECL(16, 16, 1024)));
     return ba;
+}
+
+inline DistributionMapping
+make_parallel_distribution_mapping (const BoxArray& ba)
+{
+    Vector<int> pmap(ba.size(), 0);
+    const int nprocs = ParallelDescriptor::NProcs();
+    if (nprocs > 1) {
+        for (int ibox = 0; ibox < ba.size(); ++ibox) {
+            if (nprocs == 2) {
+                // The two lateral neighbors of every selected face must be
+                // assigned to different ranks.  This checkerboard mapping
+                // achieves that for both x and y faces.
+                pmap[ibox] = (ibox == 0 || ibox == 3) ? 0 : 1;
+            } else {
+                // With at least three ranks, assign the four-box layout to
+                // distinct ranks where possible.  This also works when more
+                // ranks are present than boxes; unused ranks are harmless.
+                pmap[ibox] = ibox % nprocs;
+            }
+        }
+    }
+    return DistributionMapping(std::move(pmap));
 }
 
 class ScopedSurfaceLayerParams
@@ -139,13 +163,16 @@ struct SurfaceLayerFields
     MultiFab xheat_flux;
     MultiFab yheat_flux;
     MultiFab zheat_flux;
+    MultiFab xqv_flux;
+    MultiFab yqv_flux;
+    MultiFab zqv_flux;
     Vector<MultiFab*> state;
 
-    SurfaceLayerFields ()
+    explicit SurfaceLayerFields (const bool single_box = false)
         : geom(make_parallel_geometry()),
           domain(geom.Domain()),
-          ba(make_parallel_box_array(domain)),
-          dm(ba),
+          ba(make_parallel_box_array(domain, single_box)),
+          dm(make_parallel_distribution_mapping(ba)),
           cons(ba, dm, RhoQ1_comp + 1,
                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 1))),
           xvel(make_face_box_array(ba, 0), dm, 1, test_velocity_ng),
@@ -158,7 +185,10 @@ struct SurfaceLayerFields
           qv_prim(1),
           xheat_flux(make_face_box_array(ba, 0), dm, 1, 1),
           yheat_flux(make_face_box_array(ba, 1), dm, 1, 1),
-          zheat_flux(make_face_box_array(ba, 2), dm, 1, 1)
+          zheat_flux(make_face_box_array(ba, 2), dm, 1, 1),
+          xqv_flux(make_face_box_array(ba, 0), dm, 1, 1),
+          yqv_flux(make_face_box_array(ba, 1), dm, 1, 1),
+          zqv_flux(make_face_box_array(ba, 2), dm, 1, 1)
     {
         cons.setVal(Real(0.0));
         cons.setVal(test_rho, Rho_comp, 1);
@@ -198,6 +228,9 @@ struct SurfaceLayerFields
         xheat_flux.setVal(tau_sentinel);
         yheat_flux.setVal(tau_sentinel);
         zheat_flux.setVal(tau_sentinel);
+        xqv_flux.setVal(tau_sentinel);
+        yqv_flux.setVal(tau_sentinel);
+        zqv_flux.setVal(tau_sentinel);
         Gpu::streamSynchronize();
     }
 
@@ -205,12 +238,10 @@ struct SurfaceLayerFields
     {
         for (MFIter mfi(*theta, false); mfi.isValid(); ++mfi) {
             const Box box = mfi.fabbox();
-            const Real box_offset = Real(2.0) * static_cast<Real>(mfi.index());
             auto theta_arr = theta->array(mfi);
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 theta_arr(i,j,k) = test_surface_temperature +
-                    box_offset +
                     Real(0.25) * static_cast<Real>(i) +
                     Real(0.5) * static_cast<Real>(j);
             });
@@ -286,7 +317,7 @@ struct SurfaceLayerFields
         Vector<const MultiFab*> const_state{&cons, &xvel, &yvel, &zvel};
         layer.impose_SurfaceLayer_bcs(
             0, const_state, tau, &xheat_flux, &yheat_flux, &zheat_flux,
-            nullptr, nullptr, nullptr, nullptr);
+            &xqv_flux, &yqv_flux, &zqv_flux, nullptr);
         Gpu::streamSynchronize();
     }
 
@@ -384,7 +415,12 @@ tangential_halo_pairs (const MultiFab& mf,
             IntVect point = target.smallEnd();
             point[tangent_dir] -= 1;
             for (int jbox = 0; jbox < target_ba.size(); ++jbox) {
-                if (jbox != ibox && target_ba[jbox].contains(point)) {
+                const Box& neighbor_source = source_ba[jbox];
+                const bool neighbor_selected = face.isLow()
+                    ? neighbor_source.smallEnd(dir) == domain.smallEnd(dir)
+                    : neighbor_source.bigEnd(dir) == domain.bigEnd(dir);
+                if (jbox != ibox && neighbor_selected &&
+                    target_ba[jbox].contains(point)) {
                     result.push_back({ibox, jbox, point});
                     break;
                 }
@@ -394,7 +430,12 @@ tangential_halo_pairs (const MultiFab& mf,
             IntVect point = target.bigEnd();
             point[tangent_dir] += 1;
             for (int jbox = 0; jbox < target_ba.size(); ++jbox) {
-                if (jbox != ibox && target_ba[jbox].contains(point)) {
+                const Box& neighbor_source = source_ba[jbox];
+                const bool neighbor_selected = face.isLow()
+                    ? neighbor_source.smallEnd(dir) == domain.smallEnd(dir)
+                    : neighbor_source.bigEnd(dir) == domain.bigEnd(dir);
+                if (jbox != ibox && neighbor_selected &&
+                    target_ba[jbox].contains(point)) {
                     result.push_back({ibox, jbox, point});
                     break;
                 }
@@ -456,8 +497,14 @@ face_owned_range (const MultiFab& mf,
                   const Orientation face)
 {
     const int dir = face.coordDir();
-    const int face_index = face.isLow()
+    const int source_face_index = face.isLow()
         ? domain.smallEnd(dir) : domain.bigEnd(dir);
+
+    Box face_plane(domain);
+    face_plane.convert(mf.boxArray().ixType());
+    const int field_face_index = face.isLow()
+        ? face_plane.smallEnd(dir) : face_plane.bigEnd(dir);
+    face_plane.setRange(dir, field_face_index);
 
     Long local_count = 0;
     Long local_total_count = 0;
@@ -480,12 +527,19 @@ face_owned_range (const MultiFab& mf,
 
         const Box& source = source_ba[mfi.index()];
         const bool selected = face.isLow()
-            ? source.smallEnd(dir) == face_index
-            : source.bigEnd(dir) == face_index;
+            ? source.smallEnd(dir) == source_face_index
+            : source.bigEnd(dir) == source_face_index;
         if (!selected) { continue; }
 
-        local_count += static_cast<Long>(valid.numPts());
-        range_op.eval(valid, range_data,
+        // Stress fields retain their three-dimensional valid boxes.  Only
+        // the selected wall-normal plane is populated by the surface-layer
+        // kernel; the remaining points in a face-owned FAB are intentionally
+        // left at the sentinel value.
+        const Box selected_plane = valid & face_plane;
+        if (selected_plane.isEmpty()) { continue; }
+
+        local_count += static_cast<Long>(selected_plane.numPts());
+        range_op.eval(selected_plane, range_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 -> GpuTuple<Real, Real>
             {

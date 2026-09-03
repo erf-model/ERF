@@ -79,16 +79,22 @@ expect_lateral_stresses (SurfaceLayerFields& fields, const Orientation face)
     }
 }
 
-TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
+TEST(SurfaceLayerParallel, DistributedFaceStressIsFaceOwnedAndMatchesSerialReference)
 {
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
     ScopedSurfaceLayerParams params("unit_surface_layer_parallel");
 
     for (const auto& face : all_faces()) {
         SurfaceLayerFields fields;
+        SurfaceLayerFields reference(true);
         auto layer = fields.prepare_layer(
-            face, active_face(face), "unit_surface_layer_parallel");
+            face, active_face(face), "unit_surface_layer_parallel",
+            false, true, false);
+        auto reference_layer = reference.prepare_layer(
+            face, active_face(face), "unit_surface_layer_parallel",
+            false, true, false);
         fields.impose(*layer);
+        reference.impose(*reference_layer);
 
         const MultiFab* required_a = nullptr;
         const MultiFab* required_b = nullptr;
@@ -113,13 +119,13 @@ TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
         }
 
         const auto required_a_range =
-            face_range(*required_a, fields.domain, face);
+            face_owned_range(*required_a, fields.ba, fields.domain, face);
         const auto required_b_range =
-            face_range(*required_b, fields.domain, face);
+            face_owned_range(*required_b, fields.ba, fields.domain, face);
         const auto transpose_a_range =
-            face_range(*transpose_a, fields.domain, face);
+            face_owned_range(*transpose_a, fields.ba, fields.domain, face);
         const auto transpose_b_range =
-            face_range(*transpose_b, fields.domain, face);
+            face_owned_range(*transpose_b, fields.ba, fields.domain, face);
 
         EXPECT_GT(required_a_range.count, 0);
         EXPECT_GT(required_b_range.count, 0);
@@ -127,15 +133,21 @@ TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
         EXPECT_TRUE(is_changed(required_a_range.hi));
         EXPECT_TRUE(is_changed(required_b_range.lo));
         EXPECT_TRUE(is_changed(required_b_range.hi));
-        EXPECT_NEAR(required_a_range.lo, required_a_range.hi, Real(1.e-10));
-        EXPECT_NEAR(required_b_range.lo, required_b_range.hi, Real(1.e-10));
-        if (face.isLow()) {
-            EXPECT_TRUE(stress_has_expected_sign(required_a_range.hi, true));
-            EXPECT_TRUE(stress_has_expected_sign(required_b_range.hi, true));
-        } else {
-            EXPECT_TRUE(stress_has_expected_sign(required_a_range.lo, false));
-            EXPECT_TRUE(stress_has_expected_sign(required_b_range.lo, false));
-        }
+        const auto reference_a_range = face_owned_range(
+            *reference.tau[dir == 0 ? TauType::tau21 :
+                           (dir == 1 ? TauType::tau12 : TauType::tau13)],
+            reference.ba, reference.domain, face);
+        const auto reference_b_range = face_owned_range(
+            *reference.tau[dir == 0 ? TauType::tau31 :
+                           (dir == 1 ? TauType::tau32 : TauType::tau23)],
+            reference.ba, reference.domain, face);
+        // Nodal stress FABs count shared interface nodes once per FAB in a
+        // multi-box layout. Compare values and ownership below, but do not
+        // compare raw point counts with the single-box reference.
+        EXPECT_NEAR(required_a_range.lo, reference_a_range.lo, Real(1.e-10));
+        EXPECT_NEAR(required_a_range.hi, reference_a_range.hi, Real(1.e-10));
+        EXPECT_NEAR(required_b_range.lo, reference_b_range.lo, Real(1.e-10));
+        EXPECT_NEAR(required_b_range.hi, reference_b_range.hi, Real(1.e-10));
         EXPECT_EQ(required_a_range.sentinel_count,
                   required_a_range.total_count - required_a_range.count);
         EXPECT_EQ(required_b_range.sentinel_count,
@@ -148,6 +160,23 @@ TEST(SurfaceLayerParallel, DistributedFaceStressMatchesReference)
         EXPECT_NEAR(required_a_range.hi, transpose_a_range.hi, Real(1.e-10));
         EXPECT_NEAR(required_b_range.lo, transpose_b_range.lo, Real(1.e-10));
         EXPECT_NEAR(required_b_range.hi, transpose_b_range.hi, Real(1.e-10));
+
+        const auto reference_transpose_a_range = face_owned_range(
+            *reference.tau[dir == 0 ? TauType::tau12 :
+                           (dir == 1 ? TauType::tau21 : TauType::tau31)],
+            reference.ba, reference.domain, face);
+        const auto reference_transpose_b_range = face_owned_range(
+            *reference.tau[dir == 0 ? TauType::tau13 :
+                           (dir == 1 ? TauType::tau23 : TauType::tau32)],
+            reference.ba, reference.domain, face);
+        EXPECT_NEAR(transpose_a_range.lo, reference_transpose_a_range.lo,
+                    Real(1.e-10));
+        EXPECT_NEAR(transpose_a_range.hi, reference_transpose_a_range.hi,
+                    Real(1.e-10));
+        EXPECT_NEAR(transpose_b_range.lo, reference_transpose_b_range.lo,
+                    Real(1.e-10));
+        EXPECT_NEAR(transpose_b_range.hi, reference_transpose_b_range.hi,
+                    Real(1.e-10));
     }
 }
 
@@ -177,6 +206,15 @@ TEST(SurfaceLayerParallel, LateralSurfaceParameterGhostsAreFaceOwned)
             *layer->get_u_star(0), fields.ba, fields.domain, face);
         EXPECT_GT(pairs.size(), std::size_t(0));
         if (pairs.empty()) { continue; }
+        const auto& pmap = layer->get_u_star(0)->DistributionMap().ProcessorMap();
+        bool has_cross_rank_pair = false;
+        for (const auto& pair : pairs) {
+            if (pmap[pair.target_fab] != pmap[pair.neighbor_fab]) {
+                has_cross_rank_pair = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(has_cross_rank_pair);
 
         const std::array<const MultiFab*, 4> parameters{{
             layer->get_u_star(0), layer->get_t_star(0),

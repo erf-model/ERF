@@ -6,6 +6,14 @@ using namespace amrex;
 namespace {
 
 void
+assert_surface_layer_mfi_layout (const iMultiFab& mask,
+                                 const MultiFab& field)
+{
+    AMREX_ASSERT(mask.boxArray().size() == field.boxArray().size());
+    AMREX_ASSERT(mask.DistributionMap() == field.DistributionMap());
+}
+
+void
 assert_surface_layer_layout (const iMultiFab& mask,
                              const MultiFab& field,
                              const int normal_dir)
@@ -21,17 +29,26 @@ assert_surface_layer_layout (const iMultiFab& mask,
         const Box& mask_box = mask.boxArray()[ibox];
         const Box& field_box = field.boxArray()[ibox];
         // The surface-layer fields may be wall-normal-collapsed or nodal,
-        // so exact Box equality is not appropriate here. The wall-normal
-        // extent is intentionally different for lateral faces; only the
-        // tangential boxes must correspond. Allow the one-cell enlargement
-        // used by staggered and terrain-node fields.
+        // so exact Box equality is not appropriate. Compare only tangential
+        // extents after converting the mask box to the field's index type;
+        // the normal extent is intentionally different for lateral fields.
+        Box required = mask_box;
+        required.convert(field.boxArray().ixType());
+        Box available = field_box;
+        available.grow(field.nGrowVect());
+        bool compatible = true;
+        // Lateral surface masks are collapsed in z, even though the state and
+        // stress fields retain their full vertical extent.  Only horizontal
+        // tangential extents participate in this cross-layout check.
         for (int idim = 0; idim < 2; ++idim) {
             if (idim == normal_dir) { continue; }
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                mask_box.smallEnd(idim) - 1 <= field_box.smallEnd(idim) &&
-                mask_box.bigEnd(idim)   + 1 >= field_box.bigEnd(idim),
-                "Surface-layer cross-layout boxes must have compatible tangential extents.");
+            compatible = compatible &&
+                available.smallEnd(idim) <= required.smallEnd(idim) &&
+                available.bigEnd(idim)   >= required.bigEnd(idim);
         }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            compatible,
+            "Surface-layer cross-layout boxes have incompatible tangential extents.");
     }
 }
 
@@ -290,13 +307,6 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    if (m_face.coordDir() != 2) {
-        // The ordinary FillBoundary below is unsafe for lateral walls: the
-        // collapsed layout contains FABs from interior grids whose surface
-        // parameters were never computed. Exchange only face-owned FABs.
-        fill_lateral_surface_parameter_ghosts(lev);
-    }
-
     if (m_update_k_rans) {
         const bool use_ref_theta = (theta_ref > 0);
         const Real l_inv_theta0  = (use_ref_theta) ? one / theta_ref : one;
@@ -348,6 +358,13 @@ SurfaceLayer::update_fluxes (const int& lev,
         t_star[lev]->FillBoundary(m_geom[lev].periodicity());
         q_star[lev]->FillBoundary(m_geom[lev].periodicity());
         olen[lev]->FillBoundary(m_geom[lev].periodicity());
+    } else {
+        // The ordinary FillBoundary is unsafe for lateral walls: the
+        // collapsed layout contains FABs from interior grids whose surface
+        // parameters were never computed. Exchange only after all flux
+        // iterations have written the selected face FABs, and copy the
+        // communicated values back only to those FABs.
+        fill_lateral_surface_parameter_ghosts(lev);
     }
 }
 
@@ -405,12 +422,10 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
-                              MultiFab& /*cons_in*/,
+                              MultiFab& cons_in,
                               const FluxIter& most_flux,
                               bool is_land)
 {
-    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
-
     // Pointers to the computed averages
     const auto *const tm_ptr      = m_ma.get_average(lev,3); // potential temperature
     const auto *const qvm_ptr     = m_ma.get_average(lev,4); // water vapor mixing ratio
@@ -422,19 +437,13 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const bool l_use_eb = (m_terrain_type == TerrainType::EB);
 
     const int dir = m_face.coordDir();
+    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
+    assert_surface_layer_mfi_layout(surface_mask, cons_in);
+    assert_surface_layer_mfi_layout(surface_mask, *u_star[lev]);
 
-    // These arrays are intentionally built from different collapsed layouts.
-    // Their box ordering and ownership must nevertheless remain identical
-    // because this loop is driven by the surface mask MFIter.
-    assert_surface_layer_layout(surface_mask, *u_star[lev], dir);
-    assert_surface_layer_layout(surface_mask, *t_star[lev], dir);
-    assert_surface_layer_layout(surface_mask, *q_star[lev], dir);
-    assert_surface_layer_layout(surface_mask, *olen[lev], dir);
-    assert_surface_layer_layout(surface_mask, *tm_ptr, dir);
-    assert_surface_layer_layout(surface_mask, *tvm_ptr, dir);
-    assert_surface_layer_layout(surface_mask, *qvm_ptr, dir);
-    assert_surface_layer_layout(surface_mask, *umm_ptr, dir);
-    assert_surface_layer_layout(surface_mask, *zref_ptr, dir);
+    // The source fields and Taus use the same BoxArray ordering and
+    // DistributionMapping. Full-state fields follow cons_in, while the
+    // collapsed SurfaceLayer/MOSTAverage fields follow u_star.
     int sm_index = 0;
     if (m_face.isLow()) {
         sm_index = m_geom[lev].Domain().smallEnd(dir);
@@ -442,12 +451,15 @@ SurfaceLayer::compute_fluxes (const int& lev,
         sm_index = m_geom[lev].Domain().bigEnd(dir);
     }
 
-    //for (MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi)
-    // NOTE: need to use lmask (defined over entire X/Y grid) for MFIter here so that we can properly detect if a box on a given MPI rank is not on the current face
-    //       if u_star is used instead, then all ranks will participate, even if their boxes do not coincide with the face!
+    // Use the 2-D surface mask as the iterator so ranks participate only when
+    // their grids coincide with the selected face.
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
     {
-        Box vbx = mfi.tilebox();
+        // Face ownership is a property of the full grid, not an individual
+        // tile. Keep the tile box for the kernel below, but test the valid
+        // box so all tiles of a face-owning grid are processed.
+        Box vbx = mfi.validbox();
+        const Box tbx = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
 
         // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
@@ -458,12 +470,14 @@ SurfaceLayer::compute_fluxes (const int& lev,
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
         if (m_face.isLow()) {
-            if (vbx.smallEnd(dir) != sm_index) {
+            if (vbx.smallEnd(dir) != sm_index ||
+                (dir != 2 && tbx.smallEnd(dir) != sm_index)) {
                 continue;
             }
             gtbx.setBig(dir, sm_index);
         } else {
-            if (vbx.bigEnd(dir) != sm_index) {
+            if (vbx.bigEnd(dir) != sm_index ||
+                (dir != 2 && tbx.bigEnd(dir) != sm_index)) {
                 continue;
             }
             gtbx.setSmall(dir, sm_index);
@@ -570,36 +584,10 @@ SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
     AMREX_ALWAYS_ASSERT(dir < 2);
 
     const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
-    const MultiFab& reference = *u_star[lev];
-    assert_surface_layer_layout(surface_mask, reference, dir);
-
     const int face_index = m_face.isLow()
         ? m_geom[lev].Domain().smallEnd(dir)
         : m_geom[lev].Domain().bigEnd(dir);
-
-    BoxList face_boxes;
-    Vector<int> face_pmap;
-    Vector<int> source_indices;
     const auto& mask_ba = surface_mask.boxArray();
-    const auto& source_ba = reference.boxArray();
-    const auto& source_pmap = reference.DistributionMap().ProcessorMap();
-
-    for (int ibox = 0; ibox < mask_ba.size(); ++ibox) {
-        const Box& mask_box = mask_ba[ibox];
-        const bool owns_face = m_face.isLow()
-            ? mask_box.smallEnd(dir) == face_index
-            : mask_box.bigEnd(dir) == face_index;
-        if (!owns_face) { continue; }
-
-        face_boxes.push_back(source_ba[ibox]);
-        face_pmap.push_back(source_pmap[ibox]);
-        source_indices.push_back(ibox);
-    }
-
-    if (face_boxes.isEmpty()) { return; }
-
-    BoxArray face_ba(std::move(face_boxes));
-    DistributionMapping face_dm(std::move(face_pmap));
 
     IntVect period = m_geom[lev].periodicity().intVect();
     period[dir] = 0; // The selected wall is not a periodic source plane.
@@ -610,24 +598,50 @@ SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
 
     for (MultiFab* field : fields) {
         assert_surface_layer_layout(surface_mask, *field, dir);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            field->nGrowVect()[0] == reference.nGrowVect()[0] &&
-            field->nGrowVect()[1] == reference.nGrowVect()[1] &&
-            field->nGrowVect()[2] == reference.nGrowVect()[2],
-            "Surface-layer parameter ghost layouts must agree.");
 
+        // Each parameter field owns its own index type and BoxArray. Build
+        // the compact layout from that field rather than reusing u_star's
+        // layout for all parameters.
+        BoxList face_boxes;
+        Vector<int> face_pmap;
+        Vector<int> source_indices;
+        const auto& source_ba = field->boxArray();
+        const auto& source_pmap = field->DistributionMap().ProcessorMap();
+        for (int ibox = 0; ibox < mask_ba.size(); ++ibox) {
+            const Box& mask_box = mask_ba[ibox];
+            const bool owns_face = m_face.isLow()
+                ? mask_box.smallEnd(dir) == face_index
+                : mask_box.bigEnd(dir) == face_index;
+            if (!owns_face) { continue; }
+
+            face_boxes.push_back(source_ba[ibox]);
+            face_pmap.push_back(source_pmap[ibox]);
+            source_indices.push_back(ibox);
+        }
+        if (face_boxes.isEmpty()) { continue; }
+
+        BoxArray face_ba(std::move(face_boxes));
+        DistributionMapping face_dm(std::move(face_pmap));
         MultiFab face_values(face_ba, face_dm, 1, field->nGrowVect());
 
         // Selectively gather only face-owned FABs. A direct FillBoundary on
         // field would also treat interior-grid FABs as valid sources because
         // all lateral FABs collapse onto the same wall plane.
         for (MFIter fmfi(face_values, false); fmfi.isValid(); ++fmfi) {
-            const int source_index = source_indices[fmfi.index()];
-            AMREX_ALWAYS_ASSERT(field->boxArray()[source_index] ==
-                                face_ba[fmfi.index()]);
+            const int compact_index = fmfi.index();
+            const int source_index = source_indices[compact_index];
             const auto src = field->const_array(source_index);
             const auto dst = face_values.array(fmfi);
-            const Box copy_box = fmfi.fabbox();
+            // Preserve the source FAB's existing ghosts.  A nonperiodic
+            // physical ghost has no FillBoundary source, so leaving the
+            // temporary FAB uninitialized would replace a valid local value
+            // with garbage at mixed-face corners.
+            Box source_fab = field->boxArray()[source_index];
+            source_fab.grow(field->nGrowVect());
+            const Box copy_box = fmfi.fabbox() & source_fab;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !copy_box.isEmpty(),
+                "Temporary surface-layer source copy has no valid overlap.");
             ParallelFor(copy_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 dst(i,j,k) = src(i,j,k);
@@ -638,10 +652,16 @@ SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
         face_values.FillBoundary(tangential_periodicity);
 
         for (MFIter fmfi(face_values, false); fmfi.isValid(); ++fmfi) {
-            const int source_index = source_indices[fmfi.index()];
+            const int compact_index = fmfi.index();
+            const int source_index = source_indices[compact_index];
             const auto src = face_values.const_array(fmfi);
             const auto dst = field->array(source_index);
-            const Box copy_box = fmfi.fabbox();
+            Box source_fab = field->boxArray()[source_index];
+            source_fab.grow(field->nGrowVect());
+            const Box copy_box = fmfi.fabbox() & source_fab;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !copy_box.isEmpty(),
+                "Mapped surface-layer ghost copy has no valid overlap with its source FAB.");
             ParallelFor(copy_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 dst(i,j,k) = src(i,j,k);
@@ -680,7 +700,9 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
 {
     if (flux_type == FluxCalcType::MOENG) {
         amrex::Real wsmin = 0.1; // TODO: change for different faces
-        moeng_flux flux_comp(wsmin, m_face.isLow());
+        const Box& domain = m_geom[lev].Domain();
+        moeng_flux flux_comp(wsmin, m_face.isLow(),
+                             domain.smallEnd(2), domain.bigEnd(2));
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -788,6 +810,32 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     bool rotate = m_rotate;
 
     const int dir = m_face.coordDir();
+    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !mfs.empty() && mfs[0] != nullptr,
+        "Surface-layer stress computation requires a conserved-state MultiFab.");
+    for (const auto* state : mfs) {
+        if (state) {
+            assert_surface_layer_layout(surface_mask, *state, dir);
+        }
+    }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        Tau_lev[TauType::tau13] != nullptr && Tau_lev[TauType::tau23] != nullptr,
+        "tau13 and tau23 are required by surface-layer stress computation.");
+    assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau13], dir);
+    assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau23], dir);
+    if (Tau_lev[TauType::tau12]) {
+        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau12], dir);
+    }
+    if (Tau_lev[TauType::tau21]) {
+        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau21], dir);
+    }
+    if (Tau_lev[TauType::tau31]) {
+        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau31], dir);
+    }
+    if (Tau_lev[TauType::tau32]) {
+        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau32], dir);
+    }
     int sm_index = 0;
     if (m_face.isLow()) {
         sm_index = m_geom[lev].Domain().smallEnd(dir);
@@ -795,7 +843,24 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         sm_index = m_geom[lev].Domain().bigEnd(dir);
     }
 
-    //const int klo = m_geom[lev].Domain().smallEnd(dir);
+    // These requirements are invariant over the loop below. Check them once
+    // before acquiring per-tile array views.
+    if (dir == 0) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            Tau_lev[TauType::tau31] != nullptr,
+            "tau31 is required when imposing an x-face surface layer.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            Tau_lev[TauType::tau21] != nullptr,
+            "tau21 is required when imposing an x-face surface layer.");
+    } else if (dir == 1) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            Tau_lev[TauType::tau32] != nullptr,
+            "tau32 is required when imposing a y-face surface layer.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            Tau_lev[TauType::tau12] != nullptr,
+            "tau12 is required when imposing a y-face surface layer.");
+    }
+
     const int klo = sm_index;
     const auto& dxInv = m_geom[lev].InvCellSizeArray();
     const Box domain = m_geom[lev].Domain();
@@ -811,8 +876,29 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     const bool yhi_surface = m_surface_layer_faces[Orientation::yhi()];
     const bool zlo_surface = m_surface_layer_faces[Orientation::zlo()];
     const bool zhi_surface = m_surface_layer_faces[Orientation::zhi()];
+
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
+        // Skip boxes that do not own the selected face before acquiring any
+        // arrays from collapsed or staggered layouts.  Interior boxes may
+        // share the same collapsed coordinates but do not contain surface
+        // data for this boundary.
+        Box bx = mfi.tilebox();
+        const Box valid_bx = mfi.validbox();
+        if (m_face.isLow()) {
+            if (valid_bx.smallEnd(dir) != klo ||
+                bx.smallEnd(dir) != klo) {
+                continue;
+            }
+            bx.setBig(dir, bx.smallEnd(dir));
+        } else {
+            if (valid_bx.bigEnd(dir) != klo ||
+                bx.bigEnd(dir) != klo) {
+                continue;
+            }
+            bx.setSmall(dir, bx.bigEnd(dir));
+        }
+
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
@@ -830,20 +916,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // X-faces: hfx1   qfx1(1,0,0)   t21(V)(1,1,0)   t31(W)(1,0,1)
         // Y-faces: hfx2   qfx2(0,1,0)   t12(U)(1,1,0)   t32(W)(0,1,1)
         // Z-faces: hfx3   qfx3(0,0,1)   t13(U)(1,0,1)   t23(V)(0,1,1)
-
-        // Diffusive stress vars. These components are required by the
-        // corresponding normal-face path; fail explicitly if the caller did
-        // not allocate one instead of dereferencing a null optional handle.
-        if (dir == 0) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                Tau_lev[TauType::tau31] != nullptr,
-                "tau31 is required when imposing an x-face surface layer.");
-        }
-        if (dir == 1) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                Tau_lev[TauType::tau32] != nullptr,
-                "tau32 is required when imposing a y-face surface layer.");
-        }
 
         // Diffusive stress vars
         auto t13_arr =  Tau_lev[TauType::tau13]->array(mfi);
@@ -932,21 +1004,6 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
         // Rho*Theta flux
         //============================================================================
-        Box bx = mfi.tilebox();
-
-        if (m_face.isLow()) {
-            // skip if this rank doesn't work on this box
-            if (bx.smallEnd(dir) != klo) {
-                continue;
-            }
-            bx.setBig(dir, bx.smallEnd(dir));
-        } else {
-            if (bx.bigEnd(dir) != klo) {
-                continue;
-            }
-            bx.setSmall(dir, bx.bigEnd(dir));
-        }
-
         const bool is_low_face = m_face.isLow();
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -1726,6 +1783,10 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 {
     // NOTE: We have already tested a moisture model exists
     const int dir = m_face.coordDir();
+    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
+    assert_surface_layer_mfi_layout(surface_mask, cons_in);
+    assert_surface_layer_mfi_layout(surface_mask, *t_surf[lev]);
+
     int sm_index;
     if (m_face.isLow()) {
         sm_index = m_geom[lev].Domain().smallEnd(dir);
@@ -1738,20 +1799,13 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
     const int ng_z = amrex::min(cons_in.nGrowVect()[2],
                                 amrex::min(t_surf[lev]->nGrowVect()[2],
                                            q_surf[lev]->nGrowVect()[2]));
-    // NOTE: need to use lmask (defined over entire X/Y grid) for MFIter here so that we can properly detect if a box on a given MPI rank is not on the current face
-    //       if u_star is used instead, then all ranks will participate, even if their boxes do not coincide with the face!
-    //for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
-    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
-    assert_surface_layer_layout(surface_mask, *t_surf[lev], dir);
-    assert_surface_layer_layout(surface_mask, *q_surf[lev], dir);
-    assert_surface_layer_layout(surface_mask, cons_in, dir);
-    if (z_phys_nd) {
-        assert_surface_layer_layout(surface_mask, *z_phys_nd, dir);
-    }
+    // Use the 2-D surface mask as the iterator so ranks participate only when
+    // their grids coincide with the selected face.
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
-        Box tbx = mfi.tilebox();
+        Box tbx = mfi.validbox();
+        const Box tilebx = mfi.tilebox();
 
         // Since lmask is used in the MFIter, its Z dimension is 0.  These are
         // temporary geometry boxes, so use the physical domain's Z range for
@@ -1761,14 +1815,6 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
-        auto t_surf_arr = t_surf[lev]->array(mfi);
-        auto q_surf_arr = q_surf[lev]->array(mfi);
-        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
-                                                  Array4<int> {};
-        const auto cons_arr = cons_in.const_array(mfi);
-        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
-                                            Array4<const Real> {};
-
         if (m_face.isLow()) {
             gtbx.grow(2, ng_z);
             gtbx.setBig(dir, sm_index);
@@ -1777,9 +1823,18 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             gtbx.setSmall(dir, sm_index);
         }
 
-        if (tbx[m_face] != sm_index) {
+        if (tbx[m_face] != sm_index ||
+            (dir != 2 && tilebx[m_face] != sm_index)) {
             continue;
         }
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto q_surf_arr = q_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

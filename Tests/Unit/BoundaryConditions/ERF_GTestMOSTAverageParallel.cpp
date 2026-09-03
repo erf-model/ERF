@@ -68,12 +68,39 @@ void expect_all_plane_values (const Vector<Real>& actual,
     }
 }
 
+void expect_all_region_values (const MOSTAverage& averages,
+                               const MOSTAverageFields& fields,
+                               const Orientation face)
+{
+    const auto expected = expected_average_values();
+    const std::array<const BoxArray*, 9> source_ba{{
+        &fields.xvel.boxArray(), &fields.yvel.boxArray(), &fields.zvel.boxArray(),
+        &fields.ba, &fields.ba, &fields.ba, &fields.ba, &fields.ba, &fields.ba
+    }};
+    const std::size_t nchecked = face.coordDir() < 2 ? expected.size() : 7;
+    for (std::size_t comp = 0; comp < nchecked; ++comp) {
+        const auto* average = averages.get_average(0, static_cast<int>(comp));
+        const Real initial = comp == 2
+            ? Real(1.e34)
+            : (comp == 4 ? Real(0.0) : bogus_large_value);
+        const auto range = region_range(
+            *average, *source_ba[comp], fields.domain, face, initial);
+        ASSERT_GT(range.selected_count, 0);
+        EXPECT_NEAR(range.selected_lo, expected[comp], tolerance(expected[comp]));
+        EXPECT_NEAR(range.selected_hi, expected[comp], tolerance(expected[comp]));
+        EXPECT_EQ(range.nonselected_bad, 0)
+            << "direction=" << face.coordDir()
+            << ", high=" << !face.isLow()
+            << ", component=" << comp;
+    }
+}
+
 // Motivation: plane averages must be independent of MPI ownership and the
 // lateral tile boundaries used by TileNoZ(). Metadata is part of this oracle
 // because it selects the source plane used by every average component.
 TEST(MOSTAverageParallel, DistributedAndTiledPlaneAverageMatchesReference)
 {
-    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(1024, 4, 1024)));
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
 
     for (const bool distributed : {false, true}) {
         for (const auto& face : all_faces()) {
@@ -157,7 +184,13 @@ TEST(MOSTAverageParallel, BothPoliciesSupportKAndZrefOnEveryWall)
 
                 averages.compute_averages(0);
                 Gpu::streamSynchronize();
-                expect_all_plane_values(averages.get_plane_average(0), face, true);
+                if (policy == 0) {
+                    expect_all_plane_values(averages.get_plane_average(0), face, true);
+                } else {
+                    // Regional policy stores its history in the regional
+                    // MultiFabs; get_plane_average() is intentionally empty.
+                    expect_all_region_values(averages, fields, face);
+                }
             }
         }
     }

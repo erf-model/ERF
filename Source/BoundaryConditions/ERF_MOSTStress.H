@@ -2099,9 +2099,14 @@ struct moeng_flux
     /**
      * Construct the Moeng flux calculator.
      */
-    moeng_flux (const amrex::Real wsmin = 0.1, const bool face_is_low = true) {
+    moeng_flux (const amrex::Real wsmin = 0.1,
+                const bool face_is_low = true,
+                const int zlo = 0,
+                const int zhi = 0) {
         WSMIN = wsmin;
         is_low = face_is_low;
+        m_zlo = zlo;
+        m_zhi = zhi;
     }
 
     /**
@@ -2349,23 +2354,27 @@ struct moeng_flux
         if (dir == 0) {
             // X wall: W-momentum flux at tau31. W is already z-nodal;
             // interpolate V and the cell-centered fields to that z node.
-            velx = fourth * ( vely_arr(ic,j  ,k-1) + vely_arr(ic,j+1,k-1)
-                            + vely_arr(ic,j  ,k  ) + vely_arr(ic,j+1,k  ) );
+            const int klo = amrex::max(k - 1, m_zlo);
+            const int khi = amrex::min(k,     m_zhi);
+            velx = fourth * ( vely_arr(ic,j  ,klo) + vely_arr(ic,j+1,klo)
+                            + vely_arr(ic,j  ,khi) + vely_arr(ic,j+1,khi) );
             vely = velz_arr(ic,j,k);
-            rho = myhalf * (cons_arr(ic,j,k-1,Rho_comp) + cons_arr(ic,j,k,Rho_comp));
+            rho = myhalf * (cons_arr(ic,j,klo,Rho_comp) + cons_arr(ic,j,khi,Rho_comp));
             vmean = wm_arr(ic,j,k);
-            ustar = myhalf * (u_star_arr(ic,j,k-1) + u_star_arr(ic,j,k));
-            wsp_mean = myhalf * (umm_arr(ic,j,k-1) + umm_arr(ic,j,k));
+            ustar = myhalf * (u_star_arr(ic,j,klo) + u_star_arr(ic,j,khi));
+            wsp_mean = myhalf * (umm_arr(ic,j,klo) + umm_arr(ic,j,khi));
         } else if (dir == 1) {
             // Y wall: W-momentum flux at tau32. W is already z-nodal;
             // interpolate U and the cell-centered fields to that z node.
-            velx = fourth * ( velx_arr(i  ,jc,k-1) + velx_arr(i+1,jc,k-1)
-                            + velx_arr(i  ,jc,k  ) + velx_arr(i+1,jc,k  ) );
+            const int klo = amrex::max(k - 1, m_zlo);
+            const int khi = amrex::min(k,     m_zhi);
+            velx = fourth * ( velx_arr(i  ,jc,klo) + velx_arr(i+1,jc,klo)
+                            + velx_arr(i  ,jc,khi) + velx_arr(i+1,jc,khi) );
             vely = velz_arr(i,jc,k);
-            rho = myhalf * (cons_arr(i,jc,k-1,Rho_comp) + cons_arr(i,jc,k,Rho_comp));
+            rho = myhalf * (cons_arr(i,jc,klo,Rho_comp) + cons_arr(i,jc,khi,Rho_comp));
             vmean = wm_arr(i,jc,k);
-            ustar = myhalf * (u_star_arr(i,jc,k-1) + u_star_arr(i,jc,k));
-            wsp_mean = myhalf * (umm_arr(i,jc,k-1) + umm_arr(i,jc,k));
+            ustar = myhalf * (u_star_arr(i,jc,klo) + u_star_arr(i,jc,khi));
+            wsp_mean = myhalf * (umm_arr(i,jc,klo) + umm_arr(i,jc,khi));
         } else {
             // Z wall: V-momentum flux at tau23.
             velx = fourth * ( velx_arr(i  ,j-1,kc) + velx_arr(i+1,j-1,kc)
@@ -2401,6 +2410,8 @@ private:
 #endif
     bool is_low = true; // whether this is on the low or hi side face
     amrex::Real   WSMIN = amrex::Real(0.1); // minimum wind speed
+    int m_zlo = 0;
+    int m_zhi = 0;
 };
 
 

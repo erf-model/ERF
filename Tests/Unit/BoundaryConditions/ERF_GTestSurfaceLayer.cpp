@@ -243,6 +243,21 @@ struct SurfaceLayerFields
         Gpu::streamSynchronize();
     }
 
+    void set_varying_surface_temperature ()
+    {
+        for (MFIter mfi(*theta, false); mfi.isValid(); ++mfi) {
+            const Box box = mfi.fabbox();
+            auto theta_arr = theta->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                theta_arr(i,j,k) = test_surface_temperature
+                    + Real(0.25) * static_cast<Real>(i)
+                    + Real(0.5) * static_cast<Real>(j);
+            });
+        }
+        Gpu::streamSynchronize();
+    }
+
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active_faces,
@@ -360,7 +375,8 @@ TEST(SurfaceLayer, MoengDirectionalFluxesAreFiniteOnEveryWall)
     std::array<Real, AMREX_SPACEDIM> high_v{};
 
     for (const auto& face : faces) {
-        const moeng_flux flux(Real(0.1), face.isLow());
+        const moeng_flux flux(Real(0.1), face.isLow(),
+                              domain.smallEnd(2), domain.bigEnd(2));
         const int dir = face.coordDir();
         int i = domain.smallEnd(0) + 1;
         int j = domain.smallEnd(1) + 1;
@@ -427,13 +443,14 @@ TEST(SurfaceLayer, MoengDirectionalFluxesAreFiniteOnEveryWall)
 // Motivation: each Cartesian face owns two normal momentum-stress components,
 // while an isolated face must still populate the equivalent transpose
 // components with the same computed Moeng flux.
-TEST(SurfaceLayer, MoengWritesRequiredComponentsAndPreservesIsolatedSymmetry)
+TEST(SurfaceLayer, FaceStressIsConsistentForNonconstantInputs)
 {
     ScopedSurfaceLayerParams params("unit_surface_layer_faces");
     const auto faces = all_faces();
 
     for (const auto face : faces) {
         SurfaceLayerFields fields;
+        fields.set_varying_surface_temperature();
         auto layer = fields.prepare_layer(
             face, active_faces({face}), "unit_surface_layer_faces");
         fields.impose(*layer);

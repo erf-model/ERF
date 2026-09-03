@@ -782,12 +782,13 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
         for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(ng,ng,0));
+            const Box vbx = mfi.validbox();
 
             if (is_lo_face) {
-                if (npbx.smallEnd(2) != zlo) { continue; }
+                if (vbx.smallEnd(2) != zlo) { continue; }
                 npbx.makeSlab(2,zlo);
             } else {
-                if (npbx.bigEnd(2) != zhi) { continue; }
+                if (vbx.bigEnd(2) != zhi) { continue; }
 
                 // Include the ghost cells below the top face.  They all use
                 // the same fixed domain-top node as their reference face.
@@ -887,8 +888,9 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        const Box vbx = mfi.validbox();
 
-        if (npbx.smallEnd(2) != klo) { continue; }
+        if (vbx.smallEnd(2) != klo) { continue; }
 
         int kmax = npbx.bigEnd(2);
 
@@ -987,9 +989,10 @@ MOSTAverage::set_z_positions_T (const int& lev)
     const int position_ng = (m_radius > 1) ? m_radius : 1;
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
         Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
+        const Box vbx = mfi.validbox();
         Box gtbx  = mfi.growntilebox(ng);
 
-        if (npbx.smallEnd(2) != klo) { continue; }
+        if (vbx.smallEnd(2) != klo) { continue; }
 
         npbx.makeSlab(2,klo);
 
@@ -1061,7 +1064,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
         Box gtbx  = mfi.growntilebox(ng);
         RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
-        if (npbx.smallEnd(2) != klo) { continue; }
+        if (mfi.validbox().smallEnd(2) != klo) { continue; }
 
         npbx.makeSlab(2,klo);
 
@@ -1202,7 +1205,13 @@ MOSTAverage::compute_plane_averages (const int& lev)
     }
 
     const int dir = m_face.coordDir();
-
+    // The non-terrain reference is constant on a level. Do not index the
+    // cell-centered k-index FAB with an MFIter from a staggered velocity FAB;
+    // distributed BoxArrays have the same box ordering but different valid
+    // extents. Spatial index arrays are retained for terrain-normal cases.
+    const bool use_spatial_indices =
+        m_norm_vec || (m_terrain_type != TerrainType::None);
+    const int wall_normal_ref = use_spatial_indices ? 0 : m_k_indx[lev]->min(0);
     // Averages for U,V,W,T,Qv (not Qc)
     for (int imf(0); imf < 5; ++imf) {
 
@@ -1229,18 +1238,32 @@ MOSTAverage::compute_plane_averages (const int& lev)
             Box vbx = mfi.validbox(); // This is the grid (not tile)
             Box pbx = mfi.tilebox();  // This is the tile (not grid)
 
-            if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
-                    continue;
+            if (use_spatial_indices) {
+                if (m_face.isLow()) {
+                    if (vbx.smallEnd(dir) != sm_index ||
+                        pbx.smallEnd(dir) != sm_index) {
+                        continue;
+                    }
+                } else {
+                    if (vbx.bigEnd(dir) != sm_index ||
+                        pbx.bigEnd(dir) != sm_index) {
+                        continue;
+                    }
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                // For Cartesian averages, the source FAB must own the
+                // requested reference plane, not necessarily the boundary
+                // face. A distributed high-side FAB can own the face while
+                // the reference plane is in another FAB.
+                Box reference_box = pbx;
+                reference_box.setRange(dir, wall_normal_ref);
+                if (!pbx.contains(reference_box)) {
                     continue;
                 }
             }
 
             // Make planar since mfiter is over fields
-            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
+            pbx.setRange(dir, use_spatial_indices ? sm_index : wall_normal_ref);
 
             // Avoid double counting nodal data by changing the high end when we are
             //     at the high side of the grid (not just of the tile)
@@ -1275,15 +1298,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
                 });
             } else {
-                auto k_arr  = k_indx->const_array(mfi);
+                auto k_arr  = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr  = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr  = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -1324,18 +1355,29 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*fields[4], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
+            const Box vbx = mfi.validbox();
 
-            if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
-                    continue;
+            if (use_spatial_indices) {
+                if (m_face.isLow()) {
+                    if (vbx.smallEnd(dir) != sm_index ||
+                        pbx.smallEnd(dir) != sm_index) {
+                        continue;
+                    }
+                } else {
+                    if (vbx.bigEnd(dir) != sm_index ||
+                        pbx.bigEnd(dir) != sm_index) {
+                        continue;
+                    }
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                Box reference_box = pbx;
+                reference_box.setRange(dir, wall_normal_ref);
+                if (!pbx.contains(reference_box)) {
                     continue;
                 }
             }
 
-            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
+            pbx.setRange(dir, use_spatial_indices ? sm_index : wall_normal_ref);
 
             const Array4<Real const>& T_mf_arr = fields[3]->const_array(mfi);
             const Array4<Real const>& qv_mf_arr = (fields[4])? fields[4]->const_array(mfi) : Array4<const Real>{};
@@ -1371,15 +1413,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             } else {
-                auto k_arr = k_indx->const_array(mfi);
+                auto k_arr = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -1444,18 +1494,29 @@ MOSTAverage::compute_plane_averages (const int& lev)
         for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
+            const Box vbx = mfi.validbox();
 
-            if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
-                    continue;
+            if (use_spatial_indices) {
+                if (m_face.isLow()) {
+                    if (vbx.smallEnd(dir) != sm_index ||
+                        pbx.smallEnd(dir) != sm_index) {
+                        continue;
+                    }
+                } else {
+                    if (vbx.bigEnd(dir) != sm_index ||
+                        pbx.bigEnd(dir) != sm_index) {
+                        continue;
+                    }
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                Box reference_box = pbx;
+                reference_box.setRange(dir, wall_normal_ref);
+                if (!pbx.contains(reference_box)) {
                     continue;
                 }
             }
 
-            pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
+            pbx.setRange(dir, use_spatial_indices ? sm_index : wall_normal_ref);
 
             // Last element is Umag and always cell centered
             auto u_mf_arr = (m_rotate) ? rot_fields[imf  ]->const_array(mfi) :
@@ -1497,15 +1558,23 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     }
                 });
             } else {
-                auto k_arr = k_indx->const_array(mfi);
+                auto k_arr = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -1569,6 +1638,13 @@ MOSTAverage::compute_region_averages (const int& lev)
     auto& k_indx   = m_k_indx[lev];
 
     const int dir = m_face.coordDir();
+    // The non-terrain reference is constant on a level. Do not index the
+    // cell-centered k-index FAB with an MFIter from a staggered velocity FAB;
+    // distributed BoxArrays have the same box ordering but different valid
+    // extents. Spatial index arrays are retained for terrain-normal cases.
+    const bool use_spatial_indices =
+        m_norm_vec || (m_terrain_type != TerrainType::None);
+    const int wall_normal_ref = use_spatial_indices ? 0 : m_k_indx[lev]->min(0);
     const Periodicity average_periodicity = tangential_periodicity(geom, dir);
 
     // Set factors for time averaging
@@ -1614,11 +1690,13 @@ MOSTAverage::compute_region_averages (const int& lev)
             Box pbx = mfi.tilebox();
 
             if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
+                if (mfi.validbox().smallEnd(dir) != sm_index ||
+                    pbx.smallEnd(dir) != sm_index) {
                     continue;
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                if (mfi.validbox().bigEnd(dir) != sm_index ||
+                    pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
             }
@@ -1657,14 +1735,22 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             } else {
-                auto k_arr = k_indx->const_array(mfi);
+                auto k_arr = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -1715,11 +1801,13 @@ MOSTAverage::compute_region_averages (const int& lev)
             Box pbx = mfi.tilebox();
 
             if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
+                if (mfi.validbox().smallEnd(dir) != sm_index ||
+                    pbx.smallEnd(dir) != sm_index) {
                     continue;
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                if (mfi.validbox().bigEnd(dir) != sm_index ||
+                    pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
             }
@@ -1772,14 +1860,22 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             } else {
-                auto k_arr = k_indx->const_array(mfi);
+                auto k_arr = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -1850,11 +1946,13 @@ MOSTAverage::compute_region_averages (const int& lev)
             Box pbx = mfi.tilebox();
 
             if (m_face.isLow()) {
-                if (pbx.smallEnd(dir) != sm_index) {
+                if (mfi.validbox().smallEnd(dir) != sm_index ||
+                    pbx.smallEnd(dir) != sm_index) {
                     continue;
                 }
             } else {
-                if (pbx.bigEnd(dir) != sm_index) {
+                if (mfi.validbox().bigEnd(dir) != sm_index ||
+                    pbx.bigEnd(dir) != sm_index) {
                     continue;
                 }
             }
@@ -1903,14 +2001,22 @@ MOSTAverage::compute_region_averages (const int& lev)
                     }
                 });
             } else {
-                auto k_arr = k_indx->const_array(mfi);
+                auto k_arr = use_spatial_indices
+                    ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                const Box k_box = use_spatial_indices
+                    ? k_indx->boxArray()[mfi.index()] : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const int ref = k_arr(i,j,k);
-                    int mi = i_arr ? i_arr(i,j,k) : i;
-                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    const int ki = use_spatial_indices
+                        ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
+                    const int kj = use_spatial_indices
+                        ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int ref = use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    int mi = i_arr ? i_arr(ki,kj,k) : i;
+                    int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
                     if (dir == 0) {
                         mi = ref;
@@ -2008,7 +2114,8 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
             for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box vbx = mfi.tilebox();
+                Box vbx = mfi.validbox();
+                Box pbx = mfi.tilebox();
                 Box gpbx = mfi.growntilebox(ng);
 
                 if (bnd_bx.contains(gpbx)) {
@@ -2016,12 +2123,14 @@ MOSTAverage::compute_region_averages (const int& lev)
                 }
 
                 if (m_face.isLow()) {
-                    if (vbx.smallEnd(dir) != sm_index) {
+                    if (vbx.smallEnd(dir) != sm_index ||
+                        pbx.smallEnd(dir) != sm_index) {
                         continue;
                     }
                     gpbx.setBig(dir, sm_index);
                 } else {
-                    if (vbx.bigEnd(dir) != sm_index) {
+                    if (vbx.bigEnd(dir) != sm_index ||
+                        pbx.bigEnd(dir) != sm_index) {
                         continue;
                     }
                     gpbx.setSmall(dir, sm_index);
@@ -2421,11 +2530,13 @@ MOSTAverage::write_k_indices (const int& lev)
         Box pbx = mfi.tilebox();
 
         if (m_face.isLow()) {
-            if (pbx.smallEnd(dir) != sm_index) {
+            if (mfi.validbox().smallEnd(dir) != sm_index ||
+                pbx.smallEnd(dir) != sm_index) {
                 continue;
             }
         } else {
-            if (pbx.bigEnd(dir) != sm_index) {
+            if (mfi.validbox().bigEnd(dir) != sm_index ||
+                pbx.bigEnd(dir) != sm_index) {
                 continue;
             }
         }
@@ -2491,11 +2602,13 @@ MOSTAverage::write_norm_indices (const int& lev)
         Box pbx = mfi.tilebox();
 
         if (m_face.isLow()) {
-            if (pbx.smallEnd(dir) != sm_index) {
+            if (mfi.validbox().smallEnd(dir) != sm_index ||
+                pbx.smallEnd(dir) != sm_index) {
                 continue;
             }
         } else {
-            if (pbx.bigEnd(dir) != sm_index) {
+            if (mfi.validbox().bigEnd(dir) != sm_index ||
+                pbx.bigEnd(dir) != sm_index) {
                 continue;
             }
         }
@@ -2615,11 +2728,13 @@ MOSTAverage::write_averages (const int& lev)
         Box pbx = mfi.tilebox();
 
         if (m_face.isLow()) {
-            if (pbx.smallEnd(dir) != sm_index) {
+        if (mfi.validbox().smallEnd(dir) != sm_index ||
+            pbx.smallEnd(dir) != sm_index) {
                 continue;
             }
         } else {
-            if (pbx.bigEnd(dir) != sm_index) {
+        if (mfi.validbox().bigEnd(dir) != sm_index ||
+            pbx.bigEnd(dir) != sm_index) {
                 continue;
             }
         }
