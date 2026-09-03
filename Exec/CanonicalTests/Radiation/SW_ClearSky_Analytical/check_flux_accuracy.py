@@ -18,42 +18,44 @@ import numpy as np
 import math
 
 def read_radiation_diag(filename):
-    """Read radiation diagnostic CSV file and return parsed data."""
-    data = {
-        'step': [],
-        'time': [],
-        'SW_surface': [],
-        'SW_TOA': [],
-        'F_up_surface': [],
-        'F_down_toa': [],
-        'heating_rate_max': []
-    }
-    
+    """Read the radiation diagnostic CSV and return a dict of column lists.
+
+    The file is comma separated with a header line
+    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    so columns are looked up by name rather than by position. Non-numeric
+    columns (call_site) are kept as strings; numeric columns are floats.
+    """
+    import csv
     try:
         with open(filename, 'r') as f:
-            # Skip header line
-            f.readline()
-            for line in f:
-                line = line.strip()
-                if not line:
+            reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                print(f"ERROR: No header found in {filename}")
+                return None
+            data = {name.strip(): [] for name in reader.fieldnames}
+            for row in reader:
+                if not any((v or '').strip() for v in row.values()):
                     continue
-                parts = line.split(',')
-                if len(parts) >= 7:
-                    data['step'].append(int(parts[0]))
-                    data['time'].append(float(parts[1]))
-                    data['SW_surface'].append(float(parts[2]))
-                    data['SW_TOA'].append(float(parts[3]))
-                    data['F_up_surface'].append(float(parts[4]))
-                    data['F_down_toa'].append(float(parts[5]))
-                    data['heating_rate_max'].append(float(parts[6]))
+                for name in reader.fieldnames:
+                    key = name.strip()
+                    val = (row.get(name) or '').strip()
+                    if key == 'call_site':
+                        data[key].append(val)
+                    elif key == 'step':
+                        data[key].append(int(float(val)))
+                    else:
+                        try:
+                            data[key].append(float(val))
+                        except ValueError:
+                            data[key].append(float('nan'))
     except IOError:
         print(f"ERROR: Could not read {filename}")
         return None
-    
-    if not data['step']:
+
+    if not data.get('step'):
         print(f"ERROR: No data found in {filename}")
         return None
-    
+
     return data
 
 def compute_analytical_sw_flux(z, z_surface, z_toa, S0, cos_zenith, tau_per_layer):
@@ -77,6 +79,22 @@ def compute_analytical_sw_flux(z, z_surface, z_toa, S0, cos_zenith, tau_per_laye
     # Optical depth from TOA to this level
     tau_cumulative = tau_per_layer * (z_toa - z)
     return S0 * cos_zenith * math.exp(-tau_cumulative / cos_zenith)
+
+
+def read_input_real(inputs_file, key, default):
+    """Return the numeric value of `key` from an ERF inputs file, or `default`."""
+    try:
+        with open(inputs_file, 'r') as f:
+            for line in f:
+                line = line.split('#', 1)[0].strip()
+                if not line or '=' not in line:
+                    continue
+                k, v = (s.strip() for s in line.split('=', 1))
+                if k == key:
+                    return float(v.strip('"'))
+    except IOError:
+        pass
+    return default
 
 def check_sw_flux_accuracy():
     """Check SW flux accuracy against analytical solution."""
@@ -104,9 +122,15 @@ def check_sw_flux_accuracy():
     # Expected TOA flux (direct beam at top of atmosphere)
     expected_toa_flux = S0 * cos_zenith
     
-    # Expected surface flux (after passing through all 64 layers)
+    # Expected incident surface flux (after passing through all 64 layers)
     tau_total = tau_per_layer * 64
-    expected_surface_flux = S0 * cos_zenith * math.exp(-tau_total / cos_zenith)
+    expected_incident_flux = S0 * cos_zenith * math.exp(-tau_total / cos_zenith)
+
+    # The SW_surface diagnostic is the flux absorbed by the surface, i.e. the
+    # incident flux times (1 - albedo). The albedo comes from the inputs file
+    # (erf.radiation.surface_albedo_sw, default 0.3 in RadChoice).
+    surface_albedo = read_input_real("inputs", "erf.radiation.surface_albedo_sw", 0.3)
+    expected_surface_flux = expected_incident_flux * (1.0 - surface_albedo)
     
     # Tolerance for numerical accuracy (5%)
     tolerance = 0.05
@@ -122,7 +146,9 @@ def check_sw_flux_accuracy():
     print(f"  Total optical depth (64 layers) = {tau_total:.4f}")
     print(f"\nExpected Fluxes:")
     print(f"  Expected TOA flux = {expected_toa_flux:.2f} W/m^2")
-    print(f"  Expected surface flux = {expected_surface_flux:.2f} W/m^2")
+    print(f"  Surface albedo = {surface_albedo:.3f}")
+    print(f"  Expected incident surface flux = {expected_incident_flux:.2f} W/m^2")
+    print(f"  Expected absorbed surface flux = {expected_surface_flux:.2f} W/m^2")
     
     # Extract last timestep data
     last_idx = -1

@@ -40,14 +40,14 @@ This results in:
 
 - `inputs` — Main control file with cloud optical-depth parameters
 - `sounding_us_standard_atm` — Reference atmospheric sounding
-- `check_cloud_accuracy.py` — Python validation script
+- `check_flux_accuracy.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/SW_Cloud_Layer
 mpirun -np 1 erf.ex inputs
-python3 check_cloud_accuracy.py
+python3 check_flux_accuracy.py
 ```
 
 ## Validation Criteria

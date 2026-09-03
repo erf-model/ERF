@@ -11,6 +11,7 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_EOS.H>
 #include <cmath>
 #include <limits>
 
@@ -69,42 +70,52 @@ void fill_or_copy_seb_field(
  * - Dynamic solar geometry (time-varying solar position)
  * - Surface energy balance diagnostics and prognostic updates
  *
+ * Vertical orientation follows ERF: k = kmin is the surface layer and
+ * k = kmax the top layer. SW sweeps downward from kmax to kmin; LW sweeps
+ * downward (TOA -> surface) and then upward (surface -> TOA). Layer
+ * temperature is obtained from rho*theta through the Exner function.
+ *
  * Note: CSV diagnostics (SW_surface, heating_rate_max, etc.) are maintained
  * for backward RegTest compatibility. heating_rate_max is the max(|Q_sw|+|Q_lw|)
  * observed during the column evaluation.
  */
 
 /**
- * @brief GPU-safe helper function to compute temperature from RhoTheta and background state.
+ * @brief GPU-safe helper to compute absolute temperature from (rho, rho*theta).
  *
- * Converts specific enthalpy form (RhoTheta) to absolute temperature using:
- *   T = (RhoTheta / Rho) * (p / p_ref)^(R_d / cp)
- *
- * For simplicity, we use a constant reference pressure approximation.
+ * ERF stores dry density and dry potential temperature. The pressure follows
+ * from the equation of state,
+ *   p = p_0 * (R_d * rho * theta_m / p_0)^gamma,   theta_m = theta * (1 + R_v/R_d * qv),
+ * and the absolute temperature is recovered through the Exner function,
+ *   T = theta * (p / p_0)^(R_d / c_p),
+ * which getTgivenRandRTh() evaluates as p / (R_d * rho * (1 + R_v/R_d * qv)).
  *
  * @param[in] rho_theta RhoTheta component [K·kg/m^3]
  * @param[in] rho Density [kg/m^3]
- * @return Temperature [K]
+ * @param[in] qv Water-vapor mixing ratio [kg/kg] (0 for dry air)
+ * @return Temperature [K], clamped to [100, 400]; 288.15 for unphysical input.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho)
+amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho,
+                                          amrex::Real qv = 0.0)
 {
-    if (rho <= 0.0) {
+    if (!(rho > 0.0) || !std::isfinite(rho) ||
+        !(rho_theta > 0.0) || !std::isfinite(rho_theta)) {
         return 288.15;  // Defensive: fallback to standard T
     }
-    if (rho_theta <= 0.0) {
+    if (!(qv >= 0.0) || !std::isfinite(qv)) {
+        qv = 0.0;
+    }
+
+    amrex::Real T = getTgivenRandRTh(rho, rho_theta, qv);
+    if (!std::isfinite(T) || T <= 0.0) {
         return 288.15;  // Defensive: fallback
     }
 
-    // Simplified: assume theta approximately T (ignores Exner function)
-    // Real implementation would use background state and pressure profile
-    amrex::Real theta = rho_theta / rho;
-
-    // Defensive clipping
-    theta = std::max(theta, 100.0);  // Minimum sensible theta
-    theta = std::min(theta, 400.0);  // Maximum sensible theta
-
-    return theta;
+    // Defensive clipping to a sensible terrestrial range
+    T = std::max(T, 100.0);
+    T = std::min(T, 400.0);
+    return T;
 }
 
 /**
@@ -242,27 +253,6 @@ amrex::Real resolve_surface_temp_k(
     return t_surf;
 }
 
-/**
- * @brief Compute vertical thickness of a single layer.
- *
- * For uniform grids: dz = geom.CellSize(2)
- * For nonuniform/terrain-aware grids: dz = z_cc(k) - z_cc(k+1)
- *
- * Currently, ERF's two-stream radiation uses only uniform geom.CellSize(2).
- * This helper is prepared for future terrain-aware integration but currently
- * always returns the uniform spacing.
- *
- * @param[in] k Vertical cell index
- * @param[in] geom Geometry for this level
- * @return Vertical cell thickness [m]
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_dz_for_level(int /*k*/, const Geometry& geom)
-{
-    // No-op stub: currently always use uniform grid
-    // Future: when z_phys_cc is available in device scope, use per-level spacing
-    return geom.CellSize(2);
-}
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real level_height_m(int k, int kmin, amrex::Real dz)
 {
@@ -580,13 +570,12 @@ amrex::Real diagnose_cloud_fraction_prognostic(
         if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
     }
 
-    amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho);
+    // Temperature (via the Exner function) and pressure from the equation of state
+    amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho, qv);
     if (T <= 0.0 || !std::isfinite(T)) T = 288.15;
 
-    // Pressure at level k (simple estimate from hydrostatic equilibrium)
-    // For now, use a reference pressure; proper implementation would use geom/k
-    amrex::Real P = 101325.0 * std::pow(T / 288.15, -5.255);  // Fallback approximation
-    if (P <= 0.0 || !std::isfinite(P)) P = 101325.0;
+    amrex::Real P = getPgivenRTh(rho_theta, qv);
+    if (P <= 0.0 || !std::isfinite(P)) P = p_0;
 
     // Compute RH from qv
     amrex::Real rh = compute_relative_humidity(qv, T, P);
@@ -603,64 +592,153 @@ amrex::Real diagnose_cloud_fraction_prognostic(
 
 /**
  * @brief Maximum number of vertical levels supported by the
- * fixed-capacity per-column LW flux buffers in vertical_two_stream_sweep().
+ * fixed-capacity per-column buffers in vertical_two_stream_sweep().
  *
  * The LW heating-rate computation requires the full upward and downward LW
  * flux profile (not just the surface value), so this kernel stores both
- * profiles in device-local arrays sized to this capacity. This is a
- * pragmatic, GPU-safe alternative to dynamic per-thread allocation.
+ * interface profiles, the per-layer thickness and the per-layer LW optical
+ * depth in device-local arrays sized to this capacity. This is a pragmatic,
+ * GPU-safe alternative to dynamic per-thread allocation.
  *
  * If bx.length(2) exceeds this value, an AMREX_ALWAYS_ASSERT will fire at
- * runtime (see compute_twostream_radiation_diagnostics()). Increase this
- * constant if a taller domain is required; note memory-per-thread scales
- * linearly with it (2 * MAX_RAD_LEVELS * sizeof(amrex::Real) bytes).
+ * runtime. Increase this constant if a taller domain is required; note
+ * memory-per-thread scales linearly with it.
  */
 constexpr int MAX_RAD_LEVELS = 512;
+
+/**
+ * @brief Water-vapor mixing ratio qv = RhoQv / Rho at (i,j,k).
+ *
+ * Returns 0 when the state carries no moisture components, or when the
+ * stored values are non-finite or negative.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_qv_from_state(int i, int j, int k,
+                              const Array4<const amrex::Real>& state_arr)
+{
+    if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
+    amrex::Real rho    = state_arr(i, j, k, Rho_comp);
+    amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
+    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
+    amrex::Real qv = rho_qv / rho;
+    return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
+}
+
+/**
+ * @brief GPU-safe helper to assemble the total per-layer optical depth at
+ * level k for either the SW or the LW band.
+ *
+ * The contributions are applied in the same order for both bands:
+ * 1. clear-sky base value, plus the cloud-layer enhancement when the column
+ *    is evaluated as "cloudy" and the level lies inside the cloud band;
+ * 2. optional moisture-dependent (dynamic) term from qv and qc;
+ * 3. optional prognostic cloud fraction, which replaces the cloud-band
+ *    enhancement by cf(k) * cloud_tau_per_layer;
+ * 4. optional prescribed aerosol term (constant, exponential or table).
+ *
+ * @param[in] i, j, k Grid indices (k increases upward; kmin is the surface layer).
+ * @param[in] kmin Lowest vertical index (surface layer).
+ * @param[in] dz_uniform Uniform vertical spacing used for cloud-band detection [m].
+ * @param[in] dz_layer Thickness of this layer [m].
+ * @param[in] z_layer Height of this layer above the domain base [m].
+ * @param[in] state_arr State array (read-only).
+ * @param[in] tau_base Clear-sky optical depth per layer for this band.
+ * @param[in] is_sw true for the shortwave band, false for longwave.
+ * @param[in] cloudy true for the cloudy-column evaluation.
+ * @param[in] rad_choice Radiation parameters.
+ * @param[in] geom Geometry (passed through to cloud-fraction diagnosis).
+ * @return Optical depth of layer k [unitless].
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_layer_tau(
+    int i, int j, int k, int kmin,
+    amrex::Real dz_uniform, amrex::Real dz_layer, amrex::Real z_layer,
+    const Array4<const amrex::Real>& state_arr,
+    amrex::Real tau_base, bool is_sw, bool cloudy,
+    const RadChoice& rad_choice, const Geometry& geom)
+{
+    // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
+    amrex::Real tau = tau_layer_value(k, kmin, dz_uniform, tau_base, rad_choice, cloudy);
+
+    // Dynamic (moisture-dependent) contribution.
+    bool dynamic_enabled = is_sw ? rad_choice.tau_sw_dynamic_enable
+                                 : rad_choice.tau_lw_dynamic_enable;
+    if (dynamic_enabled) {
+        tau = is_sw ? diagnose_tau_sw_dynamic(i, j, k, state_arr, tau, rad_choice)
+                    : diagnose_tau_lw_dynamic(i, j, k, state_arr, tau, rad_choice);
+    }
+
+    // Prognostic cloud fraction: scale the cloud-band enhancement by cf(k).
+    if (rad_choice.cloud_fraction_prog_enable && cloudy &&
+        rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+        is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
+        amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
+        amrex::Real tau_clear_k = tau_layer_value(k, kmin, dz_uniform, tau_base, rad_choice, /*apply_cloud=*/false);
+        tau = tau_clear_k + cf_prog * rad_choice.cloud_tau_per_layer;
+    }
+
+    // Prescribed bulk aerosol contribution (added on top of everything above).
+    if (rad_choice.aerosol_enable) {
+        amrex::Real tau_aerosol = 0.0;
+        if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
+            tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
+        } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
+            tau_aerosol = diagnose_tau_aerosol_exponential(z_layer, dz_layer,
+                                                           rad_choice.aerosol_tau_surface,
+                                                           rad_choice.aerosol_scale_height_m);
+        } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
+            tau_aerosol = diagnose_tau_aerosol_table(k);
+        }
+        tau += tau_aerosol;
+    }
+
+    return tau;
+}
 
 /**
  * @brief GPU-safe per-column vertical integration kernel for two-stream
  * radiation, computing either the clear-sky or cloudy-column fluxes and
  * per-level heating rates, depending on the `cloudy` flag.
  *
- * Performs a vertical sweep over each (i,j) column:
- * 1. Initialize fluxes at TOA
- * 2. Sweep downward (k: TOA → surface), accumulating optical depth and
- *    diffuse SW flux; writes per-level SW heating rate to
- *    qheating_arr(i,j,k,0) at every level.
- * 3. Sweep upward then downward for LW (in the downward pass), storing the full
- *    per-level flux profiles in local buffers, then computes per-level LW
- *    heating rate from net-flux divergence and writes to
- *    qheating_arr(i,j,k,1) at every level.
- * 4. Reduction-based scalar diagnostics (max heating rate, surface fluxes)
- *    are still produced for CSV/console output, unchanged.
+ * **Vertical orientation.** ERF's vertical index increases upward: k = kmin
+ * is the layer adjacent to the surface and k = kmax is the layer adjacent to
+ * the top of the domain (TOA for this model). Layer k spans the interfaces
+ * m = k - kmin (bottom) and m = k - kmin + 1 (top), so interface m = 0 is the
+ * surface and m = nlev is the TOA.
+ *
+ * Per (i,j) column:
+ * 1. SW: sweep downward from k = kmax to k = kmin, accumulating optical depth
+ *    and the direct + diffuse downwelling flux; the per-level SW heating rate
+ *    is written to qheating_arr(i,j,k,0).
+ * 2. LW: sweep downward from the TOA (F_down = 0) to the surface, then upward
+ *    from the surface (F_up = eps * sigma * T_s^4) to the TOA, storing both
+ *    interface profiles. The per-level LW heating rate from the net-flux
+ *    divergence is written to qheating_arr(i,j,k,1).
+ * 3. Scalar diagnostics (max heating rate, surface fluxes) are returned for
+ *    the reduction in the caller.
+ *
+ * Layer temperature is obtained from (rho, rho*theta, qv) through the
+ * equation of state, i.e. including the Exner function, so LW emission uses
+ * absolute temperature rather than potential temperature.
  *
  * Integrates per-column heterogeneous surface properties (albedo,
  * emissivity, surface temperature) from optional fields with robust fallback
- * to RadChoice scalar parameters. If hetero fields unavailable or contain
- * invalid values, falls back silently to scalar/hard defaults.
- *
- * All arrays are on device; scalar results are accumulated into reduction
- * variables, while per-level heating rates are written directly into
- * qheating_arr.
+ * to RadChoice scalar parameters.
  *
  * @param[in] i, j Column indices
- * @param[in] bx Computational box (cell-centered, full domain)
+ * @param[in] bx Computational box (cell-centered, full vertical extent)
  * @param[in] geom Geometry for this AMR level
  * @param[in] state_arr Array proxy to state data (read-only)
  * @param[in] rad_choice Radiation parameters
  * @param[in] cloudy If true and tau_profile_type == CloudLayer, apply the
- * cloud-layer optical depth enhancement (and cloud scattering
- * properties); if false, always use the clear-sky (constant) tau and
- * clear-sky scattering properties regardless of tau_profile_type. This lets
- * the caller compute both F_clear and F_cloudy for cloud-fraction blending.
- * @param[out] qheating_arr Mutable per-column array; component 0
- * receives the SW heating rate [K/s] and component 1 the LW heating rate
- * [K/s] at every level k in [kmin, kmax]. Must have at least 2 components
- * and cover the full vertical extent of bx.
- * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed (device-side scalar)
- * @param[out] sw_surface_flux Downwelling SW at surface (direct + diffuse) (device-side scalar)
- * @param[out] lw_net_surface Net LW at surface (device-side scalar)
- * @param[in] z_phys_cc Optional physical height array for nonuniform dz support
+ * cloud-layer optical depth enhancement (and cloud scattering properties).
+ * @param[out] qheating_arr Component 0 receives the SW heating rate [K/s]
+ * and component 1 the LW heating rate [K/s] at every level k in [kmin, kmax].
+ * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed in this column
+ * @param[out] sw_surface_flux Absorbed downwelling SW at the surface (direct + diffuse)
+ * @param[out] lw_net_surface Net LW (up - down) at the surface
+ * @param[in] z_phys_cc Optional cell-centered physical height (nonuniform dz)
+ * @param[in] time_utc_seconds UTC seconds within the day (dynamic solar geometry)
  * @param[in] has_hetero_alb_sw true if hetero_alb_sw is available
  * @param[in] hetero_alb_sw Optional per-column SW surface albedo field
  * @param[in] has_hetero_emiss_lw true if hetero_emiss_lw is available
@@ -689,59 +767,57 @@ void vertical_two_stream_sweep(
     bool has_t_sfc = false,
     const Array4<const amrex::Real>* t_sfc = nullptr)
 {
-    // Grid bounds
-    int kmin = bx.smallEnd(2);
-    int kmax = bx.bigEnd(2);
-    int nlev = kmax - kmin + 1;
+    // Grid bounds: kmin is the surface layer, kmax the top layer.
+    const int kmin = bx.smallEnd(2);
+    const int kmax = bx.bigEnd(2);
+    const int nlev = kmax - kmin + 1;
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
+        "vertical_two_stream_sweep: domain vertical extent exceeds "
+        "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
 
     // Physical constants
-    amrex::Real sigma = 5.670374419e-8;  // Stefan-Boltzmann [W/(m^2·K^4)]
-    amrex::Real cp_air = 1005.0;         // Specific heat at constant pressure [J/(kg·K)]
+    const amrex::Real sigma  = 5.670374419e-8;  // Stefan-Boltzmann [W/(m^2·K^4)]
+    const amrex::Real cp_air = 1005.0;          // Specific heat at constant pressure [J/(kg·K)]
 
-    // Get vertical grid spacing from geometry
-    // Compute per-level dz from z_phys_cc differences for nonuniform grids;
-    // fall back to CellSize(2) if z_phys_cc unavailable.
-    amrex::Real dz_uniform = geom.CellSize(2);  // Uniform vertical cell spacing [m] (fallback)
-    
-    // Per-level dz array for nonuniform grid support.
-    // Attempt to compute from z_phys_cc; fall back to uniform if unavailable.
-    // Defensive: If nlev > MAX_RAD_LEVELS, this will still work but degrade to
-    // uniform spacing (the AMREX_ALWAYS_ASSERT in the caller will catch over-tall domains).
+    // ------------------------------------------------------------------
+    // Layer thickness dz_level[m] and layer height z_level[m] (height of the
+    // layer above the domain base, used by the exponential aerosol profile).
+    // Thickness comes from cell-centered height differences when z_phys_cc
+    // is available, otherwise from the uniform spacing.
+    // ------------------------------------------------------------------
+    const amrex::Real dz_uniform = geom.CellSize(2);
     amrex::Real dz_level[MAX_RAD_LEVELS];
-    
-    // Compute per-level dz from z_phys_cc if available
-    //bool using_nonuniform_dz = false;
+    amrex::Real z_level[MAX_RAD_LEVELS];
+
+    for (int m = 0; m < nlev; ++m) {
+        dz_level[m] = dz_uniform;
+    }
     if (z_phys_cc) {
-        //using_nonuniform_dz = true;
-        for (int k = 0; k < nlev && (kmin + k) < kmax; ++k) {
-            // Compute layer thickness from cell-centered heights
-            // Layer k extends from z_phys_cc(i,j,k) to z_phys_cc(i,j,k+1)
-            amrex::Real dz_computed = std::abs(z_phys_cc(i,j,kmin+k+1) - z_phys_cc(i,j,kmin+k));
-            
-            // Safety check: ensure positive and reasonable dz
-            if (dz_computed > 0.0) {
-                dz_level[k] = dz_computed;
-            } else {
-                // Fallback to uniform if computed dz is invalid
-                dz_level[k] = dz_uniform;
-                //using_nonuniform_dz = false;  // Mark as fallback used
+        for (int m = 0; m + 1 < nlev; ++m) {
+            amrex::Real dz_computed = z_phys_cc(i, j, kmin + m + 1) - z_phys_cc(i, j, kmin + m);
+            if (dz_computed > 0.0 && std::isfinite(dz_computed)) {
+                dz_level[m] = dz_computed;
             }
         }
-        // Handle top level (kmax): use uniform spacing as fallback
-        if ((kmax - kmin) < MAX_RAD_LEVELS && (kmax - kmin) >= 0) {
-            dz_level[kmax - kmin] = dz_uniform;  // Top level uses uniform fallback
-        }
-    } else {
-        // Fallback: z_phys_cc not available, use uniform spacing
-        for (int k = 0; k < nlev && (kmin + k) <= kmax; ++k) {
-            dz_level[k] = dz_uniform;
+        // Top layer: no level above; reuse the thickness of the layer below.
+        if (nlev > 1) dz_level[nlev - 1] = dz_level[nlev - 2];
+    }
+    {
+        amrex::Real z_accum = 0.0;
+        for (int m = 0; m < nlev; ++m) {
+            if (z_phys_cc) {
+                z_level[m] = z_phys_cc(i, j, kmin + m) - z_phys_cc(i, j, kmin);
+            } else {
+                z_level[m] = z_accum;
+            }
+            z_accum += dz_level[m];
         }
     }
 
-    // Compute solar zenith angle (optionally dynamic from solar geometry)
+    // Solar zenith angle (optionally time-varying)
     amrex::Real cos_zenith;
     if (rad_choice.solar_geometry_dynamic_enable) {
-        // Compute cos_zenith dynamically from solar position
         cos_zenith = compute_cos_zenith_angle(
             time_utc_seconds,
             rad_choice.latitude_deg,
@@ -749,390 +825,163 @@ void vertical_two_stream_sweep(
             rad_choice.day_of_year,
             rad_choice.time_zone_offset_hours);
     } else {
-        // and earlier: Use fixed solar zenith angle (bitwise-identical)
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
 
-    // TOA values
-    amrex::Real S0 = rad_choice.S0;
-    amrex::Real tau_sw_base = rad_choice.tau_per_layer;
-    amrex::Real tau_lw_base = rad_choice.tau_lw_per_layer;
-
-    // Initialize accumulators
-    amrex::Real tau_sw_cum = 0.0;      // Cumulative SW optical depth (TOA → current level)
-    amrex::Real F_sw_dir_prev = 0.0;   // SW direct flux at previous level
-    amrex::Real F_sw_diff_prev = 0.0;  // SW diffuse flux at previous level
-    amrex::Real F_lw_down_curr = 0.0;  // LW downwelling at current level (from downward sweep)
+    const amrex::Real S0          = rad_choice.S0;
+    const amrex::Real tau_sw_base = rad_choice.tau_per_layer;
+    const amrex::Real tau_lw_base = rad_choice.tau_lw_per_layer;
 
     amrex::Real local_max_heating = 0.0;
 
-    // Zero-initialize this column's heating rate output (defensive: covers
-    // both sw_enabled=false and lw_enabled=false cases below).
+    // Zero-initialize this column's heating rate output (covers the
+    // sw_enabled=false and lw_enabled=false cases).
     for (int k = kmin; k <= kmax; ++k) {
         qheating_arr(i, j, k, 0) = 0.0;
         qheating_arr(i, j, k, 1) = 0.0;
     }
 
-    // TOA: initialize SW direct beam
+    // ========================================================================
+    // SHORTWAVE: downward sweep from the top layer (k = kmax) to the surface
+    // layer (k = kmin). "prev" refers to the interface above the current
+    // layer, "curr" to the interface below it.
+    // ========================================================================
+    amrex::Real tau_sw_cum    = 0.0;  // Cumulative SW optical depth from TOA
+    amrex::Real F_sw_dir_prev = 0.0;  // Direct SW flux at the top of the current layer
+    amrex::Real F_sw_diff_prev = 0.0; // Diffuse SW flux at the top of the current layer
+
     if (rad_choice.sw_enabled) {
-    if (cos_zenith > 0.0) {
-        F_sw_dir_prev = S0 * cos_zenith;  // TOA incident (tau = 0)
-    }
-    F_sw_diff_prev = 0.0;  // No diffuse flux incident from above TOA
-
-    // ========================================================================
-    // DOWNWARD PASS: Accumulate optical depth and compute SW direct-beam plus
-    // diffuse flux; write per-level SW heating rate.
-    // ========================================================================
-    for (int k = kmin; k <= kmax; ++k) {
-        // Read state at this level
-        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-
-        // Defensive clipping
-        if (rho <= 0.0) rho = 1.0;
-        if (rho_theta <= 0.0) rho_theta = 288.15;
-
-    // per-level optical depth (constant, or +cloud within layer)
-        // NOTE: Use uniform dz for cloud-layer height detection (to keep cloud
-        // position logic unchanged from prior phases)
-        amrex::Real tau_sw = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, cloudy);
-
-        // Apply dynamic tau diagnosis if enabled
-        if (rad_choice.tau_sw_dynamic_enable) {
-            tau_sw = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau_sw, rad_choice);
+        if (cos_zenith > 0.0) {
+            F_sw_dir_prev = S0 * cos_zenith;  // TOA incident (tau = 0)
         }
+        F_sw_diff_prev = 0.0;  // No diffuse flux incident from above TOA
 
-        // Apply prognostic cloud fraction modulation if enabled
-        // Scale the cloud optical depth contribution by the diagnosed cf(k)
-        if (rad_choice.cloud_fraction_prog_enable && cloudy && 
-            rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
-            is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
-            amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
-            // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
-            // We need to recover tau_base and add cf-scaled cloud tau
-            amrex::Real tau_sw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_sw_base, rad_choice, /*cloudy=*/false);
-            tau_sw = tau_sw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
-        }
+        for (int k = kmax; k >= kmin; --k) {
+            const int m = k - kmin;
 
-        // Apply prescribed bulk aerosol optical depth if enabled
-        // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
-        if (rad_choice.aerosol_enable) {
-            amrex::Real tau_aerosol = 0.0;
-             
-            if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
-                tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
-            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
-                // Get height at current level; use z_phys_cc if available, else compute from dz
-                amrex::Real z_level = 0.0;
-                if (z_phys_cc) {
-                    z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
-                } else {
-                    z_level = 0.0;
-                    for (int kk = kmin; kk < k; ++kk) {
-                        int kk_idx = kk - kmin;
-                        amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
-                        z_level += dz_kk;
-                    }
-                }
-                int k_idx_aero = k - kmin;
-                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
-                                                              rad_choice.aerosol_scale_height_m);
-            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
-                tau_aerosol = diagnose_tau_aerosol_table(k);
-            }
-             
-            // Add aerosol tau on top of existing tau
-            tau_sw += tau_aerosol;
-        }
-
-        // Accumulate optical depths
-        tau_sw_cum += tau_sw;
-
-        // SW: Compute direct-beam flux at current level using Beer-Lambert
-        amrex::Real F_sw_dir_curr = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
-
-        // select scattering properties for this level (clear-sky vs
-        // cloud, depending on the "cloudy" column flag and whether this level
-        // falls within the cloud band). Use uniform dz for cloud detection.
-        amrex::Real omega = 0.0;
-        amrex::Real g = 0.0;
-        select_scattering_props(k, kmin, dz_uniform, rad_choice, cloudy, omega, g);
-
-        amrex::Real F_sw_diff_layer =
-            compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
-        // Total diffuse flux at this level = diffuse flux transmitted from
-        // above (attenuated by this layer's direct transmittance, as a
-        // simple first-order approximation) + diffuse flux newly generated
-        // within this layer.
-        amrex::Real Tdir_layer = (cos_zenith > 0.0)
-            ? std::exp(-tau_sw / cos_zenith)
-            : 0.0;
-        amrex::Real F_sw_diff_curr = F_sw_diff_prev * Tdir_layer + F_sw_diff_layer;
-
-        // Total SW flux (direct + diffuse) at top and bottom of this layer,
-         // used for heating rate divergence.
-         amrex::Real F_sw_total_prev = F_sw_dir_prev + F_sw_diff_prev;
-         amrex::Real F_sw_total_curr = F_sw_dir_curr + F_sw_diff_curr;
-
-         // SW heating in this layer, written at EVERY level (not
-         // just k < kmax as in earlier max-only reduction), so that the
-         // per-level qheating_arr output has a physically meaningful value
-         // covering the whole column.
-         // 
-         // Use per-level dz for heating divergence (supports nonuniform grids).
-         // Currently all levels use uniform spacing; fallback is automatic.
-         int k_idx = k - kmin;
-         amrex::Real dz_heating = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
-             ? dz_level[k_idx] 
-             : dz_uniform;  // Defensive fallback
-         amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_prev, F_sw_total_curr,
-                                                     dz_heating, rho, cp_air);
-         qheating_arr(i, j, k, 0) = Q_sw;
-         local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
-
-        // Prepare for next iteration
-        F_sw_dir_prev = F_sw_dir_curr;
-        F_sw_diff_prev = F_sw_diff_curr;
-    }
-    }
-
-    // ========================================================================
-    // LW: store full per-level upward/downward flux profiles in
-    // local, fixed-capacity buffers so a per-level net-flux-divergence
-    // heating rate can be computed after both sweeps complete.
-    // ========================================================================
-    amrex::Real F_lw_up_curr = 0.0;  // Will be set at k = kmax (surface)
-    amrex::Real F_lw_up_profile[MAX_RAD_LEVELS];
-    amrex::Real F_lw_down_profile[MAX_RAD_LEVELS];
-
- if (rad_choice.lw_enabled) {
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
-        "vertical_two_stream_sweep: domain vertical extent exceeds "
-        "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
-
-    // ========================================================================
-    // UPWARD PASS: Compute LW upwelling flux from surface to TOA
-    // ========================================================================
-    for (int k = kmax; k >= kmin; --k) {
-        // Read state at this level for temperature (needed for LW flux computation)
-        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-
-        // Defensive clipping
-        if (rho <= 0.0) rho = 1.0;
-        if (rho_theta <= 0.0) rho_theta = 288.15;
-
-        amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
-
-        // per-level LW optical depth (constant, or +cloud within layer)
-        amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
-
-        // Apply dynamic tau diagnosis if enabled
-        if (rad_choice.tau_lw_dynamic_enable) {
-            tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
-        }
-
-        // Apply prognostic cloud fraction modulation if enabled
-        // Scale the cloud optical depth contribution by the diagnosed cf(k)
-        if (rad_choice.cloud_fraction_prog_enable && cloudy && 
-            rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
-            is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
-            amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
-            // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
-            amrex::Real tau_lw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, /*cloudy=*/false);
-            tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
-        }
-
-        // Apply prescribed bulk aerosol optical depth if enabled
-        // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
-        // Note: LW aerosol support introduced here as part of full implementation
-        // (separate enable flag for LW-only control can be added in if needed)
-        if (rad_choice.aerosol_enable) {
-            amrex::Real tau_aerosol = 0.0;
-             
-            if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
-                tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
-            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
-                // Get height at current level; use z_phys_cc if available, else compute from dz
-                amrex::Real z_level = 0.0;
-                if (z_phys_cc) {
-                    z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
-                } else {
-                    z_level = 0.0;
-                    for (int kk = kmin; kk < k; ++kk) {
-                        int kk_idx = kk - kmin;
-                        amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
-                        z_level += dz_kk;
-                    }
-                }
-                int k_idx_aero = k - kmin;
-                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
-                tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
-                                                              rad_choice.aerosol_scale_height_m);
-            } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
-                tau_aerosol = diagnose_tau_aerosol_table(k);
-            }
-             
-            // Add aerosol tau on top of existing tau
-            tau_lw += tau_aerosol;
-        }
-
-        if (k == kmax) {
-            // Surface: initialize upwelling flux
-            // Resolve surface temperature and emissivity from hetero fields or fallback
-            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc);
-            amrex::Real emiss_lw = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
-            
-            // Thermal intensity at surface (Stefan-Boltzmann with emissivity)
-            amrex::Real I_thermal_surface = emiss_lw * compute_thermal_intensity(t_surface, sigma);
-            F_lw_up_curr = I_thermal_surface;
-        } else {
-            // Propagate upward through this layer
-            F_lw_up_curr = compute_lw_flux_up(F_lw_up_curr, T_layer, sigma, tau_lw);
-        }
-        F_lw_up_profile[k - kmin] = F_lw_up_curr;
-    }
-
-    // ========================================================================
-    // DOWNWARD PASS: Compute real LW downwelling flux
-    // ========================================================================
-    if (!rad_choice.isothermal_test) {
-        // For non-isothermal case, compute real downward two-stream sweep
-        F_lw_down_curr = 0.0;  // Start from TOA (no incoming from space)
-        for (int k = kmin; k <= kmax; ++k) {
-            // Read state at this level
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
-            amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
-            // Defensive clipping
-            if (rho <= 0.0) rho = 1.0;
-            if (rho_theta <= 0.0) rho_theta = 288.15;
+            amrex::Real tau_sw = diagnose_layer_tau(i, j, k, kmin, dz_uniform, dz_level[m], z_level[m],
+                                                    state_arr, tau_sw_base, /*is_sw=*/true, cloudy,
+                                                    rad_choice, geom);
+            tau_sw_cum += tau_sw;
 
-            amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho);
+            // Direct beam at the bottom of this layer (Beer-Lambert)
+            amrex::Real F_sw_dir_curr = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
 
-            // per-level LW optical depth (constant, or +cloud within layer)
-            amrex::Real tau_lw = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, cloudy);
+            // Diffuse flux: transmitted from above plus newly scattered in this layer
+            amrex::Real omega = 0.0;
+            amrex::Real g = 0.0;
+            select_scattering_props(k, kmin, dz_uniform, rad_choice, cloudy, omega, g);
 
-            // Apply dynamic tau diagnosis if enabled
-            if (rad_choice.tau_lw_dynamic_enable) {
-                tau_lw = diagnose_tau_lw_dynamic(i, j, k, state_arr, tau_lw, rad_choice);
-            }
-
-            // Apply prognostic cloud fraction modulation if enabled
-            // Scale the cloud optical depth contribution by the diagnosed cf(k)
-            if (rad_choice.cloud_fraction_prog_enable && cloudy && 
-                rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
-                is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
-                amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
-                // Scale cloud tau contribution by cf(k): tau = tau_base + cf(k) * cloud_tau_per_layer
-                amrex::Real tau_lw_base_k = tau_layer_value(k, kmin, dz_uniform, tau_lw_base, rad_choice, /*cloudy=*/false);
-                tau_lw = tau_lw_base_k + cf_prog * rad_choice.cloud_tau_per_layer;
-            }
-
-            // Apply prescribed bulk aerosol optical depth if enabled
-            // Aerosol tau is added on top of existing tau contributions (tau_base + cloud + dynamic)
-            if (rad_choice.aerosol_enable) {
-                amrex::Real tau_aerosol = 0.0;
-                 
-                if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
-                    tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
-                } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
-                    // Get height at current level; use z_phys_cc if available, else compute from dz
-                    amrex::Real z_level = 0.0;
-                    if (z_phys_cc) {
-                        z_level = std::abs(z_phys_cc(i, j, k) - z_phys_cc(i, j, kmin));  // height above the domain base
-                    } else {
-                        z_level = 0.0;
-                        for (int kk = kmin; kk < k; ++kk) {
-                            int kk_idx = kk - kmin;
-                            amrex::Real dz_kk = (kk_idx >= 0 && kk_idx < MAX_RAD_LEVELS) ? dz_level[kk_idx] : dz_uniform;
-                            z_level += dz_kk;
-                        }
-                    }
-                int k_idx_aero = k - kmin;
-                amrex::Real dz_aero = (k_idx_aero >= 0 && k_idx_aero < MAX_RAD_LEVELS) ? dz_level[k_idx_aero] : dz_uniform;
-                    tau_aerosol = diagnose_tau_aerosol_exponential(z_level, dz_aero, rad_choice.aerosol_tau_surface, 
-                                                                  rad_choice.aerosol_scale_height_m);
-                } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
-                    tau_aerosol = diagnose_tau_aerosol_table(k);
-                }
-                 
-                // Add aerosol tau on top of existing tau
-                tau_lw += tau_aerosol;
-            }
-
-            // Compute downwelling flux at this level using real two-stream formula
-            F_lw_down_curr = compute_lw_flux_down(F_lw_down_curr, T_layer, sigma, tau_lw);
-            F_lw_down_profile[k - kmin] = F_lw_down_curr;
-        }
-
-    }
-    else {
-        // Isothermal test: all levels radiate equally; net flux is zero at
-        // every level (see SURFACE AND DIAGNOSTICS override below), so the
-        // per-level LW heating rate is exactly zero everywhere. Fill the
-        // downward profile with the (later-overridden) upward profile so
-        // the net-flux-divergence loop below produces exactly zero.
-        for (int k = kmin; k <= kmax; ++k) {
-            F_lw_down_profile[k - kmin] = F_lw_up_profile[k - kmin];
-        }
-    }
-
-    // ========================================================================
-    // Per-level LW heating rate from net-flux divergence.
-    // ========================================================================
-    for (int k = kmin; k <= kmax; ++k) {
-        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        if (rho <= 0.0) rho = 1.0;
-
-        amrex::Real F_net_top, F_net_bot;
-        if (k == kmin) {
-            // TOA: no level above; treat the "top" net flux as the TOA
-            // downward boundary condition (F_down=0 unless isothermal) minus
-            // upward flux leaving the domain top, i.e. the net flux just
-            // above this layer using the same level's upward flux (first-
-            // order approximation at the domain boundary).
-            amrex::Real F_up_top = F_lw_up_profile[k - kmin];
-            amrex::Real F_down_top = rad_choice.isothermal_test
-                ? F_lw_down_profile[k - kmin]
+            amrex::Real F_sw_diff_layer =
+                compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
+            amrex::Real Tdir_layer = (cos_zenith > 0.0)
+                ? std::exp(-tau_sw / cos_zenith)
                 : 0.0;
-            F_net_top = F_up_top - F_down_top;
-        } else {
-            F_net_top = F_lw_up_profile[k - 1 - kmin] - F_lw_down_profile[k - 1 - kmin];
+            amrex::Real F_sw_diff_curr = F_sw_diff_prev * Tdir_layer + F_sw_diff_layer;
+
+            // Heating from the divergence of the total downwelling flux
+            amrex::Real F_sw_total_top = F_sw_dir_prev + F_sw_diff_prev;
+            amrex::Real F_sw_total_bot = F_sw_dir_curr + F_sw_diff_curr;
+            amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_top, F_sw_total_bot,
+                                                       dz_level[m], rho, cp_air);
+            qheating_arr(i, j, k, 0) = Q_sw;
+            local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
+
+            F_sw_dir_prev  = F_sw_dir_curr;
+            F_sw_diff_prev = F_sw_diff_curr;
         }
-        F_net_bot = F_lw_up_profile[k - kmin] - F_lw_down_profile[k - kmin];
+    }
+    // After the loop, F_sw_*_prev hold the downwelling fluxes at the surface.
 
-        // Use per-level dz for LW heating divergence (supports nonuniform grids).
-        // Currently all levels use uniform spacing; fallback is automatic.
-        int k_idx = k - kmin;
-        amrex::Real dz_heating_lw = (k_idx >= 0 && k_idx < MAX_RAD_LEVELS) 
-            ? dz_level[k_idx] 
-            : dz_uniform;  // Defensive fallback
-        amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz_heating_lw, rho, cp_air);
-        qheating_arr(i, j, k, 1) = Q_lw;
+    // ========================================================================
+    // LONGWAVE: interface flux profiles, index m = 0 at the surface and
+    // m = nlev at the TOA.
+    // ========================================================================
+    amrex::Real F_lw_up_iface[MAX_RAD_LEVELS + 1];
+    amrex::Real F_lw_down_iface[MAX_RAD_LEVELS + 1];
+    amrex::Real tau_lw_level[MAX_RAD_LEVELS];
 
-        amrex::Real Q_sw_here = qheating_arr(i, j, k, 0);
-        local_max_heating = std::max(local_max_heating, std::abs(Q_sw_here) + std::abs(Q_lw));
+    if (rad_choice.lw_enabled) {
+        // Downward sweep: TOA -> surface. Also caches the per-layer LW optical
+        // depth for the upward sweep.
+        F_lw_down_iface[nlev] = 0.0;  // No incoming LW from space
+        for (int k = kmax; k >= kmin; --k) {
+            const int m = k - kmin;
+
+            amrex::Real rho       = state_arr(i, j, k, Rho_comp);
+            amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+            amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
+
+            tau_lw_level[m] = diagnose_layer_tau(i, j, k, kmin, dz_uniform, dz_level[m], z_level[m],
+                                                 state_arr, tau_lw_base, /*is_sw=*/false, cloudy,
+                                                 rad_choice, geom);
+
+            F_lw_down_iface[m] = compute_lw_flux_down(F_lw_down_iface[m + 1], T_layer, sigma, tau_lw_level[m]);
+        }
+
+        // Upward sweep: surface -> TOA.
+        {
+            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc);
+            amrex::Real emiss_lw  = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
+            F_lw_up_iface[0] = emiss_lw * compute_thermal_intensity(t_surface, sigma);
+        }
+        for (int k = kmin; k <= kmax; ++k) {
+            const int m = k - kmin;
+
+            amrex::Real rho       = state_arr(i, j, k, Rho_comp);
+            amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+            amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
+
+            F_lw_up_iface[m + 1] = compute_lw_flux_up(F_lw_up_iface[m], T_layer, sigma, tau_lw_level[m]);
+        }
+
+        if (rad_choice.isothermal_test) {
+            // Isothermal test: every level radiates equally, so the net flux
+            // (and hence the heating) vanishes everywhere.
+            for (int m = 0; m <= nlev; ++m) {
+                F_lw_down_iface[m] = F_lw_up_iface[m];
+            }
+        }
+
+        // Per-level LW heating rate from the net-flux divergence across
+        // each layer (bottom interface m, top interface m+1).
+        for (int k = kmin; k <= kmax; ++k) {
+            const int m = k - kmin;
+            amrex::Real rho = state_arr(i, j, k, Rho_comp);
+            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+
+            amrex::Real F_net_top = F_lw_up_iface[m + 1] - F_lw_down_iface[m + 1];
+            amrex::Real F_net_bot = F_lw_up_iface[m]     - F_lw_down_iface[m];
+
+            amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz_level[m], rho, cp_air);
+            qheating_arr(i, j, k, 1) = Q_lw;
+
+            amrex::Real Q_sw_here = qheating_arr(i, j, k, 0);
+            local_max_heating = std::max(local_max_heating, std::abs(Q_sw_here) + std::abs(Q_lw));
+        }
     }
 
-    F_lw_up_curr = F_lw_up_profile[kmax - kmin];
-    F_lw_down_curr = F_lw_down_profile[kmax - kmin];
- }
     // ========================================================================
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     if (rad_choice.sw_enabled) {
-        // Resolve per-column SW albedo from hetero field or fallback
         amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
-        
+
         if (rad_choice.isothermal_test) {
-            // Isothermal test: compute direct-beam at surface, apply albedo
+            // Isothermal test: direct beam at the surface, apply albedo
             sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum) * (1.0 - alb_sw);
         } else {
-            // Normal mode: includes both direct and diffuse terms, apply albedo
+            // Normal mode: direct plus diffuse, apply albedo
             sw_surface_flux = (F_sw_dir_prev + F_sw_diff_prev) * (1.0 - alb_sw);
         }
     } else {
@@ -1140,22 +989,24 @@ void vertical_two_stream_sweep(
     }
 
     if (rad_choice.lw_enabled) {
+        amrex::Real F_lw_up_sfc   = F_lw_up_iface[0];
+        amrex::Real F_lw_down_sfc = F_lw_down_iface[0];
         if (rad_choice.isothermal_test) {
-            amrex::Real rho_surface = state_arr(i, j, kmax, Rho_comp);
-            amrex::Real rho_theta_surface = state_arr(i, j, kmax, RhoTheta_comp);
-            if (rho_surface <= 0.0) rho_surface = 1.0;
-            if (rho_theta_surface <= 0.0) rho_theta_surface = 288.15;
-            amrex::Real T_iso = get_temperature_from_rhotheta(rho_theta_surface, rho_surface);
+            amrex::Real rho_surface       = state_arr(i, j, kmin, Rho_comp);
+            amrex::Real rho_theta_surface = state_arr(i, j, kmin, RhoTheta_comp);
+            if (rho_surface <= 0.0 || !std::isfinite(rho_surface)) rho_surface = 1.0;
+            if (rho_theta_surface <= 0.0 || !std::isfinite(rho_theta_surface)) rho_theta_surface = 288.15;
+            amrex::Real qv_surface = get_qv_from_state(i, j, kmin, state_arr);
+            amrex::Real T_iso = get_temperature_from_rhotheta(rho_theta_surface, rho_surface, qv_surface);
             amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
-            F_lw_up_curr = I_thermal;
-            F_lw_down_curr = I_thermal;
+            F_lw_up_sfc   = I_thermal;
+            F_lw_down_sfc = I_thermal;
             // Isothermal override: net LW flux and heating are exactly zero
-            // at every level, overriding the per-level values written above.
             for (int k = kmin; k <= kmax; ++k) {
                 qheating_arr(i, j, k, 1) = 0.0;
             }
         }
-        lw_net_surface = F_lw_up_curr - F_lw_down_curr;
+        lw_net_surface = F_lw_up_sfc - F_lw_down_sfc;
     } else {
         lw_net_surface = 0.0;
     }

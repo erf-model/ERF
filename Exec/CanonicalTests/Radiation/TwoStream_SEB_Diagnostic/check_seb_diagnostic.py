@@ -135,13 +135,15 @@ def check_feature_case(diag_file):
     print(f"CSV Header columns: {len(columns)}")
     print(f"  {header}")
     
-    # Phase 18 feature-on should have 10 columns (8 + SEB_residual_mean + SEB_residual_max)
+    # The feature-on CSV carries the 8 base columns plus SEB_residual_mean and
+    # SEB_residual_max (and, in newer outputs, the prognostic SEB columns), so
+    # require at least 10 columns and check the SEB columns by name below.
     expected_cols = 10
-    if len(columns) != expected_cols:
-        print(f"ERROR: Expected {expected_cols} columns, got {len(columns)}")
+    if len(columns) < expected_cols:
+        print(f"ERROR: Expected at least {expected_cols} columns, got {len(columns)}")
         return False
     else:
-        print(f"✓ Correct number of columns for feature case (10 columns)")
+        print(f"✓ Found {len(columns)} columns (>= {expected_cols}) for feature case")
     
     # Check for SEB residual columns
     if 'SEB_residual_mean' not in columns or 'SEB_residual_max' not in columns:

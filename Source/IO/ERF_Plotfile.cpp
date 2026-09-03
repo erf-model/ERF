@@ -60,12 +60,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                                 micro->Get_Qstate_Moist_Size(),
                                                 micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
-    // (Phase 20) radiation_heating_storage: recognize both RRTMGP (via rad_type) and TwoStream (via radChoice.rad_type)
-    /*capabilities.radiation_heating_storage =
-        (solverChoice.rad_type != RadiationType::None) ||
-        (solverChoice.radChoice.rad_type == RadType::TwoStream);*/
     capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
-    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    // qsrc_sw / qsrc_lw are available whenever qheating_rates is allocated,
+    // i.e. for both the RRTMGP (rad_type) and TwoStream (radChoice.rad_type) paths.
+    capabilities.radiation_heating_storage =
+        (solverChoice.rad_type != RadiationType::None) ||
+        (solverChoice.radChoice.rad_type == RadType::TwoStream);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;

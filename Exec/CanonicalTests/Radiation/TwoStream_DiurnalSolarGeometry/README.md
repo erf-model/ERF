@@ -18,7 +18,7 @@ This test confirms that:
 ### Configuration
 
 - **Domain**: 1000 m × 1000 m horizontal, 10 km vertical (20 layers)
-- **Time**: Multi-step run over a full day (e.g., 24 hours × 3600 s)
+- **Time**: `inputs_dynamic` runs a 2-hour window (stop_time = 7200 s) starting at 00:00 UTC, i.e. 18:00 local time for the UTC-6 site, so it spans the late-afternoon decline of the sun through sunset (SW flux decreasing to exactly zero). Raise `stop_time` to 86400 s for a full diurnal cycle.
 - **Location**: Latitude 40°N, Longitude 105°W (Example: Boulder, CO)
 - **Day of Year**: Summer solstice (June 21) or equinox (March 21) for symmetry
 - **Solar Constant**: S₀ = 1361 W/m²
@@ -41,14 +41,14 @@ where:
 
 - `inputs` — Main control file with solar-geometry parameters and time stepping
 - Sounding file — Reference atmospheric profile
-- `check_diurnal_accuracy.py` — Python validation script
+- `check_solar.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/TwoStream_DiurnalSolarGeometry
 mpirun -np 1 erf.ex inputs
-python3 check_diurnal_accuracy.py
+python3 check_solar.py
 ```
 
 ## Validation Criteria
@@ -66,7 +66,7 @@ The checker script verifies:
 
 ## Expected Output
 
-- Radiation diagnostics with diurnal cycle: low flux at dawn/dusk, peak at noon
+- Radiation diagnostics with a time-varying solar zenith angle: in the default 2-hour window the SW flux decreases toward sunset and is exactly zero once the sun is below the horizon (a full-day run shows low flux at dawn/dusk and a peak at noon)
 - CHECK PASS message confirming solar geometry computation
 - Smooth temporal evolution of surface flux
 - Zenith angle within physical bounds (0–180°)

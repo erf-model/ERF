@@ -24,57 +24,45 @@ import math
 import numpy as np
 
 def read_radiation_diag(filename):
-    """Read radiation diagnostic CSV file and return parsed data."""
-    data = {
-        'step': [],
-        'time': [],
-        'SW_surface': [],
-        'SW_TOA': [],
-        'F_up_surface': [],
-        'F_down_toa': [],
-        'heating_rate_max': [],
-        'heating_rate_avg': []
-    }
-    
-    if not os.path.isfile(filename):
-        print(f"ERROR: Diagnostic file not found: {filename}")
-        return None
-    
+    """Read the radiation diagnostic CSV and return a dict of column lists.
+
+    The file is comma separated with a header line
+    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    so columns are looked up by name rather than by position. Non-numeric
+    columns (call_site) are kept as strings; numeric columns are floats.
+    """
+    import csv
     try:
         with open(filename, 'r') as f:
-            lines = f.readlines()
-        
-        # Skip header and parse data lines
-        for line in lines[1:]:
-            line = line.strip()
-            if not line:
-                continue
-            
-            parts = line.split()
-            if len(parts) < 6:
-                continue
-            
-            try:
-                data['step'].append(int(parts[0]))
-                data['time'].append(float(parts[1]))
-                data['SW_surface'].append(float(parts[2]))
-                data['SW_TOA'].append(float(parts[3]))
-                data['F_up_surface'].append(float(parts[4]))
-                data['F_down_toa'].append(float(parts[5]))
-                
-                # heating_rate_max and heating_rate_avg may be present
-                if len(parts) >= 7:
-                    data['heating_rate_max'].append(float(parts[6]))
-                if len(parts) >= 8:
-                    data['heating_rate_avg'].append(float(parts[7]))
-            except ValueError:
-                continue
-    
-    except Exception as e:
-        print(f"ERROR reading diagnostic file {filename}: {e}")
+            reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                print(f"ERROR: No header found in {filename}")
+                return None
+            data = {name.strip(): [] for name in reader.fieldnames}
+            for row in reader:
+                if not any((v or '').strip() for v in row.values()):
+                    continue
+                for name in reader.fieldnames:
+                    key = name.strip()
+                    val = (row.get(name) or '').strip()
+                    if key == 'call_site':
+                        data[key].append(val)
+                    elif key == 'step':
+                        data[key].append(int(float(val)))
+                    else:
+                        try:
+                            data[key].append(float(val))
+                        except ValueError:
+                            data[key].append(float('nan'))
+    except IOError:
+        print(f"ERROR: Could not read {filename}")
         return None
-    
-    return data if data['step'] else None
+
+    if not data.get('step'):
+        print(f"ERROR: No data found in {filename}")
+        return None
+
+    return data
 
 def validate_heating_rates(data):
     """Check that heating rates are finite, nonzero, and nontrivial."""
@@ -120,17 +108,21 @@ def validate_diagnostic_consistency(data):
     steps = data['step']
     times = data['time']
     
-    # Check that steps increase
+    # Each step writes a pre_dycore and a post_dycore row, so steps and
+    # times must be non-decreasing (equal values are expected within a step).
     for i in range(1, len(steps)):
-        if steps[i] <= steps[i-1]:
+        if steps[i] < steps[i-1]:
             print(f"FAIL: Step ordering violated at index {i}: {steps[i-1]} -> {steps[i]}")
             return False
-    
-    # Check that time increases
+
     for i in range(1, len(times)):
-        if times[i] <= times[i-1]:
+        if times[i] < times[i-1]:
             print(f"FAIL: Time ordering violated at index {i}: {times[i-1]} -> {times[i]}")
             return False
+
+    if steps[-1] <= steps[0]:
+        print("FAIL: Diagnostics did not advance beyond the first step")
+        return False
     
     print(f"PASS: Diagnostics accumulate consistently")
     print(f"  Number of diagnostic steps: {len(steps)}")

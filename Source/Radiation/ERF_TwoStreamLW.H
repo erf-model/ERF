@@ -12,24 +12,34 @@
  * Implements a simplified, clear-sky longwave radiation model
  * using the gray-gas two-stream approximation (Toon et al. 1989):
  *
+ * Vertical orientation follows ERF: the vertical index k increases upward,
+ * so layer k = kmin touches the surface and k = kmax the top of the domain.
+ * Fluxes live on layer interfaces m = k - kmin (bottom of layer k) and
+ * m + 1 (top of layer k); m = 0 is the surface, m = nlev the TOA.
+ *
  * UPWARD SWEEP (from surface to TOA):
  * -----------
- *   F_up(k) = F_up(k-1) * exp(-tau_lw) + sigma * T(k-1)^4 * (1 - exp(-tau_lw))
+ *   F_up(m+1) = F_up(m) * exp(-tau_lw) + sigma * T(k)^4 * (1 - exp(-tau_lw))
  *
- *   Initial condition: F_up(surface) = sigma * T_surface^4
+ *   Initial condition: F_up(0) = emissivity * sigma * T_surface^4
  *
  * DOWNWARD SWEEP (from TOA to surface):
  * ---------------
- *   F_down(k) = F_down(k+1) * exp(-tau_lw) + sigma * T(k)^4 * (1 - exp(-tau_lw))
+ *   F_down(m) = F_down(m+1) * exp(-tau_lw) + sigma * T(k)^4 * (1 - exp(-tau_lw))
  *
- *   Initial condition: F_down(TOA) = 0 (no incoming from space)
+ *   Initial condition: F_down(nlev) = 0 (no incoming from space)
  *
  * NET FLUX AND HEATING:
  * ---------------------
- *   F_net(k) = F_up(k) - F_down(k)
- *   dF/dz = (F_up(k+1) - F_up(k)) + (F_down(k) - F_down(k+1))
- *         = [F_up(k+1) - F_down(k+1)] - [F_up(k) - F_down(k)]
- *   Q_lw = -dF/dz / (rho * cp)  [K/s]
+ *   F_net(m) = F_up(m) - F_down(m)          (positive upward)
+ *   Q_lw(k)  = -(1 / (rho * cp)) * [F_net(m+1) - F_net(m)] / dz(k)   [K/s]
+ *
+ *   A layer that emits more than it absorbs has F_net increasing with
+ *   height, so Q_lw < 0 (radiative cooling).
+ *
+ * Layer temperature T(k) is the absolute temperature obtained from
+ * rho*theta through the Exner function (see get_temperature_from_rhotheta()
+ * in ERF_AdvanceTwoStreamRadiation.cpp), not the potential temperature.
  *
  * MODEL SIMPLIFICATIONS:
  * -------------------------
@@ -120,8 +130,8 @@ compute_lw_transmit(amrex::Real tau_lw)
  *
  *   F_up_current = F_up_below * exp(-tau_lw) + sigma * T^4 * (1 - exp(-tau_lw))
  *
- * This is called iteratively from the surface (where F_up_surface = sigma * T_surface^4)
- * upward to the TOA.
+ * This is called iteratively from the surface (where
+ * F_up_surface = emissivity * sigma * T_surface^4) upward to the TOA.
  *
  * @param[in] F_up_below Upwelling flux from the layer below [W/m^2].
  * @param[in] T_layer Temperature of the current layer [K].
@@ -180,15 +190,16 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
 /**
  * @brief Compute LW heating rate from net flux divergence.
  *
- * Given the net LW flux at the top and bottom of a layer, compute the
- * radiative heating rate:
+ * Given the net LW flux (F_up - F_down, positive upward) at the top and
+ * bottom interfaces of a layer, compute the radiative heating rate:
  *
- *   F_net(k) = F_up(k) - F_down(k)
- *   dF_net/dz = [F_net(k+1) - F_net(k)] / dz
- *   Q_lw = dF_net/dz / (rho * cp)  [K/s]
+ *   dF_net/dz = [F_net_top - F_net_bot] / dz
+ *   Q_lw = -dF_net/dz / (rho * cp)  [K/s]
  *
- * Note: Positive F_net indicates cooling (more upward than downward flux);
- *       positive dF_net/dz indicates warming within the layer.
+ * Net upward flux increasing with height means the layer loses more
+ * energy through its top than it gains through its bottom, i.e. the layer
+ * cools (Q_lw < 0). This is the same sign convention as the SW heating
+ * rate: energy converging into the layer warms it.
  *
  * **Nonuniform dz Support & Sanity Checks**
  *
@@ -209,9 +220,9 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
  * @return Heating rate [K/s]. Positive values indicate warming.
  *         Returns 0 if inputs are unphysical (dz, rho, cp <= 0).
  *
- * @note The sign convention is: positive dF/dz (flux increasing upward)
- *       corresponds to warming (dT/dt > 0).
- * @note For terrain-aware grids, pass dz = z_cc(k) - z_cc(k+1) for each level.
+ * @note The sign convention is: positive dF_net/dz (net upward flux
+ *       increasing with height) corresponds to cooling (dT/dt < 0).
+ * @note For terrain-aware grids, pass dz = z_cc(k+1) - z_cc(k) for each level.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -223,9 +234,9 @@ compute_lw_heating_rate(amrex::Real F_net_top, amrex::Real F_net_bot,
   }
   // Net flux divergence: (W/m^2) / (m) = W/m^3
   amrex::Real flux_divergence = (F_net_top - F_net_bot) / dz;
-  // Heating rate: (W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
+  // Heating rate: -(W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
   // Check for NaN/Inf as defensive sanity check
-  amrex::Real heating = flux_divergence / (rho * cp);
+  amrex::Real heating = -flux_divergence / (rho * cp);
   if (!std::isfinite(heating)) {
     return 0.0;
   }

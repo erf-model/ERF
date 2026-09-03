@@ -99,6 +99,19 @@ parameterized similarly to shortwave:
 
    \tau_{\text{lw}}(k) = \tau_{\text{lw,per\_layer}} + \tau_{\text{cloud,lw}}(k) + c_{\text{qv,lw}} q_v(k) + c_{\text{qc,lw}} q_c(k)
 
+The emission temperature of each layer is the absolute temperature, recovered from the prognostic 
+:math:`\rho\theta` through the equation of state and the Exner function,
+
+.. math::
+
+   p = p_0 \left( \frac{R_d \, \rho \, \theta_m}{p_0} \right)^{\gamma}, \qquad
+   T = \theta \left( \frac{p}{p_0} \right)^{R_d / c_p},
+
+where :math:`\theta_m = \theta (1 + R_v q_v / R_d)` is the moist potential temperature. The column 
+sweeps follow ERF's vertical index convention: the lowest cell-centered index is the layer adjacent to 
+the surface and the highest index is the layer adjacent to the top of the domain, with fluxes stored on 
+the layer interfaces between them.
+
 In each layer, the two-stream equations for upward (:math:`F_{\uparrow}`) and downward (:math:`F_{\downarrow}`) 
 fluxes are:
 

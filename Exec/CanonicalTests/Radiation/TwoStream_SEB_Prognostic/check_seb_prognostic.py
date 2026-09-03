@@ -133,7 +133,15 @@ def check_feature_on():
     t_min, t_max = 200.0, 340.0
     q_min, q_max = 0.0, 1.0
     
-    for i, row in enumerate(data['rows']):
+    # The prognostic surface update runs once per step at the post_dycore
+    # call site; pre_dycore rows report NaN for T_s / q_s by design.
+    post_rows = [r for r in data['rows'] if r.get('call_site', '').strip() == 'post_dycore']
+    if not post_rows:
+        print("ERROR: No post_dycore rows found in CSV")
+        return False
+    print(f"  Validating {len(post_rows)} post_dycore rows (pre_dycore rows carry NaN by design)")
+
+    for i, row in enumerate(post_rows):
         step = int(row.get('step', -1))
         t_s_mean = row.get('T_s_mean')
         t_s_max = row.get('T_s_max')
