@@ -117,8 +117,6 @@ erf.radiation.cloud_fraction_prog_enable = false
 erf.radiation.cloud_fraction_rh_min = 0.7
 erf.radiation.cloud_fraction_rh_max = 1.0
 erf.radiation.cloud_fraction_qc_scale = 1.0e-3
-erf.radiation.cloud_fraction_smooth_enable = false
-erf.radiation.cloud_fraction_smooth_alpha = 0.0
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1

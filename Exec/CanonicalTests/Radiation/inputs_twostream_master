@@ -94,8 +94,6 @@ erf.radiation.cloud_fraction_prog_enable   = false   # Enable prognostic (RH/qc-
 erf.radiation.cloud_fraction_rh_min        = 0.0     # RH [0,1] below which diagnosed cloud fraction is 0. Default: 0.0
 erf.radiation.cloud_fraction_rh_max        = 1.0     # RH [0,1] at/above which diagnosed cloud fraction saturates to 1; must be >= rh_min. Default: 1.0
 erf.radiation.cloud_fraction_qc_scale      = 1.0e-3  # Scaling coefficient converting qc [kg/kg] into an additional cloud-fraction contribution. Default: 1.0e-3
-erf.radiation.cloud_fraction_smooth_enable = false   # Enable exponential-moving-average temporal smoothing of diagnosed cloud fraction. Bool. Default: false
-erf.radiation.cloud_fraction_smooth_alpha  = 0.0     # EMA smoothing weight [0,1]; 0=no update, 1=instant update. Default: 0.0
 
 # ==============================================================================
 # SECTION 6: Bulk aerosol / turbidity (prescribed optical depth)
