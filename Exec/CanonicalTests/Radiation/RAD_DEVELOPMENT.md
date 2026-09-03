@@ -138,7 +138,7 @@ Radiative heating is coupled into thermodynamics through the heating-rate tenden
 = \rho\,Q_{\mathrm{rad}},
 ```
 
-with separate shortwave and longwave contributions first written to `qheating_rates` and then injected into the thermodynamic update path.
+with separate shortwave and longwave contributions first written to `qheating_rates` and then injected into the thermodynamic update path. `Q_rad` is the potential-temperature tendency `(dT/dt)/pi`, with `pi = (p/p_0)^(R_d/c_p)` the Exner function; the column sweep divides the flux-divergence temperature tendency by `pi` before storing it, matching the RRTMGP path.
 
 ### Representative `RadChoice` Parameters
 

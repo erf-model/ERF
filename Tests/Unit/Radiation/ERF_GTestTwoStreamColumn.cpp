@@ -26,6 +26,8 @@
 //   2. k = kmin is the surface layer and k = kmax the top layer: SW heating
 //      is positive everywhere and decreases monotonically from the top layer
 //      to the surface layer in a uniform-density column.
+//   2b. The stored heating rates are potential-temperature tendencies,
+//      (dT/dt) / pi, matching the RhoTheta source term and RRTMGP.
 //   3. The absorbed SW surface flux equals the Beer-Lambert direct beam
 //      through the whole column times (1 - albedo), the reflected beam
 //      leaves the top attenuated by the diffuse transmittance, and the
@@ -62,8 +64,9 @@ struct ColumnResult {
 
 // Run the sweep for a column with uniform density `rho` and uniform
 // absolute temperature `T_air` (converted to rho*theta through the EOS).
-ColumnResult run_uniform_column (const RadChoice& rad_choice, amrex::Real rho, amrex::Real T_air)
+ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air)
 {
+    const TwoStreamParams rad_choice = make_two_stream_params(rad_choice_in);
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, kNz - 1));
     const amrex::RealBox real_box({0.0, 0.0, 0.0}, {kDz, kDz, kNz * kDz});
     const int is_periodic[3] = {1, 1, 0};
@@ -207,6 +210,37 @@ TEST(TwoStreamColumn, LongwaveCoolsToSpaceFromTheTopLayer)
     EXPECT_NEAR(r.lw_up_toa, B, 1.0e-9 * B);
 }
 
+TEST(TwoStreamColumn, HeatingRatesArePotentialTemperatureTendencies)
+{
+    // Non-scattering column: the top layer's temperature tendency follows
+    // from the direct beam it absorbs plus the reflected beam absorbed on
+    // the way up, and the stored value must be that divided by the Exner
+    // function.
+    const RadChoice rc = base_choice();
+    const amrex::Real rho = 1.0;
+    const amrex::Real T_air = 290.0;
+    const ColumnResult r = run_uniform_column(rc, rho, T_air);
+
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real tau = rc.tau_per_layer;
+    const amrex::Real tau_col = kNz * tau;
+    const amrex::Real F0 = rc.S0 * mu0;
+    const amrex::Real F_dir_sfc = F0 * std::exp(-tau_col / mu0);
+    // Net downward flux at the top interface and below the top layer.
+    const amrex::Real u_top = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * tau_col);
+    const amrex::Real u_below = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * (tau_col - tau));
+    const amrex::Real F_net_top = F0 - u_top;
+    const amrex::Real F_net_below = F0 * std::exp(-tau / mu0) - u_below;
+    const amrex::Real dTdt = (F_net_top - F_net_below) / (rho * Cp_d * kDz);
+
+    const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp);
+    const amrex::Real exner = getExnergivenRTh(rho * theta, RdoCp);
+    EXPECT_LT(exner, 1.0);   // the test state sits below p_0
+    EXPECT_NEAR(r.q_sw[kNz - 1], dTdt / exner, 1.0e-9 * dTdt / exner);
+    // The stored value must NOT be the raw temperature tendency.
+    EXPECT_GT(r.q_sw[kNz - 1], dTdt * (1.0 + 1.0e-6));
+}
+
 TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
 {
     const RadChoice rc = base_choice();
@@ -223,9 +257,13 @@ TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
 
     // Energy budget: absorbed by the air (sum rho cp dz Q) plus absorbed by
     // the surface equals incident minus reflected at the top.
+    // q_sw is a potential-temperature tendency; the energy absorbed by a
+    // layer is rho cp dz dT/dt = rho cp dz (pi q_sw).
+    const amrex::Real theta = getThgivenRandT(rho, 290.0, RdoCp);
+    const amrex::Real exner = getExnergivenRTh(rho * theta, RdoCp);
     amrex::Real absorbed_air = 0.0;
     for (int k = 0; k < kNz; ++k) {
-        absorbed_air += rho * Cp_d * kDz * r.q_sw[k];
+        absorbed_air += rho * Cp_d * kDz * exner * r.q_sw[k];
     }
     const amrex::Real incident = rc.S0 * mu0;
     EXPECT_NEAR(absorbed_air + r.sw_surface, incident - r.sw_up_toa, 1.0e-9 * incident);
@@ -315,31 +353,32 @@ TEST(TwoStreamColumn, CloudBandIsLocatedByLayerCenterHeight)
     rc.cloud_top_height_m = 700.0;
     rc.cloud_tau_per_layer = 0.5;
     rc.tau_per_layer = 0.05;
+    auto P = [&]() { return make_two_stream_params(rc); };
 
     // Inside the band: base + cloud enhancement for the cloudy column only.
-    EXPECT_TRUE(is_cloud_level(500.0, rc));
-    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, true), 0.55, 1.0e-12);
-    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, false), 0.05, 1.0e-12);
+    EXPECT_TRUE(is_cloud_level(500.0, P()));
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, P(), true), 0.55, 1.0e-12);
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, P(), false), 0.05, 1.0e-12);
     // Band edges are inclusive; outside the band the base value is returned.
-    EXPECT_TRUE(is_cloud_level(300.0, rc));
-    EXPECT_TRUE(is_cloud_level(700.0, rc));
-    EXPECT_FALSE(is_cloud_level(299.9, rc));
-    EXPECT_FALSE(is_cloud_level(700.1, rc));
-    EXPECT_NEAR(tau_layer_value(900.0, rc.tau_per_layer, rc, true), 0.05, 1.0e-12);
+    EXPECT_TRUE(is_cloud_level(300.0, P()));
+    EXPECT_TRUE(is_cloud_level(700.0, P()));
+    EXPECT_FALSE(is_cloud_level(299.9, P()));
+    EXPECT_FALSE(is_cloud_level(700.1, P()));
+    EXPECT_NEAR(tau_layer_value(900.0, rc.tau_per_layer, P(), true), 0.05, 1.0e-12);
 
     // Constant profile ignores the band entirely.
     rc.tau_profile_type = TauProfileType::Constant;
-    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, true), 0.05, 1.0e-12);
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, P(), true), 0.05, 1.0e-12);
 
     // Cloud scattering properties follow the same band test.
     rc.tau_profile_type = TauProfileType::CloudLayer;
     rc.cloud_single_scattering_albedo = 0.9;
     rc.cloud_asymmetry_factor = 0.85;
     amrex::Real omega = -1.0, g = -1.0;
-    select_scattering_props(500.0, rc, true, omega, g);
+    select_scattering_props(500.0, P(), true, omega, g);
     EXPECT_EQ(omega, 0.9);
     EXPECT_EQ(g, 0.85);
-    select_scattering_props(900.0, rc, true, omega, g);
+    select_scattering_props(900.0, P(), true, omega, g);
     EXPECT_EQ(omega, rc.single_scattering_albedo);
     EXPECT_EQ(g, rc.asymmetry_factor);
 }

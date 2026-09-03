@@ -2,6 +2,7 @@
 #define ERF_TWO_STREAM_COLUMN_H_
 
 #include <cmath>
+#include <type_traits>
 
 #include <AMReX_Array4.H>
 #include <AMReX_Box.H>
@@ -38,6 +39,113 @@
  * be exercised directly by unit tests (Tests/Unit/Radiation) as well as by
  * the level driver in ERF_AdvanceTwoStreamRadiation.cpp.
  */
+
+/**
+ * @brief Trivially copyable subset of RadChoice used by the column kernels.
+ *
+ * RadChoice carries std::string members (diagnostics file name, call-site
+ * mode) and therefore cannot be captured by value in a GPU device lambda.
+ * The level driver builds one TwoStreamParams per call with
+ * make_two_stream_params() and passes that to vertical_two_stream_sweep()
+ * and its helpers. Field names match RadChoice.
+ */
+struct TwoStreamParams
+{
+    bool sw_enabled = true;
+    bool lw_enabled = true;
+    bool isothermal_test = false;
+    amrex::Real tau_per_layer = 0.05;
+    amrex::Real tau_lw_per_layer = 1.0;
+    amrex::Real solar_zenith_deg = 45.0;
+    amrex::Real S0 = 1361.0;
+
+    TauProfileType tau_profile_type = TauProfileType::Constant;
+    amrex::Real cloud_base_height_m = 500.0;
+    amrex::Real cloud_top_height_m = 1000.0;
+    amrex::Real cloud_tau_per_layer = 0.5;
+
+    amrex::Real single_scattering_albedo = 0.0;
+    amrex::Real asymmetry_factor = 0.0;
+    amrex::Real cloud_single_scattering_albedo = 0.0;
+    amrex::Real cloud_asymmetry_factor = 0.0;
+
+    amrex::Real surface_albedo_sw = 0.3;
+    amrex::Real surface_emissivity_lw = 0.99;
+    amrex::Real surface_temp_k = 300.0;
+
+    bool tau_sw_dynamic_enable = false;
+    bool tau_lw_dynamic_enable = false;
+    amrex::Real tau_sw_coeff_qv = 0.0;
+    amrex::Real tau_sw_coeff_qc = 0.0;
+    amrex::Real tau_lw_coeff_qv = 0.0;
+    amrex::Real tau_lw_coeff_qc = 0.0;
+
+    bool cloud_fraction_prog_enable = false;
+    amrex::Real cloud_fraction_rh_min = 0.0;
+    amrex::Real cloud_fraction_rh_max = 1.0;
+    amrex::Real cloud_fraction_qc_scale = 1.0e-3;
+
+    bool aerosol_enable = false;
+    AerosolProfileType aerosol_profile_type = AerosolProfileType::Constant;
+    amrex::Real aerosol_tau_per_layer = 0.0;
+    amrex::Real aerosol_scale_height_m = 2000.0;
+    amrex::Real aerosol_tau_surface = 0.0;
+
+    bool solar_geometry_dynamic_enable = false;
+    amrex::Real latitude_deg = 0.0;
+    amrex::Real longitude_deg = 0.0;
+    amrex::Real day_of_year = 172.0;
+    amrex::Real time_zone_offset_hours = 0.0;
+};
+static_assert(std::is_trivially_copyable<TwoStreamParams>::value,
+              "TwoStreamParams must stay trivially copyable so it can be captured by device lambdas");
+
+/**
+ * @brief Copy the column-kernel parameters out of a RadChoice.
+ */
+inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
+{
+    TwoStreamParams p;
+    p.sw_enabled = rc.sw_enabled;
+    p.lw_enabled = rc.lw_enabled;
+    p.isothermal_test = rc.isothermal_test;
+    p.tau_per_layer = rc.tau_per_layer;
+    p.tau_lw_per_layer = rc.tau_lw_per_layer;
+    p.solar_zenith_deg = rc.solar_zenith_deg;
+    p.S0 = rc.S0;
+    p.tau_profile_type = rc.tau_profile_type;
+    p.cloud_base_height_m = rc.cloud_base_height_m;
+    p.cloud_top_height_m = rc.cloud_top_height_m;
+    p.cloud_tau_per_layer = rc.cloud_tau_per_layer;
+    p.single_scattering_albedo = rc.single_scattering_albedo;
+    p.asymmetry_factor = rc.asymmetry_factor;
+    p.cloud_single_scattering_albedo = rc.cloud_single_scattering_albedo;
+    p.cloud_asymmetry_factor = rc.cloud_asymmetry_factor;
+    p.surface_albedo_sw = rc.surface_albedo_sw;
+    p.surface_emissivity_lw = rc.surface_emissivity_lw;
+    p.surface_temp_k = rc.surface_temp_k;
+    p.tau_sw_dynamic_enable = rc.tau_sw_dynamic_enable;
+    p.tau_lw_dynamic_enable = rc.tau_lw_dynamic_enable;
+    p.tau_sw_coeff_qv = rc.tau_sw_coeff_qv;
+    p.tau_sw_coeff_qc = rc.tau_sw_coeff_qc;
+    p.tau_lw_coeff_qv = rc.tau_lw_coeff_qv;
+    p.tau_lw_coeff_qc = rc.tau_lw_coeff_qc;
+    p.cloud_fraction_prog_enable = rc.cloud_fraction_prog_enable;
+    p.cloud_fraction_rh_min = rc.cloud_fraction_rh_min;
+    p.cloud_fraction_rh_max = rc.cloud_fraction_rh_max;
+    p.cloud_fraction_qc_scale = rc.cloud_fraction_qc_scale;
+    p.aerosol_enable = rc.aerosol_enable;
+    p.aerosol_profile_type = rc.aerosol_profile_type;
+    p.aerosol_tau_per_layer = rc.aerosol_tau_per_layer;
+    p.aerosol_scale_height_m = rc.aerosol_scale_height_m;
+    p.aerosol_tau_surface = rc.aerosol_tau_surface;
+    p.solar_geometry_dynamic_enable = rc.solar_geometry_dynamic_enable;
+    p.latitude_deg = rc.latitude_deg;
+    p.longitude_deg = rc.longitude_deg;
+    p.day_of_year = rc.day_of_year;
+    p.time_zone_offset_hours = rc.time_zone_offset_hours;
+    return p;
+}
 
 /**
  * @brief GPU-safe helper to compute absolute temperature from (rho, rho*theta).
@@ -131,7 +239,7 @@ AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_albedo_sw(
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_alb_sw,
-    const RadChoice& rad_choice,
+    const TwoStreamParams& rad_choice,
     bool has_hetero_alb)
 {
     amrex::Real alb = rad_choice.surface_albedo_sw;  // Default fallback (already clamped)
@@ -164,7 +272,7 @@ AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_emissivity_lw(
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw,
-    const RadChoice& rad_choice,
+    const TwoStreamParams& rad_choice,
     bool has_hetero_emiss)
 {
     amrex::Real emiss = rad_choice.surface_emissivity_lw;  // Default fallback (already clamped)
@@ -197,7 +305,7 @@ AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_temp_k(
     int i, int j,
     const amrex::Array4<const amrex::Real>* t_sfc,
-    const RadChoice& rad_choice,
+    const TwoStreamParams& rad_choice,
     bool has_t_sfc)
 {
     amrex::Real t_surf = rad_choice.surface_temp_k;  // Default fallback (already validated)
@@ -221,7 +329,7 @@ amrex::Real resolve_surface_temp_k(
  * @return true if this layer is inside the configured cloud band.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool is_cloud_level(amrex::Real z_center, const RadChoice& rad_choice)
+bool is_cloud_level(amrex::Real z_center, const TwoStreamParams& rad_choice)
 {
     return (z_center >= rad_choice.cloud_base_height_m &&
             z_center <= rad_choice.cloud_top_height_m);
@@ -243,6 +351,24 @@ amrex::Real get_qv_from_state(int i, int j, int k,
     if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
     amrex::Real qv = rho_qv / rho;
     return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
+}
+
+/**
+ * @brief Inverse Exner function 1/pi at (i,j,k) from the state, with
+ * pi = (p / p_0)^(R_d/c_p) evaluated by getExnergivenRTh(). Used to convert
+ * a temperature tendency dT/dt into the potential-temperature tendency
+ * dtheta/dt = (dT/dt) / pi that the RhoTheta source term expects.
+ * Returns 1 for unphysical input.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_inverse_exner(int i, int j, int k,
+                              const amrex::Array4<const amrex::Real>& state_arr)
+{
+    amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+    if (!(rho_theta > 0.0) || !std::isfinite(rho_theta)) return 1.0;
+    const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+    const amrex::Real pi = getExnergivenRTh(rho_theta, RdoCp, qv);
+    return (std::isfinite(pi) && pi > 0.0) ? 1.0 / pi : 1.0;
 }
 
 /**
@@ -312,7 +438,7 @@ amrex::Real diagnose_tau_dynamic(amrex::Real tau_base, amrex::Real qv, amrex::Re
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real tau_layer_value(
     amrex::Real z_center, amrex::Real tau_base,
-    const RadChoice& rad_choice, bool apply_cloud)
+    const TwoStreamParams& rad_choice, bool apply_cloud)
 {
     if (!apply_cloud || rad_choice.tau_profile_type != TauProfileType::CloudLayer) {
         return tau_base;
@@ -346,7 +472,7 @@ amrex::Real tau_layer_value(
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void select_scattering_props(
-    amrex::Real z_center, const RadChoice& rad_choice, bool apply_cloud,
+    amrex::Real z_center, const TwoStreamParams& rad_choice, bool apply_cloud,
     amrex::Real& omega, amrex::Real& g)
 {
     bool use_cloud_props = apply_cloud &&
@@ -384,7 +510,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_cloud_fraction_prognostic(
     int i, int j, int k,
     const amrex::Array4<const amrex::Real>& state_arr,
-    const RadChoice& rad_choice)
+    const TwoStreamParams& rad_choice)
 {
     if (!rad_choice.cloud_fraction_prog_enable) {
         return 0.0;
@@ -458,7 +584,7 @@ amrex::Real diagnose_layer_tau(
     amrex::Real dz_layer, amrex::Real z_center,
     const amrex::Array4<const amrex::Real>& state_arr,
     amrex::Real tau_base, bool is_sw, bool cloudy,
-    const RadChoice& rad_choice)
+    const TwoStreamParams& rad_choice)
 {
     // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
     amrex::Real tau = tau_layer_value(z_center, tau_base, rad_choice, cloudy);
@@ -536,12 +662,14 @@ amrex::Real diagnose_layer_tau(
  * @param[in] bx Computational box (cell-centered, full vertical extent)
  * @param[in] geom Geometry for this AMR level
  * @param[in] state_arr Array proxy to state data (read-only)
- * @param[in] rad_choice Radiation parameters
+ * @param[in] rad_choice Column-kernel parameters (TwoStreamParams, built from RadChoice)
  * @param[in] cloudy If true and tau_profile_type == CloudLayer, apply the
  * cloud-layer optical depth enhancement (and cloud scattering properties).
- * @param[out] qheating_arr Component 0 receives the SW heating rate [K/s]
- * and component 1 the LW heating rate [K/s] at every level k in [kmin, kmax].
- * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed in this column
+ * @param[out] qheating_arr Component 0 receives the SW and component 1 the
+ * LW radiative tendency of potential temperature, dtheta/dt = (dT/dt) / pi
+ * [K/s], at every level k in [kmin, kmax]. This is the convention the
+ * RhoTheta source term (ERF_MakeSources.cpp) and the RRTMGP path use.
+ * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| of the stored theta tendencies in this column
  * @param[out] sw_surface_flux SW absorbed by the surface, (1 - albedo) * (direct + diffuse) [W/m^2]
  * @param[out] sw_up_toa Upwelling (reflected) SW at the top of the atmosphere [W/m^2]
  * @param[out] lw_net_surface Net LW (up - down) at the surface [W/m^2]
@@ -561,7 +689,7 @@ void vertical_two_stream_sweep(
     const amrex::Box& bx,
     const amrex::Geometry& geom,
     const amrex::Array4<const amrex::Real>& state_arr,
-    const RadChoice& rad_choice,
+    const TwoStreamParams& rad_choice,
     bool cloudy,
     const amrex::Array4<amrex::Real>& qheating_arr,
     amrex::Real& max_heating_rate,
@@ -727,8 +855,11 @@ void vertical_two_stream_sweep(
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
             if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
+            // dT/dt from the flux divergence, stored as dtheta/dt = (dT/dt)/pi
+            // (the RhoTheta source term and RRTMGP use the same convention).
             const amrex::Real Q_sw = compute_sw_heating_rate(F_net_above, F_net_m,
-                                                             dz_level[m], rho, cp_air);
+                                                             dz_level[m], rho, cp_air)
+                                     * get_inverse_exner(i, j, k, state_arr);
             qheating_arr(i, j, k, 0) = Q_sw;
             local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
 
@@ -809,7 +940,9 @@ void vertical_two_stream_sweep(
             amrex::Real F_net_top = F_lw_up_iface[m + 1] - F_lw_down_iface[m + 1];
             amrex::Real F_net_bot = F_lw_up_iface[m]     - F_lw_down_iface[m];
 
-            amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz_level[m], rho, cp_air);
+            // dT/dt from the net-flux divergence, stored as dtheta/dt = (dT/dt)/pi.
+            amrex::Real Q_lw = compute_lw_heating_rate(F_net_top, F_net_bot, dz_level[m], rho, cp_air)
+                               * get_inverse_exner(i, j, k, state_arr);
             qheating_arr(i, j, k, 1) = Q_lw;
 
             amrex::Real Q_sw_here = qheating_arr(i, j, k, 0);

@@ -1,3 +1,3 @@
 step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max,SEB_residual_mean,SEB_residual_max,T_s_mean,T_s_max,q_s_mean,q_s_max
-0,0.000000e+00,pre_dycore,2.378904e+02,6.805000e+02,2.254037e+02,0.000000e+00,0.000000e+00,3.896221e-04,nan,nan,nan,nan,nan,nan
-0,2.500000e-01,post_dycore,2.378904e+02,6.805000e+02,2.254037e+02,0.000000e+00,0.000000e+00,3.896221e-04,nan,nan,nan,nan,nan,nan
+0,0.000000e+00,pre_dycore,2.378904e+02,6.805000e+02,2.254037e+02,0.000000e+00,0.000000e+00,4.027569e-04,nan,nan,nan,nan,nan,nan
+0,2.500000e-01,post_dycore,2.378904e+02,6.805000e+02,2.254037e+02,0.000000e+00,0.000000e+00,4.027569e-04,nan,nan,nan,nan,nan,nan

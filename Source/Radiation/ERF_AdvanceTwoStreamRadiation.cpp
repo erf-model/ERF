@@ -57,9 +57,10 @@ void fill_or_copy_seb_field(
  * - Diffuse (scattered) SW flux: two-stream reflectance/transmittance per
  *   layer combined with the surface albedo by the adding method, giving
  *   upward and downward diffuse streams (see ERF_TwoStreamSW.H).
- * - Per-level heating rate output: writes SW/LW heating rates to a
- *   2-component heating-rate MultiFab (component 0 = SW, component 1 = LW),
- *   mirroring the RRTMGP convention.
+ * - Per-level heating rate output: writes the SW/LW radiative tendencies of
+ *   potential temperature, (dT/dt)/pi, to a 2-component MultiFab
+ *   (component 0 = SW, component 1 = LW), mirroring the RRTMGP convention
+ *   expected by the RhoTheta source term.
  *
  * Includes support for:
  * - Height-varying surface properties (albedo, emissivity, temperature)
@@ -160,6 +161,10 @@ void ERF::compute_twostream_radiation_diagnostics(
         // SEB residual diagnostics
         amrex::Real seb_residual_sum = 0.0;
         amrex::Long n_seb_columns = 0;
+
+        // Trivially copyable parameter set for the device lambdas below
+        // (RadChoice itself holds std::string members and cannot be captured).
+        const TwoStreamParams ts_params = make_two_stream_params(rad_choice);
 
         // cloud fraction used to blend clear-sky and cloudy-column results.
         // cloud_fraction == 0.0 (default) means only the clear-sky column is
@@ -344,7 +349,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     amrex::Real lw_net_clear = 0.0;
                     amrex::Real lw_up_clear = 0.0;
                     vertical_two_stream_sweep(
-                        i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
+                        i, j, bx, geom_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, sw_up_clear, lw_net_clear, lw_up_clear,
                         z_phys_cc_arr,
@@ -369,7 +374,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                          amrex::Real lw_net_cloudy = 0.0;
                          amrex::Real lw_up_cloudy = 0.0;
                          vertical_two_stream_sweep(
-                            i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
+                            i, j, bx, geom_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, sw_up_cloudy, lw_net_cloudy, lw_up_cloudy,
                              z_phys_cc_arr,
