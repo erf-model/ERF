@@ -424,7 +424,11 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                 const Real requested_zref = zlo_absolute
                     ? geom.ProbLo(dir) + requested_distance
                     : requested_distance;
-                const int requested_k = domain.smallEnd(dir) + 1;
+                // k_arr_in is wall-relative except for the intentional zlo
+                // absolute-index convention.
+                const int requested_k = zlo_absolute
+                    ? domain.smallEnd(dir) + 1
+                    : 1;
                 const std::string prefix =
                     "unit_most_policy_" + std::to_string(policy) + "_" +
                     (use_zref ? "zref_" : "k_") +
@@ -454,10 +458,15 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                         ? domain.smallEnd(dir) + wall_offset
                         : domain.bigEnd(dir) - wall_offset;
                 } else {
-                    expected_index = requested_k;
-                    wall_offset = face.isLow()
+                    const bool zlo_absolute = dir == 2 && face.isLow();
+                    wall_offset = zlo_absolute
                         ? requested_k - domain.smallEnd(dir)
-                        : domain.bigEnd(dir) - requested_k;
+                        : requested_k;
+                    expected_index = zlo_absolute
+                        ? requested_k
+                        : (face.isLow()
+                            ? domain.smallEnd(dir) + wall_offset
+                            : domain.bigEnd(dir) - wall_offset);
                 }
                 const Real expected_wall_distance =
                     (static_cast<Real>(wall_offset) + myhalf) * dz;

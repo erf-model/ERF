@@ -166,9 +166,15 @@ TEST(MOSTAverageParallel, BothPoliciesSupportKAndZrefOnEveryWall)
                         ? fields.domain.smallEnd(dir) + wall_offset
                         : fields.domain.bigEnd(dir) - wall_offset;
                 } else {
-                    wall_offset = face.isLow()
+                    const bool zlo_absolute = dir == 2 && face.isLow();
+                    wall_offset = zlo_absolute
                         ? requested_k - fields.domain.smallEnd(dir)
-                        : fields.domain.bigEnd(dir) - requested_k;
+                        : requested_k;
+                    expected_index = zlo_absolute
+                        ? requested_k
+                        : (face.isLow()
+                            ? fields.domain.smallEnd(dir) + wall_offset
+                            : fields.domain.bigEnd(dir) - wall_offset);
                 }
                 const Real expected_wall_distance =
                     (static_cast<Real>(wall_offset) + myhalf) * dz;

@@ -678,13 +678,29 @@ MOSTAverage::set_k_indices_N (const int& lev)
     } else if (read_k) {
         const int dom_lo = m_geom[lev].Domain().smallEnd(dir);
         const int dom_hi = m_geom[lev].Domain().bigEnd(dir);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_k_in[lev] >= dom_lo && m_k_in[lev] <= dom_hi,
-                                         "MOST reference index must lie inside the domain!");
-        const int wall_offset = is_lo_face ? m_k_in[lev] - dom_lo
-                                           : dom_hi - m_k_in[lev];
+        const int ncell  = m_geom[lev].Domain().length(dir);
+
+        // Preserve the established z-low convention: k_arr_in is an
+        // absolute cell index on zlo. All other faces interpret k_arr_in as
+        // a distance in cells from the selected wall.
+        const int wall_offset = zlo
+            ? m_k_in[lev] - dom_lo
+            : m_k_in[lev];
+        if (zlo) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                m_k_in[lev] >= dom_lo && m_k_in[lev] <= dom_hi,
+                "MOST zlo reference index must lie inside the domain!");
+        } else {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                wall_offset >= 0 && wall_offset < ncell,
+                "MOST wall-relative reference offset must lie inside the domain!");
+        }
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wall_offset >= m_radius,
                                   "K index must be larger than averaging radius!");
-        m_k_indx[lev]->setVal(m_k_in[lev]);
+        const int ref_index = zlo
+            ? m_k_in[lev]
+            : (is_lo_face ? dom_lo + wall_offset : dom_hi - wall_offset);
+        m_k_indx[lev]->setVal(ref_index);
 
         const Real m_dz = m_geom[lev].CellSize(dir);
         const Real m_zlo = m_geom[lev].ProbLo(dir);
