@@ -1,3 +1,0 @@
-step,time,call_site,SW_TOA,SW_surface,heating_rate_max
-0,0.0,pre_dycore,680.5,150.12,0.025
-0,0.0,post_dycore,680.5,150.12,0.025

@@ -40,14 +40,14 @@ Enhanced optical depth reduces surface flux and produces heating aloft (aerosol 
 
 - `inputs` — Main control file with aerosol parameters enabled
 - Sounding file — Reference atmospheric profile
-- `check_aerosol_accuracy.py` — Python validation script
+- `check_aero.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/TwoStream_Aerosol_Turbidity
 mpirun -np 1 erf.ex inputs
-python3 check_aerosol_accuracy.py
+python3 check_aero.py
 ```
 
 ## Validation Criteria

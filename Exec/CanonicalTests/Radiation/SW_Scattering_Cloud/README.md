@@ -42,14 +42,14 @@ where ω₀ is the single-scattering albedo (fraction scattered vs. absorbed).
 
 - `inputs` — Main control file with scattering optical-depth and albedo parameters
 - `sounding_us_standard_atm` — Reference atmospheric sounding
-- `check_scattering_accuracy.py` — Python validation script
+- `check_flux_accuracy.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/SW_Scattering_Cloud
 mpirun -np 1 erf.ex inputs
-python3 check_scattering_accuracy.py
+python3 check_flux_accuracy.py
 ```
 
 ## Validation Criteria

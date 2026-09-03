@@ -35,7 +35,8 @@ where τ_cumulative = τ_per_layer × (number of layers above z).
 ### Analytical Solution
 
 - **TOA Flux**: S₀ · cos(60°) ≈ 680.5 W/m²
-- **Surface Flux** (after 20 layers): 680.5 × exp(-0.05 × 20 / cos(60°)) ≈ 411.8 W/m²
+- **Incident Surface Flux** (after 64 layers, τ = 0.003125 per layer): 680.5 × exp(-0.2 / cos(60°)) ≈ 456.2 W/m²
+- **Absorbed Surface Flux** (the `SW_surface` diagnostic, albedo 0.3): 456.2 × (1 − 0.3) ≈ 319.3 W/m²
 - **Heating Rate**: 0 (transparent medium, no absorption to temperature)
 
 ## Files

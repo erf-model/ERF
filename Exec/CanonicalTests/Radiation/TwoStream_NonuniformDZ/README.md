@@ -38,14 +38,14 @@ In nonuniform grids, thin layers accumulate less optical depth, and thick layers
 
 - `inputs` — Main control file with nonuniform geometry
 - Sounding file — Reference atmospheric profile
-- `check_nonuniform_accuracy.py` — Python validation script
+- `check_nonuniform_dz_heating.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/TwoStream_NonuniformDZ
 mpirun -np 1 erf.ex inputs
-python3 check_nonuniform_accuracy.py
+python3 check_nonuniform_dz_heating.py
 ```
 
 ## Validation Criteria

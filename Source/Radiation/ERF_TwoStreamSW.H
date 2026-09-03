@@ -124,7 +124,7 @@ compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
  * @note The heating rate formula follows from energy conservation:
  *       dT/dt = -(1/rho/cp) * (∂F_rad/∂z)
  *            = -(1/rho/cp) * (F_out - F_in) / dz
- * @note For terrain-aware grids, pass dz = z_cc(k) - z_cc(k+1) for each level.
+ * @note For terrain-aware grids, pass dz = z_cc(k+1) - z_cc(k) for each level.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real

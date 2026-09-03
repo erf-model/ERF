@@ -28,39 +28,41 @@ import os
 import math
 
 def read_radiation_diag(filename):
-    """Read radiation diagnostic CSV file and return parsed data."""
-    data = {
-        'step': [],
-        'time': [],
-        'SW_surface': [],
-        'SW_TOA': [],
-        'F_up_surface': [],
-        'F_down_toa': [],
-        'heating_rate_max': []
-    }
+    """Read the radiation diagnostic CSV and return a dict of column lists.
 
+    The file is comma separated with a header line
+    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    so columns are looked up by name rather than by position. Non-numeric
+    columns (call_site) are kept as strings; numeric columns are floats.
+    """
+    import csv
     try:
         with open(filename, 'r') as f:
-            # Skip header line
-            f.readline()
-            for line in f:
-                line = line.strip()
-                if not line:
+            reader = csv.DictReader(f)
+            if reader.fieldnames is None:
+                print(f"ERROR: No header found in {filename}")
+                return None
+            data = {name.strip(): [] for name in reader.fieldnames}
+            for row in reader:
+                if not any((v or '').strip() for v in row.values()):
                     continue
-                parts = line.split(',')
-                if len(parts) >= 7:
-                    data['step'].append(int(parts[0]))
-                    data['time'].append(float(parts[1]))
-                    data['SW_surface'].append(float(parts[2]))
-                    data['SW_TOA'].append(float(parts[3]))
-                    data['F_up_surface'].append(float(parts[4]))
-                    data['F_down_toa'].append(float(parts[5]))
-                    data['heating_rate_max'].append(float(parts[6]))
+                for name in reader.fieldnames:
+                    key = name.strip()
+                    val = (row.get(name) or '').strip()
+                    if key == 'call_site':
+                        data[key].append(val)
+                    elif key == 'step':
+                        data[key].append(int(float(val)))
+                    else:
+                        try:
+                            data[key].append(float(val))
+                        except ValueError:
+                            data[key].append(float('nan'))
     except IOError:
         print(f"ERROR: Could not read {filename}")
         return None
 
-    if not data['step']:
+    if not data.get('step'):
         print(f"ERROR: No data found in {filename}")
         return None
 
@@ -148,6 +150,22 @@ def compute_column_surface_flux(
 
     return F_dir_prev, F_diff_prev
 
+
+def read_input_real(inputs_file, key, default):
+    """Return the numeric value of `key` from an ERF inputs file, or `default`."""
+    try:
+        with open(inputs_file, 'r') as f:
+            for line in f:
+                line = line.split('#', 1)[0].strip()
+                if not line or '=' not in line:
+                    continue
+                k, v = (s.strip() for s in line.split('=', 1))
+                if k == key:
+                    return float(v.strip('"'))
+    except IOError:
+        pass
+    return default
+
 def check_sw_scattering_cloud_accuracy():
     """Check SW flux accuracy for the Phase 4 scattering + cloud-layer test."""
 
@@ -197,11 +215,17 @@ def check_sw_scattering_cloud_accuracy():
         omega_clear, g_clear, omega_cloud, g_cloud, apply_cloud=True)
     expected_flux_cloudy = F_dir_cloudy + F_diff_cloudy
 
-    # Blended surface flux (Phase 3 cloud fraction masking)
-    expected_surface_flux = (
+    # Blended incident surface flux (cloud fraction masking)
+    expected_incident_flux = (
         (1.0 - cloud_fraction) * expected_flux_clear
         + cloud_fraction * expected_flux_cloudy
     )
+
+    # The SW_surface diagnostic is the flux absorbed by the surface, i.e. the
+    # incident flux times (1 - albedo), with the albedo taken from the inputs
+    # file (erf.radiation.surface_albedo_sw, default 0.3 in RadChoice).
+    surface_albedo = read_input_real("inputs", "erf.radiation.surface_albedo_sw", 0.3)
+    expected_surface_flux = expected_incident_flux * (1.0 - surface_albedo)
 
     tolerance = 0.05  # 5%
 
@@ -225,7 +249,9 @@ def check_sw_scattering_cloud_accuracy():
           f" total={expected_flux_clear:.6e} W/m^2")
     print(f"  Cloudy column:    direct={F_dir_cloudy:.6e}, diffuse={F_diff_cloudy:.6e},"
           f" total={expected_flux_cloudy:.6e} W/m^2")
-    print(f"  Expected blended surface flux = {expected_surface_flux:.6f} W/m^2")
+    print(f"  Expected blended incident surface flux = {expected_incident_flux:.6f} W/m^2")
+    print(f"  Surface albedo = {surface_albedo:.3f}")
+    print(f"  Expected absorbed surface flux = {expected_surface_flux:.6f} W/m^2")
 
     last_idx = -1
     step = data['step'][last_idx]

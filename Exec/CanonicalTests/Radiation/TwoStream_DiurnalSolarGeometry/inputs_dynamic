@@ -11,8 +11,13 @@
 #
 erf.prob_name = "ABL"
 
-# Run for a full day (86400 seconds) to observe complete diurnal cycle
-stop_time = 86400.0
+# Quick canonical run: a 2-hour window (7200 s). The simulation clock starts at
+# 00:00 UTC, which is 18:00 local time for the UTC-6 site below, so this window
+# spans the late-afternoon decline of the sun through sunset. That exercises
+# both the time-varying zenith angle (SW flux decreasing toward zero) and the
+# sun-below-horizon branch (SW flux exactly zero). Raise stop_time to 86400 s
+# for a full diurnal cycle.
+stop_time = 7200.0
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -34,8 +39,7 @@ erf.most.zref = 24.0     # reference height [m]
 erf.most.surf_temp_flux    = 0.0
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003   # adiabatic upper boundary
-#erf.fixed_dt = 60.0      # time step [s] - larger for full day runtime
-erf.cfl = 0.8
+erf.cfl = 0.8            # dt from CFL (~1 s for this grid)
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -55,7 +59,7 @@ erf.profile_int = 10
 
 # PLOTFILES
 erf.plot_file_1     = plt_solar_dynamic     # prefix of plotfile name
-erf.plot_int_1      = 60           # plot every hour (3600 sec / 60 sec dt)
+erf.plot_int_1      = 1000000      # no intermediate plotfiles (diagnostics CSV is the output of interest)
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
 
 # SOLVER CHOICE

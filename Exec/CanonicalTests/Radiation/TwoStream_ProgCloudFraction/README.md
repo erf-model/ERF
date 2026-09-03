@@ -47,14 +47,14 @@ This ensures that dry layers contribute no cloud opacity.
 
 - `inputs` — Main control file with prognostic cloud fraction enabled
 - `input_sounding_moist` — Atmospheric sounding with moisture profile
-- `check_cloud_fraction_accuracy.py` — Python validation script
+- `check_progcf.py` — Python validation script
 
 ## Running the Test
 
 ```bash
 cd Exec/CanonicalTests/Radiation/TwoStream_ProgCloudFraction
 mpirun -np 1 erf.ex inputs
-python3 check_cloud_fraction_accuracy.py
+python3 check_progcf.py
 ```
 
 ## Validation Criteria
