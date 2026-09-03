@@ -91,6 +91,14 @@ struct TwoStreamParams
     amrex::Real aerosol_scale_height_m = 2000.0;
     amrex::Real aerosol_tau_surface = 0.0;
 
+    TauModel tau_model = TauModel::PerLayer;
+    amrex::Real sw_kabs_dry = 4.0e-6;
+    amrex::Real sw_kscat_dry = 3.0e-6;
+    amrex::Real sw_kabs_vapor = 4.0e-3;
+    amrex::Real sw_kext_cloud = 150.0;
+    amrex::Real sw_cloud_omega = 0.9999;
+    amrex::Real sw_cloud_g = 0.85;
+
     bool lw_mass_absorption_enable = false;
     amrex::Real lw_kabs_dry = 1.0e-4;
     amrex::Real lw_kabs_vapor = 0.1;
@@ -145,6 +153,13 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.aerosol_tau_per_layer = rc.aerosol_tau_per_layer;
     p.aerosol_scale_height_m = rc.aerosol_scale_height_m;
     p.aerosol_tau_surface = rc.aerosol_tau_surface;
+    p.tau_model = rc.tau_model;
+    p.sw_kabs_dry = rc.sw_kabs_dry;
+    p.sw_kscat_dry = rc.sw_kscat_dry;
+    p.sw_kabs_vapor = rc.sw_kabs_vapor;
+    p.sw_kext_cloud = rc.sw_kext_cloud;
+    p.sw_cloud_omega = rc.sw_cloud_omega;
+    p.sw_cloud_g = rc.sw_cloud_g;
     p.lw_mass_absorption_enable = rc.lw_mass_absorption_enable;
     p.lw_kabs_dry = rc.lw_kabs_dry;
     p.lw_kabs_vapor = rc.lw_kabs_vapor;
@@ -585,7 +600,7 @@ constexpr int MAX_RAD_LEVELS = 512;
  * @param[in] state_arr State array (read-only).
  * @param[in] tau_base Clear-sky optical depth per layer for this band
  *            (for LW, replaced by the mass-path value when
- *            lw_mass_absorption_enable is set).
+ *            lw_mass_absorption_enable or tau_model = mass is set).
  * @param[in] is_sw true for the shortwave band, false for longwave.
  * @param[in] cloudy true for the cloudy-column evaluation.
  * @param[in] rad_choice Radiation parameters.
@@ -605,7 +620,7 @@ amrex::Real diagnose_layer_tau(
     // resolution and gives water vapor and cloud water a real greenhouse
     // effect. Replaces the fixed tau_lw_per_layer as the clear-sky base.
     amrex::Real base = tau_base;
-    if (!is_sw && rad_choice.lw_mass_absorption_enable) {
+    if (!is_sw && (rad_choice.lw_mass_absorption_enable || rad_choice.tau_model == TauModel::Mass)) {
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
         if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
         const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
@@ -654,6 +669,109 @@ amrex::Real diagnose_layer_tau(
     }
 
     return tau;
+}
+
+/**
+ * @brief Optical depth, single-scattering albedo and asymmetry factor of
+ * layer k for one band, for either optical-depth model.
+ *
+ * Per-layer model (default): the optical depth comes from
+ * diagnose_layer_tau() and the scattering properties from the clear-sky or
+ * cloud-band inputs through select_scattering_props(), exactly as before.
+ *
+ * Mass model (tau_model = mass), shortwave: each constituent contributes an
+ * extinction optical depth from the layer mass path,
+ *   dry absorption   rho dz sw_kabs_dry            (omega = 0)
+ *   Rayleigh         rho dz sw_kscat_dry           (omega = 1, g = 0)
+ *   water vapor      rho dz sw_kabs_vapor qv       (omega = 0)
+ *   cloud water      rho dz sw_kext_cloud qc       (sw_cloud_omega, sw_cloud_g)
+ * plus the prescribed cloud-band enhancement (with the cloud-band scattering
+ * inputs) and the absorbing moisture-coefficient and aerosol additions. The
+ * layer properties are the extinction-weighted mixtures
+ *   tau   = sum tau_i,
+ *   omega = sum omega_i tau_i / tau,
+ *   g     = sum g_i omega_i tau_i / sum omega_i tau_i.
+ * Longwave uses diagnose_layer_tau(), whose clear-sky base is the mass path
+ * rho dz (lw_kabs_dry + lw_kabs_vapor qv + lw_kabs_cloud qc) in this model.
+ *
+ * @param[in] i, j, k Grid indices (kmin is the surface layer).
+ * @param[in] dz_layer Thickness of this layer [m].
+ * @param[in] z_center Height of the layer center above the surface [m].
+ * @param[in] state_arr State array (read-only).
+ * @param[in] tau_base Per-layer-model clear-sky optical depth for this band.
+ * @param[in] is_sw true for the shortwave band, false for longwave.
+ * @param[in] cloudy true for the cloudy-column evaluation.
+ * @param[in] rad_choice Column-kernel parameters.
+ * @param[out] tau Optical depth of the layer [unitless].
+ * @param[out] omega Single-scattering albedo of the layer (0 for LW).
+ * @param[out] g Asymmetry factor of the layer (0 for LW).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void diagnose_layer_optics(
+    int i, int j, int k,
+    amrex::Real dz_layer, amrex::Real z_center,
+    const amrex::Array4<const amrex::Real>& state_arr,
+    amrex::Real tau_base, bool is_sw, bool cloudy,
+    const TwoStreamParams& rad_choice,
+    amrex::Real& tau, amrex::Real& omega, amrex::Real& g)
+{
+    omega = 0.0;
+    g = 0.0;
+    if (!is_sw || rad_choice.tau_model != TauModel::Mass) {
+        tau = diagnose_layer_tau(i, j, k, dz_layer, z_center, state_arr, tau_base, is_sw, cloudy, rad_choice);
+        if (is_sw) {
+            select_scattering_props(z_center, rad_choice, cloudy, omega, g);
+        }
+        return;
+    }
+
+    // Shortwave mass model: constituent extinction optical depths.
+    amrex::Real rho = state_arr(i, j, k, Rho_comp);
+    if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+    const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+    const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
+    const amrex::Real path = rho * dz_layer;
+
+    const amrex::Real tau_dry_abs = path * rad_choice.sw_kabs_dry;
+    const amrex::Real tau_rayleigh = path * rad_choice.sw_kscat_dry;
+    const amrex::Real tau_vapor = path * rad_choice.sw_kabs_vapor * qv;
+    const amrex::Real tau_cloud = path * rad_choice.sw_kext_cloud * qc;
+
+    amrex::Real ext = tau_dry_abs + tau_rayleigh + tau_vapor + tau_cloud;
+    amrex::Real sca = tau_rayleigh + rad_choice.sw_cloud_omega * tau_cloud;
+    amrex::Real gsca = rad_choice.sw_cloud_g * rad_choice.sw_cloud_omega * tau_cloud;
+
+    // Prescribed cloud band (optionally scaled by the prognostic cloud
+    // fraction) with the cloud-band scattering inputs.
+    amrex::Real band = tau_layer_value(z_center, 0.0, rad_choice, cloudy);
+    if (rad_choice.cloud_fraction_prog_enable && cloudy &&
+        rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
+        is_cloud_level(z_center, rad_choice)) {
+        band = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice) * rad_choice.cloud_tau_per_layer;
+    }
+    if (band > 0.0) {
+        ext += band;
+        sca += rad_choice.cloud_single_scattering_albedo * band;
+        gsca += rad_choice.cloud_asymmetry_factor * rad_choice.cloud_single_scattering_albedo * band;
+    }
+
+    // Absorbing additions (moisture coefficients, aerosol): everything that
+    // diagnose_layer_tau() adds on top of a zero base, minus the band.
+    const amrex::Real additions = diagnose_layer_tau(i, j, k, dz_layer, z_center, state_arr,
+                                                     0.0, /*is_sw=*/true, cloudy, rad_choice) - band;
+    if (additions > 0.0) ext += additions;
+
+    if (!std::isfinite(ext) || ext <= 0.0) {
+        tau = 0.0;
+        return;
+    }
+    tau = ext;
+    omega = sca / ext;
+    if (omega > 1.0) omega = 1.0;
+    if (omega < 0.0) omega = 0.0;
+    g = (sca > 0.0) ? gsca / sca : 0.0;
+    if (g > 1.0) g = 1.0;
+    if (g < -1.0) g = -1.0;
 }
 
 /**
@@ -847,18 +965,18 @@ void vertical_two_stream_sweep(
         F_dir[nlev] = S0 * cos_zenith;
         for (int k = kmax; k >= kmin; --k) {
             const int m = k - kmin;
-            tau_sw_level[m] = diagnose_layer_tau(i, j, k, dz_level[m], z_level[m],
-                                                 state_arr, tau_sw_base, /*is_sw=*/true, cloudy,
-                                                 rad_choice);
+            amrex::Real omega_m = 0.0, g_m = 0.0;
+            diagnose_layer_optics(i, j, k, dz_level[m], z_level[m], state_arr, tau_sw_base,
+                                  /*is_sw=*/true, cloudy, rad_choice, tau_sw_level[m], omega_m, g_m);
             tau_sw_cum += tau_sw_level[m];
             F_dir[m] = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
         }
 
         // Two-stream properties of layer m (evaluated in both passes).
         auto layer_props = [&](int m) {
-            amrex::Real omega = 0.0;
-            amrex::Real g = 0.0;
-            select_scattering_props(z_level[m], rad_choice, cloudy, omega, g);
+            amrex::Real tau_m = 0.0, omega = 0.0, g = 0.0;
+            diagnose_layer_optics(i, j, kmin + m, dz_level[m], z_level[m], state_arr, tau_sw_base,
+                                  /*is_sw=*/true, cloudy, rad_choice, tau_m, omega, g);
             return compute_sw_layer_two_stream(tau_sw_level[m], omega, g, cos_zenith);
         };
 

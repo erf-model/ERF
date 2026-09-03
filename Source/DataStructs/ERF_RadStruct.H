@@ -43,6 +43,20 @@ AMREX_ENUM(TauProfileType, Constant, CloudLayer);
 AMREX_ENUM(AerosolProfileType, Constant, Exponential, Table);
 
 /**
+ * @brief How the clear-sky optical depth of a layer is obtained.
+ *
+ * - PerLayer: the fixed tau_per_layer / tau_lw_per_layer for every layer
+ *   regardless of its thickness (the original model; the column optical
+ *   depth then scales with the number of vertical cells).
+ * - Mass: from the layer mass path, tau = rho dz (k_dry + k_vapor qv + ...),
+ *   so the column optical depth is set by the atmosphere, not by the grid.
+ *   Shortwave uses sw_kabs_dry, sw_kscat_dry (Rayleigh, scattering),
+ *   sw_kabs_vapor and sw_kext_cloud with sw_cloud_omega / sw_cloud_g;
+ *   longwave uses lw_kabs_dry, lw_kabs_vapor and lw_kabs_cloud.
+ */
+AMREX_ENUM(TauModel, PerLayer, Mass);
+
+/**
  * @brief Container holding radiation-related choices and parameters.
  *
  * Manages the runtime selection and configuration of radiation solvers.
@@ -108,8 +122,32 @@ public:
   bool earth_sun_distance_enable = false;
 
   /**
+   * @brief Optical depth model: "per_layer" (default, fixed tau per layer)
+   * or "mass" (from the layer mass path in both bands; see TauModel).
+   */
+  TauModel tau_model = TauModel::PerLayer;
+
+  /** @brief Mass model, SW: dry-air gray absorption coefficient [m^2/kg]. */
+  amrex::Real sw_kabs_dry = 4.0e-6;
+
+  /** @brief Mass model, SW: dry-air (Rayleigh) scattering coefficient [m^2/kg], omega = 1, g = 0. */
+  amrex::Real sw_kscat_dry = 3.0e-6;
+
+  /** @brief Mass model, SW: water-vapor gray absorption coefficient [m^2/kg]. */
+  amrex::Real sw_kabs_vapor = 4.0e-3;
+
+  /** @brief Mass model, SW: cloud-water extinction coefficient [m^2/kg] (~1.5/r_e with r_e = 10 um). */
+  amrex::Real sw_kext_cloud = 150.0;
+
+  /** @brief Mass model, SW: cloud-water single-scattering albedo. */
+  amrex::Real sw_cloud_omega = 0.9999;
+
+  /** @brief Mass model, SW: cloud-water asymmetry factor. */
+  amrex::Real sw_cloud_g = 0.85;
+
+  /**
    * @brief Gray longwave optical depth from the layer mass path instead of
-   * the fixed tau_lw_per_layer:
+   * the fixed tau_lw_per_layer (also selected by tau_model = mass):
    *   tau_lw(k) = rho dz (lw_kabs_dry + lw_kabs_vapor qv + lw_kabs_cloud qc)
    * The cloud term is the Stephens (1978) emissivity, eps = 1 - exp(-a LWP)
    * with a = 0.158 m^2/g, written as an optical depth. The column optical
@@ -597,6 +635,9 @@ public:
    * - erf.radiation.solar_zenith (real, optional)
    * - erf.radiation.S0 (real, optional)
    * - erf.radiation.earth_sun_distance_enable (bool, optional, default false)
+   * - erf.radiation.tau_model (string "per_layer"|"mass", optional, default "per_layer")
+   * - erf.radiation.sw_kabs_dry, sw_kscat_dry, sw_kabs_vapor, sw_kext_cloud (real, optional, mass model)
+   * - erf.radiation.sw_cloud_omega, sw_cloud_g (real, optional, mass model)
    * - erf.radiation.lw_mass_absorption_enable (bool, optional, default false)
    * - erf.radiation.lw_kabs_dry (real, optional, default 1.0e-4 m^2/kg)
    * - erf.radiation.lw_kabs_vapor (real, optional, default 0.1 m^2/kg)
@@ -680,6 +721,27 @@ public:
       pp.query("radiation.solar_zenith", solar_zenith_deg);
       pp.query("radiation.S0", S0);
       pp.query("radiation.earth_sun_distance_enable", earth_sun_distance_enable);
+      std::string tau_model_str = "per_layer";
+      pp.query("radiation.tau_model", tau_model_str);
+      if (tau_model_str == "mass") {
+        tau_model = TauModel::Mass;
+      } else {
+        tau_model = TauModel::PerLayer;
+      }
+      pp.query("radiation.sw_kabs_dry", sw_kabs_dry);
+      pp.query("radiation.sw_kscat_dry", sw_kscat_dry);
+      pp.query("radiation.sw_kabs_vapor", sw_kabs_vapor);
+      pp.query("radiation.sw_kext_cloud", sw_kext_cloud);
+      pp.query("radiation.sw_cloud_omega", sw_cloud_omega);
+      pp.query("radiation.sw_cloud_g", sw_cloud_g);
+      if (sw_kabs_dry < 0.0) sw_kabs_dry = 0.0;
+      if (sw_kscat_dry < 0.0) sw_kscat_dry = 0.0;
+      if (sw_kabs_vapor < 0.0) sw_kabs_vapor = 0.0;
+      if (sw_kext_cloud < 0.0) sw_kext_cloud = 0.0;
+      if (sw_cloud_omega < 0.0) sw_cloud_omega = 0.0;
+      if (sw_cloud_omega > 1.0) sw_cloud_omega = 1.0;
+      if (sw_cloud_g < -1.0) sw_cloud_g = -1.0;
+      if (sw_cloud_g > 1.0) sw_cloud_g = 1.0;
       pp.query("radiation.lw_mass_absorption_enable", lw_mass_absorption_enable);
       pp.query("radiation.lw_kabs_dry", lw_kabs_dry);
       pp.query("radiation.lw_kabs_vapor", lw_kabs_vapor);

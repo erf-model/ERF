@@ -3316,6 +3316,25 @@ Two-Stream Radiation Model Parameters
 | **erf.radiation.earth_sun_distance_enable**        | Scale S0 by the Earth-Sun distance factor (d0/d)^2 for     | Boolean            | false            |
 |                                                    | day_of_year (Spencer 1971)                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.tau_model**                        | Optical depth model: ``per_layer`` (fixed tau per layer)   | "per_layer" or|"mass" | "per_layer"      |
+|                                                    | or ``mass`` (from the layer mass path in both bands;       |                    |                  |
+|                                                    | see the sw_k*/lw_k* coefficients)                          |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_kabs_dry**                      | Mass model: dry-air gray SW absorption coefficient [m^2/kg] | Real >= 0          | 4.0e-6           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_kscat_dry**                     | Mass model: dry-air (Rayleigh) SW scattering coefficient   | Real >= 0          | 3.0e-6           |
+|                                                    | [m^2/kg], omega = 1, g = 0                                 |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_kabs_vapor**                    | Mass model: water-vapor gray SW absorption coefficient     | Real >= 0          | 4.0e-3           |
+|                                                    | [m^2/kg]                                                   |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_kext_cloud**                    | Mass model: cloud-water SW extinction coefficient [m^2/kg] | Real >= 0          | 150.0            |
+|                                                    | (~1.5 / r_eff, r_eff = 10 um)                              |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_cloud_omega**                   | Mass model: cloud-water SW single-scattering albedo        | Real [0,1]         | 0.9999           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.sw_cloud_g**                       | Mass model: cloud-water SW asymmetry factor                | Real [-1,1]        | 0.85             |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.lw_mass_absorption_enable**        | Gray LW optical depth from the layer mass path,            | Boolean            | false            |
 |                                                    | rho dz (k_dry + k_vapor qv + k_cloud qc), instead of       |                    |                  |
 |                                                    | tau_lw_per_layer                                           |                    |                  |

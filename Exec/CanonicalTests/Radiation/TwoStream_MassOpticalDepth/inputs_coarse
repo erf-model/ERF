@@ -1,0 +1,67 @@
+# Two-Stream Radiation: mass-based optical depth model, coarse grid
+#
+# tau_model = mass derives the SW and LW optical depth of every layer from
+# its mass path (dry air, water vapor, cloud water), so the column optical
+# depth is a property of the atmosphere rather than of the grid. This file
+# and its sibling run the same moist column on 32 layers; the checker
+# compares the surface and top-of-atmosphere fluxes between the two.
+erf.prob_name = "ABL"
+
+max_step = 2
+stop_time = 10.0
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent = 1024 1024 1024
+amr.n_cell           = 4 4 32
+amrex.max_grid_size_z = 128
+geometry.is_periodic = 1 1 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.003
+
+erf.fixed_dt = 0.5
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+amr.max_level = 0
+
+erf.check_file = chk
+erf.check_int = -1
+
+erf.plot_file_1 = plt_coarse
+erf.plot_int_1 = 1000000
+erf.plot_vars_1 = density theta qv qsrc_sw qsrc_lw
+
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "None"
+erf.pbl_type = "None"
+erf.theta_ref = 300.0
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_mass"
+
+erf.moisture_model = "Kessler"
+
+erf.use_coriolis = false
+erf.abl_driver_type = "None"
+
+# RADIATION - TwoStream, mass-based optical depth in both bands
+erf.radiation_type = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.tau_model = "mass"
+erf.radiation.sw_kabs_dry = 4.0e-6
+erf.radiation.sw_kscat_dry = 3.0e-6
+erf.radiation.sw_kabs_vapor = 4.0e-3
+erf.radiation.lw_kabs_dry = 1.0e-4
+erf.radiation.lw_kabs_vapor = 0.1
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+erf.radiation.surface_temp_k = 300.0
+erf.radiation.v = 1
+erf.radiation.diag_file = "radiation_mass_coarse_diag.dat"

@@ -42,6 +42,13 @@ erf.radiation.tau_lw_per_layer        = 1.0       # Uniform LW optical depth per
 erf.radiation.solar_zenith            = 45.0      # Solar zenith angle [degrees], used when solar_geometry_dynamic_enable=false. Default: 45.0
 erf.radiation.S0                      = 1361.0    # Solar constant / TOA irradiance [W/m^2]. Default: 1361.0
 erf.radiation.earth_sun_distance_enable = false   # Scale S0 by the Earth-Sun distance factor (d0/d)^2 for day_of_year (Spencer 1971). Bool. Default: false
+erf.radiation.tau_model               = "per_layer" # Optical depth model: "per_layer" (fixed tau per layer, default) or "mass" (from the layer mass path in both bands)
+erf.radiation.sw_kabs_dry             = 4.0e-6    # Mass model: dry-air gray SW absorption coefficient [m^2/kg]. Default: 4.0e-6
+erf.radiation.sw_kscat_dry            = 3.0e-6    # Mass model: dry-air (Rayleigh) SW scattering coefficient [m^2/kg]. Default: 3.0e-6
+erf.radiation.sw_kabs_vapor           = 4.0e-3    # Mass model: water-vapor gray SW absorption coefficient [m^2/kg]. Default: 4.0e-3
+erf.radiation.sw_kext_cloud           = 150.0     # Mass model: cloud-water SW extinction coefficient [m^2/kg]. Default: 150.0
+erf.radiation.sw_cloud_omega          = 0.9999    # Mass model: cloud-water SW single-scattering albedo. Default: 0.9999
+erf.radiation.sw_cloud_g              = 0.85      # Mass model: cloud-water SW asymmetry factor. Default: 0.85
 erf.radiation.lw_mass_absorption_enable = false   # Gray LW optical depth from the layer mass path rho*dz*(k_dry + k_vapor*qv + k_cloud*qc) instead of tau_lw_per_layer. Bool. Default: false
 erf.radiation.lw_kabs_dry             = 1.0e-4    # Dry-air gray LW mass absorption coefficient [m^2/kg]. Default: 1.0e-4
 erf.radiation.lw_kabs_vapor           = 0.1       # Water-vapor gray LW mass absorption coefficient [m^2/kg]. Default: 0.1
