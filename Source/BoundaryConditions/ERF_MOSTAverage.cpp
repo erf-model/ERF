@@ -313,6 +313,11 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         set_k_indices_N(lev);
     }
 
+    // Check once that the direct lateral regional path can read the reference
+    // stencil from every face-owned FAB; distributed staging can replace this
+    // guard in the future.
+    validate_lateral_reference_stencil(lev);
+
     // Setup normalization data for the chosen policy
     //--------------------------------------------------------
     switch(m_policy) {
@@ -712,6 +717,52 @@ MOSTAverage::set_k_indices_N (const int& lev)
         m_zref[lev]->setVal(zlo
             ? zref_abs
             : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
+    }
+}
+
+/**
+ * Verify that lateral face-owned FABs contain the direct regional stencil.
+ *
+ * @param[in] lev Current level.
+ *
+ * The check uses the full cell-centered source field as a conservative layout
+ * proxy for the staggered fields used by the regional kernels. It includes
+ * ghost cells and one extra cell on each high side for staggered neighbors.
+ *
+ * TODO: Remove this check if a distributed reference-plane staging
+ * implementation is added to the direct lateral regional path.
+ */
+void
+MOSTAverage::validate_lateral_reference_stencil (const int& lev)
+{
+    const int dir = m_face.coordDir();
+    if (dir == 2 || m_interp || m_norm_vec || !m_k_indx[lev]) { return; }
+
+    const MultiFab& source = *m_fields[lev][3];
+    const int face_index = m_face.isLow()
+        ? m_geom[lev].Domain().smallEnd(dir)
+        : m_geom[lev].Domain().bigEnd(dir);
+    const int reference = m_k_indx[lev]->min(0);
+
+    for (MFIter mfi(source, false); mfi.isValid(); ++mfi) {
+        const Box& valid_box = mfi.validbox();
+        const bool owns_face = m_face.isLow()
+            ? valid_box.smallEnd(dir) == face_index
+            : valid_box.bigEnd(dir) == face_index;
+        if (!owns_face) { continue; }
+
+        Box required = valid_box;
+        required.setSmall(dir, reference - m_radius);
+        required.setBig(dir, reference + m_radius);
+        required.growHi(0, 1);
+        required.growHi(1, 1);
+        required.growHi(2, 1);
+
+        Box available = valid_box;
+        available.grow(source.nGrowVect());
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            available.contains(required),
+            "MOST lateral reference plus averaging radius is outside the face-owned FAB.");
     }
 }
 

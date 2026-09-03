@@ -136,6 +136,17 @@ public:
     void set_k_indices_N (const int& lev);
 
     /**
+     * Verify that the lateral face-owned FAB contains the reference stencil.
+     *
+     * @param[in] lev level index
+     *
+     * This is a conservative preflight check for the direct regional-average
+     * path. It verifies that the reference point plus averaging radius, with
+     * allowance for staggered-field neighbors, is available in the owned FAB.
+     */
+    void validate_lateral_reference_stencil (const int& lev);
+
+    /**
      * Populate the 2D k-index iMultiFab with terrain.
      *
      * @param[in] lev level index
