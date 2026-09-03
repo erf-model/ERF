@@ -194,6 +194,9 @@ struct FireParams
     // Phase 13B: Balbi (2009) physical fire spread model parameters.
     // Only used when ros_model = "balbi".
     // Defaults from Balbi (2009) Table 1.
+    // The struct is copied to the device and evaluated inside GPU kernels, so
+    // every member has to stay trivially copyable (no std::string here; the
+    // "formulation" input string is mapped onto the integer flag below).
     struct BalbiParams {
         amrex::Real T_a      = 300.0;    ///< Ambient temperature [K]
         amrex::Real T_f      = 1000.0;   ///< Mean flame temperature [K]
@@ -202,6 +205,49 @@ struct FireParams
         amrex::Real C_pf     = 1800.0;   ///< Specific heat of dry fuel [J/(kg·K)]
         amrex::Real r_00     = 2.5e-4;   ///< Radiation length scale [m]
         amrex::Real tau_0    = 75591.0;  ///< Residence time coefficient [s/m]
+
+        // Formulation selector: 0 = Balbi (2009) steady explicit form (default),
+        // 1 = Balbi (2020) convective-radiative implicit form.
+        // Set through erf.fire.balbi.formulation = "2009" | "2020".
+        int         formulation = 0;
+
+        // Balbi (2020) constants. Defaults follow the nomenclature of
+        // Balbi et al. (2020) as implemented in ForeFire's Balbi2020.
+        amrex::Real chi_0    = 0.3;      ///< Radiant fraction [-]
+        amrex::Real C_pa     = 1150.0;   ///< Specific heat of air [J/(kg·K)]
+        amrex::Real C_pw     = 4180.0;   ///< Specific heat of water [J/(kg·K)]
+        amrex::Real T_vap    = 373.0;    ///< Water vaporisation temperature [K]
+        amrex::Real K1       = 130.0;    ///< Convective decay coefficient [-]
+        amrex::Real st       = 17.0;     ///< Stoichiometric coefficient [-]
+        amrex::Real rho_a    = 1.2;      ///< Air density [kg/m³]
+        amrex::Real sigma_B  = 5.6e-8;   ///< Stefan-Boltzmann constant [W/(m²·K⁴)]
+        int         max_iter = 40;       ///< Max root-solve iterations (2020 only)
+        amrex::Real tol      = 1.0e-4;   ///< Root-solve bracket width [m/s] (2020 only)
+
+        // Direction-dependent spread on the level-set path: evaluate the ROS
+        // along the local front normal instead of using the wind and slope
+        // magnitudes. No effect on the FARSITE path, which gets its
+        // directionality from the ellipse.
+        bool directional = false;
+
+        // Take the ambient temperature per cell from fire_surface_temp instead
+        // of the fixed balbi.T_a.
+        bool use_surface_temp = false;
+
+        // Derive the mean flame temperature from the combustion energy,
+        // T_f = T_a + delta_H_combustion (1 - chi_0) / (C_pa (st + 1)),
+        // instead of using the fixed balbi.T_f. Balbi (2009) form only; the
+        // 2020 form always computes its own flame temperature.
+        bool flame_temp_from_combustion = false;
+
+        // Augment the buoyancy velocity with the fire-induced component built
+        // from the surface heat flux:
+        //   v_b_Q   = k_upward sqrt(g Q H_ref / (rho_a C_pa T_a))
+        //   v_b_eff = sqrt(v_b^2 + v_b_Q^2)
+        // The heat flux lags the ROS by one fire step.
+        bool        heat_flux_coupling = false;
+        amrex::Real k_upward           = 1.0;   ///< Scale on the induced velocity [-]
+        amrex::Real hf_ref_height      = 10.0;  ///< Reference height for v_b_Q [m]
     } balbi;
 
     // Phase 13B: Cheney-Gould (1998) grassland model parameters.
@@ -382,6 +428,46 @@ struct FireParams
        pp.query("balbi.C_pf",    bl.C_pf);
        pp.query("balbi.r_00",    bl.r_00);
        pp.query("balbi.tau_0",   bl.tau_0);
+
+       // Balbi formulation selector, mapped onto the device-side integer flag
+       {
+           std::string balbi_formulation = (bl.formulation == 1) ? "2020" : "2009";
+           pp.query("balbi.formulation", balbi_formulation);
+           if (balbi_formulation == "2020") {
+               bl.formulation = 1;
+           } else if (balbi_formulation == "2009") {
+               bl.formulation = 0;
+           } else {
+               amrex::Abort("erf.fire.balbi.formulation must be \"2009\" or \"2020\"");
+           }
+       }
+
+       // Balbi (2020) constants and solver controls
+       // Balbi et al. (2020) fit r00 = 2.5e-5, while the 2009 radiation length
+       // scale is 2.5e-4 m. Move the default with the formulation unless the
+       // user has set it explicitly.
+       if (bl.formulation == 1 && !pp.contains("balbi.r_00")) {
+           bl.r_00 = 2.5e-5;
+       }
+
+       pp.query("balbi.chi_0",    bl.chi_0);
+       pp.query("balbi.C_pa",     bl.C_pa);
+       pp.query("balbi.C_pw",     bl.C_pw);
+       pp.query("balbi.T_vap",    bl.T_vap);
+       pp.query("balbi.K1",       bl.K1);
+       pp.query("balbi.st",       bl.st);
+       pp.query("balbi.rho_a",    bl.rho_a);
+       pp.query("balbi.sigma_B",  bl.sigma_B);
+       pp.query("balbi.max_iter", bl.max_iter);
+       pp.query("balbi.tol",      bl.tol);
+
+       // Balbi coupling options
+       pp.query("balbi.directional",                bl.directional);
+       pp.query("balbi.use_surface_temp",           bl.use_surface_temp);
+       pp.query("balbi.flame_temp_from_combustion", bl.flame_temp_from_combustion);
+       pp.query("balbi.heat_flux_coupling",         bl.heat_flux_coupling);
+       pp.query("balbi.k_upward",                   bl.k_upward);
+       pp.query("balbi.hf_ref_height",              bl.hf_ref_height);
 
        // Cheney-Gould parameters
        auto& cg = cheney_gould;

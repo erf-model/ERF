@@ -9,6 +9,7 @@ reference values extracted from ERF source code.
 Tests are organized by model:
   - MacArthur (1966) Australian formula (4 tests)
   - Balbi (2009) physical model (10 tests)
+  - Balbi (2020) convective-radiative model (7 tests)
   - Cheney-Gould (1998) grassland model (4 tests)
   - Per-fuel wind height tables (5 tests)
 
@@ -426,6 +427,259 @@ def test_balbi_tan_to_sin_cos_identity():
 
 
 # ============================================================================
+# Balbi (2020) Convective-Radiative Model Tests
+# ============================================================================
+
+# Constants of Balbi et al. (2020), Table 1 nomenclature
+BALBI2020_DEFAULTS = dict(
+    C_pf=1800.0,     # specific heat of fuel [J/(kg K)]
+    C_pw=4180.0,     # specific heat of water [J/(kg K)]
+    C_pa=1150.0,     # specific heat of air [J/(kg K)]
+    T_a=300.0,       # ambient temperature [K]
+    T_i=600.0,       # ignition temperature [K]
+    T_vap=373.0,     # vaporisation temperature [K]
+    delta_H=2.3e6,   # latent heat of evaporation [J/kg]
+    dH_comb=1.74e7,  # heat of combustion of pyrolysis gases [J/kg]
+    chi_0=0.3,       # radiative factor [-]
+    tau_0=75591.0,   # flame residence time parameter [s/m]
+    r_00=2.5e-5,     # model coefficient [-]
+    K1=130.0,        # drag coefficient [s/m]
+    st=17.0,         # air-pyrolysis gas mass ratio [-]
+    rho_a=1.2,       # air density [kg/m3]
+    sigma_B=5.6e-8,  # Stefan-Boltzmann constant [W/(m2 K4)]
+)
+
+TWO_PI = 2.0 * math.pi
+
+
+def compute_balbi2020_state(sav, depth, load, rho_v, M_f, bp=None):
+    """
+    Balbi (2020) coefficients that do not depend on the rate of spread.
+    
+    Mirrors the 2020 branch of compute_balbi_params() in ERF_BalbiModel.H,
+    in SI units directly (the C++ side converts from Rothermel units first).
+    
+    Args:
+        sav:   surface-area-to-volume ratio s [1/m]
+        depth: fuel bed depth h [m]
+        load:  dead fuel load [kg/m2]
+        rho_v: fuel particle density [kg/m3]
+        M_f:   fuel moisture content [fraction]
+    
+    Returns:
+        dict of precomputed coefficients
+    """
+    if bp is None:
+        bp = BALBI2020_DEFAULTS
+
+    beta = load / (depth * rho_v)
+    S = sav * beta * depth
+
+    # eq. 9: the water term uses the specific heat of water, not of the fuel
+    q = (bp["C_pf"] * (bp["T_i"] - bp["T_a"])
+         + M_f * (bp["delta_H"] + bp["C_pw"] * (bp["T_vap"] - bp["T_a"])))
+
+    a_r = min(S / TWO_PI, 1.0)                                          # eq. 17
+    return dict(
+        A_rad=a_r * bp["chi_0"] * bp["dH_comb"] / (4.0 * q),            # eq. 16
+        Rb_coef=min(S / math.pi, 1.0) * bp["sigma_B"] / (beta * rho_v * q),  # eq. 13
+        Rc_coef=(sav * bp["dH_comb"] / (q * bp["tau_0"])
+                 * min(depth, TWO_PI / (sav * beta))),                  # eq. 27
+        u0_coef=(2.0 * (bp["st"] + 1.0) / bp["tau_0"] * (rho_v / bp["rho_a"])
+                 * min(S, TWO_PI)),                                     # eq. B9
+        s_r00=sav * bp["r_00"],
+        K1_sqrt_beta=bp["K1"] * math.sqrt(beta),
+        h_depth=depth,
+        T_a=bp["T_a"],
+        T_flame_coef=bp["dH_comb"] / (bp["C_pa"] * (bp["st"] + 1.0)),   # eq. B11
+        chi_0=bp["chi_0"],
+    )
+
+
+def balbi2020_rhs(bc, R, U, tan_slope):
+    """
+    Right-hand side of Balbi (2020) eq. 28, R_b + R_c + R_r.
+    
+    Mirrors balbi2020_rhs() in ERF_BalbiModel.H, including the two-pass
+    refinement of the flame tilt that eq. C7 needs.
+    """
+    cos_gamma = 1.0 / math.sqrt(1.0 + tan_slope * tan_slope)
+    sin_gamma = tan_slope * cos_gamma
+    T = bc["T_a"]
+    u0 = 1.0e-3
+
+    for _ in range(2):
+        chi = bc["chi_0"] / (1.0 + R * cos_gamma / bc["s_r00"])         # eq. C7
+        T = bc["T_a"] + bc["T_flame_coef"] * (1.0 - chi)                # eq. B11
+        u0 = max(bc["u0_coef"] * (T / bc["T_a"]), 1.0e-3)               # eq. B9
+        tan_gamma = tan_slope + max(U, 0.0) / u0                        # eq. 2
+        inv_sec = 1.0 / math.sqrt(1.0 + tan_gamma * tan_gamma)
+        sin_gamma = tan_gamma * inv_sec
+        cos_gamma = inv_sec
+
+    T_ratio = T / bc["T_a"]
+    H = u0 * u0 / (9.81 * (T_ratio - 1.0)) if T_ratio > 1.0 else 0.0    # eq. 23
+
+    Rb = bc["Rb_coef"] * T**4                                           # eq. 13
+    Rc = bc["Rc_coef"] * (bc["h_depth"] / (2.0 * bc["h_depth"] + H) * tan_slope
+                          + max(U, 0.0) * math.exp(-bc["K1_sqrt_beta"] * R) / u0)
+    Rr = (bc["A_rad"] * R * (1.0 + sin_gamma - cos_gamma)
+          / (1.0 + R * cos_gamma / bc["s_r00"]))                        # eq. 15
+    return Rb + Rc + Rr
+
+
+def balbi2020_ros(bc, U, tan_slope=0.0, max_iter=60, tol=1.0e-7):
+    """
+    Balbi (2020) ROS by bracketed root find, as in balbi2020_ros().
+    """
+    lo, hi = 0.0, 30.0
+    if balbi2020_rhs(bc, lo, U, tan_slope) - lo <= 0.0:
+        return 0.0
+    if balbi2020_rhs(bc, hi, U, tan_slope) - hi > 0.0:
+        return hi
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + hi)
+        if balbi2020_rhs(bc, mid, U, tan_slope) - mid > 0.0:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo <= tol:
+            break
+    return 0.5 * (lo + hi)
+
+
+# Table 2 of Balbi et al. (2020): the fuel bed used for the ROS-vs-wind and
+# ROS-vs-FMC numerical simulations of Figs 3 and 4.
+PAPER_TABLE2 = dict(sav=6000.0, depth=0.1, rho_v=500.0, M_f=0.10)
+
+
+def test_balbi2020_radiative_coefficient():
+    """Test 15: Balbi (2020) A matches the value quoted in the paper."""
+    # The paper states A = 0.15 for a fuel load of 0.05 kg/m2 with the
+    # Table 2 fuel bed.
+    bc = compute_balbi2020_state(load=0.05, **PAPER_TABLE2)
+    passed = abs(bc["A_rad"] - 0.15) < 0.01
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 15: Balbi (2020) A = 0.15 for 0.05 kg/m2 (paper value)")
+    if not passed:
+        print(f"    Expected ~0.15, got {bc['A_rad']}")
+    return passed
+
+
+def test_balbi2020_nonzero_no_wind_ros():
+    """Test 16: Balbi (2020) spreads with no wind and no slope."""
+    # The radiative base term R_b is what the 2009 form lacks entirely.
+    bc = compute_balbi2020_state(load=0.3, **PAPER_TABLE2)
+    ros = balbi2020_ros(bc, U=0.0)
+    passed = ros > 0.0
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 16: Balbi (2020) no-wind ROS is nonzero")
+    if not passed:
+        print(f"    ROS(U=0) = {ros}")
+    return passed
+
+
+def test_balbi2020_monotone_in_wind():
+    """Test 17: Balbi (2020) ROS rises monotonically with wind (Fig. 3)."""
+    ok = True
+    for load in (0.05, 0.3, 0.8):
+        bc = compute_balbi2020_state(load=load, **PAPER_TABLE2)
+        prev = -1.0
+        for U in [0.0, 0.4, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0]:
+            ros = balbi2020_ros(bc, U)
+            if ros <= prev:
+                ok = False
+            prev = ros
+    status = "\u2713" if ok else "\u2717"
+    print(f"{status} Test 17: Balbi (2020) ROS monotone in wind for all Fig. 3 loads")
+    return ok
+
+
+def test_balbi2020_fig3_magnitudes():
+    """Test 18: Balbi (2020) ROS matches the Fig. 3 curves."""
+    # Values produced by the shipped C++ (balbi2020_ros in ERF_BalbiModel.H)
+    # for the Table 2 fuel bed, which trace the curves plotted in Fig. 3.
+    expected = {
+        0.05: {0.0: 0.019, 2.0: 0.325, 8.0: 0.551, 12.0: 0.624},
+        0.30: {0.0: 0.016, 2.0: 0.127, 8.0: 0.381, 12.0: 0.575},
+        0.80: {0.0: 0.006, 2.0: 0.070, 8.0: 0.428, 12.0: 0.723},
+    }
+    worst = 0.0
+    for load, curve in expected.items():
+        bc = compute_balbi2020_state(load=load, **PAPER_TABLE2)
+        for U, ros_ref in curve.items():
+            worst = max(worst, abs(balbi2020_ros(bc, U) - ros_ref))
+    passed = worst < 1.0e-3
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 18: Balbi (2020) ROS matches the Fig. 3 curves")
+    if not passed:
+        print(f"    max deviation {worst} m/s")
+    return passed
+
+
+def test_balbi2020_decreases_with_moisture():
+    """Test 19: Balbi (2020) ROS falls as fuel moisture rises (Fig. 4)."""
+    args = dict(PAPER_TABLE2)
+    del args["M_f"]
+    ros_prev = None
+    ok = True
+    for m in (0.05, 0.20, 0.40, 0.60):
+        bc = compute_balbi2020_state(load=0.09, M_f=m, **args)
+        ros = balbi2020_ros(bc, U=8.0)
+        if ros_prev is not None and ros >= ros_prev:
+            ok = False
+        ros_prev = ros
+    status = "\u2713" if ok else "\u2717"
+    print(f"{status} Test 19: Balbi (2020) ROS decreases with fuel moisture")
+    return ok
+
+
+def test_balbi_directional_projection():
+    """Test 20: directional ROS peaks downwind and vanishes upwind."""
+    # fill_balbi_ros_directional() evaluates the tilt with U . n and grad(z) . n
+    # for the front normal n. With no slope, the head direction is the wind
+    # direction and the backing direction gets a negative normal wind.
+    A_coeff, v_b = compute_balbi_params(*ANDERSON_FUELS[1], M_f=0.06)
+    u, v = 5.0, 0.0  # wind along +x
+
+    def ros_along(nx, ny):
+        U_n = u * nx + v * ny
+        tan_alpha = U_n / v_b
+        inv_sec = 1.0 / math.sqrt(1.0 + tan_alpha * tan_alpha)
+        return max(A_coeff * (1.0 + tan_alpha * inv_sec - inv_sec), 0.0)
+
+    head = ros_along(1.0, 0.0)
+    flank = ros_along(0.0, 1.0)
+    back = ros_along(-1.0, 0.0)
+    passed = head > flank >= 0.0 and back == 0.0
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 20: directional ROS head > flank, zero backing (2009 form)")
+    if not passed:
+        print(f"    head={head}, flank={flank}, back={back}")
+    return passed
+
+
+def test_balbi_heat_flux_uprights_flame():
+    """Test 21: heat-flux buoyancy stands the flame up and slows the head."""
+    # v_b_eff = sqrt(v_b^2 + v_b_Q^2) enters the tilt as U/v_b, so a stronger
+    # plume tilts the flame less and reduces forward spread.
+    A_coeff, v_b = compute_balbi_params(*ANDERSON_FUELS[1], M_f=0.06)
+
+    def ros(vz_extra):
+        vb = math.sqrt(v_b * v_b + vz_extra * vz_extra)
+        t = 5.0 / vb
+        inv_sec = 1.0 / math.sqrt(1.0 + t * t)
+        return max(A_coeff * (1.0 + t * inv_sec - inv_sec), 0.0)
+
+    passed = ros(3.0) < ros(0.0)
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 21: heat-flux buoyancy reduces the head ROS")
+    if not passed:
+        print(f"    ROS(no flux)={ros(0.0)}, ROS(v_b_Q=3)={ros(3.0)}")
+    return passed
+
+
+# ============================================================================
 # Cheney-Gould (1998) Grassland Model Tests
 # ============================================================================
 
@@ -455,7 +709,7 @@ def cheney_gould_ros(u_wind, ros_backing, moisture, curing):
 
 
 def test_cheney_gould_zero_wind():
-    """Test 15: Cheney-Gould zero wind formula."""
+    """Test 22: Cheney-Gould zero wind formula."""
     # At u_wind=0:
     # wind_factor = 0.15 * 0 * (curing + 0.2) = 0
     # ROS = ros_backing * (1 + 0) * moisture_factor
@@ -469,14 +723,14 @@ def test_cheney_gould_zero_wind():
     expected = ros_backing * 1.0 * (20.0 / (moisture + 1.0))
     passed = abs(ros - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 15: Cheney-Gould zero wind formula")
+    print(f"{status} Test 22: Cheney-Gould zero wind formula")
     if not passed:
         print(f"    Expected: {expected}, Got: {ros}")
     return passed
 
 
 def test_cheney_gould_increases_with_wind():
-    """Test 16: Cheney-Gould ROS increases with wind."""
+    """Test 23: Cheney-Gould ROS increases with wind."""
     ros_backing = 0.05
     moisture = 10.0
     curing = 1.0
@@ -488,14 +742,14 @@ def test_cheney_gould_increases_with_wind():
                              moisture=moisture, curing=curing)
     passed = (ros_0 < ros_3) and (ros_3 < ros_5)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 16: Cheney-Gould ROS increases with wind")
+    print(f"{status} Test 23: Cheney-Gould ROS increases with wind")
     if not passed:
         print(f"    R(U=0)={ros_0}, R(U=3)={ros_3}, R(U=5)={ros_5}")
     return passed
 
 
 def test_cheney_gould_decreases_with_moisture():
-    """Test 17: Cheney-Gould ROS decreases with moisture."""
+    """Test 24: Cheney-Gould ROS decreases with moisture."""
     ros_backing = 0.05
     curing = 1.0
     u_wind = 3.0
@@ -507,14 +761,14 @@ def test_cheney_gould_decreases_with_moisture():
                                  moisture=20.0, curing=curing)
     passed = (ros_5pct > ros_10pct) and (ros_10pct > ros_20pct)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 17: Cheney-Gould ROS decreases with moisture")
+    print(f"{status} Test 24: Cheney-Gould ROS decreases with moisture")
     if not passed:
         print(f"    R(5%)={ros_5pct}, R(10%)={ros_10pct}, R(20%)={ros_20pct}")
     return passed
 
 
 def test_cheney_gould_increases_with_curing():
-    """Test 18: Cheney-Gould ROS increases with curing."""
+    """Test 25: Cheney-Gould ROS increases with curing."""
     ros_backing = 0.05
     u_wind = 3.0
     moisture = 10.0
@@ -526,7 +780,7 @@ def test_cheney_gould_increases_with_curing():
                                     moisture=moisture, curing=1.0)
     passed = (ros_0_cure < ros_0_5_cure) and (ros_0_5_cure < ros_1_0_cure)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 18: Cheney-Gould ROS increases with curing")
+    print(f"{status} Test 25: Cheney-Gould ROS increases with curing")
     if not passed:
         print(f"    R(cure=0)={ros_0_cure}, R(cure=0.5)={ros_0_5_cure}, R(cure=1)={ros_1_0_cure}")
     return passed
@@ -589,13 +843,13 @@ def build_fcz0_table():
 
 
 def test_fcwh_uniform_mode():
-    """Test 19: fcwh uniform mode returns global_z_ref for all fuels."""
+    """Test 26: fcwh uniform mode returns global_z_ref for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=False)
     passed = (len(fcwh) == 14 and 
               all(fcwh[i] == global_z_ref for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 19: fcwh uniform mode (all fuels = {global_z_ref})")
+    print(f"{status} Test 26: fcwh uniform mode (all fuels = {global_z_ref})")
     if not passed:
         print(f"    Length: {len(fcwh)}, entries 1-13 all {global_z_ref}: "
               f"{all(fcwh[i] == global_z_ref for i in range(1, 14))}")
@@ -603,14 +857,14 @@ def test_fcwh_uniform_mode():
 
 
 def test_fcwh_per_fuel_mode():
-    """Test 20: fcwh per-fuel mode returns 6.096 for all fuels."""
+    """Test 27: fcwh per-fuel mode returns 6.096 for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=True)
     expected = 6.096
     passed = (len(fcwh) == 14 and 
               all(abs(fcwh[i] - expected) < 1e-6 for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 20: fcwh per-fuel mode (all fuels = 6.096 m)")
+    print(f"{status} Test 27: fcwh per-fuel mode (all fuels = 6.096 m)")
     if not passed:
         print(f"    Length: {len(fcwh)}")
         for i in range(1, 14):
@@ -620,26 +874,26 @@ def test_fcwh_per_fuel_mode():
 
 
 def test_fcz0_fm4_chaparral():
-    """Test 21: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
+    """Test 28: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
     fcz0 = build_fcz0_table()
     expected = 0.2378
     passed = abs(fcz0[4] - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 21: fcz0 FM4 = 0.2378 m (chaparral)")
+    print(f"{status} Test 28: fcz0 FM4 = 0.2378 m (chaparral)")
     if not passed:
         print(f"    Expected: {expected}, Got: {fcz0[4]}")
     return passed
 
 
 def test_fcz0_fm1_fm2_equal():
-    """Test 22: fcz0 FM1 and FM2 both equal 0.0396."""
+    """Test 29: fcz0 FM1 and FM2 both equal 0.0396."""
     fcz0 = build_fcz0_table()
     expected = 0.0396
     passed = (abs(fcz0[1] - expected) < 1e-6 and 
               abs(fcz0[2] - expected) < 1e-6 and 
               fcz0[1] == fcz0[2])
     status = "✓" if passed else "✗"
-    print(f"{status} Test 22: fcz0 FM1 and FM2 both equal 0.0396 m")
+    print(f"{status} Test 29: fcz0 FM1 and FM2 both equal 0.0396 m")
     if not passed:
         print(f"    fcz0[1] = {fcz0[1]}, fcz0[2] = {fcz0[2]}, expected {expected}")
     return passed
@@ -650,7 +904,7 @@ def test_fcz0_table_size():
     fcz0 = build_fcz0_table()
     passed = len(fcz0) == 14
     status = "✓" if passed else "✗"
-    print(f"{status} Test 23: fcz0 table size = 14")
+    print(f"{status} Test 30: fcz0 table size = 14")
     if not passed:
         print(f"    Expected length 14, got {len(fcz0)}")
     return passed
@@ -661,7 +915,7 @@ def test_fcz0_table_size():
 # ============================================================================
 
 def main():
-    """Run all 23 tests and return exit code (0 = all pass, 1 = any fail)."""
+    """Run all 30 tests and return exit code (0 = all pass, 1 = any fail)."""
     print("=" * 70)
     print("Phase 13 ROS Model Unit Tests")
     print("=" * 70)
@@ -690,6 +944,18 @@ def main():
     results.append(test_balbi_A_coeff_decreases_with_moisture())
     results.append(test_balbi_table_structure())
     results.append(test_balbi_tan_to_sin_cos_identity())
+    print()
+
+    # Balbi (2020) tests (7)
+    print("Balbi (2020) Convective-Radiative Model Tests")
+    print("-" * 70)
+    results.append(test_balbi2020_radiative_coefficient())
+    results.append(test_balbi2020_nonzero_no_wind_ros())
+    results.append(test_balbi2020_monotone_in_wind())
+    results.append(test_balbi2020_fig3_magnitudes())
+    results.append(test_balbi2020_decreases_with_moisture())
+    results.append(test_balbi_directional_projection())
+    results.append(test_balbi_heat_flux_uprights_flame())
     print()
     
     # Cheney-Gould tests (4)

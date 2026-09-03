@@ -72,6 +72,75 @@ The model returns zero ROS when fuel bed depth :math:`\delta_m < 0.01` m.
 
 Cells whose wind exceeds 25 m/s, or holds a non-finite value, fall back to the domain-mean wind before the ROS is evaluated.
 
+Balbi (2020) convective-radiative form
+``````````````````````````````````````
+
+Setting :cpp:`erf.fire.balbi.formulation = "2020"` selects the convective-radiative model of Balbi et al. (2020) instead. The rate of spread is the root of
+
+.. math::
+
+   R = R_b + R_c + R_r
+
+   R_b = \min\!\left(\frac{S}{\pi}, 1\right) \frac{B T^4}{\beta \rho_v q}
+
+   R_c = \frac{s \Delta H}{q \tau_0} \min\!\left(\delta_m, \frac{2\pi}{s\beta}\right)
+         \left[ \frac{\delta_m}{2\delta_m + H}\tan\alpha + \frac{U e^{-K_1 \sqrt{\beta} R}}{u_0} \right]
+
+   R_r = A R \frac{1 + \sin\gamma - \cos\gamma}{1 + R\cos\gamma/(s r_{00})}
+
+with the ignition energy, radiant factor, radiant fraction, flame temperature, vertical gas velocity, flame tilt and flame height
+
+.. math::
+
+   q = C_{pf}(T_i - T_a) + M_f\left(\Lambda + C_{pw}(T_{vap} - T_a)\right)
+
+   A = \min\!\left(\frac{S}{2\pi}, 1\right)\frac{\chi_0 \Delta H}{4q}
+   \qquad
+   \chi = \frac{\chi_0}{1 + R\cos\gamma/(s r_{00})}
+
+   T = T_a + \frac{\Delta H (1 - \chi)}{C_{pa}(s_t + 1)}
+   \qquad
+   u_0 = \frac{2(s_t+1)}{\tau_0}\frac{T}{T_a}\frac{\rho_v}{\rho_a}\min(S, 2\pi)
+
+   \gamma = \arctan\left(\tan\alpha + \frac{U}{u_0}\right)
+   \qquad
+   H = \frac{u_0^2}{g\left(T/T_a - 1\right)}
+
+where :math:`\beta = w/(\delta_m \rho_v)` is the packing ratio, :math:`S = s \beta \delta_m` is twice the leaf area index, :math:`w` is the 1-hr dead fuel load, :math:`\rho_v` the fuel particle density, :math:`B` the Stefan-Boltzmann constant, :math:`K_1` a drag coefficient and :math:`s_t` the air-to-pyrolysis-gas mass ratio.
+
+Two properties distinguish it from the 2009 form: the radiative base term :math:`R_b` gives a nonzero rate of spread with no wind and no slope, and the wind response does not saturate.
+
+The equation is solved per cell by bisection on :math:`f(R) = R_b + R_c + R_r - R`. The reference implementations iterate by plain substitution, which oscillates rather than converging when the radiative coefficient :math:`A` is well below one — the low-fuel-load case of Fig. 3 in the paper. Since :math:`R_c` decays with :math:`R` and :math:`R_r` saturates, :math:`f` is positive at :math:`R = 0` and negative at the 30 m/s cap, so a bracketed solve always returns a root in a fixed number of steps. :cpp:`erf.fire.balbi.max_iter` and :cpp:`erf.fire.balbi.tol` control it.
+
+Note that :cpp:`erf.fire.balbi.r_00` defaults to :math:`2.5\times10^{-5}` under this formulation, the value fitted by Balbi et al. (2020), rather than the :math:`2.5\times10^{-4}` m radiation length scale of the 2009 form. Setting it explicitly overrides the formulation-dependent default.
+
+Optional couplings
+``````````````````
+
+Three couplings apply to both formulations and are off by default.
+
+:cpp:`erf.fire.balbi.directional = true` evaluates the ROS along the local front normal :math:`\hat{n} = \nabla\phi/|\nabla\phi|` rather than from the wind and slope magnitudes:
+
+.. math::
+
+   \tan\gamma = \frac{\mathbf{U}\cdot\hat{n}}{v_b} + \nabla z \cdot \hat{n}
+
+The ROS field is rebuilt inside every Runge-Kutta stage, so head, flank and backing spread come from the model rather than from an imposed ellipse. This affects the level-set path only (:cpp:`erf.fire.propagation_method = "levelset"`); the FARSITE path takes its directionality from the ellipse. Under the 2009 form the backing ROS is exactly zero because that form has no base spread, so the pairing is most useful with the 2020 form. :cpp:`fire_ros` continues to hold the isotropic head-fire ROS and sets the level-set CFL.
+
+:cpp:`erf.fire.balbi.use_surface_temp = true` takes the ambient temperature per cell from ``fire_surface_temp`` instead of the fixed :cpp:`erf.fire.balbi.T_a`. The coefficients are then rebuilt inside the kernel, since the ambient temperature enters the ignition energy, the flame temperature and the buoyancy velocity.
+
+:cpp:`erf.fire.balbi.heat_flux_coupling = true` augments the vertical velocity scale with the fire-induced component
+
+.. math::
+
+   v_{b,Q} = k_{up}\sqrt{\frac{g Q H_{ref}}{\rho_a C_{pa} T_a}},
+   \qquad
+   v_{b,eff} = \sqrt{v_b^2 + v_{b,Q}^2}
+
+applied to :math:`v_b` in the 2009 form and to :math:`u_0` in the 2020 form. A stronger plume stands the flame more upright and therefore reduces the forward spread. ``fire_heat_flux`` is filled at the end of the fire step, so this feedback lags the ROS by one fire step.
+
+:cpp:`erf.fire.balbi.flame_temp_from_combustion = true` derives the 2009 mean flame temperature from the combustion energy, :math:`T_f = T_a + \Delta H (1 - \chi_0)/(C_{pa}(s_t+1))`, instead of the fixed :cpp:`erf.fire.balbi.T_f`. The 2020 form always computes its own flame temperature.
+
 **Balbi model parameters:**
 
 .. list-table::
@@ -110,10 +179,80 @@ Cells whose wind exceeds 25 m/s, or holds a non-finite value, fall back to the d
      - 75591.0
      - s/m
      - Residence time coefficient
+   * - :cpp:`erf.fire.balbi.formulation`
+     - "2009"
+     - -
+     - Formulation: "2009" or "2020"
+   * - :cpp:`erf.fire.balbi.chi_0`
+     - 0.3
+     - -
+     - Radiant fraction (2020)
+   * - :cpp:`erf.fire.balbi.C_pa`
+     - 1150.0
+     - J/(kg·K)
+     - Specific heat of air (2020)
+   * - :cpp:`erf.fire.balbi.C_pw`
+     - 4180.0
+     - J/(kg·K)
+     - Specific heat of water (2020)
+   * - :cpp:`erf.fire.balbi.T_vap`
+     - 373.0
+     - K
+     - Water vaporisation temperature (2020)
+   * - :cpp:`erf.fire.balbi.K1`
+     - 130.0
+     - s/m
+     - Drag coefficient (2020)
+   * - :cpp:`erf.fire.balbi.st`
+     - 17.0
+     - -
+     - Air-to-pyrolysis-gas mass ratio (2020)
+   * - :cpp:`erf.fire.balbi.rho_a`
+     - 1.2
+     - kg/m³
+     - Air density (2020)
+   * - :cpp:`erf.fire.balbi.sigma_B`
+     - 5.6e-8
+     - W/(m²·K⁴)
+     - Stefan-Boltzmann constant (2020)
+   * - :cpp:`erf.fire.balbi.max_iter`
+     - 40
+     - -
+     - Root-solve iteration cap (2020)
+   * - :cpp:`erf.fire.balbi.tol`
+     - 1.0e-4
+     - m/s
+     - Root-solve bracket width (2020)
+   * - :cpp:`erf.fire.balbi.directional`
+     - false
+     - -
+     - Direction-dependent ROS on the level-set path
+   * - :cpp:`erf.fire.balbi.use_surface_temp`
+     - false
+     - -
+     - Per-cell ambient temperature from fire_surface_temp
+   * - :cpp:`erf.fire.balbi.flame_temp_from_combustion`
+     - false
+     - -
+     - Derive T_f from the combustion energy (2009)
+   * - :cpp:`erf.fire.balbi.heat_flux_coupling`
+     - false
+     - -
+     - Augment the buoyancy velocity with the surface heat flux
+   * - :cpp:`erf.fire.balbi.k_upward`
+     - 1.0
+     - -
+     - Scale on the heat-flux induced velocity
+   * - :cpp:`erf.fire.balbi.hf_ref_height`
+     - 10.0
+     - m
+     - Reference height for the induced velocity
 
 **Reference:**
 
 - Balbi, J.-H., Rossi, J.-L., Marcelli, T. &amp; Santoni, P.-A. (2009). A physical model for wildland fires. *Combustion and Flame*, 156(12), 2217-2230.
+
+- Balbi, J.-H., Chatelon, F.-J., Morvan, D., Rossi, J.-L., Marcelli, T. &amp; Morandini, F. (2020). A convective-radiative propagation model for wildland fires. *International Journal of Wildland Fire*, 29(8), 723-738.
 
 Cheney-Gould (1998) Grassland Model
 ------------------------------------
@@ -310,9 +449,11 @@ Limitations
 
 - The MacArthur formula includes no slope term; slope influence enters only through terrain wind corrections applied before ROS computation.
 
-- The Balbi model is the steady explicit form of Balbi (2009): it carries no no-wind radiative base spread (:math:`R \to 0` as wind and slope vanish) and saturates at :math:`2A` for large flame tilt. The implicit Balbi (2020) form is not implemented.
+- The default Balbi formulation is the steady explicit form of Balbi (2009): it carries no no-wind radiative base spread (:math:`R \to 0` as wind and slope vanish) and saturates at :math:`2A` for large flame tilt. Select :cpp:`erf.fire.balbi.formulation = "2020"` for the convective-radiative form, which has neither limitation.
 
-- The Balbi flame tilt uses the wind magnitude and the slope magnitude :math:`|\nabla z|`, so the ROS field is isotropic and downslope spread is enhanced in the same way as upslope spread. Directionality on the level-set path is therefore not resolved; the FARSITE path obtains it from the ellipse.
+- Without :cpp:`erf.fire.balbi.directional`, the Balbi flame tilt uses the wind magnitude and the slope magnitude :math:`|\nabla z|`, so the ROS field is isotropic and downslope spread is enhanced in the same way as upslope spread.
+
+- The Balbi (2020) form uses the 1-hr dead fuel load and the fuel particle density of the selected fuel model. Live and coarse dead fuels do not enter it.
 
 - The Cheney-Gould kernel uses placeholder domain-average moisture and curing values (10.0 % and 1.0 respectively) inside the GPU kernel. Use :cpp:`erf.fire.cheney_gould.moisture` and :cpp:`erf.fire.cheney_gould.curing` for domain-averaged values. Per-cell moisture from the Phase 4 ODE system is not yet passed into the kernel.
 
