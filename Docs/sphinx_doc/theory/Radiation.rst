@@ -183,6 +183,17 @@ The net longwave flux divergence in each layer drives the longwave heating rate:
 
 where :math:`\rho` is air density and :math:`c_p` is the specific heat at constant pressure.
 
+Both the shortwave and the longwave heating rates are temperature tendencies. ERF advances
+:math:`\rho\theta`, so the two-stream model stores the corresponding potential-temperature tendency,
+
+.. math::
+
+   \left.\frac{\partial \theta}{\partial t}\right|_{\text{rad}} = \frac{H_{\text{sw}} + H_{\text{lw}}}{\pi},
+   \qquad \pi = \left( \frac{p}{p_0} \right)^{R_d / c_p},
+
+in the ``qheating_rates`` array (and the ``qsrc_sw`` / ``qsrc_lw`` plot variables), which the
+:math:`\rho\theta` source term multiplies by :math:`\rho`. This is the same convention as the RRTMGP path.
+
 Surface Energy Balance
 --------------------------------------
 
