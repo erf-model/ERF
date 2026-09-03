@@ -190,6 +190,37 @@ function(add_test_cloud_chamber TEST_NAME MODE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_cloud_chamber)
 
+# Gold-free TwoStream radiation regression: run a short SW + LW column case
+# and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
+# (surface at k = 0, cooling to space from the top layer).
+function(add_test_two_stream_radiation TEST_NAME PLTFILE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
+        -DCHECKER=${TWO_STREAM_RADIATION_CHECKER}
+        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_two_stream_radiation)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     setup_test()
@@ -697,11 +728,15 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(ParticleAdvect_AMR2_pcount    ""  "erf_exec" "plt00050" 1e-7 5e-9 RUNTIME_OPTIONS "erf.vert_implicit=false ")
   endif()
 endif( )
-if(ERF_ENABLE_RRGMTP)
+if(ERF_ENABLE_RRTMGP)
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-  add_test_r(TwoStream_NonuniformDZ          ""  "erf_exec" "plt00000" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-  add_test_r(TwoStream_ProgCloudFraction     ""  "erf_exec" "plt00000" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
+
+# TwoStream radiation needs no external library and no gold plotfiles: the
+# column-physics checker verifies the vertical structure of the heating
+# rates, and the header test verifies that qsrc_sw/qsrc_lw are written.
+add_test_two_stream_radiation(TwoStream_ColumnHeating "plt00002")
+add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")

@@ -22,6 +22,9 @@
  *   F_up(m+1) = F_up(m) * exp(-tau_lw) + sigma * T(k)^4 * (1 - exp(-tau_lw))
  *
  *   Initial condition: F_up(0) = emissivity * sigma * T_surface^4
+ *                            + (1 - emissivity) * F_down(0)
+ *   (gray surface: emitted plus reflected downwelling flux, so the
+ *   downward sweep must be completed before the upward sweep starts)
  *
  * DOWNWARD SWEEP (from TOA to surface):
  * ---------------
@@ -131,7 +134,8 @@ compute_lw_transmit(amrex::Real tau_lw)
  *   F_up_current = F_up_below * exp(-tau_lw) + sigma * T^4 * (1 - exp(-tau_lw))
  *
  * This is called iteratively from the surface (where
- * F_up_surface = emissivity * sigma * T_surface^4) upward to the TOA.
+ * F_up_surface = emissivity * sigma * T_surface^4 + (1 - emissivity) * F_down_surface)
+ * upward to the TOA.
  *
  * @param[in] F_up_below Upwelling flux from the layer below [W/m^2].
  * @param[in] T_layer Temperature of the current layer [K].
