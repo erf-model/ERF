@@ -74,6 +74,12 @@
  * 8. Interpolate: fw(i_f,j_f,0,0) = u_cc(k_lo) + alpha*(u_cc(k_lo+1) - u_cc(k_lo))
  *                fw(i_f,j_f,0,1) = v_cc(k_lo) + alpha*(v_cc(k_lo+1) - v_cc(k_lo))
  * 9. Store z_target in fire_wind_extract_z_mf
+ *
+ * With wind_interp = 1 (bilinear, the default) steps 3-8 run for each of the
+ * four atmospheric columns surrounding the fire cell, every one sampled at the
+ * reference height above *its own* ground, and the results are blended with
+ * bilinear weights. With wind_interp = 0 only the column containing the cell is
+ * used, which makes the fire-grid wind piecewise constant on atmospheric cells.
  */
 void fill_fire_wind_from_interpolation(
     amrex::MultiFab&       fire_wind_ref,
@@ -82,12 +88,14 @@ void fill_fire_wind_from_interpolation(
     const amrex::MultiFab& yvel_mf,
     const amrex::MultiFab& z_phys_cc_mf,
     const amrex::MultiFab& fire_surface_z_mf,
+    const amrex::MultiFab& fire_col_ground_mf,
     const FireGrid&        fg,
     amrex::Real            z_ref,
     int                    nz,
     const amrex::MultiFab* fuel_model_mf = nullptr,
     const amrex::Real*     d_fcwh         = nullptr,
-    int                    nfuelcats      = 0);
+    int                    nfuelcats      = 0,
+    int                    wind_interp    = 1);
 
 /**
  * @brief Compute unsheltered Wind Adjustment Factor (Andrews/Albini & Baughman 1979)

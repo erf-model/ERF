@@ -108,6 +108,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_wind_extract_z = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 1);
     fire_surface_z  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
+    fire_col_ground = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 4, 0);
     fire_curvature  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
@@ -235,6 +236,10 @@ void FireLayer::initialize(const ERF& erf,
     // terrain file supplies the slopes, since the wind profile being interpolated
     // belongs to that column.
     compute_fire_surface_height(*fire_surface_z, z_phys_nd_atm, erf.Geom(0), m_fg);
+
+    // Grounds of the four columns the bilinear wind stencil blends, so each can
+    // be sampled at the same height above its own terrain.
+    compute_fire_column_grounds(*fire_col_ground, z_phys_nd_atm, erf.Geom(0), m_fg);
     fire_slopes->FillBoundary(m_fg.geom.periodicity());
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
@@ -491,11 +496,12 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
 
     fill_fire_wind_from_interpolation(*fire_wind_ref, *fire_wind_extract_z, xvel, yvel, z_phys_cc,
-                                      *fire_surface_z,
+                                      *fire_surface_z, *fire_col_ground,
                                       m_fg, m_params.wind_ref_ht, m_nz,
                                       m_use_per_fuel_wind_ht ? fire_fuel_model.get() : nullptr,
                                       m_use_per_fuel_wind_ht ? m_d_fcwh.data() : nullptr,
-                                      m_use_per_fuel_wind_ht ? 13 : 0);
+                                      m_use_per_fuel_wind_ht ? 13 : 0,
+                                      m_params.wind_interp);
     if (m_params.fire_debug) {
         amrex::Print() << "[FIRE DEBUG] Wind extraction completed. Max reference wind: "
                        << fire_wind_ref->max(0) << " m/s" << std::endl;

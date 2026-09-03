@@ -143,6 +143,37 @@ which is why a steeper slope still spreads faster overall despite the projection
 The projection is inactive on flat terrain, where the factor is exactly one.
 
 
+Wind on the fire grid
+---------------------
+
+The fire grid is ``erf.fire.grid_ratio`` times finer than the atmospheric grid, so
+the wind has to be mapped down. ``erf.fire.wind_interp`` selects how:
+
+- ``"bilinear"`` (default) blends the four atmospheric columns surrounding the
+  fire cell, with weights from the cell centre's position in atmospheric index
+  space, :math:`g = (i_f + 1/2)/C - 1/2`.
+- ``"nearest"`` takes the single column containing the cell, :math:`i_a = i_f / C`.
+
+Under ``"nearest"`` every fire cell in an atmospheric column carries the same wind
+vector, so the field the fire sees is piecewise constant with a step of a full
+atmospheric cell of shear at each column edge. On an analytic wind field varying
+linearly from 1.1 to 3.3 m/s across five atmospheric cells, ``"nearest"`` is off by
+up to 0.4 m/s and steps by 1.0 m/s at each edge, while ``"bilinear"`` reproduces
+the field to machine precision and steps by the true gradient over one fire cell.
+
+Each column is sampled at the reference height above **its own** ground before the
+blend, not at a single absolute height. Near the surface the profile is anchored
+to the local terrain, and neighbouring column grounds can differ by tens of metres
+on a slope: on the 30 degree flanks of the ROS_Slope_Effects ridge the difference
+is 28 m, so blending at one absolute height would sample an upslope neighbour
+about 35 m above its ground while asking for 6 m.
+
+Within a column the bracketing levels are found by bisection on the
+terrain-following cell-centre heights. A target below the lowest cell centre uses
+the lowest level, and one above the highest uses the top level, rather than being
+extrapolated.
+
+
 References
 ----------
 - Richards, G. D. (1990). "An elliptical growth model of forest fire fronts and its

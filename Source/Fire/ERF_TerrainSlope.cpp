@@ -149,3 +149,51 @@ void compute_fire_surface_height(
         });
     }
 }
+
+void compute_fire_column_grounds(
+    MultiFab& fire_col_ground,
+    const MultiFab* z_phys_nd,
+    const Geometry& geom_atm,
+    const FireGrid& fg)
+{
+    if (z_phys_nd == nullptr) {
+        fire_col_ground.setVal(geom_atm.ProbLo(2));
+        return;
+    }
+
+    const int C = fg.C;
+    const Box& domain_atm = geom_atm.Domain();
+    const int atm_nlo_x = domain_atm.smallEnd(0);
+    const int atm_nlo_y = domain_atm.smallEnd(1);
+
+    for (MFIter mfi(fire_col_ground, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        Array4<Real> zg = fire_col_ground.array(mfi);
+        Array4<const Real> z_nd = z_phys_nd->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+            const int i_f = iv[0];
+            const int j_f = iv[1];
+
+            // Lower-left column of the bilinear stencil, in atmospheric indices
+            const Real gx = (Real(i_f) + 0.5) / Real(C) - 0.5;
+            const Real gy = (Real(j_f) + 0.5) / Real(C) - 0.5;
+            const int i0 = static_cast<int>(std::floor(gx));
+            const int j0 = static_cast<int>(std::floor(gy));
+
+            for (int c = 0; c < 4; ++c) {
+                const int ia = i0 + (c & 1);
+                const int ja = j0 + ((c >> 1) & 1);
+
+                // Cell (ia,ja) sits between nodes (ia,ja) and (ia+1,ja+1)
+                const int i_n = ia + atm_nlo_x;
+                const int j_n = ja + atm_nlo_y;
+
+                zg(i_f, j_f, 0, c) = 0.25 * (z_nd(i_n,     j_n,     0)
+                                           + z_nd(i_n + 1, j_n,     0)
+                                           + z_nd(i_n,     j_n + 1, 0)
+                                           + z_nd(i_n + 1, j_n + 1, 0));
+            }
+        });
+    }
+}

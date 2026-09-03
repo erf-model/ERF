@@ -182,6 +182,12 @@ struct FireParams
     // allocated and the call in advance() returns immediately.
     AccelerationParams accel;
 
+    // Horizontal interpolation of the atmospheric wind onto the fire grid:
+    // 0 = nearest atmospheric column (every fire cell in a column shares one
+    // wind vector), 1 = bilinear between the four surrounding columns.
+    // Set through erf.fire.wind_interp = "nearest" | "bilinear".
+    int               wind_interp         = 1;
+
     // Phase 13B: Rate-of-spread model selection and parameters
     
     // Phase 13B: Rate-of-spread model selection.
@@ -439,6 +445,18 @@ struct FireParams
        pp.query("accel.perim_limit",     ac.perim_limit);
        pp.query("accel.enable_wind_lag", ac.enable_wind_lag);
        pp.query("accel.tau_wind",        ac.tau_wind);
+
+       {
+           std::string wind_interp_str = (wind_interp == 0) ? "nearest" : "bilinear";
+           pp.query("wind_interp", wind_interp_str);
+           if (wind_interp_str == "bilinear") {
+               wind_interp = 1;
+           } else if (wind_interp_str == "nearest") {
+               wind_interp = 0;
+           } else {
+               amrex::Abort("erf.fire.wind_interp must be \"bilinear\" or \"nearest\"");
+           }
+       }
 
        // Phase 13B: ROS model selection
        pp.query("ros_model", ros_model);
