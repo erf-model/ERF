@@ -145,6 +145,7 @@ void fill_fire_wind_from_interpolation(
     const MultiFab& xvel_mf,
     const MultiFab& yvel_mf,
     const MultiFab& z_phys_cc_mf,
+    const MultiFab& fire_surface_z_mf,
     const FireGrid&        fg,
     Real            z_ref,
     int             nz,
@@ -162,6 +163,7 @@ void fill_fire_wind_from_interpolation(
         Array4<const Real> xvel = xvel_mf.array(mfi);
         Array4<const Real> yvel = yvel_mf.array(mfi);
         Array4<const Real> z_phys_cc = z_phys_cc_mf.array(mfi);
+        Array4<const Real> z_surf_arr = fire_surface_z_mf.const_array(mfi);
         
         // Phase 13A: Per-fuel wind height support
         Array4<const Real> fuel_model;
@@ -177,8 +179,11 @@ void fill_fire_wind_from_interpolation(
             int i_a = i_f / C;
             int j_a = j_f / C;
 
-            // Get surface height
-            Real z_surf = z_phys_cc(i_a, j_a, 0);
+            // Ground elevation of this fire cell's atmospheric column. This is
+            // the terrain surface, not the first cell centre, which sits half an
+            // atmospheric cell higher and would push the extraction height up by
+            // an amount that varies with vertical resolution.
+            Real z_surf = z_surf_arr(i_f, j_f, 0);
             
             // Phase 13A: Determine wind reference height for this cell
             Real z_ref_cell = z_ref;  // default: global fallback

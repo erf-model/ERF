@@ -53,4 +53,32 @@ void compute_terrain_slopes(
     const FireGrid& fg,
     const std::string& terrain_fname = "");
 
+/**
+ * @brief Fill the ground elevation of each fire cell's atmospheric column
+ *
+ * The fire module extracts wind at a height above ground by walking the
+ * atmospheric column's z_phys_cc profile, so the ground it measures from has to
+ * be the ground of that same column: the average of the four k = 0 nodes of
+ * atmospheric cell (i_f/C, j_f/C). Taking the first cell centre instead puts the
+ * extraction height half an atmospheric cell too high, and by an amount that
+ * changes with vertical resolution.
+ *
+ * This is deliberately the atmospheric column's ground, not the fire-resolved
+ * terrain, even when a finer terrain file is supplied for the slopes: the wind
+ * profile being interpolated belongs to the atmospheric column.
+ *
+ * @param[out] fire_surface_z  1-component MultiFab on the fire grid [m]
+ * @param[in]  z_phys_nd       Nodal terrain height from ERF [m], or nullptr for
+ *                             flat terrain, in which case the domain floor is used
+ * @param[in]  geom_atm        Atmospheric level-0 geometry
+ * @param[in]  fg              Fire grid structure
+ *
+ * Called once at FireLayer::initialize(); terrain is static.
+ */
+void compute_fire_surface_height(
+    amrex::MultiFab& fire_surface_z,
+    const amrex::MultiFab* z_phys_nd,
+    const amrex::Geometry& geom_atm,
+    const FireGrid& fg);
+
 #endif
