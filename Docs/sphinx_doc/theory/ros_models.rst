@@ -141,6 +141,22 @@ applied to :math:`v_b` in the 2009 form and to :math:`u_0` in the 2020 form. A s
 
 :cpp:`erf.fire.balbi.flame_temp_from_combustion = true` derives the 2009 mean flame temperature from the combustion energy, :math:`T_f = T_a + \Delta H (1 - \chi_0)/(C_{pa}(s_t+1))`, instead of the fixed :cpp:`erf.fire.balbi.T_f`. The 2020 form always computes its own flame temperature.
 
+:cpp:`erf.fire.balbi.use_cell_moisture = true` takes the 1-hr dead fuel moisture per cell from the Phase 4 moisture ODE state (``fire_fuel_mc`` component 0) rather than the domain average, clamped to [0.01, 0.40] the same way the average is. It requires :cpp:`erf.fire.moisture_dynamic = true`, since that field does not evolve otherwise, and shares the in-kernel coefficient rebuild with :cpp:`use_surface_temp`.
+
+:cpp:`erf.fire.balbi.use_moisture_extinction = true` zeroes the rate of spread once the fuel moisture reaches the fuel model's moisture of extinction :math:`M_x`. Neither Balbi formulation carries an extinction limit of its own, so without this a fuel bed wetter than its published :math:`M_x` still spreads. The cutoff is applied where the coefficients are built, so it covers the uniform, per-fuel-table and per-cell paths alike.
+
+:cpp:`erf.fire.balbi.herb_curing` is the fraction of the live herbaceous load carried as cured dead fine fuel, which enters the 2020 packing ratio through :math:`w = w_{d1} + \text{curing} \cdot w_{lh}`. Only the 2020 form uses a fuel load — the 2009 amplitude coefficient depends on SAV, bed depth and heat content but not on loading — so this has no effect under the 2009 formulation.
+
+Wind source
+```````````
+
+:cpp:`erf.fire.balbi.wind_source` selects which wind field the model consumes:
+
+- ``"midflame"`` (default) is ``fire_wind_eff``, the wind after the Wind Adjustment Factor and the terrain corrections, which is what every other ROS model in ERF consumes.
+- ``"reference"`` is ``fire_wind_ref``, the wind at :cpp:`erf.fire.wind_ref_ht` before either correction.
+
+The distinction matters because the WAF is a Rothermel construct: it reduces the reference wind to a midflame value because Rothermel's :math:`\phi_w` is calibrated against midflame wind. Balbi instead normalises the wind by its own vertical velocity scale — :math:`v_b` in the 2009 form, :math:`u_0` in 2020 — which already encodes the flame's response to the flow. Applying the WAF first is therefore arguably a double reduction. The default keeps the existing behaviour; ``"reference"`` bypasses the terrain wind correction as well, since that is applied downstream of the WAF.
+
 **Balbi model parameters:**
 
 .. list-table::
@@ -235,6 +251,22 @@ applied to :math:`v_b` in the 2009 form and to :math:`u_0` in the 2020 form. A s
      - false
      - -
      - Derive T_f from the combustion energy (2009)
+   * - :cpp:`erf.fire.balbi.use_cell_moisture`
+     - false
+     - -
+     - Per-cell fuel moisture from the moisture ODE state
+   * - :cpp:`erf.fire.balbi.use_moisture_extinction`
+     - false
+     - -
+     - Zero the ROS at the moisture of extinction
+   * - :cpp:`erf.fire.balbi.herb_curing`
+     - 0.0
+     - -
+     - Cured fraction of the live herbaceous load (2020)
+   * - :cpp:`erf.fire.balbi.wind_source`
+     - "midflame"
+     - -
+     - Wind consumed: "midflame" or "reference"
    * - :cpp:`erf.fire.balbi.heat_flux_coupling`
      - false
      - -
@@ -453,7 +485,11 @@ Limitations
 
 - Without :cpp:`erf.fire.balbi.directional`, the Balbi flame tilt uses the wind magnitude and the slope magnitude :math:`|\nabla z|`, so the ROS field is isotropic and downslope spread is enhanced in the same way as upslope spread.
 
-- The Balbi (2020) form uses the 1-hr dead fuel load and the fuel particle density of the selected fuel model. Live and coarse dead fuels do not enter it.
+- The Balbi (2020) form uses the 1-hr dead fuel load and the fuel particle density of the selected fuel model, plus whatever fraction of the live herbaceous load :cpp:`erf.fire.balbi.herb_curing` declares cured. Coarse dead fuels and uncured live fuels do not enter it.
+
+- Without :cpp:`erf.fire.balbi.use_moisture_extinction`, neither Balbi formulation extinguishes on wet fuel: the rate of spread falls with moisture but never reaches zero.
+
+- All ROS models except Balbi with :cpp:`wind_source = "reference"` consume the midflame wind after the Wind Adjustment Factor, which is a Rothermel calibration construct.
 
 - The Cheney-Gould kernel uses placeholder domain-average moisture and curing values (10.0 % and 1.0 respectively) inside the GPU kernel. Use :cpp:`erf.fire.cheney_gould.moisture` and :cpp:`erf.fire.cheney_gould.curing` for domain-averaged values. Per-cell moisture from the Phase 4 ODE system is not yet passed into the kernel.
 

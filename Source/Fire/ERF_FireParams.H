@@ -240,6 +240,30 @@ struct FireParams
         // 2020 form always computes its own flame temperature.
         bool flame_temp_from_combustion = false;
 
+        // Take the fuel moisture per cell from the Phase 4 moisture ODE state
+        // (fire_fuel_mc component 0) instead of the domain average. Requires
+        // erf.fire.moisture_dynamic = true.
+        bool use_cell_moisture = false;
+
+        // Zero the rate of spread once the fuel moisture reaches the fuel
+        // model's moisture of extinction. Without this the model has no
+        // extinction limit and a wet fuel bed still spreads.
+        bool use_moisture_extinction = false;
+
+        // Fraction of the live herbaceous load that has cured and is carried
+        // as dead fine fuel. Only the Balbi (2020) form uses a fuel load, so
+        // this has no effect under the 2009 formulation.
+        amrex::Real herb_curing = 0.0;
+
+        // Which wind the model consumes: 0 = the midflame wind after the
+        // Wind Adjustment Factor and terrain corrections (fire_wind_eff,
+        // default, what every other ROS model uses), 1 = the reference-height
+        // wind before those corrections (fire_wind_ref). Balbi normalises the
+        // wind by its own vertical velocity scale rather than by a midflame
+        // reduction, so the WAF is arguably double counting.
+        // Set through erf.fire.balbi.wind_source = "midflame" | "reference".
+        int wind_source = 0;
+
         // Augment the buoyancy velocity with the fire-induced component built
         // from the surface heat flux:
         //   v_b_Q   = k_upward sqrt(g Q H_ref / (rho_a C_pa T_a))
@@ -465,7 +489,23 @@ struct FireParams
        pp.query("balbi.directional",                bl.directional);
        pp.query("balbi.use_surface_temp",           bl.use_surface_temp);
        pp.query("balbi.flame_temp_from_combustion", bl.flame_temp_from_combustion);
+       pp.query("balbi.use_cell_moisture",          bl.use_cell_moisture);
+       pp.query("balbi.use_moisture_extinction",    bl.use_moisture_extinction);
+       pp.query("balbi.herb_curing",                bl.herb_curing);
        pp.query("balbi.heat_flux_coupling",         bl.heat_flux_coupling);
+
+       {
+           std::string balbi_wind_source = (bl.wind_source == 1) ? "reference" : "midflame";
+           pp.query("balbi.wind_source", balbi_wind_source);
+           if (balbi_wind_source == "reference") {
+               bl.wind_source = 1;
+           } else if (balbi_wind_source == "midflame") {
+               bl.wind_source = 0;
+           } else {
+               amrex::Abort("erf.fire.balbi.wind_source must be "
+                            "\"midflame\" or \"reference\"");
+           }
+       }
        pp.query("balbi.k_upward",                   bl.k_upward);
        pp.query("balbi.hf_ref_height",              bl.hf_ref_height);
 
