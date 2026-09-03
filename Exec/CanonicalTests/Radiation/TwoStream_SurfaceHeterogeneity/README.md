@@ -74,14 +74,14 @@ This scenario is not included in this basic test but can be added by:
 
 CSV format with columns:
 ```
-step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
+step, time, call_site, SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max
 ```
 
 ### Typical Values (Fallback Mode)
 
 - **SW_TOA**: ~962 W/m² (= 1361 × cos(45°), constant in time)
 - **SW_surface**: ~300-400 W/m² (absorbed = (1-0.3) × incident)
-- **F_up_surface**: ~450 W/m² (= 0.99 × σ × 300^4 from surface temp)
+- **LW_net_surface**: net (up − down) LW at the surface, a few W/m² for a surface near the air temperature; **LW_up_TOA** ≈ σT⁴ of the emitting layers (~390–450 W/m²)
 - **heating_rate_max**: ~1-10 K/s (typical clear-sky radiative heating)
 
 ### Plotfiles

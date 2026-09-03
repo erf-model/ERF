@@ -42,7 +42,7 @@ Initial sounding profile (pressure-theta-qv-u-v):
 
 ### Diagnostic Files
 - **radiation_phase13_ysu_coupling_diag.dat**: CSV with per-timestep radiation fluxes and heating rates
-  - Columns: `step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max`
+  - Columns: `step, time, call_site, SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max`
   - One row per timestep (5 rows expected for 2.5s simulation @ dt=0.5s)
 
 ### Checkpoint/Plotfile

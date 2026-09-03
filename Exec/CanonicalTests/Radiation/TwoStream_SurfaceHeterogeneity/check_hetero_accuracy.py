@@ -16,7 +16,7 @@ def parse_diag_csv(path):
 
         required = {
             "step","time","call_site",
-            "SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"
+            "SW_surface","SW_TOA","SW_up_TOA","LW_net_surface","LW_up_TOA","heating_rate_max"
         }
         found = {h.strip() for h in reader.fieldnames}
         if not required.issubset(found):
@@ -30,8 +30,9 @@ def parse_diag_csv(path):
                     "call_site": r["call_site"].strip(),
                     "SW_surface": float(r["SW_surface"]),
                     "SW_TOA": float(r["SW_TOA"]),
-                    "F_up_surface": float(r["F_up_surface"]),
-                    "F_down_toa": float(r["F_down_toa"]),
+                    "SW_up_TOA": float(r["SW_up_TOA"]),
+                    "LW_net_surface": float(r["LW_net_surface"]),
+                    "LW_up_TOA": float(r["LW_up_TOA"]),
                     "heating_rate_max": float(r["heating_rate_max"]),
                 }
                 rows.append(row)
@@ -73,7 +74,7 @@ def main():
     print("\n3. Checking for NaN/Inf in diagnostics...")
     naninf_ok = True
     for r in rows:
-        for k in ["time","SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"]:
+        for k in ["time","SW_surface","SW_TOA","SW_up_TOA","LW_net_surface","LW_up_TOA","heating_rate_max"]:
             if not is_finite(r[k]):
                 print(f"  ERROR: non-finite value in {k}: {r[k]}")
                 naninf_ok = False

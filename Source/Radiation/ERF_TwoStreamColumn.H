@@ -333,8 +333,9 @@ amrex::Real tau_layer_value(
  * (cloud_single_scattering_albedo, cloud_asymmetry_factor) are used.
  * Otherwise, the clear-sky scattering properties (single_scattering_albedo,
  * asymmetry_factor) are used. Both default to 0.0, so by default this
- * function always yields omega == 0.0, and compute_sw_diffuse_flux()
- * returns exactly 0.0 (direct-beam-only behavior preserved).
+ * function always yields omega == 0.0 and the layers neither scatter the
+ * direct beam nor reflect diffuse light; the diffuse field then consists of
+ * the surface-reflected beam only.
  *
  * @param[in] z_center Height of the layer center above the surface [m].
  * @param[in] rad_choice Radiation parameters.
@@ -415,11 +416,12 @@ amrex::Real diagnose_cloud_fraction_prognostic(
  * @brief Maximum number of vertical levels supported by the
  * fixed-capacity per-column buffers in vertical_two_stream_sweep().
  *
- * The LW heating-rate computation requires the full upward and downward LW
- * flux profile (not just the surface value), so this kernel stores both
- * interface profiles, the per-layer thickness and the per-layer LW optical
- * depth in device-local arrays sized to this capacity. This is a pragmatic,
- * GPU-safe alternative to dynamic per-thread allocation.
+ * The SW adding method and the LW sweeps need full interface profiles
+ * (direct beam, adding-method albedo and source, LW up/down fluxes) and the
+ * per-layer thickness, height and optical depths, so this kernel stores them
+ * in device-local arrays sized to this capacity (about nine arrays of
+ * MAX_RAD_LEVELS reals per thread). This is a pragmatic, GPU-safe
+ * alternative to dynamic per-thread allocation.
  *
  * If bx.length(2) exceeds this value, an AMREX_ALWAYS_ASSERT will fire at
  * runtime. Increase this constant if a taller domain is required; note
@@ -510,9 +512,11 @@ amrex::Real diagnose_layer_tau(
  * surface and m = nlev is the TOA.
  *
  * Per (i,j) column:
- * 1. SW: sweep downward from k = kmax to k = kmin, accumulating optical depth
- *    and the direct + diffuse downwelling flux; the per-level SW heating rate
- *    is written to qheating_arr(i,j,k,0).
+ * 1. SW: Beer-Lambert direct beam on the interfaces, then the two-stream
+ *    diffuse field (upward and downward streams) by the adding method with
+ *    the surface albedo as the lower boundary condition; the per-level SW
+ *    heating rate from the net-flux divergence is written to
+ *    qheating_arr(i,j,k,0).
  * 2. LW: sweep downward from the TOA (F_down = 0) to the surface, then upward
  *    from the surface (F_up = eps * sigma * T_s^4 + (1 - eps) * F_down) to
  *    the TOA, storing both interface profiles. The per-level LW heating rate from the net-flux
@@ -538,8 +542,10 @@ amrex::Real diagnose_layer_tau(
  * @param[out] qheating_arr Component 0 receives the SW heating rate [K/s]
  * and component 1 the LW heating rate [K/s] at every level k in [kmin, kmax].
  * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| observed in this column
- * @param[out] sw_surface_flux Absorbed downwelling SW at the surface (direct + diffuse)
- * @param[out] lw_net_surface Net LW (up - down) at the surface
+ * @param[out] sw_surface_flux SW absorbed by the surface, (1 - albedo) * (direct + diffuse) [W/m^2]
+ * @param[out] sw_up_toa Upwelling (reflected) SW at the top of the atmosphere [W/m^2]
+ * @param[out] lw_net_surface Net LW (up - down) at the surface [W/m^2]
+ * @param[out] lw_up_toa Upwelling LW at the top of the atmosphere (outgoing longwave) [W/m^2]
  * @param[in] z_phys_cc Optional cell-centered physical height (nonuniform dz)
  * @param[in] time_utc_seconds UTC seconds within the day (dynamic solar geometry)
  * @param[in] has_hetero_alb_sw true if hetero_alb_sw is available
@@ -560,7 +566,9 @@ void vertical_two_stream_sweep(
     const amrex::Array4<amrex::Real>& qheating_arr,
     amrex::Real& max_heating_rate,
     amrex::Real& sw_surface_flux,
+    amrex::Real& sw_up_toa,
     amrex::Real& lw_net_surface,
+    amrex::Real& lw_up_toa,
     const amrex::Array4<const amrex::Real>& z_phys_cc,
     amrex::Real time_utc_seconds = 0.0,
     bool has_hetero_alb_sw = false,
@@ -647,59 +655,90 @@ void vertical_two_stream_sweep(
     }
 
     // ========================================================================
-    // SHORTWAVE: downward sweep from the top layer (k = kmax) to the surface
-    // layer (k = kmin). "prev" refers to the interface above the current
-    // layer, "curr" to the interface below it.
+    // SHORTWAVE. Interfaces m = 0 (surface) .. nlev (TOA); layer m lies
+    // between interfaces m and m+1.
+    //  1. Direct beam F_dir(m) by Beer-Lambert from the TOA downward.
+    //  2. Adding method, upward pass: A[m] is the albedo of everything below
+    //     interface m for diffuse light, S[m] the upward diffuse flux at m
+    //     produced by the direct beam illuminating everything below m. The
+    //     surface starts the recursion with A[0] = albedo and
+    //     S[0] = albedo * F_dir(0).
+    //  3. Downward pass from the TOA (no incident diffuse flux): diffuse
+    //     downward d(m), diffuse upward u(m) = A[m] d(m) + S[m], and the net
+    //     flux F_dir + d - u whose divergence gives the heating rate.
     // ========================================================================
-    amrex::Real tau_sw_cum    = 0.0;  // Cumulative SW optical depth from TOA
-    amrex::Real F_sw_dir_prev = 0.0;  // Direct SW flux at the top of the current layer
-    amrex::Real F_sw_diff_prev = 0.0; // Diffuse SW flux at the top of the current layer
+    amrex::Real tau_sw_cum = 0.0;          // Column SW optical depth (for the isothermal test)
+    amrex::Real sw_surface_absorbed = 0.0; // (1 - albedo) * (F_dir + d) at the surface
+    amrex::Real sw_up_at_toa = 0.0;        // u(nlev)
+    const amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
 
-    if (rad_choice.sw_enabled) {
-        if (cos_zenith > 0.0) {
-            F_sw_dir_prev = S0 * cos_zenith;  // TOA incident (tau = 0)
-        }
-        F_sw_diff_prev = 0.0;  // No diffuse flux incident from above TOA
+    if (rad_choice.sw_enabled && cos_zenith > 0.0) {
+        amrex::Real tau_sw_level[MAX_RAD_LEVELS];
+        amrex::Real F_dir[MAX_RAD_LEVELS + 1];
+        amrex::Real A[MAX_RAD_LEVELS + 1];
+        amrex::Real S[MAX_RAD_LEVELS + 1];
 
+        // 1. Per-layer optical depth and the direct beam on the interfaces.
+        F_dir[nlev] = S0 * cos_zenith;
         for (int k = kmax; k >= kmin; --k) {
             const int m = k - kmin;
+            tau_sw_level[m] = diagnose_layer_tau(i, j, k, dz_level[m], z_level[m],
+                                                 state_arr, tau_sw_base, /*is_sw=*/true, cloudy,
+                                                 rad_choice);
+            tau_sw_cum += tau_sw_level[m];
+            F_dir[m] = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
+        }
+
+        // Two-stream properties of layer m (evaluated in both passes).
+        auto layer_props = [&](int m) {
+            amrex::Real omega = 0.0;
+            amrex::Real g = 0.0;
+            select_scattering_props(z_level[m], rad_choice, cloudy, omega, g);
+            return compute_sw_layer_two_stream(tau_sw_level[m], omega, g, cos_zenith);
+        };
+
+        // 2. Upward pass of the adding method.
+        A[0] = alb_sw;
+        S[0] = alb_sw * F_dir[0];
+        for (int m = 0; m < nlev; ++m) {
+            const TwoStreamLayerSW L = layer_props(m);
+            amrex::Real denom = 1.0 - L.R_dif * A[m];
+            if (denom < 1.0e-12) denom = 1.0e-12;
+            A[m + 1] = L.R_dif + L.T_dif * L.T_dif * A[m] / denom;
+            S[m + 1] = L.R_dir * F_dir[m + 1]
+                     + L.T_dif * (S[m] + A[m] * L.T_dir * F_dir[m + 1]) / denom;
+        }
+
+        // 3. Downward pass: fluxes on the interfaces and layer heating rates.
+        amrex::Real d_above = 0.0;          // No diffuse flux incident at the TOA
+        amrex::Real u_above = S[nlev];
+        sw_up_at_toa = u_above;
+        amrex::Real F_net_above = F_dir[nlev] + d_above - u_above;
+        for (int k = kmax; k >= kmin; --k) {
+            const int m = k - kmin;
+            const TwoStreamLayerSW L = layer_props(m);
+            amrex::Real denom = 1.0 - L.R_dif * A[m];
+            if (denom < 1.0e-12) denom = 1.0e-12;
+
+            const amrex::Real d_m = (L.T_dif * d_above + L.T_dir * F_dir[m + 1] + L.R_dif * S[m]) / denom;
+            const amrex::Real u_m = A[m] * d_m + S[m];
+            const amrex::Real F_net_m = F_dir[m] + d_m - u_m;
 
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
             if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
-            amrex::Real tau_sw = diagnose_layer_tau(i, j, k, dz_level[m], z_level[m],
-                                                    state_arr, tau_sw_base, /*is_sw=*/true, cloudy,
-                                                    rad_choice);
-            tau_sw_cum += tau_sw;
-
-            // Direct beam at the bottom of this layer (Beer-Lambert)
-            amrex::Real F_sw_dir_curr = compute_sw_direct_flux(tau_sw_cum, S0, cos_zenith);
-
-            // Diffuse flux: transmitted from above plus newly scattered in this layer
-            amrex::Real omega = 0.0;
-            amrex::Real g = 0.0;
-            select_scattering_props(z_level[m], rad_choice, cloudy, omega, g);
-
-            amrex::Real F_sw_diff_layer =
-                compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
-            amrex::Real Tdir_layer = (cos_zenith > 0.0)
-                ? std::exp(-tau_sw / cos_zenith)
-                : 0.0;
-            amrex::Real F_sw_diff_curr = F_sw_diff_prev * Tdir_layer + F_sw_diff_layer;
-
-            // Heating from the divergence of the total downwelling flux
-            amrex::Real F_sw_total_top = F_sw_dir_prev + F_sw_diff_prev;
-            amrex::Real F_sw_total_bot = F_sw_dir_curr + F_sw_diff_curr;
-            amrex::Real Q_sw = compute_sw_heating_rate(F_sw_total_top, F_sw_total_bot,
-                                                       dz_level[m], rho, cp_air);
+            const amrex::Real Q_sw = compute_sw_heating_rate(F_net_above, F_net_m,
+                                                             dz_level[m], rho, cp_air);
             qheating_arr(i, j, k, 0) = Q_sw;
             local_max_heating = std::max(local_max_heating, std::abs(Q_sw));
 
-            F_sw_dir_prev  = F_sw_dir_curr;
-            F_sw_diff_prev = F_sw_diff_curr;
+            d_above = d_m;
+            F_net_above = F_net_m;
+            if (m == 0) {
+                sw_surface_absorbed = (1.0 - alb_sw) * (F_dir[0] + d_m);
+            }
         }
     }
-    // After the loop, F_sw_*_prev hold the downwelling fluxes at the surface.
 
     // ========================================================================
     // LONGWAVE: interface flux profiles, index m = 0 at the surface and
@@ -782,22 +821,23 @@ void vertical_two_stream_sweep(
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     if (rad_choice.sw_enabled) {
-        amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
-
         if (rad_choice.isothermal_test) {
             // Isothermal test: direct beam at the surface, apply albedo
             sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum) * (1.0 - alb_sw);
         } else {
-            // Normal mode: direct plus diffuse, apply albedo
-            sw_surface_flux = (F_sw_dir_prev + F_sw_diff_prev) * (1.0 - alb_sw);
+            // Normal mode: absorbed direct plus diffuse (see the SW block above)
+            sw_surface_flux = sw_surface_absorbed;
         }
+        sw_up_toa = sw_up_at_toa;
     } else {
         sw_surface_flux = 0.0;
+        sw_up_toa = 0.0;
     }
 
     if (rad_choice.lw_enabled) {
         amrex::Real F_lw_up_sfc   = F_lw_up_iface[0];
         amrex::Real F_lw_down_sfc = F_lw_down_iface[0];
+        lw_up_toa = F_lw_up_iface[nlev];
         if (rad_choice.isothermal_test) {
             amrex::Real rho_surface       = state_arr(i, j, kmin, Rho_comp);
             amrex::Real rho_theta_surface = state_arr(i, j, kmin, RhoTheta_comp);
@@ -808,6 +848,7 @@ void vertical_two_stream_sweep(
             amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
             F_lw_up_sfc   = I_thermal;
             F_lw_down_sfc = I_thermal;
+            lw_up_toa     = I_thermal;
             // Isothermal override: net LW flux and heating are exactly zero
             for (int k = kmin; k <= kmax; ++k) {
                 qheating_arr(i, j, k, 1) = 0.0;
@@ -816,6 +857,7 @@ void vertical_two_stream_sweep(
         lw_net_surface = F_lw_up_sfc - F_lw_down_sfc;
     } else {
         lw_net_surface = 0.0;
+        lw_up_toa = 0.0;
     }
 
     max_heating_rate = local_max_heating;

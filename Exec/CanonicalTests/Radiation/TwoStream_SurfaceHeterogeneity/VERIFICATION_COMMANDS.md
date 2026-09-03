@@ -263,7 +263,7 @@ Use this checklist to confirm Phase 11 is correctly implemented:
 - [ ] All checker script checks pass (6/6)
 - [ ] SW_TOA ≈ 962 W/m² (±5%)
 - [ ] SW_surface ≈ 300-400 W/m² (±10%)
-- [ ] F_up_surface ≈ 450 W/m² (±5%)
+- [ ] LW_up_TOA ≈ 390–450 W/m²; LW_net_surface small (order 1–50 W/m²)
 - [ ] heating_rate_max ≈ 1-10 K/s (nonzero)
 - [ ] Phase 10 tests show identical output
 - [ ] All documentation files present and readable

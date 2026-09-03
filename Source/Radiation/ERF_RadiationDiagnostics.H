@@ -101,7 +101,7 @@ public:
    * Records a row of radiation diagnostics for the current timestep:
    *
    * CSV columns (order):
-   *   step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
+   *   step, time, call_site, SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max
    *   [optional]: SEB_residual_mean, SEB_residual_max (only if seb_diagnostic_enable=true)
    *
    * Also prints tagged debug output and RADIATION_DIAG: line for RegTest parsing.
@@ -111,10 +111,11 @@ public:
    * @param[in] step           Current timestep number.
    * @param[in] time           Current simulation time [s].
    * @param[in] call_site      Diagnostic call-site label (e.g., "pre_dycore", "post_dycore").
-   * @param[in] sw_surface     Downwelling SW flux at surface [W/m^2].
-   * @param[in] sw_toa         Downwelling SW flux at TOA (should match input) [W/m^2].
-   * @param[in] f_up_surface   Upwelling LW flux at surface [W/m^2].
-   * @param[in] f_down_toa     Downwelling LW flux at TOA [W/m^2].
+   * @param[in] SW_surface     SW absorbed by the surface, (1 - albedo) * incident [W/m^2].
+   * @param[in] SW_TOA         Incident SW at the top of the atmosphere [W/m^2].
+   * @param[in] SW_up_TOA      Reflected SW leaving the top of the atmosphere [W/m^2].
+   * @param[in] LW_net_surface Net LW (up - down) at the surface [W/m^2].
+   * @param[in] LW_up_TOA      Outgoing LW at the top of the atmosphere [W/m^2].
    * @param[in] heating_rate_max Maximum heating rate magnitude [K/s].
    * @param[in] seb_residual_mean [optional] Mean SEB residual [W/m^2]; if non-finite, not written.
    * @param[in] seb_residual_max  [optional] Max SEB residual [W/m^2]; if non-finite, not written.
@@ -123,13 +124,9 @@ public:
    * @param[in] q_s_mean          [optional] Mean surface moisture [kg/kg]; if non-finite, written as NaN.
    * @param[in] q_s_max           [optional] Max surface moisture [kg/kg]; if non-finite, written as NaN.
    */
-  /*void append(int step, amrex::Real time, std::string const& call_site,
-             amrex::Real sw_surface, amrex::Real sw_toa,
-             amrex::Real f_up_surface, amrex::Real f_down_toa,
-             amrex::Real heating_rate_max);*/
   void append(int step, amrex::Real time, std::string const& call_site,
-            amrex::Real sw_surface, amrex::Real sw_toa,
-            amrex::Real f_up_surface, amrex::Real f_down_toa,
+            amrex::Real sw_surface, amrex::Real sw_toa, amrex::Real sw_up_toa,
+            amrex::Real lw_net_surface, amrex::Real lw_up_toa,
             amrex::Real heating_rate_max,
             amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN(),
             amrex::Real seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN(),

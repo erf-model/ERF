@@ -40,7 +40,7 @@ def read_radiation_diag(filename):
     """Read the radiation diagnostic CSV and return a dict of column lists.
 
     The file is comma separated with a header line
-    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    (step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max,...),
     so columns are looked up by name rather than by position. Non-numeric
     columns (call_site) are kept as strings; numeric columns are floats.
     """
@@ -191,11 +191,11 @@ def check_rhotheta_coupling_smoke_test():
 
     # --------------------------------------------------------------------
     # Check 4: no other diagnostic column has NaN/Inf (SW_surface,
-    # F_up_surface, F_down_toa) -- broader numerical sanity check.
+    # LW_net_surface, LW_up_TOA) -- broader numerical sanity check.
     # --------------------------------------------------------------------
     other_cols_ok = True
     for i in range(n_rows):
-        for col in ('SW_surface', 'F_up_surface', 'F_down_toa'):
+        for col in ('SW_surface', 'LW_net_surface', 'LW_up_TOA'):
             v = data[col][i]
             if math.isnan(v) or math.isinf(v):
                 other_cols_ok = False

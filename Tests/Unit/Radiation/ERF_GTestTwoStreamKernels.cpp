@@ -15,8 +15,9 @@
 //      zero when the sun is below the horizon.
 //   2. SW heating: energy converging into a layer warms it; unphysical
 //      inputs (dz, rho, cp <= 0) give exactly zero.
-//   3. Diffuse SW source: identically zero for a non-scattering layer,
-//      positive and bounded by the attenuated direct beam otherwise.
+//   3. Two-stream layer solution: a non-scattering layer only absorbs, a
+//      conservative layer (omega = 1) neither absorbs nor creates energy,
+//      and reflectances/transmittances stay within physical bounds.
 //   4. Gray-gas LW: an isothermal layer leaves sigma*T^4 unchanged,
 //      transmittance is exp(-tau), and a transparent layer is a no-op.
 //   5. LW heating sign: net upward flux increasing with height means the
@@ -77,37 +78,83 @@ TEST(TwoStreamSWKernels, HeatingIsFluxConvergenceOverRhoCp)
     EXPECT_EQ(compute_sw_heating_rate(flux_top, flux_bot, dz, rho, -1.0), 0.0);
 }
 
-TEST(TwoStreamSWKernels, DiffuseSourceVanishesWithoutScattering)
+TEST(TwoStreamSWKernels, LayerWithoutScatteringOnlyAbsorbs)
 {
     const amrex::Real tau = 0.5;
-    const amrex::Real F_dir_top = 600.0;
     const amrex::Real mu0 = 0.5;
+    const TwoStreamLayerSW L = compute_sw_layer_two_stream(tau, 0.0, 0.85, mu0);
+    EXPECT_EQ(L.R_dif, 0.0);
+    EXPECT_EQ(L.R_dir, 0.0);
+    EXPECT_EQ(L.T_dir, 0.0);
+    // Diffuse light crosses a pure absorber with the diffusivity factor 2.
+    EXPECT_NEAR(L.T_dif, std::exp(-2.0 * tau), 1.0e-9);
+    EXPECT_NEAR(L.T_noscat, std::exp(-tau / mu0), kRelTol);
 
-    // omega == 0 must reduce EXACTLY to the direct-beam-only model.
-    EXPECT_EQ(compute_sw_diffuse_flux(tau, F_dir_top, mu0, 0.0, 0.85), 0.0);
-    // No incident beam or no layer: nothing to scatter.
-    EXPECT_EQ(compute_sw_diffuse_flux(tau, 0.0, mu0, 0.9, 0.85), 0.0);
-    EXPECT_EQ(compute_sw_diffuse_flux(0.0, F_dir_top, mu0, 0.9, 0.85), 0.0);
-    // Night.
-    EXPECT_EQ(compute_sw_diffuse_flux(tau, F_dir_top, 0.0, 0.9, 0.85), 0.0);
+    // An empty layer is transparent to everything.
+    const TwoStreamLayerSW E = compute_sw_layer_two_stream(0.0, 0.9, 0.85, mu0);
+    EXPECT_EQ(E.R_dif, 0.0);
+    EXPECT_EQ(E.T_dif, 1.0);
+    EXPECT_EQ(E.R_dir, 0.0);
+    EXPECT_EQ(E.T_dir, 0.0);
+    EXPECT_EQ(E.T_noscat, 1.0);
 }
 
-TEST(TwoStreamSWKernels, DiffuseSourceIsPositiveAndBounded)
+TEST(TwoStreamSWKernels, ConservativeLayerNeitherAbsorbsNorCreatesEnergy)
 {
-    const amrex::Real tau = 0.5;
-    const amrex::Real F_dir_top = 600.0;
-    const amrex::Real mu0 = 0.5;
-    const amrex::Real omega = 0.9999;
-    const amrex::Real g = 0.85;
+    for (amrex::Real g : {0.0, 0.5, 0.85}) {
+        for (amrex::Real tau : {0.01, 0.5, 5.0}) {
+            for (amrex::Real mu0 : {0.2, 0.5, 1.0}) {
+                SCOPED_TRACE("g=" + std::to_string(g) + " tau=" + std::to_string(tau) +
+                             " mu0=" + std::to_string(mu0));
+                const TwoStreamLayerSW L = compute_sw_layer_two_stream(tau, 1.0, g, mu0);
+                // omega = 1: everything incident is reflected or transmitted.
+                EXPECT_NEAR(L.R_dif + L.T_dif, 1.0, 1.0e-4);
+                EXPECT_NEAR(L.R_dir + L.T_dir + L.T_noscat, 1.0, 1.0e-4);
+                EXPECT_GE(L.R_dif, 0.0);
+                EXPECT_GE(L.R_dir, 0.0);
+                EXPECT_GE(L.T_dir, 0.0);
+            }
+        }
+    }
+}
 
-    const amrex::Real diffuse = compute_sw_diffuse_flux(tau, F_dir_top, mu0, omega, g);
-    EXPECT_GT(diffuse, 0.0);
-    // The diffuse source cannot exceed the direct beam entering the layer.
-    EXPECT_LT(diffuse, F_dir_top);
-    EXPECT_TRUE(std::isfinite(diffuse));
+TEST(TwoStreamSWKernels, PartlyAbsorbingLayerStaysWithinPhysicalBounds)
+{
+    for (amrex::Real omega : {0.3, 0.9, 0.9999}) {
+        for (amrex::Real tau : {0.05, 1.0, 20.0}) {
+            SCOPED_TRACE("omega=" + std::to_string(omega) + " tau=" + std::to_string(tau));
+            const TwoStreamLayerSW L = compute_sw_layer_two_stream(tau, omega, 0.85, 0.5);
+            EXPECT_GE(L.R_dif, 0.0);
+            EXPECT_GE(L.T_dif, 0.0);
+            EXPECT_LE(L.R_dif + L.T_dif, 1.0 + 1.0e-12);
+            EXPECT_GE(L.R_dir, 0.0);
+            EXPECT_GE(L.T_dir, 0.0);
+            EXPECT_LE(L.R_dir + L.T_dir + L.T_noscat, 1.0 + 1.0e-12);
+            // Some absorption must remain when omega < 1.
+            EXPECT_LT(L.R_dif + L.T_dif, 1.0);
+            EXPECT_LT(L.R_dir + L.T_dir + L.T_noscat, 1.0);
+        }
+    }
+    // A thick, strongly scattering layer reflects most of the direct beam.
+    const TwoStreamLayerSW thick = compute_sw_layer_two_stream(20.0, 0.9999, 0.85, 0.5);
+    EXPECT_GT(thick.R_dir, 0.5);
+    EXPECT_LT(thick.T_noscat, 1.0e-15);
+}
 
-    // More scattering (larger omega) produces more diffuse flux.
-    EXPECT_LT(compute_sw_diffuse_flux(tau, F_dir_top, mu0, 0.5, g), diffuse);
+TEST(TwoStreamSWKernels, MoreScatteringReflectsMore)
+{
+    const amrex::Real tau = 0.5, g = 0.85, mu0 = 0.5;
+    amrex::Real previous = -1.0;
+    for (amrex::Real omega : {0.2, 0.5, 0.8, 0.99}) {
+        const TwoStreamLayerSW L = compute_sw_layer_two_stream(tau, omega, g, mu0);
+        EXPECT_GT(L.R_dir, previous);
+        previous = L.R_dir;
+    }
+    // Night: no direct beam and no direct-beam scattering.
+    const TwoStreamLayerSW night = compute_sw_layer_two_stream(tau, 0.9, g, 0.0);
+    EXPECT_EQ(night.T_noscat, 0.0);
+    EXPECT_EQ(night.R_dir, 0.0);
+    EXPECT_EQ(night.T_dir, 0.0);
 }
 
 TEST(TwoStreamLWKernels, ThermalIntensityIsStefanBoltzmann)

@@ -54,10 +54,9 @@ void fill_or_copy_seb_field(
  *   [cloud_base_height_m, cloud_top_height_m].
  * - Cloud fraction masking: blends clear-sky and cloudy-column fluxes via
  *   F = (1 - cloud_fraction) * F_clear + cloud_fraction) * F_cloudy.
- * - Diffuse (scattered) SW flux: during the downward SW sweep, each layer's
- *   direct-beam attenuation also generates a diffuse flux contribution
- *   via compute_sw_diffuse_flux() (Meador-Weaver two-stream scattering),
- *   accumulated layer-by-layer alongside the direct beam.
+ * - Diffuse (scattered) SW flux: two-stream reflectance/transmittance per
+ *   layer combined with the surface albedo by the adding method, giving
+ *   upward and downward diffuse streams (see ERF_TwoStreamSW.H).
  * - Per-level heating rate output: writes SW/LW heating rates to a
  *   2-component heating-rate MultiFab (component 0 = SW, component 1 = LW),
  *   mirroring the RRTMGP convention.
@@ -74,9 +73,11 @@ void fill_or_copy_seb_field(
  * downward (TOA -> surface) and then upward (surface -> TOA). Layer
  * temperature is obtained from rho*theta through the Exner function.
  *
- * Note: CSV diagnostics (SW_surface, heating_rate_max, etc.) are maintained
- * for backward RegTest compatibility. heating_rate_max is the max(|Q_sw|+|Q_lw|)
- * observed during the column evaluation.
+ * CSV diagnostics (domain means unless noted): SW_surface is the SW absorbed
+ * by the surface, SW_TOA the incident SW at the top of the atmosphere,
+ * SW_up_TOA the reflected SW leaving the top, LW_net_surface the net
+ * (up - down) LW at the surface, LW_up_TOA the outgoing LW at the top, and
+ * heating_rate_max the max(|Q_sw|+|Q_lw|) over the column evaluations.
  */
 
 void ERF::compute_twostream_radiation_diagnostics(
@@ -109,8 +110,9 @@ void ERF::compute_twostream_radiation_diagnostics(
     // Initialize global diagnostics
     amrex::Real SW_surface = 0.0;
     amrex::Real SW_TOA = 0.0;
-    amrex::Real F_up_surface = 0.0;
-    amrex::Real F_down_toa = 0.0;
+    amrex::Real SW_up_TOA = 0.0;
+    amrex::Real LW_net_surface = 0.0;
+    amrex::Real LW_up_TOA = 0.0;
     amrex::Real heating_rate_max = 0.0;
     amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real seb_residual_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
@@ -150,7 +152,9 @@ void ERF::compute_twostream_radiation_diagnostics(
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
         amrex::Real sw_surface_sum = 0.0;
+        amrex::Real sw_up_toa_sum = 0.0;
         amrex::Real lw_net_sum = 0.0;
+        amrex::Real lw_up_toa_sum = 0.0;
         amrex::Long n_columns_total = 0;
 
         // SEB residual diagnostics
@@ -318,11 +322,13 @@ void ERF::compute_twostream_radiation_diagnostics(
             // GPU-safe reduction using ReduceOps (per-column results aggregated on device)
             amrex::Real max_heating_box = 0.0;
             amrex::Real sw_sum_box = 0.0;
+            amrex::Real sw_up_sum_box = 0.0;
             amrex::Real lw_sum_box = 0.0;
+            amrex::Real lw_up_sum_box = 0.0;
 
             // Device-side reduction: compute max heating and sum of surface fluxes
-            ReduceOps<ReduceOpMax, ReduceOpSum, ReduceOpSum> reduce_ops;
-            ReduceData<amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
+            ReduceOps<ReduceOpMax, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum> reduce_ops;
+            ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
 
             using ReduceTuple = typename decltype(reduce_data)::Type;
 
@@ -334,11 +340,13 @@ void ERF::compute_twostream_radiation_diagnostics(
                     // contributor when cloud_fraction == 0.0, matching earlier behavior)
                     amrex::Real max_heating_clear = 0.0;
                     amrex::Real sw_flux_clear = 0.0;
+                    amrex::Real sw_up_clear = 0.0;
                     amrex::Real lw_net_clear = 0.0;
+                    amrex::Real lw_up_clear = 0.0;
                     vertical_two_stream_sweep(
                         i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/false,
                         qheating_clear_arr,
-                        max_heating_clear, sw_flux_clear, lw_net_clear,
+                        max_heating_clear, sw_flux_clear, sw_up_clear, lw_net_clear, lw_up_clear,
                         z_phys_cc_arr,
                         time_utc_seconds,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
@@ -347,7 +355,9 @@ void ERF::compute_twostream_radiation_diagnostics(
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
+                    amrex::Real sw_up_col = sw_up_clear;
                     amrex::Real lw_net_col = lw_net_clear;
+                    amrex::Real lw_up_col = lw_up_clear;
 
                     // Cloudy column only needs to be evaluated when there is a
                     // nonzero cloud fraction; this keeps the cloud_fraction==0
@@ -355,11 +365,13 @@ void ERF::compute_twostream_radiation_diagnostics(
                     if (cloud_fraction > 0.0) {
                          amrex::Real max_heating_cloudy = 0.0;
                          amrex::Real sw_flux_cloudy = 0.0;
+                         amrex::Real sw_up_cloudy = 0.0;
                          amrex::Real lw_net_cloudy = 0.0;
+                         amrex::Real lw_up_cloudy = 0.0;
                          vertical_two_stream_sweep(
                             i, j, bx, geom_lev, state_arr, rad_choice, /*cloudy=*/true,
                             qheating_cloudy_arr,
-                            max_heating_cloudy, sw_flux_cloudy, lw_net_cloudy,
+                            max_heating_cloudy, sw_flux_cloudy, sw_up_cloudy, lw_net_cloudy, lw_up_cloudy,
                              z_phys_cc_arr,
                              time_utc_seconds,
                              has_hetero_alb_sw, &hetero_alb_sw_arr,
@@ -369,8 +381,12 @@ void ERF::compute_twostream_radiation_diagnostics(
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
                                       cloud_fraction * sw_flux_cloudy;
+                        sw_up_col = (1.0 - cloud_fraction) * sw_up_clear +
+                                    cloud_fraction * sw_up_cloudy;
                         lw_net_col = (1.0 - cloud_fraction) * lw_net_clear +
                                      cloud_fraction * lw_net_cloudy;
+                        lw_up_col = (1.0 - cloud_fraction) * lw_up_clear +
+                                    cloud_fraction * lw_up_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
 
                         // Blend per-level heating rates in place
@@ -390,7 +406,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     }
 
                     // Return tuple for reduction
-                    return {max_heating_col, sw_flux_col, lw_net_col};
+                    return {max_heating_col, sw_flux_col, sw_up_col, lw_net_col, lw_up_col};
                 }
             );
 
@@ -399,12 +415,16 @@ void ERF::compute_twostream_radiation_diagnostics(
             auto reduce_tuple = reduce_data.value(reduce_ops);
             max_heating_box = amrex::get<0>(reduce_tuple);
             sw_sum_box = amrex::get<1>(reduce_tuple);
-            lw_sum_box = amrex::get<2>(reduce_tuple);
+            sw_up_sum_box = amrex::get<2>(reduce_tuple);
+            lw_sum_box = amrex::get<3>(reduce_tuple);
+            lw_up_sum_box = amrex::get<4>(reduce_tuple);
 
             // Accumulate box results into global results
             max_heating_global = std::max(max_heating_global, max_heating_box);
             sw_surface_sum += sw_sum_box;
+            sw_up_toa_sum += sw_up_sum_box;
             lw_net_sum += lw_sum_box;
+            lw_up_toa_sum += lw_up_sum_box;
         }
 
          // Warn if diagnostic is requested but SEB infrastructure isn't enabled
@@ -620,8 +640,11 @@ void ERF::compute_twostream_radiation_diagnostics(
         // True horizontal heterogeneity (e.g., patchy clouds varying by column)
         // remains deferred to future work; see RAD_DEVELOPMENT.md.
         if (n_columns_total > 0) {
-            SW_surface = sw_surface_sum / static_cast<amrex::Real>(n_columns_total);
-            F_up_surface = lw_net_sum / static_cast<amrex::Real>(n_columns_total);
+            const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);
+            SW_surface     = sw_surface_sum * inv_n;
+            SW_up_TOA      = sw_up_toa_sum * inv_n;
+            LW_net_surface = lw_net_sum * inv_n;
+            LW_up_TOA      = lw_up_toa_sum * inv_n;
         }
         heating_rate_max = max_heating_global;
 
@@ -639,8 +662,8 @@ void ERF::compute_twostream_radiation_diagnostics(
             const amrex::Real sigma = stefan_boltzmann;
             amrex::Real T = rad_choice.T_iso_K;
             amrex::Real I_thermal = sigma * T * T * T * T;
-            F_down_toa = I_thermal;
-            F_up_surface = I_thermal;
+            LW_up_TOA = I_thermal;
+            LW_net_surface = 0.0;
             heating_rate_max = 0.0;
         }
     }
@@ -650,8 +673,9 @@ void ERF::compute_twostream_radiation_diagnostics(
         Print() << "Radiation diagnostics at step " << nstep << ":\n"
                 << "  SW TOA = " << SW_TOA << " W/m^2\n"
                 << "  SW surface = " << SW_surface << " W/m^2\n"
-                << "  LW up (surface) = " << F_up_surface << " W/m^2\n"
-                << "  LW down (TOA) = " << F_down_toa << " W/m^2\n"
+                << "  SW up (TOA) = " << SW_up_TOA << " W/m^2\n"
+                << "  LW net (surface) = " << LW_net_surface << " W/m^2\n"
+                << "  LW up (TOA) = " << LW_up_TOA << " W/m^2\n"
                 << "  Max heating rate = " << heating_rate_max << " K/s\n";
         if (rad_choice.seb_diagnostic_enable && std::isfinite(seb_residual_mean)) {
             Print() << "  SEB residual (mean) = " << seb_residual_mean << " W/m^2\n"
@@ -666,7 +690,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     }
 
     rad_diag.append(nstep, time_step, call_site, SW_surface, SW_TOA,
-                    F_up_surface, F_down_toa, heating_rate_max,
+                    SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max,
                     seb_residual_mean, seb_residual_max,
                     t_s_mean, t_s_max, q_s_mean, q_s_max);
 }

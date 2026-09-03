@@ -16,8 +16,9 @@ def read_radiation_diag(filename):
         'call_site': [],
         'SW_surface': [],
         'SW_TOA': [],
-        'F_up_surface': [],
-        'F_down_toa': [],
+        'LW_net_surface': [],
+        'LW_up_TOA': [],
+        'SW_up_TOA': [],
         'heating_rate_max': []
     }
 
@@ -33,16 +34,19 @@ def read_radiation_diag(filename):
                     continue
 
                 parts = line.split(',')
-                if len(parts) >= 8:
+                # Columns: step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,
+                #          LW_net_surface,LW_up_TOA,heating_rate_max,...
+                if len(parts) >= 9:
                     try:
                         data['step'].append(int(float(parts[0])))
                         data['time'].append(float(parts[1]))
                         data['call_site'].append(parts[2].strip())
                         data['SW_surface'].append(float(parts[3]))
                         data['SW_TOA'].append(float(parts[4]))
-                        data['F_up_surface'].append(float(parts[5]))
-                        data['F_down_toa'].append(float(parts[6]))
-                        data['heating_rate_max'].append(float(parts[7]))
+                        data['SW_up_TOA'].append(float(parts[5]))
+                        data['LW_net_surface'].append(float(parts[6]))
+                        data['LW_up_TOA'].append(float(parts[7]))
+                        data['heating_rate_max'].append(float(parts[8]))
                     except ValueError:
                         continue
     except FileNotFoundError:

@@ -15,7 +15,7 @@ import os
 def parse_radiation_diag_line(line):
     """
     Parse a RADIATION_DIAG: output line.
-    Returns dict with keys: step, time, call_site, SW_surface, SW_TOA, F_up_surface, F_down_toa, heating_rate_max
+    Returns dict with keys: step, time, call_site, SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max
     """
     # Example: "RADIATION_DIAG: step=0 time=0.000000e+00 call_site=pre_dycore SW_surface=... SW_TOA=... ..."
     if not line.startswith("RADIATION_DIAG:"):
@@ -39,7 +39,7 @@ def parse_radiation_diag_line(line):
         result['call_site'] = m.group(1)
     
     # Extract all numeric fluxes
-    for field in ['SW_surface', 'SW_TOA', 'F_up_surface', 'F_down_toa', 'heating_rate_max', 
+    for field in ['SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max', 
                   'SEB_residual_mean', 'SEB_residual_max']:
         m = re.search(field + r'=([0-9.e+-]+)', line)
         if m:
@@ -75,7 +75,7 @@ def check_baseline_case(diag_file, enabled_file=None):
     print(f"  {header}")
     
     # Phase 17 baseline has exactly 8 columns (no SEB diagnostic columns)
-    expected_cols = ['step', 'time', 'call_site', 'SW_surface', 'SW_TOA', 'F_up_surface', 'F_down_toa', 'heating_rate_max']
+    expected_cols = ['step', 'time', 'call_site', 'SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max']
     if len(columns) != len(expected_cols):
         print(f"WARNING: Expected {len(expected_cols)} columns, got {len(columns)}")
         print(f"  Expected: {expected_cols}")
