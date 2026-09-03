@@ -107,6 +107,7 @@ void FireLayer::initialize(const ERF& erf,
     fire_wind_eff   = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 0);
     fire_wind_extract_z = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_slopes     = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 2, 1);
+    fire_surface_z  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_curvature  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_ros        = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
     fire_fuel_load  = std::make_unique<MultiFab>(m_fg.ba, m_fg.dm, 1, 0);
@@ -228,6 +229,12 @@ void FireLayer::initialize(const ERF& erf,
     fire_mext->setVal(compute_moisture_of_extinction(sigma_weighted));
 
     compute_terrain_slopes(*fire_slopes, z_phys_nd_atm, erf.Geom(0), m_fg, m_params.terrain_file_name);
+
+    // Ground elevation of each fire cell's atmospheric column, used as the datum
+    // for wind extraction. Always from the atmospheric terrain, even when a finer
+    // terrain file supplies the slopes, since the wind profile being interpolated
+    // belongs to that column.
+    compute_fire_surface_height(*fire_surface_z, z_phys_nd_atm, erf.Geom(0), m_fg);
     fire_slopes->FillBoundary(m_fg.geom.periodicity());
     compute_terrain_curvature(*fire_curvature, *fire_slopes, m_fg.geom);
 
@@ -484,6 +491,7 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         amrex::Print() << "[FIRE DEBUG] Starting fire advance step with dt=" << dt << std::endl;
 
     fill_fire_wind_from_interpolation(*fire_wind_ref, *fire_wind_extract_z, xvel, yvel, z_phys_cc,
+                                      *fire_surface_z,
                                       m_fg, m_params.wind_ref_ht, m_nz,
                                       m_use_per_fuel_wind_ht ? fire_fuel_model.get() : nullptr,
                                       m_use_per_fuel_wind_ht ? m_d_fcwh.data() : nullptr,
@@ -708,7 +716,8 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
             } else {
                 fire_levelset::advect_levelset_weno5z_rk3(*fire_phi, *fire_wind_eff,
                                                 *fire_ros, m_fg.geom, dt_ls,
-                                                m_params.levelset_eps_visc);
+                                                m_params.levelset_eps_visc,
+                                                fire_slopes.get());
             }
             fire_phi->FillBoundary(m_fg.geom.periodicity());
 
@@ -753,13 +762,16 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         n_substeps = n_ls_substeps;
     } else {
         // --- Default: FARSITE Lagrangian path (unchanged) ---
+        // fire_slopes turns the ROS into a spread rate along the ground: a step
+        // of ds up a slope covers ds cos(theta) in map view.
         n_substeps = advance_fire_subcycle(*fire_phi, *fire_spread_vec,
                                           *fire_disp_accum,
                                           *fire_arrival_time,
                                           *fire_wind_eff, *fire_ros,
                                           m_fg.geom, dt,
                                           m_current_time,
-                                          m_fp);
+                                          m_fp,
+                                          fire_slopes.get());
     }
 
     if (m_params.fire_debug) {

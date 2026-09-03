@@ -110,3 +110,42 @@ void compute_terrain_slopes(
         }
     }
 }
+
+void compute_fire_surface_height(
+    MultiFab& fire_surface_z,
+    const MultiFab* z_phys_nd,
+    const Geometry& geom_atm,
+    const FireGrid& fg)
+{
+    // Flat terrain: ERF never allocates z_phys_nd, and the ground is the floor
+    // of the domain.
+    if (z_phys_nd == nullptr) {
+        fire_surface_z.setVal(geom_atm.ProbLo(2));
+        return;
+    }
+
+    const int C = fg.C;
+    const Box& domain_atm = geom_atm.Domain();
+    const int atm_nlo_x = domain_atm.smallEnd(0);
+    const int atm_nlo_y = domain_atm.smallEnd(1);
+
+    for (MFIter mfi(fire_surface_z, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        Array4<Real> zs = fire_surface_z.array(mfi);
+        Array4<const Real> z_nd = z_phys_nd->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) {
+            const int i_f = iv[0];
+            const int j_f = iv[1];
+
+            // Atmospheric cell holding this fire cell, and its four k = 0 nodes
+            const int i_n_lo = i_f / C + atm_nlo_x;
+            const int j_n_lo = j_f / C + atm_nlo_y;
+
+            zs(i_f, j_f, 0) = 0.25 * (z_nd(i_n_lo,     j_n_lo,     0)
+                                    + z_nd(i_n_lo + 1, j_n_lo,     0)
+                                    + z_nd(i_n_lo,     j_n_lo + 1, 0)
+                                    + z_nd(i_n_lo + 1, j_n_lo + 1, 0));
+        });
+    }
+}

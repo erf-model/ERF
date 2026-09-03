@@ -79,12 +79,15 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
                                   const amrex::MultiFab& phi,
                                   const amrex::MultiFab& R_mf,
                                   amrex::Real dx, amrex::Real dy,
-                                  amrex::Real eps_visc)
+                                  amrex::Real eps_visc,
+                                  const amrex::MultiFab* slopes = nullptr)
 {
     using namespace amrex;
 
     const Real dx2i = 1.0 / (dx * dx);
     const Real dy2i = 1.0 / (dy * dy);
+
+    const bool use_terrain = (slopes != nullptr);
 
     for (MFIter mfi(rhs); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -92,11 +95,19 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
         auto phi_arr = phi.const_array(mfi);
         auto R_arr = R_mf.const_array(mfi);
 
+        Array4<const Real> slope_arr;
+        if (use_terrain) slope_arr = slopes->const_array(mfi);
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept {
             int i = iv[0], j = iv[1], k = iv[2];
 
-            // Compute |∇φ| via Godunov norm
-            Real norm_grad = fire_levelset::godunov_norm_grad_phi(phi_arr, dx, dy, i, j, k);
+            // Compute |∇φ|, projected onto the terrain surface when slopes are
+            // supplied so that R is a spread rate along the ground rather than
+            // in map view.
+            const Real sx = use_terrain ? slope_arr(i, j, k, 0) : Real(0.0);
+            const Real sy = use_terrain ? slope_arr(i, j, k, 1) : Real(0.0);
+            Real norm_grad = fire_levelset::godunov_norm_grad_phi(phi_arr, dx, dy,
+                                                                  i, j, k, sx, sy);
 
             // Compute Δφ = ∂²φ/∂x² + ∂²φ/∂y²
             Real laplacian = (phi_arr(i+1, j, k) - 2.0*phi_arr(i, j, k) + phi_arr(i-1, j, k)) * dx2i
@@ -124,13 +135,18 @@ inline void compute_levelset_rhs(amrex::MultiFab& rhs,
  * @param[in]     geom      Domain geometry
  * @param[in]     dt        Timestep
  * @param[in]     eps_visc  Artificial viscosity coefficient (erf.fire.levelset.eps_visc)
+ * @param[in]     slopes    Terrain slopes [dz/dx, dz/dy]; when supplied, |∇φ| is
+ *                          projected onto the terrain surface so that R is a
+ *                          spread rate along the ground. nullptr keeps the
+ *                          map-view interpretation.
  */
 inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
                                         const amrex::MultiFab& /*vel_eff*/,
                                         const amrex::MultiFab& R_mf,
                                         const amrex::Geometry& geom,
                                         amrex::Real dt,
-                                        amrex::Real eps_visc)
+                                        amrex::Real eps_visc,
+                                        const amrex::MultiFab* slopes = nullptr)
 {
     using namespace amrex;
 
@@ -154,7 +170,7 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     // stencil in compute_levelset_rhs reads all three. Stages 2 and 3 already
     // fill before their RHS; stage 1 was the one that did not.
     phi_star.FillBoundary(geom.periodicity());
-    compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc);
+    compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc, slopes);
     for (MFIter mfi(phi_star); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto ps = phi_star.array(mfi);
@@ -166,7 +182,7 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     phi_star.FillBoundary(geom.periodicity());
 
     // Stage 2: φ** = (3/4)φ^n + (1/4)(φ* + Δt L(φ*))
-    compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc);
+    compute_levelset_rhs(rhs, phi_star, R_mf, dx[0], dx[1], eps_visc, slopes);
     phi_hat.ParallelCopy(phi_n);
     for (MFIter mfi(phi_hat); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -180,7 +196,7 @@ inline void advect_levelset_weno5z_rk3(amrex::MultiFab& phi,
     phi_hat.FillBoundary(geom.periodicity());
 
     // Stage 3: φ^{n+1} = (1/3)φ^n + (2/3)(φ** + Δt L(φ**))
-    compute_levelset_rhs(rhs, phi_hat, R_mf, dx[0], dx[1], eps_visc);
+    compute_levelset_rhs(rhs, phi_hat, R_mf, dx[0], dx[1], eps_visc, slopes);
     for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto pnew = phi.array(mfi);

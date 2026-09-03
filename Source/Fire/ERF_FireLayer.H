@@ -69,6 +69,7 @@ class ERF;
  * | fire_wind_ref  | 2     | u,v at z_ref (e.g., 6.1 m) from MOST        |
  * | fire_wind_eff  | 2     | After WAF + terrain corrections              |
  * | fire_slopes    | 2     | dz/dx, dz/dy (static, computed at init)      |
+ * | fire_surface_z | 1     | Ground elevation [m] of the atmospheric column |
  * | fire_curvature | 1     | Terrain curvature (static, at init)          |
  * | fire_ros       | 1     | Rate of spread [m/s]                         |
  * | fire_fuel_load | 1     | Fuel load [kg/m²]                            |
@@ -539,6 +540,7 @@ private:
     std::unique_ptr<amrex::MultiFab>         fire_wind_eff;     // Effective wind
     std::unique_ptr<amrex::MultiFab>         fire_wind_extract_z; // Wind extraction height [m] (z_surf + z_ref)
     std::unique_ptr<amrex::MultiFab>         fire_slopes;       // Terrain slopes
+    std::unique_ptr<amrex::MultiFab>         fire_surface_z;    // Ground elevation of the atm column
     std::unique_ptr<amrex::MultiFab>         fire_curvature;    // Terrain curvature
     std::unique_ptr<amrex::MultiFab>         fire_ros;          // Rate of spread
     std::unique_ptr<amrex::MultiFab>         fire_fuel_load;    // Fuel load

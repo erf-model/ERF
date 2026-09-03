@@ -87,16 +87,23 @@ amrex::Real godunov_norm_grad_phi(const amrex::Array4<const amrex::Real>& phi,
     amrex::Real phi_x = (dxm * dxm > dxp * dxp) ? dxm : dxp;
     amrex::Real phi_y = (dym * dym > dyp * dyp) ? dym : dyp;
 
-    // Godunov norm
-    amrex::Real norm_sq = phi_x * phi_x + phi_y * phi_y;
+    // Godunov norm in map coordinates
+    amrex::Real grad_sq = phi_x * phi_x + phi_y * phi_y;
 
-    // Terrain arc-length correction
-    if (slope_x != 0.0 || slope_y != 0.0) {
-        amrex::Real slope_term = phi_x * slope_x + phi_y * slope_y;
-        norm_sq += slope_term * slope_term;
-    }
+    // Terrain projection. The front travels at R along the terrain surface, so
+    // its map-view speed is R cos(theta) with theta the slope angle along the
+    // spread direction n = grad(phi)/|grad(phi)|:
+    //
+    //   |grad(phi)|_surface = |grad(phi)| / sqrt(1 + (s . n)^2)
+    //                       = |grad(phi)|^2 / sqrt(|grad(phi)|^2 + (s . grad(phi))^2)
+    //
+    // which reduces exactly to the component-wise arc-length spacing
+    // dx sqrt(1 + s_x^2) in one dimension, and to |grad(phi)| on flat terrain.
+    const amrex::Real s_dot_grad = phi_x * slope_x + phi_y * slope_y;
+    const amrex::Real denom = std::sqrt(amrex::max(grad_sq + s_dot_grad * s_dot_grad,
+                                                   amrex::Real(1.0e-14)));
 
-    return std::sqrt(amrex::max(norm_sq, 1.0e-14));
+    return grad_sq / denom;
 }
 
 } // namespace fire_levelset

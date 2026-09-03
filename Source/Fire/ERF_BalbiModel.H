@@ -866,7 +866,7 @@ inline void advect_levelset_balbi_rk3(amrex::MultiFab& phi,
     phi_star.ParallelCopy(phi_n);
     phi_star.FillBoundary(geom.periodicity());
     fill_balbi_ros_directional(R_dir, phi_star, wind, slopes, geom, bc_default, bp, in);
-    fire_levelset::compute_levelset_rhs(rhs, phi_star, R_dir, dx[0], dx[1], eps_visc);
+    fire_levelset::compute_levelset_rhs(rhs, phi_star, R_dir, dx[0], dx[1], eps_visc, &slopes);
     for (MFIter mfi(phi_star); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto ps = phi_star.array(mfi);
@@ -879,7 +879,7 @@ inline void advect_levelset_balbi_rk3(amrex::MultiFab& phi,
 
     // Stage 2: φ** = (3/4)φ^n + (1/4)(φ* + Δt L(φ*))
     fill_balbi_ros_directional(R_dir, phi_star, wind, slopes, geom, bc_default, bp, in);
-    fire_levelset::compute_levelset_rhs(rhs, phi_star, R_dir, dx[0], dx[1], eps_visc);
+    fire_levelset::compute_levelset_rhs(rhs, phi_star, R_dir, dx[0], dx[1], eps_visc, &slopes);
     phi_hat.ParallelCopy(phi_n);
     for (MFIter mfi(phi_hat); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
@@ -894,7 +894,7 @@ inline void advect_levelset_balbi_rk3(amrex::MultiFab& phi,
 
     // Stage 3: φ^{n+1} = (1/3)φ^n + (2/3)(φ** + Δt L(φ**))
     fill_balbi_ros_directional(R_dir, phi_hat, wind, slopes, geom, bc_default, bp, in);
-    fire_levelset::compute_levelset_rhs(rhs, phi_hat, R_dir, dx[0], dx[1], eps_visc);
+    fire_levelset::compute_levelset_rhs(rhs, phi_hat, R_dir, dx[0], dx[1], eps_visc, &slopes);
     for (MFIter mfi(phi); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto pnew = phi.array(mfi);

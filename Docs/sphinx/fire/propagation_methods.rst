@@ -111,6 +111,38 @@ heat flux, etc.). You can switch between methods by changing the
 ``erf.fire.propagation_method`` parameter without modifying the rest of the setup.
 
 
+Terrain projection
+------------------
+
+Every ROS model returns a spread rate **along the terrain surface**, while both
+propagation methods advance the front in map (x, y) coordinates. A surface step of
+:math:`ds` up a slope of angle :math:`\theta` in the spread direction covers only
+:math:`ds\cos\theta` horizontally, so the map-view front speed is
+
+.. math::
+
+   F_{map} = R\cos\theta = \frac{R}{\sqrt{1 + (\nabla z \cdot \hat{n})^2}}
+
+with :math:`\hat{n}` the front normal. Both paths apply this factor:
+
+- The level set folds it into the gradient operator,
+  :math:`|\nabla\phi|_{surface} = |\nabla\phi|^2 / \sqrt{|\nabla\phi|^2 + (\nabla z\cdot\nabla\phi)^2}`,
+  which is the directional form of the arc-length correction and reduces exactly to
+  the component-wise spacing :math:`dx\sqrt{1 + s_x^2}` in one dimension.
+- The FARSITE path divides its displacement :math:`ds` by the same factor before
+  accumulating it.
+
+A front running along the contour is already horizontal and is not projected; a
+head-on upslope run on a 30 degree slope is reduced by :math:`\cos 30^\circ = 0.866`.
+The factor is a cosine, so it can only slow map-view spread, never accelerate it.
+
+Slope enhancement of the rate of spread is a separate effect and is unchanged: it
+enters through the ROS model itself (Rothermel :math:`\phi_s`, Balbi flame tilt),
+which is why a steeper slope still spreads faster overall despite the projection.
+
+The projection is inactive on flat terrain, where the factor is exactly one.
+
+
 References
 ----------
 - Richards, G. D. (1990). "An elliptical growth model of forest fire fronts and its

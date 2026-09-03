@@ -52,7 +52,9 @@
  *
  * Algorithm per fire cell (i_f, j_f):
  * 1. Map to atmospheric column: i_a = i_f / C, j_a = j_f / C
- * 2. Get surface height: z_surf = z_phys_cc(i_a, j_a, 0)
+ * 2. Get ground elevation: z_surf = fire_surface_z(i_f, j_f), the average of the
+ *    four k = 0 nodes of atmospheric cell (i_a, j_a). Using z_phys_cc(i_a, j_a, 0)
+ *    instead would sit half an atmospheric cell above the ground.
  * 3. Lookup wind height:
  *    - If fuel_model_mf != nullptr and d_fcwh != nullptr:
  *      fuel_code = clamp(fuel_model_mf(i_f,j_f,0), 1, nfuelcats)
@@ -79,6 +81,7 @@ void fill_fire_wind_from_interpolation(
     const amrex::MultiFab& xvel_mf,
     const amrex::MultiFab& yvel_mf,
     const amrex::MultiFab& z_phys_cc_mf,
+    const amrex::MultiFab& fire_surface_z_mf,
     const FireGrid&        fg,
     amrex::Real            z_ref,
     int                    nz,

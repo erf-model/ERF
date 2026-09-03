@@ -51,7 +51,8 @@ void advance_farsite_one_step(
     const amrex::Geometry& geom_fire,
     amrex::Real dt_fire,
     amrex::Real current_time,
-    const FarsiteParams& fp)
+    const FarsiteParams& fp,
+    const amrex::MultiFab* slopes = nullptr)
 {
     using namespace amrex;
 
@@ -63,6 +64,8 @@ void advance_farsite_one_step(
 
     farsite_work.setVal(0.0_rt);
 
+    const bool use_terrain = (slopes != nullptr);
+
     // -------------------------------------------------------------------------
     // Pass 1: accumulate displacement; stamp absolute target when threshold met
     // -------------------------------------------------------------------------
@@ -73,6 +76,9 @@ void advance_farsite_one_step(
         auto disp_arr   = disp_accum.array(mfi);
         auto vel_arr    = vel_eff.const_array(mfi);
         auto ros_arr    = R_mf.const_array(mfi);
+
+        amrex::Array4<const Real> slope_arr;
+        if (use_terrain) slope_arr = slopes->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (const IntVect& iv) noexcept
         {
@@ -108,7 +114,17 @@ void advance_farsite_one_step(
                     : b * sin_t - c * cos_t;
             }
 
+            // Distance travelled along the terrain surface
             Real ds = amrex::max(scale, 0.0) * ros_arr(iv) * dt_fire;
+
+            // Project onto the map. A surface step ds up a slope of angle theta
+            // in the spread direction covers ds cos(theta) horizontally, with
+            // tan(theta) = grad(z) . n.
+            if (use_terrain) {
+                Real s_n = slope_arr(i,j,k,0) * nx + slope_arr(i,j,k,1) * ny;
+                ds /= std::sqrt(1.0 + s_n * s_n);
+            }
+
             disp_arr(iv, 0) += ds * nx;
             disp_arr(iv, 1) += ds * ny;
 
@@ -321,7 +337,8 @@ int advance_fire_subcycle(
     const amrex::Geometry& geom_fire,
     amrex::Real dt_atm,
     amrex::Real current_time,
-    const FarsiteParams& fp)
+    const FarsiteParams& fp,
+    const amrex::MultiFab* slopes = nullptr)
 {
     using namespace amrex;
 
@@ -338,7 +355,7 @@ int advance_fire_subcycle(
                                  vel_eff, R_mf,
                                  geom_fire, dt_fire,
                                  current_time + (dt_atm - time_remaining),
-                                 fp);
+                                 fp, slopes);
 
         time_remaining -= dt_fire;
         ++n_substeps;

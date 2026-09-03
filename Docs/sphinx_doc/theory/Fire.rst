@@ -165,7 +165,11 @@ The fire layer is instantiated and managed by the main ERF class:
 
 - **Initialization**: Fire layer is created in ``ERF::InitData_post()`` after atmospheric grid setup
 - **Advance**: Fire state is advanced each atmospheric timestep via ``FireLayer::advance()``
-- **Wind coupling**: Wind field is extracted from the MOST boundary layer model
+- **Wind coupling**: Wind field is extracted from the MOST boundary layer model at
+  ``erf.fire.wind_ref_ht`` above the **ground**. The datum is the mean of the four
+  surface nodes of the fire cell's atmospheric column, taken from the atmospheric
+  terrain even when ``erf.fire.terrain_file_name`` supplies a finer terrain for the
+  slopes, since the wind profile being interpolated belongs to that column
 - **Output**: Fire variables are included in plotfile output for visualization
 
 Configuration and Input Parameters
