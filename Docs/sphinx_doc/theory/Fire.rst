@@ -167,9 +167,19 @@ The fire layer is instantiated and managed by the main ERF class:
 - **Advance**: Fire state is advanced each atmospheric timestep via ``FireLayer::advance()``
 - **Wind coupling**: Wind field is extracted from the MOST boundary layer model at
   ``erf.fire.wind_ref_ht`` above the **ground**. The datum is the mean of the four
-  surface nodes of the fire cell's atmospheric column, taken from the atmospheric
-  terrain even when ``erf.fire.terrain_file_name`` supplies a finer terrain for the
-  slopes, since the wind profile being interpolated belongs to that column
+  surface nodes of an atmospheric column, taken from the atmospheric terrain even
+  when ``erf.fire.terrain_file_name`` supplies a finer terrain for the slopes,
+  since the wind profile being interpolated belongs to that column
+
+- **Horizontal mapping**: ``erf.fire.wind_interp`` selects how the atmospheric
+  wind reaches the finer fire grid. ``"bilinear"`` (default) blends the four
+  atmospheric columns surrounding each fire cell, every one sampled at the
+  reference height above *its own* ground, so a fire cell midway between columns
+  gets the wind of that position. ``"nearest"`` takes only the column containing
+  the cell, which makes the fire-grid wind piecewise constant on atmospheric
+  cells: with ``grid_ratio`` of 5 to 20, that is a block of 25 to 400 fire cells
+  sharing one wind vector, with a discontinuity of a full atmospheric cell of
+  shear at every block edge
 - **Output**: Fire variables are included in plotfile output for visualization
 
 Configuration and Input Parameters

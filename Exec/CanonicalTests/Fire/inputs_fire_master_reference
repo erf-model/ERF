@@ -170,6 +170,13 @@ erf.fire.k_shelter = 0.6    # Sheltered wind reduction (wind slows in valleys/ra
 erf.fire.k_valley = 0.8     # Valley channeling factor (wind alignment in valleys)
 erf.fire.k_deflect = 0.3    # Wind deflection factor (affects wind direction change)
 
+# Horizontal interpolation of the atmospheric wind onto the finer fire grid
+# "bilinear" (default) blends the four atmospheric columns surrounding each fire
+#            cell, every one sampled at the reference height above its own ground
+# "nearest"  takes only the column containing the cell, so every fire cell in a
+#            column shares one wind vector
+erf.fire.wind_interp = "bilinear"
+
 # ============================================================================
 # RATE-OF-SPREAD MODEL SELECTION
 # ============================================================================
