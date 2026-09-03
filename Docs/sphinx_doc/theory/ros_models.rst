@@ -48,19 +48,29 @@ Balbi (2009) Physical Model
 
 **Key parameter:** :cpp:`ros_model = "balbi"`
 
-This is a physics-based model derived from flame radiation geometry and buoyancy effects. It computes rate of spread as a function of wind, slope, and fuel properties.
+This is a physics-based model derived from the radiant energy flux received by unburned fuel from a tilted flame front. It computes rate of spread as a function of wind, slope, fuel properties and fuel moisture.
 
 .. math::
 
    R = A \cdot (1 + \sin\alpha - \cos\alpha)
 
+   A = \frac{\chi \, \sigma_m \, \delta_m}{2 \, \tau_0 \, B^*}
+
+   \chi = \frac{r_{00} \sigma_m}{1 + r_{00} \sigma_m}
+
+   B^* = \frac{C_{pf} (T_i - T_a) + M_f \Lambda}{h}
+
    \tan\alpha = \frac{U}{v_b} + \tan\theta
 
    v_b = \sqrt{\frac{g \cdot \delta_m \cdot (T_f - T_a)}{T_a}}
 
-where :math:`A` [m/s] is the amplitude coefficient computed from fuel properties, :math:`v_b` [m/s] is the buoyancy velocity, :math:`U` [m/s] is the wind speed in the fire spread direction, :math:`\theta` [radians] is the terrain slope, :math:`\delta_m` [m] is the fuel bed depth, :math:`g` is gravitational acceleration, :math:`T_f` is flame temperature, and :math:`T_a` is ambient temperature.
+where :math:`A` [m/s] is the amplitude coefficient, :math:`\chi` [-] is the fraction of combustion heat radiated forward, :math:`B^*` [-] is the dimensionless energy needed to ignite the fuel, :math:`v_b` [m/s] is the buoyancy velocity, :math:`U` [m/s] is the effective midflame wind speed, :math:`\theta` [radians] is the terrain slope, :math:`\sigma_m` [1/m] is the surface-area-to-volume ratio of the 1-hr dead fuel, :math:`\delta_m` [m] is the fuel bed depth, :math:`h` [J/kg] is the heat of combustion, :math:`M_f` [-] is the fuel moisture content, :math:`\Lambda` [J/kg] is the latent heat of vaporisation, :math:`g` is gravitational acceleration, :math:`T_f` is flame temperature, :math:`T_i` is ignition temperature and :math:`T_a` is ambient temperature.
+
+Fuel properties enter :math:`A` through :math:`\sigma_m`, :math:`\delta_m` and :math:`h`, so ROS varies by fuel model. When a spatial fuel map is loaded, per-cell coefficients are taken from a lookup table built for the 13 Anderson fuel models; fuel code 0 (non-burnable) gives zero spread. When :cpp:`erf.fire.moisture_dynamic = true`, :math:`B^*` and hence :math:`A` are rebuilt each step from the domain-average 1-hr moisture.
 
 The model returns zero ROS when fuel bed depth :math:`\delta_m < 0.01` m.
+
+Cells whose wind exceeds 25 m/s, or holds a non-finite value, fall back to the domain-mean wind before the ROS is evaluated.
 
 **Balbi model parameters:**
 
@@ -300,7 +310,9 @@ Limitations
 
 - The MacArthur formula includes no slope term; slope influence enters only through terrain wind corrections applied before ROS computation.
 
-- The Balbi model uses a simplified :math:`A_{\text{coeff}}` derivation based on reaction intensity analogs rather than the full Balbi (2009) flame geometry system.
+- The Balbi model is the steady explicit form of Balbi (2009): it carries no no-wind radiative base spread (:math:`R \to 0` as wind and slope vanish) and saturates at :math:`2A` for large flame tilt. The implicit Balbi (2020) form is not implemented.
+
+- The Balbi flame tilt uses the wind magnitude and the slope magnitude :math:`|\nabla z|`, so the ROS field is isotropic and downslope spread is enhanced in the same way as upslope spread. Directionality on the level-set path is therefore not resolved; the FARSITE path obtains it from the ellipse.
 
 - The Cheney-Gould kernel uses placeholder domain-average moisture and curing values (10.0 % and 1.0 respectively) inside the GPU kernel. Use :cpp:`erf.fire.cheney_gould.moisture` and :cpp:`erf.fire.cheney_gould.curing` for domain-averaged values. Per-cell moisture from the Phase 4 ODE system is not yet passed into the kernel.
 

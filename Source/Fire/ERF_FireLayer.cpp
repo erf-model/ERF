@@ -362,11 +362,15 @@ void FireLayer::initialize(const ERF& erf,
     {
         FuelModelParams fp_ros = get_anderson_fuel_params(m_params.fuel_model_id);
         if (m_params.ros_model == "balbi") {
-            m_bc_default = compute_balbi_params(fp_ros, m_params.balbi);
+            m_bc_default = compute_balbi_params(fp_ros, m_params.balbi,
+                                                m_params.moisture_1hr);
             // Build per-fuel Balbi table when spatial fuel map is active
             if (m_has_spatial_fuel) {
-                // TODO: Implement build_fuel_balbi_table if per-fuel variation is needed
-                // For now, just use default for all cells
+                auto h_balbi = build_fuel_balbi_table(m_params.balbi,
+                                                      m_params.moisture_1hr);
+                m_d_balbi_table.resize(h_balbi.size());
+                amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_balbi.begin(),
+                                 h_balbi.end(), m_d_balbi_table.begin());
             }
             if (m_params.fire_debug) {
                 amrex::Print() << "[FIRE DEBUG] ROS model: Balbi (2009), A_coeff="
@@ -513,9 +517,16 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         // Phase 13B: Moisture coupling for Balbi and Cheney-Gould models
         if (m_params.moisture_dynamic && m_params.ros_model == "balbi") {
             // Recompute Balbi coefficients with updated moisture
+            // A_coeff carries the moisture dependence through B*, so both the
+            // default coefficients and the per-fuel table have to be rebuilt.
             FuelModelParams fp_balbi = get_anderson_fuel_params(m_params.fuel_model_id);
-            fp_balbi.Mx = avg1;  // Use 1-hr moisture as representative
-            m_bc_default = compute_balbi_params(fp_balbi, m_params.balbi);
+            m_bc_default = compute_balbi_params(fp_balbi, m_params.balbi, avg1);
+            if (m_has_spatial_fuel) {
+                auto h_balbi = build_fuel_balbi_table(m_params.balbi, avg1);
+                m_d_balbi_table.resize(h_balbi.size());
+                amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_balbi.begin(),
+                                 h_balbi.end(), m_d_balbi_table.begin());
+            }
         }
         if (m_params.moisture_dynamic && m_params.ros_model == "cheney_gould") {
             // Update Cheney-Gould with current 1-hr moisture converted to percent

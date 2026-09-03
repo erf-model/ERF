@@ -8,7 +8,7 @@ reference values extracted from ERF source code.
 
 Tests are organized by model:
   - MacArthur (1966) Australian formula (4 tests)
-  - Balbi (2009) physical model (5 tests)
+  - Balbi (2009) physical model (10 tests)
   - Cheney-Gould (1998) grassland model (4 tests)
   - Per-fuel wind height tables (5 tests)
 
@@ -103,13 +103,111 @@ def test_macarthur_negative_wind_clamp():
 # Balbi (2009) Physical Model Tests
 # ============================================================================
 
+# Constants mirrored from ERF_BalbiModel.H
+BALBI_FT_TO_M = 0.3048
+BALBI_FT_INV_TO_M_INV = 3.28084
+BALBI_BTU_LB_TO_J_KG = 2326.0
+BALBI_GRAVITY = 9.81
+BALBI_V_B_MIN = 1.0e-3
+BALBI_B_STAR_MIN = 1.0e-6
+BALBI_MIN_DEPTH_M = 0.01
+BALBI_TABLE_SIZE = 14
+
+# Balbi thermal parameters: defaults of FireParams::BalbiParams
+BALBI_DEFAULTS = dict(T_a=300.0, T_f=1000.0, T_i=600.0,
+                      delta_H=2.26e6, C_pf=1800.0,
+                      r_00=2.5e-4, tau_0=75591.0)
+
+# Anderson FBFM13 parameters used by the Balbi model, from
+# get_anderson_fuel_params() in ERF_Rothermel.H:
+#   sigma_d1 [1/ft], delta [ft], heat_content [BTU/lb]
+ANDERSON_FUELS = {
+    1:  (3500.0, 1.0, 8000.0),
+    2:  (3000.0, 1.0, 8000.0),
+    3:  (1500.0, 2.5, 8000.0),
+    4:  (1739.0, 6.0, 8000.0),
+    5:  (1739.0, 2.0, 8000.0),
+    6:  (1750.0, 2.5, 8000.0),
+    7:  (1550.0, 2.5, 8000.0),
+    8:  (2000.0, 0.2, 8000.0),
+    9:  (2500.0, 0.2, 8000.0),
+    10: (2000.0, 1.0, 8000.0),
+    11: (1500.0, 1.0, 8000.0),
+    12: (1500.0, 2.3, 8000.0),
+    13: (1500.0, 3.0, 8000.0),
+}
+
+
+def compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f, bp=None):
+    """
+    Balbi (2009) fuel/thermal coefficients.
+    
+    Formula from ERF_BalbiModel.H, compute_balbi_params():
+      chi    = r_00 * sigma_m / (1 + r_00 * sigma_m)
+      B_star = (C_pf * (T_i - T_a) + M_f * delta_H) / h
+      v_b    = sqrt(g * delta_m * (T_f - T_a) / T_a)
+      A      = chi * sigma_m * delta_m / (2 * tau_0 * B_star)
+    
+    Args:
+        sigma_d1:     1-hr dead fuel surface-area-to-volume ratio [1/ft]
+        delta_ft:     Fuel bed depth [ft]
+        heat_content: Heat of combustion [BTU/lb]
+        M_f:          Fuel moisture content [fraction]
+        bp:           Balbi thermal parameters (defaults to BALBI_DEFAULTS)
+    
+    Returns:
+        (A_coeff [m/s], v_b [m/s])
+    """
+    if bp is None:
+        bp = BALBI_DEFAULTS
+
+    sigma_m = sigma_d1 * BALBI_FT_INV_TO_M_INV
+    delta_m = delta_ft * BALBI_FT_TO_M
+    h_si = heat_content * BALBI_BTU_LB_TO_J_KG
+
+    if delta_m < BALBI_MIN_DEPTH_M or sigma_m <= 0.0 or h_si <= 0.0:
+        return 0.0, 1.0
+
+    chi_0 = bp["r_00"] * sigma_m
+    chi = chi_0 / (1.0 + chi_0)
+
+    E_ig = bp["C_pf"] * (bp["T_i"] - bp["T_a"]) + M_f * bp["delta_H"]
+    B_star = E_ig / h_si
+
+    dT_f = bp["T_f"] - bp["T_a"]
+    v_b = (math.sqrt(BALBI_GRAVITY * delta_m * dT_f / bp["T_a"])
+           if dT_f > 0.0 else BALBI_V_B_MIN)
+
+    A_coeff = (chi * sigma_m * delta_m / (2.0 * bp["tau_0"] * B_star)
+               if B_star > BALBI_B_STAR_MIN else 0.0)
+
+    return max(A_coeff, 0.0), max(v_b, BALBI_V_B_MIN)
+
+
+def build_fuel_balbi_table(M_f, bp=None):
+    """
+    Per-fuel-code Balbi lookup table.
+    
+    Mirrors build_fuel_balbi_table() in ERF_BalbiModel.H: index 0 is the
+    non-burnable code (zero spread), 1-13 are the Anderson fuel models.
+    
+    Returns:
+        list of (A_coeff, v_b) of length BALBI_TABLE_SIZE
+    """
+    table = [(0.0, 1.0)] * BALBI_TABLE_SIZE
+    for code in range(1, BALBI_TABLE_SIZE):
+        sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[code]
+        table[code] = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f, bp)
+    return table
+
+
 def compute_balbi_angle(U, theta, v_b):
     """
     Compute wind and slope angle for Balbi model.
     
-    Formula from ERF_BalbiModel.H lines 127-137:
+    Formula from ERF_BalbiModel.H, compute_balbi_angle():
       tan α = U/v_b + tan θ
-      where v_b < 1e-6 is clamped to 1e-6 to avoid division by zero
+      where v_b < BALBI_V_B_MIN is clamped to BALBI_V_B_MIN
     
     Args:
         U: Wind speed in spread direction [m/s]
@@ -119,8 +217,7 @@ def compute_balbi_angle(U, theta, v_b):
     Returns:
         Angle α [radians]
     """
-    small_v_b = 1.0e-6
-    v_b = max(v_b, small_v_b)
+    v_b = max(v_b, BALBI_V_B_MIN)
     tan_alpha = U / v_b + math.tan(theta)
     return math.atan(tan_alpha)
 
@@ -129,7 +226,7 @@ def balbi_ros(U, theta, A_coeff, v_b):
     """
     Balbi (2009) ROS formula.
     
-    Formula from ERF_BalbiModel.H lines 233-238:
+    Formula from ERF_BalbiModel.H, fill_balbi_ros():
       R = A_coeff × (1 + sin α − cos α)
       where α = compute_balbi_angle(U, theta, v_b)
     
@@ -240,6 +337,94 @@ def test_balbi_positive_ros_clamp():
     return passed
 
 
+def test_balbi_A_coeff_reference_values():
+    """Test 10: Balbi A_coeff matches wildfire_levelset reference values."""
+    # Reference values from wildfire_levelset/src/balbi_model.H at M_f = 6%
+    M_f = 0.06
+    cases = {1: 0.472909, 4: 1.117462, 10: 0.226372}
+    worst = 0.0
+    for code, expected in cases.items():
+        sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[code]
+        A_coeff, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f)
+        worst = max(worst, abs(A_coeff - expected) / expected)
+    passed = worst < 1.0e-4
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 10: Balbi A_coeff matches reference values (FM1, FM4, FM10)")
+    if not passed:
+        for code, expected in cases.items():
+            sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[code]
+            A_coeff, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f)
+            print(f"    FM{code}: expected {expected}, got {A_coeff}")
+    return passed
+
+
+def test_balbi_A_coeff_varies_with_fuel():
+    """Test 11: Balbi A_coeff differs between fuel models."""
+    # A depends on sigma_m, delta_m and h, so heavy deep fuels spread faster
+    # than short grass, which in turn beats timber litter.
+    M_f = 0.06
+    A = {}
+    for code in (1, 4, 10):
+        sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[code]
+        A[code], _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f)
+    passed = A[4] > A[1] > A[10]
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 11: Balbi A_coeff varies with fuel model (FM4 > FM1 > FM10)")
+    if not passed:
+        print(f"    FM4={A[4]}, FM1={A[1]}, FM10={A[10]}")
+    return passed
+
+
+def test_balbi_A_coeff_decreases_with_moisture():
+    """Test 12: Balbi A_coeff decreases as fuel moisture rises."""
+    # Moisture enters through B*, and A is inversely proportional to B*
+    sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[1]
+    A_dry, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, 0.06)
+    A_wet, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, 0.20)
+    passed = A_wet < A_dry
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 12: Balbi A_coeff decreases with fuel moisture")
+    if not passed:
+        print(f"    A(6%)={A_dry}, A(20%)={A_wet}")
+    return passed
+
+
+def test_balbi_table_structure():
+    """Test 13: Balbi fuel table has 14 entries with code 0 non-burnable."""
+    table = build_fuel_balbi_table(0.06)
+    size_ok = len(table) == BALBI_TABLE_SIZE
+    nonburnable_ok = table[0][0] == 0.0
+    burnable_ok = all(table[code][0] > 0.0 for code in range(1, BALBI_TABLE_SIZE))
+    passed = size_ok and nonburnable_ok and burnable_ok
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 13: Balbi fuel table size 14, code 0 non-burnable")
+    if not passed:
+        print(f"    size={len(table)}, A[0]={table[0][0]}, "
+              f"min burnable A={min(t[0] for t in table[1:])}")
+    return passed
+
+
+def test_balbi_tan_to_sin_cos_identity():
+    """Test 14: kernel sin/cos from tan matches the atan-based formulation."""
+    # fill_balbi_ros() avoids atan by using
+    #   sin a = tan a / sqrt(1 + tan^2 a), cos a = 1 / sqrt(1 + tan^2 a)
+    A_coeff, v_b = compute_balbi_params(*ANDERSON_FUELS[1], M_f=0.06)
+    worst = 0.0
+    for U in (0.0, 1.0, 5.0, 12.0):
+        for slope_mag in (0.0, 0.3, 1.0):
+            tan_alpha = U / v_b + slope_mag
+            inv_sec = 1.0 / math.sqrt(1.0 + tan_alpha * tan_alpha)
+            ros_kernel = max(A_coeff * (1.0 + tan_alpha * inv_sec - inv_sec), 0.0)
+            ros_atan = balbi_ros(U, math.atan(slope_mag), A_coeff, v_b)
+            worst = max(worst, abs(ros_kernel - ros_atan))
+    passed = worst < 1.0e-12
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 14: Balbi kernel sin/cos identity matches atan formulation")
+    if not passed:
+        print(f"    max |R_kernel - R_atan| = {worst}")
+    return passed
+
+
 # ============================================================================
 # Cheney-Gould (1998) Grassland Model Tests
 # ============================================================================
@@ -270,7 +455,7 @@ def cheney_gould_ros(u_wind, ros_backing, moisture, curing):
 
 
 def test_cheney_gould_zero_wind():
-    """Test 10: Cheney-Gould zero wind formula."""
+    """Test 15: Cheney-Gould zero wind formula."""
     # At u_wind=0:
     # wind_factor = 0.15 * 0 * (curing + 0.2) = 0
     # ROS = ros_backing * (1 + 0) * moisture_factor
@@ -284,14 +469,14 @@ def test_cheney_gould_zero_wind():
     expected = ros_backing * 1.0 * (20.0 / (moisture + 1.0))
     passed = abs(ros - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 10: Cheney-Gould zero wind formula")
+    print(f"{status} Test 15: Cheney-Gould zero wind formula")
     if not passed:
         print(f"    Expected: {expected}, Got: {ros}")
     return passed
 
 
 def test_cheney_gould_increases_with_wind():
-    """Test 11: Cheney-Gould ROS increases with wind."""
+    """Test 16: Cheney-Gould ROS increases with wind."""
     ros_backing = 0.05
     moisture = 10.0
     curing = 1.0
@@ -303,14 +488,14 @@ def test_cheney_gould_increases_with_wind():
                              moisture=moisture, curing=curing)
     passed = (ros_0 < ros_3) and (ros_3 < ros_5)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 11: Cheney-Gould ROS increases with wind")
+    print(f"{status} Test 16: Cheney-Gould ROS increases with wind")
     if not passed:
         print(f"    R(U=0)={ros_0}, R(U=3)={ros_3}, R(U=5)={ros_5}")
     return passed
 
 
 def test_cheney_gould_decreases_with_moisture():
-    """Test 12: Cheney-Gould ROS decreases with moisture."""
+    """Test 17: Cheney-Gould ROS decreases with moisture."""
     ros_backing = 0.05
     curing = 1.0
     u_wind = 3.0
@@ -322,14 +507,14 @@ def test_cheney_gould_decreases_with_moisture():
                                  moisture=20.0, curing=curing)
     passed = (ros_5pct > ros_10pct) and (ros_10pct > ros_20pct)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 12: Cheney-Gould ROS decreases with moisture")
+    print(f"{status} Test 17: Cheney-Gould ROS decreases with moisture")
     if not passed:
         print(f"    R(5%)={ros_5pct}, R(10%)={ros_10pct}, R(20%)={ros_20pct}")
     return passed
 
 
 def test_cheney_gould_increases_with_curing():
-    """Test 13: Cheney-Gould ROS increases with curing."""
+    """Test 18: Cheney-Gould ROS increases with curing."""
     ros_backing = 0.05
     u_wind = 3.0
     moisture = 10.0
@@ -341,7 +526,7 @@ def test_cheney_gould_increases_with_curing():
                                     moisture=moisture, curing=1.0)
     passed = (ros_0_cure < ros_0_5_cure) and (ros_0_5_cure < ros_1_0_cure)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 13: Cheney-Gould ROS increases with curing")
+    print(f"{status} Test 18: Cheney-Gould ROS increases with curing")
     if not passed:
         print(f"    R(cure=0)={ros_0_cure}, R(cure=0.5)={ros_0_5_cure}, R(cure=1)={ros_1_0_cure}")
     return passed
@@ -404,13 +589,13 @@ def build_fcz0_table():
 
 
 def test_fcwh_uniform_mode():
-    """Test 14: fcwh uniform mode returns global_z_ref for all fuels."""
+    """Test 19: fcwh uniform mode returns global_z_ref for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=False)
     passed = (len(fcwh) == 14 and 
               all(fcwh[i] == global_z_ref for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 14: fcwh uniform mode (all fuels = {global_z_ref})")
+    print(f"{status} Test 19: fcwh uniform mode (all fuels = {global_z_ref})")
     if not passed:
         print(f"    Length: {len(fcwh)}, entries 1-13 all {global_z_ref}: "
               f"{all(fcwh[i] == global_z_ref for i in range(1, 14))}")
@@ -418,14 +603,14 @@ def test_fcwh_uniform_mode():
 
 
 def test_fcwh_per_fuel_mode():
-    """Test 15: fcwh per-fuel mode returns 6.096 for all fuels."""
+    """Test 20: fcwh per-fuel mode returns 6.096 for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=True)
     expected = 6.096
     passed = (len(fcwh) == 14 and 
               all(abs(fcwh[i] - expected) < 1e-6 for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 15: fcwh per-fuel mode (all fuels = 6.096 m)")
+    print(f"{status} Test 20: fcwh per-fuel mode (all fuels = 6.096 m)")
     if not passed:
         print(f"    Length: {len(fcwh)}")
         for i in range(1, 14):
@@ -435,26 +620,26 @@ def test_fcwh_per_fuel_mode():
 
 
 def test_fcz0_fm4_chaparral():
-    """Test 16: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
+    """Test 21: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
     fcz0 = build_fcz0_table()
     expected = 0.2378
     passed = abs(fcz0[4] - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 16: fcz0 FM4 = 0.2378 m (chaparral)")
+    print(f"{status} Test 21: fcz0 FM4 = 0.2378 m (chaparral)")
     if not passed:
         print(f"    Expected: {expected}, Got: {fcz0[4]}")
     return passed
 
 
 def test_fcz0_fm1_fm2_equal():
-    """Test 17: fcz0 FM1 and FM2 both equal 0.0396."""
+    """Test 22: fcz0 FM1 and FM2 both equal 0.0396."""
     fcz0 = build_fcz0_table()
     expected = 0.0396
     passed = (abs(fcz0[1] - expected) < 1e-6 and 
               abs(fcz0[2] - expected) < 1e-6 and 
               fcz0[1] == fcz0[2])
     status = "✓" if passed else "✗"
-    print(f"{status} Test 17: fcz0 FM1 and FM2 both equal 0.0396 m")
+    print(f"{status} Test 22: fcz0 FM1 and FM2 both equal 0.0396 m")
     if not passed:
         print(f"    fcz0[1] = {fcz0[1]}, fcz0[2] = {fcz0[2]}, expected {expected}")
     return passed
@@ -465,7 +650,7 @@ def test_fcz0_table_size():
     fcz0 = build_fcz0_table()
     passed = len(fcz0) == 14
     status = "✓" if passed else "✗"
-    print(f"{status} Test 18: fcz0 table size = 14")
+    print(f"{status} Test 23: fcz0 table size = 14")
     if not passed:
         print(f"    Expected length 14, got {len(fcz0)}")
     return passed
@@ -476,7 +661,7 @@ def test_fcz0_table_size():
 # ============================================================================
 
 def main():
-    """Run all 18 tests and return exit code (0 = all pass, 1 = any fail)."""
+    """Run all 23 tests and return exit code (0 = all pass, 1 = any fail)."""
     print("=" * 70)
     print("Phase 13 ROS Model Unit Tests")
     print("=" * 70)
@@ -492,7 +677,7 @@ def main():
     results.append(test_macarthur_negative_wind_clamp())
     print()
     
-    # Balbi tests (5)
+    # Balbi tests (10)
     print("Balbi (2009) Physical Model Tests")
     print("-" * 70)
     results.append(test_balbi_zero_wind_slope())
@@ -500,6 +685,11 @@ def main():
     results.append(test_balbi_angle_formula())
     results.append(test_balbi_small_v_b_floor())
     results.append(test_balbi_positive_ros_clamp())
+    results.append(test_balbi_A_coeff_reference_values())
+    results.append(test_balbi_A_coeff_varies_with_fuel())
+    results.append(test_balbi_A_coeff_decreases_with_moisture())
+    results.append(test_balbi_table_structure())
+    results.append(test_balbi_tan_to_sin_cos_identity())
     print()
     
     # Cheney-Gould tests (4)

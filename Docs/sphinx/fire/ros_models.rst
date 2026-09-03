@@ -76,15 +76,21 @@ the fire spread direction) are clamped to zero, so the minimum ROS is the backin
 Balbi (2009) Physical Model
 ----------------------------
 
-Physics-based fire spread model derived from flame radiation geometry rather than empirical 
-fitting. The model couples wind speed, terrain slope, and fuel properties through a geometric 
-angle representing the fire flame tilt and reaction intensity.
+Physics-based fire spread model derived from the radiant energy flux received by unburned 
+fuel from a tilted flame front, rather than from empirical fitting. The model couples wind 
+speed, terrain slope, fuel properties and fuel moisture through the flame tilt angle.
 
 **Formulae:**
 
 .. math::
 
     R = A \cdot (1 + \sin\alpha - \cos\alpha)
+
+    A = \frac{\chi \, \sigma_m \, \delta_m}{2 \, \tau_0 \, B^*}
+
+    \chi = \frac{r_{00} \sigma_m}{1 + r_{00} \sigma_m}
+
+    B^* = \frac{C_{pf} (T_i - T_a) + M_f \Lambda}{h}
 
     \tan\alpha = \frac{U}{v_b} + \tan\theta
 
@@ -93,15 +99,28 @@ angle representing the fire flame tilt and reaction intensity.
 where:
 
 - :math:`R` [m/s] is the rate of spread
-- :math:`A` [m/s] is the fire intensity coefficient, derived from fuel load and thermal properties
-- :math:`\alpha` [radians] is the flame tilt angle in the fire spread direction
+- :math:`A` [m/s] is the ROS amplitude coefficient
+- :math:`\chi` [-] is the fraction of combustion heat radiated forward
+- :math:`B^*` [-] is the dimensionless energy needed to ignite the fuel
+- :math:`\alpha` [radians] is the flame tilt angle
 - :math:`U` [m/s] is the effective midflame wind speed
-- :math:`\theta` [radians] is the terrain slope in the fire spread direction
+- :math:`\theta` [radians] is the terrain slope
 - :math:`v_b` [m/s] is the buoyancy velocity
 - :math:`g = 9.81` m/s² is gravitational acceleration
+- :math:`\sigma_m` [1/m] is the surface-area-to-volume ratio of the 1-hr dead fuel
 - :math:`\delta_m` [m] is the fuel bed depth
+- :math:`h` [J/kg] is the heat of combustion
+- :math:`M_f` [-] is the fuel moisture content
+- :math:`\Lambda` [J/kg] is the latent heat of vaporisation
 - :math:`T_f` [K] is the mean flame temperature
+- :math:`T_i` [K] is the ignition temperature
 - :math:`T_a` [K] is the ambient temperature
+
+Fuel properties enter :math:`A` through :math:`\sigma_m`, :math:`\delta_m` and :math:`h`, so 
+the ROS varies by fuel model. When a spatial fuel map is loaded, per-cell coefficients come 
+from a lookup table built for the 13 Anderson fuel models, with fuel code 0 (non-burnable) 
+giving zero spread. When `moisture_dynamic = true`, :math:`B^*` and hence :math:`A` are 
+rebuilt each step from the domain-average 1-hr moisture.
 
 **Balbi Model Parameters:**
 
@@ -145,8 +164,13 @@ where:
 **Limitations:**
 
 - Returns zero ROS when fuel bed depth :math:`\delta_m < 0.01` m (threshold hard-coded)
-- Uses simplified :math:`A` coefficient computation (not the full flame geometry derivation from Balbi 2009)
-- Small buoyancy velocities (:math:`v_b < 10^{-6}` m/s) are floored to prevent division by zero
+- Steady explicit form: there is no no-wind radiative base spread (:math:`R \to 0` as wind and
+  slope vanish) and ROS saturates at :math:`2A` for large flame tilt. The implicit Balbi (2020)
+  form is not implemented
+- The flame tilt uses the wind magnitude and the slope magnitude :math:`|\nabla z|`, so the ROS
+  field is isotropic and downslope spread is enhanced like upslope spread
+- Small buoyancy velocities (:math:`v_b < 10^{-3}` m/s) are floored to prevent division by zero
+- Cells with wind above 25 m/s, or a non-finite wind, fall back to the domain-mean wind
 
 **ParmParse key:**
 
@@ -412,9 +436,9 @@ Limitations
 - **MacArthur slope effect:** The MacArthur formula does not include a slope effect; slope 
   influence enters only through terrain wind corrections applied before ROS computation.
 
-- **Balbi coefficient simplification:** The Balbi model uses a simplified :math:`A_` 
-  coefficient computation (based on fuel load and thermal properties) rather than the full 
-  Balbi (2009) flame geometry derivation. See lines 100–103 of ERF_BalbiModel.H.
+- **Balbi steady form:** The Balbi implementation is the steady explicit form of Balbi (2009).
+  It has no no-wind radiative base spread and saturates at :math:`2A`; the implicit Balbi (2020)
+  form, which restores both, is not implemented.
 
 - **Cheney-Gould placeholder moisture and curing:** The current implementation uses 
   placeholder domain-average moisture and curing values inside the GPU kernel (lines 218–220 
