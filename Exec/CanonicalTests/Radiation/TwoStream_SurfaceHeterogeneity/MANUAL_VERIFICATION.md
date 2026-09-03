@@ -112,8 +112,8 @@ Working directory: /path/to/your/run/dir
 3. Checking for NaN/Inf in diagnostics...
 ✓ SW_surface: all values finite
 ✓ SW_TOA: all values finite
-✓ F_up_surface: all values finite
-✓ F_down_toa: all values finite
+✓ LW_net_surface: all values finite
+✓ LW_up_TOA: all values finite
 ✓ heating_rate_max: all values finite
 
 4. Validating heating rates...
@@ -122,8 +122,8 @@ Working directory: /path/to/your/run/dir
 5. Validating surface fluxes...
 SW_surface range: [X.XX, YYY.YY] W/m²
   ✓ SW_surface in reasonable range
-F_up_surface range: [X.XX, YYY.YY] W/m²
-  ✓ F_up_surface in reasonable range
+LW_net_surface range: [X.XX, YYY.YY] W/m²
+  ✓ LW_net_surface in reasonable range
 
 6. Phase 11 feature validation...
 Note: Phase 11 test runs in fallback mode (hetero fields all nullptr)
@@ -151,7 +151,7 @@ cat radiation_diag_phase11.dat
 - **SW_TOA**: Should equal `S0 * cos(zenith_angle)` = 1361 * cos(45°) ≈ 962 W/m²
 - **SW_surface**: Should be 0 to ~600 W/m² (depends on albedo and optical depth)
   - With default albedo=0.3, expect ~(1-0.3) * incident flux
-- **F_up_surface** (LW): Should be 300-500 W/m² (based on surface temp ~300K and emissivity=0.99)
+- **LW_net_surface** (LW): net up − down at the surface, small (order 1–50 W/m²) when the surface is near the air temperature; **LW_up_TOA** should be 300–500 W/m²
   - σ*T⁴ with T=300K gives ~458 W/m²
 - **heating_rate_max**: Should be 1-100 K/s (nonzero, indicating active radiation)
 
@@ -344,7 +344,7 @@ Config:
 Expected Outputs:
 - SW_TOA ≈ 962 W/m² (1361 * cos(45°))
 - SW_surface ≈ 300-400 W/m² (depends on optical depth)
-- F_up_surface ≈ 450 W/m² (≈0.99 * σ * 300^4)
+- LW_up_TOA ≈ 390–450 W/m² (σT⁴ of the emitting layers); LW_net_surface small
 - heating_rate_max ≈ 1-10 K/s (typical for clear-sky)
 ```
 

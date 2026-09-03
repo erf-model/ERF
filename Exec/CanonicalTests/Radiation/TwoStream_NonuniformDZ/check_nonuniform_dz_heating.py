@@ -27,7 +27,7 @@ def read_radiation_diag(filename):
     """Read the radiation diagnostic CSV and return a dict of column lists.
 
     The file is comma separated with a header line
-    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    (step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max,...),
     so columns are looked up by name rather than by position. Non-numeric
     columns (call_site) are kept as strings; numeric columns are floats.
     """
@@ -134,7 +134,7 @@ def validate_no_nans(data):
     """Check for NaN/Inf in all diagnostic columns."""
     
     columns_to_check = [
-        'SW_surface', 'SW_TOA', 'F_up_surface', 'F_down_toa',
+        'SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA',
         'heating_rate_max', 'heating_rate_avg'
     ]
     
@@ -167,25 +167,25 @@ def check_thermal_balance(data):
     calculation is active.
     """
     
-    if not data or not data['SW_surface'] or not data['F_up_surface']:
+    if not data or not data['SW_surface'] or not data['LW_net_surface']:
         return True  # Skip if data not available
     
     # Use the last (most stable) timestep
     sw_surface = data['SW_surface'][-1]
-    f_up_surface = data['F_up_surface'][-1]
+    f_up_surface = data['LW_net_surface'][-1]
     
     # Expected range: SW down should be on order of 100-500 W/m^2 at 60° zenith
     # LW up should be on order of 300-400 W/m^2 depending on temperature
     
     print(f"INFO: Thermal balance (final step)")
     print(f"  SW_surface (down): {sw_surface:.2f} W/m^2")
-    print(f"  F_up_surface (LW): {f_up_surface:.2f} W/m^2")
+    print(f"  LW_net_surface (LW, up - down): {f_up_surface:.2f} W/m^2")
     
     if abs(sw_surface) > 1e6:
         print("WARNING: SW_surface appears unrealistic (possibly unit issue)")
     
     if abs(f_up_surface) > 1e6:
-        print("WARNING: F_up_surface appears unrealistic")
+        print("WARNING: LW_net_surface appears unrealistic")
     
     return True
 

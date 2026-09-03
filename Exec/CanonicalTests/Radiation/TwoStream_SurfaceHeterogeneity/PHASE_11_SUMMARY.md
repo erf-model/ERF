@@ -171,7 +171,7 @@ Use this checklist to validate the Phase 11 implementation on your system:
 - [ ] Inspect diagnostics values for physical realism:
   - SW_TOA ≈ 962 W/m²
   - SW_surface ≈ 300-400 W/m²
-  - F_up_surface ≈ 450 W/m²
+  - LW_up_TOA ≈ 390–450 W/m², LW_net_surface small
   - heating_rate_max ≈ 1-10 K/s
 
 ### Step 5: Backward Compatibility ✓
@@ -199,7 +199,7 @@ Use this checklist to validate the Phase 11 implementation on your system:
 Header:
 ```
 # Radiation diagnostics (Phase 11 surface heterogeneity test)
-step,   time,   call_site,    SW_surface,  SW_TOA,  F_up_surface,  F_down_toa,  heating_rate_max
+step,   time,   call_site,    SW_surface,  SW_TOA,  SW_up_TOA,  LW_net_surface,  LW_up_TOA,  heating_rate_max
 ```
 
 Sample data rows (expected ranges):
@@ -219,10 +219,10 @@ Sample data rows (expected ranges):
 - Expected: SW_surface ≈ 300-400 W/m²
 
 **Longwave (LW):**
-- F_up_surface ≈ emissivity × σ × T_sfc^4
+- LW_up_TOA ≈ σ × T^4 of the emitting layers
 - With default: emissivity=0.99, T=300K
 - σ×300^4 ≈ 458 W/m²
-- Expected: F_up_surface ≈ 450 W/m²
+- Expected: LW_up_TOA ≈ 390–450 W/m²
 
 **Heating Rates:**
 - Driven by flux divergence: Q = -∇F / (ρ cp)

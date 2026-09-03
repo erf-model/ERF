@@ -13,7 +13,7 @@ def check_diag(diag_file):
     if not os.path.isfile(diag_file):
         return fail("diagnostics file missing")
 
-    required = ["step","time","call_site","SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"]
+    required = ["step","time","call_site","SW_surface","SW_TOA","SW_up_TOA","LW_net_surface","LW_up_TOA","heating_rate_max"]
     rows = []
 
     with open(diag_file, "r", newline="") as f:
@@ -35,8 +35,9 @@ def check_diag(diag_file):
                     "call_site": r["call_site"].strip(),
                     "SW_surface": float(r["SW_surface"]),
                     "SW_TOA": float(r["SW_TOA"]),
-                    "F_up_surface": float(r["F_up_surface"]),
-                    "F_down_toa": float(r["F_down_toa"]),
+                    "SW_up_TOA": float(r["SW_up_TOA"]),
+                    "LW_net_surface": float(r["LW_net_surface"]),
+                    "LW_up_TOA": float(r["LW_up_TOA"]),
                     "heating_rate_max": float(r["heating_rate_max"]),
                 }
                 rows.append(row)
@@ -49,7 +50,7 @@ def check_diag(diag_file):
 
     # checks
     for i, r in enumerate(rows):
-        for k in ["time","SW_surface","SW_TOA","F_up_surface","F_down_toa","heating_rate_max"]:
+        for k in ["time","SW_surface","SW_TOA","SW_up_TOA","LW_net_surface","LW_up_TOA","heating_rate_max"]:
             if not finite(r[k]):
                 return fail(f"non-finite value at row {i} col {k}: {r[k]}")
 

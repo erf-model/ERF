@@ -27,7 +27,10 @@
 //      is positive everywhere and decreases monotonically from the top layer
 //      to the surface layer in a uniform-density column.
 //   3. The absorbed SW surface flux equals the Beer-Lambert direct beam
-//      through the whole column times (1 - albedo).
+//      through the whole column times (1 - albedo), the reflected beam
+//      leaves the top attenuated by the diffuse transmittance, and the
+//      column SW energy budget closes (absorbed by air + surface = incident
+//      - reflected at the top).
 //   4. In an isothermal column over a black surface at the same temperature
 //      the LW heating is non-positive everywhere, strongest at the top layer
 //      (cooling to space), and the surface net LW equals the analytic
@@ -52,7 +55,9 @@ struct ColumnResult {
     std::vector<amrex::Real> q_lw;
     amrex::Real max_heating = 0.0;
     amrex::Real sw_surface = 0.0;
+    amrex::Real sw_up_toa = 0.0;
     amrex::Real lw_net_surface = 0.0;
+    amrex::Real lw_up_toa = 0.0;
 };
 
 // Run the sweep for a column with uniform density `rho` and uniform
@@ -71,7 +76,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice, amrex::Real rho, a
     state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
     qheating.setVal<amrex::RunOn::Device>(0.0);
 
-    amrex::Gpu::DeviceVector<amrex::Real> scalars(3, 0.0);
+    amrex::Gpu::DeviceVector<amrex::Real> scalars(5, 0.0);
     amrex::Real* scalar_ptr = scalars.data();
     const auto state_arr = state.const_array();
     const auto qheating_arr = qheating.array();
@@ -82,21 +87,28 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice, amrex::Real rho, a
     {
         amrex::Real max_heating = 0.0;
         amrex::Real sw_surface = 0.0;
+        amrex::Real sw_up = 0.0;
         amrex::Real lw_net = 0.0;
+        amrex::Real lw_up = 0.0;
         vertical_two_stream_sweep(i, j, bx, geom, state_arr, rad_choice, /*cloudy=*/false,
-                                  qheating_arr, max_heating, sw_surface, lw_net, no_z_phys);
+                                  qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up,
+                                  no_z_phys);
         scalar_ptr[0] = max_heating;
         scalar_ptr[1] = sw_surface;
-        scalar_ptr[2] = lw_net;
+        scalar_ptr[2] = sw_up;
+        scalar_ptr[3] = lw_net;
+        scalar_ptr[4] = lw_up;
     });
     amrex::Gpu::streamSynchronize();
 
     ColumnResult result;
-    std::vector<amrex::Real> host_scalars(3);
+    std::vector<amrex::Real> host_scalars(5);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, scalars.begin(), scalars.end(), host_scalars.begin());
     result.max_heating = host_scalars[0];
     result.sw_surface = host_scalars[1];
-    result.lw_net_surface = host_scalars[2];
+    result.sw_up_toa = host_scalars[2];
+    result.lw_net_surface = host_scalars[3];
+    result.lw_up_toa = host_scalars[4];
 
     amrex::FArrayBox host_q(bx, 2, amrex::The_Pinned_Arena());
     host_q.copy<amrex::RunOn::Device>(qheating);
@@ -191,6 +203,50 @@ TEST(TwoStreamColumn, LongwaveCoolsToSpaceFromTheTopLayer)
     const amrex::Real B = kSigma * T * T * T * T;
     const amrex::Real tau_col = kNz * rc.tau_lw_per_layer;
     EXPECT_NEAR(r.lw_net_surface, B * std::exp(-tau_col), 1.0e-9 * B);
+    // Outgoing LW at the top: sigma T^4 from the (isothermal) column.
+    EXPECT_NEAR(r.lw_up_toa, B, 1.0e-9 * B);
+}
+
+TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
+{
+    const RadChoice rc = base_choice();
+    const amrex::Real rho = 1.0;
+    const ColumnResult r = run_uniform_column(rc, rho, 290.0);
+
+    // Non-scattering layers: the reflected beam alpha * F_dir(0) travels up
+    // as diffuse light with transmittance exp(-2 tau) per layer.
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real tau_col = kNz * rc.tau_per_layer;
+    const amrex::Real F_dir_sfc = rc.S0 * mu0 * std::exp(-tau_col / mu0);
+    const amrex::Real expected_up = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * tau_col);
+    EXPECT_NEAR(r.sw_up_toa, expected_up, 1.0e-6 * expected_up);
+
+    // Energy budget: absorbed by the air (sum rho cp dz Q) plus absorbed by
+    // the surface equals incident minus reflected at the top.
+    amrex::Real absorbed_air = 0.0;
+    for (int k = 0; k < kNz; ++k) {
+        absorbed_air += rho * Cp_d * kDz * r.q_sw[k];
+    }
+    const amrex::Real incident = rc.S0 * mu0;
+    EXPECT_NEAR(absorbed_air + r.sw_surface, incident - r.sw_up_toa, 1.0e-9 * incident);
+}
+
+TEST(TwoStreamColumn, ConservativeScatteringDepositsNoEnergyInTheAir)
+{
+    RadChoice rc = base_choice();
+    rc.single_scattering_albedo = 1.0;   // every layer scatters, nothing absorbs
+    rc.asymmetry_factor = 0.6;
+    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
+
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real incident = rc.S0 * mu0;
+    for (int k = 0; k < kNz; ++k) {
+        EXPECT_NEAR(r.q_sw[k], 0.0, 1.0e-7 * incident / (Cp_d * kDz)) << "k = " << k;
+    }
+    // Whatever is not reflected at the top is absorbed by the surface.
+    EXPECT_NEAR(r.sw_surface, incident - r.sw_up_toa, 1.0e-6 * incident);
+    // A scattering column reflects more than the bare surface would.
+    EXPECT_GT(r.sw_up_toa, rc.surface_albedo_sw * incident * std::exp(-2.0 * kNz * rc.tau_per_layer));
 }
 
 TEST(TwoStreamColumn, GraySurfaceReflectsDownwellingLongwave)
@@ -245,7 +301,9 @@ TEST(TwoStreamColumn, DisabledBandsWriteZeroHeating)
         EXPECT_EQ(r.q_lw[k], 0.0);
     }
     EXPECT_EQ(r.sw_surface, 0.0);
+    EXPECT_EQ(r.sw_up_toa, 0.0);
     EXPECT_EQ(r.lw_net_surface, 0.0);
+    EXPECT_EQ(r.lw_up_toa, 0.0);
     EXPECT_EQ(r.max_heating, 0.0);
 }
 

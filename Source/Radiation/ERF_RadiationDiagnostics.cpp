@@ -61,7 +61,7 @@ void RadiationDiagnostics::write_header_if_needed()
   // Only write header if file is new
   if (!file_exists) {
     // Base columns: always present
-    outfile << "step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max";
+    outfile << "step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max";
     // SEB diagnostic columns (added at end for backward compatibility)
     outfile << ",SEB_residual_mean,SEB_residual_max";
     // SEB prognostic surface temperature and moisture columns
@@ -73,8 +73,8 @@ void RadiationDiagnostics::write_header_if_needed()
 }
 
 void RadiationDiagnostics::append(int step, amrex::Real time, const std::string& call_site,
-                                  amrex::Real SW_surface, amrex::Real SW_TOA,
-                                  amrex::Real F_up_surface, amrex::Real F_down_toa,
+                                  amrex::Real SW_surface, amrex::Real SW_TOA, amrex::Real SW_up_TOA,
+                                  amrex::Real LW_net_surface, amrex::Real LW_up_TOA,
                                   amrex::Real heating_rate_max,
                                   amrex::Real seb_residual_mean,
                                   amrex::Real seb_residual_max,
@@ -135,8 +135,9 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
                    << " time=" << time 
                    << " call_site=" << call_site
                    << " SW_surface=" << SW_surface
-                   << " SW_TOA=" << SW_TOA << " F_up_surface=" << F_up_surface
-                   << " F_down_toa=" << F_down_toa
+                   << " SW_TOA=" << SW_TOA << " SW_up_TOA=" << SW_up_TOA
+                   << " LW_net_surface=" << LW_net_surface
+                   << " LW_up_TOA=" << LW_up_TOA
                    << " heating_rate_max=" << heating_rate_max << "\n";
   }
 
@@ -146,8 +147,8 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
     amrex::Print() << "RADIATION_DIAG: step=" << step << " time=" << time
                    << " call_site=" << call_site
                    << " SW_surface=" << std::scientific << std::setprecision(6)
-                   << SW_surface << " SW_TOA=" << SW_TOA
-                   << " F_up_surface=" << F_up_surface << " F_down_toa=" << F_down_toa
+                   << SW_surface << " SW_TOA=" << SW_TOA << " SW_up_TOA=" << SW_up_TOA
+                   << " LW_net_surface=" << LW_net_surface << " LW_up_TOA=" << LW_up_TOA
                    << " heating_rate_max=" << heating_rate_max << "\n";
   }
 
@@ -168,7 +169,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // Write CSV row with scientific notation for fluxes
   outfile << step << "," << std::scientific << std::setprecision(6) << time << ","
           << call_site << ","
-          << SW_surface << "," << SW_TOA << "," << F_up_surface << "," << F_down_toa
+          << SW_surface << "," << SW_TOA << "," << SW_up_TOA << "," << LW_net_surface << "," << LW_up_TOA
           << "," << heating_rate_max;
 
   // Append SEB residual columns (backward compatible: write NaN if not available)

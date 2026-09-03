@@ -13,8 +13,8 @@ Radiation
 Radiative transfer in ERF includes both a full k-distribution model (RRTMGP) for detailed studies 
 and a simplified two-stream model for idealized and intermediate-complexity atmospheric simulations. 
 This section describes the two-stream radiation model's physics, which employs Beer-Lambert direct-beam 
-attenuation for shortwave radiation, Meador-Weaver two-stream diffuse/scattering, gray-gas longwave 
-two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
+attenuation for shortwave radiation, a Meador-Weaver two-stream diffuse field combined by the adding method 
+with the surface albedo, gray-gas longwave two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
 
 Shortwave Radiation
 --------------------------------------
@@ -41,44 +41,80 @@ where :math:`\tau_{\text{cloud}}(k)` is added only within the prescribed cloud l
 :math:`c_{\text{qv}}` and :math:`c_{\text{qc}}` are zero by default.
 
 
-The diffuse (scattered) shortwave component is computed using the Meador and Weaver (1980) two-stream 
-approximation. In each layer :math:`k`, the radiative transfer equation is discretized into upward and 
-downward diffuse streams. The single-scattering albedo :math:`\omega_0` and asymmetry factor :math:`g` 
-parameterize the scattering properties:
+The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
+two-stream approximation. Each layer :math:`k` with optical depth :math:`\tau`, single-scattering albedo
+:math:`\omega_0` and asymmetry factor :math:`g`,
 
 .. math::
 
-   \omega_0 = \frac{\text{scattering cross-section}}{\text{total extinction cross-section}}, \quad 
-   g = \left\langle \cos(\theta) \right\rangle_{\text{scattering}}
+   \omega_0 = \frac{\text{scattering cross-section}}{\text{total extinction cross-section}}, \quad
+   g = \left\langle \cos(\theta) \right\rangle_{\text{scattering}},
 
-For a horizontally homogeneous layer with optical depth :math:`\tau` and parameters :math:`\omega_0`, :math:`g`, 
-the two-stream approximation computes layer reflectance :math:`r` and transmittance :math:`t`:
-
-.. math::
-
-   r = \frac{\gamma_1 (1 - e^{-\lambda \tau})}{\lambda + \gamma_1 (1 - e^{-\lambda \tau})}, \quad 
-   t = \frac{\lambda e^{-\lambda \tau}}{\lambda + \gamma_1 (1 - e^{-\lambda \tau})}
-
-where :math:`\gamma_1` and :math:`\lambda` are Meador-Weaver gamma coefficients defined by:
+is characterized by its reflectance and transmittance for diffuse incidence, :math:`R_{\text{dif}}` and
+:math:`T_{\text{dif}}`, and by the diffuse flux it reflects upward and transmits downward per unit direct-beam
+flux incident at its top, :math:`R_{\text{dir}}` and :math:`T_{\text{dir}}` (the surviving direct beam is
+:math:`T_{\text{ns}} = e^{-\tau/\mu_0}`). With the practical-improved-flux-method coefficients
+(Zdunkowski et al. 1980)
 
 .. math::
 
-   \gamma_1 = \frac{1 - \omega_0}{2}, \quad 
-   \lambda = \sqrt{3 (1 - \omega_0) (1 - \omega_0 g)}
+   \gamma_1 = \frac{8 - \omega_0 (5 + 3g)}{4}, \quad
+   \gamma_2 = \frac{3 \omega_0 (1 - g)}{4}, \quad
+   \gamma_3 = \frac{2 - 3 g \mu_0}{4}, \quad
+   \gamma_4 = 1 - \gamma_3, \quad
+   k = \sqrt{\gamma_1^2 - \gamma_2^2},
 
-The single-scattering source term (backscattered direct beam into the diffuse field) is:
-
-.. math::
-
-   S_{\text{ss}} = (1 - \omega_0) \mu_0 e^{-\tau / \mu_0} / (1 + 2 \gamma_1)
-
-The diffuse upward and downward fluxes are then computed through an upward sweep followed by a downward 
-sweep, applying boundary conditions at the surface (with user-specified or LSM-provided albedo :math:`\alpha_{\text{sw}}`) 
-and at the top-of-atmosphere (no upward flux). The net diffuse shortwave flux at each level is:
+the Meador and Weaver (1980) layer solution reads
 
 .. math::
 
-   F_{\text{sw,net}}(k) = F_{\text{sw,down}}(k) - F_{\text{sw,up}}(k)
+   R_{\text{dif}} = \frac{\gamma_2 (1 - e^{-2 k \tau})}{D}, \qquad
+   T_{\text{dif}} = \frac{2 k e^{-k \tau}}{D}, \qquad
+   D = k (1 + e^{-2 k \tau}) + \gamma_1 (1 - e^{-2 k \tau}),
+
+and, with :math:`\alpha_1 = \gamma_1 \gamma_4 + \gamma_2 \gamma_3` and
+:math:`\alpha_2 = \gamma_1 \gamma_3 + \gamma_2 \gamma_4`,
+
+.. math::
+
+   R_{\text{dir}} = \frac{\omega_0}{D (1 - k^2 \mu_0^2)} \left[ (1 - k\mu_0)(\alpha_2 + k\gamma_3)
+      - (1 + k\mu_0)(\alpha_2 - k\gamma_3) e^{-2k\tau} - 2 (k\gamma_3 - \alpha_2 k \mu_0) e^{-k\tau} T_{\text{ns}} \right],
+
+   T_{\text{dir}} = -\frac{\omega_0}{D (1 - k^2 \mu_0^2)} \left[ (1 + k\mu_0)(\alpha_1 + k\gamma_4) T_{\text{ns}}
+      - (1 - k\mu_0)(\alpha_1 - k\gamma_4) e^{-2k\tau} T_{\text{ns}} - 2 (k\gamma_4 + \alpha_1 k \mu_0) e^{-k\tau} \right].
+
+A non-scattering layer (:math:`\omega_0 = 0`) has :math:`R_{\text{dif}} = R_{\text{dir}} = T_{\text{dir}} = 0`
+and :math:`T_{\text{dif}} = e^{-2\tau}`; a conservative layer (:math:`\omega_0 = 1`) satisfies
+:math:`R_{\text{dif}} + T_{\text{dif}} = 1` and :math:`R_{\text{dir}} + T_{\text{dir}} + T_{\text{ns}} = 1`.
+
+The layers are combined with the surface by the adding method. Let :math:`A_m` be the albedo of everything
+below interface :math:`m` for diffuse light and :math:`S_m` the upward diffuse flux at interface :math:`m`
+produced by the direct beam illuminating everything below it. The surface, with albedo
+:math:`\alpha_{\text{sw}}` (user-specified or LSM-provided), starts the recursion,
+
+.. math::
+
+   A_0 = \alpha_{\text{sw}}, \qquad S_0 = \alpha_{\text{sw}} F_{\text{dir}}(0),
+
+and each layer :math:`m` (between interfaces :math:`m` and :math:`m+1`) adds
+
+.. math::
+
+   A_{m+1} = R_{\text{dif}} + \frac{T_{\text{dif}}^2 A_m}{1 - R_{\text{dif}} A_m}, \qquad
+   S_{m+1} = R_{\text{dir}} F_{\text{dir}}(m+1) + \frac{T_{\text{dif}} \left[ S_m + A_m T_{\text{dir}} F_{\text{dir}}(m+1) \right]}{1 - R_{\text{dif}} A_m}.
+
+With no diffuse flux incident at the top of the atmosphere, the downward pass gives the diffuse downward and
+upward fluxes on every interface,
+
+.. math::
+
+   F^{\downarrow}_{\text{dif}}(m) = \frac{T_{\text{dif}} F^{\downarrow}_{\text{dif}}(m+1) + T_{\text{dir}} F_{\text{dir}}(m+1) + R_{\text{dif}} S_m}{1 - R_{\text{dif}} A_m}, \qquad
+   F^{\uparrow}_{\text{dif}}(m) = A_m F^{\downarrow}_{\text{dif}}(m) + S_m,
+
+and the net shortwave flux :math:`F_{\text{sw,net}}(m) = F_{\text{dir}}(m) + F^{\downarrow}_{\text{dif}}(m) - F^{\uparrow}_{\text{dif}}(m)`
+whose divergence drives the shortwave heating rate. The surface absorbs
+:math:`(1 - \alpha_{\text{sw}}) \left[ F_{\text{dir}}(0) + F^{\downarrow}_{\text{dif}}(0) \right]`, which is the
+``SW_surface`` diagnostic; the reflected flux leaving the top, :math:`F^{\uparrow}_{\text{dif}}(n)`, is ``SW_up_TOA``.
 
 Cloud scattering properties may differ from the clear-sky values (e.g., :math:`\omega_0^{\text{cloud}}` for 
 liquid water clouds). The cloud/clear-sky distinction is blended according to the cloud fraction :math:`C_f`:
@@ -273,6 +309,8 @@ Bhumralkar, C. M. (1974). Numerical experiments on the computation of ground sur
 Kirchhoff, G. R. (1860). Über die Beziehung zwischen den Emissionsvermögen und den Absorptionsvermögen der Körper für Wärmestrahlung. *Annalen der Physik und Chemie*, 109(3), 275–301.
 
 Meador, W. E., & Weaver, W. R. (1980). Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement. *Journal of the Atmospheric Sciences*, 37(3), 630–643.
+
+Zdunkowski, W. G., Welch, R. M., & Korb, G. (1980). An investigation of the structure of typical two-stream methods for the calculation of solar fluxes and heating rates in clouds. *Beiträge zur Physik der Atmosphäre*, 53, 147–166.
 
 Toon, O. B., McKay, C. P., Ackerman, T. P., & Santhanam, K. (1989). Rapid calculation of radiative heating rates and photodissociation rates in inhomogeneous multiple scattering atmospheres. *Journal of Geophysical Research*, 94(D13), 16465–16481.
 

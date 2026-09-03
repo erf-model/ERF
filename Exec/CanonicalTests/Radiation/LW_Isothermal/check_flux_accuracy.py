@@ -7,11 +7,12 @@ This script verifies LW flux accuracy in isothermal mode.
 When all temperatures are uniform (T_iso_K), the two-stream LW solver should
 satisfy:
     F_up(all levels) = F_down(all levels) = sigma * T_iso_K^4
-    Net flux = F_up - F_down = 0 everywhere
+    Net flux = F_up - F_down = 0 everywhere (LW_net_surface = 0)
+    Outgoing LW at the top: LW_up_TOA = sigma * T_iso_K^4
     Heating rate = 0 everywhere
 
 It reads radiation_lw_diag.dat and checks that:
-1. Upwelling and downwelling LW fluxes are equal (within round-off)
+1. The surface net LW is zero and the outgoing LW at the top is sigma*T^4 (within round-off)
 2. Maximum heating rate is zero (within numerical precision)
 3. All fluxes are consistent with Stefan-Boltzmann law
 """
@@ -25,7 +26,7 @@ def read_radiation_diag(filename):
     """Read the radiation diagnostic CSV and return a dict of column lists.
 
     The file is comma separated with a header line
-    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    (step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max,...),
     so columns are looked up by name rather than by position. Non-numeric
     columns (call_site) are kept as strings; numeric columns are floats.
     """
@@ -112,7 +113,7 @@ def check_lw_isothermal_accuracy():
     print(f"  Isothermal temperature T_iso = {T_iso_K:.2f} K")
     print(f"  Stefan-Boltzmann constant σ = {sigma:.6e} W/(m^2·K^4)")
     print(f"\nAnalytical Solution:")
-    print(f"  Expected F_up = F_down = σ*T^4 = {expected_flux:.4f} W/m^2")
+    print(f"  Expected LW_up_TOA = σ*T^4 = {expected_flux:.4f} W/m^2")
     print(f"  Expected heating rate = 0 K/s everywhere")
     print(f"  Expected net flux = 0 W/m^2 everywhere")
     
@@ -120,38 +121,38 @@ def check_lw_isothermal_accuracy():
     last_idx = -1
     step = data['step'][last_idx]
     time = data['time'][last_idx]
-    F_up_surface = data['F_up_surface'][last_idx]
-    F_down_toa = data['F_down_toa'][last_idx]
+    LW_net_surface = data['LW_net_surface'][last_idx]
+    LW_up_TOA = data['LW_up_TOA'][last_idx]
     heating_rate_max = data['heating_rate_max'][last_idx]
-    
+
     print(f"\nComputed Values (step {step}, time {time:.4f}s):")
-    print(f"  Computed F_up_surface = {F_up_surface:.4f} W/m^2")
-    print(f"  Computed F_down_toa = {F_down_toa:.4f} W/m^2")
+    print(f"  Computed LW_up_TOA = {LW_up_TOA:.4f} W/m^2")
+    print(f"  Computed LW_net_surface = {LW_net_surface:.4f} W/m^2")
     print(f"  Maximum heating rate = {heating_rate_max:.4e} K/s")
-    
+
     # Check results
     errors = []
-    
-    # In isothermal mode, upwelling and downwelling should be equal
+
+    print(f"\nAccuracy Checks:")
+    # Isothermal column: the outgoing LW at the top is sigma*T^4.
     if expected_flux > 0:
-        up_error = abs(F_up_surface - expected_flux) / expected_flux
-        down_error = abs(F_down_toa - expected_flux) / expected_flux
-        
-        print(f"\nAccuracy Checks:")
-        print(f"  F_up relative error: {up_error:.4e}", end="")
+        up_error = abs(LW_up_TOA - expected_flux) / expected_flux
+        print(f"  LW_up_TOA relative error: {up_error:.4e}", end="")
         if up_error > flux_tolerance:
             print(f" [FAIL - exceeds {flux_tolerance:.4e}]")
-            errors.append(f"F_up error too large: {up_error:.4e}")
+            errors.append(f"LW_up_TOA error too large: {up_error:.4e}")
         else:
             print(" [PASS]")
-        
-        print(f"  F_down relative error: {down_error:.4e}", end="")
-        if down_error > flux_tolerance:
-            print(f" [FAIL - exceeds {flux_tolerance:.4e}]")
-            errors.append(f"F_down error too large: {down_error:.4e}")
-        else:
-            print(" [PASS]")
-    
+
+    # Isothermal column: up and down fluxes are equal, so the surface net LW is zero.
+    net_error = abs(LW_net_surface) / expected_flux
+    print(f"  |LW_net_surface| / sigma T^4: {net_error:.4e}", end="")
+    if net_error > flux_tolerance:
+        print(f" [FAIL - exceeds {flux_tolerance:.4e}]")
+        errors.append(f"LW_net_surface not zero: {LW_net_surface:.4e} W/m^2")
+    else:
+        print(" [PASS]")
+
     # In isothermal mode, heating rate should be exactly zero
     print(f"  Heating rate magnitude: {abs(heating_rate_max):.4e} K/s", end="")
     if abs(heating_rate_max) > heating_tolerance:
@@ -159,16 +160,7 @@ def check_lw_isothermal_accuracy():
         errors.append(f"Heating rate not zero: {heating_rate_max:.4e} K/s")
     else:
         print(" [PASS]")
-    
-    # Check flux equality (F_up should equal F_down in isothermal)
-    flux_diff = abs(F_up_surface - F_down_toa)
-    print(f"  |F_up - F_down| = {flux_diff:.4e} W/m^2", end="")
-    if flux_diff > heating_tolerance * expected_flux:
-        print(f" [FAIL]")
-        errors.append(f"F_up != F_down (isothermal violation): diff = {flux_diff:.4e}")
-    else:
-        print(" [PASS]")
-    
+
     # Overall result
     print(f"\n{'='*70}")
     if errors:
@@ -177,7 +169,7 @@ def check_lw_isothermal_accuracy():
             print(f"  - {err}")
         return False
     else:
-        print("TEST PASSED - LW isothermal test verified (F_up = F_down, heating = 0)")
+        print("TEST PASSED - LW isothermal test verified (LW_net_surface = 0, LW_up_TOA = σT^4, heating = 0)")
         return True
 
 if __name__ == "__main__":

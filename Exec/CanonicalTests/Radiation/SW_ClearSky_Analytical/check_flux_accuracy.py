@@ -21,7 +21,7 @@ def read_radiation_diag(filename):
     """Read the radiation diagnostic CSV and return a dict of column lists.
 
     The file is comma separated with a header line
-    (step,time,call_site,SW_surface,SW_TOA,F_up_surface,F_down_toa,heating_rate_max,...),
+    (step,time,call_site,SW_surface,SW_TOA,SW_up_TOA,LW_net_surface,LW_up_TOA,heating_rate_max,...),
     so columns are looked up by name rather than by position. Non-numeric
     columns (call_site) are kept as strings; numeric columns are floats.
     """

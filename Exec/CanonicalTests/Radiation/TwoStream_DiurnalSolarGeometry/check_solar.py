@@ -16,18 +16,18 @@ import numpy as np
 def read_radiation_diagnostics(filename):
     """
     Read radiation diagnostics CSV file.
-    Expected columns: time, call_site, SW_surface, SW_TOA, F_up_surface, 
-                      F_down_toa, heating_rate_max
+    Columns are looked up by the header names (step, time, call_site,
+    SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA,
+    heating_rate_max, ...).
     """
     if not os.path.exists(filename):
         print(f"ERROR: Diagnostics file not found: {filename}")
         return None
-    
+
     try:
-        data = np.genfromtxt(filename, delimiter=',', skip_header=1,
-                    dtype=[('step', int), ('time', float), ('site', 'U20'), ('sw_surf', float),
-                           ('sw_toa', float), ('f_up', float), ('f_down', float),
-                           ('heat_max', float)])        
+        data = np.genfromtxt(filename, delimiter=',', names=True, dtype=None,
+                             encoding='utf-8')
+        data = np.atleast_1d(data)
         return data
     except Exception as e:
         print(f"ERROR: Failed to read file {filename}: {e}")
@@ -59,7 +59,7 @@ def check_diurnal_pattern(data):
     """
     errors = []
     
-    sw_surf = data['sw_surf']
+    sw_surf = data['SW_surface']
     times = data['time']
     
     # Remove NaN values for analysis
@@ -101,11 +101,11 @@ def check_backward_compatibility(baseline_file, dynamic_file=None):
     errors = []
     
     # Check for finite values
-    errors.extend(check_finite_values(data, ['sw_surf', 'sw_toa', 'f_up', 'f_down', 'heat_max']))
+    errors.extend(check_finite_values(data, ['SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max']))
     
     # For baseline (fixed zenith at 60°), SW_TOA should be relatively constant
     # cos(60°) = 0.5, so SW_TOA = 1361 * 0.5 = ~680.5 W/m^2
-    sw_toa = data['sw_toa']
+    sw_toa = data['SW_TOA']
     valid_mask = np.isfinite(sw_toa) & (sw_toa > 0)
     if np.any(valid_mask):
         sw_toa_valid = sw_toa[valid_mask]
@@ -128,7 +128,7 @@ def check_dynamic_behavior(dynamic_file):
     errors = []
     
     # Check for finite values
-    errors.extend(check_finite_values(data, ['sw_surf', 'sw_toa', 'f_up', 'f_down', 'heat_max']))
+    errors.extend(check_finite_values(data, ['SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max']))
     
     # Check diurnal pattern
     errors.extend(check_diurnal_pattern(data))
