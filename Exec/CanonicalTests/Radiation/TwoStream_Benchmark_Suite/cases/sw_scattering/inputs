@@ -1,6 +1,12 @@
-# Phase 1 Two-Stream Radiation: Shortwave Clear-Sky Analytical Test
-# Tests Beer-Lambert direct-beam solar radiation without clouds or scattering
-# Verifies against analytical solution: F(z) = S0 * cos(zenith) * exp(-tau_cumulative / cos(zenith))
+# Phase 4 Two-Stream Radiation: Shortwave Scattering Cloud Test
+# Tests the Meador-Weaver two-stream diffuse (scattering) SW flux
+# contribution added in Phase 4, using the Phase 3 cloud-layer optical
+# depth enhancement as the scattering medium. Clear-sky air remains
+# purely absorbing (single_scattering_albedo = 0.0, matching Phase 1-3
+# direct-beam-only behavior); the cloud layer is configured with a
+# realistic liquid-water-cloud single-scattering albedo and asymmetry
+# factor, so scattering effects are isolated to the cloud band.
+# Uses the same base template as SW_Cloud_Layer (Phase 3).
 erf.prob_name = "ABL"
 
 stop_time = 0.25
@@ -72,33 +78,6 @@ erf.pbl_mrf_highres_bounds = false
 erf.pbl_mrf_sf = 0.1
 erf.pbl_mrf_use_zero_ri_extent = false
 
-# ============================================================
-# YSUNew PBL PARAMETERS (uncomment to use YSU model)
-# For YSUNew model:
-#   1. Comment out the MRF parameters above
-#   2. Uncomment the following YSU parameters
-#   3. Change 'erf.pbl_type = "MRF"' to 'erf.pbl_type = "YSUNew"'
-# ============================================================
-# erf.enable_ysu_cloud_pblh = true
-# erf.enable_ysu_countergradient = true
-# erf.enable_ysu_entrainment = true
-# erf.enable_ysu_liquid_theta = true
-# erf.enable_ysu_sat_limiter = false
-# erf.enable_ysu_terrain_pblh_floor = true
-# erf.enable_ysu_topdown = true
-# erf.pbl_ysu_coriolis_freq = 1.0e-4
-# erf.pbl_ysu_force_over_water = false
-# erf.pbl_ysu_land_Ribcr = 0.25
-# erf.pbl_ysu_unst_Ribcr = 0.0
-# erf.pbl_ysu_use_consistent_coriolis = false
-# erf.pbl_ysunew_highres_bounds = false
-# erf.ysu_moistvars = false
-# erf.ysu_qcloud_threshold = 1.0e-4
-
-# Disable countergradient corrections (not relevant for neutral conditions)
-
-# Enable moisture diffusivity for completeness (but no moisture in neutral case)
-
 # CORIOLIS EFFECT
 erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
 
@@ -108,16 +87,32 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.abl_geo_wind = 15.0 0.0 0.0
 
-erf.input_sounding_file = "input_sounding_lw_isothermal"
+erf.input_sounding_file = "input_sounding_sw_scattering_cloud"
 
-# RADIATION - Two-Stream Longwave (Isothermal mode)
+# RADIATION - Two-Stream Shortwave with Cloud Layer + Scattering (Phase 4)
 erf.radiation_type = "TwoStream"
-erf.radiation.sw_enabled = false
-erf.radiation.lw_enabled = true
-erf.radiation.tau_lw_per_layer = 1.0
-# Physically isothermal column: theta(z) = 300 exp(g z / (c_p 300)) gives T = 300 K everywhere,
-# and the surface is black at the same 300 K.
-erf.radiation.surface_temp_k = 300.0
-erf.radiation.surface_emissivity_lw = 1.0
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = false
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
-erf.radiation.diag_file = "radiation_lw_diag.dat"
+erf.radiation.diag_file = "radiation_sw_scatter_diag.dat"
+
+# Phase 3: cloud layer between 300m and 700m, cloud fraction 0.5
+erf.radiation.tau_profile_type = "cloud_layer"
+erf.radiation.cloud_base_height_m = 300.0
+erf.radiation.cloud_top_height_m = 700.0
+erf.radiation.cloud_tau_per_layer = 0.5
+erf.radiation.cloud_fraction = 0.5
+
+# Phase 4: scattering properties.
+# Clear-sky (background gas) remains purely absorbing (omega=0), so
+# scattering effects are isolated to the cloud layer for this test.
+erf.radiation.single_scattering_albedo = 0.0
+erf.radiation.asymmetry_factor = 0.0
+
+# Cloud layer scattering properties: realistic liquid water cloud values
+# (omega close to 1, strongly forward-scattering g ~ 0.85).
+erf.radiation.cloud_single_scattering_albedo = 0.9999
+erf.radiation.cloud_asymmetry_factor = 0.85

@@ -40,7 +40,11 @@
 //   5. A gray surface reflects (1 - eps) of the downwelling LW, so the
 //      surface net LW equals eps * sigma*T^4 * exp(-tau_column) rather than
 //      the large negative value obtained without the reflected term.
-//   6. isothermal_test zeroes the LW heating; night zeroes the SW heating.
+//   6. Night zeroes the SW heating; disabled bands write zero.
+//   7. The mass-based gray LW option makes the column optical depth
+//      independent of the vertical resolution and reproduces the Stephens
+//      (1978) cloud emissivity; separate direct/diffuse albedo and the
+//      Earth-Sun distance factor behave as documented.
 //
 // Portability: the sweep is a device function, so it is launched through
 // amrex::ParallelFor on a one-cell horizontal box and results are copied
@@ -64,19 +68,23 @@ struct ColumnResult {
 
 // Run the sweep for a column with uniform density `rho` and uniform
 // absolute temperature `T_air` (converted to rho*theta through the EOS).
-ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air)
+ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
+                                 int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0)
 {
     const TwoStreamParams rad_choice = make_two_stream_params(rad_choice_in);
-    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, kNz - 1));
-    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {kDz, kDz, kNz * kDz});
+    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
+    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
     const int is_periodic[3] = {1, 1, 0};
     const amrex::Geometry geom(bx, &real_box, 0, is_periodic);
 
-    amrex::FArrayBox state(bx, 2);
+    // Carry the moisture components so qv can be set (zero by default).
+    amrex::FArrayBox state(bx, RhoQ2_comp + 1);
     amrex::FArrayBox qheating(bx, 2);
-    const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp);
+    const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp, qv);
+    state.setVal<amrex::RunOn::Device>(0.0);
     state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
     state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
+    state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
     qheating.setVal<amrex::RunOn::Device>(0.0);
 
     amrex::Gpu::DeviceVector<amrex::Real> scalars(5, 0.0);
@@ -117,7 +125,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     host_q.copy<amrex::RunOn::Device>(qheating);
     amrex::Gpu::streamSynchronize();
     const auto hq = host_q.const_array();
-    for (int k = 0; k < kNz; ++k) {
+    for (int k = 0; k < nz; ++k) {
         result.q_sw.push_back(hq(0, 0, k, 0));
         result.q_lw.push_back(hq(0, 0, k, 1));
     }
@@ -137,7 +145,6 @@ RadChoice base_choice ()
     rc.surface_albedo_sw = 0.3;
     rc.surface_emissivity_lw = 1.0;
     rc.surface_temp_k = 290.0;
-    rc.isothermal_test = false;
     return rc;
 }
 
@@ -306,17 +313,6 @@ TEST(TwoStreamColumn, GraySurfaceReflectsDownwellingLongwave)
     EXPECT_GT(r.lw_net_surface, -1.0e-6 * B);
 }
 
-TEST(TwoStreamColumn, IsothermalTestModeZeroesLongwaveHeating)
-{
-    RadChoice rc = base_choice();
-    rc.isothermal_test = true;
-    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
-    for (int k = 0; k < kNz; ++k) {
-        EXPECT_EQ(r.q_lw[k], 0.0) << "k = " << k;
-    }
-    EXPECT_EQ(r.lw_net_surface, 0.0);
-}
-
 TEST(TwoStreamColumn, NightHasNoShortwave)
 {
     RadChoice rc = base_choice();
@@ -420,4 +416,122 @@ TEST(TwoStreamColumn, MoistureHelpersGuardMissingComponents)
     // Negative stored values are treated as zero.
     moist.setVal<amrex::RunOn::Host>(-0.02, bx, RhoQ1_comp, 1);
     EXPECT_EQ(get_qv_from_state(0, 0, 0, moist.const_array()), 0.0);
+}
+
+TEST(TwoStreamColumn, MassBasedLongwaveIsIndependentOfVerticalResolution)
+{
+    RadChoice rc = base_choice();
+    rc.sw_enabled = false;
+    rc.lw_mass_absorption_enable = true;
+    rc.lw_kabs_dry = 1.0e-4;
+    rc.lw_kabs_vapor = 0.1;
+    rc.surface_temp_k = 300.0;
+    const amrex::Real rho = 1.0;
+    const amrex::Real qv = 0.01;
+
+    // Same 800 m column, air at 280 K over a 300 K surface, on 8 and 32 layers.
+    const ColumnResult coarse = run_uniform_column(rc, rho, 280.0, 8, 100.0, qv);
+    const ColumnResult fine   = run_uniform_column(rc, rho, 280.0, 32, 25.0, qv);
+
+    // Column optical depth rho H (k_dry + k_v qv) = 0.88: partly transparent,
+    // so the outgoing LW carries a surface contribution and the surface net
+    // LW is far from zero; both must not depend on the layering.
+    const amrex::Real B_s = kSigma * 300.0 * 300.0 * 300.0 * 300.0;
+    EXPECT_GT(coarse.lw_net_surface, 0.05 * B_s);
+    EXPECT_NEAR(coarse.lw_up_toa, fine.lw_up_toa, 1.0e-9 * B_s);
+    EXPECT_NEAR(coarse.lw_net_surface, fine.lw_net_surface, 1.0e-9 * B_s);
+
+    // With the fixed per-layer value instead, refining the grid quadruples
+    // the column optical depth and changes the fluxes.
+    rc.lw_mass_absorption_enable = false;
+    rc.tau_lw_per_layer = 0.11;
+    const ColumnResult coarse_fixed = run_uniform_column(rc, rho, 280.0, 8, 100.0, qv);
+    const ColumnResult fine_fixed   = run_uniform_column(rc, rho, 280.0, 32, 25.0, qv);
+    EXPECT_GT(std::abs(coarse_fixed.lw_up_toa - fine_fixed.lw_up_toa), 1.0e-2 * B_s);
+}
+
+TEST(TwoStreamColumn, MassBasedLongwaveOpticalDepthFollowsTheMassPath)
+{
+    RadChoice rc = base_choice();
+    rc.lw_mass_absorption_enable = true;
+    rc.lw_kabs_dry = 2.0e-4;
+    rc.lw_kabs_vapor = 0.05;
+    rc.lw_kabs_cloud = 158.0;
+    const TwoStreamParams p = make_two_stream_params(rc);
+
+    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
+    const amrex::Real rho = 1.1, qv = 0.008, qc = 5.0e-4, dz = 50.0;
+    state.setVal<amrex::RunOn::Host>(0.0);
+    state.setVal<amrex::RunOn::Host>(rho, bx, Rho_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * 300.0, bx, RhoTheta_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * qv, bx, RhoQ1_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * qc, bx, RhoQ2_comp, 1);
+
+    const amrex::Real tau = diagnose_layer_tau(0, 0, 0, dz, 25.0, state.const_array(),
+                                               /*tau_base=*/1.0, /*is_sw=*/false, /*cloudy=*/false, p);
+    const amrex::Real expected = rho * dz * (2.0e-4 + 0.05 * qv + 158.0 * qc);
+    EXPECT_NEAR(tau, expected, 1.0e-12);
+
+    // Cloud term: Stephens (1978) emissivity 1 - exp(-0.158 LWP[g/m^2]).
+    const amrex::Real lwp_g = rho * qc * dz * 1.0e3;
+    const amrex::Real tau_cloud = tau - rho * dz * (2.0e-4 + 0.05 * qv);
+    EXPECT_NEAR(1.0 - std::exp(-tau_cloud), 1.0 - std::exp(-0.158 * lwp_g), 1.0e-12);
+
+    // The SW band is unaffected by the LW option.
+    EXPECT_EQ(diagnose_layer_tau(0, 0, 0, dz, 25.0, state.const_array(), 0.05, true, false, p), 0.05);
+    // Disabled: the fixed per-layer value is returned.
+    rc.lw_mass_absorption_enable = false;
+    EXPECT_EQ(diagnose_layer_tau(0, 0, 0, dz, 25.0, state.const_array(), 1.0, false, false,
+                                 make_two_stream_params(rc)), 1.0);
+}
+
+TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
+{
+    RadChoice rc = base_choice();
+    rc.single_scattering_albedo = 1.0;   // conservative scattering: diffuse flux reaches the surface
+    rc.asymmetry_factor = 0.6;
+    rc.surface_albedo_sw = 0.2;
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real incident = rc.S0 * mu0;
+
+    rc.surface_albedo_sw_diffuse = -1.0;   // same as direct
+    const ColumnResult same = run_uniform_column(rc, 1.0, 290.0);
+    rc.surface_albedo_sw_diffuse = 0.8;    // reflect most diffuse light
+    const ColumnResult bright = run_uniform_column(rc, 1.0, 290.0);
+
+    // More diffuse reflection: less absorbed at the surface, more leaving the top,
+    // and the column budget still closes (no absorption in a conservative column).
+    EXPECT_LT(bright.sw_surface, same.sw_surface);
+    EXPECT_GT(bright.sw_up_toa, same.sw_up_toa);
+    EXPECT_NEAR(bright.sw_surface, incident - bright.sw_up_toa, 1.0e-6 * incident);
+
+    // Without scattering there is no diffuse flux at the surface, so the
+    // diffuse albedo cannot matter.
+    rc.single_scattering_albedo = 0.0;
+    rc.surface_albedo_sw_diffuse = 0.8;
+    const ColumnResult dark = run_uniform_column(rc, 1.0, 290.0);
+    rc.surface_albedo_sw_diffuse = -1.0;
+    const ColumnResult ref = run_uniform_column(rc, 1.0, 290.0);
+    EXPECT_NEAR(dark.sw_surface, ref.sw_surface, 1.0e-12 * incident);
+}
+
+TEST(TwoStreamColumn, EarthSunDistanceFactorScalesTheSolarConstant)
+{
+    // Spencer (1971): perihelion in early January, aphelion in early July.
+    EXPECT_NEAR(compute_earth_sun_distance_factor(3.0), 1.034, 2.0e-3);
+    EXPECT_NEAR(compute_earth_sun_distance_factor(185.0), 0.967, 2.0e-3);
+    amrex::Real mean = 0.0;
+    for (int d = 1; d <= 365; ++d) mean += compute_earth_sun_distance_factor(d);
+    EXPECT_NEAR(mean / 365.0, 1.0, 1.0e-3);
+    EXPECT_EQ(compute_earth_sun_distance_factor(std::nan("")), 1.0);
+
+    RadChoice rc = base_choice();
+    rc.day_of_year = 3.0;
+    const ColumnResult off = run_uniform_column(rc, 1.0, 290.0);
+    rc.earth_sun_distance_enable = true;
+    const ColumnResult on = run_uniform_column(rc, 1.0, 290.0);
+    const amrex::Real f = compute_earth_sun_distance_factor(3.0);
+    EXPECT_NEAR(on.sw_surface, f * off.sw_surface, 1.0e-9 * off.sw_surface);
+    EXPECT_NEAR(on.sw_up_toa, f * off.sw_up_toa, 1.0e-9 * off.sw_up_toa);
 }

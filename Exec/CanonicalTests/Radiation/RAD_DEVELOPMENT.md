@@ -33,13 +33,17 @@ For direct-beam shortwave verification, the implementation retains the Beer-Lamb
 F_{\mathrm{dir}}(z) = S_0 \cos(\theta_z)\exp\left(-\tau_{\mathrm{cum}}(z)/\cos(\theta_z)\right)
 ```
 
-For longwave verification in the isothermal limit, the consistency target is
+For longwave verification on an isothermal column over a black surface at the same temperature
+(the `LW_Isothermal` case, whose sounding has `theta(z) = T_0 \exp(g z / (c_p T_0))`), the targets are
 
 ```math
-F_\uparrow = F_\downarrow = \sigma T_{\mathrm{iso}}^4,\qquad
-F_{\mathrm{net}} = 0,\qquad
-\frac{\partial T}{\partial t}=0.
+F_\uparrow(\mathrm{TOA}) = \sigma T_0^4,\qquad
+F_{\mathrm{net}}(0) = \sigma T_0^4 e^{-\tau_{\mathrm{col}}} \approx 0,
 ```
+
+with cooling to space in the upper layers. The former `isothermal_test` override, which forced
+`F_up = F_down` and zero heating instead of computing them, has been removed; the unit tests in
+`Tests/Unit/Radiation` cover the same limit analytically.
 
 The operational solver follows the standard two-stream column sweep described by Toon et al. (1989), with horizontal parallelism and sequential vertical accumulation per column.
 
@@ -49,14 +53,14 @@ The operational solver follows the standard two-stream column sweep described by
 - `sw_enabled`, `lw_enabled`
 - `solar_constant`, `solar_zenith`
 - shortwave and longwave optical-depth controls
-- `isothermal_test`
+- `lw_mass_absorption_enable` and the `lw_kabs_*` coefficients
+- `earth_sun_distance_enable`, `surface_albedo_sw_diffuse`
 - diagnostic file and verbosity controls
 
 ### Backward-Compatibility Notes
 
 - The clear-sky path remains the default baseline for isolated SW/LW verification.
 - Disabling optional modifiers such as clouds, scattering, aerosols, dynamic solar geometry, and SEB extensions preserves the original minimal TwoStream behavior.
-- Longwave isothermal mode remains a strict self-consistency check and does not alter production pathways unless explicitly enabled.
 
 ### GPU-Safety Notes
 

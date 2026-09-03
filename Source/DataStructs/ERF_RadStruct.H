@@ -101,17 +101,32 @@ public:
   amrex::Real S0 = 1361.0;
 
   /**
-   * @brief Enable isothermal LW test mode.
-   * Forces all temperatures to T_iso_K for analytical verification.
-   * Only used when rad_type == RadType::TwoStream and lw_enabled == true.
+   * @brief Scale the solar constant by the Earth-Sun distance factor
+   * (d0/d)^2 for day_of_year (Spencer 1971). About +3.4% in early January
+   * and -3.3% in early July. Default false keeps S0 fixed.
    */
-  bool isothermal_test = false;
+  bool earth_sun_distance_enable = false;
 
   /**
-   * @brief Isothermal temperature for LW test (Kelvin).
-   * Only used when rad_type == RadType::TwoStream and isothermal_test == true.
+   * @brief Gray longwave optical depth from the layer mass path instead of
+   * the fixed tau_lw_per_layer:
+   *   tau_lw(k) = rho dz (lw_kabs_dry + lw_kabs_vapor qv + lw_kabs_cloud qc)
+   * The cloud term is the Stephens (1978) emissivity, eps = 1 - exp(-a LWP)
+   * with a = 0.158 m^2/g, written as an optical depth. The column optical
+   * depth is then independent of the vertical resolution. The cloud-band,
+   * moisture-coefficient and aerosol additions still apply on top.
+   * Default false keeps tau_lw_per_layer.
    */
-  amrex::Real T_iso_K = 288.15;
+  bool lw_mass_absorption_enable = false;
+
+  /** @brief Dry-air gray LW mass absorption coefficient [m^2/kg]. */
+  amrex::Real lw_kabs_dry = 1.0e-4;
+
+  /** @brief Water-vapor gray LW mass absorption coefficient [m^2/kg]. */
+  amrex::Real lw_kabs_vapor = 0.1;
+
+  /** @brief Cloud-water LW mass absorption coefficient [m^2/kg] (Stephens 1978: 0.158 m^2/g). */
+  amrex::Real lw_kabs_cloud = 158.0;
 
   /**
    * @brief Debug verbosity level (0=off, 1+=debug output).
@@ -255,6 +270,12 @@ public:
    * present or disabled.
    */
   amrex::Real surface_albedo_sw = 0.3;
+
+  /**
+   * @brief Shortwave surface albedo for diffuse light [0,1]. A negative
+   * value (default) uses surface_albedo_sw for both direct and diffuse light.
+   */
+  amrex::Real surface_albedo_sw_diffuse = -1.0;
 
   /**
    * @brief (Phase 11) Longwave surface emissivity fallback [0, 1] for per-column
@@ -575,8 +596,12 @@ public:
    * - erf.radiation.tau_lw_per_layer (real, optional)
    * - erf.radiation.solar_zenith (real, optional)
    * - erf.radiation.S0 (real, optional)
-   * - erf.radiation.isothermal_test (bool, optional)
-   * - erf.radiation.T_iso_K (real, optional)
+   * - erf.radiation.earth_sun_distance_enable (bool, optional, default false)
+   * - erf.radiation.lw_mass_absorption_enable (bool, optional, default false)
+   * - erf.radiation.lw_kabs_dry (real, optional, default 1.0e-4 m^2/kg)
+   * - erf.radiation.lw_kabs_vapor (real, optional, default 0.1 m^2/kg)
+   * - erf.radiation.lw_kabs_cloud (real, optional, default 158.0 m^2/kg)
+   * - erf.radiation.surface_albedo_sw_diffuse (real, optional, default -1 = same as direct)
    * - erf.radiation.v (int, optional, debug verbosity)
    * - erf.radiation.diag_file (string, optional)
    * - erf.radiation.tau_profile_type (string "constant"|"cloud_layer", optional, Phase 3)
@@ -654,8 +679,14 @@ public:
       pp.query("radiation.tau_lw_per_layer", tau_lw_per_layer);
       pp.query("radiation.solar_zenith", solar_zenith_deg);
       pp.query("radiation.S0", S0);
-      pp.query("radiation.isothermal_test", isothermal_test);
-      pp.query("radiation.T_iso_K", T_iso_K);
+      pp.query("radiation.earth_sun_distance_enable", earth_sun_distance_enable);
+      pp.query("radiation.lw_mass_absorption_enable", lw_mass_absorption_enable);
+      pp.query("radiation.lw_kabs_dry", lw_kabs_dry);
+      pp.query("radiation.lw_kabs_vapor", lw_kabs_vapor);
+      pp.query("radiation.lw_kabs_cloud", lw_kabs_cloud);
+      if (lw_kabs_dry < 0.0) lw_kabs_dry = 0.0;
+      if (lw_kabs_vapor < 0.0) lw_kabs_vapor = 0.0;
+      if (lw_kabs_cloud < 0.0) lw_kabs_cloud = 0.0;
       pp.query("radiation.v", verbosity);
       pp.query("radiation.diag_file", diag_file);
 
@@ -724,6 +755,8 @@ public:
       pp.query("radiation.surface_albedo_sw", surface_albedo_sw);
       pp.query("radiation.surface_emissivity_lw", surface_emissivity_lw);
       pp.query("radiation.surface_temp_k", surface_temp_k);
+      pp.query("radiation.surface_albedo_sw_diffuse", surface_albedo_sw_diffuse);
+      if (surface_albedo_sw_diffuse > 1.0) surface_albedo_sw_diffuse = 1.0;
 
       // Parameter validation (Phase 11): clamp albedo/emissivity to [0, 1],
       // ensure surface temp is positive and finite
