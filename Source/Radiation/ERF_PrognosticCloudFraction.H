@@ -10,15 +10,11 @@
  * @brief Prognostic cloud fraction diagnosis from relative humidity and cloud water.
  *
  * Implements RH/qc-based cloud fraction diagnosis for use in TwoStream radiation.
- * The diagnosed cloud fraction cf(k) can optionally be temporally smoothed.
  *
  * Cloud fraction diagnosis formula:
  *   cf_rh(k) = max(0, min(1, (rh(k) - rh_min) / (rh_max - rh_min)))  [linear ramp]
  *   cf_qc(k) = min(1, qc_scale * qc(k))  [qc contribution]
  *   cf_diag(k) = min(1, cf_rh(k) + cf_qc(k))  [combined with saturation]
- *
- * When smoothing enabled:
- *   cf_smooth(k, t+dt) = alpha * cf_diag(k, t+dt) + (1 - alpha) * cf_smooth(k, t)
  *
  * References:
  * -----------
@@ -147,55 +143,6 @@ amrex::Real diagnose_cloud_fraction_from_rh_qc(
     }
 
     return cf;
-}
-
-/**
- * @brief Apply exponential moving average (EMA) smoothing to cloud fraction.
- *
- * Temporal smoothing via EMA:
- *   cf_smooth(t+dt) = alpha * cf_new + (1 - alpha) * cf_old
- *
- * alpha = 0.0: no smoothing (cf_old retained)
- * alpha = 1.0: instant update (cf_new applied)
- * alpha ∈ (0, 1): gradual transition
- *
- * This is a GPU-safe inline function for device-side kernels.
- *
- * @param[in] cf_new Newly diagnosed cloud fraction [0, 1]
- * @param[in] cf_old Previous (smoothed) cloud fraction [0, 1]
- * @param[in] alpha Smoothing parameter [0, 1]
- *
- * @return Smoothed cloud fraction [0, 1]
- *
- * @note All inputs are assumed finite; output is always finite and bounded.
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real smooth_cloud_fraction_ema(
-    amrex::Real cf_new, amrex::Real cf_old,
-    amrex::Real alpha)
-{
-    // Guard against invalid inputs
-    if (!std::isfinite(cf_new) || !std::isfinite(cf_old) || !std::isfinite(alpha)) {
-        return 0.0;  // Safe fallback
-    }
-
-    // Clamp all inputs to [0, 1]
-    if (cf_new < 0.0) cf_new = 0.0;
-    if (cf_new > 1.0) cf_new = 1.0;
-    if (cf_old < 0.0) cf_old = 0.0;
-    if (cf_old > 1.0) cf_old = 1.0;
-    if (alpha < 0.0) alpha = 0.0;
-    if (alpha > 1.0) alpha = 1.0;
-
-    // EMA: cf_smooth = alpha * cf_new + (1 - alpha) * cf_old
-    amrex::Real cf_smooth = alpha * cf_new + (1.0 - alpha) * cf_old;
-
-    // Final bounds check and finiteness guard
-    if (cf_smooth < 0.0) cf_smooth = 0.0;
-    if (cf_smooth > 1.0) cf_smooth = 1.0;
-    if (!std::isfinite(cf_smooth)) cf_smooth = 0.0;
-
-    return cf_smooth;
 }
 
 #endif // ERF_PROGNOSTIC_CLOUD_FRACTION_H_

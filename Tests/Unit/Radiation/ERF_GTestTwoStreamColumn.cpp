@@ -248,3 +248,79 @@ TEST(TwoStreamColumn, DisabledBandsWriteZeroHeating)
     EXPECT_EQ(r.lw_net_surface, 0.0);
     EXPECT_EQ(r.max_heating, 0.0);
 }
+
+TEST(TwoStreamColumn, CloudBandIsLocatedByLayerCenterHeight)
+{
+    RadChoice rc = base_choice();
+    rc.tau_profile_type = TauProfileType::CloudLayer;
+    rc.cloud_base_height_m = 300.0;
+    rc.cloud_top_height_m = 700.0;
+    rc.cloud_tau_per_layer = 0.5;
+    rc.tau_per_layer = 0.05;
+
+    // Inside the band: base + cloud enhancement for the cloudy column only.
+    EXPECT_TRUE(is_cloud_level(500.0, rc));
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, true), 0.55, 1.0e-12);
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, false), 0.05, 1.0e-12);
+    // Band edges are inclusive; outside the band the base value is returned.
+    EXPECT_TRUE(is_cloud_level(300.0, rc));
+    EXPECT_TRUE(is_cloud_level(700.0, rc));
+    EXPECT_FALSE(is_cloud_level(299.9, rc));
+    EXPECT_FALSE(is_cloud_level(700.1, rc));
+    EXPECT_NEAR(tau_layer_value(900.0, rc.tau_per_layer, rc, true), 0.05, 1.0e-12);
+
+    // Constant profile ignores the band entirely.
+    rc.tau_profile_type = TauProfileType::Constant;
+    EXPECT_NEAR(tau_layer_value(500.0, rc.tau_per_layer, rc, true), 0.05, 1.0e-12);
+
+    // Cloud scattering properties follow the same band test.
+    rc.tau_profile_type = TauProfileType::CloudLayer;
+    rc.cloud_single_scattering_albedo = 0.9;
+    rc.cloud_asymmetry_factor = 0.85;
+    amrex::Real omega = -1.0, g = -1.0;
+    select_scattering_props(500.0, rc, true, omega, g);
+    EXPECT_EQ(omega, 0.9);
+    EXPECT_EQ(g, 0.85);
+    select_scattering_props(900.0, rc, true, omega, g);
+    EXPECT_EQ(omega, rc.single_scattering_albedo);
+    EXPECT_EQ(g, rc.asymmetry_factor);
+}
+
+TEST(TwoStreamColumn, DynamicOpticalDepthIsLinearInMoisture)
+{
+    // Zero coefficients reproduce the static value exactly.
+    EXPECT_EQ(diagnose_tau_dynamic(0.05, 0.01, 0.001, 0.0, 0.0), 0.05);
+    // Linear in qv and qc.
+    EXPECT_NEAR(diagnose_tau_dynamic(0.05, 0.01, 0.001, 10.0, 200.0), 0.05 + 0.1 + 0.2, 1.0e-12);
+    // Negative or non-finite mixing ratios contribute nothing.
+    EXPECT_EQ(diagnose_tau_dynamic(0.05, -0.01, -1.0, 10.0, 200.0), 0.05);
+    EXPECT_EQ(diagnose_tau_dynamic(0.05, std::nan(""), 0.0, 10.0, 200.0), 0.05);
+    // Clamped to the physical range.
+    EXPECT_EQ(diagnose_tau_dynamic(0.05, 1.0, 1.0, 1.0e3, 1.0e3), 100.0);
+}
+
+TEST(TwoStreamColumn, MoistureHelpersGuardMissingComponents)
+{
+    // A dry state with only (Rho, RhoTheta) must report zero moisture rather
+    // than reading past the end of the component range.
+    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox dry(bx, 2, amrex::The_Pinned_Arena());
+    dry.setVal<amrex::RunOn::Host>(1.0, bx, Rho_comp, 1);
+    dry.setVal<amrex::RunOn::Host>(300.0, bx, RhoTheta_comp, 1);
+    EXPECT_EQ(get_qv_from_state(0, 0, 0, dry.const_array()), 0.0);
+    EXPECT_EQ(get_qc_from_state(0, 0, 0, dry.const_array()), 0.0);
+
+    // With moisture components present the mixing ratios are RhoQ / Rho.
+    amrex::FArrayBox moist(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
+    moist.setVal<amrex::RunOn::Host>(0.0);
+    moist.setVal<amrex::RunOn::Host>(2.0, bx, Rho_comp, 1);
+    moist.setVal<amrex::RunOn::Host>(600.0, bx, RhoTheta_comp, 1);
+    moist.setVal<amrex::RunOn::Host>(0.02, bx, RhoQ1_comp, 1);
+    moist.setVal<amrex::RunOn::Host>(0.004, bx, RhoQ2_comp, 1);
+    EXPECT_NEAR(get_qv_from_state(0, 0, 0, moist.const_array()), 0.01, 1.0e-15);
+    EXPECT_NEAR(get_qc_from_state(0, 0, 0, moist.const_array()), 0.002, 1.0e-15);
+
+    // Negative stored values are treated as zero.
+    moist.setVal<amrex::RunOn::Host>(-0.02, bx, RhoQ1_comp, 1);
+    EXPECT_EQ(get_qv_from_state(0, 0, 0, moist.const_array()), 0.0);
+}

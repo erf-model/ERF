@@ -3,7 +3,11 @@
 
 #include <AMReX_GpuControl.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_REAL.H>
 #include <cmath>
+
+/// Stefan-Boltzmann constant [W/(m^2 K^4)] used by the two-stream LW model.
+constexpr amrex::Real stefan_boltzmann = amrex::Real(5.670374419e-8);
 
 /**
  * @file ERF_TwoStreamLW.H

@@ -636,7 +636,7 @@ void ERF::compute_twostream_radiation_diagnostics(
 
         // For LW: in isothermal test, override with analytical value
         if (rad_choice.lw_enabled && rad_choice.isothermal_test) {
-            amrex::Real sigma = 5.670374419e-8;
+            const amrex::Real sigma = stefan_boltzmann;
             amrex::Real T = rad_choice.T_iso_K;
             amrex::Real I_thermal = sigma * T * T * T * T;
             F_down_toa = I_thermal;

@@ -3380,10 +3380,6 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.cloud_fraction_qc_scale**          | Scaling coefficient for qc contribution to cloud fraction  | Real >= 0          | 1.0e-3           |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_smooth_enable**     | Enable temporal smoothing of prognostic cloud fraction     | Boolean            | false            |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_smooth_alpha**      | EMA blending parameter for cloud fraction smoothing [0,1]  | Real [0,1]         | 0.0              |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Aerosol/Turbidity Parameters**                   |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.aerosol_enable**                   | Enable prescribed bulk aerosol optical depth               | Boolean            | false            |

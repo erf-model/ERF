@@ -478,23 +478,6 @@ public:
   amrex::Real cloud_fraction_qc_scale = 1.0e-3;
 
   /**
-   * @brief (Phase 14) Enable temporal smoothing of prognostic cloud fraction.
-   * When true, diagnosed cf(k) is smoothed with exponential moving average (EMA).
-   * When false (default), diagnosed cf(k) is applied directly without smoothing.
-   * Only used when cloud_fraction_prog_enable == true.
-   */
-  bool cloud_fraction_smooth_enable = false;
-
-  /**
-   * @brief (Phase 14) Temporal smoothing parameter for cloud fraction [0, 1].
-   * Controls EMA blending: cf_smooth = alpha * cf_new + (1 - alpha) * cf_old.
-   * alpha = 0.0 means no smoothing (cf_old retained); alpha = 1.0 means instant update.
-   * Default 0.0 preserves feature-off behavior when smoothing enabled but alpha=0.
-   * Only used when cloud_fraction_smooth_enable == true.
-   */
-  amrex::Real cloud_fraction_smooth_alpha = 0.0;
-
-  /**
    * @brief (Phase 15) Enable prescribed bulk aerosol/turbidity optical depth.
    * When true, aerosol optical depth is added on top of existing tau_base + cloud + dynamic-moisture contributions.
    * When false (default), no aerosol contribution (Phase 14B behavior preserved).
@@ -622,8 +605,6 @@ public:
    * - erf.radiation.cloud_fraction_rh_min (real, optional, Phase 14, default 0.0)
    * - erf.radiation.cloud_fraction_rh_max (real, optional, Phase 14, default 1.0)
    * - erf.radiation.cloud_fraction_qc_scale (real, optional, Phase 14, default 1.0e-3)
-   * - erf.radiation.cloud_fraction_smooth_enable (bool, optional, Phase 14, default false)
-   * - erf.radiation.cloud_fraction_smooth_alpha (real, optional, Phase 14, default 0.0)
    * - erf.radiation.aerosol_enable (bool, optional, Phase 15, default false)
    * - erf.radiation.aerosol_profile_type (string "constant"|"exponential"|"table", optional, Phase 15, default "constant")
    * - erf.radiation.aerosol_tau_per_layer (real, optional, Phase 15, default 0.0)
@@ -775,8 +756,6 @@ public:
       pp.query("radiation.cloud_fraction_rh_min", cloud_fraction_rh_min);
       pp.query("radiation.cloud_fraction_rh_max", cloud_fraction_rh_max);
       pp.query("radiation.cloud_fraction_qc_scale", cloud_fraction_qc_scale);
-      pp.query("radiation.cloud_fraction_smooth_enable", cloud_fraction_smooth_enable);
-      pp.query("radiation.cloud_fraction_smooth_alpha", cloud_fraction_smooth_alpha);
 
       // Parameter validation (Phase 14): clamp cloud fraction parameters
       // to physically reasonable ranges
@@ -788,8 +767,6 @@ public:
         cloud_fraction_rh_max = cloud_fraction_rh_min;
       }
       if (cloud_fraction_qc_scale < 0.0) cloud_fraction_qc_scale = 0.0;
-      if (cloud_fraction_smooth_alpha < 0.0) cloud_fraction_smooth_alpha = 0.0;
-      if (cloud_fraction_smooth_alpha > 1.0) cloud_fraction_smooth_alpha = 1.0;
 
       // Phase 15: prescribed bulk aerosol/turbidity optical depth
       // (all optional; defaults disable aerosol, preserving Phase 14B behavior)

@@ -212,27 +212,84 @@ amrex::Real resolve_surface_temp_k(
     return t_surf;
 }
 
+/**
+ * @brief GPU-safe helper to determine whether a layer falls within the
+ * cloud band [cloud_base_height_m, cloud_top_height_m].
+ *
+ * @param[in] z_center Height of the layer center above the surface [m].
+ * @param[in] rad_choice Radiation parameters.
+ * @return true if this layer is inside the configured cloud band.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real level_height_m(int k, int kmin, amrex::Real dz)
+bool is_cloud_level(amrex::Real z_center, const RadChoice& rad_choice)
 {
-    return (static_cast<amrex::Real>(k - kmin) + 0.5) * dz;
+    return (z_center >= rad_choice.cloud_base_height_m &&
+            z_center <= rad_choice.cloud_top_height_m);
 }
 
 /**
- * @brief GPU-safe helper to determine whether level k falls within the
- * cloud layer band [cloud_base_height_m, cloud_top_height_m].
+ * @brief Water-vapor mixing ratio qv = RhoQv / Rho at (i,j,k).
  *
- * @param[in] k Vertical index.
- * @param[in] kmin Lowest vertical index.
- * @param[in] dz Uniform vertical cell spacing [m].
- * @param[in] rad_choice Radiation parameters.
- * @return true if this level is inside the configured cloud band.
+ * Returns 0 when the state carries no moisture components, or when the
+ * stored values are non-finite or negative.
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-bool is_cloud_level(int k, int kmin, amrex::Real dz, const RadChoice& rad_choice)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_qv_from_state(int i, int j, int k,
+                              const amrex::Array4<const amrex::Real>& state_arr)
 {
-    amrex::Real z = level_height_m(k, kmin, dz);
-    return (z >= rad_choice.cloud_base_height_m && z <= rad_choice.cloud_top_height_m);
+    if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
+    amrex::Real rho    = state_arr(i, j, k, Rho_comp);
+    amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
+    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
+    amrex::Real qv = rho_qv / rho;
+    return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
+}
+
+/**
+ * @brief Cloud-water mixing ratio qc = RhoQc / Rho at (i,j,k).
+ *
+ * Returns 0 when the state carries no cloud-water component, or when the
+ * stored values are non-finite or negative.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real get_qc_from_state(int i, int j, int k,
+                              const amrex::Array4<const amrex::Real>& state_arr)
+{
+    if (state_arr.nComp() <= RhoQ2_comp) return 0.0;
+    amrex::Real rho    = state_arr(i, j, k, Rho_comp);
+    amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
+    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qc)) return 0.0;
+    amrex::Real qc = rho_qc / rho;
+    return (std::isfinite(qc) && qc > 0.0) ? qc : 0.0;
+}
+
+/**
+ * @brief Moisture-dependent (dynamic) per-layer optical depth.
+ *
+ *   tau = tau_base + coeff_qv * qv + coeff_qc * qc
+ *
+ * clamped to [0, 100]. With both coefficients zero this returns tau_base
+ * unchanged, so the static configuration is reproduced exactly. Used for
+ * both the SW and the LW band with the respective coefficient pair.
+ *
+ * @param[in] tau_base Optical depth before the moisture contribution [unitless].
+ * @param[in] qv Water-vapor mixing ratio [kg/kg].
+ * @param[in] qc Cloud-water mixing ratio [kg/kg].
+ * @param[in] coeff_qv Optical depth per unit qv [unitless per kg/kg].
+ * @param[in] coeff_qc Optical depth per unit qc [unitless per kg/kg].
+ * @return Optical depth for this layer [unitless].
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real diagnose_tau_dynamic(amrex::Real tau_base, amrex::Real qv, amrex::Real qc,
+                                 amrex::Real coeff_qv, amrex::Real coeff_qc)
+{
+    if (!(qv > 0.0) || !std::isfinite(qv)) qv = 0.0;
+    if (!(qc > 0.0) || !std::isfinite(qc)) qc = 0.0;
+    amrex::Real tau = tau_base + coeff_qv * qv + coeff_qc * qc;
+    if (!std::isfinite(tau)) return tau_base;
+    if (tau < 0.0) tau = 0.0;
+    if (tau > 100.0) tau = 100.0;
+    return tau;
 }
 
 /**
@@ -245,181 +302,25 @@ bool is_cloud_level(int k, int kmin, amrex::Real dz, const RadChoice& rad_choice
  * rad_choice.cloud_tau_per_layer whenever the level height falls within
  * [cloud_base_height_m, cloud_top_height_m].
  *
- * @param[in] k Vertical index.
- * @param[in] kmin Lowest vertical index.
- * @param[in] dz Uniform vertical cell spacing [m].
+ * @param[in] z_center Height of the layer center above the surface [m].
  * @param[in] tau_base Clear-sky optical depth per layer.
  * @param[in] rad_choice Radiation parameters.
  * @param[in] apply_cloud If false, always returns tau_base (used for the
  * clear-sky column computation even when cloud_fraction > 0).
  * @return Optical depth for this layer [unitless].
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real tau_layer_value(
-    int k, int kmin, amrex::Real dz, amrex::Real tau_base,
+    amrex::Real z_center, amrex::Real tau_base,
     const RadChoice& rad_choice, bool apply_cloud)
 {
     if (!apply_cloud || rad_choice.tau_profile_type != TauProfileType::CloudLayer) {
         return tau_base;
     }
-    if (is_cloud_level(k, kmin, dz, rad_choice)) {
+    if (is_cloud_level(z_center, rad_choice)) {
         return tau_base + rad_choice.cloud_tau_per_layer;
     }
     return tau_base;
-}
-
-/**
- * @brief GPU-safe helper to diagnose dynamic shortwave optical depth
- * from per-level water vapor and cloud liquid water.
- *
- * Computes tau_sw = tau_sw_coeff_qv * qv + tau_sw_coeff_qc * qc + tau_base,
- * where qv and qc are retrieved from the state array at the given (i,j,k).
- * When coefficients are 0, reduces exactly to tau_base (behavior).
- *
- * Guards against invalid values:
- * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
- * - Output tau_sw is clamped to [0, 100] to ensure finite, physically reasonable values.
- * - Falls back to tau_base if anything goes wrong (defensive).
- *
- * @param[in] i, j, k Grid indices
- * @param[in] state_arr State array proxy (contains qv and qc)
- * @param[in] tau_base Static SW optical depth per layer [unitless]
- * @param[in] rad_choice Radiation parameters (contains dynamic tau coefficients)
- * @return Diagnosed or fallback SW optical depth [unitless]
- */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_sw_dynamic(
-   int i, int j, int k,
-   const amrex::Array4<const amrex::Real>& state_arr,
-   amrex::Real tau_base,
-   const RadChoice& rad_choice)
-{
-   // If dynamic SW is disabled, return static value immediately
-   if (!rad_choice.tau_sw_dynamic_enable) {
-       return tau_base;
-   }
-
-   // If both coefficients are 0, dynamic path is a no-op
-   if (rad_choice.tau_sw_coeff_qv <= 0.0 && rad_choice.tau_sw_coeff_qc <= 0.0) {
-       return tau_base;
-   }
-
-   // Retrieve water vapor and cloud liquid water mixing ratios
-   // Assume state_arr has components in order: Rho, RhoTheta, RhoQv, RhoQc, ...
-   // uses hardcoded indices: RhoQv_comp and RhoQc_comp from ERF_Index.H
-   amrex::Real qv = 0.0;
-   amrex::Real qc = 0.0;
-
-   // Extract qv = RhoQv / Rho (safe division with guards)
-   if (state_arr.contains(i, j, k)) {
-       amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-
-        amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-        if (std::isfinite(rho_qv)) {
-            qv = rho_qv / rho;
-            if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
-        }
-
-        #if defined(RhoQ2_comp)
-        amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
-        if (std::isfinite(rho_qc)) {
-            qc = rho_qc / rho;
-            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
-        }
-        #endif
-       if (rho > 0.0 && std::isfinite(rho_qc)) {
-           qc = rho_qc / rho;
-           if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
-       }
-   }
-
-   // Compute dynamic tau: tau_sw = tau_base + coeff_qv * qv + coeff_qc * qc
-   amrex::Real tau_dynamic = tau_base + rad_choice.tau_sw_coeff_qv * qv + 
-                              rad_choice.tau_sw_coeff_qc * qc;
-
-   // Safety: clamp to physically reasonable range [0, 100]
-   if (tau_dynamic < 0.0) tau_dynamic = 0.0;
-   if (tau_dynamic > 100.0) tau_dynamic = 100.0;
-
-   // Return finite value; if anything went wrong, this still produces a valid tau
-   return std::isfinite(tau_dynamic) ? tau_dynamic : tau_base;
-}
-
-/**
- * @brief GPU-safe helper to diagnose dynamic longwave optical depth
- * from per-level water vapor and cloud liquid water.
- *
- * Computes tau_lw = tau_lw_coeff_qv * qv + tau_lw_coeff_qc * qc + tau_base,
- * where qv and qc are retrieved from the state array at the given (i,j,k).
- * When coefficients are 0, reduces exactly to tau_base (behavior).
- *
- * Guards against invalid values:
- * - If qv or qc are NaN/Inf or negative, uses 0 for that field.
- * - Output tau_lw is clamped to [0, 100] to ensure finite, physically reasonable values.
- * - Falls back to tau_base if anything goes wrong (defensive).
- *
- * @param[in] i, j, k Grid indices
- * @param[in] state_arr State array proxy (contains qv and qc)
- * @param[in] tau_base Static LW optical depth per layer [unitless]
- * @param[in] rad_choice Radiation parameters (contains dynamic tau coefficients)
- * @return Diagnosed or fallback LW optical depth [unitless]
- */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_lw_dynamic(
-   int i, int j, int k,
-   const amrex::Array4<const amrex::Real>& state_arr,
-   amrex::Real tau_base,
-   const RadChoice& rad_choice)
-{
-   // If dynamic LW is disabled, return static value immediately
-   if (!rad_choice.tau_lw_dynamic_enable) {
-       return tau_base;
-   }
-
-   // If both coefficients are 0, dynamic path is a no-op
-   if (rad_choice.tau_lw_coeff_qv <= 0.0 && rad_choice.tau_lw_coeff_qc <= 0.0) {
-       return tau_base;
-   }
-
-   // Retrieve water vapor and cloud liquid water mixing ratios
-   amrex::Real qv = 0.0;
-   amrex::Real qc = 0.0;
-
-   // Extract qv = RhoQv / Rho (safe division with guards)
-   if (state_arr.contains(i, j, k)) {
-       amrex::Real rho = state_arr(i, j, k, Rho_comp);
-    if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-
-    amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-    if (std::isfinite(rho_qv)) {
-        qv = rho_qv / rho;
-        if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
-    }
-
-    #if defined(RhoQ2_comp)
-    amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
-    if (std::isfinite(rho_qc)) {
-        qc = rho_qc / rho;
-        if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
-    }
-    #endif
-       if (rho > 0.0 && std::isfinite(rho_qc)) {
-           qc = rho_qc / rho;
-           if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;  // Guard against invalid qc
-       }
-   }
-
-   // Compute dynamic tau: tau_lw = tau_base + coeff_qv * qv + coeff_qc * qc
-   amrex::Real tau_dynamic = tau_base + rad_choice.tau_lw_coeff_qv * qv + 
-                              rad_choice.tau_lw_coeff_qc * qc;
-
-   // Safety: clamp to physically reasonable range [0, 100]
-   if (tau_dynamic < 0.0) tau_dynamic = 0.0;
-   if (tau_dynamic > 100.0) tau_dynamic = 100.0;
-
-   // Return finite value; if anything went wrong, this still produces a valid tau
-   return std::isfinite(tau_dynamic) ? tau_dynamic : tau_base;
 }
 
 /**
@@ -435,23 +336,21 @@ amrex::Real diagnose_tau_lw_dynamic(
  * function always yields omega == 0.0, and compute_sw_diffuse_flux()
  * returns exactly 0.0 (direct-beam-only behavior preserved).
  *
- * @param[in] k Vertical index.
- * @param[in] kmin Lowest vertical index.
- * @param[in] dz Uniform vertical cell spacing [m].
+ * @param[in] z_center Height of the layer center above the surface [m].
  * @param[in] rad_choice Radiation parameters.
  * @param[in] apply_cloud Same flag passed to tau_layer_value(); true for the
  * cloudy-column evaluation, false for the clear-sky column evaluation.
  * @param[out] omega Selected single-scattering albedo for this level.
  * @param[out] g Selected asymmetry factor for this level.
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void select_scattering_props(
-    int k, int kmin, amrex::Real dz, const RadChoice& rad_choice, bool apply_cloud,
+    amrex::Real z_center, const RadChoice& rad_choice, bool apply_cloud,
     amrex::Real& omega, amrex::Real& g)
 {
     bool use_cloud_props = apply_cloud &&
         rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
-        is_cloud_level(k, kmin, dz, rad_choice);
+        is_cloud_level(z_center, rad_choice);
 
     if (use_cloud_props) {
         omega = rad_choice.cloud_single_scattering_albedo;
@@ -471,82 +370,45 @@ void select_scattering_props(
  *   cf_qc(k) = qc_scale * qc(k)
  *   cf(k) = min(1, cf_rh + cf_qc)  [saturated blend]
  *
- * When cloud_fraction_prog_enable is false, returns 0 (no effect).
- * When cloud_fraction_prog_enable is true, computes and returns diagnosed cf(k) in [0, 1].
- *
- * Guards against invalid values:
- * - If qv, qc, T, or P are NaN/Inf or unphysical, uses safe fallback values.
- * - Output cf is always clamped to [0, 1] and finite.
+ * Temperature comes from the equation of state (Exner function) and
+ * pressure from getPgivenRTh(), both evaluated with the local qv.
+ * Returns 0 when cloud_fraction_prog_enable is false.
  *
  * @param[in] i, j, k Grid indices
- * @param[in] state_arr State array proxy (contains qv, qc, RhoTheta, Rho)
- * @param[in] rad_choice Radiation parameters (contains prognostic cloud fraction settings)
- * @param[in] geom Geometry for pressure/temperature computation
+ * @param[in] state_arr State array proxy (contains Rho, RhoTheta, qv, qc)
+ * @param[in] rad_choice Radiation parameters (prognostic cloud fraction settings)
  * @return Diagnosed cloud fraction [0, 1] if enabled; 0 if disabled
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_cloud_fraction_prognostic(
     int i, int j, int k,
     const amrex::Array4<const amrex::Real>& state_arr,
-    const RadChoice& rad_choice,
-    const amrex::Geometry& /*geom*/)
+    const RadChoice& rad_choice)
 {
-    // If prognostic cloud fraction is disabled, return 0 (no effect)
     if (!rad_choice.cloud_fraction_prog_enable) {
         return 0.0;
     }
 
-    // Extract qv and qc from state
-    amrex::Real qv = 0.0;
-    amrex::Real qc = 0.0;
+    const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+    const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
 
-    if (state_arr.contains(i, j, k)) {
-        amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-
-        amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-        if (std::isfinite(rho_qv) && rho_qv >= 0.0) {
-            qv = rho_qv / rho;
-            if (qv < 0.0 || !std::isfinite(qv)) qv = 0.0;
-        }
-
-        #if defined(RhoQ2_comp)
-        amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
-        if (std::isfinite(rho_qc) && rho_qc >= 0.0) {
-            qc = rho_qc / rho;
-            if (qc < 0.0 || !std::isfinite(qc)) qc = 0.0;
-        }
-        #endif
-    }
-
-    // Compute temperature and pressure at this level
-    amrex::Real rho = 1.0;
-    amrex::Real rho_theta = 288.15;
-    if (state_arr.contains(i, j, k)) {
-        rho = state_arr(i, j, k, Rho_comp);
-        if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-        rho_theta = state_arr(i, j, k, RhoTheta_comp);
-        if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
-    }
+    amrex::Real rho       = state_arr(i, j, k, Rho_comp);
+    amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+    if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+    if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
 
     // Temperature (via the Exner function) and pressure from the equation of state
     amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho, qv);
-    if (T <= 0.0 || !std::isfinite(T)) T = 288.15;
-
     amrex::Real P = getPgivenRTh(rho_theta, qv);
     if (P <= 0.0 || !std::isfinite(P)) P = p_0;
 
-    // Compute RH from qv
-    amrex::Real rh = compute_relative_humidity(qv, T, P);
+    const amrex::Real rh = compute_relative_humidity(qv, T, P);
 
-    // Diagnose cloud fraction from RH and qc
-    amrex::Real cf = diagnose_cloud_fraction_from_rh_qc(
+    return diagnose_cloud_fraction_from_rh_qc(
         rh, qc,
         rad_choice.cloud_fraction_rh_min,
         rad_choice.cloud_fraction_rh_max,
         rad_choice.cloud_fraction_qc_scale);
-
-    return cf;
 }
 
 /**
@@ -566,24 +428,6 @@ amrex::Real diagnose_cloud_fraction_prognostic(
 constexpr int MAX_RAD_LEVELS = 512;
 
 /**
- * @brief Water-vapor mixing ratio qv = RhoQv / Rho at (i,j,k).
- *
- * Returns 0 when the state carries no moisture components, or when the
- * stored values are non-finite or negative.
- */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_qv_from_state(int i, int j, int k,
-                              const amrex::Array4<const amrex::Real>& state_arr)
-{
-    if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
-    amrex::Real rho    = state_arr(i, j, k, Rho_comp);
-    amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
-    amrex::Real qv = rho_qv / rho;
-    return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
-}
-
-/**
  * @brief GPU-safe helper to assemble the total per-layer optical depth at
  * level k for either the SW or the LW band.
  *
@@ -596,43 +440,43 @@ amrex::Real get_qv_from_state(int i, int j, int k,
  * 4. optional prescribed aerosol term (constant, exponential or table).
  *
  * @param[in] i, j, k Grid indices (k increases upward; kmin is the surface layer).
- * @param[in] kmin Lowest vertical index (surface layer).
- * @param[in] dz_uniform Uniform vertical spacing used for cloud-band detection [m].
  * @param[in] dz_layer Thickness of this layer [m].
- * @param[in] z_layer Height of this layer above the domain base [m].
+ * @param[in] z_center Height of the layer center above the surface [m]
+ *            (cloud-band detection and the aerosol profile).
  * @param[in] state_arr State array (read-only).
  * @param[in] tau_base Clear-sky optical depth per layer for this band.
  * @param[in] is_sw true for the shortwave band, false for longwave.
  * @param[in] cloudy true for the cloudy-column evaluation.
  * @param[in] rad_choice Radiation parameters.
- * @param[in] geom Geometry (passed through to cloud-fraction diagnosis).
  * @return Optical depth of layer k [unitless].
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_layer_tau(
-    int i, int j, int k, int kmin,
-    amrex::Real dz_uniform, amrex::Real dz_layer, amrex::Real z_layer,
+    int i, int j, int k,
+    amrex::Real dz_layer, amrex::Real z_center,
     const amrex::Array4<const amrex::Real>& state_arr,
     amrex::Real tau_base, bool is_sw, bool cloudy,
-    const RadChoice& rad_choice, const amrex::Geometry& geom)
+    const RadChoice& rad_choice)
 {
     // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
-    amrex::Real tau = tau_layer_value(k, kmin, dz_uniform, tau_base, rad_choice, cloudy);
+    amrex::Real tau = tau_layer_value(z_center, tau_base, rad_choice, cloudy);
 
     // Dynamic (moisture-dependent) contribution.
-    bool dynamic_enabled = is_sw ? rad_choice.tau_sw_dynamic_enable
-                                 : rad_choice.tau_lw_dynamic_enable;
+    const bool dynamic_enabled = is_sw ? rad_choice.tau_sw_dynamic_enable
+                                       : rad_choice.tau_lw_dynamic_enable;
     if (dynamic_enabled) {
-        tau = is_sw ? diagnose_tau_sw_dynamic(i, j, k, state_arr, tau, rad_choice)
-                    : diagnose_tau_lw_dynamic(i, j, k, state_arr, tau, rad_choice);
+        const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+        const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
+        tau = is_sw ? diagnose_tau_dynamic(tau, qv, qc, rad_choice.tau_sw_coeff_qv, rad_choice.tau_sw_coeff_qc)
+                    : diagnose_tau_dynamic(tau, qv, qc, rad_choice.tau_lw_coeff_qv, rad_choice.tau_lw_coeff_qc);
     }
 
     // Prognostic cloud fraction: scale the cloud-band enhancement by cf(k).
     if (rad_choice.cloud_fraction_prog_enable && cloudy &&
         rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
-        is_cloud_level(k, kmin, dz_uniform, rad_choice)) {
-        amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
-        amrex::Real tau_clear_k = tau_layer_value(k, kmin, dz_uniform, tau_base, rad_choice, /*apply_cloud=*/false);
+        is_cloud_level(z_center, rad_choice)) {
+        amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice);
+        amrex::Real tau_clear_k = tau_layer_value(z_center, tau_base, rad_choice, /*apply_cloud=*/false);
         tau = tau_clear_k + cf_prog * rad_choice.cloud_tau_per_layer;
     }
 
@@ -642,7 +486,7 @@ amrex::Real diagnose_layer_tau(
         if (rad_choice.aerosol_profile_type == AerosolProfileType::Constant) {
             tau_aerosol = diagnose_tau_aerosol_constant(rad_choice.aerosol_tau_per_layer);
         } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Exponential) {
-            tau_aerosol = diagnose_tau_aerosol_exponential(z_layer, dz_layer,
+            tau_aerosol = diagnose_tau_aerosol_exponential(z_center, dz_layer,
                                                            rad_choice.aerosol_tau_surface,
                                                            rad_choice.aerosol_scale_height_m);
         } else if (rad_choice.aerosol_profile_type == AerosolProfileType::Table) {
@@ -736,14 +580,15 @@ void vertical_two_stream_sweep(
         "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
 
     // Physical constants
-    const amrex::Real sigma  = 5.670374419e-8;  // Stefan-Boltzmann [W/(m^2·K^4)]
-    const amrex::Real cp_air = 1005.0;          // Specific heat at constant pressure [J/(kg·K)]
+    const amrex::Real sigma  = stefan_boltzmann;  // Stefan-Boltzmann [W/(m^2·K^4)]
+    const amrex::Real cp_air = Cp_d;              // Dry-air specific heat at constant pressure [J/(kg·K)]
 
     // ------------------------------------------------------------------
-    // Layer thickness dz_level[m] and layer height z_level[m] (height of the
-    // layer above the domain base, used by the exponential aerosol profile).
-    // Thickness comes from cell-centered height differences when z_phys_cc
-    // is available, otherwise from the uniform spacing.
+    // Layer thickness dz_level[m] and layer-center height z_level[m] above
+    // the surface. Both come from the cell-centered physical heights when
+    // z_phys_cc is available (stretched or terrain-following grids), and
+    // from the uniform spacing otherwise. z_level locates the cloud band
+    // and evaluates the exponential aerosol profile.
     // ------------------------------------------------------------------
     const amrex::Real dz_uniform = geom.CellSize(2);
     amrex::Real dz_level[MAX_RAD_LEVELS];
@@ -762,15 +607,15 @@ void vertical_two_stream_sweep(
         // Top layer: no level above; reuse the thickness of the layer below.
         if (nlev > 1) dz_level[nlev - 1] = dz_level[nlev - 2];
     }
-    {
-        amrex::Real z_accum = 0.0;
+    if (z_phys_cc) {
+        // Surface height = first cell center minus half of the first thickness.
+        const amrex::Real z_surface = z_phys_cc(i, j, kmin) - 0.5 * dz_level[0];
         for (int m = 0; m < nlev; ++m) {
-            if (z_phys_cc) {
-                z_level[m] = z_phys_cc(i, j, kmin + m) - z_phys_cc(i, j, kmin);
-            } else {
-                z_level[m] = z_accum;
-            }
-            z_accum += dz_level[m];
+            z_level[m] = z_phys_cc(i, j, kmin + m) - z_surface;
+        }
+    } else {
+        for (int m = 0; m < nlev; ++m) {
+            z_level[m] = (static_cast<amrex::Real>(m) + 0.5) * dz_uniform;
         }
     }
 
@@ -822,9 +667,9 @@ void vertical_two_stream_sweep(
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
             if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
 
-            amrex::Real tau_sw = diagnose_layer_tau(i, j, k, kmin, dz_uniform, dz_level[m], z_level[m],
+            amrex::Real tau_sw = diagnose_layer_tau(i, j, k, dz_level[m], z_level[m],
                                                     state_arr, tau_sw_base, /*is_sw=*/true, cloudy,
-                                                    rad_choice, geom);
+                                                    rad_choice);
             tau_sw_cum += tau_sw;
 
             // Direct beam at the bottom of this layer (Beer-Lambert)
@@ -833,7 +678,7 @@ void vertical_two_stream_sweep(
             // Diffuse flux: transmitted from above plus newly scattered in this layer
             amrex::Real omega = 0.0;
             amrex::Real g = 0.0;
-            select_scattering_props(k, kmin, dz_uniform, rad_choice, cloudy, omega, g);
+            select_scattering_props(z_level[m], rad_choice, cloudy, omega, g);
 
             amrex::Real F_sw_diff_layer =
                 compute_sw_diffuse_flux(tau_sw, F_sw_dir_prev, cos_zenith, omega, g);
@@ -878,9 +723,9 @@ void vertical_two_stream_sweep(
             amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
 
-            tau_lw_level[m] = diagnose_layer_tau(i, j, k, kmin, dz_uniform, dz_level[m], z_level[m],
+            tau_lw_level[m] = diagnose_layer_tau(i, j, k, dz_level[m], z_level[m],
                                                  state_arr, tau_lw_base, /*is_sw=*/false, cloudy,
-                                                 rad_choice, geom);
+                                                 rad_choice);
 
             F_lw_down_iface[m] = compute_lw_flux_down(F_lw_down_iface[m + 1], T_layer, sigma, tau_lw_level[m]);
         }

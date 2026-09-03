@@ -719,7 +719,7 @@ for (int k = kmin; k <= kmax; ++k) {
     amrex::Real tau = tau_layer_value(k, ...);  // Base tau
     
     if (rad_choice.tau_sw_dynamic_enable) {
-        tau = diagnose_tau_sw_dynamic(i, j, k, state_arr, tau, rad_choice);
+        tau = diagnose_tau_dynamic(i, j, k, state_arr, tau, rad_choice);
     }
     
     // NEW Phase 14: Per-level cloud fraction modulation
@@ -751,7 +751,7 @@ for (int k = kmin; k <= kmax; ++k) {
 
 // ❌ WRONG: Apply cf before dynamic tau, losing dynamic effect
 tau = tau_base + cf * cloud_tau_per_layer;  // Phase 14
-tau = diagnose_tau_sw_dynamic(..., tau, ...);  // Phase 12 overwrites!
+tau = diagnose_tau_dynamic(..., tau, ...);  // Phase 12 overwrites!
 ```
 
 **Lesson:**
@@ -761,37 +761,23 @@ tau = diagnose_tau_sw_dynamic(..., tau, ...);  // Phase 12 overwrites!
 
 ---
 
-### D.4 – Temporal Smoothing State: Future Infrastructure Requirement
+### D.4 – Temporal Smoothing State: Options Removed
 
-**Issue (Phase 14):**
-```cpp
-// Current implementation (Phase 14): NO temporal smoothing at sweep level
-if (rad_choice.cloud_fraction_smooth_enable && rad_choice.cloud_fraction_smooth_alpha > 0.0) {
-    // ❌ BLOCKED: No persistent storage for cf_old(i, j, k) across timesteps
-    // Would require new MultiFab (like qheating_rates) initialized in ERF_MakeNewArrays.cpp
-}
+**Issue:**
+The `cloud_fraction_smooth_enable` / `cloud_fraction_smooth_alpha` inputs were
+parsed and documented but never applied: EMA smoothing needs the previous
+step's cf(i,j,k), and the device-side sweep has no persistent per-level
+storage for it.
 
-// Smoothing logic is ready (in ERF_PrognosticCloudFraction.H):
-cf_smooth = smooth_cloud_fraction_ema(cf_new, cf_old, alpha);
-// But cf_old is not available in vertical_two_stream_sweep()
-```
-
-**Why:**
-- EMA smoothing requires storing cf from previous timestep: cf_smooth(i,j,k,t-dt)
-- vertical_two_stream_sweep() is device-side with no access to persistent storage
-- Adding per-level state MultiFab requires coordination with ERF initialization and boundary handling
-- Phase 14 focuses on diagnosis; smoothing deferred to Phase 15+ infrastructure work
-
-**Prevention:**
-- Set `cloud_fraction_smooth_enable = false` (default) to disable smoothing
-- Set `cloud_fraction_smooth_alpha = 0.0` (default) to disable smoothing
-- Parameters validated but NOT applied; future phases can add state storage
+**Resolution:**
+The unused inputs and the unused `smooth_cloud_fraction_ema()` helper were
+removed. Reintroducing smoothing requires a persistent MultiFab for cf
+(allocated alongside `qheating_rates` in `ERF_MakeNewArrays.cpp`) that the
+sweep reads and updates.
 
 **Lesson:**
-- Persistent per-level state in radiation solvers requires MultiFab infrastructure
-- Device-side code cannot dynamically allocate or access time-history arrays
-- Plan MultiFab addition (ERF_MakeNewArrays.cpp, boundary handling, diagnostics export) in separate phase
-- Current Phase 14 validates parameters and keeps smoothing logic ready for future use
+- Do not expose runtime inputs before the feature behind them exists.
+- Persistent per-level state in radiation solvers requires MultiFab infrastructure.
 
 ---
 
@@ -1107,7 +1093,7 @@ amrex::Real tau = tau_layer_value(...);
 
 // Add Phase 12 dynamic tau (if enabled)
 if (rad_choice.tau_sw_dynamic_enable) {
-    tau = diagnose_tau_sw_dynamic(...);  // Returns tau_base + dynamic_component
+    tau = diagnose_tau_dynamic(...);  // Returns tau_base + dynamic_component
 }
 
 // Add Phase 14 cloud fraction scaling (if enabled and cloudy)
