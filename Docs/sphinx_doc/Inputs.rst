@@ -3313,9 +3313,19 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.S0**                               | Solar constant (top-of-atmosphere irradiance) [W/m²]       | Real > 0           | 1361.0           |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.isothermal_test**                  | Enable isothermal LW test mode (all T = T_iso_K)           | Boolean            | false            |
+| **erf.radiation.earth_sun_distance_enable**        | Scale S0 by the Earth-Sun distance factor (d0/d)^2 for     | Boolean            | false            |
+|                                                    | day_of_year (Spencer 1971)                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.T_iso_K**                          | Isothermal temperature for LW test [K]                     | Real > 0           | 288.15           |
+| **erf.radiation.lw_mass_absorption_enable**        | Gray LW optical depth from the layer mass path,            | Boolean            | false            |
+|                                                    | rho dz (k_dry + k_vapor qv + k_cloud qc), instead of       |                    |                  |
+|                                                    | tau_lw_per_layer                                           |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.lw_kabs_dry**                      | Dry-air gray LW mass absorption coefficient [m^2/kg]       | Real >= 0          | 1.0e-4           |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.lw_kabs_vapor**                    | Water-vapor gray LW mass absorption coefficient [m^2/kg]   | Real >= 0          | 0.1              |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.lw_kabs_cloud**                    | Cloud-water LW mass absorption coefficient [m^2/kg]        | Real >= 0          | 158.0            |
+|                                                    | (Stephens 1978 emissivity, 0.158 m^2/g)                    |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Cloud Optical Depth Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
@@ -3349,6 +3359,9 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.surface_albedo_sw**                | Shortwave surface albedo [0,1] fallback (when LSM/hetero   | Real [0,1]         | 0.3              |
 |                                                    | fields unavailable)                                        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.surface_albedo_sw_diffuse**        | Shortwave surface albedo for diffuse light [0,1];          | Real               | -1.0             |
+|                                                    | negative uses surface_albedo_sw for both                   |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.surface_emissivity_lw**            | Longwave surface emissivity [0,1] fallback                 | Real [0,1]         | 0.99             |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

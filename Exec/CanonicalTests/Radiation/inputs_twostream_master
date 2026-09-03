@@ -41,9 +41,13 @@ erf.radiation.tau_per_layer           = 0.05      # Uniform SW optical depth per
 erf.radiation.tau_lw_per_layer        = 1.0       # Uniform LW optical depth per layer (gray-gas two-stream), unitless. Default: 1.0
 erf.radiation.solar_zenith            = 45.0      # Solar zenith angle [degrees], used when solar_geometry_dynamic_enable=false. Default: 45.0
 erf.radiation.S0                      = 1361.0    # Solar constant / TOA irradiance [W/m^2]. Default: 1361.0
-erf.radiation.isothermal_test         = false     # Force all layer temperatures to T_iso_K for analytical LW verification. Bool. Default: false
-erf.radiation.T_iso_K                 = 288.15    # Isothermal test temperature [K]; only used if isothermal_test=true. Default: 288.15
+erf.radiation.earth_sun_distance_enable = false   # Scale S0 by the Earth-Sun distance factor (d0/d)^2 for day_of_year (Spencer 1971). Bool. Default: false
+erf.radiation.lw_mass_absorption_enable = false   # Gray LW optical depth from the layer mass path rho*dz*(k_dry + k_vapor*qv + k_cloud*qc) instead of tau_lw_per_layer. Bool. Default: false
+erf.radiation.lw_kabs_dry             = 1.0e-4    # Dry-air gray LW mass absorption coefficient [m^2/kg]. Default: 1.0e-4
+erf.radiation.lw_kabs_vapor           = 0.1       # Water-vapor gray LW mass absorption coefficient [m^2/kg]. Default: 0.1
+erf.radiation.lw_kabs_cloud           = 158.0     # Cloud-water LW mass absorption coefficient [m^2/kg] (Stephens 1978: 0.158 m^2/g). Default: 158.0
 erf.radiation.surface_albedo_sw       = 0.3       # Fallback SW surface albedo [0,1], used when no heterogeneous LSM/radiation albedo field is available. Default: 0.3
+erf.radiation.surface_albedo_sw_diffuse = -1.0    # SW surface albedo for diffuse light [0,1]; negative uses surface_albedo_sw for both direct and diffuse. Default: -1.0
 erf.radiation.surface_emissivity_lw   = 0.99      # Fallback LW surface emissivity [0,1], used when no heterogeneous LSM/radiation emissivity field is available. Default: 0.99
 erf.radiation.surface_temp_k          = 300.0     # Fallback surface temperature [K], used as LW boundary condition when no heterogeneous t_sfc field is available. Default: 300.0
 

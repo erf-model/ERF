@@ -115,7 +115,6 @@ erf.radiation.tau_per_layer = 0.05
 erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 45.0
 erf.radiation.S0 = 1361.0
-erf.radiation.isothermal_test = false
 
 # Phase 11 Surface Properties (Fallback Scalars)
 # These are used when hetero fields are unavailable/invalid

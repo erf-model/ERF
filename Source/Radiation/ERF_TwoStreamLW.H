@@ -53,8 +53,6 @@ constexpr amrex::Real stefan_boltzmann = amrex::Real(5.670374419e-8);
  * - Uniform optical depth (tau_lw) per layer
  * - No scattering
  * - No clouds
- * - Isothermal test mode available: if isothermal_test=true, force all T = T_iso_K
- *   This gives F_up = F_down = sigma * T_iso_K^4 everywhere, zero net flux.
  *
  * References:
  * -----------

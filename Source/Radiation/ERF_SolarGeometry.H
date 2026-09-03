@@ -325,4 +325,29 @@ amrex::Real compute_cos_zenith_angle(
     return cos_zenith;
 }
 
+/**
+ * @brief Earth-Sun distance factor (d0/d)^2 that scales the solar constant
+ * for the day of year (Spencer 1971):
+ *
+ *   f = 1.000110 + 0.034221 cos(G) + 0.001280 sin(G)
+ *              + 0.000719 cos(2G) + 0.000077 sin(2G),   G = 2 pi (doy - 1) / 365
+ *
+ * f is about 1.034 at perihelion (early January) and 0.967 at aphelion
+ * (early July); its annual mean is 1.
+ *
+ * @param[in] day_of_year Day-of-year (1-based); values outside [1, 366] are wrapped.
+ * @return Dimensionless factor multiplying S0.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real compute_earth_sun_distance_factor(amrex::Real day_of_year)
+{
+    if (!std::isfinite(day_of_year)) return 1.0;
+    amrex::Real doy = day_of_year;
+    while (doy < 1.0) doy += 365.0;
+    while (doy > 366.0) doy -= 365.0;
+    const amrex::Real G = 2.0 * M_PI * (doy - 1.0) / 365.0;
+    return 1.000110 + 0.034221 * std::cos(G) + 0.001280 * std::sin(G)
+         + 0.000719 * std::cos(2.0 * G) + 0.000077 * std::sin(2.0 * G);
+}
+
 #endif // ERF_SOLAR_GEOMETRY_H_

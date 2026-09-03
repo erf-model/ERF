@@ -148,7 +148,10 @@ void ERF::compute_twostream_radiation_diagnostics(
         amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
-    SW_TOA = rad_choice.sw_enabled ? (rad_choice.S0 * std::max(0.0, cos_zenith)) : 0.0;
+    const amrex::Real S0_eff = rad_choice.S0 *
+        (rad_choice.earth_sun_distance_enable
+             ? compute_earth_sun_distance_factor(rad_choice.day_of_year) : 1.0);
+    SW_TOA = rad_choice.sw_enabled ? (S0_eff * std::max(0.0, cos_zenith)) : 0.0;
 
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
@@ -662,15 +665,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             seb_residual_max = std::numeric_limits<amrex::Real>::quiet_NaN();
         }
 
-        // For LW: in isothermal test, override with analytical value
-        if (rad_choice.lw_enabled && rad_choice.isothermal_test) {
-            const amrex::Real sigma = stefan_boltzmann;
-            amrex::Real T = rad_choice.T_iso_K;
-            amrex::Real I_thermal = sigma * T * T * T * T;
-            LW_up_TOA = I_thermal;
-            LW_net_surface = 0.0;
-            heating_rate_max = 0.0;
-        }
     }
 
     // Logging output

@@ -94,7 +94,7 @@ CASES: Dict[str, BenchmarkCase] = {
     "lw_isothermal": BenchmarkCase(
         name="LW isothermal baseline",
         short_name="lw_isothermal",
-        description="Gray-gas longwave radiation in isothermal mode (energy balance check)",
+        description="Gray-gas longwave radiation on an isothermal column over a black surface",
         base_case_dir="LW_Isothermal",
         inputs_file="inputs",
         diag_file="radiation_lw_diag.dat",
@@ -104,10 +104,10 @@ CASES: Dict[str, BenchmarkCase] = {
         diag_callsite_mode="both",
         expected_diag_rows=2,
         rows_per_step=2,
-        required_metrics=["step", "time", "call_site", "LW_surface", "LW_TOA", "heating_rate_max"],
-        flux_metrics={"LW_surface": "W/m^2", "LW_TOA": "W/m^2"},
+        required_metrics=["step", "time", "call_site", "LW_net_surface", "LW_up_TOA", "heating_rate_max"],
+        flux_metrics={"LW_net_surface": "W/m^2", "LW_up_TOA": "W/m^2"},
         heating_metrics={"heating_rate_max": "K/s"},
-        physics_description="T_iso=288.15K, tau_lw=1.0/layer, expect heating=0 (energy balance)",
+        physics_description="T=300K isothermal column, black surface at 300K, tau_lw=1.0/layer: LW_up_TOA=sigma T^4, LW_net_surface~0",
     ),
     
     # =====================================================================

@@ -108,16 +108,14 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.abl_geo_wind = 15.0 0.0 0.0
 
-erf.input_sounding_file = "input_sounding_lw_isothermal"
+erf.input_sounding_file = "input_sounding_sw_clearsky"
 
-# RADIATION - Two-Stream Longwave (Isothermal mode)
+# RADIATION - Two-Stream Shortwave
 erf.radiation_type = "TwoStream"
-erf.radiation.sw_enabled = false
-erf.radiation.lw_enabled = true
-erf.radiation.tau_lw_per_layer = 1.0
-# Physically isothermal column: theta(z) = 300 exp(g z / (c_p 300)) gives T = 300 K everywhere,
-# and the surface is black at the same 300 K.
-erf.radiation.surface_temp_k = 300.0
-erf.radiation.surface_emissivity_lw = 1.0
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = false
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
-erf.radiation.diag_file = "radiation_lw_diag.dat"
+erf.radiation.diag_file = "radiation_sw_diag.dat"

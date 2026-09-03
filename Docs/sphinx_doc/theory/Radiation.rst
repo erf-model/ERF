@@ -27,7 +27,9 @@ Beer-Lambert law:
 
    I_{sw,\text{direct}}(z) = I_0 \mu_0 e^{-\tau_{\text{sw}} \sec(\theta_z)}
 
-where :math:`I_0` is the solar constant at the top of the atmosphere (:math:`S_0 \approx 1361 \, \text{W/m}^2`), 
+where :math:`I_0` is the solar constant at the top of the atmosphere (:math:`S_0 \approx 1361 \, \text{W/m}^2`,
+optionally scaled by the Earth-Sun distance factor :math:`(d_0/d)^2` of Spencer (1971) when
+``earth_sun_distance_enable`` is set), 
 :math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle, :math:`\tau_{\text{sw}}` is the 
 vertically integrated shortwave optical depth above height :math:`z`, and :math:`\sec(\theta_z)` accounts 
 for the path-length modification. The optical depth may be spatially uniform (static :math:`\tau_{\text{per\_layer}}`) 
@@ -89,12 +91,13 @@ and :math:`T_{\text{dif}} = e^{-2\tau}`; a conservative layer (:math:`\omega_0 =
 
 The layers are combined with the surface by the adding method. Let :math:`A_m` be the albedo of everything
 below interface :math:`m` for diffuse light and :math:`S_m` the upward diffuse flux at interface :math:`m`
-produced by the direct beam illuminating everything below it. The surface, with albedo
-:math:`\alpha_{\text{sw}}` (user-specified or LSM-provided), starts the recursion,
+produced by the direct beam illuminating everything below it. The surface, with direct-beam albedo
+:math:`\alpha_{\text{dir}}` (user-specified or LSM-provided) and diffuse albedo :math:`\alpha_{\text{dif}}`
+(``surface_albedo_sw_diffuse``, equal to :math:`\alpha_{\text{dir}}` unless set), starts the recursion,
 
 .. math::
 
-   A_0 = \alpha_{\text{sw}}, \qquad S_0 = \alpha_{\text{sw}} F_{\text{dir}}(0),
+   A_0 = \alpha_{\text{dif}}, \qquad S_0 = \alpha_{\text{dir}} F_{\text{dir}}(0),
 
 and each layer :math:`m` (between interfaces :math:`m` and :math:`m+1`) adds
 
@@ -113,7 +116,7 @@ upward fluxes on every interface,
 
 and the net shortwave flux :math:`F_{\text{sw,net}}(m) = F_{\text{dir}}(m) + F^{\downarrow}_{\text{dif}}(m) - F^{\uparrow}_{\text{dif}}(m)`
 whose divergence drives the shortwave heating rate. The surface absorbs
-:math:`(1 - \alpha_{\text{sw}}) \left[ F_{\text{dir}}(0) + F^{\downarrow}_{\text{dif}}(0) \right]`, which is the
+:math:`(1 - \alpha_{\text{dir}}) F_{\text{dir}}(0) + (1 - \alpha_{\text{dif}}) F^{\downarrow}_{\text{dif}}(0)`, which is the
 ``SW_surface`` diagnostic; the reflected flux leaving the top, :math:`F^{\uparrow}_{\text{dif}}(n)`, is ``SW_up_TOA``.
 
 Cloud scattering properties may differ from the clear-sky values (e.g., :math:`\omega_0^{\text{cloud}}` for 
@@ -134,6 +137,18 @@ parameterized similarly to shortwave:
 .. math::
 
    \tau_{\text{lw}}(k) = \tau_{\text{lw,per\_layer}} + \tau_{\text{cloud,lw}}(k) + c_{\text{qv,lw}} q_v(k) + c_{\text{qc,lw}} q_c(k)
+
+Alternatively (``lw_mass_absorption_enable = true``) the gray optical depth follows the mass path of
+each layer,
+
+.. math::
+
+   \tau_{\text{lw}}(k) = \rho \, \Delta z \left( k_{\text{dry}} + k_{\text{v}} q_v + k_{\text{c}} q_c \right),
+
+so the column optical depth is independent of the vertical resolution, water vapor and cloud water
+have a real greenhouse effect, and the cloud term reproduces the Stephens (1978) emissivity
+:math:`\epsilon_c = 1 - e^{-0.158 \, \text{LWP}}` (LWP in g/m²). The cloud-band, moisture-coefficient
+and aerosol additions of the previous equation still apply on top of this base.
 
 The emission temperature of each layer is the absolute temperature, recovered from the prognostic 
 :math:`\rho\theta` through the equation of state and the Exner function,
@@ -320,6 +335,10 @@ Bhumralkar, C. M. (1974). Numerical experiments on the computation of ground sur
 Kirchhoff, G. R. (1860). Über die Beziehung zwischen den Emissionsvermögen und den Absorptionsvermögen der Körper für Wärmestrahlung. *Annalen der Physik und Chemie*, 109(3), 275–301.
 
 Meador, W. E., & Weaver, W. R. (1980). Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement. *Journal of the Atmospheric Sciences*, 37(3), 630–643.
+
+Spencer, J. W. (1971). Fourier series representation of the position of the sun. *Search*, 2(5), 172.
+
+Stephens, G. L. (1978). Radiation profiles in extended water clouds. II: Parameterization schemes. *Journal of the Atmospheric Sciences*, 35, 2123–2132.
 
 Zdunkowski, W. G., Welch, R. M., & Korb, G. (1980). An investigation of the structure of typical two-stream methods for the calculation of solar fluxes and heating rates in clouds. *Beiträge zur Physik der Atmosphäre*, 53, 147–166.
 

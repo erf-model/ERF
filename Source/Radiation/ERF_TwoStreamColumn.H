@@ -53,7 +53,6 @@ struct TwoStreamParams
 {
     bool sw_enabled = true;
     bool lw_enabled = true;
-    bool isothermal_test = false;
     amrex::Real tau_per_layer = 0.05;
     amrex::Real tau_lw_per_layer = 1.0;
     amrex::Real solar_zenith_deg = 45.0;
@@ -70,6 +69,7 @@ struct TwoStreamParams
     amrex::Real cloud_asymmetry_factor = 0.0;
 
     amrex::Real surface_albedo_sw = 0.3;
+    amrex::Real surface_albedo_sw_diffuse = -1.0;
     amrex::Real surface_emissivity_lw = 0.99;
     amrex::Real surface_temp_k = 300.0;
 
@@ -91,6 +91,12 @@ struct TwoStreamParams
     amrex::Real aerosol_scale_height_m = 2000.0;
     amrex::Real aerosol_tau_surface = 0.0;
 
+    bool lw_mass_absorption_enable = false;
+    amrex::Real lw_kabs_dry = 1.0e-4;
+    amrex::Real lw_kabs_vapor = 0.1;
+    amrex::Real lw_kabs_cloud = 158.0;
+
+    bool earth_sun_distance_enable = false;
     bool solar_geometry_dynamic_enable = false;
     amrex::Real latitude_deg = 0.0;
     amrex::Real longitude_deg = 0.0;
@@ -108,7 +114,6 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     TwoStreamParams p;
     p.sw_enabled = rc.sw_enabled;
     p.lw_enabled = rc.lw_enabled;
-    p.isothermal_test = rc.isothermal_test;
     p.tau_per_layer = rc.tau_per_layer;
     p.tau_lw_per_layer = rc.tau_lw_per_layer;
     p.solar_zenith_deg = rc.solar_zenith_deg;
@@ -122,6 +127,7 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.cloud_single_scattering_albedo = rc.cloud_single_scattering_albedo;
     p.cloud_asymmetry_factor = rc.cloud_asymmetry_factor;
     p.surface_albedo_sw = rc.surface_albedo_sw;
+    p.surface_albedo_sw_diffuse = rc.surface_albedo_sw_diffuse;
     p.surface_emissivity_lw = rc.surface_emissivity_lw;
     p.surface_temp_k = rc.surface_temp_k;
     p.tau_sw_dynamic_enable = rc.tau_sw_dynamic_enable;
@@ -139,6 +145,11 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.aerosol_tau_per_layer = rc.aerosol_tau_per_layer;
     p.aerosol_scale_height_m = rc.aerosol_scale_height_m;
     p.aerosol_tau_surface = rc.aerosol_tau_surface;
+    p.lw_mass_absorption_enable = rc.lw_mass_absorption_enable;
+    p.lw_kabs_dry = rc.lw_kabs_dry;
+    p.lw_kabs_vapor = rc.lw_kabs_vapor;
+    p.lw_kabs_cloud = rc.lw_kabs_cloud;
+    p.earth_sun_distance_enable = rc.earth_sun_distance_enable;
     p.solar_geometry_dynamic_enable = rc.solar_geometry_dynamic_enable;
     p.latitude_deg = rc.latitude_deg;
     p.longitude_deg = rc.longitude_deg;
@@ -572,7 +583,9 @@ constexpr int MAX_RAD_LEVELS = 512;
  * @param[in] z_center Height of the layer center above the surface [m]
  *            (cloud-band detection and the aerosol profile).
  * @param[in] state_arr State array (read-only).
- * @param[in] tau_base Clear-sky optical depth per layer for this band.
+ * @param[in] tau_base Clear-sky optical depth per layer for this band
+ *            (for LW, replaced by the mass-path value when
+ *            lw_mass_absorption_enable is set).
  * @param[in] is_sw true for the shortwave band, false for longwave.
  * @param[in] cloudy true for the cloudy-column evaluation.
  * @param[in] rad_choice Radiation parameters.
@@ -586,8 +599,25 @@ amrex::Real diagnose_layer_tau(
     amrex::Real tau_base, bool is_sw, bool cloudy,
     const TwoStreamParams& rad_choice)
 {
+    // Longwave option: gray optical depth from the layer mass path,
+    //   tau = rho dz (k_dry + k_vapor qv + k_cloud qc),
+    // which makes the column optical depth independent of the vertical
+    // resolution and gives water vapor and cloud water a real greenhouse
+    // effect. Replaces the fixed tau_lw_per_layer as the clear-sky base.
+    amrex::Real base = tau_base;
+    if (!is_sw && rad_choice.lw_mass_absorption_enable) {
+        amrex::Real rho = state_arr(i, j, k, Rho_comp);
+        if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+        const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
+        const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
+        base = rho * dz_layer * (rad_choice.lw_kabs_dry
+                                 + rad_choice.lw_kabs_vapor * qv
+                                 + rad_choice.lw_kabs_cloud * qc);
+        if (!std::isfinite(base) || base < 0.0) base = 0.0;
+    }
+
     // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
-    amrex::Real tau = tau_layer_value(z_center, tau_base, rad_choice, cloudy);
+    amrex::Real tau = tau_layer_value(z_center, base, rad_choice, cloudy);
 
     // Dynamic (moisture-dependent) contribution.
     const bool dynamic_enabled = is_sw ? rad_choice.tau_sw_dynamic_enable
@@ -604,7 +634,7 @@ amrex::Real diagnose_layer_tau(
         rad_choice.tau_profile_type == TauProfileType::CloudLayer &&
         is_cloud_level(z_center, rad_choice)) {
         amrex::Real cf_prog = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice);
-        amrex::Real tau_clear_k = tau_layer_value(z_center, tau_base, rad_choice, /*apply_cloud=*/false);
+        amrex::Real tau_clear_k = tau_layer_value(z_center, base, rad_choice, /*apply_cloud=*/false);
         tau = tau_clear_k + cf_prog * rad_choice.cloud_tau_per_layer;
     }
 
@@ -670,7 +700,7 @@ amrex::Real diagnose_layer_tau(
  * [K/s], at every level k in [kmin, kmax]. This is the convention the
  * RhoTheta source term (ERF_MakeSources.cpp) and the RRTMGP path use.
  * @param[out] max_heating_rate Maximum |Q_sw|+|Q_lw| of the stored theta tendencies in this column
- * @param[out] sw_surface_flux SW absorbed by the surface, (1 - albedo) * (direct + diffuse) [W/m^2]
+ * @param[out] sw_surface_flux SW absorbed by the surface, (1 - alb_dir) F_dir + (1 - alb_dif) F_dif [W/m^2]
  * @param[out] sw_up_toa Upwelling (reflected) SW at the top of the atmosphere [W/m^2]
  * @param[out] lw_net_surface Net LW (up - down) at the surface [W/m^2]
  * @param[out] lw_up_toa Upwelling LW at the top of the atmosphere (outgoing longwave) [W/m^2]
@@ -769,7 +799,10 @@ void vertical_two_stream_sweep(
         cos_zenith = std::cos(zenith_rad);
     }
 
-    const amrex::Real S0          = rad_choice.S0;
+    // Solar constant, optionally scaled by the Earth-Sun distance factor.
+    const amrex::Real S0 = rad_choice.S0 *
+        (rad_choice.earth_sun_distance_enable
+             ? compute_earth_sun_distance_factor(rad_choice.day_of_year) : 1.0);
     const amrex::Real tau_sw_base = rad_choice.tau_per_layer;
     const amrex::Real tau_lw_base = rad_choice.tau_lw_per_layer;
 
@@ -789,16 +822,20 @@ void vertical_two_stream_sweep(
     //  2. Adding method, upward pass: A[m] is the albedo of everything below
     //     interface m for diffuse light, S[m] the upward diffuse flux at m
     //     produced by the direct beam illuminating everything below m. The
-    //     surface starts the recursion with A[0] = albedo and
-    //     S[0] = albedo * F_dir(0).
+    //     surface starts the recursion with A[0] = diffuse albedo and
+    //     S[0] = direct albedo * F_dir(0).
     //  3. Downward pass from the TOA (no incident diffuse flux): diffuse
     //     downward d(m), diffuse upward u(m) = A[m] d(m) + S[m], and the net
     //     flux F_dir + d - u whose divergence gives the heating rate.
     // ========================================================================
-    amrex::Real tau_sw_cum = 0.0;          // Column SW optical depth (for the isothermal test)
-    amrex::Real sw_surface_absorbed = 0.0; // (1 - albedo) * (F_dir + d) at the surface
+    amrex::Real tau_sw_cum = 0.0;          // Column SW optical depth accumulated from the top
+    amrex::Real sw_surface_absorbed = 0.0; // absorbed direct + diffuse at the surface
     amrex::Real sw_up_at_toa = 0.0;        // u(nlev)
-    const amrex::Real alb_sw = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
+    // Direct-beam albedo (per column, LSM field or fallback) and diffuse albedo
+    // (surface_albedo_sw_diffuse, or the direct value when negative).
+    const amrex::Real alb_dir = resolve_surface_albedo_sw(i, j, hetero_alb_sw, rad_choice, has_hetero_alb_sw);
+    const amrex::Real alb_dif = (rad_choice.surface_albedo_sw_diffuse >= 0.0)
+                                    ? rad_choice.surface_albedo_sw_diffuse : alb_dir;
 
     if (rad_choice.sw_enabled && cos_zenith > 0.0) {
         amrex::Real tau_sw_level[MAX_RAD_LEVELS];
@@ -826,8 +863,8 @@ void vertical_two_stream_sweep(
         };
 
         // 2. Upward pass of the adding method.
-        A[0] = alb_sw;
-        S[0] = alb_sw * F_dir[0];
+        A[0] = alb_dif;
+        S[0] = alb_dir * F_dir[0];
         for (int m = 0; m < nlev; ++m) {
             const TwoStreamLayerSW L = layer_props(m);
             amrex::Real denom = 1.0 - L.R_dif * A[m];
@@ -866,7 +903,7 @@ void vertical_two_stream_sweep(
             d_above = d_m;
             F_net_above = F_net_m;
             if (m == 0) {
-                sw_surface_absorbed = (1.0 - alb_sw) * (F_dir[0] + d_m);
+                sw_surface_absorbed = (1.0 - alb_dir) * F_dir[0] + (1.0 - alb_dif) * d_m;
             }
         }
     }
@@ -922,14 +959,6 @@ void vertical_two_stream_sweep(
             F_lw_up_iface[m + 1] = compute_lw_flux_up(F_lw_up_iface[m], T_layer, sigma, tau_lw_level[m]);
         }
 
-        if (rad_choice.isothermal_test) {
-            // Isothermal test: every level radiates equally, so the net flux
-            // (and hence the heating) vanishes everywhere.
-            for (int m = 0; m <= nlev; ++m) {
-                F_lw_down_iface[m] = F_lw_up_iface[m];
-            }
-        }
-
         // Per-level LW heating rate from the net-flux divergence across
         // each layer (bottom interface m, top interface m+1).
         for (int k = kmin; k <= kmax; ++k) {
@@ -954,13 +983,8 @@ void vertical_two_stream_sweep(
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
     if (rad_choice.sw_enabled) {
-        if (rad_choice.isothermal_test) {
-            // Isothermal test: direct beam at the surface, apply albedo
-            sw_surface_flux = S0 * std::max(0.0, cos_zenith) * std::exp(-tau_sw_cum) * (1.0 - alb_sw);
-        } else {
-            // Normal mode: absorbed direct plus diffuse (see the SW block above)
-            sw_surface_flux = sw_surface_absorbed;
-        }
+        // Absorbed direct plus diffuse (see the SW block above)
+        sw_surface_flux = sw_surface_absorbed;
         sw_up_toa = sw_up_at_toa;
     } else {
         sw_surface_flux = 0.0;
@@ -971,22 +995,6 @@ void vertical_two_stream_sweep(
         amrex::Real F_lw_up_sfc   = F_lw_up_iface[0];
         amrex::Real F_lw_down_sfc = F_lw_down_iface[0];
         lw_up_toa = F_lw_up_iface[nlev];
-        if (rad_choice.isothermal_test) {
-            amrex::Real rho_surface       = state_arr(i, j, kmin, Rho_comp);
-            amrex::Real rho_theta_surface = state_arr(i, j, kmin, RhoTheta_comp);
-            if (rho_surface <= 0.0 || !std::isfinite(rho_surface)) rho_surface = 1.0;
-            if (rho_theta_surface <= 0.0 || !std::isfinite(rho_theta_surface)) rho_theta_surface = 288.15;
-            amrex::Real qv_surface = get_qv_from_state(i, j, kmin, state_arr);
-            amrex::Real T_iso = get_temperature_from_rhotheta(rho_theta_surface, rho_surface, qv_surface);
-            amrex::Real I_thermal = compute_thermal_intensity(T_iso, sigma);
-            F_lw_up_sfc   = I_thermal;
-            F_lw_down_sfc = I_thermal;
-            lw_up_toa     = I_thermal;
-            // Isothermal override: net LW flux and heating are exactly zero
-            for (int k = kmin; k <= kmax; ++k) {
-                qheating_arr(i, j, k, 1) = 0.0;
-            }
-        }
         lw_net_surface = F_lw_up_sfc - F_lw_down_sfc;
     } else {
         lw_net_surface = 0.0;
