@@ -1,17 +1,40 @@
-# Verify slope enhancement of fire spread.
+# Verify slope enhancement of fire spread over resolved terrain.
 #
-# This case checks that the fire model responds correctly to inclined terrain or slope forcing by increasing upslope spread relative to the flat-terrain baseline. It exercises the slope term in the ROS formulation while keeping the rest of the setup simple.
+# This case puts the fire on a real hill and checks that the slope term of the
+# rate-of-spread model accelerates it relative to the flat-ground baseline. The
+# terrain is a Gaussian ridge running across the domain, uniform in y and
+# decaying to zero at both x boundaries so it is compatible with the periodic
+# domain.
 #
 # Expected result:
-#   - Upslope propagation is faster than the corresponding flat-ground baseline.
-#   - The qualitative spread pattern aligns with the imposed slope direction and remains numerically stable.
+#   - Fire slopes on the fire grid are non-zero, peaking near tan(theta) = 0.57
+#     (about 30 degrees) on the flanks of the ridge.
+#   - Spread is markedly faster than the flat-ground ROS_Basic_Calculation
+#     baseline, through the slope factor of the ROS model.
+#   - The front remains numerically stable while crossing the crest.
 #
 # Configuration:
-#   - Sloped terrain / slope forcing is enabled relative to the baseline ROS test.
-#   - Fuel and ignition settings are kept close to the base case so slope is the dominant difference.
+#   - erf.terrain_file_name puts the ridge into the atmospheric grid through a
+#     terrain-fitted mesh, so z_phys_nd carries the terrain and the fire slopes
+#     are derived from it.
+#   - erf.fire.terrain_file_name gives the fire grid the same ridge at its own
+#     10 m resolution rather than the 50 m atmospheric resolution. The wind
+#     extraction datum stays on the atmospheric column either way, since the
+#     wind profile being interpolated belongs to that column.
+#   - use_terrain_wind is off. Those are FARSITE empirical ridge and valley
+#     factors, which stand in for terrain flow that a model does not resolve;
+#     with the terrain resolved here they would double count.
+#   - coupling_type is passive, matching the other ROS cases. The case is about
+#     the ROS slope term, not fire-atmosphere feedback, and injecting fire heat
+#     into a domain this coarse at dt = 1 s destabilised the atmosphere: the
+#     case aborted after two steps with "Bad rho in check_for_negative_theta".
 #
 # Notes:
 #   - Compare directly against ROS_Basic_Calculation for validation.
+#   - The ridge is the only fire canonical case that configures terrain, so it
+#     is also the coverage for the terrain-following paths: slope computation
+#     from z_phys_nd, wind extraction above true ground, and the projection of
+#     surface spread into map view.
 
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 1000.0 500.0 1000.0
@@ -33,6 +56,12 @@ zhi.type = "SlipWall"
 
 # MOST parameters (REQUIRED for fire wind extraction)
 erf.most.z0 = 0.1
+
+# Terrain: Gaussian ridge, crest 100 m at x = 500 m, half-width 150 m.
+# Peak slope tan(theta) = 0.57 (about 30 degrees) at x = 394 and x = 606.
+erf.terrain_type = StaticFittedMesh
+erf.terrain_file_name = "terrain_gaussian_ridge.txt"
+erf.use_gravity = false
 
 # Physics
 erf.molec_diff_type = "ConstantAlpha"
@@ -69,21 +98,30 @@ erf.plot_vars = theta qv u v w
 
 # Fire module parameters (Phase 2 with terrain)
 erf.fire.enable = true
+erf.fire.coupling_type = "passive"    # ROS test: no fire-atmosphere feedback
 erf.fire.fire_debug = true
 erf.fire.grid_ratio = 5              # 10 m × 10 m fire cells (nominal)
 erf.fire.fuel_model_id = 1            # GR1 (Short grass) Anderson FBFM13 model
 erf.fire.moisture_1hr = 0.08
 erf.fire.moisture_10hr = 0.08
 erf.fire.moisture_100hr = 0.10
-erf.fire.ignition_x = 200.0
+# The fire grid reads the same ridge at 10 m rather than inheriting the 50 m
+# atmospheric terrain, so the slopes driving the ROS are properly resolved.
+erf.fire.terrain_file_name = "terrain_gaussian_ridge.txt"
+
+# Ignite on the steepest part of the windward flank, 100 m below the crest
+erf.fire.ignition_x = 400.0
 erf.fire.ignition_y = 250.0
 erf.fire.ignition_r = 20.0
 erf.fire.wind_ref_ht = 6.1            # Reference height [m]
 erf.fire.use_waf = true
 erf.fire.waf_formula = "andrews"
 erf.fire.use_wind_limit = true
-erf.fire.use_terrain_wind = true      # Enable terrain corrections (slope, ridges, valleys)
-erf.fire.k_ridge = 1.5
-erf.fire.k_shelter = 0.6
-erf.fire.k_valley = 0.8
-erf.fire.k_deflect = 0.3
+# FARSITE empirical terrain wind corrections. These substitute for terrain flow
+# in models that do not resolve it; the ridge here is resolved by the
+# atmosphere, so leaving them on would double count.
+erf.fire.use_terrain_wind = false
+# erf.fire.k_ridge = 1.5
+# erf.fire.k_shelter = 0.6
+# erf.fire.k_valley = 0.8
+# erf.fire.k_deflect = 0.3
