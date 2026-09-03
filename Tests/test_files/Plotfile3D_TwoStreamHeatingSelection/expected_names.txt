@@ -1,0 +1,6 @@
+# Motivation: with TwoStream radiation active, qheating_rates is allocated
+# and the SW/LW heating-rate plot variables must be available.
+density
+theta
+qsrc_sw
+qsrc_lw
