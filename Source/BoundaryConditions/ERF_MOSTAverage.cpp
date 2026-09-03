@@ -2107,7 +2107,9 @@ MOSTAverage::compute_region_averages (const int& lev)
 void
 MOSTAverage::compute_eb_averages (const int& lev)
 {
-    AMREX_ALWAYS_ASSERT(m_face.coordDir() == 2);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_face.coordDir() == 2,
+        "EB MOST averaging currently supports only z faces.");
     AMREX_ALWAYS_ASSERT(m_eb_vec[lev] != nullptr);
 
     // Peel back the level

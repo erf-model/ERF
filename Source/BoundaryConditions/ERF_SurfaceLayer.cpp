@@ -452,7 +452,9 @@ SurfaceLayer::compute_fluxes (const int& lev,
 
         // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
         // X and Y faces need the entire domain Z range, so resize the box accordingly
+        vbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
         if (m_face.isLow()) {
@@ -1520,6 +1522,10 @@ void
 SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                                                   MultiFab& cons_in)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        static_cast<int>(m_face) == Orientation::zlo(),
+        "LSM surface-layer parameters are supported only on the z-low face.");
+
     Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
     const int klo = m_geom[lev].Domain().smallEnd(2);
@@ -1959,6 +1965,10 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
                                    const Real tkefac,
                                    const Real zscale)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        static_cast<int>(m_face) == Orientation::zlo(),
+        "TKE initialization from surface-layer ustar is supported only on the z-low face.");
+
     Print() << "Initializing TKE from surface layer ustar on level " << lev << std::endl;
 
     // Handle vertical decomposition by selectively copying into
