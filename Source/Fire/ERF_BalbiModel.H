@@ -7,6 +7,7 @@
 #include <vector>
 #include <ERF_Rothermel.H>
 #include <ERF_FireParams.H>
+#include <ERF_MoistureExtinction.H>
 #include <ERF_LevelSetAdvection.H>
 
 /**
@@ -67,6 +68,14 @@
  *                           fire_surface_temp.
  *   balbi.heat_flux_coupling  buoyancy velocity augmented by the fire-induced
  *                           component built from the surface heat flux.
+ *   balbi.use_cell_moisture fuel moisture taken per cell from the moisture ODE
+ *                           state instead of the domain average.
+ *   balbi.use_moisture_extinction  zero ROS at and above the fuel model's
+ *                           moisture of extinction.
+ *   balbi.herb_curing       fraction of the live herbaceous load carried as
+ *                           cured dead fine fuel (2020 form only).
+ *   balbi.wind_source       "midflame" (default) or "reference": which wind
+ *                           the model consumes.
  *
  * Limitations:
  *   Not appropriate for fuels with very low fuel bed depth (δ_m < 0.01 m)
@@ -193,7 +202,10 @@ BalbiComputed compute_balbi_params(
     const amrex::Real sigma_m = fp.sigma_d1     * BALBI_FT_INV_TO_M_INV;  // [1/m]
     const amrex::Real delta_m = fp.delta        * BALBI_FT_TO_M;          // [m]
     const amrex::Real h_si    = fp.heat_content * BALBI_BTU_LB_TO_J_KG;   // [J/kg]
-    const amrex::Real w_si    = fp.w_d1         * BALBI_LB_FT2_TO_KG_M2;  // [kg/m²]
+    // Dead fine fuel load, plus the cured fraction of the live herbaceous load,
+    // which behaves as dead fine fuel once cured.
+    const amrex::Real w_fine  = fp.w_d1 + bp.herb_curing * fp.w_lh;        // [lb/ft²]
+    const amrex::Real w_si    = w_fine          * BALBI_LB_FT2_TO_KG_M2;  // [kg/m²]
     const amrex::Real rho_v   = fp.rho_p        * BALBI_LB_FT3_TO_KG_M3;  // [kg/m³]
 
     // Guard against degenerate fuel beds. The depth threshold is in metres,
@@ -201,6 +213,14 @@ BalbiComputed compute_balbi_params(
     if (delta_m < BALBI_MIN_DEPTH_M || sigma_m <= 0.0 || h_si <= 0.0) {
         return bc;
     }
+
+    // Moisture of extinction. Neither Balbi formulation carries an extinction
+    // limit of its own, so a fuel bed wetter than its published M_x keeps
+    // spreading unless this cutoff is applied.
+    if (bp.use_moisture_extinction && M_f >= fp.Mx) {
+        return bc;
+    }
+
     bc.h_depth = delta_m;
 
     // ------------------------------------------------------------------
@@ -521,6 +541,7 @@ struct BalbiFieldInputs
     int                    table_size   = 0;        ///< Entries in table
     const amrex::MultiFab* heat_flux    = nullptr;  ///< Surface heat flux [W/m²]
     const amrex::MultiFab* surface_temp = nullptr;  ///< Surface temperature [K]
+    const amrex::MultiFab* fuel_mc      = nullptr;  ///< Fuel moisture state [fraction]
     FuelModelParams        fp{};                    ///< Uniform fuel, for per-cell rebuilds
     amrex::Real            M_f          = 0.0;      ///< Fuel moisture [fraction]
 };
@@ -544,7 +565,9 @@ BalbiComputed balbi_state_at_cell(int i, int j, int k,
                                   const BalbiComputed* tbl,
                                   int tbl_sz,
                                   const amrex::Array4<const amrex::Real>& surf_temp,
-                                  bool use_surf_temp) noexcept
+                                  bool use_surf_temp,
+                                  const amrex::Array4<const amrex::Real>& fuel_mc,
+                                  bool use_cell_moisture) noexcept
 {
     int fuel_code = -1;
     if (use_table) {
@@ -552,17 +575,24 @@ BalbiComputed balbi_state_at_cell(int i, int j, int k,
         if (code >= 0 && code < tbl_sz) fuel_code = code;
     }
 
-    if (use_surf_temp) {
-        const amrex::Real T_amb = surf_temp(i, j, k);
+    if (use_surf_temp || use_cell_moisture) {
         if (fuel_code == 0) {
             BalbiComputed bc{};
             bc.v_b = 1.0;
             return bc;  // non-burnable
         }
+        const amrex::Real T_amb = use_surf_temp ? surf_temp(i, j, k) : amrex::Real(-1.0);
+        amrex::Real M_cell = M_f;
+        if (use_cell_moisture) {
+            // Component 0 is the 1-hr dead moisture, the class that carries the
+            // flaming front. Clamped the same way the domain average is.
+            M_cell = amrex::max(amrex::Real(0.01),
+                                amrex::min(fuel_mc(i, j, k, 0), amrex::Real(0.40)));
+        }
         const FuelModelParams fp = (fuel_code > 0)
                                  ? get_anderson_fuel_params(fuel_code)
                                  : fp_uniform;
-        return compute_balbi_params(fp, bp, M_f, T_amb);
+        return compute_balbi_params(fp, bp, M_cell, T_amb);
     }
 
     return (fuel_code >= 0) ? tbl[fuel_code] : bc_default;
@@ -597,6 +627,7 @@ inline void fill_balbi_ros(
                             in.table_size > 0);
     const bool use_surf_temp = (bp.use_surface_temp && in.surface_temp != nullptr);
     const bool use_heat_flux = (bp.heat_flux_coupling && in.heat_flux != nullptr);
+    const bool use_cell_mc   = (bp.use_cell_moisture && in.fuel_mc != nullptr);
 
     // Domain-mean wind, used as the fallback for cells whose wind is
     // unphysically large or non-finite.
@@ -626,6 +657,9 @@ inline void fill_balbi_ros(
         amrex::Array4<const amrex::Real> heat_flux;
         if (use_heat_flux) heat_flux = in.heat_flux->const_array(mfi);
 
+        amrex::Array4<const amrex::Real> fuel_mc;
+        if (use_cell_mc) fuel_mc = in.fuel_mc->const_array(mfi);
+
         // Local constexpr copy so the constant is usable from device code
         constexpr amrex::Real max_wind_sq = BALBI_MAX_WIND_SPEED_SQ;
 
@@ -648,7 +682,8 @@ inline void fill_balbi_ros(
                                                          fp_uniform, M_f,
                                                          fuel_model, use_table,
                                                          tbl, tbl_sz,
-                                                         surf_temp, use_surf_temp);
+                                                         surf_temp, use_surf_temp,
+                                                         fuel_mc, use_cell_mc);
 
             const amrex::Real vz_extra = use_heat_flux
                                        ? balbi_induced_velocity(heat_flux(i, j, k), bp)
@@ -700,6 +735,7 @@ inline void fill_balbi_ros_directional(
                             in.table_size > 0);
     const bool use_surf_temp = (bp.use_surface_temp && in.surface_temp != nullptr);
     const bool use_heat_flux = (bp.heat_flux_coupling && in.heat_flux != nullptr);
+    const bool use_cell_mc   = (bp.use_cell_moisture && in.fuel_mc != nullptr);
 
     const amrex::Long ncells = wind.boxArray().numPts();
     const amrex::Real ux_mean = (ncells > 0) ? wind.sum(0) / amrex::Real(ncells)
@@ -730,6 +766,9 @@ inline void fill_balbi_ros_directional(
 
         amrex::Array4<const amrex::Real> heat_flux;
         if (use_heat_flux) heat_flux = in.heat_flux->const_array(mfi);
+
+        amrex::Array4<const amrex::Real> fuel_mc;
+        if (use_cell_mc) fuel_mc = in.fuel_mc->const_array(mfi);
 
         constexpr amrex::Real max_wind_sq = BALBI_MAX_WIND_SPEED_SQ;
         constexpr amrex::Real grad_min    = BALBI_GRAD_PHI_MIN;
@@ -770,7 +809,8 @@ inline void fill_balbi_ros_directional(
                                                          fp_uniform, M_f,
                                                          fuel_model, use_table,
                                                          tbl, tbl_sz,
-                                                         surf_temp, use_surf_temp);
+                                                         surf_temp, use_surf_temp,
+                                                         fuel_mc, use_cell_mc);
 
             const amrex::Real vz_extra = use_heat_flux
                                        ? balbi_induced_velocity(heat_flux(i, j, k), bp)

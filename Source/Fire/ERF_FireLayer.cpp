@@ -392,6 +392,18 @@ void FireLayer::initialize(const ERF& erf,
                     amrex::Print() << "[FIRE DEBUG] Balbi: per-cell ambient temperature "
                                    << "from fire_surface_temp\n";
                 }
+                if (m_params.balbi.use_cell_moisture) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: per-cell fuel moisture from "
+                                   << "the moisture ODE state\n";
+                }
+                if (m_params.balbi.use_moisture_extinction) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: moisture-of-extinction cutoff "
+                                   << "at M_x=" << fp_ros.Mx << "\n";
+                }
+                if (m_params.balbi.wind_source == 1) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: reference-height wind "
+                                   << "(WAF and terrain correction bypassed)\n";
+                }
                 if (m_params.balbi.heat_flux_coupling) {
                     amrex::Print() << "[FIRE DEBUG] Balbi: heat-flux buoyancy coupling, "
                                    << "k_upward=" << m_params.balbi.k_upward
@@ -593,6 +605,9 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
         balbi_in.fp           = get_anderson_fuel_params(m_params.fuel_model_id);
         balbi_in.M_f          = m_params.moisture_1hr;
         balbi_in.surface_temp = fire_surface_temp.get();
+        // Per-cell moisture needs the Phase 4 ODE state; without dynamic
+        // moisture that field never evolves, so the domain value is used.
+        balbi_in.fuel_mc      = m_params.moisture_dynamic ? fire_fuel_mc.get() : nullptr;
         // fire_heat_flux is filled at the end of the step, so this is the
         // previous step's flux: the buoyancy feedback lags the ROS by one
         // fire step.
@@ -606,7 +621,12 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
             }
         }
 
-        fill_balbi_ros(*fire_ros, *fire_wind_eff, *fire_slopes,
+        // Balbi normalises the wind by its own vertical velocity scale rather
+        // than by a midflame reduction, so balbi.wind_source can bypass the
+        // Wind Adjustment Factor and hand it the reference-height wind.
+        const MultiFab& balbi_wind = (m_params.balbi.wind_source == 1)
+                                   ? *fire_wind_ref : *fire_wind_eff;
+        fill_balbi_ros(*fire_ros, balbi_wind, *fire_slopes,
                        m_bc_default, m_params.balbi, balbi_in);
     } else if (m_params.ros_model == "cheney_gould") {
         fill_cheney_gould_ros(*fire_ros, *fire_wind_eff, m_cgc);
@@ -678,7 +698,10 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
             // spread from the model rather than a single head-fire magnitude.
             // fire_ros still holds the isotropic head ROS and sets the CFL.
             if (m_params.ros_model == "balbi" && m_params.balbi.directional) {
-                advect_levelset_balbi_rk3(*fire_phi, *fire_wind_eff, *fire_slopes,
+                advect_levelset_balbi_rk3(*fire_phi,
+                                          (m_params.balbi.wind_source == 1)
+                                              ? *fire_wind_ref : *fire_wind_eff,
+                                          *fire_slopes,
                                           m_fg.geom, dt_ls,
                                           m_params.levelset_eps_visc,
                                           m_bc_default, m_params.balbi, balbi_in);

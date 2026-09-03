@@ -165,6 +165,20 @@ fitted by Balbi et al. (2020) — rather than the 2009 radiation length scale of
   plume stands the flame up and slows the head fire. Lags the ROS by one fire step.
 - `erf.fire.balbi.flame_temp_from_combustion` derives the 2009 flame temperature from the 
   combustion energy instead of the fixed `balbi.T_f`.
+- `erf.fire.balbi.use_cell_moisture` takes the 1-hr dead moisture per cell from the Phase 4 
+  moisture ODE state instead of the domain average. Requires `moisture_dynamic = true`.
+- `erf.fire.balbi.use_moisture_extinction` zeroes the ROS at and above the fuel model's 
+  moisture of extinction. Neither formulation has an extinction limit of its own, so without 
+  this a fuel bed wetter than its :math:`M_x` still spreads.
+- `erf.fire.balbi.herb_curing` [0-1] is the fraction of the live herbaceous load carried as 
+  cured dead fine fuel, entering the 2020 packing ratio as 
+  :math:`w = w_{d1} + \text{curing}\,w_{lh}`. No effect under the 2009 form, whose amplitude 
+  coefficient does not depend on loading.
+- `erf.fire.balbi.wind_source` selects `"midflame"` (default, `fire_wind_eff`, after the Wind 
+  Adjustment Factor and terrain corrections) or `"reference"` (`fire_wind_ref`, at 
+  `wind_ref_ht`, before both). The WAF is a Rothermel calibration construct; Balbi normalises 
+  the wind by its own vertical velocity scale instead, so applying the WAF first is arguably 
+  a double reduction.
 
 **Balbi Model Parameters:**
 
@@ -214,8 +228,11 @@ fitted by Balbi et al. (2020) — rather than the 2009 radiation length scale of
 - Without `balbi.directional`, the flame tilt uses the wind magnitude and the slope magnitude
   :math:`|\nabla z|`, so the ROS field is isotropic and downslope spread is enhanced like
   upslope spread
-- The 2020 form uses the 1-hr dead fuel load and the fuel particle density only; live and
-  coarse dead fuels do not enter it
+- The 2020 form uses the 1-hr dead fuel load and the fuel particle density, plus the cured
+  fraction of the live herbaceous load; coarse dead fuels and uncured live fuels do not
+  enter it
+- Without `balbi.use_moisture_extinction`, neither formulation extinguishes on wet fuel: the
+  ROS falls with moisture but never reaches zero
 - Small buoyancy velocities (:math:`v_b < 10^{-3}` m/s) are floored to prevent division by zero
 - Cells with wind above 25 m/s, or a non-finite wind, fall back to the domain-mean wind
 

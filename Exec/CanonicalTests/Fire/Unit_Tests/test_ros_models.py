@@ -9,7 +9,7 @@ reference values extracted from ERF source code.
 Tests are organized by model:
   - MacArthur (1966) Australian formula (4 tests)
   - Balbi (2009) physical model (10 tests)
-  - Balbi (2020) convective-radiative model (7 tests)
+  - Balbi (2020) convective-radiative model and couplings (10 tests)
   - Cheney-Gould (1998) grassland model (4 tests)
   - Per-fuel wind height tables (5 tests)
 
@@ -139,7 +139,8 @@ ANDERSON_FUELS = {
 }
 
 
-def compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f, bp=None):
+def compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f, bp=None,
+                         M_x=None, use_moisture_extinction=False):
     """
     Balbi (2009) fuel/thermal coefficients.
     
@@ -167,6 +168,11 @@ def compute_balbi_params(sigma_d1, delta_ft, heat_content, M_f, bp=None):
     h_si = heat_content * BALBI_BTU_LB_TO_J_KG
 
     if delta_m < BALBI_MIN_DEPTH_M or sigma_m <= 0.0 or h_si <= 0.0:
+        return 0.0, 1.0
+
+    # Moisture of extinction cutoff: neither formulation has an extinction
+    # limit of its own, so without this a fuel bed wetter than its M_x spreads.
+    if use_moisture_extinction and M_x is not None and M_f >= M_x:
         return 0.0, 1.0
 
     chi_0 = bp["r_00"] * sigma_m
@@ -679,6 +685,84 @@ def test_balbi_heat_flux_uprights_flame():
     return passed
 
 
+# Moisture of extinction per Anderson fuel model, from ERF_Rothermel.H
+ANDERSON_MX = {1: 0.12, 2: 0.15, 3: 0.25, 4: 0.20, 5: 0.20, 6: 0.25, 7: 0.40,
+               8: 0.30, 9: 0.25, 10: 0.25, 11: 0.15, 12: 0.20, 13: 0.25}
+
+
+def test_balbi_moisture_extinction_cutoff():
+    """Test 22: ROS goes to zero at the moisture of extinction."""
+    sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[1]
+    M_x = ANDERSON_MX[1]  # 0.12 for short grass
+
+    below, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_x - 0.01,
+                                    M_x=M_x, use_moisture_extinction=True)
+    at, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_x,
+                                 M_x=M_x, use_moisture_extinction=True)
+    above, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_x + 0.05,
+                                    M_x=M_x, use_moisture_extinction=True)
+    # With the cutoff off, a fuel bed past extinction still spreads
+    off, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, M_x + 0.05,
+                                  M_x=M_x, use_moisture_extinction=False)
+
+    passed = below > 0.0 and at == 0.0 and above == 0.0 and off > 0.0
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 22: Balbi ROS zeroed at the moisture of extinction")
+    if not passed:
+        print(f"    below={below}, at={at}, above={above}, cutoff_off={off}")
+    return passed
+
+
+def test_balbi_moisture_clamp():
+    """Test 23: per-cell moisture is clamped to the [0.01, 0.40] band."""
+    # balbi_state_at_cell() clamps the moisture it reads from the ODE state the
+    # same way the domain average is clamped, so a wild cell cannot produce a
+    # negative ignition energy.
+    sigma_d1, delta_ft, heat_content = ANDERSON_FUELS[1]
+
+    def clamped(m):
+        return max(0.01, min(m, 0.40))
+
+    A_lo, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, clamped(-0.5))
+    A_ref, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, 0.01)
+    A_hi, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, clamped(5.0))
+    A_max, _ = compute_balbi_params(sigma_d1, delta_ft, heat_content, 0.40)
+
+    passed = (abs(A_lo - A_ref) < 1e-12 and abs(A_hi - A_max) < 1e-12
+              and A_hi > 0.0)
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 23: per-cell moisture clamped to [0.01, 0.40]")
+    if not passed:
+        print(f"    A(-0.5)={A_lo} vs A(0.01)={A_ref}, "
+              f"A(5.0)={A_hi} vs A(0.40)={A_max}")
+    return passed
+
+
+def test_balbi_herb_curing_raises_load():
+    """Test 24: cured herbaceous load raises the 2020 radiant factor."""
+    # FM2 carries a live herbaceous load; curing moves it into the dead fine
+    # fuel that the 2020 form's packing ratio is built from.
+    w_d1, w_lh = 0.046, 0.023          # lb/ft2, from get_anderson_fuel_params(2)
+    sav = 3000.0 * BALBI_FT_INV_TO_M_INV
+    depth = 1.0 * BALBI_FT_TO_M
+    rho_v = 32.0 * 16.0185
+
+    def A_for(curing):
+        load = (w_d1 + curing * w_lh) * 4.8824
+        return compute_balbi2020_state(sav=sav, depth=depth, load=load,
+                                       rho_v=rho_v, M_f=0.06)["A_rad"]
+
+    A_green = A_for(0.0)
+    A_half = A_for(0.5)
+    A_cured = A_for(1.0)
+    passed = A_green < A_half < A_cured
+    status = "\u2713" if passed else "\u2717"
+    print(f"{status} Test 24: cured herbaceous load raises the 2020 radiant factor")
+    if not passed:
+        print(f"    A(0%)={A_green}, A(50%)={A_half}, A(100%)={A_cured}")
+    return passed
+
+
 # ============================================================================
 # Cheney-Gould (1998) Grassland Model Tests
 # ============================================================================
@@ -709,7 +793,7 @@ def cheney_gould_ros(u_wind, ros_backing, moisture, curing):
 
 
 def test_cheney_gould_zero_wind():
-    """Test 22: Cheney-Gould zero wind formula."""
+    """Test 25: Cheney-Gould zero wind formula."""
     # At u_wind=0:
     # wind_factor = 0.15 * 0 * (curing + 0.2) = 0
     # ROS = ros_backing * (1 + 0) * moisture_factor
@@ -723,14 +807,14 @@ def test_cheney_gould_zero_wind():
     expected = ros_backing * 1.0 * (20.0 / (moisture + 1.0))
     passed = abs(ros - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 22: Cheney-Gould zero wind formula")
+    print(f"{status} Test 25: Cheney-Gould zero wind formula")
     if not passed:
         print(f"    Expected: {expected}, Got: {ros}")
     return passed
 
 
 def test_cheney_gould_increases_with_wind():
-    """Test 23: Cheney-Gould ROS increases with wind."""
+    """Test 26: Cheney-Gould ROS increases with wind."""
     ros_backing = 0.05
     moisture = 10.0
     curing = 1.0
@@ -742,14 +826,14 @@ def test_cheney_gould_increases_with_wind():
                              moisture=moisture, curing=curing)
     passed = (ros_0 < ros_3) and (ros_3 < ros_5)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 23: Cheney-Gould ROS increases with wind")
+    print(f"{status} Test 26: Cheney-Gould ROS increases with wind")
     if not passed:
         print(f"    R(U=0)={ros_0}, R(U=3)={ros_3}, R(U=5)={ros_5}")
     return passed
 
 
 def test_cheney_gould_decreases_with_moisture():
-    """Test 24: Cheney-Gould ROS decreases with moisture."""
+    """Test 27: Cheney-Gould ROS decreases with moisture."""
     ros_backing = 0.05
     curing = 1.0
     u_wind = 3.0
@@ -761,14 +845,14 @@ def test_cheney_gould_decreases_with_moisture():
                                  moisture=20.0, curing=curing)
     passed = (ros_5pct > ros_10pct) and (ros_10pct > ros_20pct)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 24: Cheney-Gould ROS decreases with moisture")
+    print(f"{status} Test 27: Cheney-Gould ROS decreases with moisture")
     if not passed:
         print(f"    R(5%)={ros_5pct}, R(10%)={ros_10pct}, R(20%)={ros_20pct}")
     return passed
 
 
 def test_cheney_gould_increases_with_curing():
-    """Test 25: Cheney-Gould ROS increases with curing."""
+    """Test 28: Cheney-Gould ROS increases with curing."""
     ros_backing = 0.05
     u_wind = 3.0
     moisture = 10.0
@@ -780,7 +864,7 @@ def test_cheney_gould_increases_with_curing():
                                     moisture=moisture, curing=1.0)
     passed = (ros_0_cure < ros_0_5_cure) and (ros_0_5_cure < ros_1_0_cure)
     status = "✓" if passed else "✗"
-    print(f"{status} Test 25: Cheney-Gould ROS increases with curing")
+    print(f"{status} Test 28: Cheney-Gould ROS increases with curing")
     if not passed:
         print(f"    R(cure=0)={ros_0_cure}, R(cure=0.5)={ros_0_5_cure}, R(cure=1)={ros_1_0_cure}")
     return passed
@@ -843,13 +927,13 @@ def build_fcz0_table():
 
 
 def test_fcwh_uniform_mode():
-    """Test 26: fcwh uniform mode returns global_z_ref for all fuels."""
+    """Test 29: fcwh uniform mode returns global_z_ref for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=False)
     passed = (len(fcwh) == 14 and 
               all(fcwh[i] == global_z_ref for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 26: fcwh uniform mode (all fuels = {global_z_ref})")
+    print(f"{status} Test 29: fcwh uniform mode (all fuels = {global_z_ref})")
     if not passed:
         print(f"    Length: {len(fcwh)}, entries 1-13 all {global_z_ref}: "
               f"{all(fcwh[i] == global_z_ref for i in range(1, 14))}")
@@ -857,14 +941,14 @@ def test_fcwh_uniform_mode():
 
 
 def test_fcwh_per_fuel_mode():
-    """Test 27: fcwh per-fuel mode returns 6.096 for all fuels."""
+    """Test 30: fcwh per-fuel mode returns 6.096 for all fuels."""
     global_z_ref = 6.1
     fcwh = build_fcwh_table(global_z_ref, use_per_fuel=True)
     expected = 6.096
     passed = (len(fcwh) == 14 and 
               all(abs(fcwh[i] - expected) < 1e-6 for i in range(1, 14)))
     status = "✓" if passed else "✗"
-    print(f"{status} Test 27: fcwh per-fuel mode (all fuels = 6.096 m)")
+    print(f"{status} Test 30: fcwh per-fuel mode (all fuels = 6.096 m)")
     if not passed:
         print(f"    Length: {len(fcwh)}")
         for i in range(1, 14):
@@ -874,26 +958,26 @@ def test_fcwh_per_fuel_mode():
 
 
 def test_fcz0_fm4_chaparral():
-    """Test 28: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
+    """Test 31: fcz0 FM4 value equals 0.2378 (chaparral, highest roughness)."""
     fcz0 = build_fcz0_table()
     expected = 0.2378
     passed = abs(fcz0[4] - expected) < 1e-6
     status = "✓" if passed else "✗"
-    print(f"{status} Test 28: fcz0 FM4 = 0.2378 m (chaparral)")
+    print(f"{status} Test 31: fcz0 FM4 = 0.2378 m (chaparral)")
     if not passed:
         print(f"    Expected: {expected}, Got: {fcz0[4]}")
     return passed
 
 
 def test_fcz0_fm1_fm2_equal():
-    """Test 29: fcz0 FM1 and FM2 both equal 0.0396."""
+    """Test 32: fcz0 FM1 and FM2 both equal 0.0396."""
     fcz0 = build_fcz0_table()
     expected = 0.0396
     passed = (abs(fcz0[1] - expected) < 1e-6 and 
               abs(fcz0[2] - expected) < 1e-6 and 
               fcz0[1] == fcz0[2])
     status = "✓" if passed else "✗"
-    print(f"{status} Test 29: fcz0 FM1 and FM2 both equal 0.0396 m")
+    print(f"{status} Test 32: fcz0 FM1 and FM2 both equal 0.0396 m")
     if not passed:
         print(f"    fcz0[1] = {fcz0[1]}, fcz0[2] = {fcz0[2]}, expected {expected}")
     return passed
@@ -904,7 +988,7 @@ def test_fcz0_table_size():
     fcz0 = build_fcz0_table()
     passed = len(fcz0) == 14
     status = "✓" if passed else "✗"
-    print(f"{status} Test 30: fcz0 table size = 14")
+    print(f"{status} Test 33: fcz0 table size = 14")
     if not passed:
         print(f"    Expected length 14, got {len(fcz0)}")
     return passed
@@ -915,7 +999,7 @@ def test_fcz0_table_size():
 # ============================================================================
 
 def main():
-    """Run all 30 tests and return exit code (0 = all pass, 1 = any fail)."""
+    """Run all 33 tests and return exit code (0 = all pass, 1 = any fail)."""
     print("=" * 70)
     print("Phase 13 ROS Model Unit Tests")
     print("=" * 70)
@@ -946,7 +1030,7 @@ def main():
     results.append(test_balbi_tan_to_sin_cos_identity())
     print()
 
-    # Balbi (2020) tests (7)
+    # Balbi (2020) and coupling tests (10)
     print("Balbi (2020) Convective-Radiative Model Tests")
     print("-" * 70)
     results.append(test_balbi2020_radiative_coefficient())
@@ -956,6 +1040,9 @@ def main():
     results.append(test_balbi2020_decreases_with_moisture())
     results.append(test_balbi_directional_projection())
     results.append(test_balbi_heat_flux_uprights_flame())
+    results.append(test_balbi_moisture_extinction_cutoff())
+    results.append(test_balbi_moisture_clamp())
+    results.append(test_balbi_herb_curing_raises_load())
     print()
     
     # Cheney-Gould tests (4)
