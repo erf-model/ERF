@@ -373,9 +373,30 @@ void FireLayer::initialize(const ERF& erf,
                                  h_balbi.end(), m_d_balbi_table.begin());
             }
             if (m_params.fire_debug) {
-                amrex::Print() << "[FIRE DEBUG] ROS model: Balbi (2009), A_coeff="
-                               << m_bc_default.A_coeff << " m/s, v_b="
-                               << m_bc_default.v_b << " m/s\n";
+                if (m_params.balbi.formulation == 1) {
+                    amrex::Print() << "[FIRE DEBUG] ROS model: Balbi (2020), A_rad="
+                                   << m_bc_default.A_rad << ", Rb_coef="
+                                   << m_bc_default.Rb_coef << " m/(s K^4), u0_coef="
+                                   << m_bc_default.u0_coef << " m/s, s*r00="
+                                   << m_bc_default.s_r00 << "\n";
+                } else {
+                    amrex::Print() << "[FIRE DEBUG] ROS model: Balbi (2009), A_coeff="
+                                   << m_bc_default.A_coeff << " m/s, v_b="
+                                   << m_bc_default.v_b << " m/s\n";
+                }
+                if (m_params.balbi.directional) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: direction-dependent ROS on "
+                                   << "the level-set path\n";
+                }
+                if (m_params.balbi.use_surface_temp) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: per-cell ambient temperature "
+                                   << "from fire_surface_temp\n";
+                }
+                if (m_params.balbi.heat_flux_coupling) {
+                    amrex::Print() << "[FIRE DEBUG] Balbi: heat-flux buoyancy coupling, "
+                                   << "k_upward=" << m_params.balbi.k_upward
+                                   << ", H_ref=" << m_params.balbi.hf_ref_height << " m\n";
+                }
             }
         } else if (m_params.ros_model == "cheney_gould") {
             m_cgc = compute_cheney_gould_params(m_params.cheney_gould);
@@ -562,13 +583,31 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
     // Phase 13B: ROS model dispatch.
     // All models write into fire_ros [m/s].
     // Rothermel is the default (ros_model = "rothermel" or unrecognised string).
+    // Optional per-cell fields for the Balbi kernels. Declared here because the
+    // level-set path below reuses them when balbi.directional is set.
+    BalbiFieldInputs balbi_in;
     if (m_params.ros_model == "balbi") {
-        const BalbiComputed* d_tbl_ptr = m_d_balbi_table.empty() ? nullptr : m_d_balbi_table.data();
-        int tbl_sz = static_cast<int>(m_d_balbi_table.size());
+        balbi_in.fuel_model   = m_has_spatial_fuel ? fire_fuel_model.get() : nullptr;
+        balbi_in.table        = m_d_balbi_table.empty() ? nullptr : m_d_balbi_table.data();
+        balbi_in.table_size   = static_cast<int>(m_d_balbi_table.size());
+        balbi_in.fp           = get_anderson_fuel_params(m_params.fuel_model_id);
+        balbi_in.M_f          = m_params.moisture_1hr;
+        balbi_in.surface_temp = fire_surface_temp.get();
+        // fire_heat_flux is filled at the end of the step, so this is the
+        // previous step's flux: the buoyancy feedback lags the ROS by one
+        // fire step.
+        balbi_in.heat_flux    = fire_heat_flux.get();
+
+        if (m_params.moisture_dynamic && fire_fuel_mc) {
+            long nc_mc = fire_fuel_mc->boxArray().numPts();
+            if (nc_mc > 0) {
+                Real avg_mc = fire_fuel_mc->sum(0) / Real(nc_mc);
+                balbi_in.M_f = amrex::max(0.01_rt, amrex::min(avg_mc, 0.40_rt));
+            }
+        }
+
         fill_balbi_ros(*fire_ros, *fire_wind_eff, *fire_slopes,
-                       m_bc_default,
-                       m_has_spatial_fuel ? fire_fuel_model.get() : nullptr,
-                       d_tbl_ptr, tbl_sz);
+                       m_bc_default, m_params.balbi, balbi_in);
     } else if (m_params.ros_model == "cheney_gould") {
         fill_cheney_gould_ros(*fire_ros, *fire_wind_eff, m_cgc);
     } else if (m_params.ros_model == "behave") {
@@ -634,9 +673,20 @@ void FireLayer::advance(Real time, Real dt, SurfaceLayer& surface_layer,
                 : time_remaining;
             dt_ls = std::min(dt_ls, time_remaining);
 
-            fire_levelset::advect_levelset_weno5z_rk3(*fire_phi, *fire_wind_eff,
-                                            *fire_ros, m_fg.geom, dt_ls,
-                                            m_params.levelset_eps_visc);
+            // With balbi.directional the ROS is rebuilt from the front normal
+            // inside every RK stage, so the front gets head, flank and backing
+            // spread from the model rather than a single head-fire magnitude.
+            // fire_ros still holds the isotropic head ROS and sets the CFL.
+            if (m_params.ros_model == "balbi" && m_params.balbi.directional) {
+                advect_levelset_balbi_rk3(*fire_phi, *fire_wind_eff, *fire_slopes,
+                                          m_fg.geom, dt_ls,
+                                          m_params.levelset_eps_visc,
+                                          m_bc_default, m_params.balbi, balbi_in);
+            } else {
+                fire_levelset::advect_levelset_weno5z_rk3(*fire_phi, *fire_wind_eff,
+                                                *fire_ros, m_fg.geom, dt_ls,
+                                                m_params.levelset_eps_visc);
+            }
             fire_phi->FillBoundary(m_fg.geom.periodicity());
 
             ++m_levelset_subcycle_count;
