@@ -347,6 +347,12 @@ public:
     // Fill the map factors at lev by interpolation from lev-1
     void interp_mapfac_from_coarse (int lev);
 
+    // Fill the surface pressure at lev by interpolation from lev-1
+    void interp_psfc_from_coarse (int lev);
+
+    // Fill the land mask and the land / soil types at lev by injection from lev-1
+    void interp_land_masks_from_coarse (int lev);
+
     // True if this level read its own initialization file, so its map factors
     //     came from that file rather than from its parent
     bool has_own_init_file (int lev) const;

@@ -1795,6 +1795,163 @@ ERF::interp_mapfac_from_coarse (int lev)
     }
 }
 
+//
+// Fill the surface pressure at lev by interpolation from lev-1.
+//
+// init_stuff() (re)builds mf_PSFC[lev] every time a level is created or remade, and
+// leaves it uninitialized; only init_from_wrfinput -- which requires an init file at
+// *this* level -- ever fills it.  A level created by tagging therefore never had a
+// surface pressure at all, and a level that did read a file lost it at the next regrid.
+// update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
+// into a potential temperature for the surface layer, and the LSM reads it as well.
+//
+void
+ERF::interp_psfc_from_coarse (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
+    //
+    // PSFC comes only from wrfinput.  On any other pathway it is never filled at any
+    // level, so there is nothing to interpolate and interpolating anyway would read
+    // uninitialized data.
+    //
+    if (solverChoice.init_type != InitType::WRFInput) { return; }
+
+    if (!mf_PSFC[lev] || !mf_PSFC[lev-1]) { return; }
+
+    IntVect ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+
+    // Ratio of 1 in z: PSFC lives on ba2d, which has no vertical extent (see the note
+    // in Interp2DArrays)
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+
+    //
+    // Do NOT fill the ghost cells outside the domain: unlike the fields that
+    // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
+    // the file over the intersection with the domain, so the coarse level has nothing
+    // there for us to interpolate.  Nothing reads those cells -- update_sst_tsk clamps
+    // its PSFC index into the domain.
+    //
+    InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
+                          *mf_PSFC[lev-1], 0, 0, 1,
+                          geom[lev-1], geom[lev],
+                          rr2d, &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
+
+    // Prefer this level's own data in the ghost cells it shares with another fine box
+    mf_PSFC[lev]->FillBoundary(geom[lev].periodicity());
+}
+
+//
+// Fill the land mask and the land / soil types at lev by injection from lev-1.
+//
+// As with the map factors, init_stuff() rebuilds these every time a level is created or
+// remade -- and sets them to a single value over the whole level (all land or all sea per
+// erf.is_land, and type 0) -- while only init_from_wrfinput, which requires an init file
+// at *this* level, reads the real LANDMASK / IVGTYP / ISLTYP.  So a level created by
+// tagging ran as uniform land while its parent had the WRF fields, and a regrid at any
+// level (including the level-0 regrid that restart() does whenever the checkpoint has
+// fewer grids than ranks) threw those fields away.  That is not benign: the land mask
+// selects the land or the sea flux branch in SurfaceLayer::compute_fluxes, decides which
+// cells update_sst_tsk applies the sea surface temperature to, and together with the land
+// and soil types drives the LSM.
+//
+// These are categories, not smooth fields, so they are injected -- every fine cell takes
+// the value of the coarse cell that contains it -- rather than interpolated.  We route
+// that through the AMReX interpolaters on a real-valued copy: the values are small
+// integers and piecewise-constant interpolation does no arithmetic on them, so they
+// survive the round trip exactly.
+//
+void
+ERF::interp_land_masks_from_coarse (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
+    //
+    // Only wrfinput fills these from a file.  For every other init_type the values that
+    // init_stuff left at this level are the ones that were asked for -- erf.is_land is
+    // set per level -- and must not be replaced by the parent's.
+    //
+    // NOTE: init_from_metgrid also reads LANDMASK, but as a time series (one iMultiFab
+    //       per met_em time) rather than the single entry used here, so it needs its own
+    //       handling and is left alone.
+    //
+    if (solverChoice.init_type != InitType::WRFInput) { return; }
+
+    auto entry = [] (Vector<Vector<std::unique_ptr<iMultiFab>>>& v, int l) -> iMultiFab*
+                 { return (v[l].empty()) ? nullptr : v[l][0].get(); };
+
+    Vector<iMultiFab*> fine = {entry(    lmask_lev,lev),
+                               entry(land_type_lev,lev),
+                               entry(soil_type_lev,lev)};
+
+    Vector<iMultiFab*> crse = {entry(    lmask_lev,lev-1),
+                               entry(land_type_lev,lev-1),
+                               entry(soil_type_lev,lev-1)};
+
+    // Ratio of 1 in z: these live on ba2d, which has no vertical extent (see the note
+    // in Interp2DArrays)
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+
+    for (int n = 0; n < fine.size(); n++)
+    {
+        if (!fine[n] || !crse[n]) { continue; }
+
+        // The land mask is the first of the three above
+        const bool is_lmask = (n == 0);
+
+        IntVect ngc = crse[n]->nGrowVect(); ngc[2] = 0;
+        IntVect ngf = fine[n]->nGrowVect(); ngf[2] = 0;
+
+        MultiFab crse_real(crse[n]->boxArray(), crse[n]->DistributionMap(), 1, ngc);
+        MultiFab fine_real(fine[n]->boxArray(), fine[n]->DistributionMap(), 1, ngf);
+
+        for (MFIter mfi(crse_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& gbx = mfi.growntilebox(ngc);
+            const Array4<      Real>& dst_arr = crse_real.array(mfi);
+            const Array4<const int >& src_arr = crse[n]->const_array(mfi);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k) = static_cast<Real>(src_arr(i,j,k));
+            });
+        }
+
+        //
+        // DO fill the ghost cells outside the domain: SurfaceLayer::compute_fluxes reads
+        // the land mask on grown boxes without clipping into the domain.  The coarse
+        // level has those cells filled -- init_from_wrfinput fills the grown box by
+        // clamping into the valid region, init_stuff does a whole-array setVal, and this
+        // routine fills them at a level with no file of its own.
+        //
+        InterpFromCoarseLevel(fine_real, ngf, ngf,
+                              crse_real, 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              rr2d, &pc_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+
+        for (MFIter mfi(fine_real, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& gbx = mfi.growntilebox(ngf);
+            const Array4<       int>& dst_arr = fine[n]->array(mfi);
+            const Array4<const Real>& src_arr = fine_real.const_array(mfi);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const int injected = static_cast<int>(std::round(src_arr(i,j,k)));
+                //
+                // A land mask of 2 means a building, which init_zphys marks from this
+                // level's own terrain blanking before we get here (see the ordering in
+                // MakeNewLevelFromCoarse).  That is finer information than anything the
+                // parent can offer, so keep it.  2 is a legitimate category for the land
+                // and soil types, hence the test on which array this is.
+                //
+                dst_arr(i,j,k) = (is_lmask && dst_arr(i,j,k) == 2) ? 2 : injected;
+            });
+        }
+
+        // Prefer this level's own data in the ghost cells it shares with another fine box
+        fine[n]->FillBoundary(geom[lev].periodicity());
+    }
+}
+
 void
 ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping& my_dm)
 {
@@ -1810,14 +1967,17 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // Map factors.  Unlike the fields below, mapfac[lev] always exists by the time we get
-    // here (init_stuff builds it), so there is no "only if it hasn't been made yet" guard --
-    // we must overwrite the placeholder value of 1 that init_stuff left behind.  A level
-    // that read its own init file already has the map factors from that file and must be
-    // left alone.
+    // Map factors, surface pressure, land mask and land / soil types.  Unlike the fields
+    // below, these always exist by the time we get here (init_stuff builds them), so there
+    // is no "only if it hasn't been made yet" guard -- we must overwrite the placeholder
+    // that init_stuff left behind (a map factor of 1, a uniform land mask, an
+    // uninitialized surface pressure).  A level that read its own init file already has
+    // all of them from that file and must be left alone.
     //
     if (!has_own_init_file(lev)) {
         interp_mapfac_from_coarse(lev);
+        interp_psfc_from_coarse(lev);
+        interp_land_masks_from_coarse(lev);
     }
 
     if (lon_m[lev-1] && !lon_m[lev]) {
@@ -1838,10 +1998,24 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
+    //
+    // The Coriolis factors.  Unlike lat_m/lon_m above, these are read one cell past the
+    // hi domain faces: the momentum sources average them onto the faces of the nodal
+    // tilebox (see the var_coriolis branch of ERF_MakeMomSources.cpp), so the x-momentum
+    // source at i = nx reads sinPhi/cosPhi at i = nx.  A level that reads its own
+    // wrfinput/met_em file fills those ghosts by clamping into the valid region; a level
+    // created by refinement must get them from the parent instead, or the Coriolis source
+    // on its hi faces is computed from uninitialized memory.
+    //
+    // NOTE: filling ghost cells outside the domain requires that ALL ghost cells of the
+    //       coarse MultiFab have already been filled, inside the domain and out.  That
+    //       holds here: init_from_wrfinput/init_from_metgrid fill the grown box at a level
+    //       with a file, and this interpolation fills it at a level without one.
+    //
     if (sinPhi_m[lev-1] && !sinPhi_m[lev]) {
         auto ngv = sinPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
         sinPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-        InterpFromCoarseLevel(*sinPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+        InterpFromCoarseLevel(*sinPhi_m[lev], ngv, ngv, // DO fill ghost cells outside the domain
                               *sinPhi_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
                               rr2d, &cell_cons_interp,
@@ -1850,7 +2024,7 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
     if (cosPhi_m[lev-1] && !cosPhi_m[lev]) {
         auto ngv = cosPhi_m[lev-1]->nGrowVect(); ngv[2] = 0;
         cosPhi_m[lev] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-        InterpFromCoarseLevel(*cosPhi_m[lev], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+        InterpFromCoarseLevel(*cosPhi_m[lev], ngv, ngv, // DO fill ghost cells outside the domain
                               *cosPhi_m[lev-1], 0, 0, 1,
                               geom[lev-1], geom[lev],
                               rr2d, &cell_cons_interp,
@@ -1875,7 +2049,11 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             if (!sst_lev[lev-1][n]) { continue; }
             if (!sst_lev[lev][n]) {
                 sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-                InterpFromCoarseLevel(*sst_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                // DO fill the ghost cells outside the domain: SurfaceLayer populates t_surf
+                // on grown tileboxes, so it reads the sea surface temperature past a
+                // non-periodic domain face.  As for the Coriolis factors above, the coarse
+                // level has those ghost cells filled (update_sst_tsk fills the grown box).
+                InterpFromCoarseLevel(*sst_lev[lev][n], ngv, ngv,
                                       *sst_lev[lev-1][n], 0, 0, 1,
                                       geom[lev-1], geom[lev],
                                       rr2d, &cell_cons_interp,
@@ -1902,7 +2080,8 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
             if (!tsk_lev[lev-1][n]) { continue; }
             if (!tsk_lev[lev][n]) {
                 tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-                InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, IntVect(0,0,0), // do not fill ghost cells outside the domain
+                // DO fill the ghost cells outside the domain -- see the note on sst_lev
+                InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, ngv,
                                       *tsk_lev[lev-1][n], 0, 0, 1,
                                       geom[lev-1], geom[lev],
                                       rr2d, &cell_cons_interp,
@@ -2214,23 +2393,10 @@ ERF::init_only (int lev, double elapsed_time)
         // base state, since it interpolates perturbational quantities relative to it.
         FillCoarsePatch(lev, elapsed_time);
 
-        // The 2D/surface arrays likewise have no file to come from at this level
+        // The 2D/surface arrays likewise have no file to come from at this level.  That
+        // includes PSFC and the land mask / land type / soil type, which Interp2DArrays
+        // takes from the parent for a level with no init file of its own.
         Interp2DArrays(lev, ba2d[lev], dmap[lev]);
-
-        // PSFC is read from the file at a level that has one; here it can only be
-        // interpolated from the parent.  The surface layer and the LSM both read it.
-        if (mf_PSFC[lev-1] && mf_PSFC[lev]) {
-            auto ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
-            // Ratio of 1 in z: PSFC lives on ba2d, which has no vertical extent (see the
-            // note in Interp2DArrays)
-            const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
-            InterpFromCoarseLevel(*mf_PSFC[lev], ngv,
-                                  IntVect(0,0,0), // do not fill ghost cells outside the domain
-                                  *mf_PSFC[lev-1], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  rr2d, &cell_cons_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
-        }
     }
     else if (solverChoice.init_type == InitType::NCFile)
     {
