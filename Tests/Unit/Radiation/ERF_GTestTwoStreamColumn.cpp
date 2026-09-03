@@ -41,6 +41,10 @@
 //      surface net LW equals eps * sigma*T^4 * exp(-tau_column) rather than
 //      the large negative value obtained without the reflected term.
 //   6. Night zeroes the SW heating; disabled bands write zero.
+//   8. tau_model = mass: the SW column optical depth is set by the mass
+//      path (resolution independent), layer optics are extinction-weighted
+//      mixtures of the constituents, Rayleigh-only columns absorb nothing,
+//      cloud water brightens the column, and the LW band uses the mass path.
 //   7. The mass-based gray LW option makes the column optical depth
 //      independent of the vertical resolution and reproduces the Stephens
 //      (1978) cloud emissivity; separate direct/diffuse albedo and the
@@ -69,7 +73,8 @@ struct ColumnResult {
 // Run the sweep for a column with uniform density `rho` and uniform
 // absolute temperature `T_air` (converted to rho*theta through the EOS).
 ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
-                                 int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0)
+                                 int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0,
+                                 amrex::Real qc = 0.0)
 {
     const TwoStreamParams rad_choice = make_two_stream_params(rad_choice_in);
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
@@ -85,6 +90,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
     state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
     state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
+    state.setVal<amrex::RunOn::Device>(rho * qc, bx, RhoQ2_comp, 1);
     qheating.setVal<amrex::RunOn::Device>(0.0);
 
     amrex::Gpu::DeviceVector<amrex::Real> scalars(5, 0.0);
@@ -534,4 +540,113 @@ TEST(TwoStreamColumn, EarthSunDistanceFactorScalesTheSolarConstant)
     const amrex::Real f = compute_earth_sun_distance_factor(3.0);
     EXPECT_NEAR(on.sw_surface, f * off.sw_surface, 1.0e-9 * off.sw_surface);
     EXPECT_NEAR(on.sw_up_toa, f * off.sw_up_toa, 1.0e-9 * off.sw_up_toa);
+}
+
+TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)
+{
+    RadChoice rc = base_choice();
+    rc.tau_model = TauModel::Mass;
+    rc.sw_kabs_dry = 4.0e-6;
+    rc.sw_kscat_dry = 3.0e-6;
+    rc.sw_kabs_vapor = 4.0e-3;
+    const amrex::Real rho = 1.0, qv = 0.01;
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real incident = rc.S0 * mu0;
+
+    const ColumnResult coarse = run_uniform_column(rc, rho, 290.0, 8, 100.0, qv);
+    const ColumnResult fine   = run_uniform_column(rc, rho, 290.0, 32, 25.0, qv);
+    EXPECT_NEAR(coarse.sw_surface, fine.sw_surface, 1.0e-9 * incident);
+    EXPECT_NEAR(coarse.sw_up_toa, fine.sw_up_toa, 1.0e-9 * incident);
+    EXPECT_NEAR(coarse.lw_up_toa, fine.lw_up_toa, 1.0e-9 * incident);
+    // The column absorbs something (vapor) and scatters something (Rayleigh).
+    EXPECT_LT(coarse.sw_surface, (1.0 - rc.surface_albedo_sw) * incident);
+    EXPECT_GT(coarse.sw_up_toa, 0.0);
+    EXPECT_LT(coarse.sw_up_toa, incident);
+
+    // The per-layer model, by contrast, changes with the layering.
+    rc.tau_model = TauModel::PerLayer;
+    rc.tau_per_layer = 0.02;
+    const ColumnResult coarse_fixed = run_uniform_column(rc, rho, 290.0, 8, 100.0, qv);
+    const ColumnResult fine_fixed   = run_uniform_column(rc, rho, 290.0, 32, 25.0, qv);
+    EXPECT_GT(std::abs(coarse_fixed.sw_surface - fine_fixed.sw_surface), 1.0e-2 * incident);
+}
+
+TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
+{
+    RadChoice rc = base_choice();
+    rc.tau_model = TauModel::Mass;
+    rc.sw_kabs_dry = 4.0e-6;
+    rc.sw_kscat_dry = 3.0e-6;
+    rc.sw_kabs_vapor = 4.0e-3;
+    rc.sw_kext_cloud = 150.0;
+    rc.sw_cloud_omega = 0.9999;
+    rc.sw_cloud_g = 0.85;
+    const TwoStreamParams p = make_two_stream_params(rc);
+
+    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
+    const amrex::Real rho = 1.1, qv = 0.008, qc = 2.0e-4, dz = 50.0;
+    state.setVal<amrex::RunOn::Host>(0.0);
+    state.setVal<amrex::RunOn::Host>(rho, bx, Rho_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * 300.0, bx, RhoTheta_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * qv, bx, RhoQ1_comp, 1);
+    state.setVal<amrex::RunOn::Host>(rho * qc, bx, RhoQ2_comp, 1);
+
+    amrex::Real tau = -1.0, omega = -1.0, g = -1.0;
+    diagnose_layer_optics(0, 0, 0, dz, 25.0, state.const_array(), 0.05, true, false, p, tau, omega, g);
+
+    const amrex::Real path = rho * dz;
+    const amrex::Real t_abs = path * 4.0e-6, t_ray = path * 3.0e-6, t_vap = path * 4.0e-3 * qv,
+                      t_cld = path * 150.0 * qc;
+    const amrex::Real ext = t_abs + t_ray + t_vap + t_cld;
+    const amrex::Real sca = t_ray + 0.9999 * t_cld;
+    EXPECT_NEAR(tau, ext, 1.0e-12);
+    EXPECT_NEAR(omega, sca / ext, 1.0e-12);
+    EXPECT_NEAR(g, 0.85 * 0.9999 * t_cld / sca, 1.0e-12);
+
+    // The longwave band takes the LW mass path in this model.
+    diagnose_layer_optics(0, 0, 0, dz, 25.0, state.const_array(), 1.0, false, false, p, tau, omega, g);
+    EXPECT_NEAR(tau, path * (rc.lw_kabs_dry + rc.lw_kabs_vapor * qv + rc.lw_kabs_cloud * qc), 1.0e-12);
+    EXPECT_EQ(omega, 0.0);
+
+    // Per-layer model: unchanged behaviour (fixed tau, input scattering props).
+    rc.tau_model = TauModel::PerLayer;
+    rc.single_scattering_albedo = 0.3;
+    rc.asymmetry_factor = 0.5;
+    diagnose_layer_optics(0, 0, 0, dz, 25.0, state.const_array(), 0.05, true, false,
+                          make_two_stream_params(rc), tau, omega, g);
+    EXPECT_EQ(tau, 0.05);
+    EXPECT_EQ(omega, 0.3);
+    EXPECT_EQ(g, 0.5);
+}
+
+TEST(TwoStreamColumn, MassModelRayleighOnlyColumnAbsorbsNothing)
+{
+    RadChoice rc = base_choice();
+    rc.tau_model = TauModel::Mass;
+    rc.sw_kabs_dry = 0.0;
+    rc.sw_kscat_dry = 2.0e-5;   // exaggerated Rayleigh so the effect is visible
+    rc.sw_kabs_vapor = 0.0;
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real incident = rc.S0 * mu0;
+    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
+    for (int k = 0; k < kNz; ++k) {
+        EXPECT_NEAR(r.q_sw[k], 0.0, 1.0e-7 * incident / (Cp_d * kDz)) << "k = " << k;
+    }
+    EXPECT_NEAR(r.sw_surface, incident - r.sw_up_toa, 1.0e-6 * incident);
+    // Rayleigh scattering sends more to space than the surface alone would.
+    EXPECT_GT(r.sw_up_toa, rc.surface_albedo_sw * incident);
+}
+
+TEST(TwoStreamColumn, MassModelCloudWaterBrightensTheColumn)
+{
+    RadChoice rc = base_choice();
+    rc.tau_model = TauModel::Mass;
+    const ColumnResult clear = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.005, 0.0);
+    const ColumnResult cloudy = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.005, 3.0e-4);
+    // LWP = 1 * 3e-4 * 800 = 0.24 kg/m^2 -> tau_cloud = 36: a thick cloud.
+    EXPECT_GT(cloudy.sw_up_toa, 2.0 * clear.sw_up_toa);
+    EXPECT_LT(cloudy.sw_surface, 0.5 * clear.sw_surface);
+    // The cloud also makes the column opaque in the longwave.
+    EXPECT_LT(std::abs(cloudy.lw_net_surface), std::abs(clear.lw_net_surface));
 }

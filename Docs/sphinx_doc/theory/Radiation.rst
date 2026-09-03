@@ -43,6 +43,23 @@ where :math:`\tau_{\text{cloud}}(k)` is added only within the prescribed cloud l
 :math:`c_{\text{qv}}` and :math:`c_{\text{qc}}` are zero by default.
 
 
+
+This per-layer model (``tau_model = per_layer``, the default) assigns the same optical depth to every
+layer regardless of its thickness, so the column optical depth scales with the number of vertical cells.
+The mass model (``tau_model = mass``) instead builds each layer's optical properties from its mass path
+:math:`\rho \, \Delta z`:
+
+.. math::
+
+   \tau_{\text{sw}}(k) = \rho \Delta z \left( k_{\text{abs,dry}} + k_{\text{sca,dry}} + k_{\text{abs,v}} q_v + k_{\text{ext,c}} q_c \right),
+
+with the constituents mixed by extinction weighting into the layer single-scattering albedo and asymmetry
+factor, :math:`\omega_0 = \sum_i \omega_i \tau_i / \tau` and :math:`g = \sum_i g_i \omega_i \tau_i / \sum_i \omega_i \tau_i`
+(dry and vapor absorption with :math:`\omega = 0`, Rayleigh scattering with :math:`\omega = 1, g = 0`, cloud water
+with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 1.5 / r_{\text{eff}}` with
+:math:`r_{\text{eff}}` in µm gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
+coefficients and the aerosol term are added on top as before. The column optical depth is then a property of
+the atmosphere, not of the grid, and the longwave band uses the mass path described below.
 The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
 two-stream approximation. Each layer :math:`k` with optical depth :math:`\tau`, single-scattering albedo
 :math:`\omega_0` and asymmetry factor :math:`g`,

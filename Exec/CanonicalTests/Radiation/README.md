@@ -9,7 +9,8 @@ Use these cases as the primary index for manual verification, regression mainten
 | Test Case | Description | Prerequisites |
 |---|---|---|
 | [`SW_ClearSky_Analytical/`](SW_ClearSky_Analytical/) | Clear-sky shortwave Beer-Lambert verification against an analytical attenuation profile. | Radiation diagnostics enabled; single-column-style analytic comparison. |
-| [`LW_Isothermal/`](LW_Isothermal/) | Longwave gray-gas consistency test in an isothermal atmosphere with zero net heating. | Radiation diagnostics enabled; isothermal test mode. |
+| [`TwoStream_MassOpticalDepth/`](TwoStream_MassOpticalDepth/) | Mass-based optical depth (`tau_model = mass`): the same moist column on 32 and 64 layers gives the same fluxes. | Kessler moisture; SW + LW; two inputs files. |
+| [`LW_Isothermal/`](LW_Isothermal/) | Longwave gray-gas solver on a physically isothermal column over a black surface at the same temperature. | Sounding with theta(z) = T0 exp(g z / (c_p T0)); LW only. |
 | [`SW_Cloud_Layer/`](SW_Cloud_Layer/) | Shortwave absorption test with a prescribed cloud optical-depth layer. | Cloud optical-depth parameters configured in the inputs file. |
 | [`SW_Scattering_Cloud/`](SW_Scattering_Cloud/) | Shortwave scattering validation using the two-stream scattering approximation. | Scattering enabled with cloud optical properties. |
 | [`TwoStream_RhoTheta_Coupling/`](TwoStream_RhoTheta_Coupling/) | Verifies deposition of radiative heating into `qheating_rates` and coupling into `RhoTheta`. | TwoStream enabled; thermodynamic source-term coupling active. |
