@@ -89,6 +89,9 @@ MOSTAverage::MOSTAverage (Orientation face,
 
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
     if (m_interp) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Interpolation only implemented with terrain!");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !(m_face.coordDir() != 2 && m_interp),
+        "MOST interpolation is only supported on z faces.");
     if (m_rotate) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
     if (m_norm_vec) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Normal vector is only valid with terrain!");
 
@@ -227,12 +230,6 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_fields[lev][2] = vars_old[Vars::zvel];
         m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][2]->setVal(1.E34);
-        if (m_rotate) {
-            m_rot_fields[lev][2] = std::make_unique<MultiFab>(ba,dm,ncomp,ng);
-            MultiFab::Copy(*m_rot_fields[lev][2],mf,0,0,1,ng);
-        } else {
-            m_rot_fields[lev][2] = nullptr;
-        }
     }
     { // CC vars
         auto& mf  = *Theta_prim;
@@ -447,7 +444,6 @@ MOSTAverage::set_rotated_fields (const int& lev)
         });
     }
 
-    // TODO: Add W to rot_fields?
     // Direct copy of other scalar variables
     MultiFab::Copy(*rot_fields[3],*fields[3],0,0,1,rot_fields[3]->nGrowVect());
     if (fields[4]) MultiFab::Copy(*rot_fields[4],*fields[4],0,0,1,rot_fields[4]->nGrowVect());
@@ -1209,8 +1205,16 @@ MOSTAverage::compute_plane_averages (const int& lev)
     // cell-centered k-index FAB with an MFIter from a staggered velocity FAB;
     // distributed BoxArrays have the same box ordering but different valid
     // extents. Spatial index arrays are retained for terrain-normal cases.
+    const bool fitted_terrain =
+        (m_terrain_type == TerrainType::StaticFittedMesh) ||
+        (m_terrain_type == TerrainType::MovingFittedMesh);
     const bool use_spatial_indices =
-        m_norm_vec || (m_terrain_type != TerrainType::None);
+        m_norm_vec || (dir == 2 && fitted_terrain);
+    if (!use_spatial_indices) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            m_k_indx[lev] != nullptr,
+            "Plane averaging requires a reference-index field.");
+    }
     const int wall_normal_ref = use_spatial_indices ? 0 : m_k_indx[lev]->min(0);
     // Averages for U,V,W,T,Qv (not Qc)
     for (int imf(0); imf < 5; ++imf) {
@@ -1278,8 +1282,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 }
             }
 
-            auto mf_arr = (m_rotate) ? rot_fields[imf]->const_array(mfi) :
-                                           fields[imf]->const_array(mfi);
+            auto mf_arr = (m_rotate && imf != 2) ? rot_fields[imf]->const_array(mfi) :
+                                                       fields[imf]->const_array(mfi);
 
             if (m_interp) {
                 const auto plo   = geom.ProbLoArray();
@@ -1523,8 +1527,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                                              fields[imf  ]->const_array(mfi);
             auto v_mf_arr = (m_rotate) ? rot_fields[imf+1]->const_array(mfi) :
                                              fields[imf+1]->const_array(mfi);
-            auto w_mf_arr = (m_rotate) ? rot_fields[imf+2]->const_array(mfi) :
-                                             fields[imf+2]->const_array(mfi);
+            auto w_mf_arr = fields[imf+2]->const_array(mfi);
 
             if (m_interp) {
                 // TODO: trilinear interp needs to be fixed for X and Y faces
@@ -1642,8 +1645,16 @@ MOSTAverage::compute_region_averages (const int& lev)
     // cell-centered k-index FAB with an MFIter from a staggered velocity FAB;
     // distributed BoxArrays have the same box ordering but different valid
     // extents. Spatial index arrays are retained for terrain-normal cases.
+    const bool fitted_terrain =
+        (m_terrain_type == TerrainType::StaticFittedMesh) ||
+        (m_terrain_type == TerrainType::MovingFittedMesh);
     const bool use_spatial_indices =
-        m_norm_vec || (m_terrain_type != TerrainType::None);
+        m_norm_vec || (dir == 2 && fitted_terrain);
+    if (!use_spatial_indices) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            m_k_indx[lev] != nullptr,
+            "Region averaging requires a reference-index field.");
+    }
     const int wall_normal_ref = use_spatial_indices ? 0 : m_k_indx[lev]->min(0);
     const Periodicity average_periodicity = tangential_periodicity(geom, dir);
 
@@ -1703,8 +1714,8 @@ MOSTAverage::compute_region_averages (const int& lev)
 
             pbx.setSmall(dir, sm_index); pbx.setBig(dir, sm_index);
 
-            auto mf_arr = (m_rotate) ? rot_fields[imf]->const_array(mfi) :
-                                           fields[imf]->const_array(mfi);
+            auto mf_arr = (m_rotate && imf != 2) ? rot_fields[imf]->const_array(mfi) :
+                                                       fields[imf]->const_array(mfi);
             auto ma_arr = averages[imf]->array(mfi);
 
             if (m_interp) {
@@ -1963,8 +1974,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                                              fields[imf  ]->const_array(mfi);
             auto v_mf_arr = (m_rotate) ? rot_fields[imf+1]->const_array(mfi) :
                                              fields[imf+1]->const_array(mfi);
-            auto w_mf_arr = (m_rotate) ? rot_fields[imf+2]->const_array(mfi) :
-                                             fields[imf+2]->const_array(mfi);
+            auto w_mf_arr = fields[imf+2]->const_array(mfi);
             auto ma_arr      = averages[iavg]->array(mfi);
             auto ma_xz_arr   = averages[iavg_xz]->array(mfi);
             auto ma_yz_arr   = averages[iavg_yz]->array(mfi);
