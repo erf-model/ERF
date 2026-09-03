@@ -398,8 +398,6 @@ public:
         }
     }
 
-protected:
-
     /**
      * Return the number of ghost cells of the 2D data (averages, indices and
      * positions) that can be filled from the field data at this level.
@@ -434,6 +432,8 @@ protected:
     void extrap_ghost_cells (const int& lev,
                              const int& iavg,
                              const amrex::IntVect& ng_fill);
+
+protected:
 
     // Passed through constructor
     //--------------------------------------------
