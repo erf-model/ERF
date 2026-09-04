@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <atomic>
+#include <cfenv>
 
 #include "AMReX_FArrayBox.H"
 #include "AMReX_IArrayBox.H"
@@ -159,6 +160,8 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
+        auto prev_fpe_except = amrex::disableFPExcept(amrex::FPExcept::all);
+
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
         /*
@@ -223,6 +226,9 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
             } // has_var
         }
         ncf.close();
+
+        std::feclearexcept(FE_ALL_EXCEPT);
+        amrex::setFPExcept(prev_fpe_except);
     }
 }
 
