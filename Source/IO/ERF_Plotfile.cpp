@@ -116,7 +116,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                (derived_names[i] != "ibseb_nfaces" && derived_names[i] != "ibseb_tskin" &&
                                 derived_names[i] != "ibseb_sw_abs" && derived_names[i] != "ibseb_shadow" &&
                                 derived_names[i] != "ibseb_lw_net" && derived_names[i] != "ibseb_f_sky" &&
-                                derived_names[i] != "ibseb_H") );
+                                derived_names[i] != "ibseb_H" && derived_names[i] != "ibseb_G") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "detJ") );
@@ -1565,7 +1565,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
         // Radiation on the faces, per-cell means: absorbed shortwave, shadow
         // flag, net longwave, sky view fraction
-        for (const char* nm : {"ibseb_sw_abs", "ibseb_shadow", "ibseb_lw_net", "ibseb_f_sky", "ibseb_H"}) {
+        for (const char* nm : {"ibseb_sw_abs", "ibseb_shadow", "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G"}) {
             if (!containerHasElement(plot_var_names, nm)) { continue; }
             MultiFab tmp(grids[lev], dmap[lev], 1, 0);
             if (ibseb_params.enable && lev < static_cast<int>(m_ibseb.size()) && m_ibseb[lev]) {
@@ -1574,6 +1574,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                               : (s == "ibseb_shadow") ? m_ibseb[lev]->d_shadow
                               : (s == "ibseb_lw_net") ? m_ibseb[lev]->d_LW_net
                               : (s == "ibseb_H")      ? m_ibseb[lev]->d_H
+                              : (s == "ibseb_G")      ? m_ibseb[lev]->d_G
                               :                         m_ibseb[lev]->d_f_sky;
                 m_ibseb[lev]->scatter_field(v, tmp);
             } else {

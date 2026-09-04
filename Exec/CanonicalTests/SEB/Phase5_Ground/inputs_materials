@@ -1,0 +1,9 @@
+FILE = inputs_base
+
+# Concrete for building 1, timber for building 2, from the material CSV.
+erf.ibseb.material_file = "materials.csv"
+erf.ibseb.material_by_building = 1 2
+erf.ibseb.n_slab_layers = 4
+erf.ibseb.csv_file = "ibseb_materials.csv"
+erf.ibseb.dump_faces_file = "faces_materials"
+max_step = 20

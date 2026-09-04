@@ -2955,13 +2955,27 @@ ImmersedForcing``) and are off by default.
 | **erf.ibseb.couple_heat**         | add the face sensible flux to the temperature equation;  | Boolean            | true                   |
 |                                   | false diagnoses it only                                  |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_file**       | material library CSV in the SLUCM schema (mat_id, name,  | String             | ""                     |
+|                                   | albedo, emissivity, k_therm, rho_cp, thickness,          |                    |                        |
+|                                   | description); empty keeps the uniform inputs             |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_default**    | material id of every building not listed below           | Integer            | 1                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_by_building**| one material id per building, in building order          | Integers           | none                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.k_therm**             | uniform slab conductivity [W/m/K]                        | Real > 0           | 1.0                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.rho_cp**              | uniform slab volumetric heat capacity [J/m3/K]           | Real > 0           | 1.6e6                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.thickness**           | uniform slab thickness [m]                               | Real > 0           | 0.3                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
 cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their
 mean absorbed shortwave), ``ibseb_shadow`` (their mean shadow flag),
 ``ibseb_lw_net`` (their mean net longwave), ``ibseb_f_sky`` (their mean
-sky view fraction) and ``ibseb_H`` (their mean sensible flux) are available
-when the balance is on. The immersed forcing's own surface-temperature
+sky view fraction), ``ibseb_H`` (their mean sensible flux) and ``ibseb_G``
+(their mean conduction into the wall) are available when the balance is on. The immersed forcing's own surface-temperature
 inputs (``erf.if_init_surf_temp``, ``erf.if_surf_temp_flux``,
 ``erf.if_Olen``) must be absent when the balance is on: it owns the
 temperature condition at the buildings.

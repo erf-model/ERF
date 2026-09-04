@@ -59,6 +59,7 @@ ERF::init_ibseb ()
                 Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
             }
         }
+        m_ibseb[lev]->assign_materials();
         m_ibseb[lev]->compute_view_fractions();
         m_ibseb[lev]->compute_shortwave(t_new[lev]);
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
@@ -75,13 +76,14 @@ ERF::init_ibseb ()
  * add_heat_flux_to_source() deposits at every slow stage of the step.
  */
 void
-ERF::ibseb_advance (int lev, Real time, const MultiFab& cons,
+ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
                     const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel)
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
     m_ibseb[lev]->compute_shortwave(time);
     m_ibseb[lev]->compute_longwave(cons);
     m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p);
+    m_ibseb[lev]->compute_ground(dt);
 }
 
 /**

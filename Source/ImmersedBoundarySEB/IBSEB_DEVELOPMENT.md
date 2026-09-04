@@ -221,6 +221,13 @@ the cost of the face list on a city-scale case can be estimated.
 - Later options, none needed for the PR: face-to-face radiosity, lumped
   interior budget, wet surfaces, terrain faces under the same balance.
 
+## Findings outside the balance
+
+- The immersed-forcing atmosphere of `development` does not restart bit-for-bit
+  (Phase5_Ground, thin deck: the wind at the faces differs by about 1e-4 after
+  a checkpoint restart; the slab itself restarts exactly). To be reported
+  separately once isolated.
+
 ## Phase log
 
 | phase | status | regtest | notes |
@@ -229,7 +236,7 @@ the cost of the face list on a city-scale case can be estimated.
 | 2 shortwave | done 2026-09-03 | `SEB/Phase2_Shortwave` | prescribed provider, ray-cast shadow; flag matches an independent cast on all 2616 faces |
 | 3 longwave | done 2026-09-03 | `SEB/Phase3_Longwave` | hemisphere sampling, sky/ground/building terms; fractions match an independent sampling on every face |
 | 4 sensible, latent | done 2026-09-03 | `SEB/Phase4_Sensible` | wall function per face, explicit face flux into the rho-theta source; internal-energy budget closes against the diagnostic run |
-| 5 ground | planned | `SEB/Phase5_Ground` | lifts the SLUCM slab solver and materials |
+| 5 ground | done 2026-09-03 | `SEB/Phase5_Ground` | slab per face (SLUCM solver with a skin-temperature top), materials by building; erfc and steady checks exact |
 | 6 prognostic | planned | `SEB/Phase6_Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |
 | 7 isolated building | planned | canonical | |
 | 8 building set | planned | canonical | |

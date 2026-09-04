@@ -6,6 +6,7 @@
 #include <AMReX_GpuContainers.H>
 #include <vector>
 #include "ERF_IBSEBParams.H"
+#include "ERF_IBSEBMaterials.H"
 
 /**
  * \file ERF_IBFaceSet.H
@@ -122,6 +123,22 @@ public:
     void compute_longwave (const amrex::MultiFab& cons);
 
     /**
+     * Assign every face its material properties (phase 5): from the material
+     * library by building id, or the uniform inputs. Called once after
+     * build(); fills d_mat, d_albedo, d_emis, d_k, d_rhocp, d_thick and
+     * initialises the slab layers to the skin temperature.
+     */
+    void assign_materials ();
+
+    /**
+     * Ground heat flux of the current step (phase 5): advance every face's
+     * slab by dt with the skin temperature at the top and the interior
+     * temperature at the bottom (implicit, ERF_IBSEBSlab.H) and store the
+     * conduction into the slab, G, positive into the wall.
+     */
+    void compute_ground (amrex::Real dt);
+
+    /**
      * Sensible heat of the current step (phase 4) through a wall function on
      * every face: the tangential wind of the fluid cell at half a cell from
      * the wall gives u* with the roughness z0_wall, the skin-to-air
@@ -231,7 +248,9 @@ public:
     amrex::Gpu::DeviceVector<int>         d_dir;           ///< Face direction: 0 x, 1 y, 2 z
     amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbour at -1 (low) or +1 (high) side
     amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
-    amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (phase 5; 0 until then)
+    amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (0 = uniform inputs)
+    amrex::Gpu::DeviceVector<amrex::Real> d_albedo, d_emis;///< Optical properties of the face
+    amrex::Gpu::DeviceVector<amrex::Real> d_kth, d_rhocp, d_thick; ///< Slab conductivity [W/m/K], heat capacity [J/m3/K], thickness [m]
     amrex::Gpu::DeviceVector<amrex::Real> d_area;          ///< Face area [m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_xf, d_yf, d_zf;///< Face centre [m]
     // State, advanced by the balance (phase 6) and checkpointed:

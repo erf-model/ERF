@@ -1,0 +1,53 @@
+# Phase 5 of the immersed-boundary surface energy balance: conduction into
+# the walls and the material library. Two 40 m cubes on a 10 m grid in a
+# light wind, the faces held at 320 K over slabs that start at 300 K with a
+# 300 K interior, and the flux to the air switched off so the run is cheap
+# and only the slab does anything. Variants: inputs_thick (a thick slab with
+# fine layers against the semi-infinite solution), inputs_thin (a thin light
+# slab against the steady linear profile), inputs_materials (two materials
+# from a CSV, one per building), inputs_chk / inputs_restart (the slab
+# through a checkpoint).
+stop_time = 10000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  640     640    320
+amr.n_cell           =  64      64     32
+geometry.is_periodic = 1 1 0
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.25
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = -1
+erf.plot_vars_1     = theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_G
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = two_cubes_10m_64x64.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.debug = true
+erf.ibseb.csv_int = 1
+erf.ibseb.T_skin_init = 320.0
+erf.ibseb.T_interior = 300.0
+erf.ibseb.couple_heat = false
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 120.0
+erf.ibseb.lw_mode = "fixed"
+erf.ibseb.lw_down = 0.0

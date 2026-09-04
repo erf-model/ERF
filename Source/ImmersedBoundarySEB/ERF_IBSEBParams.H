@@ -5,6 +5,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX.H>
 #include <string>
+#include <vector>
 
 /**
  * \file ERF_IBSEBParams.H
@@ -86,6 +87,21 @@ struct IBSEBParams
     bool        stability_correction = false;
     bool        couple_heat       = true;   ///< Add the face flux to the temperature equation
 
+    // ---- Ground heat flux and materials (phase 5) ---------------------------
+    // Every face carries a slab of n_slab_layers layers between the skin and
+    // the building interior at T_interior; the conduction into it is G. The
+    // slab's conductivity, heat capacity and thickness, and the face's albedo
+    // and emissivity, come from the material library (SLUCM schema) when
+    // material_file is given: material_default for every building, or one
+    // id per building in material_by_building (indexed by building id from
+    // 1). Without a file the uniform values below apply to every face.
+    std::string material_file;
+    int         material_default   = 1;
+    std::vector<int> material_by_building;
+    amrex::Real k_therm            = 1.0;    ///< Uniform conductivity [W/m/K]
+    amrex::Real rho_cp             = 1.6e6;  ///< Uniform volumetric heat capacity [J/m3/K]
+    amrex::Real thickness          = 0.3;    ///< Uniform slab thickness [m]
+
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.
      *
@@ -132,6 +148,12 @@ struct IBSEBParams
         pp.query("z0h_wall",         z0h_wall);
         pp.query("stability_correction", stability_correction);
         pp.query("couple_heat",      couple_heat);
+        pp.query("material_file",    material_file);
+        pp.query("material_default", material_default);
+        pp.queryarr("material_by_building", material_by_building);
+        pp.query("k_therm",          k_therm);
+        pp.query("rho_cp",           rho_cp);
+        pp.query("thickness",        thickness);
         if (enable) {
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
@@ -153,6 +175,8 @@ struct IBSEBParams
             if (lw_mode != "fixed" && lw_mode != "gray") { amrex::Abort("erf.ibseb.lw_mode must be \"fixed\" or \"gray\""); }
             if (lw_down < 0.0 || T_ground <= 0.0) { amrex::Abort("erf.ibseb.lw_down must be >= 0 and T_ground > 0"); }
             if (z0_wall <= 0.0 || z0h_wall <= 0.0) { amrex::Abort("erf.ibseb.z0_wall and z0h_wall must be positive [m]"); }
+            if (k_therm <= 0.0 || rho_cp <= 0.0 || thickness <= 0.0) { amrex::Abort("erf.ibseb.k_therm, rho_cp and thickness must be positive"); }
+            if (n_slab_layers > 256) { amrex::Abort("erf.ibseb.n_slab_layers must be <= 256"); }
             if (n_slab_layers < 1) { amrex::Abort("erf.ibseb.n_slab_layers must be >= 1"); }
             if (T_skin_init <= 0.0 || T_interior <= 0.0) {
                 amrex::Abort("erf.ibseb.T_skin_init and T_interior must be positive [K]");

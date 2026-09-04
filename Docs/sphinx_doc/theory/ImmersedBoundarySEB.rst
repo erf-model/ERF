@@ -153,6 +153,36 @@ the formulas, the rank independence, the heat budget of the closed domain
 against the summed face flux, and a mass-inflow, pressure-outflow variant
 whose wake is warmer than the inflow.
 
+Conduction into the wall and materials
+--------------------------------------
+
+Every face carries a slab of :cpp:`erf.ibseb.n_slab_layers` uniform layers
+between its skin and the building interior at :cpp:`erf.ibseb.T_interior`.
+The conduction is solved implicitly with the Thomas algorithm, the form of
+the SLUCM branch's slab solver with the skin temperature as the top
+boundary instead of a flux; the layer centres sit half a layer below the
+skin and half a layer above the interior, so both boundary fluxes use
+:math:`2k/\Delta z`. The conduction into the slab through the skin,
+
+.. math::
+
+   G = \frac{2k}{\Delta z}\,(T_s - T_0) ,
+
+is positive into the wall. The scheme is unconditionally stable, so thick
+walls with a few layers and thin walls with many are both fine.
+
+The conductivity, heat capacity and thickness of the slab, and the albedo
+and emissivity of the face, come from a material library when
+:cpp:`erf.ibseb.material_file` is given, a CSV in the SLUCM schema so one
+file serves both models; :cpp:`erf.ibseb.material_default` applies to every
+building and :cpp:`erf.ibseb.material_by_building` gives one id per
+building. Without a file the uniform inputs apply to every face.
+
+``Exec/CanonicalTests/SEB/Phase5_Ground`` checks a thick finely layered slab
+against the semi-infinite erfc solution, a thin light slab against the
+steady linear profile, the materials per building, and the slab through a
+checkpoint restart.
+
 ``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent
 ray cast, the incidence on every orientation, the height to which the tall

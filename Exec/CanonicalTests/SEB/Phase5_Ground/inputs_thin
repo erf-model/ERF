@@ -1,0 +1,10 @@
+FILE = inputs_base
+
+# Thin light slab: reaches the steady linear profile within the run.
+erf.ibseb.k_therm = 1.0
+erf.ibseb.rho_cp = 1.0e5
+erf.ibseb.thickness = 0.02
+erf.ibseb.n_slab_layers = 4
+erf.ibseb.csv_file = "ibseb_thin.csv"
+erf.ibseb.dump_faces_file = "faces_thin"
+max_step = 400

@@ -533,6 +533,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
        ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBFaceSet.cpp
        ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEB.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEBMaterials.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp

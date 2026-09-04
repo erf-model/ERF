@@ -6,6 +6,7 @@
  */
 #include "ERF_IBFaceSet.H"
 #include "ERF_IBSEBSolar.H"
+#include "ERF_IBSEBSlab.H"
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
@@ -238,6 +239,11 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     upload(d_area, h_area);
     upload(d_xf, h_xf); upload(d_yf, h_yf); upload(d_zf, h_zf);
     fill(d_mat,      nf, 0);
+    fill(d_albedo,   nf, m_params.albedo);
+    fill(d_emis,     nf, m_params.emissivity);
+    fill(d_kth,      nf, m_params.k_therm);
+    fill(d_rhocp,    nf, m_params.rho_cp);
+    fill(d_thick,    nf, m_params.thickness);
     fill(d_T_skin,   nf, m_params.T_skin_init);
     fill(d_T_slab,   nf * static_cast<size_t>(n_layers()), m_params.T_skin_init);
     // View fractions: placeholders (a roof sees the whole sky, a wall half sky
@@ -333,7 +339,8 @@ IBFaceSet::compute_longwave (const MultiFab& cons)
     constexpr Real sigma = 5.670374419e-8;
     const bool  gray   = (m_params.lw_mode == "gray");
     const Real  lw_fix = m_params.lw_down, eps_sky = m_params.sky_emissivity;
-    const Real  eps    = m_params.emissivity, eps_g = m_params.emissivity_ground;
+    const Real  eps_g  = m_params.emissivity_ground;
+    const Real* peps   = d_emis.data();
     const Real  Tg4    = std::pow(m_params.T_ground, 4);
     const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data(); const Real* pfb = d_f_bldg.data();
@@ -352,9 +359,79 @@ IBFaceSet::compute_longwave (const MultiFab& cons)
             const Real lw_in = pfs[f] * lw_sky + pfg[f] * eps_g * sigma * Tg4 + pfb[f] * sigma * Ts4;
             pTa[f]  = Ta;
             pin[f]  = lw_in;
-            pnet[f] = eps * (lw_in - sigma * Ts4);
+            pnet[f] = peps[f] * (lw_in - sigma * Ts4);
         });
     }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Materials per face from the library by building id, or the uniform
+ * inputs. Host work on the static geometry, once.
+ */
+void
+IBFaceSet::assign_materials ()
+{
+    if (m_params.material_file.empty()) { return; }
+    const Vector<IBSEBMaterial> table = read_ibseb_materials(m_params.material_file);
+    auto find = [&](int id) -> const IBSEBMaterial& {
+        for (const auto& m : table) { if (m.mat_id == id) return m; }
+        Abort("erf.ibseb: material id " + std::to_string(id) + " is not in " + m_params.material_file);
+        return table[0];
+    };
+    std::vector<int> h_b(m_nface);
+    Gpu::copy(Gpu::deviceToHost, d_bid.begin(), d_bid.end(), h_b.begin());
+    Gpu::streamSynchronize();
+    std::vector<int>  h_mat(m_nface);
+    std::vector<Real> h_alb(m_nface), h_emi(m_nface), h_k(m_nface), h_rc(m_nface), h_th(m_nface);
+    for (int n = 0; n < m_nface; ++n) {
+        const int b = h_b[n];
+        int id = m_params.material_default;
+        if (b >= 1 && b <= static_cast<int>(m_params.material_by_building.size())) {
+            id = m_params.material_by_building[b - 1];
+        }
+        const IBSEBMaterial& m = find(id);
+        h_mat[n] = m.mat_id; h_alb[n] = m.albedo; h_emi[n] = m.emissivity;
+        h_k[n] = m.k_therm; h_rc[n] = m.rho_cp; h_th[n] = m.thickness;
+    }
+    upload(d_mat, h_mat); upload(d_albedo, h_alb); upload(d_emis, h_emi);
+    upload(d_kth, h_k); upload(d_rhocp, h_rc); upload(d_thick, h_th);
+    Gpu::streamSynchronize();
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " materials: " << table.size() << " in "
+                << m_params.material_file << ", default id " << m_params.material_default;
+        for (size_t b = 0; b < m_params.material_by_building.size(); ++b) {
+            Print() << ", building " << b + 1 << " -> " << m_params.material_by_building[b];
+        }
+        Print() << "\n";
+        for (const auto& m : table) {
+            Print() << "[IBSEB DEBUG]   material " << m.mat_id << " (" << m.name << "): albedo=" << m.albedo
+                    << " emissivity=" << m.emissivity << " k=" << m.k_therm << " W/m/K rho_cp=" << m.rho_cp
+                    << " J/m3/K thickness=" << m.thickness << " m\n";
+        }
+    }
+}
+
+/**
+ * Slab conduction on every face: one kernel over the faces, each solving
+ * its own tridiagonal system with the skin at the top and the interior at
+ * the bottom.
+ */
+void
+IBFaceSet::compute_ground (Real dt)
+{
+    const int  nl   = n_layers();
+    const Real Tint = m_params.T_interior;
+    const Real* pT  = d_T_skin.data();
+    const Real* pkt = d_kth.data(); const Real* prc = d_rhocp.data(); const Real* pth = d_thick.data();
+    Real* pS = d_T_slab.data();   Real* pG = d_G.data();
+    ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+        Real T[ibseb::SLAB_MAX_LAYERS];
+        for (int l = 0; l < nl; ++l) { T[l] = pS[f * nl + l]; }
+        const Real dz = pth[f] / nl;
+        pG[f] = ibseb::advance_slab_dirichlet(T, pT[f], Tint, pkt[f], prc[f], dz, dt, nl);
+        for (int l = 0; l < nl; ++l) { pS[f * nl + l] = T[l]; }
+    });
     Gpu::streamSynchronize();
 }
 
@@ -502,7 +579,8 @@ IBFaceSet::compute_shortwave (Real time)
     const Real sx = s.sx, sy = s.sy, sz = s.sz;
     const Real dni = s.dni, dif_h = s.diffuse_h;
     const Real dir_h = dni * amrex::max(Real(0.0), sz);
-    const Real albedo = m_params.albedo, alb_g = m_params.albedo_ground;
+    const Real alb_g = m_params.albedo_ground;
+    const Real* palb = d_albedo.data();
     const Real* col_top = d_col_top.data();
     const int   nx = m_nx, ny = m_ny;
     const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
@@ -528,7 +606,7 @@ IBFaceSet::compute_shortwave (Real time)
         psh[f]  = shadow;
         pdir[f] = direct;
         pdif[f] = diffuse;
-        pabs[f] = (1.0 - albedo) * (direct + diffuse);
+        pabs[f] = (1.0 - palb[f]) * (direct + diffuse);
     });
     Gpu::streamSynchronize();
 
@@ -592,10 +670,15 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     const auto sh = host(d_shadow), sdir = host(d_SW_direct_in), sdif = host(d_SW_diffuse_in), sabs = host(d_SW_abs);
     const auto T = host(d_T_skin), Ta = host(d_T_air), lwin = host(d_LW_down_in), lwn = host(d_LW_net);
     const auto th = host(d_theta_air), rho = host(d_rho), Ut = host(d_U_tan), us = host(d_ustar), H = host(d_H);
+    const auto mat = hosti(d_mat);
+    const auto alb = host(d_albedo), emi = host(d_emis), kk = host(d_kth), rc = host(d_rhocp), thk = host(d_thick), G = host(d_G);
+    const int nl = n_layers();
+    std::vector<Real> slab(static_cast<size_t>(nf) * nl);
+    Gpu::copy(Gpu::deviceToHost, d_T_slab.begin(), d_T_slab.end(), slab.begin());
     Gpu::streamSynchronize();
     std::ofstream f(prefix + ".rank" + std::to_string(ParallelDescriptor::MyProc()) + ".csv");
     f << "i,j,k,dir,side,bid,x_m,y_m,z_m,area_m2,f_sky,f_ground,f_bldg,shadow,SW_direct_in,SW_diffuse_in,SW_abs,T_skin,T_air,LW_in,LW_net,"
-         "theta_air,rho,U_tan,ustar,H\n";
+         "theta_air,rho,U_tan,ustar,H,mat,albedo,emissivity,k_therm,rho_cp,thickness,G,T_slab_top,T_slab_bottom\n";
     f << std::setprecision(10);
     for (int n = 0; n < nf; ++n) {
         f << i[n] << "," << j[n] << "," << k[n] << "," << dir[n] << "," << side[n] << "," << bid[n] << ","
@@ -603,7 +686,9 @@ IBFaceSet::dump_faces (const std::string& prefix) const
           << fs[n] << "," << fg[n] << "," << fb[n] << "," << sh[n] << ","
           << sdir[n] << "," << sdif[n] << "," << sabs[n] << "," << T[n] << ","
           << Ta[n] << "," << lwin[n] << "," << lwn[n] << ","
-          << th[n] << "," << rho[n] << "," << Ut[n] << "," << us[n] << "," << H[n] << "\n";
+          << th[n] << "," << rho[n] << "," << Ut[n] << "," << us[n] << "," << H[n] << ","
+          << mat[n] << "," << alb[n] << "," << emi[n] << "," << kk[n] << "," << rc[n] << "," << thk[n] << ","
+          << G[n] << "," << slab[static_cast<size_t>(n) * nl] << "," << slab[static_cast<size_t>(n) * nl + nl - 1] << "\n";
     }
 }
 
@@ -759,16 +844,18 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     Gpu::copy(Gpu::deviceToHost, d_bid.begin(),    d_bid.end(),    h_b.begin());
     Gpu::streamSynchronize();
 
-    std::vector<Real> h_S(m_nface), h_sh(m_nface), h_L(m_nface), h_H(m_nface);
+    std::vector<Real> h_S(m_nface), h_sh(m_nface), h_L(m_nface), h_H(m_nface), h_G(m_nface);
     Gpu::copy(Gpu::deviceToHost, d_SW_abs.begin(), d_SW_abs.end(), h_S.begin());
     Gpu::copy(Gpu::deviceToHost, d_shadow.begin(), d_shadow.end(), h_sh.begin());
     Gpu::copy(Gpu::deviceToHost, d_LW_net.begin(), d_LW_net.end(), h_L.begin());
     Gpu::copy(Gpu::deviceToHost, d_H.begin(), d_H.end(), h_H.begin());
+    Gpu::copy(Gpu::deviceToHost, d_G.begin(), d_G.end(), h_G.begin());
     Gpu::streamSynchronize();
 
     std::vector<Real> bsum(m_nbld + 1, 0.0), bsw(m_nbld + 1, 0.0), bsh(m_nbld + 1, 0.0), blw(m_nbld + 1, 0.0), bH(m_nbld + 1, 0.0);
-    Real tmin = 1.0e30, tmax = -1.0e30, sw_sum = 0.0, sw_max = 0.0, sh_area = 0.0, lw_sum = 0.0, H_sum = 0.0;
+    Real tmin = 1.0e30, tmax = -1.0e30, sw_sum = 0.0, sw_max = 0.0, sh_area = 0.0, lw_sum = 0.0, H_sum = 0.0, G_sum = 0.0;
     for (int n = 0; n < m_nface; ++n) {
+        G_sum += h_G[n] * h_A[n];
         bsum[h_b[n]] += h_T[n] * h_A[n];
         bsw[h_b[n]]  += h_S[n] * h_A[n];
         bsh[h_b[n]]  += h_sh[n] * h_A[n];
@@ -794,6 +881,8 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     ParallelDescriptor::ReduceRealSum(sh_area);
     ParallelDescriptor::ReduceRealSum(lw_sum);
     ParallelDescriptor::ReduceRealSum(H_sum);
+    ParallelDescriptor::ReduceRealSum(G_sum);
+    const Real G_mean   = (m_area_total > 0.0) ? G_sum / m_area_total : 0.0;
     const Real sw_mean  = (m_area_total > 0.0) ? sw_sum / m_area_total : 0.0;
     const Real sh_frac  = (m_area_total > 0.0) ? sh_area / m_area_total : 0.0;
     const Real lw_mean  = (m_area_total > 0.0) ? lw_sum / m_area_total : 0.0;
@@ -809,7 +898,8 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
             << " T_skin_max=" << ((nf_all > 0) ? tmax : Real(0.0))
             << " SW_abs_mean=" << sw_mean << " SW_abs_max=" << sw_max
             << " shadow_frac=" << sh_frac << " LW_net_mean=" << lw_mean
-            << " H_mean=" << H_mean << " H_total_W=" << std::setprecision(12) << H_sum << "\n";
+            << " H_mean=" << H_mean << " G_mean=" << G_mean
+            << " H_total_W=" << std::setprecision(12) << H_sum << "\n";
 
     if (m_params.debug) {
         for (int b = 1; b <= m_nbld; ++b) {
