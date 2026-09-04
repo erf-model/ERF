@@ -247,12 +247,19 @@ balance off as well (noted under findings), so the day runs at 0.5 s.
 
 ## Canonical: building set (Phase 8)
 
-`Exec/CanonicalTests/SEB/Phase8_BuildingSet`: the three-box street from the
-WUI obstacle decks and the skyscraper block from the immersed-forcing
-tests. Exercises mutual shadowing, the building fraction of the view
-fractions, several materials, and the per-building CSV. Documented with
-timing (faces per rank, ray-cast cost at initialisation and per step) so
-the cost of the face list on a city-scale case can be estimated.
+`Exec/CanonicalTests/SEB/Phase8_BuildingSet`: four buildings from a nodal
+height map on a 480 m periodic domain at 10 m (a 60 m concrete slab, a 40 m
+brick cube east of it, two 20 m timber blocks), three materials by
+building, a 3 m/s westerly, Boulder on the solstice from 05:00 for six
+hours with the prescribed provider, the convective velocity scale and the
+stability functions on, and the immersed forcing snapped to whole cells.
+`check_buildingset.py` asserts the four buildings and their materials, the
+residual, the mutual shadowing (the cube's shadow on the slab's east wall
+at sunrise, the blocks clear by late morning), the building view fractions
+of the facing walls, the material ordering of the roof temperatures, the
+convective scale and the roofs' stability, and the cost line (0.4 ms per
+step for 157 faces per rank). `plot_buildingset.py` draws the per-building
+temperatures and shadow fractions, a face map from above and a yt slice.
 
 ## After the eight phases
 
@@ -401,4 +408,4 @@ the cost of the face list on a city-scale case can be estimated.
 | 6 prognostic | done 2026-09-04 | `SEB/Phase6_Prognostic` | Newton balance consistent with the implicit slab, `Q_ext` hook, clamps as inputs; closure and an independent re-integration to 1e-9 K |
 | 7 isolated building | done 2026-09-04 | `SEB/Phase7_IsolatedBuilding` | 24 h at Boulder on the solstice on an exact box: roof to 340 K at 13:55, residual 4e-8, roof shortwave and slab energy integrals to 0.01 %, sequence of the day asserted |
 | 8a wall function | done 2026-09-04 | `SEB/Phase8_WallFunction` | convective velocity scale (Deardorff, z_i by bulk Ri / pblh / fixed), stability functions iterated on the face's L, all behind switches; checks to 1e-9 |
-| 8b building set | in progress 2026-09-04 | `SEB/Phase8_BuildingSet` | four height-map buildings, three materials, six hours from 05:00 with the snap and the wall-function switches on |
+| 8b building set | done 2026-09-04 | `SEB/Phase8_BuildingSet` | four height-map buildings, three materials, six hours from 05:00 with the snap and the wall-function switches on; shadows, view fractions, materials and cost asserted |
