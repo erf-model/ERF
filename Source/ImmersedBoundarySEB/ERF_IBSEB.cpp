@@ -12,6 +12,8 @@
  * Every function is a no-op unless ``erf.ibseb.enable`` is set.
  */
 #include <ERF.H>
+#include <ERF_PlaneAverage.H>
+#include <ERF_DirectionSelector.H>
 #include <AMReX_VisMF.H>
 
 using namespace amrex;
@@ -88,7 +90,24 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
     m_ibseb[lev]->compute_shortwave(time);
     m_ibseb[lev]->compute_longwave(cons);
-    m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p);
+    // Phase 8: the ground surface layer's fields and the mixed-layer depth
+    // for the wall function beyond neutral (all null / zero unless asked).
+    const MultiFab* olen2d = nullptr;
+    const MultiFab* pblh2d = nullptr;
+    Real z_i_bulk = 0.0;
+    if (m_SurfaceLayer && ibseb_params.stability_correction) { olen2d = m_SurfaceLayer->get_olen(lev); }
+    if (ibseb_params.convective_velocity == "deardorff") {
+        if (m_SurfaceLayer && m_SurfaceLayer->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
+            pblh2d = m_SurfaceLayer->get_pblh(lev);
+        }
+        z_i_bulk = (ibseb_params.z_i_mode == "fixed") ? ibseb_params.z_i
+                                                     : ibseb_bulk_richardson_height(lev, cons, xvel, yvel);
+        if (ibseb_params.debug) {
+            Print() << "[IBSEB DEBUG] lev=" << lev << " mixed-layer depth for w*: " << z_i_bulk << " m ("
+                    << ibseb_params.z_i_mode << (pblh2d ? ", pblh per column" : "") << ")\n";
+        }
+    }
+    m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p, olen2d, pblh2d, z_i_bulk);
     if (ibseb_params.prognostic) {
         m_ibseb[lev]->solve_balance(dt);
     } else {
@@ -126,4 +145,49 @@ ERF::ibseb_report (int nstep, Real time)
     for (int lev = 0; lev <= finest_level; ++lev) {
         if (m_ibseb[lev]) { m_ibseb[lev]->report(time, nstep, csv_now); }
     }
+}
+
+/**
+ * Mixed-layer depth of a level by the bulk Richardson method on the
+ * horizontal-mean profile (Troen and Mahrt; Vogelezang and Holtslag).
+ *
+ * With the first level as the reference, ``Ri_b(z) = g (z - z_1) (theta(z)
+ * - theta_1) / (theta_1 (|U(z) - U_1|^2 + 100 u*^2))`` with u* = 0.1 m/s,
+ * and the depth is the first cell centre where it exceeds
+ * ``erf.ibseb.ri_crit``, or the domain top when it never does (a neutral
+ * profile). The profile is the plane average of the conserved state and the
+ * face velocities, uniform vertical spacing assumed as elsewhere in the
+ * balance; called once per step and level when the convective velocity
+ * scale is on and z_i is not fixed, also as the fallback of the pblh mode.
+ */
+Real
+ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab& xvel, const MultiFab& yvel)
+{
+    MultiFab c2(cons, make_alias, Rho_comp, 2);   // rho and rho theta are the first two components
+    PlaneAverage r_ave(&c2, geom[lev], 2);
+    r_ave.compute_averages(ZDir(), r_ave.field());
+    PlaneAverage u_ave(&xvel, geom[lev], 2);
+    u_ave.compute_averages(ZDir(), u_ave.field());
+    PlaneAverage v_ave(&yvel, geom[lev], 2);
+    v_ave.compute_averages(ZDir(), v_ave.field());
+    const int nz = r_ave.ncell_line();
+    Gpu::HostVector<Real> rho(nz), rth(nz), uu(u_ave.ncell_line()), vv(v_ave.ncell_line());
+    r_ave.line_average(0, rho);
+    r_ave.line_average(1, rth);
+    u_ave.line_average(0, uu);
+    v_ave.line_average(0, vv);
+    const Real dz = geom[lev].CellSize(2);
+    const Real z_top = geom[lev].ProbHi(2);
+    const Real th1 = rth[0] / rho[0];
+    const Real U1  = std::sqrt(uu[0] * uu[0] + vv[0] * vv[0]);
+    const Real ustar_floor2 = 100.0 * 0.1 * 0.1;
+    Real z_i = z_top;
+    for (int k = 1; k < nz; ++k) {
+        const Real th = rth[k] / rho[k];
+        const Real U  = std::sqrt(uu[k] * uu[k] + vv[k] * vv[k]);
+        const Real dU = U - U1;
+        const Real rib = CONST_GRAV * (k * dz) * (th - th1) / (th1 * (dU * dU + ustar_floor2));
+        if (rib > ibseb_params.ri_crit) { z_i = geom[lev].ProbLo(2) + (k + 0.5) * dz - geom[lev].ProbLo(2); break; }
+    }
+    return z_i;
 }

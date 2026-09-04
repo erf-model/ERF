@@ -309,7 +309,22 @@ the cost of the face list on a city-scale case can be estimated.
   two fixed-point passes if the lag shows; switch
   `erf.ibseb.convective_velocity = none | deardorff`. Regtest: the hot-roof
   calm-air case, with H following the free-convection `dT^(4/3)` as the
-  wind goes to zero. Off by default (`none`).
+  wind goes to zero. Off by default (`none`). Caveat (Harish,
+  2026-09-04): the PBL schemes' wall distance (MRF, YSU) is terrain-aware
+  but not IB-aware, so ERF's `pblh` over a building column is measured
+  from the ground and the schemes' mixing lengths are wrong inside and
+  just above immersed buildings; the balance therefore uses the mixed-layer
+  thickness above the roof, `z_i - z_face`, floored at the building height,
+  and the IB-awareness of the PBL schemes is a separate item.
+- Option noted (Harish, 2026-09-04): if the iterated Monin-Obukhov
+  functions prove expensive on many faces, Louis (1979) explicit stability
+  functions give u* and theta* from the bulk Richardson number of the face
+  layer without iteration; `erf.ibseb.stability_scheme = iterative | louis`
+  when needed. Also from erf-model #3486 (PBLH corrections, MRF/YSUNew):
+  under-relaxation of the fixed point at low wind speeds smooths the
+  convergence of the surface-layer iteration; the roof iteration here
+  converges to 1e-6 in a few passes on the regtest, but relaxation is the
+  first thing to add if a face fails to converge in the building set.
 - Later options, none needed for the PR: face-to-face radiosity, lumped
   interior budget, wet surfaces, terrain faces under the same balance.
 

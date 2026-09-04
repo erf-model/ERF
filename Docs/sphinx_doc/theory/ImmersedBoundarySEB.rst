@@ -246,6 +246,59 @@ every face to 1e-9 K. It also exercises the external flux with the bound
 raised, a checkpoint restart, and the sun rising over the cube at Boulder
 on the solstice, where the east wall warms before the roof.
 
+The wall function beyond neutral
+--------------------------------
+
+The neutral log law on the tangential wind cannot shed heat from a hot
+face in calm air: with the wind at its floor the friction velocity
+vanishes and so does the flux, which is why the roof of the isolated
+building reaches 340 K in the day canonical. Two switches, both off by
+default, address it.
+
+:cpp:`erf.ibseb.convective_velocity = deardorff` puts a convective
+velocity scale into the wind the wall function sees, in Beljaars'
+gustiness form,
+
+.. math::
+
+   U_{eff}^2 = U_{tan}^2 + (\beta w_*)^2, \qquad
+   w_* = \Big(\frac{g}{\theta}\,\frac{H}{\rho c_p}\,z_i\Big)^{1/3},
+
+with :math:`H` the previous step's flux out of the face (and :math:`w_* = 0`
+when the flux is into it) and :math:`\beta` from :cpp:`erf.ibseb.beta_conv`.
+The depth is the mixed layer above a roof, :math:`z_i - z_{face}` floored
+at the building height, and the building height for a wall, the height of
+its natural-convection column. :math:`z_i` follows the diurnal cycle
+rather than a constant: :cpp:`erf.ibseb.z_i_mode = bulk_ri` diagnoses it
+every step on the horizontal-mean profile by the bulk Richardson method
+(the first cell centre where :math:`Ri_b` exceeds :cpp:`erf.ibseb.ri_crit`,
+the domain top for a neutral profile), ``pblh`` reads the surface layer's
+own boundary-layer height at the face's column, and ``fixed`` takes
+:cpp:`erf.ibseb.z_i`. The scale goes as the cube root of the depth, so a
+30 percent error in it is a 10 percent error in :math:`w_*`.
+
+:cpp:`erf.ibseb.stability_correction` applies the surface layer's
+similarity functions (Dyer's forms, the ones ERF's own surface layer
+uses) on the roofs, iterated to convergence on the face's own Obukhov
+length :math:`L = u_*^2 \theta / (\kappa g \theta_*)`, seeded from the
+ground surface layer's 2D field at the face's column
+(:cpp:`erf.ibseb.obukhov_seed`) so the iteration starts in the right
+regime. The walls stay on the log law: the functions assume a horizontal
+surface, and on a wall the convective scale is what carries free
+convection. The face's :math:`L` stays its own because a roof in a
+separation zone or a sunlit wall can be in the opposite regime from the
+ground under it.
+
+``Exec/CanonicalTests/SEB/Phase8_WallFunction`` puts the cube in calm air
+under a strong sun and checks that the neutral law sheds under 1 W/m2
+from a 340 K roof while the convective scale sheds hundreds; that
+:math:`w_*`, the depth, :math:`u_*` and :math:`H` follow the formulas on
+every face to 1e-9; that the roofs' Obukhov length is negative and
+consistent with :math:`u_*` and :math:`\theta_*` and that :math:`u_*` and
+:math:`H` follow the corrected log law to 1e-7; and that the bulk
+Richardson depth on a capped sounding is the first cell above the
+inversion, with the roof height subtracted in :math:`w_*`.
+
 Canonical case: an isolated building over a day
 ------------------------------------------------
 

@@ -2960,7 +2960,8 @@ ImmersedForcing``) and are off by default.
 | **erf.ibseb.z0h_wall**            | heat roughness length of the faces [m]                   | Real > 0           | 0.001                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.stability_correction**| apply the surface layer's similarity functions to the    | Boolean            | false                  |
-|                                   | wall function on roofs; walls stay neutral               |                    |                        |
+|                                   | wall function on roofs, iterated on the face's own       |                    |                        |
+|                                   | Obukhov length; walls stay on the log law                |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.couple_heat**         | add the face sensible flux to the temperature equation;  | Boolean            | true                   |
 |                                   | false diagnoses it only                                  |                    |                        |
@@ -2998,6 +2999,31 @@ ImmersedForcing``) and are off by default.
 |                                   | with the emissivity (test hook for the fire coupling)    |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.dump_faces_tag_step** | name each face dump by its step so every one is kept     | Boolean            | false                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.obukhov_seed**        | with the stability correction, seed the roof's Obukhov   | String             | "ground"               |
+|                                   | iteration from the ground surface layer's field at the   |                    |                        |
+|                                   | face's column ("ground") or from neutral ("neutral")     |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.convective_velocity** | "deardorff" adds a convective velocity scale to the wind |  String            | "none"                 |
+|                                   | of the wall function, sqrt(U_tan^2 + (beta w*)^2), with  |                    |                        |
+|                                   | w* from the previous step's flux out of the face; "none" |                    |                        |
+|                                   | keeps the neutral log law on the tangential wind         |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.beta_conv**           | gustiness factor on w*                                   | Real > 0           | 1.2                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z_i_mode**            | depth in w* on roofs: "bulk_ri" diagnoses the mixed      | String             | "bulk_ri"              |
+|                                   | layer on the horizontal-mean profile every step, "pblh"  |                    |                        |
+|                                   | reads the surface layer's boundary-layer height at the   |                    |                        |
+|                                   | column (falling back to bulk_ri), "fixed" uses z_i; the  |                    |                        |
+|                                   | roof height is subtracted and the building height is the |                    |                        |
+|                                   | floor; walls use the building height                     |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z_i**                 | fixed mixed-layer depth [m]                              | Real > 0           | 1000.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.ri_crit**             | critical bulk Richardson number of the depth diagnostic  | Real > 0           | 0.25                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.obukhov_relax**       | under-relaxation of u* between passes of the roof's      | Real in (0, 1]     | 0.5                    |
+|                                   | Obukhov iteration (1 = none), as the surface layer's     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid

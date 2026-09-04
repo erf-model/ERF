@@ -1,0 +1,9 @@
+FILE = inputs_base
+
+# The depth from the bulk Richardson diagnostic on a sounding capped at 100 m.
+erf.input_sounding_file = "input_sounding_capped"
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "bulk_ri"
+erf.ibseb.ri_crit = 0.25
+erf.ibseb.csv_file = "ibseb_bulkri.csv"
+erf.ibseb.dump_faces_file = "faces_bulkri"

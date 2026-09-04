@@ -166,6 +166,14 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         m_col_top_max = std::max(m_col_top_max, h_col_top[c]);
     }
     upload(d_col_top, h_col_top);
+    // Height of each face's building column, for the wall-function depth.
+    {
+        std::vector<Real> h_hb(h_i.size());
+        for (size_t n = 0; n < h_i.size(); ++n) {
+            h_hb[n] = h_col_top[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]] - plo[2];
+        }
+        upload(d_hbld, h_hb);
+    }
     std::vector<int> label(static_cast<size_t>(nx) * ny, 0);
     std::vector<int> stack;
     m_nbld = 0;
@@ -274,6 +282,9 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     fill(d_G,        nf, Real(0.0));
     fill(d_Q_ext,    nf, m_params.Q_ext_uniform);
     fill(d_H_coeff,  nf, Real(0.0));
+    fill(d_w_star,   nf, Real(0.0));
+    fill(d_olen,     nf, Real(1.0e30));
+    fill(d_z_i,      nf, Real(0.0));
     fill(d_LW_ext,   nf, Real(0.0));
     fill(d_resid,    nf, Real(0.0));
     fill(d_niter,    nf, 0);
@@ -521,23 +532,40 @@ IBFaceSet::solve_balance (Real dt)
  * Wall function on every face. One kernel per fab over that fab's faces:
  * the cell-centred velocity of the fluid cell from its face values, its
  * tangential part with respect to the wall, the neutral log law for u*
- * and theta*, and on request the stability iteration of the surface layer
- * on roofs. The skin temperature is converted to a potential temperature
- * with the fluid cell's Exner function before the difference is taken.
+ * and theta*, and on request the additions of phase 8: a convective
+ * velocity scale in the wind (Beljaars' gustiness form with Deardorff's
+ * w* from the previous step's flux) and, on roofs, the surface layer's
+ * similarity functions iterated on the face's own Obukhov length. The
+ * skin temperature is converted to a potential temperature with the fluid
+ * cell's Exner function before the difference is taken.
+ *
+ * The Obukhov length of a face is ``L = u*^2 theta / (kappa g theta*)``
+ * (negative over a hot face). Walls stay on the log law even with the
+ * stability correction: the similarity functions assume a horizontal
+ * surface, and the convective scale is what carries free convection on a
+ * wall. The ground's 2D Obukhov field only seeds the roof iteration.
  */
 void
 IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
-                             const MultiFab& yvel, const MultiFab& zvel, Real c_p)
+                             const MultiFab& yvel, const MultiFab& zvel, Real c_p,
+                             const MultiFab* olen_ground, const MultiFab* pblh_ground, Real z_i_bulk)
 {
     const Real z0   = m_params.z0_wall, z0h = m_params.z0h_wall;
     const bool stab = m_params.stability_correction;
+    const bool conv = (m_params.convective_velocity == "deardorff");
+    const bool seed = stab && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
+    const bool use_pblh = conv && (pblh_ground != nullptr) && (m_params.z_i_mode == "pblh");
+    const Real beta = m_params.beta_conv;
+    const Real relax = m_params.obukhov_relax;
+    const Real zi_fallback = (z_i_bulk > 0.0) ? z_i_bulk : m_params.z_i;
     const Real dxa[3] = {m_dx[0], m_dx[1], m_dx[2]};
+    const Real z_lo = m_z_ground;
     const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int*  pd = d_dir.data();
-    const Real* pT = d_T_skin.data();
+    const Real* pT = d_T_skin.data(); const Real* phb = d_hbld.data(); const Real* pzf = d_zf.data();
     Real* pth = d_theta_air.data(); Real* prho = d_rho.data(); Real* pU = d_U_tan.data();
     Real* pus = d_ustar.data();     Real* pH = d_H.data();     Real* pTa = d_T_air.data();
-    Real* pHc = d_H_coeff.data();
+    Real* pHc = d_H_coeff.data();   Real* pws = d_w_star.data(); Real* pol = d_olen.data(); Real* pzi = d_z_i.data();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
@@ -545,6 +573,10 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
         auto const& u = xvel.const_array(mfi);
         auto const& v = yvel.const_array(mfi);
         auto const& w = zvel.const_array(mfi);
+        // The surface layer's 2D fields share the level's distribution with
+        // the boxes collapsed to k = 0, so the same iterator indexes them.
+        Array4<const Real> ol = seed     ? olen_ground->const_array(mfi) : Array4<const Real>{};
+        Array4<const Real> pb = use_pblh ? pblh_ground->const_array(mfi) : Array4<const Real>{};
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f = f0 + m;
             const int i = pi[f], j = pj[f], k = pk[f], d = pd[f];
@@ -559,29 +591,70 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
                           0.5 * (w(i, j, k) + w(i, j, k + 1)) };
             U[d] = 0.0;
             const Real Ut = amrex::max(std::sqrt(U[0] * U[0] + U[1] * U[1] + U[2] * U[2]), Real(1.0e-3));
+            // Convective velocity scale from the previous step's flux out of the face.
+            Real wstar = 0.0, depth = 0.0;
+            if (conv && pH[f] > 0.0) {
+                if (d == 2) {
+                    Real zi = use_pblh ? pb(i, j, 0) : zi_fallback;
+                    if (!(zi > 0.0 && zi < 1.0e5)) { zi = zi_fallback; }
+                    depth = amrex::max(zi - (pzf[f] - z_lo), phb[f]);
+                } else {
+                    depth = phb[f];
+                }
+                wstar = std::cbrt(CONST_GRAV / th * pH[f] / (rho * c_p) * depth);
+            }
+            const Real Ut_eff = std::sqrt(Ut * Ut + beta * beta * wstar * wstar);
             const Real delta = 0.5 * dxa[d];
             const Real lnm = std::log(delta / z0), lnh = std::log(delta / z0h);
-            Real ustar = KAPPA * Ut / lnm;
+            Real ustar = KAPPA * Ut_eff / lnm;
             Real thstar = KAPPA * (th - th_skin) / lnh;
             Real lnh_eff = lnh;
+            Real olen = 1.0e30;
             if (stab && d == 2) {
-                // Roofs: the surface layer's similarity functions, a few
-                // fixed-point passes on the Obukhov length.
+                // Roofs: the surface layer's similarity functions on the
+                // face's own Obukhov length, a few fixed-point passes, seeded
+                // from the ground's field at this column when available.
                 similarity_funs sf;
-                for (int it = 0; it < 3; ++it) {
-                    const Real Olen = -ustar * ustar * ustar * th / (KAPPA * CONST_GRAV * (-ustar * thstar) + 1.0e-20);
-                    const Real zeta = delta / Olen;
+                Real L = 1.0e30;
+                if (seed) {
+                    const Real Lg = ol(i, j, 0);
+                    if (std::abs(Lg) > 0.0 && std::abs(Lg) < 1.0e5) { L = Lg; }
+                }
+                if (!(std::abs(L) < 1.0e5)) {
+                    L = ustar * ustar * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+                }
+                // Fixed point on L until u*, theta* and L agree to 1e-6, so
+                // the stored values are mutually consistent (a fixed number
+                // of passes leaves L one pass behind). u* is under-relaxed
+                // between passes, as the surface layer's iteration is in
+                // erf-model #3486, which keeps a strongly unstable roof from
+                // oscillating at low wind; the converged values do not
+                // depend on the factor.
+                Real us_it = ustar;
+                for (int it = 0; it < 50; ++it) {
+                    const Real zeta = delta / L;
                     const Real psi_m = sf.calc_psi_m(zeta), psi_h = sf.calc_psi_h(zeta);
-                    ustar   = KAPPA * Ut / amrex::max(lnm - psi_m, Real(0.1));
+                    const Real us_new = KAPPA * Ut_eff / amrex::max(lnm - psi_m, Real(0.1));
+                    us_it   = (it == 0) ? us_new : (1.0 - relax) * us_it + relax * us_new;
                     lnh_eff = amrex::max(lnh - psi_h, Real(0.1));
                     thstar  = KAPPA * (th - th_skin) / lnh_eff;
+                    const Real L_new = us_it * us_it * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+                    const bool done = std::abs(L_new - L) <= 1.0e-6 * std::abs(L_new) &&
+                                      std::abs(us_new - us_it) <= 1.0e-6 * us_new;
+                    L = L_new;
+                    if (done) { us_it = us_new; break; }
                 }
+                ustar = us_it;
+                olen  = L;
             }
             pth[f]  = th;
             pTa[f]  = Ta;
             prho[f] = rho;
             pU[f]   = Ut;
             pus[f]  = ustar;
+            pws[f]  = wstar;
+            pol[f]  = olen;
+            pzi[f]  = depth;
             pHc[f]  = rho * c_p * KAPPA * ustar / lnh_eff;   // H = H_coeff (theta_skin - theta_air)
             pH[f]   = -rho * c_p * ustar * thstar;           // positive out of the face
         });
@@ -760,6 +833,7 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     const auto alb = host(d_albedo), emi = host(d_emis), kk = host(d_kth), rc = host(d_rhocp), thk = host(d_thick), G = host(d_G);
     const auto Hc = host(d_H_coeff), Qx = host(d_Q_ext), LE = host(d_LE), lwe = host(d_LW_ext), res = host(d_resid);
     const auto nit = hosti(d_niter);
+    const auto ws = host(d_w_star), ol = host(d_olen), zi = host(d_z_i), hb = host(d_hbld);
     const int nl = n_layers();
     std::vector<Real> slab(static_cast<size_t>(nf) * nl);
     Gpu::copy(Gpu::deviceToHost, d_T_slab.begin(), d_T_slab.end(), slab.begin());
@@ -767,7 +841,7 @@ IBFaceSet::dump_faces (const std::string& prefix) const
     std::ofstream f(prefix + ".rank" + std::to_string(ParallelDescriptor::MyProc()) + ".csv");
     f << "i,j,k,dir,side,bid,x_m,y_m,z_m,area_m2,f_sky,f_ground,f_bldg,shadow,SW_direct_in,SW_diffuse_in,SW_abs,T_skin,T_air,LW_in,LW_net,"
          "theta_air,rho,U_tan,ustar,H,mat,albedo,emissivity,k_therm,rho_cp,thickness,G,T_slab_top,T_slab_bottom,"
-         "H_coeff,Q_ext,LE,LW_ext,resid,n_iter";
+         "H_coeff,Q_ext,LE,LW_ext,resid,n_iter,w_star,Olen,z_i,h_bld";
     for (int l = 0; l < nl; ++l) { f << ",T_slab_" << l; }
     f << "\n";
     f << std::setprecision(12);
@@ -780,7 +854,8 @@ IBFaceSet::dump_faces (const std::string& prefix) const
           << th[n] << "," << rho[n] << "," << Ut[n] << "," << us[n] << "," << H[n] << ","
           << mat[n] << "," << alb[n] << "," << emi[n] << "," << kk[n] << "," << rc[n] << "," << thk[n] << ","
           << G[n] << "," << slab[static_cast<size_t>(n) * nl] << "," << slab[static_cast<size_t>(n) * nl + nl - 1] << ","
-          << Hc[n] << "," << Qx[n] << "," << LE[n] << "," << lwe[n] << "," << res[n] << "," << nit[n];
+          << Hc[n] << "," << Qx[n] << "," << LE[n] << "," << lwe[n] << "," << res[n] << "," << nit[n]
+          << "," << ws[n] << "," << ol[n] << "," << zi[n] << "," << hb[n];
         for (int l = 0; l < nl; ++l) { f << "," << slab[static_cast<size_t>(n) * nl + l]; }
         f << "\n";
     }
@@ -938,7 +1013,8 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     Gpu::copy(Gpu::deviceToHost, d_bid.begin(),    d_bid.end(),    h_b.begin());
     Gpu::streamSynchronize();
 
-    std::vector<Real> h_S(m_nface), h_sh(m_nface), h_L(m_nface), h_H(m_nface), h_G(m_nface), h_r(m_nface), h_Q(m_nface);
+    std::vector<Real> h_S(m_nface), h_sh(m_nface), h_L(m_nface), h_H(m_nface), h_G(m_nface), h_r(m_nface), h_Q(m_nface), h_w(m_nface);
+    Gpu::copy(Gpu::deviceToHost, d_w_star.begin(), d_w_star.end(), h_w.begin());
     Gpu::copy(Gpu::deviceToHost, d_resid.begin(), d_resid.end(), h_r.begin());
     Gpu::copy(Gpu::deviceToHost, d_Q_ext.begin(), d_Q_ext.end(), h_Q.begin());
     Gpu::copy(Gpu::deviceToHost, d_SW_abs.begin(), d_SW_abs.end(), h_S.begin());
@@ -951,8 +1027,9 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     std::vector<Real> bsum(m_nbld + 1, 0.0), bsw(m_nbld + 1, 0.0), bsh(m_nbld + 1, 0.0), blw(m_nbld + 1, 0.0), bH(m_nbld + 1, 0.0);
     std::vector<Real> bG(m_nbld + 1, 0.0), bQ(m_nbld + 1, 0.0), btmin(m_nbld + 1, 1.0e30), btmax(m_nbld + 1, -1.0e30), bres(m_nbld + 1, 0.0);
     Real tmin = 1.0e30, tmax = -1.0e30, sw_sum = 0.0, sw_max = 0.0, sh_area = 0.0, lw_sum = 0.0, H_sum = 0.0, G_sum = 0.0;
-    Real res_max = 0.0, Q_sum = 0.0;
+    Real res_max = 0.0, Q_sum = 0.0, w_max = 0.0;
     for (int n = 0; n < m_nface; ++n) {
+        w_max = std::max(w_max, h_w[n]);
         G_sum += h_G[n] * h_A[n];
         Q_sum += h_Q[n] * h_A[n];
         res_max = std::max(res_max, h_r[n]);
@@ -985,6 +1062,7 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     ParallelDescriptor::ReduceRealMax(btmax.data(), m_nbld + 1);
     ParallelDescriptor::ReduceRealMax(bres.data(),  m_nbld + 1);
     ParallelDescriptor::ReduceRealMax(res_max);
+    ParallelDescriptor::ReduceRealMax(w_max);
     ParallelDescriptor::ReduceRealSum(Q_sum);
     ParallelDescriptor::ReduceRealMin(tmin);
     ParallelDescriptor::ReduceRealMax(tmax);
@@ -1013,6 +1091,7 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
             << " H_mean=" << H_mean << " G_mean=" << G_mean
             << " Q_ext_mean=" << ((m_area_total > 0.0) ? Q_sum / m_area_total : Real(0.0))
             << " resid_max=" << res_max
+            << " w_star_max=" << w_max
             << " H_total_W=" << std::setprecision(12) << H_sum << "\n";
 
     if (m_params.debug) {

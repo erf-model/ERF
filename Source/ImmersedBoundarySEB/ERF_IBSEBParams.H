@@ -119,6 +119,27 @@ struct IBSEBParams
     amrex::Real newton_max_step_K  = 20.0;   ///< Largest Newton step [K]
     amrex::Real Q_ext_uniform      = 0.0;    ///< Uniform external incident flux on every face [W/m2] (test hook)
 
+    // ---- Wall function beyond neutral (phase 8) ------------------------------
+    // stability_correction (above) applies the surface layer's similarity
+    // functions on roofs with the face's own Obukhov length, seeded from the
+    // ground surface layer's 2D Obukhov field at the face's column when
+    // obukhov_seed = "ground" (or from neutral). convective_velocity =
+    // "deardorff" adds a convective velocity scale to the wind the wall
+    // function sees, U_eff^2 = U_tan^2 + (beta w*)^2 with
+    // w* = (g/theta H/(rho c_p) depth)^(1/3) from the previous step's H when it
+    // is out of the face, so u* does not collapse when the wind dies. The
+    // depth is the mixed layer above a roof (z_i - z_face, floored at the
+    // building height; z_i from the bulk Richardson diagnostic on the
+    // horizontal-mean profile, from ERF's surface-layer pblh, or fixed) and
+    // the building height for a wall. All off by default.
+    std::string obukhov_seed        = "ground";   ///< "ground" or "neutral"
+    std::string convective_velocity = "none";     ///< "none" or "deardorff"
+    amrex::Real beta_conv           = 1.2;        ///< Gustiness factor on w*
+    std::string z_i_mode            = "bulk_ri";  ///< "bulk_ri", "pblh" or "fixed"
+    amrex::Real z_i                 = 1000.0;     ///< Fixed mixed-layer depth [m] (z_i_mode = fixed, and the fallback)
+    amrex::Real ri_crit             = 0.25;       ///< Critical bulk Richardson number of the diagnostic
+    amrex::Real obukhov_relax       = 0.5;        ///< Under-relaxation of the roof's u*, theta* iteration (1 = none), as erf-model #3486
+
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.
      *
@@ -179,6 +200,13 @@ struct IBSEBParams
         pp.query("newton_tol_K",     newton_tol_K);
         pp.query("newton_max_step_K", newton_max_step_K);
         pp.query("Q_ext_uniform",    Q_ext_uniform);
+        pp.query("obukhov_seed",        obukhov_seed);
+        pp.query("convective_velocity", convective_velocity);
+        pp.query("beta_conv",           beta_conv);
+        pp.query("z_i_mode",            z_i_mode);
+        pp.query("z_i",                 z_i);
+        pp.query("ri_crit",             ri_crit);
+        pp.query("obukhov_relax",       obukhov_relax);
         if (enable) {
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
@@ -216,6 +244,15 @@ struct IBSEBParams
                 amrex::Abort("erf.ibseb.newton_max_iter must be >= 1, newton_tol_K and newton_max_step_K positive");
             }
             if (Q_ext_uniform < 0.0) { amrex::Abort("erf.ibseb.Q_ext_uniform must be >= 0"); }
+            if (obukhov_seed != "ground" && obukhov_seed != "neutral") { amrex::Abort("erf.ibseb.obukhov_seed must be \"ground\" or \"neutral\""); }
+            if (convective_velocity != "none" && convective_velocity != "deardorff") {
+                amrex::Abort("erf.ibseb.convective_velocity must be \"none\" or \"deardorff\"");
+            }
+            if (z_i_mode != "bulk_ri" && z_i_mode != "pblh" && z_i_mode != "fixed") {
+                amrex::Abort("erf.ibseb.z_i_mode must be \"bulk_ri\", \"pblh\" or \"fixed\"");
+            }
+            if (beta_conv <= 0.0 || z_i <= 0.0 || ri_crit <= 0.0) { amrex::Abort("erf.ibseb.beta_conv, z_i and ri_crit must be positive"); }
+            if (obukhov_relax <= 0.0 || obukhov_relax > 1.0) { amrex::Abort("erf.ibseb.obukhov_relax must be in (0, 1]"); }
         }
     }
 };

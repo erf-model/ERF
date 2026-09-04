@@ -1,0 +1,9 @@
+FILE = inputs_base
+
+# The stability functions on the roofs, seeded from the ground, plus the scale.
+erf.ibseb.stability_correction = true
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "fixed"
+erf.ibseb.z_i = 1000.0
+erf.ibseb.csv_file = "ibseb_stability.csv"
+erf.ibseb.dump_faces_file = "faces_stability"

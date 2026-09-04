@@ -1,0 +1,5 @@
+FILE = inputs_base
+
+# The neutral log law: with no wind the roof can hardly convect.
+erf.ibseb.csv_file = "ibseb_neutral.csv"
+erf.ibseb.dump_faces_file = "faces_neutral"

@@ -166,16 +166,32 @@ public:
      * surface layer's stability functions on roofs when asked. The latent
      * flux stays zero in this phase.
      *
-     * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air and d_H_coeff (the
+     * Beyond neutral (phase 8): with ``convective_velocity = deardorff`` the
+     * wind is ``sqrt(U_tan^2 + (beta w*)^2)`` with w* from the previous
+     * step's H (zero when H is into the face) and a depth that is the mixed
+     * layer above a roof or the building height for a wall; with
+     * ``stability_correction`` the roofs iterate the similarity functions on
+     * the face's own Obukhov length, seeded from the ground surface layer's
+     * 2D field at the face's column when given.
+     *
+     * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air, d_H_coeff (the
      * coefficient of the skin-to-air potential-temperature difference that
-     * the balance keeps frozen); T_air was read by compute_longwave(), which
-     * must run first in a step.
+     * the balance keeps frozen), d_w_star, d_olen and d_z_i; T_air was read
+     * by compute_longwave(), which must run first in a step.
      * @param cons  Conserved state of the level (density, rho theta).
      * @param xvel, yvel, zvel  Face-centred velocities of the level.
      * @param c_p   Specific heat of air [J/kg/K].
+     * @param olen_ground  Ground surface layer's Obukhov length (2D field on
+     *                     the level's box array collapsed to k = 0), or null.
+     * @param pblh_ground  Its boundary-layer height field, or null.
+     * @param z_i_bulk     Mixed-layer depth of the level from the bulk
+     *                     Richardson diagnostic or the fixed input [m].
      */
     void compute_sensible (const amrex::MultiFab& cons, const amrex::MultiFab& xvel,
-                           const amrex::MultiFab& yvel, const amrex::MultiFab& zvel, amrex::Real c_p);
+                           const amrex::MultiFab& yvel, const amrex::MultiFab& zvel, amrex::Real c_p,
+                           const amrex::MultiFab* olen_ground = nullptr,
+                           const amrex::MultiFab* pblh_ground = nullptr,
+                           amrex::Real z_i_bulk = 0.0);
 
     /**
      * Add the face heat flux to the temperature equation: every face
@@ -298,6 +314,11 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_U_tan;        ///< Tangential wind speed at the fluid cell [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_ustar;        ///< Friction velocity of the wall function [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_H_coeff;      ///< H = H_coeff (theta_skin - theta_air) [W/m2/K]
+    // Wall function beyond neutral (phase 8):
+    amrex::Gpu::DeviceVector<amrex::Real> d_hbld;         ///< Height of the face's building column [m]
+    amrex::Gpu::DeviceVector<amrex::Real> d_w_star;       ///< Convective velocity scale of the step [m/s]
+    amrex::Gpu::DeviceVector<amrex::Real> d_olen;         ///< Obukhov length used [m] (1e30 when neutral)
+    amrex::Gpu::DeviceVector<amrex::Real> d_z_i;          ///< Depth in w* [m]: mixed layer above a roof, building height for a wall
     // Prognostic balance detail (phase 6):
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
