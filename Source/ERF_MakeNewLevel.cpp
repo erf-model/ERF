@@ -109,7 +109,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
+        //
+        // A level with no land file of its own takes its LSM state from level 0 rather
+        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
+        // just below), so this must be the ratio between level 0 and this level -- the
+        // product across every interface beneath it, not just the ratio across the last
+        // one.
+        //
+        IntVect RefRatio(1);
+        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                  domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
@@ -579,7 +587,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        IntVect RefRatio = (lev>0) ? refRatio(lev-1) : IntVect(1);
+        //
+        // A level with no land file of its own takes its LSM state from level 0 rather
+        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
+        // just below), so this must be the ratio between level 0 and this level -- the
+        // product across every interface beneath it, not just the ratio across the last
+        // one.
+        //
+        IntVect RefRatio(1);
+        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                  domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
@@ -663,11 +679,88 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     std::unique_ptr<MultiFab> temp_zphys_nd;
 
+    //
+    // init_stuff below rebuilds mapfac[lev] on the new grids and resets it to 1, and nothing
+    // downstream of a regrid reads the map factors back out of a file, so hold on to the
+    // pre-regrid arrays here and restore them afterwards.  Without this a level-0 regrid
+    // (which restart() does whenever the checkpoint has fewer grids than ranks) silently
+    // threw away the MAPFAC_M/U/V read from wrfinput_d01.
+    //
+    Vector<std::unique_ptr<MultiFab>> old_mapfac(mapfac[lev].size());
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        old_mapfac[i] = std::move(mapfac[lev][i]);
+    }
+
+    //
+    // The surface pressure and the land mask / land type / soil type are in exactly the
+    // same position: init_stuff rebuilds them on the new grids and leaves a placeholder
+    // (an uninitialized PSFC, a uniform land mask and type 0), only init_from_wrfinput
+    // ever puts the real PSFC / LANDMASK / IVGTYP / ISLTYP there, and a regrid does not
+    // re-read the file.  So retain them here too.
+    //
+    // Retaining the land mask matters off the WRF pathways as well: init_zphys marks the
+    // cells under a building with a land mask of 2, and a regrid goes through
+    // remake_zphys instead, which does not redo that marking.
+    //
+    auto retain = [] (Vector<Vector<std::unique_ptr<iMultiFab>>>& v, int l)
+                  { return (v[l].empty()) ? nullptr : std::move(v[l][0]); };
+
+    std::unique_ptr<MultiFab>  old_psfc      = std::move(mf_PSFC[lev]);
+    std::unique_ptr<iMultiFab> old_lmask     = retain(    lmask_lev,lev);
+    std::unique_ptr<iMultiFab> old_land_type = retain(land_type_lev,lev);
+    std::unique_ptr<iMultiFab> old_soil_type = retain(soil_type_lev,lev);
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
+
+    //
+    // Restore the map factors onto the new grids.  At lev > 0 we interpolate from the parent
+    // first so that cells the new grids added -- which the pre-regrid arrays never covered --
+    // are filled as well, then copy the retained values on top wherever we still have them.
+    // (For a level with no init file of its own the Interp2DArrays call further down repeats
+    // that interpolation, which is what defines its map factors in the first place.)
+    //
+    if (lev > 0) { interp_mapfac_from_coarse(lev); }
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        if (!mapfac[lev][i] || !old_mapfac[i]) { continue; }
+        IntVect ngv = mapfac[lev][i]->nGrowVect(); ngv[2] = 0;
+        mapfac[lev][i]->ParallelCopy(*old_mapfac[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+        mapfac[lev][i]->FillBoundary(geom[lev].periodicity());
+    }
+
+    //
+    // Restore the surface pressure and the land arrays the same way.  Both interpolation
+    // helpers return without doing anything off the wrfinput pathway, since there these
+    // arrays hold what was asked for at this level rather than anything derived from the
+    // parent; the copy below is what carries them across the regrid in that case.
+    //
+    if (lev > 0) {
+        interp_psfc_from_coarse(lev);
+        interp_land_masks_from_coarse(lev);
+    }
+    if (mf_PSFC[lev] && old_psfc) {
+        IntVect ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+        mf_PSFC[lev]->ParallelCopy(*old_psfc, 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+        mf_PSFC[lev]->FillBoundary(geom[lev].periodicity());
+    }
+    {
+        auto entry = [] (Vector<Vector<std::unique_ptr<iMultiFab>>>& v, int l) -> iMultiFab*
+                     { return (v[l].empty()) ? nullptr : v[l][0].get(); };
+
+        Vector<iMultiFab*> new_land = {entry(    lmask_lev,lev),
+                                       entry(land_type_lev,lev),
+                                       entry(soil_type_lev,lev)};
+        Vector<iMultiFab*> old_land = {old_lmask.get(), old_land_type.get(), old_soil_type.get()};
+        for (int i = 0; i < new_land.size(); i++) {
+            if (!new_land[i] || !old_land[i]) { continue; }
+            IntVect ngv = new_land[i]->nGrowVect(); ngv[2] = 0;
+            new_land[i]->ParallelCopy(*old_land[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+            new_land[i]->FillBoundary(geom[lev].periodicity());
+        }
+    }
 
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
