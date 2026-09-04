@@ -203,8 +203,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             init_only(lev, time);
         }
     } else {
-        // if restarting and nudging from input sounding, load the input sounding files
-        if (lev == 0 && solverChoice.init_type == InitType::Input_Sounding && solverChoice.nudging_from_input_sounding)
+        // If restarting from an input-sounding run, load the sounding again. It is
+        // needed for nudging, and InitData_post also takes the surface temperature
+        // and moisture of the surface layer from its reference values; without this
+        // read those are zero on a restart, the surface layer sees a 0 K surface,
+        // and the restarted run drifts from the uninterrupted one.
+        if (lev == 0 && solverChoice.init_type == InitType::Input_Sounding)
         {
             if (input_sounding_data.input_sounding_file.empty()) {
                 Error("input_sounding file name must be provided via input");
