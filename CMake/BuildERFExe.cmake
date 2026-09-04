@@ -531,6 +531,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBFaceSet.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEB.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
@@ -628,6 +630,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LinearSolvers>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PBL>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/SourceTerms>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/ImmersedBoundarySEB>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)

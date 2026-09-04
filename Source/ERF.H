@@ -56,6 +56,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -693,6 +694,11 @@ public:
 
     void init_immersed_forcing (int lev);
 
+    // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
+    void init_ibseb ();
+    void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
+    void ibseb_report (int nstep, amrex::Real time);
+
     void input_sponge (int lev);
 
     void init_from_hse (int lev);
@@ -1261,6 +1267,10 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
+    // Immersed-boundary surface energy balance: inputs and one face set per level
+    IBSEBParams ibseb_params;
+    amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
+
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
@@ -1486,6 +1496,7 @@ private:
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
+                                                    "ibseb_nfaces", "ibseb_tskin",
                                                     // EB variables
                                                     "volfrac"
 #ifdef ERF_COMPUTE_ERROR

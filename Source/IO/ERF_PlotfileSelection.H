@@ -143,7 +143,7 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
         "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond", "wqls_sec", "wthv_sec",
         "w_sec", "thl_sec", "qw_sec", "qwthl_sec", "wthl_sec", "wqw_sec", "w3",
         "brunt", "isotropy", "shear_prod", "buoy_prod", "diss_tke",
-        "terrain_IB_mask", "volfrac"
+        "terrain_IB_mask", "volfrac", "ibseb_nfaces", "ibseb_tskin"
     };
 
     for (const char* candidate : names) {

@@ -2852,6 +2852,40 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
+.. _sec:IBSEBInputs:
+
+Surface energy balance on immersed-boundary faces
+-------------------------------------------------
+
+These inputs configure the surface energy balance on the faces of resolved
+buildings; see :ref:`sec:IBSEB` for the formulation. They need
+``erf.buildings_type = ImmersedForcing`` (or ``erf.terrain_type =
+ImmersedForcing``) and are off by default.
+
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| Parameter                         | Definition                                               | Acceptable         | Default                |
+|                                   |                                                          | Values             |                        |
++===================================+==========================================================+====================+========================+
+| **erf.ibseb.enable**              | build the face set of the resolved buildings and run     | Boolean            | false                  |
+|                                   | the balance on it                                        |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.n_slab_layers**       | conduction layers per face                               | Integer >= 1       | 4                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_init**         | initial skin temperature of every face [K]               | Real > 0           | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_interior**          | interior (deep) temperature of the slabs [K]             | Real > 0           | 293.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.csv_file**            | per-building report file                                 | String             | "ibseb_buildings.csv"  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.debug**               | extra prints                                             | Boolean            | false                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+
+The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
+cell) and ``ibseb_tskin`` (their mean skin temperature) are available when
+the balance is on.
+
 .. _sec:SurfaceLayerInputs:
 
 Surface Layer (MOST)

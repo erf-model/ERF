@@ -56,7 +56,7 @@ sun vector. Two providers:
 
 - Opt-in: `erf.ibseb.enable = false` by default; nothing allocated and no
   result changes without it.
-- Every phase ends with a regtest under `Exec/RegTests/IBSEB_<phase>` that
+- Every phase ends with a regtest under `Exec/CanonicalTests/SEB/<phase>` that
   runs on one and four ranks and gives identical numbers, plus a README with
   the reference values, and a section in this file.
 - Signs follow the SLUCM / WRF convention: positive H, LE, G leave the
@@ -94,7 +94,7 @@ sun vector. Two providers:
   material_file` (CSV in the SLUCM schema), `erf.ibseb.material_default`,
   `erf.ibseb.T_interior` (fixed interior temperature), `erf.ibseb.T_skin_init`,
   `erf.ibseb.csv_file`, `erf.ibseb.csv_int`, `erf.ibseb.plot_faces`.
-- Regtest `IBSEB_Storage`: the ImmersedForcingTest skyscraper on 1 and 4
+- Regtest `SEB/Storage`: the ImmersedForcingTest skyscraper on 1 and 4
   ranks; face counts per direction and per building, sum of face areas
   against the analytic box area, a plotfile with the scattered skin
   temperature, and a checkpoint / restart round trip that reproduces the
@@ -112,7 +112,7 @@ sun vector. Two providers:
   hemisphere sampling; in Phase 2 they are placeholders (1 for roofs, 0.5
   for walls) and the regtest is on the direct beam.
 - Absorbed = (1 - albedo_mat) x incident.
-- Regtest `IBSEB_Shortwave`: one 20 m cube at a prescribed sun; sunlit and
+- Regtest `SEB/Shortwave`: one 20 m cube at a prescribed sun; sunlit and
   shaded faces against the analytic incidence angles, the shadow length on
   the ground behind the cube against H / tan(elevation), and a closure
   check that the absorbed sum never exceeds the incident sum.
@@ -131,7 +131,7 @@ sun vector. Two providers:
 - No face-to-face view factors and no radiosity in this plan; the
   fractions are stored so a radiosity pass can be added later without
   touching the balance.
-- Regtest `IBSEB_Longwave`: closure of the three fractions to one on every
+- Regtest `SEB/Longwave`: closure of the three fractions to one on every
   face; a night case with fixed skin temperatures where the face-mean
   longwave loss matches the analytic value for an isolated cube.
 
@@ -151,7 +151,7 @@ sun vector. Two providers:
 - Latent: `LE = 0` with the argument in place; a wet-surface option
   (`erf.ibseb.wet_fraction` per material, bulk evaporation) is a later
   addition and needs the moisture source slot.
-- Regtest `IBSEB_Sensible`: a cube with a prescribed hot skin in a neutral
+- Regtest `SEB/Sensible`: a cube with a prescribed hot skin in a neutral
   channel; face fluxes against the MOST formula evaluated offline from the
   plotfile wind, and the domain heat budget (sum of H x area over faces
   equals the rate of change of integrated rho cp theta) to a few percent.
@@ -166,7 +166,7 @@ sun vector. Two providers:
 - Interior temperature fixed per run in this plan; a lumped interior
   budget per building (sum of inward conduction over its faces) is the
   follow-up that the building ids make possible.
-- Regtest `IBSEB_Ground`: a step change in skin temperature on a thick slab
+- Regtest `SEB/Ground`: a step change in skin temperature on a thick slab
   against the semi-infinite erfc solution; a thin slab against the lumped
   exponential.
 
@@ -185,7 +185,7 @@ sun vector. Two providers:
   `T_skin` and the slab.
 - Optionally the two-stream provider, on a local merge of `ERF-Radiation`,
   behind the interface.
-- Regtest `IBSEB_Prognostic`: 24 h on one cube with the prescribed diurnal
+- Regtest `SEB/Prognostic`: 24 h on one cube with the prescribed diurnal
   cycle; the balance residual on every face below a tolerance
   every step, the energy budget closed (radiation in = stored + convected +
   conducted), restart reproduces the straight run, and a comparison of the
@@ -194,7 +194,7 @@ sun vector. Two providers:
 
 ## Canonical: isolated building (Phase 7)
 
-`Exec/CanonicalTests/IBSEB/IsolatedBuilding`: a 20 m cube on a 5 m grid,
+`Exec/CanonicalTests/SEB/IsolatedBuilding`: a 20 m cube on a 5 m grid,
 neutral sounding, MOST ground, prescribed clear-sky radiation (two-stream
 where available), 24 h from sunrise.
 Documented: the sunlit / shaded wall temperature contrast through the day
@@ -205,7 +205,7 @@ qualitative sequence and the closure.
 
 ## Canonical: building set (Phase 8)
 
-`Exec/CanonicalTests/IBSEB/BuildingSet`: the three-box street from the
+`Exec/CanonicalTests/SEB/BuildingSet`: the three-box street from the
 WUI obstacle decks and the skyscraper block from the immersed-forcing
 tests. Exercises mutual shadowing, the building fraction of the view
 fractions, several materials, and the per-building CSV. Documented with
@@ -226,11 +226,11 @@ the cost of the face list on a city-scale case can be estimated.
 
 | phase | status | regtest | notes |
 | --- | --- | --- | --- |
-| 1 storage | planned | `IBSEB_Storage` | |
-| 2 shortwave | planned | `IBSEB_Shortwave` | prescribed provider, ray-cast shadow |
-| 3 longwave | planned | `IBSEB_Longwave` | |
-| 4 sensible, latent | planned | `IBSEB_Sensible` | generalises the immersed-forcing wall model |
-| 5 ground | planned | `IBSEB_Ground` | lifts the SLUCM slab solver and materials |
-| 6 prognostic | planned | `IBSEB_Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |
+| 1 storage | done 2026-09-03 | `SEB/Storage` | 2056 faces on the skyscraper, rank-independent, restart round trip |
+| 2 shortwave | planned | `SEB/Shortwave` | prescribed provider, ray-cast shadow |
+| 3 longwave | planned | `SEB/Longwave` | |
+| 4 sensible, latent | planned | `SEB/Sensible` | generalises the immersed-forcing wall model |
+| 5 ground | planned | `SEB/Ground` | lifts the SLUCM slab solver and materials |
+| 6 prognostic | planned | `SEB/Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |
 | 7 isolated building | planned | canonical | |
 | 8 building set | planned | canonical | |

@@ -112,6 +112,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
+            ok_to_add     &= ( ibseb_params.enable ||
+                               (derived_names[i] != "ibseb_nfaces" && derived_names[i] != "ibseb_tskin") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "detJ") );
@@ -1535,6 +1537,28 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             MultiFab* terrain_blank = terrain_blanking[lev].get();
             MultiFab::Copy(mf[lev],*terrain_blank,0,mf_comp,1,0);
             mf_comp ++;
+        }
+
+        // Immersed-boundary surface energy balance: faces per cell and their mean skin temperature
+        if (containerHasElement(plot_var_names, "ibseb_nfaces") ||
+            containerHasElement(plot_var_names, "ibseb_tskin"))
+        {
+            MultiFab nfaces(grids[lev], dmap[lev], 1, 0);
+            MultiFab tskin (grids[lev], dmap[lev], 1, 0);
+            if (ibseb_params.enable && lev < static_cast<int>(m_ibseb.size()) && m_ibseb[lev]) {
+                m_ibseb[lev]->scatter_diagnostics(nfaces, tskin);
+            } else {
+                nfaces.setVal(0.0);
+                tskin.setVal(0.0);
+            }
+            if (containerHasElement(plot_var_names, "ibseb_nfaces")) {
+                MultiFab::Copy(mf[lev], nfaces, 0, mf_comp, 1, 0);
+                mf_comp++;
+            }
+            if (containerHasElement(plot_var_names, "ibseb_tskin")) {
+                MultiFab::Copy(mf[lev], tskin, 0, mf_comp, 1, 0);
+                mf_comp++;
+            }
         }
 
         if (containerHasElement(plot_var_names, "volfrac")) {
