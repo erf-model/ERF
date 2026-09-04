@@ -35,10 +35,14 @@ Building ids come from labelling the solid columns of the blanking, four
 connected in the horizontal and numbered in scan order; a face carries the
 id of its solid neighbour's column. The per-building report,
 :cpp:`erf.ibseb.csv_file`, lists every :cpp:`erf.ibseb.csv_int` steps the
-number of faces, the area and the area-weighted mean skin temperature of
-each building, and a ``[IBSEB]`` line prints the face counts per
-direction, the number of buildings, the total area and the skin
-temperature range.
+number of faces, the area, the area-weighted mean skin temperature with
+its range, the mean fluxes, the largest balance residual and the sun of
+the step for each building, and a ``[IBSEB]`` line prints the face counts
+per direction, the number of buildings, the total area, the skin
+temperature range and the mean fluxes. With
+:cpp:`erf.ibseb.dump_faces_file` every face is written at the same
+interval (one file per rank; :cpp:`erf.ibseb.dump_faces_tag_step` keeps
+every dump), which is what the regtests and the canonical cases read.
 
 For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
 and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
@@ -241,6 +245,23 @@ driven by the dumped forcing, which reproduces the skin temperature of
 every face to 1e-9 K. It also exercises the external flux with the bound
 raised, a checkpoint restart, and the sun rising over the cube at Boulder
 on the solstice, where the east wall warms before the roof.
+
+Canonical case: an isolated building over a day
+------------------------------------------------
+
+``Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`` runs a 40 m concrete
+cube at Boulder on the June solstice from midnight for 24 hours in a light
+westerly, with the prescribed clear-sky provider and a gray sky. The
+sequence through the day is the one a building shows: radiative cooling of
+every face below the air at night, the east wall lit first after sunrise,
+the roof peaking early in the afternoon and lagging the sun, the west wall
+peaking towards evening, and a south-north contrast at midday. The
+checker asserts that sequence, the balance residual over the day, the
+absorbed shortwave on the roof against the clear-sky formulas integrated
+independently over the day, and the slab energy against the integrated
+conduction; the plot script draws the skin temperature by orientation,
+the roof budget, the sun path, the slab profile through the day and
+slices from the plotfiles.
 
 ``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent

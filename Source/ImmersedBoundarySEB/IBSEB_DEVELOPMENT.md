@@ -222,7 +222,7 @@ sun vector. Two providers:
 `Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`: a 40 m cube as an exact
 box (`eb2.geometry = box`, faces on cell faces, so 80 plane faces and no
 partial cells) on the phase 6 grid (10 m, 320 m periodic domain so a day
-runs in about 100 minutes on four ranks), 30 cm of concrete in ten layers, a MOST ground, a 3 m/s
+runs in about two hours on four ranks), 30 cm of concrete in ten layers, a MOST ground, a 3 m/s
 westerly, neutral at 300 K; Boulder on the June solstice from midnight
 solar time for 24 h with the prescribed clear-sky provider and a gray sky.
 The per-building CSV gains the sun (zenith, azimuth, DNI, diffuse) so the
@@ -261,6 +261,55 @@ the cost of the face list on a city-scale case can be estimated.
 - ERF-Hazard: merge development, then the fire's radiant flux into
   `Q_ext`, the exposure metrics from the skin temperature, ignition, and
   the drop of the atmospheric injection to the convective fraction.
+- Next PR (Harish, 2026-09-04): both items below go in together, each
+  behind its own ParmParse switch and off by default, so the balance's
+  present results are reproduced unless a deck asks for them; the day
+  canonical gets a variant deck with both on.
+- Next PR, first item: stability in the wall
+  function. The isolated-building day shows a 340 K roof shedding only
+  about 10 W/m2 of sensible heat because the balance's wall function is
+  neutral with a fixed roughness and the roof wind is light in the
+  separation zone. Plan: (a) make `erf.ibseb.stability_correction` cover
+  the roofs by default and verify the surface layer's similarity functions
+  against the ground MOST on a flat roof; (b) vertical walls need a
+  different treatment since Monin-Obukhov buoyancy corrections assume a
+  horizontal surface: a free-convection velocity scale added to the
+  tangential wind (Beljaars form), or the fixed convective coefficients of
+  the urban canopy models (Rowley), selectable per face orientation;
+  the Obukhov length stays per face, from the face's own H and u* (a
+  roof in a separation zone or a sunlit wall can be in the opposite regime
+  from the ground under it), seeded from the surface layer's 2D Obukhov
+  field at the face's column rather than from neutral, with an option to
+  take the ground value directly for roofs within one cell of the ground
+  (Harish, 2026-09-04); (c) a regtest with a hot roof in calm air where
+  the neutral function gives nearly zero flux and the corrected one gives
+  the free-convection value; (d) revisit the immersed forcing's own `erf.if_stability_correction`
+  for consistency of the momentum wall model.
+- Next PR, second item (Harish, 2026-09-04): a convective velocity scale
+  at low wind, so u* does not collapse when the wind dies. Beljaars'
+  gustiness form `U_eff^2 = U_tan^2 + (beta w*)^2`, beta ~ 1.2, with the
+  Deardorff scale `w* = (g/theta H/(rho c_p) z_i)^(1/3)`: z_i the mixed-layer
+  depth for roofs, the building height for walls. z_i must follow the
+  diurnal cycle (100-300 m stable, 1-2 km convective), so no constant:
+  `erf.ibseb.z_i_mode = pblh | bulk_ri | fixed`. `pblh` reads ERF's own
+  boundary-layer height (the `pblh` field the surface layer and the PBL
+  schemes maintain; the MRF/YSU schemes diagnose it by the bulk Richardson
+  method). `bulk_ri` is for LES decks without a PBL scheme: the same
+  Troen-Mahrt / Vogelezang-Holtslag diagnostic on the horizontally
+  averaged theta_v and wind profile once per step, first level where
+  `Ri_b = g z (theta_v(z) - theta_v(0)) / (theta_v(0) U^2)` exceeds 0.25
+  (0.5 in the MRF convention), with the convective excess temperature on
+  the surface value when the surface flux is upward, capped at the domain
+  top and floored at the building height; `fixed` keeps `erf.ibseb.z_i`
+  for tests. w* goes as z_i^(1/3), so a 30 % error in the depth is a 10 %
+  error in the scale; the stable-side depth never enters because w* is
+  zero when the flux is downward (the column top the ray
+  cast already stores); w* from the previous step's H (lagged, zero when H
+  is downward) since the Newton solve freezes the exchange coefficient, with
+  two fixed-point passes if the lag shows; switch
+  `erf.ibseb.convective_velocity = none | deardorff`. Regtest: the hot-roof
+  calm-air case, with H following the free-convection `dT^(4/3)` as the
+  wind goes to zero. Off by default (`none`).
 - Later options, none needed for the PR: face-to-face radiosity, lumped
   interior budget, wet surfaces, terrain faces under the same balance.
 
@@ -268,8 +317,10 @@ the cost of the face list on a city-scale case can be estimated.
 
 - The immersed-forcing atmosphere of `development` does not restart bit-for-bit
   (Phase5_Ground, thin deck: the wind at the faces differs by about 1e-4 after
-  a checkpoint restart; the slab itself restarts exactly). To be reported
-  separately once isolated.
+  a checkpoint restart; the slab itself restarts exactly). Still present
+  after the surface-layer restart fix of erf-model #3956 (phase 6 chk /
+  restart pair on 2026-09-04: U_tan 2e-5 relative, H 1e-3 W/m2). To be
+  reported separately once isolated.
 - Phase 6 caught a sign error of phase 2: `solar_azimuth` had the sine
   term with the wrong sign, mirroring the sun east-west (morning sun in the
   north-west). The noon check of phase 2 could not see it (azimuth 181
@@ -313,5 +364,5 @@ the cost of the face list on a city-scale case can be estimated.
 | 4 sensible, latent | done 2026-09-03 | `SEB/Phase4_Sensible` | wall function per face, explicit face flux into the rho-theta source; internal-energy budget closes against the diagnostic run |
 | 5 ground | done 2026-09-03 | `SEB/Phase5_Ground` | slab per face (SLUCM solver with a skin-temperature top), materials by building; erfc and steady checks exact |
 | 6 prognostic | done 2026-09-04 | `SEB/Phase6_Prognostic` | Newton balance consistent with the implicit slab, `Q_ext` hook, clamps as inputs; closure and an independent re-integration to 1e-9 K |
-| 7 isolated building | in progress 2026-09-04 | `SEB/Phase7_IsolatedBuilding` | 24 h at Boulder on the solstice; sequence, residual, roof shortwave and slab energy checks |
+| 7 isolated building | done 2026-09-04 | `SEB/Phase7_IsolatedBuilding` | 24 h at Boulder on the solstice on an exact box: roof to 340 K at 13:55, residual 4e-8, roof shortwave and slab energy integrals to 0.01 %, sequence of the day asserted |
 | 8 building set | planned | canonical | |

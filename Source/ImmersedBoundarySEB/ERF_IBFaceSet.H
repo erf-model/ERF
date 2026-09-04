@@ -252,8 +252,10 @@ public:
      *
      * The summary carries the global face counts per direction, the number of
      * buildings, the total face area and the range of the skin temperature;
-     * the CSV rows carry per building the face count, the area and the
-     * area-weighted mean skin temperature. All numbers are reduced over the
+     * the CSV rows carry per building the face count, the area, the
+     * area-weighted mean fluxes and skin temperature with its range, the
+     * largest balance residual, and the sun of the step (zenith, azimuth,
+     * direct-normal and diffuse irradiance). All numbers are reduced over the
      * ranks; the file is written by the I/O rank only, with a header only
      * when the file does not exist yet, so a restarted run appends.
      *

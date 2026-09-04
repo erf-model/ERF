@@ -1051,7 +1051,8 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     std::ofstream csv(m_params.csv_file, std::ios::app);
     if (need_header) {
         csv << "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
-               "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2\n";
+               "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
+               "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2\n";
     }
     for (int b = 1; b <= m_nbld; ++b) {
         const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
@@ -1063,6 +1064,7 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
         const Real Qm    = (m_bld_area[b] > 0.0) ? bQ[b]   / m_bld_area[b] : Real(0.0);
         csv << std::setprecision(10) << time << "," << step << "," << m_lev << "," << b << ","
             << m_bld_nface[b] << "," << m_bld_area[b] << "," << tmean << "," << swm << "," << shf << "," << lwm << "," << Hm << ","
-            << Gm << "," << Qm << "," << btmin[b] << "," << btmax[b] << "," << bres[b] << "\n";
+            << Gm << "," << Qm << "," << btmin[b] << "," << btmax[b] << "," << bres[b] << ","
+            << m_sun.zenith * 180.0 / M_PI << "," << m_sun.azimuth * 180.0 / M_PI << "," << m_sun.dni << "," << m_sun.diffuse_h << "\n";
     }
 }
