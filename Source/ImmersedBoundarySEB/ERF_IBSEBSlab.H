@@ -83,6 +83,36 @@ amrex::Real advance_slab_dirichlet (amrex::Real* T, amrex::Real T_skin, amrex::R
     return 2.0 * k * (T_skin - T[0]) / dz;
 }
 
+/**
+ * Linear response of the implicit slab step to the skin temperature.
+ *
+ * The step of advance_slab_dirichlet() is linear in ``T_skin``, so the
+ * conduction it returns is ``G = a T_skin - b`` for the slab's current state,
+ * interior temperature and time step. The two coefficients come from two
+ * trial steps on copies of the column (``T_skin = 0`` and ``T_skin = 1``), the
+ * same arithmetic as the real step, so a balance solved with this response
+ * and then advanced with the resulting skin temperature closes to rounding.
+ * The column itself is not modified.
+ *
+ * @param[in]  T       Layer temperatures [K] at the start of the step.
+ * @param[out] a       Slope of G with respect to T_skin [W/m2/K], positive.
+ * @param[out] b       Offset: G at T_skin = 0 is -b [W/m2].
+ * Other arguments as in advance_slab_dirichlet().
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void slab_skin_response (const amrex::Real* T, amrex::Real T_int,
+                         amrex::Real k, amrex::Real rho_cp, amrex::Real dz,
+                         amrex::Real dt, int N, amrex::Real& a, amrex::Real& b)
+{
+    amrex::Real W[SLAB_MAX_LAYERS];
+    for (int l = 0; l < N; ++l) { W[l] = T[l]; }
+    const amrex::Real G0 = advance_slab_dirichlet(W, 0.0, T_int, k, rho_cp, dz, dt, N);
+    for (int l = 0; l < N; ++l) { W[l] = T[l]; }
+    const amrex::Real G1 = advance_slab_dirichlet(W, 1.0, T_int, k, rho_cp, dz, dt, N);
+    a = G1 - G0;
+    b = -G0;
+}
+
 } // namespace ibseb
 
 #endif

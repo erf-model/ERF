@@ -171,25 +171,51 @@ sun vector. Two providers:
 
 ## Prognostic balance (Phase 6)
 
-- Per face and per step: gather SW_abs, LW_in, wind and air temperature at
-  the fluid cell, T1 of the slab; Newton on T_skin with the SLUCM solver
-  extended by `Q_ext` (an external incident flux, absorbed with the face's
-  absorptivity, zero here; the fire's radiant flux later enters through
-  it); advance the slab with the resulting G; store the fluxes.
-- Longwave emission linearised inside Newton as it already is; the
-  20 K step clamp and the 260-380 K bounds stay, with the bounds as
-  inputs since fire exposure will exceed 380 K.
-- Diagnostics: per-building CSV, `[IBSEB]` summary line (faces, min / max
-  skin temperature, largest residual), plotfile faces, checkpoint of
-  `T_skin` and the slab.
-- Optionally the two-stream provider, on a local merge of `ERF-Radiation`,
-  behind the interface.
-- Regtest `SEB/Phase6_Prognostic`: 24 h on one cube with the prescribed diurnal
-  cycle; the balance residual on every face below a tolerance
-  every step, the energy budget closed (radiation in = stored + convected +
-  conducted), restart reproduces the straight run, and a comparison of the
-  roof against the ground surface layer's own temperature, which sees the
-  same sky.
+- Per face and per step, after the three flux routines: the implicit slab's
+  linear response `G = a T_s - b` to the skin temperature (two trial slab
+  steps, ERF_IBSEBSlab.H `slab_skin_response`), then Newton on
+  `SW_abs + eps Q_ext + eps [LW_ext - (1 - f_b) sigma T_s^4] - C_H (T_s/Pi -
+  theta_a) - LE - (a T_s - b) = 0` (ERF_IBSEBBalance.H, lifted from the
+  SLUCM `solve_facet_seb`), then the slab advanced with the solution and
+  LW_in, LW_net, H, G rewritten at it. The skin is massless; the slab's
+  first layer carries the storage, as in the SLUCM.
+- Why the response and not the lagged `2k (T_s - T_0^n)/dz`: with the lag
+  the flux the balance closes with and the flux the slab absorbs differ by
+  one step, and the closure check would show it. With the response they
+  agree to rounding and the slab energy changes by exactly
+  `dt (G - G_bottom)`.
+- `Q_ext` is an *incident* flux absorbed with the longwave emissivity
+  (Kirchhoff; fire radiation is thermal). `erf.ibseb.Q_ext_uniform` sets it
+  on every face for tests; the fire coupling will write `d_Q_ext` directly
+  before `solve_balance`.
+- The wall function's coefficient `C_H` is frozen at the wind of the step
+  (with the stability functions, at the previous skin temperature). The
+  wall term of the incoming longwave folds into the emission as `(1 - f_b)`.
+- Clamps: `T_skin_min` / `T_skin_max` (260 / 380 K) and `newton_max_step_K`
+  (20 K) as inputs; a face at a bound keeps a non-zero residual, stored per
+  face (`d_resid`, `d_niter`), in the summary (`resid_max`), the CSV and
+  the dump.
+- `erf.ibseb.prognostic = false` keeps the fixed skin of phases 2-5; their
+  decks set it.
+- Diagnostics: `[IBSEB]` line gains `Q_ext_mean` and `resid_max`; the CSV
+  gains `G_mean_Wm2, Q_ext_mean_Wm2, T_skin_min_K, T_skin_max_K,
+  resid_max_Wm2`; the dump gains `H_coeff, Q_ext, LE, LW_ext, resid, n_iter`
+  and every slab layer; `erf.ibseb.dump_faces_tag_step` keeps one dump per
+  step. The checkpoint is unchanged (skin and slab).
+- Regtest `SEB/Phase6_Prognostic`: a 40 m cube on a 320 m, 10 m grid; the
+  closure deck (fixed sun, 200 steps, every step dumped): residual < 1e-3
+  W/m2 on every face, stored H / LW_net / G consistent with T_skin to 1e-6,
+  slab energy per step exact to the dump precision, closure over the run
+  within the summed residual, and an independent Python model (own Newton,
+  dense implicit slab) driven by the dumped forcing reproducing T_skin to
+  1e-9 K; the external-flux deck (3000 W/m2, bound raised to 700 K, the
+  faces past 380 K, same closure checks); checkpoint restart; and the
+  sunrise deck (solar mode, Boulder, solstice, 90 min at 1 s) where the
+  east wall warms before the roof and the west wall.
+- Not done here: the two-stream provider (waits on ERF-Radiation merging;
+  the interface is in place), the roof-versus-ground comparison (the
+  development branch's land-surface models have no radiation to see the
+  same sky with), and a full diurnal cycle, which is the Phase 7 canonical.
 
 ## Canonical: isolated building (Phase 7)
 
@@ -227,6 +253,16 @@ the cost of the face list on a city-scale case can be estimated.
   (Phase5_Ground, thin deck: the wind at the faces differs by about 1e-4 after
   a checkpoint restart; the slab itself restarts exactly). To be reported
   separately once isolated.
+- Phase 6 caught a sign error of phase 2: `solar_azimuth` had the sine
+  term with the wrong sign, mirroring the sun east-west (morning sun in the
+  north-west). The noon check of phase 2 could not see it (azimuth 181
+  instead of 179); the sunrise deck's "east wall warms first" did. Fixed in
+  phase 6; the phase 2 check now expects the azimuth just under 180 at
+  12:00 MST.
+- `erf.fixed_dt = 1.0` on the 10 m, 3 m/s sunrise deck trips the invalid
+  floating-point trap in the dycore at step 2 (with the balance converged
+  and the skin at 299.5-299.8 K); 0.5 s runs fine. Not investigated; the
+  deck uses 0.5 s.
 
 ## Phase log
 
@@ -237,6 +273,6 @@ the cost of the face list on a city-scale case can be estimated.
 | 3 longwave | done 2026-09-03 | `SEB/Phase3_Longwave` | hemisphere sampling, sky/ground/building terms; fractions match an independent sampling on every face |
 | 4 sensible, latent | done 2026-09-03 | `SEB/Phase4_Sensible` | wall function per face, explicit face flux into the rho-theta source; internal-energy budget closes against the diagnostic run |
 | 5 ground | done 2026-09-03 | `SEB/Phase5_Ground` | slab per face (SLUCM solver with a skin-temperature top), materials by building; erfc and steady checks exact |
-| 6 prognostic | planned | `SEB/Phase6_Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |
+| 6 prognostic | done 2026-09-04 | `SEB/Phase6_Prognostic` | Newton balance consistent with the implicit slab, `Q_ext` hook, clamps as inputs; closure and an independent re-integration to 1e-9 K |
 | 7 isolated building | planned | canonical | |
 | 8 building set | planned | canonical | |

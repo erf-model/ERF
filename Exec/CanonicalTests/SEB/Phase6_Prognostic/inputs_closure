@@ -1,0 +1,11 @@
+FILE = inputs_base
+
+# 200 steps (100 s) under the fixed sun with every step dumped: the residual
+# on every face, the consistency of every stored term with the skin
+# temperature, the slab energy per step, the closure over the run, and the
+# independent re-integration of the balance from the dumped forcing.
+erf.ibseb.csv_file = "ibseb_closure.csv"
+erf.ibseb.dump_faces_file = "faces_closure"
+erf.ibseb.dump_faces_tag_step = true
+erf.plot_int_1 = 100
+max_step = 200

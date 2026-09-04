@@ -104,7 +104,7 @@ def check_restart(a_prefix, b_prefix):
         a = np.vstack([np.loadtxt(f, delimiter=",", skiprows=1) for f in fns])
         return hdr, a[np.lexsort((a[:, 4], a[:, 3], a[:, 2], a[:, 1], a[:, 0]))]
     hdr, a = load_sorted(a_prefix); _, b = load_sorted(b_prefix)
-    atm = {"T_air", "theta_air", "rho", "U_tan", "ustar", "H", "LW_in", "LW_net"}
+    atm = {"T_air", "theta_air", "rho", "U_tan", "ustar", "H", "LW_in", "LW_net", "H_coeff", "LW_ext"}
     ok = a.shape == b.shape
     worst_exact, worst_atm = 0.0, 0.0
     for n, name in enumerate(hdr):

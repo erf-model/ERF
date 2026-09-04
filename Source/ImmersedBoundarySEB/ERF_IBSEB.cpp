@@ -72,8 +72,14 @@ ERF::init_ibseb ()
 /**
  * Per-step update of one level, called at the start of ERF::Advance() with
  * the state at the start of the step: shortwave, longwave and the wall
- * function on the faces. The sensible flux computed here is what
- * add_heat_flux_to_source() deposits at every slow stage of the step.
+ * function on the faces, then either the prognostic balance (which finds
+ * the skin temperature at the end of the step and advances the slab with
+ * it) or, with ``erf.ibseb.prognostic = false``, the slab alone under the
+ * fixed skin. The sensible flux left in the set is what
+ * add_heat_flux_to_source() deposits at every slow stage of the step, so
+ * the air receives exactly the H of the closed balance. The atmosphere is
+ * seen at the start of the step and the skin is implicit within it, the
+ * usual coupling of a land-surface model.
  */
 void
 ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
@@ -83,7 +89,11 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     m_ibseb[lev]->compute_shortwave(time);
     m_ibseb[lev]->compute_longwave(cons);
     m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p);
-    m_ibseb[lev]->compute_ground(dt);
+    if (ibseb_params.prognostic) {
+        m_ibseb[lev]->solve_balance(dt);
+    } else {
+        m_ibseb[lev]->compute_ground(dt);
+    }
 }
 
 /**

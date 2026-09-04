@@ -183,6 +183,65 @@ against the semi-infinite erfc solution, a thin light slab against the
 steady linear profile, the materials per building, and the slab through a
 checkpoint restart.
 
+The prognostic balance
+----------------------
+
+With :cpp:`erf.ibseb.prognostic` (the default once the balance is on) the
+skin of every face is massless and its temperature at the end of each
+atmospheric step closes the balance
+
+.. math::
+
+   SW_{abs} + \epsilon\,Q_{ext} + \epsilon\,\big[LW_{ext} - (1 - f_b)\,\sigma T_s^4\big]
+   - C_H\,(T_s/\Pi - \theta_a) - LE - G(T_s) = 0 ,
+
+the form of the SLUCM branch's facet solver with three changes. The
+external incident flux :math:`Q_{ext}` is the hook through which a fire's
+radiation will enter; it is absorbed with the longwave emissivity since
+such sources are thermal, and :cpp:`erf.ibseb.Q_ext_uniform` sets it on
+every face for tests. The wall term of the incoming longwave,
+:math:`f_b \sigma T_s^4` under the isothermal-surroundings approximation,
+depends on the unknown and folds into the emission as the factor
+:math:`(1 - f_b)`. And the conduction is not the lagged
+:math:`2k(T_s - T_0^n)/\Delta z` but the flux the implicit slab step will
+actually take, :math:`G = a T_s - b`, whose two coefficients come from two
+trial slab steps (the step is linear in :math:`T_s`); the balance and the
+slab therefore agree to rounding instead of by one step's lag, and the
+slab energy changes by exactly :math:`\Delta t\,(G - G_{bottom})`.
+
+The sensible coefficient :math:`C_H = \rho c_p \kappa u_* / \ln(\delta/z_{0h})`
+is frozen at the wind of the step, with the Exner function :math:`\Pi` of
+the fluid cell turning the skin temperature into a potential temperature;
+the latent flux is held at its stored value (zero so far). Newton's method
+with the analytic Jacobian, every term of which is negative, converges in
+two or three iterations from the previous step's temperature; a step cap
+(:cpp:`erf.ibseb.newton_max_step_K`) and the bounds
+:cpp:`erf.ibseb.T_skin_min` / :cpp:`erf.ibseb.T_skin_max` guard it. The
+bounds are inputs because a face under a fire legitimately exceeds the
+380 K of the urban canopy model; a face held at a bound leaves a non-zero
+residual, which every face stores and the summary reports as
+``resid_max``. After the solve the slab is advanced with the new skin
+temperature and the longwave, sensible and conduction fluxes are rewritten
+at it, so the heat the air receives during the step, the dumps and the
+reports all describe the same closed balance. The atmosphere is seen at
+the start of the step and the skin is implicit within it, the coupling of
+a land-surface model.
+
+Setting :cpp:`erf.ibseb.prognostic = false` keeps the skin at its initial
+or restart value and diagnoses the terms around it, which is how the
+regtests of the earlier phases check each term on its own.
+
+``Exec/CanonicalTests/SEB/Phase6_Prognostic`` runs a cube under a fixed sun
+with every step dumped and checks the residual on every face, the
+consistency of every stored flux with the skin temperature, the slab
+energy per step, the closure over the run (radiation in equals heat
+convected, stored and conducted out to within the summed residual), and
+an independent Python model with its own Newton and a dense slab solve
+driven by the dumped forcing, which reproduces the skin temperature of
+every face to 1e-9 K. It also exercises the external flux with the bound
+raised, a checkpoint restart, and the sun rising over the cube at Boulder
+on the solstice, where the east wall warms before the roof.
+
 ``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent
 ray cast, the incidence on every orientation, the height to which the tall

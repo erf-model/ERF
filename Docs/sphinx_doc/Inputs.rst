@@ -2969,6 +2969,26 @@ ImmersedForcing``) and are off by default.
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.thickness**           | uniform slab thickness [m]                               | Real > 0           | 0.3                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.prognostic**          | solve the balance for the skin temperature every step;   | Boolean            | true                   |
+|                                   | false keeps the skin fixed and diagnoses the terms       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_min**          | lower bound of the skin temperature [K]                  | Real > 0           | 260.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_max**          | upper bound of the skin temperature [K]; raise it for    | Real > T_skin_min  | 380.0                  |
+|                                   | faces under a fire                                       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_max_iter**     | Newton iteration cap per face and step                   | Integer >= 1       | 20                     |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_tol_K**        | Newton stops when a step changes the skin temperature    | Real > 0           | 1.0e-3                 |
+|                                   | by less than this [K]                                    |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_max_step_K**   | largest Newton step [K]                                  | Real > 0           | 20.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.Q_ext_uniform**       | external incident flux on every face [W/m2], absorbed    | Real >= 0          | 0.0                    |
+|                                   | with the emissivity (test hook for the fire coupling)    |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.dump_faces_tag_step** | name each face dump by its step so every one is kept     | Boolean            | false                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
 cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their

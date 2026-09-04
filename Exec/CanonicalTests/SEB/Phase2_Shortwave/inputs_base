@@ -71,6 +71,7 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
 erf.ibseb.enable = true
+erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
 erf.ibseb.n_slab_layers = 4
 erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 293.0

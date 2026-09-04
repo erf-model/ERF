@@ -87,7 +87,13 @@ amrex::Real solar_zenith (amrex::Real latitude_deg, amrex::Real decl, amrex::Rea
     return std::acos(cz);
 }
 
-/** Solar azimuth [rad], clockwise from north, in [0, 2 pi). */
+/**
+ * Solar azimuth [rad], clockwise from north, in [0, 2 pi): east of south
+ * (below pi) in the morning, when the hour angle is negative, west of south
+ * in the afternoon. The sign of the sine term is what puts the morning sun
+ * in the east; the noon check of phase 2 cannot tell the two apart, the
+ * sunrise deck of phase 6 can.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_azimuth (amrex::Real latitude_deg, amrex::Real decl,
                            amrex::Real hour_angle, amrex::Real zenith)
@@ -95,7 +101,7 @@ amrex::Real solar_azimuth (amrex::Real latitude_deg, amrex::Real decl,
     const amrex::Real lat = latitude_deg * M_PI / 180.0;
     const amrex::Real sz = std::sin(zenith), cz = std::cos(zenith);
     if (sz < 1.0e-6) return 0.0;
-    const amrex::Real sin_az = std::sin(hour_angle) * std::cos(decl) / sz;
+    const amrex::Real sin_az = -std::sin(hour_angle) * std::cos(decl) / sz;
     const amrex::Real cos_az = (std::sin(decl) - cz * std::sin(lat)) / (sz * std::cos(lat));
     amrex::Real az = std::atan2(sin_az, cos_az);
     if (az < 0.0) az += 2.0 * M_PI;

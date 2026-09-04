@@ -32,6 +32,7 @@ struct IBSEBParams
     int         csv_int       = 100;                   ///< Steps between report rows; <= 0 disables
     bool        debug         = false;                 ///< [IBSEB DEBUG] prints: set description at build, per-step summary, per-building rows
     std::string dump_faces_file;                       ///< Per-rank face dump at report time (empty = off)
+    bool        dump_faces_tag_step = false;           ///< Name each dump by its step (keeps every one) instead of overwriting
 
     // ---- Radiation provider (phase 2) --------------------------------------
     // Where the downwelling shortwave (and, in phase 3, longwave) comes from.
@@ -102,6 +103,22 @@ struct IBSEBParams
     amrex::Real rho_cp             = 1.6e6;  ///< Uniform volumetric heat capacity [J/m3/K]
     amrex::Real thickness          = 0.3;    ///< Uniform slab thickness [m]
 
+    // ---- Prognostic balance (phase 6) ---------------------------------------
+    // With prognostic on, every step solves the massless-skin balance
+    // SW_abs + eps Q_ext + LW_net - H - LE - G = 0 for the skin temperature
+    // of every face by Newton's method (ERF_IBSEBBalance.H), consistent with
+    // the implicit slab step, and stores the fluxes at the solution. Off, the
+    // skin stays at T_skin_init (or the restart value) and the terms are
+    // diagnosed around it, which is what the regtests of phases 2-5 use to
+    // check each term on its own.
+    bool        prognostic         = true;
+    amrex::Real T_skin_min         = 260.0;  ///< Lower bound of the skin temperature [K]
+    amrex::Real T_skin_max         = 380.0;  ///< Upper bound [K]; raise it for faces under a fire
+    int         newton_max_iter    = 20;     ///< Newton iteration cap per face and step
+    amrex::Real newton_tol_K       = 1.0e-3; ///< Newton stops when a step changes T_skin by less than this [K]
+    amrex::Real newton_max_step_K  = 20.0;   ///< Largest Newton step [K]
+    amrex::Real Q_ext_uniform      = 0.0;    ///< Uniform external incident flux on every face [W/m2] (test hook)
+
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.
      *
@@ -120,6 +137,7 @@ struct IBSEBParams
         pp.query("csv_int",       csv_int);
         pp.query("debug",         debug);
         pp.query("dump_faces_file", dump_faces_file);
+        pp.query("dump_faces_tag_step", dump_faces_tag_step);
         pp.query("radiation",        radiation);
         pp.query("sun_mode",         sun_mode);
         pp.query("sun_zenith_deg",   sun_zenith_deg);
@@ -154,6 +172,13 @@ struct IBSEBParams
         pp.query("k_therm",          k_therm);
         pp.query("rho_cp",           rho_cp);
         pp.query("thickness",        thickness);
+        pp.query("prognostic",       prognostic);
+        pp.query("T_skin_min",       T_skin_min);
+        pp.query("T_skin_max",       T_skin_max);
+        pp.query("newton_max_iter",  newton_max_iter);
+        pp.query("newton_tol_K",     newton_tol_K);
+        pp.query("newton_max_step_K", newton_max_step_K);
+        pp.query("Q_ext_uniform",    Q_ext_uniform);
         if (enable) {
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
@@ -181,6 +206,16 @@ struct IBSEBParams
             if (T_skin_init <= 0.0 || T_interior <= 0.0) {
                 amrex::Abort("erf.ibseb.T_skin_init and T_interior must be positive [K]");
             }
+            if (T_skin_min <= 0.0 || T_skin_max <= T_skin_min) {
+                amrex::Abort("erf.ibseb.T_skin_min must be positive and below T_skin_max");
+            }
+            if (prognostic && (T_skin_init < T_skin_min || T_skin_init > T_skin_max)) {
+                amrex::Abort("erf.ibseb.T_skin_init must lie within [T_skin_min, T_skin_max]");
+            }
+            if (newton_max_iter < 1 || newton_tol_K <= 0.0 || newton_max_step_K <= 0.0) {
+                amrex::Abort("erf.ibseb.newton_max_iter must be >= 1, newton_tol_K and newton_max_step_K positive");
+            }
+            if (Q_ext_uniform < 0.0) { amrex::Abort("erf.ibseb.Q_ext_uniform must be >= 0"); }
         }
     }
 };

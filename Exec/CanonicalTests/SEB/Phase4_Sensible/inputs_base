@@ -41,6 +41,7 @@ erf.if_z0 = 0.01
 erf.use_coriolis = false
 
 erf.ibseb.enable = true
+erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
 erf.ibseb.debug = true
 erf.ibseb.csv_int = 1
 erf.ibseb.T_skin_init = 320.0

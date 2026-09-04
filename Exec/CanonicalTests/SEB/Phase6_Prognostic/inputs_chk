@@ -1,0 +1,6 @@
+FILE = inputs_base
+
+# The closure deck to step 100 with a checkpoint there.
+erf.ibseb.csv_file = "ibseb_chk.csv"
+erf.check_int = 100
+max_step = 100

@@ -1,0 +1,70 @@
+# Phase 6 of the immersed-boundary surface energy balance: the prognostic
+# skin temperature. A 40 m cube at the centre of a 320 m periodic domain on
+# a 10 m grid (small, so the sunrise deck runs in minutes) in a 3 m/s wind at 300 K. Every step the balance
+#   SW_abs + eps Q_ext + LW_net - H - LE - G = 0
+# is solved on every face for the skin temperature, consistently with the
+# implicit slab, and the fluxes at the solution are what the air receives
+# and what the dumps show. The faces start at 300 K over a 300 K slab with a
+# 293 K interior. Variants: inputs_closure (fixed sun, every step dumped,
+# the closure and the independent re-integration), inputs_qext (an external
+# incident flux with the upper bound raised), inputs_solar (the sun rising
+# over the cube), inputs_chk / inputs_restart (through a checkpoint).
+stop_time = 100000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  320     320    160
+amr.n_cell           =  32      32     16
+amr.max_grid_size    =  16
+geometry.is_periodic = 1 1 0
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = -1
+erf.plot_vars_1     = theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = cube_40m_10m_32x32.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.debug = true
+erf.ibseb.csv_int = 1
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 293.0
+erf.ibseb.n_slab_layers = 8
+erf.ibseb.k_therm = 1.0
+erf.ibseb.rho_cp = 1.6e6
+erf.ibseb.thickness = 0.2
+erf.ibseb.albedo = 0.3
+erf.ibseb.emissivity = 0.9
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 45.0
+erf.ibseb.sun_azimuth_deg = 180.0    # sun in the south
+erf.ibseb.sw_direct_normal = 800.0
+erf.ibseb.sw_diffuse = 100.0
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83
+erf.ibseb.T_ground = 300.0
+erf.ibseb.newton_tol_K = 1.0e-3
+erf.ibseb.newton_max_iter = 20

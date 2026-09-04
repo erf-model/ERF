@@ -51,11 +51,16 @@
  * rebuilt from the blanking and refilled from that field, so a restart does
  * not depend on the rank count or on the order the faces were found in.
  *
- * **Phases.** Phase 1 (this file) only stores. Later phases fill
- * ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg`` (view fractions, phase 3), the
- * flux arrays (phases 2-5) and advance ``d_T_skin`` and ``d_T_slab`` (phase 6);
- * ``d_Q_ext`` is the hook through which an external incident flux (a fire's
- * radiation) enters without the balance knowing its source. See
+ * **Phases and the per-step order.** Phase 1 stores; phase 3 fills
+ * ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg`` once; every step then runs
+ * compute_shortwave() (phase 2), compute_longwave() (phase 3),
+ * compute_sensible() (phase 4) and, with ``erf.ibseb.prognostic``,
+ * solve_balance() (phase 6), which finds the skin temperature closing the
+ * balance, advances the slab (phase 5) with it and rewrites the fluxes at the
+ * solution; without it compute_ground() advances the slab under the fixed
+ * skin. ``d_Q_ext`` is the hook through which an external incident flux (a
+ * fire's radiation) enters without the balance knowing its source: whoever
+ * owns it writes the array before solve_balance() runs. See
  * IBSEB_DEVELOPMENT.md.
  */
 class IBFaceSet
@@ -139,6 +144,20 @@ public:
     void compute_ground (amrex::Real dt);
 
     /**
+     * Prognostic balance of the current step (phase 6). Per face: the
+     * slab's linear response to the skin temperature for this step, the
+     * Newton solve of ERF_IBSEBBalance.H with the shortwave, the external
+     * flux, the sky and ground longwave, the frozen wall-function
+     * coefficient and the latent flux, the slab advanced with the solution,
+     * and the fluxes (LW_in, LW_net, H, G) rewritten at the solution. Fills
+     * d_resid (|balance| at the end, non-zero only at a bound or the
+     * iteration cap) and d_niter. Needs compute_shortwave(),
+     * compute_longwave() and compute_sensible() of the same step first.
+     * @param dt Atmospheric time step [s], the slab's step.
+     */
+    void solve_balance (amrex::Real dt);
+
+    /**
      * Sensible heat of the current step (phase 4) through a wall function on
      * every face: the tangential wind of the fluid cell at half a cell from
      * the wall gives u* with the roughness z0_wall, the skin-to-air
@@ -147,8 +166,10 @@ public:
      * surface layer's stability functions on roofs when asked. The latent
      * flux stays zero in this phase.
      *
-     * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air; T_air was read by
-     * compute_longwave(), which must run first in a step.
+     * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air and d_H_coeff (the
+     * coefficient of the skin-to-air potential-temperature difference that
+     * the balance keeps frozen); T_air was read by compute_longwave(), which
+     * must run first in a step.
      * @param cons  Conserved state of the level (density, rho theta).
      * @param xvel, yvel, zvel  Face-centred velocities of the level.
      * @param c_p   Specific heat of air [J/kg/K].
@@ -267,13 +288,18 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_direct_in;  ///< Direct beam incident on the face
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_diffuse_in; ///< Sky and ground-reflected diffuse incident
     // Longwave detail (phase 3) [W/m2] and the air temperature read [K]:
-    amrex::Gpu::DeviceVector<amrex::Real> d_LW_down_in;   ///< Incoming longwave on the face
+    amrex::Gpu::DeviceVector<amrex::Real> d_LW_down_in;   ///< Incoming longwave on the face (sky, ground and walls)
     amrex::Gpu::DeviceVector<amrex::Real> d_T_air;        ///< Air temperature of the fluid cell
     // Sensible heat detail (phase 4):
     amrex::Gpu::DeviceVector<amrex::Real> d_theta_air;    ///< Potential temperature of the fluid cell [K]
     amrex::Gpu::DeviceVector<amrex::Real> d_rho;          ///< Density of the fluid cell [kg/m3]
     amrex::Gpu::DeviceVector<amrex::Real> d_U_tan;        ///< Tangential wind speed at the fluid cell [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_ustar;        ///< Friction velocity of the wall function [m/s]
+    amrex::Gpu::DeviceVector<amrex::Real> d_H_coeff;      ///< H = H_coeff (theta_skin - theta_air) [W/m2/K]
+    // Prognostic balance detail (phase 6):
+    amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
+    amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
+    amrex::Gpu::DeviceVector<int>         d_niter;        ///< Newton iterations of the last solve
     // Column tops of the whole level [m], replicated on every rank for the
     // ray cast: index ci * ny + cj over the domain's columns.
     amrex::Gpu::DeviceVector<amrex::Real> d_col_top;
