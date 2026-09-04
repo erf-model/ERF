@@ -2925,11 +2925,31 @@ ImmersedForcing``) and are off by default.
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term             | Real in [0, 1]     | 0.2                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.emissivity**          | longwave emissivity of the faces                         | Real in (0, 1]     | 0.9                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.emissivity_ground**   | ground emissivity for the ground term                    | Real in (0, 1]     | 0.95                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.view_n_az**           | azimuths of the hemisphere sampling for the view         | Integer >= 1       | 16                     |
+|                                   | fractions                                                |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.lw_mode**             | sky longwave: ``fixed`` uses lw_down, ``gray`` uses      | "fixed", "gray"    | "gray"                 |
+|                                   | sky_emissivity sigma T_air^4 with the fluid cell's air   |                    |                        |
+|                                   | temperature                                              |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.lw_down**             | fixed sky longwave [W/m2]                                | Real >= 0          | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sky_emissivity**      | gray sky: effective clear-sky emissivity                 | Real in (0, 1]     | 0.83                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_ground**            | ground temperature for the ground longwave term [K]      | Real > 0           | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
 cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their
-mean absorbed shortwave) and ``ibseb_shadow`` (their mean shadow flag) are
-available when the balance is on.
+mean absorbed shortwave), ``ibseb_shadow`` (their mean shadow flag),
+``ibseb_lw_net`` (their mean net longwave) and ``ibseb_f_sky`` (their mean
+sky view fraction) are available when the balance is on.
 
 .. _sec:SurfaceLayerInputs:
 

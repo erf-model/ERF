@@ -102,6 +102,26 @@ public:
     int state_ncomp () const { return 6 * (1 + n_layers()); }
 
     /**
+     * View fractions (phase 3): sample a cosine-weighted hemisphere around
+     * every face's outward normal with ``view_n_az x view_n_el`` rays through
+     * the column walk and count where they end: sky, ground or a building.
+     * The three fractions sum to one and are view factors. Called once at
+     * initialisation; the geometry is static.
+     */
+    void compute_view_fractions ();
+
+    /**
+     * Longwave of the current step (phase 3). Incoming on a face:
+     * ``f_sky LW_sky + f_ground eps_g sigma T_g^4 + f_bldg sigma T_skin^4``,
+     * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
+     * air temperature of the face's fluid cell), the building term the
+     * isothermal-surroundings approximation. Net:
+     * ``eps (LW_in - sigma T_skin^4)``, positive into the face.
+     * @param cons Conserved state of the level, for the air temperature.
+     */
+    void compute_longwave (const amrex::MultiFab& cons);
+
+    /**
      * Shortwave of the current step (phase 2): sun position and irradiances
      * from the prescribed provider, then per face the direct beam on the
      * face (zero when the ray toward the sun hits a building), the diffuse
@@ -198,6 +218,9 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_shadow;        ///< 1 when the ray to the sun hits a building, else 0
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_direct_in;  ///< Direct beam incident on the face
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_diffuse_in; ///< Sky and ground-reflected diffuse incident
+    // Longwave detail (phase 3) [W/m2] and the air temperature read [K]:
+    amrex::Gpu::DeviceVector<amrex::Real> d_LW_down_in;   ///< Incoming longwave on the face
+    amrex::Gpu::DeviceVector<amrex::Real> d_T_air;        ///< Air temperature of the fluid cell
     // Column tops of the whole level [m], replicated on every rank for the
     // ray cast: index ci * ny + cj over the domain's columns.
     amrex::Gpu::DeviceVector<amrex::Real> d_col_top;
@@ -248,6 +271,7 @@ private:
     amrex::Real m_dx[3] = {0.0, 0.0, 0.0};     ///< Cell sizes [m]
     bool m_per_x = false, m_per_y = false;     ///< Periodicity in x and y
     amrex::Real m_col_top_max = 0.0;           ///< Tallest column [m]
+    amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
     amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
     SunState m_sun;
 };

@@ -57,6 +57,21 @@ struct IBSEBParams
     // Optical properties, uniform until the material library of phase 5.
     amrex::Real albedo            = 0.3;    ///< Face shortwave albedo
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
+    amrex::Real emissivity        = 0.9;    ///< Face longwave emissivity
+    amrex::Real emissivity_ground = 0.95;   ///< Ground emissivity for the ground term
+
+    // ---- View fractions and longwave (phase 3) ------------------------------
+    // Rays per face of the cosine-weighted hemisphere sampled once at
+    // initialisation: n_az azimuths x n_el elevations.
+    int         view_n_az         = 16;
+    int         view_n_el         = 8;
+    // Downwelling longwave from the sky: "fixed" uses lw_down as given,
+    // "gray" uses sky_emissivity x sigma x T_air^4 with the air temperature
+    // of the face's fluid cell.
+    std::string lw_mode           = "gray";
+    amrex::Real lw_down           = 300.0;  ///< fixed: sky longwave [W/m2]
+    amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
+    amrex::Real T_ground          = 300.0;  ///< Ground temperature for the ground term [K]
 
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.
@@ -92,6 +107,14 @@ struct IBSEBParams
         pp.query("sw_diffuse_coeff", sw_diffuse_coeff);
         pp.query("albedo",           albedo);
         pp.query("albedo_ground",    albedo_ground);
+        pp.query("emissivity",       emissivity);
+        pp.query("emissivity_ground", emissivity_ground);
+        pp.query("view_n_az",        view_n_az);
+        pp.query("view_n_el",        view_n_el);
+        pp.query("lw_mode",          lw_mode);
+        pp.query("lw_down",          lw_down);
+        pp.query("sky_emissivity",   sky_emissivity);
+        pp.query("T_ground",         T_ground);
         if (enable) {
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
@@ -105,6 +128,13 @@ struct IBSEBParams
             if (albedo < 0.0 || albedo > 1.0 || albedo_ground < 0.0 || albedo_ground > 1.0) {
                 amrex::Abort("erf.ibseb.albedo and albedo_ground must be in [0, 1]");
             }
+            if (emissivity <= 0.0 || emissivity > 1.0 || emissivity_ground <= 0.0 || emissivity_ground > 1.0 ||
+                sky_emissivity <= 0.0 || sky_emissivity > 1.0) {
+                amrex::Abort("erf.ibseb emissivities must be in (0, 1]");
+            }
+            if (view_n_az < 1 || view_n_el < 1) { amrex::Abort("erf.ibseb.view_n_az and view_n_el must be >= 1"); }
+            if (lw_mode != "fixed" && lw_mode != "gray") { amrex::Abort("erf.ibseb.lw_mode must be \"fixed\" or \"gray\""); }
+            if (lw_down < 0.0 || T_ground <= 0.0) { amrex::Abort("erf.ibseb.lw_down must be >= 0 and T_ground > 0"); }
             if (n_slab_layers < 1) { amrex::Abort("erf.ibseb.n_slab_layers must be >= 1"); }
             if (T_skin_init <= 0.0 || T_interior <= 0.0) {
                 amrex::Abort("erf.ibseb.T_skin_init and T_interior must be positive [K]");

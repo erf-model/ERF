@@ -228,7 +228,7 @@ the cost of the face list on a city-scale case can be estimated.
 | --- | --- | --- | --- |
 | 1 storage | done 2026-09-03 | `SEB/Phase1_Storage` | 2056 faces on the skyscraper, rank-independent, restart round trip |
 | 2 shortwave | done 2026-09-03 | `SEB/Phase2_Shortwave` | prescribed provider, ray-cast shadow; flag matches an independent cast on all 2616 faces |
-| 3 longwave | planned | `SEB/Phase3_Longwave` | |
+| 3 longwave | done 2026-09-03 | `SEB/Phase3_Longwave` | hemisphere sampling, sky/ground/building terms; fractions match an independent sampling on every face |
 | 4 sensible, latent | planned | `SEB/Phase4_Sensible` | generalises the immersed-forcing wall model |
 | 5 ground | planned | `SEB/Phase5_Ground` | lifts the SLUCM slab solver and materials |
 | 6 prognostic | planned | `SEB/Phase6_Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |

@@ -13,9 +13,9 @@ therefore does not assume plane walls but
      ray from every face toward the sun in Python (a 2D walk over columns,
      periodic like the deck), and requires the code's shadow flag to match
      on every face;
-  2. requires direct = DNI max(0, n.s) (1 - shadow), the placeholder diffuse
-     f_sky D + f_ground a_g (DNI cos z + D), and absorbed = (1 - a) x sum on
-     every face;
+  2. requires direct = DNI max(0, n.s) (1 - shadow), the diffuse
+     f_sky D + f_ground a_g (DNI cos z + D) with the view fractions read from
+     the dump, and absorbed = (1 - a) x sum on every face;
   3. spot-checks the clean planes analytically: the tall core roof and the
      tall west wall are unshadowed, and the shadow on the short box's core
      west wall stops at H_core - gap tan(elevation) where the gap is from
@@ -93,7 +93,7 @@ def check_fixed(prefix, zen_deg, az_deg, dni, dif, alb, alb_g):
     report("shadow flag = independent ray cast, every face", mism == 0, f"mismatches {mism}/{len(exp_shadow)}, shadowed {int(d['shadow'].sum())}")
     # 2. fluxes on every face
     report("direct = DNI max(0, n.s) (1 - shadow)", close(d["SW_direct_in"], dni * np.maximum(0, cosi) * (1 - d["shadow"])))
-    f_sky = np.where(d["dir"] == 2, 1.0, 0.5); f_gnd = np.where(d["dir"] == 2, 0.0, 0.5)
+    f_sky = d["f_sky"]; f_gnd = d["f_ground"]   # sampled view fractions (phase 3), read from the dump
     report("diffuse = f_sky D + f_ground a_g (DNI cos z + D)", close(d["SW_diffuse_in"], f_sky * dif + f_gnd * alb_g * (dir_h + dif)))
     report("absorbed = (1 - albedo) (direct + diffuse)", close(d["SW_abs"], (1 - alb) * (d["SW_direct_in"] + d["SW_diffuse_in"])))
     # 3. analytic spot checks on the clean planes

@@ -72,9 +72,47 @@ below that column's top. The column tops are a small array replicated on
 every rank, so the test needs no communication and costs a few operations
 per column crossed. The diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
-albedo times the total horizontal irradiance; until the hemisphere sampling
-of the next phase, a roof sees the whole sky and a wall half sky and half
-ground. The absorbed shortwave is one minus the face albedo times the sum.
+albedo times the total horizontal irradiance, with the fractions from the
+hemisphere sampling below. The absorbed shortwave is one minus the face
+albedo times the sum.
+
+View fractions and longwave
+---------------------------
+
+Once, at initialisation, every face samples a cosine-weighted hemisphere
+around its outward normal: :cpp:`erf.ibseb.view_n_az` azimuths by
+:cpp:`erf.ibseb.view_n_el` elevations, stratified with
+:math:`\theta = \arcsin\sqrt{u}` from the normal so that every ray carries
+the same weight and the counts are view factors. Each ray goes through the
+same column walk as the shadow test, made direction-aware: a rising ray is
+blocked by a column whose top is above its entry height and otherwise
+reaches the sky; a falling ray is blocked by a column it descends into and
+otherwise reaches the ground. The fractions of rays ending on the sky, the
+ground and a building, :math:`f_{sky}`, :math:`f_{ground}` and
+:math:`f_{bldg}`, sum to one. A roof sees no ground; a wall on open ground
+sees half sky and half ground; a wall facing another building sees it.
+
+The longwave arriving at a face is
+
+.. math::
+
+   LW_{in} = f_{sky}\, LW_{sky} + f_{ground}\, \varepsilon_g \sigma T_g^4
+           + f_{bldg}\, \sigma T_s^4 ,
+
+the sky term either the input :cpp:`erf.ibseb.lw_down` or, with
+:cpp:`erf.ibseb.lw_mode = gray`, :math:`\varepsilon_{sky} \sigma T_{air}^4`
+with the air temperature of the face's fluid cell; the ground term at the
+input ground temperature; and the building term at the face's own skin
+temperature, the isothermal-surroundings approximation under which a face
+and the walls it sees exchange no net longwave. There are no face-to-face
+view factors and no radiosity; the fractions are stored so a radiosity pass
+can be added later without touching the balance. The net longwave,
+:math:`\varepsilon (LW_{in} - \sigma T_s^4)`, is positive into the face.
+
+``Exec/CanonicalTests/SEB/Phase3_Longwave`` checks the fractions of every
+face against an independent hemisphere sampling, their closure and the
+analytic values on the clean planes, and the longwave formulas on every
+face, on one and four ranks.
 
 ``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent

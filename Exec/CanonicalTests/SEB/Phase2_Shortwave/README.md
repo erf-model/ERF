@@ -46,7 +46,8 @@ walls; it reads the geometry from the face dump.
    face toward the sun in Python; the code's flag must match on every face
    (2616 faces, 644 in shadow at zen20).
 2. **Fluxes on every face.** Direct = DNI max(0, n.s) (1 - shadow); the
-   placeholder diffuse; absorbed = (1 - albedo) times the sum.
+   diffuse through the view fractions read from the dump; absorbed =
+   (1 - albedo) times the sum.
 3. **Analytic spot checks.** The tall core roof and the tall west wall are
    unshadowed with the exact incidence; on the short box's core west wall
    the shadow stops at H - gap tan(elevation) with the 40 m gap from the

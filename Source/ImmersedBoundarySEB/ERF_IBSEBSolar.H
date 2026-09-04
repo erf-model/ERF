@@ -217,6 +217,113 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
     return false;
 }
 
+/// What a ray from a face ends on.
+enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
+
+/**
+ * Where a ray from a face ends: sky, ground or a building, for any
+ * direction (phase 3 hemisphere sampling). The same column walk as
+ * ray_blocked(), with the height test made direction-aware:
+ *
+ * - rising or level rays (``sz >= 0``) are blocked by a column whose top is
+ *   above the entry height; a level ray that crosses ``max_path`` without a
+ *   hit ends at the horizon, which counts as sky;
+ * - falling rays (``sz < 0``) are blocked by a solid column whose top is
+ *   above the exit height (the ray descends inside the column) and reach
+ *   the ground where the exit height is at or below ``z_ground``.
+ *
+ * Solid columns are those with a top above the ground. The domain is
+ * wrapped in periodic directions; leaving it in a non-periodic direction
+ * counts as sky for a rising ray and as ground for a falling one.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
+             amrex::Real sx, amrex::Real sy, amrex::Real sz,
+             const amrex::Real* col_top, int nx, int ny,
+             amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy,
+             bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max,
+             amrex::Real max_path)
+{
+    const amrex::Real eps = 1.0e-6 * amrex::min(dx, dy);
+    if (sz > 0.0 && z0 >= z_max) return RAY_SKY;
+    const amrex::Real t0 = 1.0e-3 * amrex::min(dx, dy);
+    amrex::Real x = x0 + t0 * sx, y = y0 + t0 * sy, z = z0 + t0 * sz;
+    int ci = static_cast<int>(std::floor((x - x_lo) / dx));
+    int cj = static_cast<int>(std::floor((y - y_lo) / dy));
+    const int stepx = (sx > 0.0) ? 1 : ((sx < 0.0) ? -1 : 0);
+    const int stepy = (sy > 0.0) ? 1 : ((sy < 0.0) ? -1 : 0);
+    const amrex::Real big = 1.0e30;
+    const amrex::Real tdx = (stepx != 0) ? dx / std::abs(sx) : big;
+    const amrex::Real tdy = (stepy != 0) ? dy / std::abs(sy) : big;
+    amrex::Real tmx = big, tmy = big;
+    if (stepx > 0)      tmx = ((x_lo + (ci + 1) * dx) - x) / sx;
+    else if (stepx < 0) tmx = ((x_lo + ci * dx) - x) / sx;
+    if (stepy > 0)      tmy = ((y_lo + (cj + 1) * dy) - y) / sy;
+    else if (stepy < 0) tmy = ((y_lo + cj * dy) - y) / sy;
+    if (stepx == 0 && stepy == 0) {          // vertical ray
+        if (sz > 0.0) return RAY_SKY;
+        // straight down from a wall face never happens (the face is vertical);
+        // from a roof the hemisphere points up. Treat as ground for safety.
+        return RAY_GROUND;
+    }
+    amrex::Real t = 0.0;
+    const int max_iter = 4 * (nx + ny) + 8;
+    for (int it = 0; it < max_iter; ++it) {
+        if (ci < 0 || ci >= nx) {
+            if (!per_x) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+            ci = (ci % nx + nx) % nx;
+        }
+        if (cj < 0 || cj >= ny) {
+            if (!per_y) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+            cj = (cj % ny + ny) % ny;
+        }
+        const amrex::Real top = col_top[ci * ny + cj];
+        const bool solid = (top > z_ground + eps);
+        const amrex::Real t_next = amrex::min(tmx, tmy);
+        const amrex::Real z_out  = z0 + t0 * sz + t_next * sz;
+        if (sz >= 0.0) {
+            if (solid && z + eps < top) return RAY_BUILDING;
+        } else {
+            if (solid && z + eps < top) return RAY_BUILDING;     // entered below the top
+            if (solid && z_out < top - eps) return RAY_BUILDING; // descends into it
+            if (z_out <= z_ground + eps) return RAY_GROUND;
+        }
+        if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
+        else           { t = tmy; tmy += tdy; cj += stepy; }
+        z = z_out;
+        if (sz > 0.0 && z >= z_max) return RAY_SKY;
+        if (t > max_path) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+    }
+    return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+}
+
+/**
+ * Direction of the ``(ia, ie)`` sample of a cosine-weighted hemisphere
+ * around the outward normal of a face with direction ``dir`` and normal
+ * sign ``nsign`` (+1 along the axis, -1 against it). Stratified in the
+ * azimuth ``phi = 2 pi (ia + 1/2) / n_az`` and in ``u = (ie + 1/2) / n_el``
+ * with ``theta = asin(sqrt(u))`` from the normal, so every sample carries
+ * the same weight and the counts are view factors.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void hemisphere_direction (int dir, int nsign, int ia, int ie, int n_az, int n_el,
+                           amrex::Real& sx, amrex::Real& sy, amrex::Real& sz)
+{
+    const amrex::Real u     = (ie + 0.5) / n_el;
+    const amrex::Real theta = std::asin(std::sqrt(u));
+    const amrex::Real phi   = 2.0 * M_PI * (ia + 0.5) / n_az;
+    const amrex::Real cn = std::cos(theta), ct = std::sin(theta) * std::cos(phi), st = std::sin(theta) * std::sin(phi);
+    // Normal and two tangents for each axis.
+    amrex::Real n[3] = {0.0, 0.0, 0.0}, t1[3] = {0.0, 0.0, 0.0}, t2[3] = {0.0, 0.0, 0.0};
+    n[dir] = nsign;
+    if (dir == 0)      { t1[1] = 1.0; t2[2] = 1.0; }
+    else if (dir == 1) { t1[0] = 1.0; t2[2] = 1.0; }
+    else               { t1[0] = 1.0; t2[1] = 1.0; }
+    sx = cn * n[0] + ct * t1[0] + st * t2[0];
+    sy = cn * n[1] + ct * t1[1] + st * t2[1];
+    sz = cn * n[2] + ct * t1[2] + st * t2[2];
+}
+
 } // namespace ibseb
 
 #endif

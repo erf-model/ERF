@@ -698,7 +698,7 @@ public:
     void init_ibseb ();
     void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
     void ibseb_report (int nstep, amrex::Real time);
-    void ibseb_advance (int lev, amrex::Real time);
+    void ibseb_advance (int lev, amrex::Real time, const amrex::MultiFab& cons);
 
     void input_sponge (int lev);
 
@@ -1499,6 +1499,7 @@ private:
                                                     "terrain_IB_mask",
                                                     "ibseb_nfaces", "ibseb_tskin",
                                                     "ibseb_sw_abs", "ibseb_shadow",
+                                                    "ibseb_lw_net", "ibseb_f_sky",
                                                     // EB variables
                                                     "volfrac"
 #ifdef ERF_COMPUTE_ERROR
