@@ -1,5 +1,6 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
+#include "ERF_HashRNG.H"
 #include "ERF_Microphysics.H"
 #include "ERF_TerrainMetrics.H"
 
@@ -93,9 +94,13 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    ParmParse pp_erf("erf");
-    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
@@ -202,11 +207,15 @@ Problem::init_custom_pert_vels (
     Array4<Real const> const& mf_u,
     Array4<Real const> const& mf_v,
     const SolverChoice& sc,
-    const int /*lev*/)
+    const int lev)
 {
-    ParmParse pp("erf");
-    std::string my_prob_name; pp.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPertVels_ABL.H"
