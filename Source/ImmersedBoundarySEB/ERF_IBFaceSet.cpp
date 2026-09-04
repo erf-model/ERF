@@ -1093,6 +1093,17 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
             << " resid_max=" << res_max
             << " w_star_max=" << w_max
             << " H_total_W=" << std::setprecision(12) << H_sum << "\n";
+    // Cost line: the slowest rank's per-step time of the balance and its face
+    // count, so the cost of the face list on a larger case can be estimated.
+    {
+        Real ms = (m_cost_n > 0) ? 1000.0 * m_cost_s / m_cost_n : 0.0;
+        Real ms_max = ms; int nf_max = m_nface;
+        ParallelDescriptor::ReduceRealMax(ms_max);
+        ParallelDescriptor::ReduceIntMax(nf_max);
+        Print() << "[IBSEB] cost: lev=" << m_lev << " advance_ms_per_step_max=" << std::setprecision(4) << ms_max
+                << " faces_per_rank_max=" << nf_max << " ranks=" << ParallelDescriptor::NProcs()
+                << " init_s=" << m_init_cost_s << "\n";
+    }
 
     if (m_params.debug) {
         for (int b = 1; b <= m_nbld; ++b) {

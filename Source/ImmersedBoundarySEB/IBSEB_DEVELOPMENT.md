@@ -364,10 +364,30 @@ the cost of the face list on a city-scale case can be estimated.
   top of an almost free cell, a one-cell shear layer and a 2-cell mode.
   An exact box (`eb2.geometry = box` on cell faces) has no partial cells;
   the canonical uses it. Fixed on this branch behind
-  `erf.if_snap_partial_cells` (default false, the original selection): the
-  wall law and the surface conditions sit on cells at least half solid
-  whose normal neighbour is less than half solid, the same rule the balance
-  uses for its faces; regtest `Exec/RegTests/ImmersedForcingTest/PartialCells`.
+  `erf.if_snap_partial_cells` (default false, the raw fractions): the cell
+  and face blanking are read snapped to 0 or 1 at half, so a height-map
+  building is the staircase an exact box is, and the switch selects the
+  point-implicit drag, because the staircase puts full-strength forcing on
+  every wall face and the explicit rate at rims and corners drives the
+  density negative within seconds (a first version that only moved the
+  selection threshold survived the cube for 2.6 h but killed a thin slab
+  in two minutes; the cell-snapped explicit form killed it in two seconds;
+  with the implicit drag both hold). Regtest
+  `Exec/RegTests/ImmersedForcingTest/PartialCells`.
+- The MRF and YSUNew schemes do not work over immersed buildings as they
+  stand: the ground surface layer evaluates u*, theta* and L on the lowest
+  cell, which is inside the building, and MRF fills the domain with NaN
+  while YSUNew drives the density negative at its second step on the box
+  cube. Fixed behind `erf.pbl_ib_aware` (Harish, 2026-09-04; MRF and
+  YSUNew only, not MYNN, MYJ, YSU or SHOC): per column the first fluid cell
+  above the solid is the surface, heights and the boundary-layer depth are
+  measured from it, the diffusivities vanish inside the solid, and the
+  surface scales over a building column are a neutral log law at its top
+  with `erf.pbl_ib_z0`. Regtest `Exec/RegTests/ImmersedForcingTest/PBL_IBAware`:
+  finite and zero inside the solid, the profile over the roof the shape of
+  the ground's against the local height, bit-identical without a building.
+  MRF also traps an invalid floating-point operation at its neutral start,
+  building or not (pre-existing).
 
 ## Phase log
 
@@ -380,4 +400,5 @@ the cost of the face list on a city-scale case can be estimated.
 | 5 ground | done 2026-09-03 | `SEB/Phase5_Ground` | slab per face (SLUCM solver with a skin-temperature top), materials by building; erfc and steady checks exact |
 | 6 prognostic | done 2026-09-04 | `SEB/Phase6_Prognostic` | Newton balance consistent with the implicit slab, `Q_ext` hook, clamps as inputs; closure and an independent re-integration to 1e-9 K |
 | 7 isolated building | done 2026-09-04 | `SEB/Phase7_IsolatedBuilding` | 24 h at Boulder on the solstice on an exact box: roof to 340 K at 13:55, residual 4e-8, roof shortwave and slab energy integrals to 0.01 %, sequence of the day asserted |
-| 8 building set | planned | canonical | |
+| 8a wall function | done 2026-09-04 | `SEB/Phase8_WallFunction` | convective velocity scale (Deardorff, z_i by bulk Ri / pblh / fixed), stability functions iterated on the face's L, all behind switches; checks to 1e-9 |
+| 8b building set | in progress 2026-09-04 | `SEB/Phase8_BuildingSet` | four height-map buildings, three materials, six hours from 05:00 with the snap and the wall-function switches on |

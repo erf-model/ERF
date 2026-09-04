@@ -1008,6 +1008,14 @@ struct SolverChoice {
         pp.queryAdd("if_Olen", if_Olen_in);
         pp.queryAdd("if_use_most",if_use_most);
         pp.queryAdd("if_snap_partial_cells",if_snap_partial_cells);
+        // The snapped staircase puts full-strength forcing on every wall face,
+        // whose explicit relaxation rate (Cd / dx per substep) sits at the
+        // stability limit and fails where faces stack at rims and corners; the
+        // point-implicit form holds at any rate, so the snap uses it.
+        if (if_snap_partial_cells && !if_implicit_drag) {
+            amrex::Print() << "erf.if_snap_partial_cells: using the point-implicit drag (erf.if_implicit_drag = true)\n";
+            if_implicit_drag = true;
+        }
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
@@ -2303,17 +2311,18 @@ struct SolverChoice {
  * @var SolverChoice::if_use_most
  * @brief Whether immersed-forcing MOST is enabled.
  * @var SolverChoice::if_snap_partial_cells
- * When true, the immersed forcing places its wall law and surface conditions
- * on cells at least half solid whose normal neighbour is less than half
- * solid, and cells below half solid receive only the fraction-weighted drag,
- * which vanishes with the fraction. When false (the original behaviour) any
- * cell with a fraction above 0.005 whose neighbour is exactly zero hosts the
- * wall law at full strength, which on the sliver cells of a height-map
- * building (1-20 percent solid at the corners of the reader's one-cell ramp)
- * forces a nearly fluid cell like a wall on top of a free one and grows a
- * vertical checkerboard over hours. Under the switch a face passing several
- * wall tests at once has their relaxations averaged so its total rate never
- * exceeds that of one wall. Default false for backward compatibility.
+ * When true, the immersed forcing reads the blanking snapped to solid (1) or
+ * fluid (0) at half, so a building from a height map becomes the same
+ * staircase of whole cells an exact box is: the wall law sits on the faces
+ * between a solid and a fluid cell, the drag inside the solid, and nothing on
+ * the sliver cells of the reader's one-cell ramp (1-20 percent solid at the
+ * corners), on which the raw fractions make the wall law and the drag
+ * disagree and grow a vertical checkerboard over hours. The staircase puts
+ * full-strength forcing on every wall face, so the switch also selects the
+ * point-implicit drag form (if_implicit_drag), without which the explicit
+ * rate at rims and corners drives the density negative within seconds.
+ * Default false, the raw fractions, for backward compatibility; set it for
+ * height-map buildings.
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor

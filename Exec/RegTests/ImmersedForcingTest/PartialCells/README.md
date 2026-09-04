@@ -28,20 +28,19 @@ at step 14); halving the step only delays it.
 
 ## The switch
 
-`erf.if_snap_partial_cells = true` makes the six forcing functions agree
-on where the wall is: the wall law and the surface temperature, flux and
-Obukhov conditions sit on cells at least half solid whose normal
-neighbour is less than half solid, and cells below half solid keep only
-the fraction-weighted drag. The rule is the one the surface energy balance
-uses to find its faces, so the two coincide. Under the switch a face at
-a ramp or a corner can pass several wall tests at once (a half-blanked
-roof-edge face sees its side neighbours at a quarter, which now count as
-fluid), so the stacked relaxations are averaged: the total rate on a face
-never exceeds that of a single wall, which the explicit forcing in the
-substeps needs (without this the density goes negative in three steps).
-The default is false, the original behaviour, for backward
-compatibility; buildings from height maps should set it. With the switch
-off every result is bit-identical to before.
+`erf.if_snap_partial_cells = true` makes the six forcing functions read the
+blanking snapped to solid or fluid at half: a height-map building becomes
+the same staircase of whole cells an exact box is, the wall law sits on
+the faces between a solid and a fluid cell, the drag inside the solid, and
+the sliver cells carry nothing. The 24 h day of `SEB/Phase7_IsolatedBuilding`
+on an exact box is the evidence that this configuration is stable. (A
+first version that kept the fractions and only moved the selection
+threshold to half left faces between a solid core and a half-solid rim
+relaxed toward a wall-law target while the core's other faces were damped,
+and a thin slab drove its density negative within two minutes.) The default
+is false, the raw fractions, for backward compatibility; buildings from
+height maps should set it. With the switch off every result is
+bit-identical to before, and on an exact box the switch changes nothing.
 
 ## What is checked
 
@@ -54,8 +53,8 @@ below 2 m/s, and the cube still throws a wake.
 ```
 == height-map cube, wall law snapped to half cells (4 ranks, 19000 steps)
   fluid temperature within 0.5 K of neutral: PASS (max |theta - 300| 0.000 K at t = 9500 s)
-  vertical velocity below 2 m/s: PASS (max |w| 0.49 m/s)
-  wake behind the cube: PASS (min u in the wake -0.38 m/s (inflow 3))
+  vertical velocity below 2 m/s: PASS (max |w| 0.60 m/s)
+  wake behind the cube: PASS (min u in the wake -0.32 m/s (inflow 3))
 partial cells: PASS
 ALL PASS
 ```

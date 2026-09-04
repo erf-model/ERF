@@ -344,6 +344,11 @@ public:
      */
     void print_debug_summary () const;
 
+    /** Add the wall-clock time of one per-step update of this rank, for the cost line of report(). */
+    void add_cost (double seconds) { m_cost_s += seconds; ++m_cost_n; }
+    /** Record the wall-clock time of the initialisation (build and view fractions). */
+    void set_init_cost (double seconds) { m_init_cost_s = seconds; }
+
     /**
      * First face of each local fab in MFIter order; size number of fabs + 1.
      * Faces ``fab_start()[n]`` to ``fab_start()[n+1]-1`` belong to the fab with
@@ -376,6 +381,9 @@ private:
     amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
     amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
     SunState m_sun;
+    double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank
+    long   m_cost_n = 0;          ///< Number of per-step updates timed
+    double m_init_cost_s = 0.0;   ///< Wall-clock seconds of build() and compute_view_fractions()
 };
 
 #endif

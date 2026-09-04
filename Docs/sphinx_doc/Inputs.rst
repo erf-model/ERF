@@ -1715,6 +1715,16 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ib_aware**                     | MRF and YSUNew only: treat the first fluid cell above an | Boolean            | false            |
+|                                          | immersed solid column (buildings or terrain by immersed  |                    |                  |
+|                                          | forcing) as that column's surface: heights, the bulk     |                    |                  |
+|                                          | Richardson depth and the K profile measured from it,     |                    |                  |
+|                                          | zero diffusivity inside the solid, a neutral log law at  |                    |                  |
+|                                          | the top for the surface scales; identical without        |                    |                  |
+|                                          | immersed cells; not with terrain-fitted coordinates      |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ib_z0**                        | roughness length [m] of that log law                     | Real > 0           | 0.01             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_const_b**                  | Coefficient for the countergradient term                 | Real               | 7.8              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_sf**                       | ratio of surface layer height to boundary layer height   | Real               | 0.1              |
@@ -2841,14 +2851,13 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_snap_partial_cells**     | place the wall law and the surface conditions on cells   | Boolean            | false            |
-|                                   | at least half solid whose normal neighbour is less than  |                    |                  |
-|                                   | half solid, leaving cells below half solid with the      |                    |                  |
-|                                   | fraction-weighted drag only; false keeps the original    |                    |                  |
-|                                   | selection (any cell above 0.005 with a neighbour at      |                    |                  |
-|                                   | exactly zero), which grows a checkerboard on the sliver  |                    |                  |
-|                                   | cells of height-map buildings over hours; set it for     |                    |                  |
-|                                   | buildings from height maps (see                          |                    |                  |
+| **erf.if_snap_partial_cells**     | read the blanking snapped to solid or fluid at half, so  | Boolean            | false            |
+|                                   | a height-map building becomes a staircase of whole cells |                    |                  |
+|                                   | (what an exact box is) with no sliver cells; false keeps |                    |                  |
+|                                   | the raw fractions, on which the wall law and the drag    |                    |                  |
+|                                   | disagree at the corners of the reader's one-cell ramp    |                    |                  |
+|                                   | and grow a checkerboard over hours; set it for buildings |                    |                  |
+|                                   | from height maps (see                                    |                    |                  |
 |                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |

@@ -125,6 +125,14 @@ public:
 
     // Which LES closure?
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
+    // Immersed-boundary awareness of the MRF and YSUNew schemes (off by default):
+    // the surface of a column with immersed solid cells is the first fluid cell
+    // above them, heights and the boundary-layer depth are measured from it,
+    // the eddy diffusivities are zero inside the solid, and the surface
+    // scales over such a column come from a neutral log law at its top with
+    // the roughness pbl_ib_z0. Only MRF and YSUNew honour it.
+    query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
+    query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
     // Handle 2-D Smag
     if (les_type == LESType::Smagorinsky2D) {
@@ -725,6 +733,8 @@ public:
   bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
+  bool        pbl_ib_aware = false;              // MRF / YSUNew: measure heights from the top of immersed solid columns
+  amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
@@ -843,6 +853,17 @@ public:
  * @brief Whether MRF applies turbulence to moisture variables.
  * @var TurbChoice::enable_mrf_countergradient
  * @brief Whether MRF countergradient corrections are enabled.
+ * @var TurbChoice::pbl_ib_aware
+ * When true, the MRF and YSUNew schemes treat the first fluid cell above the
+ * immersed solid of a column (buildings or terrain by immersed forcing) as
+ * that column's surface: the bulk Richardson heights, the boundary-layer
+ * depth and the K profile are measured from it, the diffusivities vanish
+ * inside the solid, and the surface scales of such a column are a neutral
+ * log law at its top (u* from the wind there and pbl_ib_z0, theta* = 0). Off
+ * by default; without immersed cells the results are identical. Not
+ * supported with terrain-fitted coordinates.
+ * @var TurbChoice::pbl_ib_z0
+ * Roughness length [m] of that log law.
  * @var TurbChoice::enable_mrf_cloud_adjustment
  * @brief Whether MRF cloud-aware stability adjustments are enabled.
  * @var TurbChoice::pbl_mrf_highres_bounds

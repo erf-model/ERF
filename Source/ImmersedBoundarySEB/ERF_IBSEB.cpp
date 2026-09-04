@@ -49,6 +49,7 @@ ERF::init_ibseb ()
     m_ibseb.resize(finest_level + 1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev);
+        const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
@@ -63,6 +64,7 @@ ERF::init_ibseb ()
         }
         m_ibseb[lev]->assign_materials();
         m_ibseb[lev]->compute_view_fractions();
+        m_ibseb[lev]->set_init_cost(ParallelDescriptor::second() - t_init0);
         m_ibseb[lev]->compute_shortwave(t_new[lev]);
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
@@ -88,6 +90,7 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
                     const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel)
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
+    const double t_wall0 = ParallelDescriptor::second();
     m_ibseb[lev]->compute_shortwave(time);
     m_ibseb[lev]->compute_longwave(cons);
     // Phase 8: the ground surface layer's fields and the mixed-layer depth
@@ -113,6 +116,7 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     } else {
         m_ibseb[lev]->compute_ground(dt);
     }
+    m_ibseb[lev]->add_cost(ParallelDescriptor::second() - t_wall0);
 }
 
 /**
