@@ -29,7 +29,7 @@ struct IBSEBParams
     amrex::Real T_interior    = 293.0;                 ///< Interior (deep) temperature [K]
     std::string csv_file      = "ibseb_buildings.csv"; ///< Per-building report
     int         csv_int       = 100;                   ///< Steps between report rows; <= 0 disables
-    bool        debug         = false;                 ///< Extra prints
+    bool        debug         = false;                 ///< [IBSEB DEBUG] prints: set description at build, per-step summary, per-building rows
 
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.

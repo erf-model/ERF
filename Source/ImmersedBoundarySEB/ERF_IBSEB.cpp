@@ -77,9 +77,12 @@ ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 void
 ERF::ibseb_report (int nstep, Real time)
 {
-    if (!ibseb_params.enable || ibseb_params.csv_int <= 0) { return; }
-    if (nstep % ibseb_params.csv_int != 0) { return; }
+    if (!ibseb_params.enable) { return; }
+    // With debug on the summary is printed every step, as the fire module
+    // does; the CSV rows keep their interval.
+    const bool csv_now = (ibseb_params.csv_int > 0) && (nstep % ibseb_params.csv_int == 0);
+    if (!csv_now && !ibseb_params.debug) { return; }
     for (int lev = 0; lev <= finest_level; ++lev) {
-        if (m_ibseb[lev]) { m_ibseb[lev]->report(time, nstep, true); }
+        if (m_ibseb[lev]) { m_ibseb[lev]->report(time, nstep, csv_now); }
     }
 }

@@ -2879,7 +2879,9 @@ ImmersedForcing``) and are off by default.
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.debug**               | extra prints                                             | Boolean            | false                  |
+| **erf.ibseb.debug**               | ``[IBSEB DEBUG]`` prints: the set's description at build | Boolean            | false                  |
+|                                   | (per-rank counts, buildings), a summary every step and   |                    |                        |
+|                                   | per-building rows                                        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid

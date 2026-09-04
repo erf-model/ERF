@@ -169,6 +169,14 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_Q_ext;         ///< External incident flux [W/m2], e.g. fire radiation
 
     /**
+     * Print the ``[IBSEB DEBUG]`` description of the set: the inputs, every
+     * rank's face count and per-fab ranges, the buildings with their footprint
+     * columns and bounding boxes, and the device memory of the arrays.
+     * Called once from build() when ``erf.ibseb.debug`` is set.
+     */
+    void print_debug_summary () const;
+
+    /**
      * First face of each local fab in MFIter order; size number of fabs + 1.
      * Faces ``fab_start()[n]`` to ``fab_start()[n+1]-1`` belong to the fab with
      * local index ``n``, which is what the scatter kernels rely on.
@@ -187,6 +195,9 @@ private:
     std::vector<amrex::Real> m_bld_area;       ///< Face area per building [m2]
     long m_nface_dir[3] = {0, 0, 0};           ///< Faces per direction
     amrex::Real m_area_total = 0.0;            ///< Total face area [m2]
+    // Footprint of each building (global): columns, and bounding box in cell indices.
+    std::vector<long> m_bld_ncol;
+    std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
 };
 
 #endif

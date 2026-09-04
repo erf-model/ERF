@@ -45,5 +45,5 @@ and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
 which holds the skin and slab temperatures of up to six faces per fluid
 cell. On restart the list is rebuilt from the blanking and refilled from
 that field, so a restart does not depend on the number of ranks.
-``Exec/CanonicalTests/SEB/Storage`` checks the face counts against the
+``Exec/CanonicalTests/SEB/Phase1_Storage`` checks the face counts against the
 mask, the rank independence and the checkpoint round trip.

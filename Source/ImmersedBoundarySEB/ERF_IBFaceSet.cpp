@@ -9,6 +9,7 @@
 #include <AMReX_Gpu.H>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <algorithm>
 
 using namespace amrex;
@@ -165,6 +166,19 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     for (int n = 0; n < m_nface; ++n) {
         h_bid[n] = label[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]];
     }
+    // Footprints, for the debug summary: columns and bounding box per building.
+    m_bld_ncol.assign(m_nbld + 1, 0);
+    m_bld_ilo.assign(m_nbld + 1, nx); m_bld_ihi.assign(m_nbld + 1, -1);
+    m_bld_jlo.assign(m_nbld + 1, ny); m_bld_jhi.assign(m_nbld + 1, -1);
+    for (int ci = 0; ci < nx; ++ci) {
+        for (int cj = 0; cj < ny; ++cj) {
+            const int b = label[static_cast<size_t>(ci) * ny + cj];
+            if (b == 0) { continue; }
+            m_bld_ncol[b] += 1;
+            m_bld_ilo[b] = std::min(m_bld_ilo[b], ci + ilo); m_bld_ihi[b] = std::max(m_bld_ihi[b], ci + ilo);
+            m_bld_jlo[b] = std::min(m_bld_jlo[b], cj + jlo); m_bld_jhi[b] = std::max(m_bld_jhi[b], cj + jlo);
+        }
+    }
 
     // Static totals: per direction, per building, and the summed area.
     std::vector<long> nd(3, 0);
@@ -206,6 +220,43 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     fill(d_G,        nf, Real(0.0));
     fill(d_Q_ext,    nf, Real(0.0));
     Gpu::streamSynchronize();
+
+    if (m_params.debug) { print_debug_summary(); }
+}
+
+/**
+ * Debug description of the set, in the style of the fire module's
+ * ``[FIRE DEBUG]`` lines: what was read, what every rank holds, what the
+ * buildings look like, and what the arrays cost. Per-rank lines use
+ * AllPrint() so every rank reports; the rest is printed by the I/O rank.
+ */
+void
+IBFaceSet::print_debug_summary () const
+{
+    const int nl = n_layers();
+    Print() << "[IBSEB DEBUG] lev=" << m_lev << " inputs: n_slab_layers=" << nl
+            << " T_skin_init=" << m_params.T_skin_init << " K"
+            << " T_interior=" << m_params.T_interior << " K"
+            << " csv_file=" << m_params.csv_file << " csv_int=" << m_params.csv_int << "\n";
+    Print() << "[IBSEB DEBUG] lev=" << m_lev << " global faces=" << (m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2])
+            << " (x=" << m_nface_dir[0] << " y=" << m_nface_dir[1] << " z=" << m_nface_dir[2] << ")"
+            << " area=" << m_area_total << " m2 buildings=" << m_nbld << "\n";
+    for (int b = 1; b <= m_nbld; ++b) {
+        Print() << "[IBSEB DEBUG]   building " << b << ": columns=" << m_bld_ncol[b]
+                << " i=[" << m_bld_ilo[b] << "," << m_bld_ihi[b] << "]"
+                << " j=[" << m_bld_jlo[b] << "," << m_bld_jhi[b] << "]"
+                << " faces=" << m_bld_nface[b] << " area=" << m_bld_area[b] << " m2\n";
+    }
+    // Per-rank ownership: one line per rank with its fab ranges.
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    const size_t bytes = static_cast<size_t>(m_nface) *
+        (7 * sizeof(int) + (11 + static_cast<size_t>(nl)) * sizeof(Real));
+    std::ostringstream os;
+    os << "[IBSEB DEBUG] lev=" << m_lev << " rank " << ParallelDescriptor::MyProc()
+       << ": faces=" << m_nface << " over " << nfab << " fab(s), device memory "
+       << bytes / 1024.0 << " kB; fab ranges:";
+    for (int f = 0; f < nfab; ++f) { os << " [" << m_fab_start[f] << "," << m_fab_start[f + 1] << ")"; }
+    AllPrint() << os.str() << "\n";
 }
 
 /**
@@ -265,6 +316,10 @@ IBFaceSet::save_state (MultiFab& state) const
         });
     }
     Gpu::streamSynchronize();
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << state_ncomp()
+                << " components (6 slots x " << (1 + n_layers()) << ")\n";
+    }
 }
 
 /**
@@ -291,6 +346,17 @@ IBFaceSet::load_state (const MultiFab& state)
         });
     }
     Gpu::streamSynchronize();
+    if (m_params.debug) {
+        std::vector<Real> h_T(m_nface);
+        Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
+        Gpu::streamSynchronize();
+        Real tmin = 1.0e30, tmax = -1.0e30;
+        for (int n = 0; n < m_nface; ++n) { tmin = std::min(tmin, h_T[n]); tmax = std::max(tmax, h_T[n]); }
+        ParallelDescriptor::ReduceRealMin(tmin);
+        ParallelDescriptor::ReduceRealMax(tmax);
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state loaded: T_skin in ["
+                << tmin << ", " << tmax << "] K\n";
+    }
 }
 
 /**
@@ -329,6 +395,14 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
             << " area=" << std::setprecision(10) << m_area_total << " m2"
             << " T_skin_min=" << ((nf_all > 0) ? tmin : Real(0.0))
             << " T_skin_max=" << ((nf_all > 0) ? tmax : Real(0.0)) << "\n";
+
+    if (m_params.debug) {
+        for (int b = 1; b <= m_nbld; ++b) {
+            const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
+            Print() << "[IBSEB DEBUG]   building " << b << ": faces=" << m_bld_nface[b]
+                    << " area=" << m_bld_area[b] << " m2 T_skin_mean=" << tmean << " K\n";
+        }
+    }
 
     if (!write_csv || !ParallelDescriptor::IOProcessor()) { return; }
     bool need_header = true;

@@ -1,4 +1,4 @@
-# SEB/Storage
+# SEB/Phase1_Storage
 
 Phase 1 of the immersed-boundary surface energy balance: the face storage.
 No physics yet; the skin temperature stays at its initial value. The test

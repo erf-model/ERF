@@ -47,11 +47,16 @@ def main():
         p = yt.SlicePlot(ds, axis, ("boxlib", field), center=center_for(axis, coord))
         p.set_axes_unit("code_length")
         p.set_origin("native")          # absolute coordinates, not domain-centred
-        if axis == "y":
-            p.swap_axes()               # yt draws a y-normal slice as (z, x); show (x, z)
         h, v = {"x": ("y", "z"), "y": ("x", "z"), "z": ("x", "y")}[axis]
-        p.set_xlabel(f"{h} [m]")
-        p.set_ylabel(f"{v} [m]")
+        if axis == "y":
+            # yt draws a y-normal slice as (z, x); swap to (x, z). The labels
+            # are applied to the axes before the swap, so they go in reversed.
+            p.swap_axes()
+            p.set_xlabel(f"{v} [m]")
+            p.set_ylabel(f"{h} [m]")
+        else:
+            p.set_xlabel(f"{h} [m]")
+            p.set_ylabel(f"{v} [m]")
         p.set_cmap(("boxlib", field), cmap)
         p.set_log(("boxlib", field), log)
         if zlim is not None:

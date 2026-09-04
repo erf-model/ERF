@@ -82,3 +82,4 @@ erf.ibseb.n_slab_layers = 4
 erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 293.0
 erf.ibseb.csv_int = 1
+erf.ibseb.debug = true
