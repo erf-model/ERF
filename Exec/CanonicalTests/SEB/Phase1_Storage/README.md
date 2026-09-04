@@ -53,6 +53,8 @@ expected x/y/z faces from mask: [900, 900, 256]  reported: [900, 900, 256]  nfac
 rank independence: PASS (faces=2056 (x=900 y=900 z=256) buildings=1 area=51400 m2)
 == checkpoint at step 2, restart to step 4 (4 ranks)
 state restored: yes
-restart CSV row matches straight: PASS
+restart CSV row matches straight (exact, atmosphere columns to 1e-3): PASS
 ALL PASS
 ```
+
+The restart comparison is exact for the geometry, skin and slab columns of the report row and allows 1e-3 relative on the two columns read from the atmosphere (net longwave, sensible flux), which the immersed forcing does not restart bit-for-bit (see Phase5_Ground).

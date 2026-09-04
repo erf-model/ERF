@@ -32,6 +32,19 @@ mpirun -np $NP "$EXE" inputs_chk > run_chk.log 2>&1 || { echo "chk run failed"; 
 grep -q "IBSEBState" chk00002/Level_0/IBSEBState_H 2>/dev/null || ls chk00002/Level_0 | grep -q IBSEBState || { echo "no IBSEBState in checkpoint: FAIL"; exit 1; }
 mpirun -np $NP "$EXE" inputs_restart > run_restart.log 2>&1 || { echo "restart run failed"; exit 1; }
 grep -q "Face state restored" run_restart.log && echo "state restored: yes" || { echo "state restored: FAIL"; exit 1; }
-s=$(tail -1 ibseb_straight.csv); r=$(tail -1 ibseb_restart.csv)
-[ "$s" = "$r" ] && echo "restart CSV row matches straight: PASS" || { echo "restart CSV row: FAIL"; echo " straight: $s"; echo " restart:  $r"; exit 1; }
+# The row's geometry, skin and slab columns must match exactly; the columns
+# read from the atmosphere (net longwave through the air temperature, the
+# sensible flux through the wind) may differ by the immersed forcing's
+# restart non-exactness of about 1e-5 relative (see Phase5_Ground).
+python3 - <<'PY' || exit 1
+s = open("ibseb_straight.csv").read().strip().splitlines(); r = open("ibseb_restart.csv").read().strip().splitlines()
+hdr = s[0].split(","); a = s[-1].split(","); b = r[-1].split(",")
+loose = {"LW_net_mean_Wm2", "H_mean_Wm2"}; ok = True
+for h, x, y in zip(hdr, a, b):
+    if h in loose:
+        if abs(float(x) - float(y)) > 1e-3 * max(1.0, abs(float(x))): ok = False; print(f" {h}: {x} vs {y} (beyond 1e-3 relative)")
+    elif x != y: ok = False; print(f" {h}: {x} vs {y} (must be exact)")
+print("restart CSV row matches straight (exact, atmosphere columns to 1e-3): " + ("PASS" if ok else "FAIL"))
+raise SystemExit(0 if ok else 1)
+PY
 echo "ALL PASS"
