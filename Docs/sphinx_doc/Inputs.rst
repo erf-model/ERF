@@ -2944,12 +2944,27 @@ ImmersedForcing``) and are off by default.
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.T_ground**            | ground temperature for the ground longwave term [K]      | Real > 0           | 300.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z0_wall**             | momentum roughness length of the faces for the wall      | Real > 0           | 0.01                   |
+|                                   | function [m]                                             |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z0h_wall**            | heat roughness length of the faces [m]                   | Real > 0           | 0.001                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.stability_correction**| apply the surface layer's similarity functions to the    | Boolean            | false                  |
+|                                   | wall function on roofs; walls stay neutral               |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.couple_heat**         | add the face sensible flux to the temperature equation;  | Boolean            | true                   |
+|                                   | false diagnoses it only                                  |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
 cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their
 mean absorbed shortwave), ``ibseb_shadow`` (their mean shadow flag),
-``ibseb_lw_net`` (their mean net longwave) and ``ibseb_f_sky`` (their mean
-sky view fraction) are available when the balance is on.
+``ibseb_lw_net`` (their mean net longwave), ``ibseb_f_sky`` (their mean
+sky view fraction) and ``ibseb_H`` (their mean sensible flux) are available
+when the balance is on. The immersed forcing's own surface-temperature
+inputs (``erf.if_init_surf_temp``, ``erf.if_surf_temp_flux``,
+``erf.if_Olen``) must be absent when the balance is on: it owns the
+temperature condition at the buildings.
 
 .. _sec:SurfaceLayerInputs:
 

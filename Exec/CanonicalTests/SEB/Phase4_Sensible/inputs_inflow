@@ -1,0 +1,13 @@
+FILE = inputs_base
+
+# Mass inflow at the west, pressure outflow at the east (as the Askervein
+# canonical does), periodic in y; longer so the warm wake reaches the outflow.
+geometry.is_periodic = 0 1 0
+xlo.type = "Inflow"
+xlo.dirichlet_file = "inflow_uniform.txt"
+xhi.type = "Outflow"
+erf.ibseb.couple_heat = true
+erf.ibseb.csv_file = "ibseb_inflow.csv"
+erf.ibseb.dump_faces_file = "faces_inflow"
+erf.plot_int_1 = 80
+max_step = 80

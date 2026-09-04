@@ -137,17 +137,16 @@ sun vector. Two providers:
 
 ## Sensible and latent heat (Phase 4)
 
-- Sensible: the immersed-forcing MOST wall model already computes a
-  friction velocity and a target temperature from a surface temperature
-  and the tangential wind at the first fluid cell. Generalise
-  `ImmersedForcingBuildings_Scalar` from "solid below, fluid above" to all
-  three face directions with `T_skin` of the face as the surface
-  temperature; neutral similarity on vertical faces, the existing stability
-  correction on roofs. H per face is diagnosed from the same u*, theta*
-  pair so the balance and the atmosphere see one flux.
-- The forcing keeps its relaxation form (it is what the anelastic and
-  compressible paths both support); the equivalent face flux is stored on
-  the face for the balance and for output.
+- Sensible: a wall function on every face with the same form as the
+  immersed forcing's momentum wall model: u* from the tangential wind of the
+  fluid cell at half a cell from the wall with z0_wall, theta* from the
+  skin-to-air potential-temperature difference with z0h_wall, H = rho c_p u*
+  theta*; neutral on walls, the surface layer's similarity functions on
+  roofs when asked.
+- The flux enters as an explicit source (H A / (c_p V Pi) into rho-theta of
+  the fluid cell, added after make_sources at every slow stage), chosen over
+  the relaxation form because it is exact and local; the immersed forcing's
+  own surface-temperature inputs are refused when the balance is on.
 - Latent: `LE = 0` with the argument in place; a wet-surface option
   (`erf.ibseb.wet_fraction` per material, bulk evaporation) is a later
   addition and needs the moisture source slot.
@@ -229,7 +228,7 @@ the cost of the face list on a city-scale case can be estimated.
 | 1 storage | done 2026-09-03 | `SEB/Phase1_Storage` | 2056 faces on the skyscraper, rank-independent, restart round trip |
 | 2 shortwave | done 2026-09-03 | `SEB/Phase2_Shortwave` | prescribed provider, ray-cast shadow; flag matches an independent cast on all 2616 faces |
 | 3 longwave | done 2026-09-03 | `SEB/Phase3_Longwave` | hemisphere sampling, sky/ground/building terms; fractions match an independent sampling on every face |
-| 4 sensible, latent | planned | `SEB/Phase4_Sensible` | generalises the immersed-forcing wall model |
+| 4 sensible, latent | done 2026-09-03 | `SEB/Phase4_Sensible` | wall function per face, explicit face flux into the rho-theta source; internal-energy budget closes against the diagnostic run |
 | 5 ground | planned | `SEB/Phase5_Ground` | lifts the SLUCM slab solver and materials |
 | 6 prognostic | planned | `SEB/Phase6_Prognostic` | lifts the SLUCM Newton solver, adds `Q_ext`; two-stream provider optional |
 | 7 isolated building | planned | canonical | |

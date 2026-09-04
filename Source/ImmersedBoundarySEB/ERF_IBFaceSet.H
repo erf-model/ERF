@@ -122,6 +122,35 @@ public:
     void compute_longwave (const amrex::MultiFab& cons);
 
     /**
+     * Sensible heat of the current step (phase 4) through a wall function on
+     * every face: the tangential wind of the fluid cell at half a cell from
+     * the wall gives u* with the roughness z0_wall, the skin-to-air
+     * potential-temperature difference gives theta* with z0h_wall, and
+     * H = rho c_p u* theta*, positive out of the face. Neutral, or with the
+     * surface layer's stability functions on roofs when asked. The latent
+     * flux stays zero in this phase.
+     *
+     * Fills d_H, d_ustar, d_U_tan, d_rho, d_theta_air; T_air was read by
+     * compute_longwave(), which must run first in a step.
+     * @param cons  Conserved state of the level (density, rho theta).
+     * @param xvel, yvel, zvel  Face-centred velocities of the level.
+     * @param c_p   Specific heat of air [J/kg/K].
+     */
+    void compute_sensible (const amrex::MultiFab& cons, const amrex::MultiFab& xvel,
+                           const amrex::MultiFab& yvel, const amrex::MultiFab& zvel, amrex::Real c_p);
+
+    /**
+     * Add the face heat flux to the temperature equation: every face
+     * deposits ``H A / (c_p V Pi)`` into the rho-theta source of its fluid
+     * cell (Pi the Exner function, so the flux heats the cell by H A / (c_p V)
+     * in temperature). Called after the sources are rebuilt at every slow
+     * stage; adds, never overwrites, and uses atomic adds because a corner
+     * cell receives several faces.
+     */
+    void add_heat_flux_to_source (amrex::MultiFab& source, const amrex::MultiFab& cons,
+                                  const amrex::Geometry& geom, amrex::Real c_p, amrex::Real rdOcp) const;
+
+    /**
      * Shortwave of the current step (phase 2): sun position and irradiances
      * from the prescribed provider, then per face the direct beam on the
      * face (zero when the ray toward the sun hits a building), the diffuse
@@ -221,6 +250,11 @@ public:
     // Longwave detail (phase 3) [W/m2] and the air temperature read [K]:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_down_in;   ///< Incoming longwave on the face
     amrex::Gpu::DeviceVector<amrex::Real> d_T_air;        ///< Air temperature of the fluid cell
+    // Sensible heat detail (phase 4):
+    amrex::Gpu::DeviceVector<amrex::Real> d_theta_air;    ///< Potential temperature of the fluid cell [K]
+    amrex::Gpu::DeviceVector<amrex::Real> d_rho;          ///< Density of the fluid cell [kg/m3]
+    amrex::Gpu::DeviceVector<amrex::Real> d_U_tan;        ///< Tangential wind speed at the fluid cell [m/s]
+    amrex::Gpu::DeviceVector<amrex::Real> d_ustar;        ///< Friction velocity of the wall function [m/s]
     // Column tops of the whole level [m], replicated on every rank for the
     // ray cast: index ci * ny + cj over the domain's columns.
     amrex::Gpu::DeviceVector<amrex::Real> d_col_top;

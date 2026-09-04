@@ -1,0 +1,53 @@
+# Phase 4 of the immersed-boundary surface energy balance: sensible heat
+# through a wall function on every face. A 40 m cube at the centre of a
+# 640 m periodic domain on a 5 m grid in a uniform 8 m/s wind at 300 K, with
+# the cube's faces held at 320 K (nothing evolves the skin temperature yet).
+# No sun, no Coriolis, no damping, adiabatic no-slip ground, so the only heat
+# entering the air is the face flux. Variants: inputs_diag (flux diagnosed,
+# not applied), inputs_couple (flux applied; heat budget), inputs_inflow
+# (mass inflow at the west, pressure outflow at the east, for the wake).
+stop_time = 1000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  640     640    640
+amr.n_cell           =  128     128    128
+geometry.is_periodic = 1 1 0
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.125
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = 40
+erf.plot_vars_1     = density theta temp x_velocity terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_H
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = cube_40m_5m_128x128.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.debug = true
+erf.ibseb.csv_int = 1
+erf.ibseb.T_skin_init = 320.0
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 120.0     # night
+erf.ibseb.lw_mode = "fixed"
+erf.ibseb.lw_down = 0.0
+max_step = 40

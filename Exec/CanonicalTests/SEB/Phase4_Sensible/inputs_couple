@@ -1,0 +1,5 @@
+FILE = inputs_base
+
+erf.ibseb.couple_heat = true
+erf.ibseb.csv_file = "ibseb_couple.csv"
+erf.ibseb.dump_faces_file = "faces_couple"

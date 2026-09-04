@@ -73,6 +73,19 @@ struct IBSEBParams
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
     amrex::Real T_ground          = 300.0;  ///< Ground temperature for the ground term [K]
 
+    // ---- Sensible and latent heat (phase 4) ---------------------------------
+    // Wall function between the face skin temperature and the adjacent fluid
+    // cell: u* from the tangential wind at half a cell from the wall with the
+    // roughness length z0_wall, theta* from the skin-to-air difference with
+    // z0h_wall; H = rho c_p u* theta* (positive out of the face). Neutral on
+    // every face unless stability_correction is set, which applies the
+    // surface layer's similarity functions on roofs. couple_heat = false
+    // diagnoses H without adding it to the temperature equation.
+    amrex::Real z0_wall           = 0.01;   ///< Momentum roughness of the faces [m]
+    amrex::Real z0h_wall          = 0.001;  ///< Heat roughness of the faces [m]
+    bool        stability_correction = false;
+    bool        couple_heat       = true;   ///< Add the face flux to the temperature equation
+
     /**
      * Read the ``erf.ibseb.*`` inputs and validate them.
      *
@@ -115,6 +128,10 @@ struct IBSEBParams
         pp.query("lw_down",          lw_down);
         pp.query("sky_emissivity",   sky_emissivity);
         pp.query("T_ground",         T_ground);
+        pp.query("z0_wall",          z0_wall);
+        pp.query("z0h_wall",         z0h_wall);
+        pp.query("stability_correction", stability_correction);
+        pp.query("couple_heat",      couple_heat);
         if (enable) {
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
@@ -135,6 +152,7 @@ struct IBSEBParams
             if (view_n_az < 1 || view_n_el < 1) { amrex::Abort("erf.ibseb.view_n_az and view_n_el must be >= 1"); }
             if (lw_mode != "fixed" && lw_mode != "gray") { amrex::Abort("erf.ibseb.lw_mode must be \"fixed\" or \"gray\""); }
             if (lw_down < 0.0 || T_ground <= 0.0) { amrex::Abort("erf.ibseb.lw_down must be >= 0 and T_ground > 0"); }
+            if (z0_wall <= 0.0 || z0h_wall <= 0.0) { amrex::Abort("erf.ibseb.z0_wall and z0h_wall must be positive [m]"); }
             if (n_slab_layers < 1) { amrex::Abort("erf.ibseb.n_slab_layers must be >= 1"); }
             if (T_skin_init <= 0.0 || T_interior <= 0.0) {
                 amrex::Abort("erf.ibseb.T_skin_init and T_interior must be positive [K]");

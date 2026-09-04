@@ -114,6 +114,45 @@ face against an independent hemisphere sampling, their closure and the
 analytic values on the clean planes, and the longwave formulas on every
 face, on one and four ranks.
 
+Sensible and latent heat
+------------------------
+
+The sensible heat leaves a face through a wall function between its skin
+temperature and the adjacent fluid cell, the same form the immersed forcing
+uses for momentum. The tangential wind of the fluid cell, at half a cell
+from the wall, gives the friction velocity with the roughness
+:cpp:`erf.ibseb.z0_wall`, :math:`u_* = \kappa U_t / \ln(\delta/z_0)`; the
+difference between the skin temperature, expressed as a potential
+temperature with the cell's Exner function, and the cell's potential
+temperature gives the temperature scale with :cpp:`erf.ibseb.z0h_wall`; and
+
+.. math::
+
+   H = \rho c_p u_* \theta_* = \rho c_p u_* \kappa
+       \frac{\theta_s - \theta_{air}}{\ln(\delta/z_{0h})} ,
+
+positive out of the face. Vertical faces are neutral, since buoyancy runs
+along them; on roofs :cpp:`erf.ibseb.stability_correction` applies the
+surface layer's similarity functions with a few fixed-point passes on the
+Obukhov length. The latent flux is zero in this version and its argument
+is in place for a wet-surface option.
+
+The flux enters the atmosphere as a source: every face deposits
+:math:`H A / (c_p V \Pi)` into the rho-theta equation of its fluid cell,
+with :math:`A` the face area, :math:`V` the cell volume and :math:`\Pi`
+the Exner function, so the cell warms by :math:`H A / (c_p V)` per second
+in temperature. It is added after the sources are rebuilt at every slow
+stage and never overwrites another term. :cpp:`erf.ibseb.couple_heat =
+false` diagnoses the flux without applying it. Because the balance now
+owns the temperature condition at the buildings, the immersed forcing's
+surface-temperature inputs must not be set with it.
+
+``Exec/CanonicalTests/SEB/Phase4_Sensible`` holds a cube's faces at 320 K in
+an 8 m/s wind at 300 K and checks the wall function on every face against
+the formulas, the rank independence, the heat budget of the closed domain
+against the summed face flux, and a mass-inflow, pressure-outflow variant
+whose wake is warmer than the inflow.
+
 ``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent
 ray cast, the incidence on every orientation, the height to which the tall
