@@ -1176,8 +1176,8 @@ struct surface_temp
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real zref     = zref_arr(i,j,k);
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real umm      = std::max(umm_arr(i,j,k), WSMIN);
@@ -1232,11 +1232,11 @@ struct surface_temp
             psi_h = sfuns.calc_psi_h2(zeta_old);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (one - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (one - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1245,14 +1245,14 @@ struct surface_temp
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
@@ -1332,8 +1332,8 @@ struct surface_temp_charnock
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real z0_old   = z0;
         amrex::Real ustar    = zero;
@@ -1415,11 +1415,11 @@ struct surface_temp_charnock
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1429,14 +1429,14 @@ struct surface_temp_charnock
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
@@ -1519,8 +1519,8 @@ struct surface_temp_mod_charnock
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real z0_old   = z0;
         amrex::Real ustar    = zero;
@@ -1596,11 +1596,11 @@ struct surface_temp_mod_charnock
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1610,14 +1610,14 @@ struct surface_temp_mod_charnock
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
@@ -1696,8 +1696,8 @@ struct surface_temp_donelan
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real z0_old   = z0;
         amrex::Real ustar    = zero;
@@ -1773,11 +1773,11 @@ struct surface_temp_donelan
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1787,14 +1787,14 @@ struct surface_temp_donelan
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
@@ -1873,8 +1873,8 @@ struct surface_temp_wave_coupled
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real z0_old   = z0;
         amrex::Real ustar    = zero;
@@ -1951,11 +1951,11 @@ struct surface_temp_wave_coupled
             C = std::log(zref / z0);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (amrex::Real(1.0) - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -1965,14 +1965,14 @@ struct surface_temp_wave_coupled
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
