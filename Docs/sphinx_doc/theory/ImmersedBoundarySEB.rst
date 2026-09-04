@@ -304,7 +304,25 @@ Canonical case: an isolated building over a day
 
 ``Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`` runs a 40 m concrete
 cube at Boulder on the June solstice from midnight for 24 hours in a light
-westerly, with the prescribed clear-sky provider and a gray sky. The
+westerly, with the prescribed clear-sky provider and a gray sky.
+
+.. figure:: ../figures/IBSEB_day_tskin.png
+   :width: 80%
+
+   The isolated building's day: mean skin temperature of the roof and the
+   four walls, and the air next to the roof.
+
+.. figure:: ../figures/IBSEB_day_roof_budget.png
+   :width: 80%
+
+   The core roof's budget through the day: absorbed shortwave, net
+   longwave, sensible flux to the air and conduction into the roof.
+
+.. figure:: ../figures/IBSEB_day_slab.png
+   :width: 80%
+
+   Temperature through the 30 cm roof slab against time.
+ The
 sequence through the day is the one a building shows: radiative cooling of
 every face below the air at night, the east wall lit first after sunrise,
 the roof peaking early in the afternoon and lagging the sun, the west wall
@@ -325,3 +343,27 @@ and the solar mode against the solstice-noon zenith at Boulder. The
 embedded-boundary reader steps each building edge over one cell, so the
 boxes have a full-height core with a half-height rim, which the test
 reads from the face dump rather than assuming.
+
+Canonical case: a building set
+------------------------------
+
+``Exec/CanonicalTests/SEB/Phase8_BuildingSet`` runs four buildings from a
+nodal height map (a 60 m concrete slab, a 40 m brick cube east of it, two
+20 m timber blocks) through a solstice morning with the convective
+velocity scale and the stability functions on and the immersed forcing
+snapped to whole cells, and checks the mutual shadowing, the building
+view fractions of the facing walls, the ordering of the roof temperatures
+by material, the wall function beyond neutral and the cost of the face
+list.
+
+.. figure:: ../figures/IBSEB_set_tskin.png
+   :width: 80%
+
+   Mean skin temperature of each building from 05:00 to 11:00 solar time;
+   the two timber blocks track each other, the brick cube and the concrete
+   slab lag by their heavier walls.
+
+.. figure:: ../figures/IBSEB_set_faces.png
+   :width: 70%
+
+   Every face at 11:00 coloured by skin temperature, seen from above.
