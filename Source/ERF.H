@@ -212,6 +212,17 @@ public:
                 solverChoice.moisture_indices.qi != -1);
     }
 
+    // Which atmos->ocean lanes PackAtmosphericStates actually writes here, as
+    // 0/1 in that routine's slot order: the 9-lane state view when
+    // state_contract, else the 8-lane flux view.
+    //
+    // A lane reported 0 is one the pack leaves untouched, so handing it over
+    // would pass the driver's own prefill off as an atmospheric value.
+    // HasRadiation()/HasCloudWater() answer this for two lanes; this covers all
+    // of them, and lives beside the pack so the gates cannot drift apart.
+    void GetFillableAtmosToOceanLanes (bool state_contract,
+                                       amrex::Vector<int>& can_fill) const;
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
@@ -343,6 +354,19 @@ public:
 
     // Interpolate 2D arrays lat_m, lon_m, sinPhi, cosPhi
     void Interp2DArrays (int lev, const amrex::BoxArray& my_ba2d, const amrex::DistributionMapping& my_dm);
+
+    // Fill the map factors at lev by interpolation from lev-1
+    void interp_mapfac_from_coarse (int lev);
+
+    // Fill the surface pressure at lev by interpolation from lev-1
+    void interp_psfc_from_coarse (int lev);
+
+    // Fill the land mask and the land / soil types at lev by injection from lev-1
+    void interp_land_masks_from_coarse (int lev);
+
+    // True if this level read its own initialization file, so its map factors
+    //     came from that file rather than from its parent
+    bool has_own_init_file (int lev) const;
 
     void WriteMyEBSurface ();
 
@@ -789,6 +813,12 @@ public:
     // level remade by a regrid gets the same base state rather than one interpolated from
     // its parent.  Requires z_phys_cc[lev] and wrf_bsp to be valid.
     void rebuild_base_state_from_wrfinput (int lev, amrex::MultiFab& base_state_mf);
+
+    // Re-read the six reference parameters that define the WRF base state from the level-0
+    // wrfinput file.  These are read at initialization but are not part of the checkpoint,
+    // so on restart wrf_bsp would otherwise be left unset -- and the first regrid that has
+    // to rebuild a base state would abort in init_base_state_from_wrfinput.
+    void restore_base_state_params_on_restart ();
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
