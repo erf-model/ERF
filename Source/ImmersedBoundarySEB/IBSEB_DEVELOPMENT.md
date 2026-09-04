@@ -263,8 +263,10 @@ temperatures and shadow fractions, a face map from above and a yt slice.
 
 ## After the eight phases
 
-- PR to `erf-model/ERF` `development`, self-contained; the two-stream
-  provider goes with it or follows it depending on the radiation branch.
+- PR to `erf-model/ERF` `development`: erf-model/ERF#3960, opened
+  2026-09-04 from `hgopalan:claude-seb`, self-contained; the two-stream
+  provider follows once the radiation branch merges. The PR description
+  carries the limitations with an effort estimate for each.
 - ERF-Hazard: merge development, then the fire's radiant flux into
   `Q_ext`, the exposure metrics from the skin temperature, ignition, and
   the drop of the atmospheric injection to the convective fraction.
