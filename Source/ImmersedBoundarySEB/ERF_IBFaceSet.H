@@ -8,77 +8,185 @@
 #include "ERF_IBSEBParams.H"
 
 /**
- * @file ERF_IBFaceSet.H
- * @brief Compact list of the wall faces of resolved buildings on one level
+ * \file ERF_IBFaceSet.H
+ * \brief Compact list of the wall faces of resolved buildings on one AMR level.
  *
- * A wall face sits between a fluid cell (blanking < 0.5) and a solid cell
- * (blanking >= 0.5). Each face is stored once, on the rank that owns the
- * fluid cell, as a struct of device arrays: the fluid cell (i, j, k), the
- * face direction (0, 1, 2), the side of the fluid cell the solid is on
- * (-1: at i-1, +1: at i+1, and likewise for j and k), the building id, the
- * material id, the face area, the skin temperature, the slab temperatures,
- * the view fractions and the current fluxes. Faces are contiguous per local
- * fab in MFIter order, so a kernel over one fab's faces can write into that
- * fab's arrays.
+ * **What a face is.** The immersed forcing marks every cell of a level as
+ * fluid or solid through the cell-centred blanking ``terrain_blanking``
+ * (one minus the embedded-boundary volume fraction, so 0 in the air and 1
+ * inside a building). A wall face is the cell face between a fluid cell
+ * (blanking below 0.5) and a solid cell (blanking at or above 0.5). Walls
+ * are x or y faces, roofs are z faces with the fluid above the solid.
  *
- * Every input of the balance is local to the fluid cell, so the per-step
- * update needs no communication; only the reports reduce across ranks.
+ * **Face convention.** A face is identified by its *fluid* cell ``(i, j, k)``,
+ * its direction ``dir`` (0 = x, 1 = y, 2 = z) and its ``side`` (-1 when the
+ * solid neighbour is at ``i-1`` / ``j-1`` / ``k-1``, +1 when it is at
+ * ``i+1`` / ``j+1`` / ``k+1``). The outward unit normal of the wall, pointing
+ * into the fluid, is therefore ``-side`` along ``dir``. The fluid cell is where
+ * every atmospheric input of the balance (wind, temperature, humidity,
+ * radiation) is read and where the wall's heat flux is deposited.
  *
- * Building ids come from labelling the solid columns of the blanking
- * (4-connected in the horizontal), numbered in scan order; a face carries
- * the id of the column of its solid neighbour.
+ * **Ownership and layout.** Each face is stored exactly once, on the rank
+ * that owns its fluid cell, so the per-step update of the balance is a kernel
+ * over this rank's faces with no communication; only the reports reduce
+ * across ranks. The faces are a struct of device arrays (one
+ * ``amrex::Gpu::DeviceVector`` per quantity, all indexed by the face number)
+ * and are stored contiguously per local fab in MFIter order:
+ * ``fab_start()[mfi.LocalIndex()]`` to ``fab_start()[mfi.LocalIndex()+1]``
+ * are the faces whose fluid cell is in that fab, which is what lets a kernel
+ * scatter into that fab's arrays without a search.
  *
- * Output goes through cell-centred fields on demand: scatter_diagnostics()
- * for the plotfile, save_state() / load_state() for the checkpoint, which
- * make restarts independent of the rank count because the list is rebuilt
- * from the blanking and refilled from the field.
+ * **Building ids.** The solid columns of the blanking (any solid cell in the
+ * column) are labelled by 4-connectivity in the horizontal and numbered in
+ * scan order over ``(i, j)``, identically on every rank from a reduced column
+ * mask; a face carries the id of the column of its solid neighbour. Ids are
+ * 1-based, 0 is never assigned.
+ *
+ * **Output.** The list is never written directly. scatter_diagnostics() puts
+ * the number of faces and their mean skin temperature into cell-centred
+ * fields for the plotfile; save_state() / load_state() move the skin and
+ * slab temperatures through a cell-centred field with six slots per cell
+ * (one per direction and side) for the checkpoint. On restart the list is
+ * rebuilt from the blanking and refilled from that field, so a restart does
+ * not depend on the rank count or on the order the faces were found in.
+ *
+ * **Phases.** Phase 1 (this file) only stores. Later phases fill
+ * ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg`` (view fractions, phase 3), the
+ * flux arrays (phases 2-5) and advance ``d_T_skin`` and ``d_T_slab`` (phase 6);
+ * ``d_Q_ext`` is the hook through which an external incident flux (a fire's
+ * radiation) enters without the balance knowing its source. See
+ * IBSEB_DEVELOPMENT.md.
  */
 class IBFaceSet
 {
 public:
+    /**
+     * Construct an empty face set for one level; build() fills it.
+     * @param params Inputs of the balance (copied; the set never reads ParmParse).
+     * @param lev    AMR level the set belongs to, for reports only.
+     */
     IBFaceSet (const IBSEBParams& params, int lev) : m_params(params), m_lev(lev) {}
 
-    /// Detect the faces of this rank from the cell-centred blanking (one ghost cell needed).
+    /**
+     * Detect this rank's faces from the cell-centred blanking and allocate
+     * every per-face array.
+     *
+     * Runs on the host once at initialisation: the blanking is copied fab by
+     * fab (a pinned copy on GPU builds), the valid cells are scanned, and the
+     * arrays are uploaded to the device at the end. Must be called after the
+     * blanking has been built and its ghost cells filled, since the solid
+     * neighbour of a fluid cell on a box edge lives in a ghost cell.
+     *
+     * @param blanking Cell-centred blanking of the level (needs at least one
+     *                 ghost cell, filled).
+     * @param geom     Geometry of the level: cell sizes for the face areas,
+     *                 domain and periodicity for the neighbour tests.
+     */
     void build (const amrex::MultiFab& blanking, const amrex::Geometry& geom);
 
+    /** Number of faces owned by this rank (not the global count; see report()). */
     int n_faces () const { return m_nface; }
+    /** Number of buildings of the level, the same on every rank. */
     int n_buildings () const { return m_nbld; }
+    /** Conduction layers per face, from ``erf.ibseb.n_slab_layers``. */
     int n_layers () const { return m_params.n_slab_layers; }
 
-    /// Components of the checkpoint state field: 6 face slots x (skin + layers).
+    /**
+     * Number of components of the checkpoint state field.
+     *
+     * A fluid cell can carry up to six faces (two per direction), so the field
+     * has six slots of ``1 + n_layers()`` values: component
+     * ``(dir*2 + (side>0)) * (1 + n_layers())`` is the skin temperature of that
+     * slot and the following ``n_layers()`` components are its slab layers.
+     */
     int state_ncomp () const { return 6 * (1 + n_layers()); }
 
-    /// Number of faces touching each cell and their mean skin temperature (cell-centred, 1 comp each).
+    /**
+     * Scatter the faces into two cell-centred diagnostics for the plotfile.
+     *
+     * @param[out] nfaces Number of wall faces touching each fluid cell (0 away
+     *                    from buildings; up to 3 at an outside corner, 6 in a
+     *                    one-cell slot).
+     * @param[out] tskin  Mean skin temperature of those faces, 0 where there
+     *                    are none.
+     *
+     * Both fields must be on the level's box array with no ghost cells. Faces
+     * of one fab are accumulated with atomic adds because a corner cell
+     * receives several faces.
+     */
     void scatter_diagnostics (amrex::MultiFab& nfaces, amrex::MultiFab& tskin) const;
 
-    /// Write / read the face state through a cell-centred field with state_ncomp() components.
+    /**
+     * Write the face state (skin and slab temperatures) into a cell-centred
+     * field with state_ncomp() components, for the checkpoint.
+     *
+     * Each face writes its own slot (see state_ncomp()), so no two faces
+     * touch the same component of the same cell and no atomics are needed.
+     * Cells without a face in a slot keep zero there.
+     */
     void save_state (amrex::MultiFab& state) const;
+
+    /**
+     * Read the face state back from a field written by save_state(), after
+     * build() has recreated the list from the blanking. Only the slots that
+     * correspond to a face of this list are read.
+     */
     void load_state (const amrex::MultiFab& state);
 
-    /// Print the summary line and append one row per building to the CSV.
+    /**
+     * Print the ``[IBSEB]`` summary line and, when asked, append one row per
+     * building to ``erf.ibseb.csv_file``.
+     *
+     * The summary carries the global face counts per direction, the number of
+     * buildings, the total face area and the range of the skin temperature;
+     * the CSV rows carry per building the face count, the area and the
+     * area-weighted mean skin temperature. All numbers are reduced over the
+     * ranks; the file is written by the I/O rank only, with a header only
+     * when the file does not exist yet, so a restarted run appends.
+     *
+     * @param time      Simulation time [s] written to the rows.
+     * @param step      Step number written to the rows.
+     * @param write_csv Whether to append rows, or only print the summary.
+     */
     void report (amrex::Real time, int step, bool write_csv) const;
 
-    // Device arrays; the kernels of the later phases read and write them.
-    amrex::Gpu::DeviceVector<int>         d_i, d_j, d_k, d_dir, d_side, d_bid, d_mat;
-    amrex::Gpu::DeviceVector<amrex::Real> d_area, d_T_skin, d_T_slab;
-    amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;
-    amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G, d_Q_ext;
+    // ---- Per-face device arrays, indexed by face number ----------------------
+    // Static geometry, set by build():
+    amrex::Gpu::DeviceVector<int>         d_i, d_j, d_k;   ///< Fluid cell of the face
+    amrex::Gpu::DeviceVector<int>         d_dir;           ///< Face direction: 0 x, 1 y, 2 z
+    amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbour at -1 (low) or +1 (high) side
+    amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
+    amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (phase 5; 0 until then)
+    amrex::Gpu::DeviceVector<amrex::Real> d_area;          ///< Face area [m2]
+    // State, advanced by the balance (phase 6) and checkpointed:
+    amrex::Gpu::DeviceVector<amrex::Real> d_T_skin;        ///< Skin temperature [K]
+    amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
+    // Static radiative geometry (phase 3):
+    amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;  ///< View fractions, sum to 1
+    // Fluxes of the current step [W/m2], positive as in IBSEB_DEVELOPMENT.md
+    // (SW_abs and LW_net into the face, H, LE, G out of it):
+    amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
+    amrex::Gpu::DeviceVector<amrex::Real> d_Q_ext;         ///< External incident flux [W/m2], e.g. fire radiation
 
-    /// First face of each local fab (MFIter order); size nfabs + 1.
+    /**
+     * First face of each local fab in MFIter order; size number of fabs + 1.
+     * Faces ``fab_start()[n]`` to ``fab_start()[n+1]-1`` belong to the fab with
+     * local index ``n``, which is what the scatter kernels rely on.
+     */
     const std::vector<int>& fab_start () const { return m_fab_start; }
 
 private:
-    IBSEBParams m_params;
-    int m_lev   = 0;
-    int m_nface = 0;
-    int m_nbld  = 0;
-    std::vector<int> m_fab_start;
+    IBSEBParams m_params;          ///< Copy of the inputs
+    int m_lev   = 0;               ///< AMR level, for reports
+    int m_nface = 0;               ///< Faces owned by this rank
+    int m_nbld  = 0;               ///< Buildings of the level (global)
+    std::vector<int> m_fab_start;  ///< See fab_start()
 
-    // Static per-building totals over all ranks, index 0 unused.
-    std::vector<long>        m_bld_nface;
-    std::vector<amrex::Real> m_bld_area;
-    long m_nface_dir[3] = {0, 0, 0};
-    amrex::Real m_area_total = 0.0;
+    // Static totals over all ranks, computed once in build(); building index 0 unused.
+    std::vector<long>        m_bld_nface;      ///< Faces per building
+    std::vector<amrex::Real> m_bld_area;       ///< Face area per building [m2]
+    long m_nface_dir[3] = {0, 0, 0};           ///< Faces per direction
+    amrex::Real m_area_total = 0.0;            ///< Total face area [m2]
 };
 
 #endif

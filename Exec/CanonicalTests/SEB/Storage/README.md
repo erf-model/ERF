@@ -29,6 +29,19 @@ initial skin temperature; a report row every step.
    restart to step 4 reports that it restored the face state, and its last
    CSV row equals the straight run's.
 
+## Plotting
+
+```
+python3 plot_storage.py plt00004            # writes plots/*.png
+```
+
+`plot_storage.py` uses yt to draw a horizontal slice of the mask and of
+`ibseb_nfaces` through the building, and vertical slices of `ibseb_tskin`
+through its centroid, with the mask outline. `--z`, `--x`, `--y` move the
+slices and `--out` the directory. The face-bearing cells form a one-cell
+ring around the footprint, two faces at the corners, and a cap over the
+roof; in this phase every face is at the initial skin temperature.
+
 ## Reference
 
 ```

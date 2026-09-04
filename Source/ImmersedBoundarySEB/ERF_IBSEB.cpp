@@ -1,6 +1,15 @@
 /**
  * \file ERF_IBSEB.cpp
- * \brief ERF-side hooks of the immersed-boundary surface energy balance
+ * \brief ERF-side hooks of the immersed-boundary surface energy balance.
+ *
+ * The balance lives in IBFaceSet (one per level, ``ERF::m_ibseb``); this file
+ * holds the three places ERF calls into it:
+ *  - init_ibseb() from ERF::InitData_post(), after the immersed forcing has
+ *    built the blanking on a fresh start or a restart;
+ *  - ibseb_write_checkpoint() from ERF::WriteCheckpointFile(), per level;
+ *  - ibseb_report() from ERF::post_timestep().
+ * The inputs are parsed in ERF::ReadParameters() into ``ERF::ibseb_params``.
+ * Every function is a no-op unless ``erf.ibseb.enable`` is set.
  */
 #include <ERF.H>
 #include <AMReX_VisMF.H>
@@ -8,9 +17,16 @@
 using namespace amrex;
 
 /**
- * Build the face set of every level from the blanking, after the immersed
- * forcing has been initialised (fresh start or restart), and restore the
- * face state from the checkpoint when restarting.
+ * Build the face set of every level from the blanking and, on a restart,
+ * refill its state from the checkpoint.
+ *
+ * Called from ERF::InitData_post() after restart(), which is the first point
+ * where both paths (fresh start and restart) have the blanking of every
+ * level built and ghost-filled. The face list is always rebuilt from the
+ * blanking rather than read back, so the checkpoint carries only the state
+ * (``IBSEBState``, see IBFaceSet::state_ncomp()) and a restart on a different
+ * number of ranks works. A checkpoint from a run without the balance has no
+ * such field; the initial state is kept and a note is printed.
  */
 void
 ERF::init_ibseb ()
@@ -39,7 +55,11 @@ ERF::init_ibseb ()
     }
 }
 
-/// Write the face state of one level into the checkpoint.
+/**
+ * Write the face state of one level into the checkpoint as ``IBSEBState``.
+ * Called inside the level loop of ERF::WriteCheckpointFile(); a no-op unless
+ * the balance is on and the level has a face set.
+ */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 {
@@ -49,7 +69,11 @@ ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
     VisMF::Write(state, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBState"));
 }
 
-/// Periodic report, called from post_timestep.
+/**
+ * Periodic report from ERF::post_timestep(): every ``erf.ibseb.csv_int``
+ * steps, print the summary of each level and append its CSV rows. A
+ * non-positive interval disables both.
+ */
 void
 ERF::ibseb_report (int nstep, Real time)
 {

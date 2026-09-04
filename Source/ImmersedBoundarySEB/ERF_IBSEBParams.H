@@ -7,12 +7,19 @@
 #include <string>
 
 /**
- * @file ERF_IBSEBParams.H
- * @brief Inputs of the immersed-boundary surface energy balance (erf.ibseb.*)
+ * \file ERF_IBSEBParams.H
+ * \brief Inputs of the immersed-boundary surface energy balance (``erf.ibseb.*``).
  *
- * The balance runs on the faces of resolved buildings (immersed forcing).
- * Everything is off unless erf.ibseb.enable is set; see
- * Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md for the phases.
+ * The balance runs on the faces of buildings represented by immersed forcing
+ * (``erf.buildings_type = ImmersedForcing``). Every input lives under the
+ * ``erf.ibseb`` prefix and everything is off unless ``erf.ibseb.enable`` is set,
+ * in which case ERF::init_ibseb() builds one IBFaceSet per level.
+ *
+ * The parameters are parsed once, in ERF::ReadParameters(), and copied into
+ * each IBFaceSet, so a face set never reads ParmParse itself. New inputs of
+ * later phases go here, with their defaults, so that the whole input surface
+ * of the balance is in one place. The phases and their inputs are listed in
+ * Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md.
  */
 struct IBSEBParams
 {
@@ -24,6 +31,13 @@ struct IBSEBParams
     int         csv_int       = 100;                   ///< Steps between report rows; <= 0 disables
     bool        debug         = false;                 ///< Extra prints
 
+    /**
+     * Read the ``erf.ibseb.*`` inputs and validate them.
+     *
+     * Only queried, never required: a deck without any ``erf.ibseb`` key gets
+     * the defaults above with the balance off. Validation is skipped when the
+     * balance is off so an unrelated deck cannot abort on an unused key.
+     */
     void init_params ()
     {
         amrex::ParmParse pp("erf.ibseb");

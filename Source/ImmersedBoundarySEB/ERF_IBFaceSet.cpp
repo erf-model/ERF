@@ -1,3 +1,9 @@
+/**
+ * \file ERF_IBFaceSet.cpp
+ * \brief Detection, storage, output and reporting of the wall faces of
+ *        resolved buildings (phase 1 of the immersed-boundary surface energy
+ *        balance). The conventions are documented in ERF_IBFaceSet.H.
+ */
 #include "ERF_IBFaceSet.H"
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
@@ -9,7 +15,14 @@ using namespace amrex;
 
 namespace {
 
-/// Host view of one fab: the fab itself on CPU builds, a pinned copy on GPU builds.
+/**
+ * Host-readable view of one fab of a MultiFab.
+ *
+ * The face detection is a host loop at initialisation. On CPU builds the fab
+ * is read in place; on GPU builds a pinned copy is made so the loop does not
+ * touch device memory. The copy keeps the fab's own box, so the returned
+ * Array4 is indexed with the same global (i, j, k) as the device fab.
+ */
 struct HostFab
 {
 #ifdef AMREX_USE_GPU
@@ -27,6 +40,7 @@ struct HostFab
 #endif
 };
 
+/** Resize a device vector to a host vector and copy it over. */
 template <class T>
 void upload (Gpu::DeviceVector<T>& d, const std::vector<T>& h)
 {
@@ -34,6 +48,7 @@ void upload (Gpu::DeviceVector<T>& d, const std::vector<T>& h)
     Gpu::copy(Gpu::hostToDevice, h.begin(), h.end(), d.begin());
 }
 
+/** Resize a device vector to n entries all equal to value. */
 template <class T>
 void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
 {
@@ -43,6 +58,22 @@ void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
 
 } // namespace
 
+/**
+ * Detect the faces owned by this rank and allocate the per-face arrays.
+ *
+ * The scan visits every valid cell of every local fab in MFIter order. A
+ * fluid cell (blanking < 0.5) contributes one face for each of its six
+ * neighbours that is solid (blanking >= 0.5); the neighbour may sit in a
+ * ghost cell, which is why the blanking must have its ghost cells filled.
+ * Neighbours outside the domain in a non-periodic direction are skipped, so
+ * a building against a non-periodic boundary has no face there. Solid cells
+ * contribute nothing but the column mask used for the building ids.
+ *
+ * Faces are appended in scan order, which makes them contiguous per fab;
+ * m_fab_start records where each fab's faces begin. The per-direction,
+ * per-building and total counts are reduced over all ranks here, once, so
+ * report() does not have to reduce static numbers every time.
+ */
 void
 IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
 {
@@ -99,7 +130,9 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_fab_start.push_back(static_cast<int>(h_i.size()));
     m_nface = static_cast<int>(h_i.size());
 
-    // Buildings: 4-connected solid columns, numbered in scan order.
+    // Buildings: 4-connected solid columns, numbered in scan order. The column
+    // mask is reduced so every rank labels the same columns with the same ids;
+    // the labelling itself is a plain depth-first flood fill on the host.
     ParallelDescriptor::ReduceRealMax(colmax.data(), nx * ny);
     std::vector<int> label(static_cast<size_t>(nx) * ny, 0);
     std::vector<int> stack;
@@ -153,7 +186,9 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_bld_area  = ba;
     m_area_total = area;
 
-    // Device arrays.
+    // Device arrays. The state starts uniform at T_skin_init (the slab too:
+    // phase 5 sets the interior boundary); the view fractions and fluxes start
+    // at zero and are filled by the later phases.
     const size_t nf = static_cast<size_t>(m_nface);
     upload(d_i, h_i); upload(d_j, h_j); upload(d_k, h_k);
     upload(d_dir, h_dir); upload(d_side, h_side); upload(d_bid, h_bid);
@@ -173,6 +208,12 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     Gpu::streamSynchronize();
 }
 
+/**
+ * Scatter the face count and the mean skin temperature into cell-centred
+ * fields. One kernel per fab over that fab's faces (contiguous, see
+ * fab_start()), with atomic adds since a corner cell collects several faces,
+ * then a kernel over the box divides the temperature sum by the count.
+ */
 void
 IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
 {
@@ -198,6 +239,11 @@ IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
     Gpu::streamSynchronize();
 }
 
+/**
+ * Write the skin and slab temperatures into the six-slot state field. The
+ * slot of a face is ``(dir*2 + (side>0)) * (1 + n_layers)``; no two faces of a
+ * cell share a slot, so the writes are plain stores.
+ */
 void
 IBFaceSet::save_state (MultiFab& state) const
 {
@@ -221,6 +267,10 @@ IBFaceSet::save_state (MultiFab& state) const
     Gpu::streamSynchronize();
 }
 
+/**
+ * Read the skin and slab temperatures back from the six-slot state field,
+ * the inverse of save_state(), into a list that build() has just recreated.
+ */
 void
 IBFaceSet::load_state (const MultiFab& state)
 {
@@ -243,6 +293,12 @@ IBFaceSet::load_state (const MultiFab& state)
     Gpu::streamSynchronize();
 }
 
+/**
+ * Summary line and per-building CSV rows. The dynamic quantities (skin
+ * temperature range and area-weighted mean per building) are gathered on the
+ * host from the device arrays and reduced; the static counts and areas were
+ * reduced in build().
+ */
 void
 IBFaceSet::report (Real time, int step, bool write_csv) const
 {
