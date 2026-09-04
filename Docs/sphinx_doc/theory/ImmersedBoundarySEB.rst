@@ -47,3 +47,41 @@ cell. On restart the list is rebuilt from the blanking and refilled from
 that field, so a restart does not depend on the number of ranks.
 ``Exec/CanonicalTests/SEB/Phase1_Storage`` checks the face counts against the
 mask, the rank independence and the checkpoint round trip.
+
+Shortwave and shadow
+--------------------
+
+The downwelling radiation reaches the balance through a provider,
+:cpp:`erf.ibseb.radiation`. The built-in ``prescribed`` provider gives the
+direct-normal irradiance, the diffuse irradiance on a horizontal surface and
+the sun vector either as fixed inputs (:cpp:`erf.ibseb.sun_mode = fixed`,
+for analytic tests) or from the site and time (``solar``): declination,
+equation of time, hour angle, zenith and azimuth by the Spencer series, the
+direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
+diffuse light as a fraction :math:`k_d` of what the beam lost on the way
+down. The sun vector points from a surface toward the sun, with the azimuth
+clockwise from north, so east is :math:`+x` and north :math:`+y`.
+
+On a face with outward normal :math:`\mathbf{n}` the direct beam is
+:math:`I_{dn}\, \max(0, \mathbf{n}\cdot\mathbf{s})` unless the face is in
+shadow. Shadow is decided by a ray cast from the face centre toward the sun
+against the height of every column of the level, a two-dimensional walk over
+the columns the ray crosses: buildings stand on the ground and the ray only
+rises, so the ray is blocked wherever its height on entering a column is
+below that column's top. The column tops are a small array replicated on
+every rank, so the test needs no communication and costs a few operations
+per column crossed. The diffuse light on a face is the sky view fraction
+times the horizontal diffuse plus the ground view fraction times the ground
+albedo times the total horizontal irradiance; until the hemisphere sampling
+of the next phase, a roof sees the whole sky and a wall half sky and half
+ground. The absorbed shortwave is one minus the face albedo times the sum.
+
+``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
+tall one and checks the shadow flag of every face against an independent
+ray cast, the incidence on every orientation, the height to which the tall
+box shadows the short one's west wall against
+:math:`H - d \tan(\text{elevation})`, the agreement of one and four ranks,
+and the solar mode against the solstice-noon zenith at Boulder. The
+embedded-boundary reader steps each building edge over one cell, so the
+boxes have a full-height core with a half-height rim, which the test
+reads from the face dump rather than assuming.

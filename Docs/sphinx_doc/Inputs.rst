@@ -2883,10 +2883,53 @@ ImmersedForcing``) and are off by default.
 |                                   | (per-rank counts, buildings), a summary every step and   |                    |                        |
 |                                   | per-building rows                                        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.dump_faces_file**     | prefix of a per-rank CSV of every face (geometry, view   | String             | ""                     |
+|                                   | fractions, shadow, shortwave, skin temperature), written |                    |                        |
+|                                   | at every report; empty disables                          |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.radiation**           | source of the downwelling radiation                      | "prescribed"       | "prescribed"           |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_mode**            | ``fixed``: the sun stays at the given zenith and azimuth | "fixed", "solar"   | "fixed"                |
+|                                   | with the given irradiances; ``solar``: sun and clear-sky |                    |                        |
+|                                   | irradiances from the site and time                       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_zenith_deg**      | fixed sun: zenith angle [deg]                            | Real in [0, 180]   | 45.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_azimuth_deg**     | fixed sun: azimuth clockwise from north [deg]; 90 east,  | Real               | 180.0                  |
+|                                   | 180 south, 270 west                                      |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_direct_normal**    | fixed sun: direct-normal irradiance [W/m2]               | Real >= 0          | 800.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_diffuse**          | fixed sun: diffuse irradiance on a horizontal surface    | Real >= 0          | 100.0                  |
+|                                   | [W/m2]                                                   |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.latitude_deg**        | solar: site latitude, north positive                     | Real               | 40.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.longitude_deg**       | solar: site longitude, east positive                     | Real               | -105.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.day_of_year**         | solar: day of year                                       | Real in [1, 366]   | 172                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.utc_offset_hours**    | solar: time-zone offset from UTC [h]                     | Real               | -7.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC at simulation time zero   | Real               | 43200.0                |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]                             | Real > 0           | 1361.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_transmission**     | solar: bulk clear-sky transmission of the Bird form      | Real in (0, 1]     | 0.7                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_diffuse_coeff**    | solar: share of the attenuated beam that arrives as      | Real in [0, 1]     | 0.5                    |
+|                                   | diffuse light                                            |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.albedo**              | shortwave albedo of the faces (uniform until the         | Real in [0, 1]     | 0.3                    |
+|                                   | material library)                                        |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term             | Real in [0, 1]     | 0.2                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 
 The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
-cell) and ``ibseb_tskin`` (their mean skin temperature) are available when
-the balance is on.
+cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their
+mean absorbed shortwave) and ``ibseb_shadow`` (their mean shadow flag) are
+available when the balance is on.
 
 .. _sec:SurfaceLayerInputs:
 

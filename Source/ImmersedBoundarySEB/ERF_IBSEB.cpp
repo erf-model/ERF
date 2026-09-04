@@ -51,8 +51,20 @@ ERF::init_ibseb ()
                 Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
             }
         }
+        m_ibseb[lev]->compute_shortwave(t_new[lev]);
         m_ibseb[lev]->report(t_new[lev], istep[lev], ibseb_params.csv_int > 0);
     }
+}
+
+/**
+ * Per-step update of one level, called at the start of ERF::Advance() so
+ * the fluxes of the step are those of its start time. Phase 2: shortwave.
+ */
+void
+ERF::ibseb_advance (int lev, Real time)
+{
+    if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
+    m_ibseb[lev]->compute_shortwave(time);
 }
 
 /**

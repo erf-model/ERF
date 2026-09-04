@@ -113,7 +113,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
             ok_to_add     &= ( ibseb_params.enable ||
-                               (derived_names[i] != "ibseb_nfaces" && derived_names[i] != "ibseb_tskin") );
+                               (derived_names[i] != "ibseb_nfaces" && derived_names[i] != "ibseb_tskin" &&
+                                derived_names[i] != "ibseb_sw_abs" && derived_names[i] != "ibseb_shadow") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "detJ") );
@@ -1559,6 +1560,19 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 MultiFab::Copy(mf[lev], tskin, 0, mf_comp, 1, 0);
                 mf_comp++;
             }
+        }
+        // Shortwave on the faces: absorbed flux and shadow flag, per-cell means
+        for (const char* nm : {"ibseb_sw_abs", "ibseb_shadow"}) {
+            if (!containerHasElement(plot_var_names, nm)) { continue; }
+            MultiFab tmp(grids[lev], dmap[lev], 1, 0);
+            if (ibseb_params.enable && lev < static_cast<int>(m_ibseb.size()) && m_ibseb[lev]) {
+                const bool sw = (std::string(nm) == "ibseb_sw_abs");
+                m_ibseb[lev]->scatter_field(sw ? m_ibseb[lev]->d_SW_abs : m_ibseb[lev]->d_shadow, tmp);
+            } else {
+                tmp.setVal(0.0);
+            }
+            MultiFab::Copy(mf[lev], tmp, 0, mf_comp, 1, 0);
+            mf_comp++;
         }
 
         if (containerHasElement(plot_var_names, "volfrac")) {

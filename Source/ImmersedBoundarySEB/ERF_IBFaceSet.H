@@ -102,6 +102,32 @@ public:
     int state_ncomp () const { return 6 * (1 + n_layers()); }
 
     /**
+     * Shortwave of the current step (phase 2): sun position and irradiances
+     * from the prescribed provider, then per face the direct beam on the
+     * face (zero when the ray toward the sun hits a building), the diffuse
+     * light through the view fractions, and the absorbed sum.
+     *
+     * Fills d_shadow, d_SW_direct_in, d_SW_diffuse_in and d_SW_abs; stores
+     * the sun vector and irradiances for the reports.
+     * @param time Simulation time [s]; with sun_mode = solar it is added to
+     *             time_zero_utc_s.
+     */
+    void compute_shortwave (amrex::Real time);
+
+    /**
+     * Scatter one per-face array into a cell-centred field as the mean over
+     * the faces touching each cell (zero where there are none).
+     */
+    void scatter_field (const amrex::Gpu::DeviceVector<amrex::Real>& v, amrex::MultiFab& out) const;
+
+    /**
+     * Write every face of this rank to ``<prefix>.rank<N>.csv`` with its
+     * geometry, view fractions, shadow flag, shortwave terms and skin
+     * temperature, for the regtests and for users who want the raw list.
+     */
+    void dump_faces (const std::string& prefix) const;
+
+    /**
      * Scatter the faces into two cell-centred diagnostics for the plotfile.
      *
      * @param[out] nfaces Number of wall faces touching each fluid cell (0 away
@@ -158,6 +184,7 @@ public:
     amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
     amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (phase 5; 0 until then)
     amrex::Gpu::DeviceVector<amrex::Real> d_area;          ///< Face area [m2]
+    amrex::Gpu::DeviceVector<amrex::Real> d_xf, d_yf, d_zf;///< Face centre [m]
     // State, advanced by the balance (phase 6) and checkpointed:
     amrex::Gpu::DeviceVector<amrex::Real> d_T_skin;        ///< Skin temperature [K]
     amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
@@ -167,6 +194,22 @@ public:
     // (SW_abs and LW_net into the face, H, LE, G out of it):
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
     amrex::Gpu::DeviceVector<amrex::Real> d_Q_ext;         ///< External incident flux [W/m2], e.g. fire radiation
+    // Shortwave detail (phase 2), all [W/m2] except the flag:
+    amrex::Gpu::DeviceVector<amrex::Real> d_shadow;        ///< 1 when the ray to the sun hits a building, else 0
+    amrex::Gpu::DeviceVector<amrex::Real> d_SW_direct_in;  ///< Direct beam incident on the face
+    amrex::Gpu::DeviceVector<amrex::Real> d_SW_diffuse_in; ///< Sky and ground-reflected diffuse incident
+    // Column tops of the whole level [m], replicated on every rank for the
+    // ray cast: index ci * ny + cj over the domain's columns.
+    amrex::Gpu::DeviceVector<amrex::Real> d_col_top;
+
+    /// Sun and irradiances of the last compute_shortwave() call, for reports.
+    struct SunState {
+        amrex::Real zenith = 0.0, azimuth = 0.0;        ///< [rad]
+        amrex::Real sx = 0.0, sy = 0.0, sz = 1.0;       ///< Unit vector toward the sun
+        amrex::Real dni = 0.0;                          ///< Direct-normal irradiance [W/m2]
+        amrex::Real diffuse_h = 0.0;                    ///< Diffuse on a horizontal surface [W/m2]
+    };
+    const SunState& sun () const { return m_sun; }
 
     /**
      * Print the ``[IBSEB DEBUG]`` description of the set: the inputs, every
@@ -198,6 +241,15 @@ private:
     // Footprint of each building (global): columns, and bounding box in cell indices.
     std::vector<long> m_bld_ncol;
     std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
+
+    // Geometry kept for the ray cast and the reports.
+    int  m_nx = 0, m_ny = 0;                   ///< Columns of the domain
+    amrex::Real m_x_lo = 0.0, m_y_lo = 0.0;    ///< Domain origin [m]
+    amrex::Real m_dx[3] = {0.0, 0.0, 0.0};     ///< Cell sizes [m]
+    bool m_per_x = false, m_per_y = false;     ///< Periodicity in x and y
+    amrex::Real m_col_top_max = 0.0;           ///< Tallest column [m]
+    amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
+    SunState m_sun;
 };
 
 #endif
