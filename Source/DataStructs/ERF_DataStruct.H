@@ -1007,6 +1007,7 @@ struct SolverChoice {
 
         pp.queryAdd("if_Olen", if_Olen_in);
         pp.queryAdd("if_use_most",if_use_most);
+        pp.queryAdd("if_snap_partial_cells",if_snap_partial_cells);
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
@@ -1932,6 +1933,7 @@ struct SolverChoice {
     amrex::Real if_surf_heating_rate     = zero;               // [K/hr]
     amrex::Real if_Olen_in               = amrex::Real(1e-8);  // [m]
     bool        if_use_most              = false;
+    bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
@@ -2300,6 +2302,18 @@ struct SolverChoice {
  * @brief Input Obukhov length for immersed-forcing MOST [m].
  * @var SolverChoice::if_use_most
  * @brief Whether immersed-forcing MOST is enabled.
+ * @var SolverChoice::if_snap_partial_cells
+ * When true, the immersed forcing places its wall law and surface conditions
+ * on cells at least half solid whose normal neighbour is less than half
+ * solid, and cells below half solid receive only the fraction-weighted drag,
+ * which vanishes with the fraction. When false (the original behaviour) any
+ * cell with a fraction above 0.005 whose neighbour is exactly zero hosts the
+ * wall law at full strength, which on the sliver cells of a height-map
+ * building (1-20 percent solid at the corners of the reader's one-cell ramp)
+ * forces a nearly fluid cell like a wall on top of a free one and grows a
+ * vertical checkerboard over hours. Under the switch a face passing several
+ * wall tests at once has their relaxations averaged so its total rate never
+ * exceeds that of one wall. Default false for backward compatibility.
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor

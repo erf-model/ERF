@@ -219,14 +219,31 @@ sun vector. Two providers:
 
 ## Canonical: isolated building (Phase 7)
 
-`Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`: a 20 m cube on a 5 m grid,
-neutral sounding, MOST ground, prescribed clear-sky radiation (two-stream
-where available), 24 h from sunrise.
-Documented: the sunlit / shaded wall temperature contrast through the day
-(order 10-20 K for masonry at midday), the roof against the ground, the
-phase lag of the wall temperature behind the sun, and the wake-side wall
-cooling. `check_isolated_building.py` reads the CSV and asserts the
-qualitative sequence and the closure.
+`Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`: a 40 m cube as an exact
+box (`eb2.geometry = box`, faces on cell faces, so 80 plane faces and no
+partial cells) on the phase 6 grid (10 m, 320 m periodic domain so a day
+runs in about 100 minutes on four ranks), 30 cm of concrete in ten layers, a MOST ground, a 3 m/s
+westerly, neutral at 300 K; Boulder on the June solstice from midnight
+solar time for 24 h with the prescribed clear-sky provider and a gray sky.
+The per-building CSV gains the sun (zenith, azimuth, DNI, diffuse) so the
+day can be plotted without debug output; the faces are dumped every
+minute into `faces/`.
+
+`check_isolated.py` asserts: the balance residual over the day; night
+cooling of every face below the air with a negative net longwave; the
+east wall warming first after sunrise; the peaks in the order east, roof,
+west with the roof in the early afternoon; a south-north contrast at
+midday; the daily absorbed shortwave on the core roof against the
+clear-sky formulas integrated independently in Python; and the slab
+energy over the day against the integrated conduction from the dumps.
+`plot_isolated.py` draws the skin temperature by orientation with the air,
+the roof budget, the sun path, a slab Hovmoller of the roof and yt slices.
+
+Not in this case: the ground's own balance (the development branch's
+land-surface models have no radiation, so the ground stays at 300 K for
+the walls' longwave and MOST drag only), and the two-stream provider.
+A 1 s step traps the dycore's floating-point check on this grid with the
+balance off as well (noted under findings), so the day runs at 0.5 s.
 
 ## Canonical: building set (Phase 8)
 
@@ -263,6 +280,28 @@ the cost of the face list on a city-scale case can be estimated.
   floating-point trap in the dycore at step 2 (with the balance converged
   and the skin at 299.5-299.8 K); 0.5 s runs fine. Not investigated; the
   deck uses 0.5 s.
+- The immersed forcing goes unstable on the partial cells of a nodal
+  height-map building: the phase 6 cube (40 m on a 10 m grid) has corner
+  cells with 1-20 % solid from the reader's one-cell ramp, and in the 24 h
+  deck a vertical 2-cell checkerboard in theta (+-10 K, w of 5 m/s) grows
+  in one such column and trips the floating-point trap after 1.8-2.5 h,
+  with the balance off, with a no-slip ground, with the forcing outside
+  the substeps (negative density at 3 min) and with `eb2.small_volfrac =
+  0.25` (trap at step 14); halving the step to 0.25 s survived the same
+  2.6 h window, so the growth depends on the step and is not a plain CFL
+  violation. Reading the buildings forcing: the drag branch scales with
+  the fraction and vanishes as it goes to zero, but the MOST branch (a
+  partial cell whose normal neighbour is exactly fluid) relaxes at a rate
+  independent of the fraction toward `(1 - f)` times the log-law velocity,
+  and the temperature branch relaxes toward the "inside" neighbour at a
+  fixed rate; so the top cell of a 1 % stub is forced like a full wall on
+  top of an almost free cell, a one-cell shear layer and a 2-cell mode.
+  An exact box (`eb2.geometry = box` on cell faces) has no partial cells;
+  the canonical uses it. Fixed on this branch behind
+  `erf.if_snap_partial_cells` (default false, the original selection): the
+  wall law and the surface conditions sit on cells at least half solid
+  whose normal neighbour is less than half solid, the same rule the balance
+  uses for its faces; regtest `Exec/RegTests/ImmersedForcingTest/PartialCells`.
 
 ## Phase log
 
@@ -274,5 +313,5 @@ the cost of the face list on a city-scale case can be estimated.
 | 4 sensible, latent | done 2026-09-03 | `SEB/Phase4_Sensible` | wall function per face, explicit face flux into the rho-theta source; internal-energy budget closes against the diagnostic run |
 | 5 ground | done 2026-09-03 | `SEB/Phase5_Ground` | slab per face (SLUCM solver with a skin-temperature top), materials by building; erfc and steady checks exact |
 | 6 prognostic | done 2026-09-04 | `SEB/Phase6_Prognostic` | Newton balance consistent with the implicit slab, `Q_ext` hook, clamps as inputs; closure and an independent re-integration to 1e-9 K |
-| 7 isolated building | planned | canonical | |
+| 7 isolated building | in progress 2026-09-04 | `SEB/Phase7_IsolatedBuilding` | 24 h at Boulder on the solstice; sequence, residual, roof shortwave and slab energy checks |
 | 8 building set | planned | canonical | |

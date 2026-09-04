@@ -2841,6 +2841,16 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_snap_partial_cells**     | place the wall law and the surface conditions on cells   | Boolean            | false            |
+|                                   | at least half solid whose normal neighbour is less than  |                    |                  |
+|                                   | half solid, leaving cells below half solid with the      |                    |                  |
+|                                   | fraction-weighted drag only; false keeps the original    |                    |                  |
+|                                   | selection (any cell above 0.005 with a neighbour at      |                    |                  |
+|                                   | exactly zero), which grows a checkerboard on the sliver  |                    |                  |
+|                                   | cells of height-map buildings over hours; set it for     |                    |                  |
+|                                   | buildings from height maps (see                          |                    |                  |
+|                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |
 |                                   | forcing similarity functions; use with caution for       |                    |                  |
 |                                   | horizontal walls                                         |                    |                  |
@@ -3966,7 +3976,7 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
+  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 
 Lateral Boundary Nudging for Real-Data Runs
