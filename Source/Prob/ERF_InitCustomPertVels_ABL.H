@@ -1,6 +1,22 @@
 
     ParmParse pp_prob("prob");
 
+    int deterministic_ic_pert = 0;
+    int fix_random_seed = 0;
+    long random_seed = -1;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.query("deterministic_ic_pert", deterministic_ic_pert);
+        pp_erf.query("fix_random_seed", fix_random_seed);
+        pp_erf.query("random_seed", random_seed);
+    }
+    const std::uint64_t ic_pert_seed = fix_random_seed
+        ? std::uint64_t(1024)
+        : ((random_seed >= 0) ? static_cast<std::uint64_t>(random_seed) : std::uint64_t(0));
+    constexpr int x_velocity_hash_comp = 1;
+    constexpr int y_velocity_hash_comp = 2;
+    constexpr int z_velocity_hash_comp = 3;
+
     Real U_0 = zero; pp_prob.query("U_0", U_0);
     Real V_0 = zero; pp_prob.query("V_0", V_0);
     Real W_0 = zero; pp_prob.query("W_0", W_0);
@@ -52,7 +68,13 @@
         x_vel_pert(i, j, k) = U_0;
         if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
         {
-            Real rand_double = amrex::Random(engine); // Between zero and one
+            Real rand_double;
+            if (deterministic_ic_pert) {
+                rand_double = erf_hash_rng::hash_uniform(
+                    i, j, k, x_velocity_hash_comp, lev, ic_pert_seed);
+            } else {
+                rand_double = amrex::Random(engine); // Between zero and one
+            }
             Real x_vel_prime = (rand_double*two - one)*U_0_Pert_Mag;
             x_vel_pert(i, j, k) += x_vel_prime;
         }
@@ -79,7 +101,13 @@
         y_vel_pert(i, j, k) = V_0;
         if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero))
         {
-            Real rand_double = amrex::Random(engine); // Between zero and one
+            Real rand_double;
+            if (deterministic_ic_pert) {
+                rand_double = erf_hash_rng::hash_uniform(
+                    i, j, k, y_velocity_hash_comp, lev, ic_pert_seed);
+            } else {
+                rand_double = amrex::Random(engine); // Between zero and one
+            }
             Real y_vel_prime = (rand_double*two - one)*V_0_Pert_Mag;
             y_vel_pert(i, j, k) += y_vel_prime;
         }
@@ -108,7 +136,13 @@
             z_vel_pert(i, j, k) = W_0;
             if (W_0_Pert_Mag != zero)
             {
-                Real rand_double = amrex::Random(engine); // Between zero and one
+                Real rand_double;
+                if (deterministic_ic_pert) {
+                    rand_double = erf_hash_rng::hash_uniform(
+                        i, j, k, z_velocity_hash_comp, lev, ic_pert_seed);
+                } else {
+                    rand_double = amrex::Random(engine); // Between zero and one
+                }
                 Real z_vel_prime = (rand_double*two - one)*W_0_Pert_Mag;
                 z_vel_pert(i, j, k) += z_vel_prime;
             }
