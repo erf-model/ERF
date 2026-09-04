@@ -5,7 +5,7 @@
     int fix_random_seed = 0;
     long random_seed = -1;
     {
-        amrex::ParmParse pp_erf("erf");
+        ParmParse pp_erf("erf");
         pp_erf.query("deterministic_ic_pert", deterministic_ic_pert);
         pp_erf.query("fix_random_seed", fix_random_seed);
         pp_erf.query("random_seed", random_seed);
