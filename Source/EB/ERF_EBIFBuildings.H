@@ -76,15 +76,31 @@ public:
         Box sampled_box = domain;
         sampled_box.grow(ngrow_vec);
 
-        // Create BoxArray and DistributionMapping for MultiFab
-        BoxArray ba(sampled_box);
-        DistributionMapping dm(ba);
+        // Create a FArrayBox to hold signed distance values (replicated on all ranks)
+        // This is simpler than MultiFab for EB implicit functions
+        m_levelset_fab = std::make_shared<FArrayBox>(sampled_box, 1);
 
-        // Create MultiFab to hold signed distance values (use shared_ptr for copyability)
-        m_levelset_data = std::make_shared<MultiFab>(ba, dm, 1, ngrow_vec, MFInfo());
+        // Compute signed distances on IO processor
+        if (ParallelDescriptor::IOProcessor()) {
+            // Create temporary MultiFab for STL filling (on the domain, not grown box)
+            BoxArray ba(domain);
+            Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
+            DistributionMapping dm(std::move(pmap));
+            MultiFab mf_tmp(ba, dm, 1, ngrow_vec, MFInfo());
 
-        // Fill with signed distances from STL
-        m_stl_tools.fillSignedDistance(*m_levelset_data, ngrow_vec, geom);
+            // Fill with signed distances from STL
+            m_stl_tools.fillSignedDistance(mf_tmp, ngrow_vec, geom);
+
+            // Copy to FArrayBox from the grown box
+            // FArrayBox::copy(const FArrayBox& src, const Box& srcbox, int srccomp,
+            //                 const Box& destbox, int destcomp, int numcomp)
+            m_levelset_fab->copy(mf_tmp[0], sampled_box, 0, sampled_box, 0, 1);
+        }
+
+        // Broadcast data from IO processor to all other ranks
+        ParallelDescriptor::Bcast(m_levelset_fab->dataPtr(),
+                                 sampled_box.numPts(),
+                                 ParallelDescriptor::IOProcessorNumber());
 
         // Store bounds for interpolation
         m_data_box = sampled_box;
@@ -135,11 +151,8 @@ public:
         Real wy = j_real - static_cast<Real>(j);
         Real wz = k_real - static_cast<Real>(k);
 
-        // Get array view (assumes single FAB for simplicity)
-        // Note: This is a simplified version for host execution
-        // For GPU execution, need to properly access device data
-        auto const& fab = (*m_levelset_data)[0]; // First FAB in MultiFab
-        auto const& arr = fab.const_array();
+        // Get array view from the replicated FArrayBox
+        auto const& arr = m_levelset_fab->const_array();
 
         // Trilinear interpolation
         Real phi_000 = arr(i, j, k);
@@ -183,8 +196,8 @@ protected:
     //! STL tools object (for loading and processing STL files)
     amrex::STLtools m_stl_tools;
 
-    //! Pre-sampled signed distance field (shared_ptr for copyability)
-    std::shared_ptr<amrex::MultiFab> m_levelset_data;
+    //! Pre-sampled signed distance field (replicated FArrayBox for thread-safe parallel access)
+    std::shared_ptr<amrex::FArrayBox> m_levelset_fab;
 
     //! Bounding box of sampled data
     amrex::Box m_data_box;
