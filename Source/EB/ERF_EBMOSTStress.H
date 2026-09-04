@@ -111,8 +111,8 @@ struct surface_temp_eb
         amrex::Real zeta_old = zero;
         amrex::Real psi_m    = zero;
         amrex::Real psi_h    = zero;
-        amrex::Real num      = zero;
-        amrex::Real den      = zero;
+        amrex::Real CmPsim   = zero;
+        amrex::Real CmPsih   = zero;
         amrex::Real zref     = zref_arr(i,j,0);
         amrex::Real z0       = z0_arr(i,j,k);
         amrex::Real umm      = std::max(umm_arr(i,j,0), WSMIN);
@@ -169,11 +169,11 @@ struct surface_temp_eb
             psi_h = sfuns.calc_psi_h2(zeta_old);
 
             // Limiting
-            num = std::max(C - psi_m, amrex::Real(1.0));
-            den = std::max(C - psi_h, amrex::Real(1.0));
+            CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+            CmPsih = std::max(C - psi_h, amrex::Real(1.0));
 
             // Update with under relaxation
-            zeta = (one - alpha) * zeta_old + alpha * Rib * num * num / den;
+            zeta = (one - alpha) * zeta_old + alpha * Rib * CmPsim * CmPsim / CmPsih;
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
@@ -182,14 +182,14 @@ struct surface_temp_eb
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = zref / zeta;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
-        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,0) - t_surf_arr(i,j,k)) / (C - psi_h);
+        u_star_arr(i,j,k) = mdata.kappa * umm / CmPsim;
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,0) - t_surf_arr(i,j,k)) / CmPsih;
         if (spec_qflux) {
-            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (C - psi_h) /
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
                                 (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,0);
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,0) - q_surf_arr(i,j,k)) / (C - psi_h);
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,0) - q_surf_arr(i,j,k)) / CmPsih;
         }
     }
 
