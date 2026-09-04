@@ -901,8 +901,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-qfx3_arr(i,j,klo) / ( rho * u_star_arr(i,j,0)),eps);
                 }
+                Real tstv = t_star_arr(i,j,0)*(one + epsv*qv) + epsv*Thd*q_star_arr(i,j,0);
+                tstv = (tstv >= zero) ? amrex::max(tstv, eps) : amrex::min(tstv, -eps);
                 olen_arr(i,j,0) = ( u_star_arr(i,j,0)  * u_star_arr(i,j,0) * Thv ) /
-                                  ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                                  ( KAPPA * CONST_GRAV * tstv );
                 z0_arr(i,j,0)  = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
                                                     umm_arr(i,j,0), u_star_arr(i,j,0));
             });
@@ -1203,8 +1205,10 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                 } else {
                     q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
                 }
+                Real tstv = t_star_arr(i,j,0)*(one + epsv*qv) + epsv*Thd*q_star_arr(i,j,0);
+                tstv = (tstv >= zero) ? amrex::max(tstv, eps) : amrex::min(tstv, -eps);
                 olen_arr(i,j,0) = ( u_star_arr(i,j,0) * u_star_arr(i,j,0) * Thv ) /
-                                  ( KAPPA * CONST_GRAV * t_star_arr(i,j,0) );
+                                  ( KAPPA * CONST_GRAV * tstv );
                 z0_arr(i,j,0)   = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
                                                     umm_arr(i,j,0), u_star_arr(i,j,0));
             }
