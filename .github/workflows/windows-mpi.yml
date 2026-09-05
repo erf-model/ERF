@@ -57,6 +57,8 @@ jobs:
             -DMPI_CXX_LIB_NAMES=msmpi `
             -DMPI_C_LIB_NAMES=msmpi `
             -DMPI_msmpi_LIBRARY="$env:MSMPI_LIB\msmpi.lib" `
+            -DMPI_C_INCLUDE_DIRS="$env:MSMPI_INC" `
+            -DMPI_CXX_INCLUDE_DIRS="$env:MSMPI_INC" `
               ${{ github.workspace }}
 
       - name: Build

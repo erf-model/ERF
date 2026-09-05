@@ -460,6 +460,7 @@ ERF::WriteCheckpointFile () const
             write_sl_var(m_SurfaceLayer->get_q_surf(lev), "Qsurf");
             write_sl_var(m_SurfaceLayer->get_pblh(lev)  , "PBLH");
             write_sl_var(m_SurfaceLayer->get_z0(lev)    , "Z0");
+            write_sl_var(m_SurfaceLayer->get_t_surf(lev), "Tsurf");
 
             // The exponentially filtered averages behind erf.most.time_average.  The
             // region policy carries the filter state in these MultiFabs (the plane and
@@ -1683,6 +1684,10 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
         // Z0
         read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
+        // Surface temperature. Not every path rewrites it each step (a fixed
+        // surface temperature with no heating rate keeps whatever was set at
+        // initialization), so it has to come back from the checkpoint too.
+        read_most_var("Tsurf", m_SurfaceLayer->get_t_surf(lev));
 
         // The exponentially filtered averages.  We only mark the filter as initialized
         // if every piece of its state came back, so that a partial restore degrades to
