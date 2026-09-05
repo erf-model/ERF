@@ -6,7 +6,7 @@ using namespace amrex;
  * @brief Advance radiation diagnostics and heating rates for one time step.
  *
  * **Temporal Semantics (Phase 6):**
- * 
+ *
  * This function is called exactly once per ERF::Advance() invocation, after
  * SurfaceLayer/LSM updates but BEFORE the dycore (slow+fast substeps) are
  * executed. It operates on the "old" state (t^n) at the beginning of the

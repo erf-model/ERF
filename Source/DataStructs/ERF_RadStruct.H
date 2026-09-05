@@ -866,7 +866,7 @@ public:
       // Phase 15: prescribed bulk aerosol/turbidity optical depth
       // (all optional; defaults disable aerosol, preserving Phase 14B behavior)
       pp.query("radiation.aerosol_enable", aerosol_enable);
-       
+
       // Parse aerosol profile type as string
       std::string aerosol_profile_type_str = "constant";
       pp.query("radiation.aerosol_profile_type", aerosol_profile_type_str);
@@ -877,7 +877,7 @@ public:
       } else {
         aerosol_profile_type = AerosolProfileType::Constant;
       }
-       
+
       pp.query("radiation.aerosol_tau_per_layer", aerosol_tau_per_layer);
       pp.query("radiation.aerosol_scale_height_m", aerosol_scale_height_m);
       pp.query("radiation.aerosol_tau_surface", aerosol_tau_surface);
@@ -996,8 +996,8 @@ public:
       // Clamp moisture bounds
       if (!std::isfinite(seb_prognostic_q_min)) seb_prognostic_q_min = 0.0;
       if (!std::isfinite(seb_prognostic_q_max)) seb_prognostic_q_max = 1.0;
-      seb_prognostic_q_min = amrex::max(0.0, amrex::min(1.0, seb_prognostic_q_min));
-      seb_prognostic_q_max = amrex::max(0.0, amrex::min(1.0, seb_prognostic_q_max));
+      seb_prognostic_q_min = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_prognostic_q_min));
+      seb_prognostic_q_max = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_prognostic_q_max));
       if (seb_prognostic_q_min > seb_prognostic_q_max) {
           amrex::Real tmp = seb_prognostic_q_min;
           seb_prognostic_q_min = seb_prognostic_q_max;

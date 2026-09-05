@@ -84,7 +84,7 @@ public:
    * @param[in] diag_callsite_mode Call-site filter: "both", "pre_only", "post_only".
    * @param[in] diag_dedup_tol Tolerance for time equality in duplicate guard.
    */
-  RadiationDiagnostics(int verbosity, const std::string& diag_file, 
+  RadiationDiagnostics(int verbosity, const std::string& diag_file,
                       bool diag_enable = true, bool diag_stdout_enable = true,
                       bool diag_tagged_enable = true, bool diag_regtest_line_enable = true,
                       bool diag_csv_enable = true, const std::string& diag_callsite_mode = "both",

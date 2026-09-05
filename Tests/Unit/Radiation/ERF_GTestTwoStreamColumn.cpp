@@ -192,7 +192,7 @@ TEST(TwoStreamColumn, ShortwaveHeatingDecreasesFromTopToSurface)
     }
 
     // Absorbed surface flux: Beer-Lambert through kNz layers, times (1 - albedo).
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real expected = rc.S0 * mu0 * std::exp(-kNz * rc.tau_per_layer / mu0)
                                  * (1.0 - rc.surface_albedo_sw);
     EXPECT_NEAR(r.sw_surface, expected, 1.0e-9 * expected);
@@ -234,7 +234,7 @@ TEST(TwoStreamColumn, HeatingRatesArePotentialTemperatureTendencies)
     const amrex::Real T_air = 290.0;
     const ColumnResult r = run_uniform_column(rc, rho, T_air);
 
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real tau = rc.tau_per_layer;
     const amrex::Real tau_col = kNz * tau;
     const amrex::Real F0 = rc.S0 * mu0;
@@ -262,7 +262,7 @@ TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
 
     // Non-scattering layers: the reflected beam alpha * F_dir(0) travels up
     // as diffuse light with transmittance exp(-2 tau) per layer.
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real tau_col = kNz * rc.tau_per_layer;
     const amrex::Real F_dir_sfc = rc.S0 * mu0 * std::exp(-tau_col / mu0);
     const amrex::Real expected_up = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * tau_col);
@@ -289,7 +289,7 @@ TEST(TwoStreamColumn, ConservativeScatteringDepositsNoEnergyInTheAir)
     rc.asymmetry_factor = 0.6;
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
 
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real incident = rc.S0 * mu0;
     for (int k = 0; k < kNz; ++k) {
         EXPECT_NEAR(r.q_sw[k], 0.0, 1.0e-7 * incident / (Cp_d * kDz)) << "k = " << k;
@@ -498,7 +498,7 @@ TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
     rc.single_scattering_albedo = 1.0;   // conservative scattering: diffuse flux reaches the surface
     rc.asymmetry_factor = 0.6;
     rc.surface_albedo_sw = 0.2;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real incident = rc.S0 * mu0;
 
     rc.surface_albedo_sw_diffuse = -1.0;   // same as direct
@@ -550,7 +550,7 @@ TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)
     rc.sw_kscat_dry = 3.0e-6;
     rc.sw_kabs_vapor = 4.0e-3;
     const amrex::Real rho = 1.0, qv = 0.01;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real incident = rc.S0 * mu0;
 
     const ColumnResult coarse = run_uniform_column(rc, rho, 290.0, 8, 100.0, qv);
@@ -627,7 +627,7 @@ TEST(TwoStreamColumn, MassModelRayleighOnlyColumnAbsorbsNothing)
     rc.sw_kabs_dry = 0.0;
     rc.sw_kscat_dry = 2.0e-5;   // exaggerated Rayleigh so the effect is visible
     rc.sw_kabs_vapor = 0.0;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * M_PI / 180.0);
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
     const amrex::Real incident = rc.S0 * mu0;
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
     for (int k = 0; k < kNz; ++k) {

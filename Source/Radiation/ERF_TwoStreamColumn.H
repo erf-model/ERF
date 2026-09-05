@@ -1,6 +1,7 @@
 #ifndef ERF_TWO_STREAM_COLUMN_H_
 #define ERF_TWO_STREAM_COLUMN_H_
 
+#include <algorithm>
 #include <cmath>
 #include <type_traits>
 
@@ -206,8 +207,8 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
     }
 
     // Defensive clipping to a sensible terrestrial range
-    T = std::max(T, 100.0);
-    T = std::min(T, 400.0);
+    T = std::max(T, amrex::Real(100.0));
+    T = std::min(T, amrex::Real(400.0));
     return T;
 }
 
@@ -261,7 +262,7 @@ bool is_finite_positive(amrex::Real value)
  * @param[in] has_hetero_alb true if hetero_alb_sw is available
  * @return SW albedo in [0, 1]
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_albedo_sw(
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_alb_sw,
@@ -269,14 +270,14 @@ amrex::Real resolve_surface_albedo_sw(
     bool has_hetero_alb)
 {
     amrex::Real alb = rad_choice.surface_albedo_sw;  // Default fallback (already clamped)
-    
+
     if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
         if (std::isfinite(hetero_val)) {
             alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
         }
     }
-    
+
     return alb;
 }
 
@@ -294,7 +295,7 @@ amrex::Real resolve_surface_albedo_sw(
  * @param[in] has_hetero_emiss true if hetero_emiss_lw is available
  * @return LW emissivity in [0, 1]
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_emissivity_lw(
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw,
@@ -302,14 +303,14 @@ amrex::Real resolve_surface_emissivity_lw(
     bool has_hetero_emiss)
 {
     amrex::Real emiss = rad_choice.surface_emissivity_lw;  // Default fallback (already clamped)
-    
+
     if (has_hetero_emiss && hetero_emiss_lw != nullptr && hetero_emiss_lw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_emiss_lw)(i, j, 0, 0);  // Assume single component
         if (std::isfinite(hetero_val)) {
             emiss = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_emissivity_lw);
         }
     }
-    
+
     return emiss;
 }
 
@@ -327,7 +328,7 @@ amrex::Real resolve_surface_emissivity_lw(
  * @param[in] has_t_sfc true if t_sfc is available
  * @return Surface temperature [K], strictly positive
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_temp_k(
     int i, int j,
     const amrex::Array4<const amrex::Real>* t_sfc,
@@ -335,14 +336,14 @@ amrex::Real resolve_surface_temp_k(
     bool has_t_sfc)
 {
     amrex::Real t_surf = rad_choice.surface_temp_k;  // Default fallback (already validated)
-    
+
     if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
         amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
         if (is_finite_positive(hetero_val)) {
             t_surf = hetero_val;
         }
     }
-    
+
     return t_surf;
 }
 
@@ -831,7 +832,7 @@ void diagnose_layer_optics(
  * @param[in] has_t_sfc true if t_sfc is available
  * @param[in] t_sfc Optional per-column surface temperature field [K]
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
     int i, int j,
     const amrex::Box& bx,
@@ -913,7 +914,7 @@ void vertical_two_stream_sweep(
             rad_choice.day_of_year,
             rad_choice.time_zone_offset_hours);
     } else {
-        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
+        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
 

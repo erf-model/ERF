@@ -18,7 +18,7 @@ RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            bool diag_csv_enable,
                                            const std::string& diag_callsite_mode,
                                            amrex::Real diag_dedup_tol)
-  : m_verbosity(verbosity), m_diag_file(diag_file), 
+  : m_verbosity(verbosity), m_diag_file(diag_file),
     m_diag_enable(diag_enable), m_diag_stdout_enable(diag_stdout_enable),
     m_diag_tagged_enable(diag_tagged_enable),
     m_diag_regtest_line_enable(diag_regtest_line_enable),
@@ -91,7 +91,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // Call-site mode filtering
   bool should_emit_pre = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "pre_only");
   bool should_emit_post = (m_diag_callsite_mode == "both" || m_diag_callsite_mode == "post_only");
-  
+
   bool is_pre_site = (call_site.find("pre") != std::string::npos);
   bool is_post_site = (call_site.find("post") != std::string::npos);
 
@@ -132,7 +132,7 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor() &&
       m_diag_tagged_enable && m_diag_stdout_enable) {
     amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
-                   << " time=" << time 
+                   << " time=" << time
                    << " call_site=" << call_site
                    << " SW_surface=" << SW_surface
                    << " SW_TOA=" << SW_TOA << " SW_up_TOA=" << SW_up_TOA
@@ -174,10 +174,10 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
 
   // Append SEB residual columns (backward compatible: write NaN if not available)
   outfile << "," << seb_residual_mean << "," << seb_residual_max;
-  
+
   // Append prognostic T_s and q_s columns (backward compatible: write NaN if not available)
   outfile << "," << t_s_mean << "," << t_s_max << "," << q_s_mean << "," << q_s_max;
-  
+
   outfile << "\n";
   outfile.close();
 }

@@ -1193,7 +1193,7 @@ private:
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
-    
+
     // Phase 14A: Standalone 2D MultiFabs for TwoStream fallback surface properties when no LSM is active
     // These are allocated and constant-filled from RadChoice scalar defaults when TwoStream is enabled and no LSM is available.
     // When LSM is active, the per-column LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.
@@ -1208,7 +1208,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_sfc;                 // SEB surface moisture (2D: i,j)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_deep;                // SEB deep soil temperature (2D: i,j)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_deep;                // SEB deep soil moisture (2D: i,j)
-    
+
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
 #endif

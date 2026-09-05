@@ -38,19 +38,19 @@
  * @param[in] tau_aerosol_const Constant aerosol optical depth per layer [dimensionless]
  * @return Clamped aerosol optical depth [0, 100]
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
 {
     // Guard against invalid input
     if (!std::isfinite(tau_aerosol_const)) {
         return 0.0;
     }
-    
+
     // Clamp to physically reasonable range [0, 100]
     amrex::Real tau_clipped = tau_aerosol_const;
     if (tau_clipped < 0.0) tau_clipped = 0.0;
     if (tau_clipped > 100.0) tau_clipped = 100.0;
-    
+
     return tau_clipped;
 }
 
@@ -68,7 +68,7 @@ amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
  * @param[in] scale_height_m Decay scale height [m]
  * @return Clamped aerosol optical depth [0, 100]
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
                                             amrex::Real dz,                // NEW: layer thickness
                                             amrex::Real tau_surface,
@@ -113,7 +113,7 @@ amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
  * @param[in] k Level index
  * @return Zero (not yet implemented)
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_table(int k)
 {
     // Future extension: implement per-level table lookup

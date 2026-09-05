@@ -24,35 +24,35 @@ from pathlib import Path
 @dataclass
 class BenchmarkCase:
     """Definition of a single benchmark test case."""
-    
+
     # Case identification
     name: str                           # "Clear-sky SW baseline", etc.
     short_name: str                     # "sw_clearsky", "lw_isothermal", etc.
     description: str                    # Physics description
-    
+
     # Input configuration
     base_case_dir: str                  # Relative path to existing test (or symlink target)
     inputs_file: str                    # "inputs" or specific config file name
     diag_file: str                      # Expected diagnostic CSV output filename
-    
+
     # Simulation parameters
     dt: float                           # Fixed timestep [s]
     stop_time: float                    # Simulation stop time [s]
     expected_steps: int                 # Expected number of coarse steps
-    
+
     # Diagnostics configuration
     diag_callsite_mode: str            # "both", "pre_only", or "post_only"
     expected_diag_rows: int            # Expected total rows in diagnostic CSV
     rows_per_step: int                 # Expected rows per timestep (depends on mode)
-    
+
     # Metrics to validate
     required_metrics: List[str]        # Columns to check exist in CSV
     flux_metrics: Optional[Dict[str, str]] = None  # {"SW_TOA": "W/m^2", ...}
     heating_metrics: Optional[Dict[str, str]] = None  # {"heating_rate_max": "K/s", ...}
-    
+
     # Physics-specific checks
     physics_description: str = ""      # Brief physics note
-    
+
     def __post_init__(self):
         if self.flux_metrics is None:
             self.flux_metrics = {}
@@ -65,7 +65,7 @@ class BenchmarkCase:
 # =========================================================================
 
 CASES: Dict[str, BenchmarkCase] = {
-    
+
     # =====================================================================
     # CASE 1: Clear-sky SW baseline
     # =====================================================================
@@ -87,7 +87,7 @@ CASES: Dict[str, BenchmarkCase] = {
         heating_metrics={"heating_rate_max": "K/s"},
         physics_description="S0=1361 W/m^2, zenith=60°, tau=0.05/layer, Beer-Lambert",
     ),
-    
+
     # =====================================================================
     # CASE 2: LW isothermal baseline
     # =====================================================================
@@ -109,7 +109,7 @@ CASES: Dict[str, BenchmarkCase] = {
         heating_metrics={"heating_rate_max": "K/s"},
         physics_description="T=300K isothermal column, black surface at 300K, tau_lw=1.0/layer: LW_up_TOA=sigma T^4, LW_net_surface~0",
     ),
-    
+
     # =====================================================================
     # CASE 3: Cloud-layer absorption
     # =====================================================================
@@ -131,7 +131,7 @@ CASES: Dict[str, BenchmarkCase] = {
         heating_metrics={"heating_rate_max": "K/s"},
         physics_description="Cloud layer with height-varying optical depth, S0=1361",
     ),
-    
+
     # =====================================================================
     # CASE 4: Cloud scattering
     # =====================================================================
@@ -153,7 +153,7 @@ CASES: Dict[str, BenchmarkCase] = {
         heating_metrics={"heating_rate_max": "K/s"},
         physics_description="Cloud layer with Meador-Weaver two-stream scattering",
     ),
-    
+
     # =====================================================================
     # CASE 5: Coupled SW+LW non-isothermal time-integration
     # =====================================================================

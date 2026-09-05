@@ -61,7 +61,7 @@ def read_radiation_diag(filename):
 def compute_analytical_sw_flux(z, z_surface, z_toa, S0, cos_zenith, tau_per_layer):
     """
     Compute analytical SW direct-beam flux at height z using Beer-Lambert law.
-    
+
     Args:
         z: Height above surface [m]
         z_surface: Surface height [m]
@@ -69,13 +69,13 @@ def compute_analytical_sw_flux(z, z_surface, z_toa, S0, cos_zenith, tau_per_laye
         S0: Solar constant at TOA [W/m^2]
         cos_zenith: Cosine of solar zenith angle
         tau_per_layer: Optical depth per unit height [1/m]
-    
+
     Returns:
         Downwelling SW flux at height z [W/m^2]
     """
     if cos_zenith <= 0:
         return 0.0
-    
+
     # Optical depth from TOA to this level
     tau_cumulative = tau_per_layer * (z_toa - z)
     return S0 * cos_zenith * math.exp(-tau_cumulative / cos_zenith)
@@ -98,30 +98,30 @@ def read_input_real(inputs_file, key, default):
 
 def check_sw_flux_accuracy():
     """Check SW flux accuracy against analytical solution."""
-    
+
     # Read diagnostic file
     diag_file = "radiation_sw_diag.dat"
     if not os.path.exists(diag_file):
         print(f"ERROR: Diagnostic file {diag_file} not found")
         return False
-    
+
     data = read_radiation_diag(diag_file)
     if data is None:
         return False
-    
+
     # Test parameters (must match inputs file)
     S0 = 1361.0  # Solar constant [W/m^2]
     zenith_deg = 60.0  # Solar zenith angle [degrees]
     cos_zenith = math.cos(math.radians(zenith_deg))
     tau_per_layer = 0.003125  # Optical depth per layer [1/m]
     dz = 1024.0 / 64  # Layer thickness from domain setup: 64 layers over 10 km
-    
+
     # Compute tau per unit height
     tau_per_m = tau_per_layer / dz  # Convert from per-layer to per-meter
-    
+
     # Expected TOA flux (direct beam at top of atmosphere)
     expected_toa_flux = S0 * cos_zenith
-    
+
     # Expected incident surface flux (after passing through all 64 layers)
     tau_total = tau_per_layer * 64
     expected_incident_flux = S0 * cos_zenith * math.exp(-tau_total / cos_zenith)
@@ -131,10 +131,10 @@ def check_sw_flux_accuracy():
     # (erf.radiation.surface_albedo_sw, default 0.3 in RadChoice).
     surface_albedo = read_input_real("inputs", "erf.radiation.surface_albedo_sw", 0.3)
     expected_surface_flux = expected_incident_flux * (1.0 - surface_albedo)
-    
+
     # Tolerance for numerical accuracy (5%)
     tolerance = 0.05
-    
+
     print(f"\n{'='*70}")
     print("Phase 1 Two-Stream Radiation: SW Clear-Sky Analytical Test")
     print(f"{'='*70}")
@@ -149,21 +149,21 @@ def check_sw_flux_accuracy():
     print(f"  Surface albedo = {surface_albedo:.3f}")
     print(f"  Expected incident surface flux = {expected_incident_flux:.2f} W/m^2")
     print(f"  Expected absorbed surface flux = {expected_surface_flux:.2f} W/m^2")
-    
+
     # Extract last timestep data
     last_idx = -1
     step = data['step'][last_idx]
     time = data['time'][last_idx]
     SW_surface = data['SW_surface'][last_idx]
     SW_TOA = data['SW_TOA'][last_idx]
-    
+
     print(f"\nComputed Fluxes (step {step}, time {time:.4f}s):")
     print(f"  Computed TOA flux = {SW_TOA:.2f} W/m^2")
     print(f"  Computed surface flux = {SW_surface:.2f} W/m^2")
-    
+
     # Check results
     errors = []
-    
+
     # Check TOA flux (should match S0*cos(zenith))
     toa_error = abs(SW_TOA - expected_toa_flux) / expected_toa_flux
     print(f"\nAccuracy Checks:")
@@ -173,7 +173,7 @@ def check_sw_flux_accuracy():
         errors.append(f"TOA flux error too large: {toa_error*100:.2f}%")
     else:
         print(" [PASS]")
-    
+
     # Check surface flux (should match analytical value)
     if expected_surface_flux > 0:
         surf_error = abs(SW_surface - expected_surface_flux) / expected_surface_flux
@@ -183,14 +183,14 @@ def check_sw_flux_accuracy():
             errors.append(f"Surface flux error too large: {surf_error*100:.2f}%")
         else:
             print(" [PASS]")
-    
+
     # Check non-negativity
     if SW_TOA < 0 or SW_surface < 0:
         errors.append(f"Negative flux detected: TOA={SW_TOA:.2f}, surface={SW_surface:.2f}")
         print(f"  Non-negativity check [FAIL]")
     else:
         print(f"  Non-negativity check [PASS]")
-    
+
     # Overall result
     print(f"\n{'='*70}")
     if errors:

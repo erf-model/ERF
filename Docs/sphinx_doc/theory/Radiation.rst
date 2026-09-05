@@ -10,17 +10,17 @@
 Radiation
 =========
 
-Radiative transfer in ERF includes both a full k-distribution model (RRTMGP) for detailed studies 
-and a simplified two-stream model for idealized and intermediate-complexity atmospheric simulations. 
-This section describes the two-stream radiation model's physics, which employs Beer-Lambert direct-beam 
-attenuation for shortwave radiation, a Meador-Weaver two-stream diffuse field combined by the adding method 
+Radiative transfer in ERF includes both a full k-distribution model (RRTMGP) for detailed studies
+and a simplified two-stream model for idealized and intermediate-complexity atmospheric simulations.
+This section describes the two-stream radiation model's physics, which employs Beer-Lambert direct-beam
+attenuation for shortwave radiation, a Meador-Weaver two-stream diffuse field combined by the adding method
 with the surface albedo, gray-gas longwave two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
 
 Shortwave Radiation
 --------------------------------------
 
-The shortwave (solar) radiation calculation in the two-stream model is split into direct-beam 
-and diffuse components. The shortwave direct-beam radiation is attenuated through the atmosphere according to the 
+The shortwave (solar) radiation calculation in the two-stream model is split into direct-beam
+and diffuse components. The shortwave direct-beam radiation is attenuated through the atmosphere according to the
 Beer-Lambert law:
 
 .. math::
@@ -29,17 +29,17 @@ Beer-Lambert law:
 
 where :math:`I_0` is the solar constant at the top of the atmosphere (:math:`S_0 \approx 1361 \, \text{W/m}^2`,
 optionally scaled by the Earth-Sun distance factor :math:`(d_0/d)^2` of Spencer (1971) when
-``earth_sun_distance_enable`` is set), 
-:math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle, :math:`\tau_{\text{sw}}` is the 
-vertically integrated shortwave optical depth above height :math:`z`, and :math:`\sec(\theta_z)` accounts 
-for the path-length modification. The optical depth may be spatially uniform (static :math:`\tau_{\text{per\_layer}}`) 
+``earth_sun_distance_enable`` is set),
+:math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle, :math:`\tau_{\text{sw}}` is the
+vertically integrated shortwave optical depth above height :math:`z`, and :math:`\sec(\theta_z)` accounts
+for the path-length modification. The optical depth may be spatially uniform (static :math:`\tau_{\text{per\_layer}}`)
 or dynamically diagnosed from water vapor and cloud liquid water content, parameterized as:
 
 .. math::
 
    \tau_{\text{sw}}(k) = \tau_{\text{per\_layer}} + \tau_{\text{cloud}}(k) + c_{\text{qv}} q_v(k) + c_{\text{qc}} q_c(k)
 
-where :math:`\tau_{\text{cloud}}(k)` is added only within the prescribed cloud layer, and the coefficients 
+where :math:`\tau_{\text{cloud}}(k)` is added only within the prescribed cloud layer, and the coefficients
 :math:`c_{\text{qv}}` and :math:`c_{\text{qc}}` are zero by default.
 
 
@@ -136,7 +136,7 @@ whose divergence drives the shortwave heating rate. The surface absorbs
 :math:`(1 - \alpha_{\text{dir}}) F_{\text{dir}}(0) + (1 - \alpha_{\text{dif}}) F^{\downarrow}_{\text{dif}}(0)`, which is the
 ``SW_surface`` diagnostic; the reflected flux leaving the top, :math:`F^{\uparrow}_{\text{dif}}(n)`, is ``SW_up_TOA``.
 
-Cloud scattering properties may differ from the clear-sky values (e.g., :math:`\omega_0^{\text{cloud}}` for 
+Cloud scattering properties may differ from the clear-sky values (e.g., :math:`\omega_0^{\text{cloud}}` for
 liquid water clouds). The cloud/clear-sky distinction is blended according to the cloud fraction :math:`C_f`:
 
 .. math::
@@ -146,9 +146,9 @@ liquid water clouds). The cloud/clear-sky distinction is blended according to th
 Longwave Radiation
 --------------------------------------
 
-The longwave (thermal) radiation employs a gray-gas two-stream formulation (Toon et al. 1989) 
-to compute upward and downward fluxes. Assume local thermodynamic equilibrium (LTE): each layer emits radiation according to the 
-Planck function :math:`B(T)` weighted by the emissivity of the gray gas. The optical depth is 
+The longwave (thermal) radiation employs a gray-gas two-stream formulation (Toon et al. 1989)
+to compute upward and downward fluxes. Assume local thermodynamic equilibrium (LTE): each layer emits radiation according to the
+Planck function :math:`B(T)` weighted by the emissivity of the gray gas. The optical depth is
 parameterized similarly to shortwave:
 
 .. math::
@@ -167,7 +167,7 @@ have a real greenhouse effect, and the cloud term reproduces the Stephens (1978)
 :math:`\epsilon_c = 1 - e^{-0.158 \, \text{LWP}}` (LWP in g/m²). The cloud-band, moisture-coefficient
 and aerosol additions of the previous equation still apply on top of this base.
 
-The emission temperature of each layer is the absolute temperature, recovered from the prognostic 
+The emission temperature of each layer is the absolute temperature, recovered from the prognostic
 :math:`\rho\theta` through the equation of state and the Exner function,
 
 .. math::
@@ -175,30 +175,30 @@ The emission temperature of each layer is the absolute temperature, recovered fr
    p = p_0 \left( \frac{R_d \, \rho \, \theta_m}{p_0} \right)^{\gamma}, \qquad
    T = \theta \left( \frac{p}{p_0} \right)^{R_d / c_p},
 
-where :math:`\theta_m = \theta (1 + R_v q_v / R_d)` is the moist potential temperature. The column 
-sweeps follow ERF's vertical index convention: the lowest cell-centered index is the layer adjacent to 
-the surface and the highest index is the layer adjacent to the top of the domain, with fluxes stored on 
+where :math:`\theta_m = \theta (1 + R_v q_v / R_d)` is the moist potential temperature. The column
+sweeps follow ERF's vertical index convention: the lowest cell-centered index is the layer adjacent to
+the surface and the highest index is the layer adjacent to the top of the domain, with fluxes stored on
 the layer interfaces between them.
 
-In each layer, the two-stream equations for upward (:math:`F_{\uparrow}`) and downward (:math:`F_{\downarrow}`) 
+In each layer, the two-stream equations for upward (:math:`F_{\uparrow}`) and downward (:math:`F_{\downarrow}`)
 fluxes are:
 
 .. math::
 
-   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - 2 B(T), \quad 
+   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - 2 B(T), \quad
    \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + 2 B(T)
 
-These are integrated over each model layer using an upward sweep (from the surface upward) and a downward 
+These are integrated over each model layer using an upward sweep (from the surface upward) and a downward
 sweep (from the top-of-atmosphere downward), with boundary conditions:
 
-- **At the surface** (:math:`z = 0`, :math:`\tau = \tau_{\text{col}}`): The surface emits according to 
+- **At the surface** (:math:`z = 0`, :math:`\tau = \tau_{\text{col}}`): The surface emits according to
   Stefan-Boltzmann with emissivity :math:`\epsilon_{\text{lw}}`:
 
   .. math::
 
      F_{\uparrow}(0) = \epsilon_{\text{lw}} \sigma T_s^4 + (1 - \epsilon_{\text{lw}}) F_{\downarrow}(0)
 
-  where :math:`\sigma = 5.67 \times 10^{-8} \, \text{W/(m}^2\text{·K}^4)` is the Stefan-Boltzmann constant 
+  where :math:`\sigma = 5.67 \times 10^{-8} \, \text{W/(m}^2\text{·K}^4)` is the Stefan-Boltzmann constant
   and :math:`T_s` is the surface temperature.
 
 - **At the top-of-atmosphere** (:math:`z = z_{\text{top}}`): No downward flux from space:
@@ -226,10 +226,28 @@ Both the shortwave and the longwave heating rates are temperature tendencies. ER
 in the ``qheating_rates`` array (and the ``qsrc_sw`` / ``qsrc_lw`` plot variables), which the
 :math:`\rho\theta` source term multiplies by :math:`\rho`. This is the same convention as the RRTMGP path.
 
+Grid Requirements
+--------------------------------------
+
+Both sweeps integrate a whole atmospheric column in one pass, from the surface at the lowest
+:math:`k` to the top of the atmosphere at the highest. Each grid must therefore span the domain
+in the vertical: a box that holds only part of a column would see neither the beam arriving from
+above nor the cooling to space, and would return heating rates that look plausible and are wrong.
+ERF decomposes the base grid in :math:`z` only when ``amr.max_grid_size_z`` is smaller than the
+number of cells in :math:`z`, so setting
+
+.. code-block:: none
+
+   amr.max_grid_size_z = <at least amr.n_cell in z>
+
+is enough to satisfy this. The model aborts with a message naming this input if it is given a
+vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
+depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
+
 Surface Energy Balance
 --------------------------------------
 
-The surface energy balance residual is defined as the net radiative flux minus the turbulent and 
+The surface energy balance residual is defined as the net radiative flux minus the turbulent and
 ground heat fluxes:
 
 .. math::
@@ -238,12 +256,12 @@ ground heat fluxes:
 
    \text{SEB}_{\text{residual}} = R_{\text{net}} - H - \text{LE} - G
 
-where :math:`H` is the sensible heat flux, :math:`\text{LE}` is the latent heat flux (evaporation), 
+where :math:`H` is the sensible heat flux, :math:`\text{LE}` is the latent heat flux (evaporation),
 and :math:`G` is the ground heat flux conducted into the soil.
 
 
-When the Simplified SEB prognostic mode is enabled (``seb_prognostic_enable = true``), the surface 
-temperature and moisture are evolved forward in time using a force-restore formulation 
+When the Simplified SEB prognostic mode is enabled (``seb_prognostic_enable = true``), the surface
+temperature and moisture are evolved forward in time using a force-restore formulation
 (Tremback and Kessler, 1985; cf. Bhumralkar, 1974).
 
 Surface Temperature Evolution
@@ -255,8 +273,8 @@ The surface temperature :math:`T_s` evolves according to:
 
    C_s \frac{dT_s}{dt} = R_{\text{net}} - H - \text{LE} - G - C_s \left( \frac{2\pi}{\tau} \right) (T_s - T_{\text{deep}})
 
-where :math:`C_s` is the effective heat capacity of the surface-active layer [J/(m²·K)], :math:`\tau` is 
-the force-restore timescale [s] (e.g., 86400 s or 1 day), and :math:`T_{\text{deep}}` is the deep-soil 
+where :math:`C_s` is the effective heat capacity of the surface-active layer [J/(m²·K)], :math:`\tau` is
+the force-restore timescale [s] (e.g., 86400 s or 1 day), and :math:`T_{\text{deep}}` is the deep-soil
 temperature representing the climate state at that location.
 
 In discretized form (Euler forward step), the update is:
@@ -276,8 +294,8 @@ The surface moisture (assumed to be water in a thin surface-active layer of dept
 
    \frac{dq_s}{dt} = -\frac{\text{LE}}{L_v \rho_w d_s} - \frac{1}{\tau_q} (q_s - q_{\text{deep}})
 
-where :math:`L_v = 2.5 \times 10^6 \, \text{J/kg}` is the latent heat of vaporization, :math:`\rho_w \approx 1000 \, \text{kg/m}^3` 
-is the density of liquid water, :math:`d_s` is the effective moisture layer depth [m], :math:`\tau_q` is the 
+where :math:`L_v = 2.5 \times 10^6 \, \text{J/kg}` is the latent heat of vaporization, :math:`\rho_w \approx 1000 \, \text{kg/m}^3`
+is the density of liquid water, :math:`d_s` is the effective moisture layer depth [m], :math:`\tau_q` is the
 moisture force-restore timescale [s], and :math:`q_{\text{deep}}` is the deep-soil moisture.
 
 In discretized form:
@@ -291,24 +309,24 @@ After the update, :math:`q_s` is clamped to [``seb_prognostic_q_min``, ``seb_pro
 Noah-MP Precedence and Double-Counting Safeguard
 -------------------------------------------------
 
-When Noah-MP is active at a particular level, the SEB prognostic update is automatically skipped at that level, 
-and Noah-MP's own surface prognostics (which include soil heat conduction and explicit soil moisture layers) 
+When Noah-MP is active at a particular level, the SEB prognostic update is automatically skipped at that level,
+and Noah-MP's own surface prognostics (which include soil heat conduction and explicit soil moisture layers)
 are used instead. This prevents double-counting of surface energy and moisture evolution.
 
 Cloud Fraction Diagnosis
 --------------------------------
 
 
-When ``cloud_fraction_prog_enable = true``, the cloud fraction is diagnosed at each level from the 
+When ``cloud_fraction_prog_enable = true``, the cloud fraction is diagnosed at each level from the
 relative humidity (RH) and cloud liquid water content (qc):
 
 .. math::
 
    C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + c_{\text{qc}} q_c \right)
 
-where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage 
-(RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional 
-scaling of liquid water content's contribution. Optional temporal smoothing via an exponential moving average 
+where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage
+(RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional
+scaling of liquid water content's contribution. Optional temporal smoothing via an exponential moving average
 (EMA) may be applied to suppress oscillations:
 
 .. math::
@@ -320,10 +338,10 @@ where :math:`\alpha` is the blending parameter.
 Solar Geometry and Diurnal Cycle
 --------------------------------
 
-When ``solar_geometry_dynamic_enable = true``, the solar zenith angle is computed dynamically from 
+When ``solar_geometry_dynamic_enable = true``, the solar zenith angle is computed dynamically from
 astronomical formulas based on the simulation time, latitude, longitude, day-of-year, and time-zone offset.
 
-The solar declination :math:`\delta` (angle of the sun relative to the Earth's equatorial plane) is 
+The solar declination :math:`\delta` (angle of the sun relative to the Earth's equatorial plane) is
 computed from the day-of-year :math:`D`:
 
 .. math::
@@ -332,14 +350,14 @@ computed from the day-of-year :math:`D`:
 
 where the 81st day is the spring equinox.
 
-The hour angle :math:`h` (solar time in degrees, 0 at solar noon, 15° per hour) is computed from the 
+The hour angle :math:`h` (solar time in degrees, 0 at solar noon, 15° per hour) is computed from the
 local solar time. The solar zenith angle is then:
 
 .. math::
 
    \cos(\theta_z) = \sin(\phi) \sin(\delta) + \cos(\phi) \cos(\delta) \cos(h)
 
-where :math:`\phi` is the latitude. When :math:`\cos(\theta_z) \le 0`, the sun is below the horizon 
+where :math:`\phi` is the latitude. When :math:`\cos(\theta_z) \le 0`, the sun is below the horizon
 and the direct-beam contribution is zero.
 
 References

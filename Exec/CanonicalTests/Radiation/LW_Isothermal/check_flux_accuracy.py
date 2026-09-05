@@ -71,11 +71,11 @@ def read_radiation_diag(filename):
 def compute_bb_radiation(T, sigma=5.670374419e-8):
     """
     Compute blackbody radiation intensity using Stefan-Boltzmann law.
-    
+
     Args:
         T: Temperature [K]
         sigma: Stefan-Boltzmann constant [W/(m^2·K^4)]
-    
+
     Returns:
         Radiative intensity [W/m^2]
     """
@@ -85,24 +85,24 @@ def compute_bb_radiation(T, sigma=5.670374419e-8):
 
 def check_lw_isothermal_accuracy():
     """Check LW isothermal test accuracy."""
-    
+
     # Read diagnostic file
     diag_file = "radiation_lw_diag.dat"
     if not os.path.exists(diag_file):
         print(f"ERROR: Diagnostic file {diag_file} not found")
         return False
-    
+
     data = read_radiation_diag(diag_file)
     if data is None:
         return False
-    
+
     # Test parameters (must match inputs file and sounding)
     T_iso_K = 300.0  # Isothermal temperature [K] (surface_temp_k and the sounding)
     sigma = 5.670374419e-8  # Stefan-Boltzmann constant [W/(m^2·K^4)]
-    
+
     # Expected upwelling/downwelling flux (same in isothermal mode)
     expected_flux = compute_bb_radiation(T_iso_K, sigma)
-    
+
     # Tolerance for numerical accuracy
     # In isothermal mode with exact arithmetic:
     #   - Upwelling and downwelling should be identical
@@ -112,7 +112,7 @@ def check_lw_isothermal_accuracy():
     # ~0.05 K, i.e. ~0.1% in sigma T^4; allow 0.5%.
     flux_tolerance = 5e-3
     net_tolerance = 5e-3      # |LW_net_surface| / sigma T^4
-    
+
     print(f"\n{'='*70}")
     print("Two-Stream Radiation: LW Isothermal Column Test")
     print(f"{'='*70}")
@@ -123,7 +123,7 @@ def check_lw_isothermal_accuracy():
     print(f"  Expected LW_up_TOA = σ*T^4 = {expected_flux:.4f} W/m^2")
     print(f"  Expected LW_net_surface ≈ 0 W/m^2 (opaque column at the surface temperature)")
     print(f"  Expected heating_rate_max > 0 (cooling to space from the top layers)")
-    
+
     # Extract last timestep data
     last_idx = -1
     step = data['step'][last_idx]

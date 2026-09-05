@@ -2,6 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Utility.H>
 
 #include <algorithm>
 #include <cmath>
@@ -27,7 +28,7 @@
 //
 // Checks 3 and 4 fail if the sweep runs upside down; check 4 also fails if
 // the LW heating-rate sign is flipped. The domain is expected to be a
-// single box in the vertical (amrex.max_grid_size_z >= n_cell_z).
+// single box in the vertical (amr.max_grid_size_z >= n_cell_z).
 
 namespace {
 
@@ -78,9 +79,30 @@ std::vector<Real> horizontal_mean_profile (const MultiFab& mf, const amrex::Box&
     return sum;
 }
 
-bool all_finite (const MultiFab& mf)
+// Returns an empty string when every valid cell is finite, and otherwise a
+// description of the first offending cell. CI only sees this message, so it
+// has to say where the bad value is, not just that one exists.
+std::string first_nonfinite (const MultiFab& mf)
 {
-    return !mf.contains_nan(0, 1, 0) && !mf.contains_inf(0, 1, 0);
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto& arr = mf.const_array(mfi);
+        const auto lo = amrex::lbound(bx);
+        const auto hi = amrex::ubound(bx);
+        for (int k = lo.z; k <= hi.z; ++k) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    const Real v = arr(i, j, k);
+                    if (!std::isfinite(v)) {
+                        return "value " + std::to_string(v) + " at (i,j,k) = (" +
+                               std::to_string(i) + "," + std::to_string(j) + "," +
+                               std::to_string(k) + ")";
+                    }
+                }
+            }
+        }
+    }
+    return std::string();
 }
 
 int run_checks (const std::string& plotfile_path)
@@ -95,8 +117,10 @@ int run_checks (const std::string& plotfile_path)
 
     MultiFab qsrc_sw = plotfile.get(0, "qsrc_sw");
     MultiFab qsrc_lw = plotfile.get(0, "qsrc_lw");
-    if (!all_finite(qsrc_sw)) { return fail("qsrc_sw contains NaN or Inf"); }
-    if (!all_finite(qsrc_lw)) { return fail("qsrc_lw contains NaN or Inf"); }
+    const std::string sw_bad = first_nonfinite(qsrc_sw);
+    if (!sw_bad.empty()) { return fail("qsrc_sw is not finite: " + sw_bad); }
+    const std::string lw_bad = first_nonfinite(qsrc_lw);
+    if (!lw_bad.empty()) { return fail("qsrc_lw is not finite: " + lw_bad); }
 
     const amrex::Box domain = plotfile.probDomain(0);
     const std::vector<Real> sw = horizontal_mean_profile(qsrc_sw, domain);
@@ -160,10 +184,20 @@ int main (int argc, char** argv)
         std::cerr << "usage: " << argv[0] << " <plotfile>\n";
         return 2;
     }
-    amrex::Initialize(argc, argv);
+    const std::string plotfile_path(argv[1]);
+
+    // build_parm_parse = false: the plotfile path is a directory, and letting
+    // AMReX treat argv[1] as an inputs file makes it read that directory as
+    // if it were text. Whether that is harmless or fatal is platform-dependent.
+    amrex::Initialize(argc, argv, false);
     int result = 0;
     {
-        result = run_checks(argv[1]);
+        if (!amrex::FileExists(plotfile_path + "/Header")) {
+            result = fail("no plotfile at " + plotfile_path +
+                          " (the simulation did not write one)");
+        } else {
+            result = run_checks(plotfile_path);
+        }
     }
     amrex::Finalize();
     return result;

@@ -11,6 +11,7 @@
 #include <AMReX_Gpu.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_EOS.H>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -96,7 +97,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     }
 
     // Create RadiationDiagnostics instance for this level with controls
-    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file, 
+    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file,
                                    rad_choice.diag_enable, rad_choice.diag_stdout_enable,
                                    rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
                                    rad_choice.diag_csv_enable, rad_choice.diag_callsite_mode,
@@ -117,7 +118,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real heating_rate_max = 0.0;
     amrex::Real seb_residual_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real seb_residual_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
-    
+
     //  Prognostic SEB surface temperature and moisture diagnostics
     amrex::Real t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
     amrex::Real t_s_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
@@ -145,13 +146,13 @@ void ERF::compute_twostream_radiation_diagnostics(
             rad_choice.time_zone_offset_hours);
     } else {
         // and earlier: Use static solar zenith angle
-        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * M_PI / 180.0;
+        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * PI / 180.0;
         cos_zenith = std::cos(zenith_rad);
     }
     const amrex::Real S0_eff = rad_choice.S0 *
         (rad_choice.earth_sun_distance_enable
              ? compute_earth_sun_distance_factor(rad_choice.day_of_year) : 1.0);
-    SW_TOA = rad_choice.sw_enabled ? (S0_eff * std::max(0.0, cos_zenith)) : 0.0;
+    SW_TOA = rad_choice.sw_enabled ? (S0_eff * std::max(amrex::Real(0.0), cos_zenith)) : amrex::Real(0.0);
 
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
@@ -191,7 +192,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         if (rad_choice.seb_enable) {
             fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
-             
+
             // Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
@@ -199,13 +200,13 @@ void ERF::compute_twostream_radiation_diagnostics(
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
-             
+
             fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav", rad_choice.seb_sw_flux_default);
             fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira", rad_choice.seb_lw_flux_default);
             fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
             fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
             fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
-             
+
             // Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
@@ -214,10 +215,26 @@ void ERF::compute_twostream_radiation_diagnostics(
             fill_or_copy_seb_field(q_deep[lev].get(), lsm, lev, "smstot", rad_choice.seb_q_deep_default);
         }
 
-        // Sequential loop over all boxes (each box handled with GPU-safe ParallelFor)
-        for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        // The column sweep integrates the whole atmospheric column in one
+        // kernel, so it needs every k of a box in a single pass. MFIter tiling
+        // would hand it partial columns (the default CPU tile size splits z),
+        // so this loop is deliberately untiled and works on valid boxes; the
+        // horizontal ParallelFor below still provides the parallelism.
+        const Box& rad_domain = geom[lev].Domain();
+        for (MFIter mfi(state_cons, false); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
+            const Box& bx = mfi.validbox();
+
+            // A box that does not span the domain vertically would give this
+            // column solver a truncated atmosphere: no beam from above, no
+            // cooling to space. ERF only decomposes in z when max_grid_size_z
+            // is smaller than the domain, so refuse that configuration rather
+            // than return heating rates that look plausible and are wrong.
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                bx.smallEnd(2) == rad_domain.smallEnd(2) &&
+                bx.bigEnd(2)   == rad_domain.bigEnd(2),
+                "TwoStream radiation requires grids that span the domain in z; "
+                "set amr.max_grid_size_z to at least amr.n_cell in z");
             const auto& state_arr = state_cons.const_array(mfi);
             const Geometry& geom_lev = geom[lev];
 
@@ -234,7 +251,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             // 1. If LSM is active (lsm.Get_DataIdx() returns >=0), use real LSM fields
             // 2. Otherwise, use standalone fallback MultiFabs (allocated and constant-filled from RadChoice scalars)
             // The resolve_surface_*() helpers implement the full precedence chain with finite guards
-            
+
             // SW albedo: Try LSM field "sfc_alb_dir_vis" (simplified: broadband approx from vis-direct only;
             // future work: full 4-band vis/nir dir/dif support is planned).
             bool has_hetero_alb_sw = false;
@@ -448,10 +465,12 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
         // Compute SEB residual diagnostics if enabled
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable) {
-            seb_residual_max = 0.0; 
-            // Second loop over boxes to compute SEB residual from populated SEB MultiFabs
-            for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
+            seb_residual_max = 0.0;
+            // Second loop over boxes to compute SEB residual from populated SEB
+            // MultiFabs. Untiled: the work below is per surface column, and a
+            // tiled iteration would visit each (i,j) once per z tile.
+            for (MFIter mfi(state_cons, false); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.validbox();
                 const auto& lo = bx.loVect();
                 const auto& hi = bx.hiVect();
                 Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
@@ -512,24 +531,27 @@ void ERF::compute_twostream_radiation_diagnostics(
             std::string varname_t_sfc_prog = "t_sfc";
             int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, varname_t_sfc_prog);
             bool noahmp_active = (lsm_idx_t_sfc >= 0);
-            
+
             if (!noahmp_active) {
                 // Noah-MP is NOT active; proceed with prognostic update
-                
+
                 // Initialize diagnostics for T_s and q_s
                 amrex::Real t_s_sum = 0.0;
                 amrex::Real t_s_max_val = -std::numeric_limits<amrex::Real>::max();
                 amrex::Real q_s_sum = 0.0;
                 amrex::Real q_s_max_val = -std::numeric_limits<amrex::Real>::max();
                 amrex::Long n_prog_columns = 0;
-                
-                // Third loop over boxes for prognostic SEB update
-                for (MFIter mfi(state_cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
+
+                // Third loop over boxes for prognostic SEB update. Untiled for
+                // the same reason as above, and here it also matters for
+                // correctness: the force-restore update is applied in place, so
+                // visiting a column twice would advance it twice in one step.
+                for (MFIter mfi(state_cons, false); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.validbox();
                     const auto& lo = bx.loVect();
                     const auto& hi = bx.hiVect();
                     Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
-                    
+
                     // Get SEB field arrays (read-only)
                     Array4<const amrex::Real> sw_flux_arr = sw_flux_sfc[lev]->const_array(mfi);
                     Array4<const amrex::Real> lw_flux_arr = lw_flux_sfc[lev]->const_array(mfi);
@@ -538,7 +560,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     Array4<const amrex::Real> grdflx_arr = grdflx_sfc[lev]->const_array(mfi);
                     Array4<const amrex::Real> t_deep_arr = t_deep[lev]->const_array(mfi);
                     Array4<const amrex::Real> q_deep_arr = q_deep[lev]->const_array(mfi);
-                    
+
                     // Get SEB state arrays (read-write for prognostic update)
                     Array4<amrex::Real> t_s_arr = twostream_t_sfc[lev]->array(mfi);
                     Array4<amrex::Real> q_s_arr = q_sfc[lev]->array(mfi);
@@ -549,13 +571,13 @@ void ERF::compute_twostream_radiation_diagnostics(
                     amrex::Real t_s_max_box = -std::numeric_limits<amrex::Real>::max();
                     amrex::Real q_s_sum_box = 0.0;
                     amrex::Real q_s_max_box = -std::numeric_limits<amrex::Real>::max();
-                    
+
                     // GPU-safe update for prognostic T_s and q_s with reductions
                     ReduceOps<ReduceOpSum, ReduceOpMax, ReduceOpSum, ReduceOpMax> prog_reduce_ops;
                     ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real> prog_reduce_data(prog_reduce_ops);
-                    
+
                     using ProgReduceTuple = typename decltype(prog_reduce_data)::Type;
-                    
+
                     prog_reduce_ops.eval(xy_box, prog_reduce_data,
                             [=,  C_s=rad_choice.seb_surface_heat_capacity,
                             tau=rad_choice.seb_restore_timescale_s,
@@ -564,11 +586,11 @@ void ERF::compute_twostream_radiation_diagnostics(
                             t_min=rad_choice.seb_prognostic_t_min_k,
                             t_max=rad_choice.seb_prognostic_t_max_k,
                             q_min=rad_choice.seb_prognostic_q_min,
-                            q_max=rad_choice.seb_prognostic_q_max] 
+                            q_max=rad_choice.seb_prognostic_q_max]
                             AMREX_GPU_DEVICE (int i, int j, int /*k_unused*/) -> ProgReduceTuple {
                             amrex::Real t_s_old = t_s_arr(i, j, 0);
                             amrex::Real q_s_old = q_s_arr(i, j, 0);
-                            
+
                             // Read forcing data
                             amrex::Real sw_net = sw_flux_arr(i, j, 0);
                             amrex::Real lw_net = lw_flux_arr(i, j, 0);
@@ -577,32 +599,32 @@ void ERF::compute_twostream_radiation_diagnostics(
                             amrex::Real grdflx = grdflx_arr(i, j, 0);
                             amrex::Real t_deep = t_deep_arr(i, j, 0);
                             amrex::Real q_deep = q_deep_arr(i, j, 0);
-                            
+
                             // Compute SEB residual
                             amrex::Real seb_res = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
-                            
+
                             // Compute tendencies
                             amrex::Real dT_s_dt = prognostic_dTs_dt(seb_res, t_s_old, t_deep,
                                                                      C_s, tau);
                             amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep,
                                                                      d_s, tau_q);
-                            
+
                             // Perform Euler update
                             amrex::Real t_s_new = t_s_old + time_step * dT_s_dt;
                             amrex::Real q_s_new = q_s_old + time_step * dq_s_dt;
-                            
+
                             // Clamp to valid ranges
                             t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
                             q_s_new = amrex::max(q_min, amrex::min(q_max, q_s_new));
-                            
+
                             // Write back updated values (this modifies the device array)
                             t_s_arr(i, j, 0) = t_s_new;
                             q_s_arr(i, j, 0) = q_s_new;
-                            
+
                             // Return for reduction: sum T_s, max T_s, sum q_s, max q_s
                             return {t_s_new, std::abs(t_s_new), q_s_new, std::abs(q_s_new)};
                         });
-                    
+
                     // Copy results from device to host
                     amrex::Gpu::synchronize();
                     auto prog_reduce_tuple = prog_reduce_data.value(prog_reduce_ops);
@@ -610,7 +632,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     t_s_max_box = amrex::get<1>(prog_reduce_tuple);
                     q_s_sum_box = amrex::get<2>(prog_reduce_tuple);
                     q_s_max_box = amrex::get<3>(prog_reduce_tuple);
-                    
+
                     // Accumulate into global results
                     t_s_sum += t_s_sum_box;
                     t_s_max_val = std::max(t_s_max_val, t_s_max_box);
@@ -618,7 +640,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     q_s_max_val = std::max(q_s_max_val, q_s_max_box);
                     n_prog_columns += n_cols_box;
                 }
-                
+
                 // Compute mean values from sums
                 if (n_prog_columns > 0) {
                     t_s_mean = t_s_sum / static_cast<amrex::Real>(n_prog_columns);

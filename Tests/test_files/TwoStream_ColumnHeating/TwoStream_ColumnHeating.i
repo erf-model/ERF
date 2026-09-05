@@ -12,11 +12,14 @@ max_step = 2
 stop_time = 10.0
 amrex.fpe_trap_invalid = 0
 
-fabarray.mfiter_tile_size = 1024 1024 1024
+# Deliberately left on AMReX's default MFIter tile size, which splits the
+# domain in z. The column sweep must be independent of that tiling; an
+# earlier version restarted the sweep at the bottom of every z tile and
+# this case is what catches that.
 
 geometry.prob_extent = 1024 1024 1024
 amr.n_cell           = 4 4 32
-amrex.max_grid_size_z = 128
+amr.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
 
 zlo.type = "SlipWall"

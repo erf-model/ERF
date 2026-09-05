@@ -64,12 +64,12 @@ STABILITY_RELATIVE_TOL = 0.01  # 1%
 def check_relative_error(actual, expected, tol_pct):
     """
     Check if actual value is within relative tolerance of expected.
-    
+
     Args:
         actual: Computed/observed value
         expected: Reference/analytical value
         tol_pct: Tolerance as percentage (e.g., 1.0 for 1%)
-    
+
     Returns:
         Tuple (is_pass, error_pct)
     """
@@ -77,19 +77,19 @@ def check_relative_error(actual, expected, tol_pct):
         rel_error = abs(actual - expected)
     else:
         rel_error = abs((actual - expected) / expected) * 100
-    
+
     return (rel_error <= tol_pct, rel_error)
 
 
 def check_absolute_error(actual, expected, tol_abs):
     """
     Check if actual value is within absolute tolerance of expected.
-    
+
     Args:
         actual: Computed/observed value
         expected: Reference/analytical value
         tol_abs: Absolute tolerance
-    
+
     Returns:
         Tuple (is_pass, error_abs)
     """

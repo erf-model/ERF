@@ -3021,16 +3021,16 @@ List of Parameters
 
 .. note::
 
-   When the two-stream radiation model is selected via ``erf.radiation_type = TwoStream``, 
-   a **Simplified Surface Energy Balance (SEB) force-restore method** is available as an alternative 
-   to Noah-MP for computing surface temperature and moisture evolution. It is enabled via 
-   ``erf.radiation.seb_enable``, ``erf.radiation.seb_diagnostic_enable``, and 
-   ``erf.radiation.seb_prognostic_enable`` and does not require Noah-MP. The SEB method uses a 
-   force-restore formulation to evolve surface temperature :math:`T_s` and moisture :math:`q_s` 
-   toward deep-soil reservoir values, given the diagnosed surface energy balance residual 
-   (:math:`R_{net} - H - LE - G`). When Noah-MP is active, Noah-MP's surface prognostics take 
-   precedence and the force-restore update is automatically skipped at those levels (safeguard 
-   against double-counting). See the "Radiation" section below for the full SEB parameter list 
+   When the two-stream radiation model is selected via ``erf.radiation_type = TwoStream``,
+   a **Simplified Surface Energy Balance (SEB) force-restore method** is available as an alternative
+   to Noah-MP for computing surface temperature and moisture evolution. It is enabled via
+   ``erf.radiation.seb_enable``, ``erf.radiation.seb_diagnostic_enable``, and
+   ``erf.radiation.seb_prognostic_enable`` and does not require Noah-MP. The SEB method uses a
+   force-restore formulation to evolve surface temperature :math:`T_s` and moisture :math:`q_s`
+   toward deep-soil reservoir values, given the diagnosed surface energy balance residual
+   (:math:`R_{net} - H - LE - G`). When Noah-MP is active, Noah-MP's surface prognostics take
+   precedence and the force-restore update is automatically skipped at those levels (safeguard
+   against double-counting). See the "Radiation" section below for the full SEB parameter list
    and the Theory documentation for the governing equations.
 
 .. _inputs-ocean-surface-model:
@@ -3151,8 +3151,8 @@ List of Parameters
 Radiation
 =========
 
-ERF offers two radiation model options: the RRTMGP library for full radiative transfer calculations, 
-and a two-stream radiation model for idealized and intermediate-complexity studies. This section 
+ERF offers two radiation model options: the RRTMGP library for full radiative transfer calculations,
+and a two-stream radiation model for idealized and intermediate-complexity studies. This section
 describes both models and their runtime configuration.
 
 RRTMGP Radiation Model
@@ -3278,14 +3278,14 @@ netCDF "No such file or directory" error.
 Two-Stream Radiation Model
 ---------------------------
 
-The two-stream radiation model is a simplified but physically-consistent radiative transfer solver 
-suitable for idealized and process studies. It includes Beer-Lambert shortwave direct-beam attenuation, 
-Meador-Weaver (1980) two-stream diffuse/scattering approximation, gray-gas longwave two-stream 
-(Toon et al. 1989), prescribed and prognostic cloud optical depth, bulk aerosol/turbidity effects, 
-time-varying solar geometry based on astronomical calculations, heterogeneous/LSM-coupled surface 
-albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional 
-Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface 
-temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``; 
+The two-stream radiation model is a simplified but physically-consistent radiative transfer solver
+suitable for idealized and process studies. It includes Beer-Lambert shortwave direct-beam attenuation,
+Meador-Weaver (1980) two-stream diffuse/scattering approximation, gray-gas longwave two-stream
+(Toon et al. 1989), prescribed and prognostic cloud optical depth, bulk aerosol/turbidity effects,
+time-varying solar geometry based on astronomical calculations, heterogeneous/LSM-coupled surface
+albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional
+Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface
+temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``;
 other options are ``None`` and ``RRTMGP``.
 
 

@@ -5,6 +5,8 @@
 #include <AMReX_FArrayBox.H>
 #include <cmath>
 
+#include <ERF_Constants.H>
+
 /**
  * @file ERF_SimplifiedSEB.H
  * @brief Simplified SEB — Diagnostic mode residual computation.
@@ -43,7 +45,7 @@
  * NaN/Inf; if any input is non-finite, returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
- * - AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+ * - AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
  * - No host-side I/O
  * - No dynamic allocation
  * - Safe for use in device reduction kernels
@@ -57,7 +59,7 @@
  * @return SEB residual [W/m^2] = (sw_net + lw_net) - hfx - lh - grdflx
  *         Returns 0.0 if any input is non-finite (NaN or Inf)
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_seb_residual(amrex::Real sw_net,
                                    amrex::Real lw_net,
                                    amrex::Real hfx,
@@ -89,7 +91,7 @@ amrex::Real diagnose_seb_residual(amrex::Real sw_net,
  * is non-finite, any parameter is non-positive (C_s <= 0, tau <= 0), returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
- * - AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+ * - AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
  * - No host-side I/O
  * - No dynamic allocation
  * - Safe for use in device kernels
@@ -103,7 +105,7 @@ amrex::Real diagnose_seb_residual(amrex::Real sw_net,
  * @return Temperature tendency dT_s/dt [K/s]
  *         Returns 0.0 if any input is non-finite or any parameter is non-positive
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
                                amrex::Real t_s,
                                amrex::Real t_deep,
@@ -123,7 +125,7 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
 
     // Compute tendency: SEB_residual / C_s - (2*pi/tau) * (T_s - T_deep)
     amrex::Real seb_term = seb_residual / c_s;
-    amrex::Real restore_term = (2.0 * M_PI / tau) * (t_s - t_deep);
+    amrex::Real restore_term = (2.0 * PI / tau) * (t_s - t_deep);
     amrex::Real dt_s_dt = seb_term - restore_term;
 
     return dt_s_dt;
@@ -143,7 +145,7 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
  * is non-finite, any parameter is non-positive (d_s <= 0, tau_q <= 0), returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
- * - AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+ * - AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
  * - No host-side I/O
  * - No dynamic allocation
  * - Safe for use in device kernels
@@ -157,7 +159,7 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
  * @return Moisture tendency dq_s/dt [kg/kg/s]
  *         Returns 0.0 if any input is non-finite or any parameter is non-positive
  */
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real prognostic_dqs_dt(amrex::Real le,
                                amrex::Real q_s,
                                amrex::Real q_deep,
