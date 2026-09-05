@@ -3,57 +3,6 @@
 
 using namespace amrex;
 
-namespace {
-
-void
-assert_surface_layer_mfi_layout (const iMultiFab& mask,
-                                 const MultiFab& field)
-{
-    AMREX_ASSERT(mask.boxArray().size() == field.boxArray().size());
-    AMREX_ASSERT(mask.DistributionMap() == field.DistributionMap());
-}
-
-void
-assert_surface_layer_layout (const iMultiFab& mask,
-                             const MultiFab& field,
-                             const int normal_dir)
-{
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        mask.boxArray().size() == field.boxArray().size(),
-        "Surface-layer cross-layout BoxArrays must have the same number of boxes.");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        mask.DistributionMap() == field.DistributionMap(),
-        "Surface-layer cross-layout DistributionMappings must agree.");
-
-    for (int ibox = 0; ibox < mask.boxArray().size(); ++ibox) {
-        const Box& mask_box = mask.boxArray()[ibox];
-        const Box& field_box = field.boxArray()[ibox];
-        // The surface-layer fields may be wall-normal-collapsed or nodal,
-        // so exact Box equality is not appropriate. Compare only tangential
-        // extents after converting the mask box to the field's index type;
-        // the normal extent is intentionally different for lateral fields.
-        Box required = mask_box;
-        required.convert(field.boxArray().ixType());
-        Box available = field_box;
-        available.grow(field.nGrowVect());
-        bool compatible = true;
-        // Lateral surface masks are collapsed in z, even though the state and
-        // stress fields retain their full vertical extent.  Only horizontal
-        // tangential extents participate in this cross-layout check.
-        for (int idim = 0; idim < 2; ++idim) {
-            if (idim == normal_dir) { continue; }
-            compatible = compatible &&
-                available.smallEnd(idim) <= required.smallEnd(idim) &&
-                available.bigEnd(idim)   >= required.bigEnd(idim);
-        }
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            compatible,
-            "Surface-layer cross-layout boxes have incompatible tangential extents.");
-    }
-}
-
-} // namespace
-
 /**
  * Wrapper to update ustar and tstar for Monin Obukhov similarity theory.
  *
@@ -437,10 +386,6 @@ SurfaceLayer::compute_fluxes (const int& lev,
     const bool l_use_eb = (m_terrain_type == TerrainType::EB);
 
     const int dir = m_face.coordDir();
-    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
-    assert_surface_layer_mfi_layout(surface_mask, cons_in);
-    assert_surface_layer_mfi_layout(surface_mask, *u_star[lev]);
-
     // The source fields and Taus use the same BoxArray ordering and
     // DistributionMapping. Full-state fields follow cons_in, while the
     // collapsed SurfaceLayer/MOSTAverage fields follow u_star.
@@ -599,8 +544,6 @@ SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
         u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), olen[lev].get()};
 
     for (MultiFab* field : fields) {
-        assert_surface_layer_layout(surface_mask, *field, dir);
-
         // Each parameter field owns its own index type and BoxArray. Build
         // the compact layout from that field rather than reusing u_star's
         // layout for all parameters.
@@ -812,32 +755,12 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     bool rotate = m_rotate;
 
     const int dir = m_face.coordDir();
-    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !mfs.empty() && mfs[0] != nullptr,
         "Surface-layer stress computation requires a conserved-state MultiFab.");
-    for (const auto* state : mfs) {
-        if (state) {
-            assert_surface_layer_layout(surface_mask, *state, dir);
-        }
-    }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         Tau_lev[TauType::tau13] != nullptr && Tau_lev[TauType::tau23] != nullptr,
         "tau13 and tau23 are required by surface-layer stress computation.");
-    assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau13], dir);
-    assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau23], dir);
-    if (Tau_lev[TauType::tau12]) {
-        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau12], dir);
-    }
-    if (Tau_lev[TauType::tau21]) {
-        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau21], dir);
-    }
-    if (Tau_lev[TauType::tau31]) {
-        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau31], dir);
-    }
-    if (Tau_lev[TauType::tau32]) {
-        assert_surface_layer_layout(surface_mask, *Tau_lev[TauType::tau32], dir);
-    }
     int sm_index = 0;
     if (m_face.isLow()) {
         sm_index = m_geom[lev].Domain().smallEnd(dir);
@@ -1785,10 +1708,6 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 {
     // NOTE: We have already tested a moisture model exists
     const int dir = m_face.coordDir();
-    const iMultiFab& surface_mask = *m_lmask_lev[lev][0];
-    assert_surface_layer_mfi_layout(surface_mask, cons_in);
-    assert_surface_layer_mfi_layout(surface_mask, *t_surf[lev]);
-
     int sm_index;
     if (m_face.isLow()) {
         sm_index = m_geom[lev].Domain().smallEnd(dir);

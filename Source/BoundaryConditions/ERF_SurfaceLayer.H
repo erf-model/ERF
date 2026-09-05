@@ -619,6 +619,20 @@ public:
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
 
+      const amrex::iMultiFab& surface_mask = *m_lmask_lev[lev][0];
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.boxArray().size() == mf.boxArray().size(),
+          "Surface-layer mask and state must have the same number of boxes.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.DistributionMap() == mf.DistributionMap(),
+          "Surface-layer mask and state must have identical ownership.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.boxArray().size() == u_star[lev]->boxArray().size(),
+          "Surface-layer mask and parameters must have the same number of boxes.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.DistributionMap() == u_star[lev]->DistributionMap(),
+          "Surface-layer mask and parameters must have identical ownership.");
+
       surface_diagnostic_source[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       surface_diagnostic_source[lev]->setVal(
           surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
