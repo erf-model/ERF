@@ -1,0 +1,11 @@
+FILE = inputs_base
+
+# Boulder at solar noon on the June solstice: zenith = latitude - declination
+erf.ibseb.sun_mode = "solar"
+erf.ibseb.latitude_deg = 40.0
+erf.ibseb.longitude_deg = -105.0
+erf.ibseb.day_of_year = 172
+erf.ibseb.utc_offset_hours = -7.0
+erf.ibseb.time_zero_utc_s = 68400.0   # 19:00 UTC = 12:00 MST
+erf.ibseb.csv_file = "ibseb_solar.csv"
+erf.ibseb.dump_faces_file = "faces_solar"

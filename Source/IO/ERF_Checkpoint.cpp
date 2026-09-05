@@ -316,6 +316,10 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(*vel_t_avg[lev], MultiFabFileFullPrefix(lev, checkpointname, "Level_", "VelTimeAvg"));
         }
 
+        // Face state of the immersed-boundary surface energy balance (no-op unless enabled);
+        // read back in init_ibseb() once the face list has been rebuilt from the blanking.
+        ibseb_write_checkpoint(checkpointname, lev);
+
         if (solverChoice.compute_mean_vars) {
             AMREX_ALWAYS_ASSERT(interval_means[lev] != nullptr);
             VisMF::Write(*interval_means[lev],

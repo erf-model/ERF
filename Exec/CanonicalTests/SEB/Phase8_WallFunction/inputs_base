@@ -1,0 +1,69 @@
+# Phase 8 of the immersed-boundary surface energy balance: the wall function
+# beyond neutral. The phase 7 cube (an exact box) in calm air under a strong
+# fixed sun overhead, so the roof heats fast while the tangential wind at
+# the faces is nearly zero; with the neutral log law the roof cannot shed
+# heat, with the convective velocity scale it can, and with the stability
+# functions it sheds more. Variants: inputs_neutral, inputs_deardorff
+# (fixed depth), inputs_stability (functions and the scale), inputs_bulkri
+# (the depth from the bulk Richardson diagnostic on a capped sounding).
+stop_time = 100000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  320     320    160
+amr.n_cell           =  32      32     16
+amr.max_grid_size    =  16
+geometry.is_periodic = 1 1 0
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.surf_temp = 300.0
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = -1
+erf.plot_vars_1     = theta x_velocity terrain_IB_mask ibseb_tskin ibseb_H
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+eb2.geometry = box
+eb2.box_lo = 140.0 140.0 -10.0
+eb2.box_hi = 180.0 180.0 40.0
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.debug = true
+erf.ibseb.csv_int = 1
+erf.ibseb.dump_faces_tag_step = true
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 300.0
+# A light cladding so the roof heats within minutes.
+erf.ibseb.n_slab_layers = 4
+erf.ibseb.k_therm = 0.5
+erf.ibseb.rho_cp = 2.0e5
+erf.ibseb.thickness = 0.05
+erf.ibseb.albedo = 0.1
+erf.ibseb.emissivity = 0.9
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 10.0
+erf.ibseb.sw_direct_normal = 1000.0
+erf.ibseb.sw_diffuse = 100.0
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.T_ground = 300.0
+max_step = 600

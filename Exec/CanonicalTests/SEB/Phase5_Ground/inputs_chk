@@ -1,0 +1,10 @@
+FILE = inputs_base
+
+# The thin deck to step 200 with a checkpoint there.
+erf.ibseb.k_therm = 1.0
+erf.ibseb.rho_cp = 1.0e5
+erf.ibseb.thickness = 0.02
+erf.ibseb.n_slab_layers = 4
+erf.ibseb.csv_file = "ibseb_chk.csv"
+max_step = 200
+erf.check_int = 200

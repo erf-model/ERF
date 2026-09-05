@@ -1715,6 +1715,16 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ib_aware**                     | MRF and YSUNew only: treat the first fluid cell above an | Boolean            | false            |
+|                                          | immersed solid column (buildings or terrain by immersed  |                    |                  |
+|                                          | forcing) as that column's surface: heights, the bulk     |                    |                  |
+|                                          | Richardson depth and the K profile measured from it,     |                    |                  |
+|                                          | zero diffusivity inside the solid, a neutral log law at  |                    |                  |
+|                                          | the top for the surface scales; identical without        |                    |                  |
+|                                          | immersed cells; not with terrain-fitted coordinates      |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_ib_z0**                        | roughness length [m] of that log law                     | Real > 0           | 0.01             |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_const_b**                  | Coefficient for the countergradient term                 | Real               | 7.8              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_sf**                       | ratio of surface layer height to boundary layer height   | Real               | 0.1              |
@@ -2841,6 +2851,15 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_snap_partial_cells**     | read the blanking snapped to solid or fluid at half, so  | Boolean            | false            |
+|                                   | a height-map building becomes a staircase of whole cells |                    |                  |
+|                                   | (what an exact box is) with no sliver cells; false keeps |                    |                  |
+|                                   | the raw fractions, on which the wall law and the drag    |                    |                  |
+|                                   | disagree at the corners of the reader's one-cell ramp    |                    |                  |
+|                                   | and grow a checkerboard over hours; set it for buildings |                    |                  |
+|                                   | from height maps (see                                    |                    |                  |
+|                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |
 |                                   | forcing similarity functions; use with caution for       |                    |                  |
 |                                   | horizontal walls                                         |                    |                  |
@@ -2851,6 +2870,180 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. _sec:IBSEBInputs:
+
+Surface energy balance on immersed-boundary faces
+-------------------------------------------------
+
+These inputs configure the surface energy balance on the faces of resolved
+buildings; see :ref:`sec:IBSEB` for the formulation. They need
+``erf.buildings_type = ImmersedForcing`` (or ``erf.terrain_type =
+ImmersedForcing``) and are off by default.
+
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| Parameter                         | Definition                                               | Acceptable         | Default                |
+|                                   |                                                          | Values             |                        |
++===================================+==========================================================+====================+========================+
+| **erf.ibseb.enable**              | build the face set of the resolved buildings and run     | Boolean            | false                  |
+|                                   | the balance on it                                        |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.n_slab_layers**       | conduction layers per face                               | Integer >= 1       | 4                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_init**         | initial skin temperature of every face [K]               | Real > 0           | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_interior**          | interior (deep) temperature of the slabs [K]             | Real > 0           | 293.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.csv_file**            | per-building report file                                 | String             | "ibseb_buildings.csv"  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.debug**               | ``[IBSEB DEBUG]`` prints: the set's description at build | Boolean            | false                  |
+|                                   | (per-rank counts, buildings), a summary every step and   |                    |                        |
+|                                   | per-building rows                                        |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.dump_faces_file**     | prefix of a per-rank CSV of every face (geometry, view   | String             | ""                     |
+|                                   | fractions, shadow, shortwave, skin temperature), written |                    |                        |
+|                                   | at every report; empty disables                          |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.radiation**           | source of the downwelling radiation                      | "prescribed"       | "prescribed"           |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_mode**            | ``fixed``: the sun stays at the given zenith and azimuth | "fixed", "solar"   | "fixed"                |
+|                                   | with the given irradiances; ``solar``: sun and clear-sky |                    |                        |
+|                                   | irradiances from the site and time                       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_zenith_deg**      | fixed sun: zenith angle [deg]                            | Real in [0, 180]   | 45.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_azimuth_deg**     | fixed sun: azimuth clockwise from north [deg]; 90 east,  | Real               | 180.0                  |
+|                                   | 180 south, 270 west                                      |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_direct_normal**    | fixed sun: direct-normal irradiance [W/m2]               | Real >= 0          | 800.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_diffuse**          | fixed sun: diffuse irradiance on a horizontal surface    | Real >= 0          | 100.0                  |
+|                                   | [W/m2]                                                   |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.latitude_deg**        | solar: site latitude, north positive                     | Real               | 40.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.longitude_deg**       | solar: site longitude, east positive                     | Real               | -105.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.day_of_year**         | solar: day of year                                       | Real in [1, 366]   | 172                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.utc_offset_hours**    | solar: time-zone offset from UTC [h]                     | Real               | -7.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC at simulation time zero   | Real               | 43200.0                |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]                             | Real > 0           | 1361.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_transmission**     | solar: bulk clear-sky transmission of the Bird form      | Real in (0, 1]     | 0.7                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sw_diffuse_coeff**    | solar: share of the attenuated beam that arrives as      | Real in [0, 1]     | 0.5                    |
+|                                   | diffuse light                                            |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.albedo**              | shortwave albedo of the faces (uniform until the         | Real in [0, 1]     | 0.3                    |
+|                                   | material library)                                        |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term             | Real in [0, 1]     | 0.2                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.emissivity**          | longwave emissivity of the faces                         | Real in (0, 1]     | 0.9                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.emissivity_ground**   | ground emissivity for the ground term                    | Real in (0, 1]     | 0.95                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.view_n_az**           | azimuths of the hemisphere sampling for the view         | Integer >= 1       | 16                     |
+|                                   | fractions                                                |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.lw_mode**             | sky longwave: ``fixed`` uses lw_down, ``gray`` uses      | "fixed", "gray"    | "gray"                 |
+|                                   | sky_emissivity sigma T_air^4 with the fluid cell's air   |                    |                        |
+|                                   | temperature                                              |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.lw_down**             | fixed sky longwave [W/m2]                                | Real >= 0          | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sky_emissivity**      | gray sky: effective clear-sky emissivity                 | Real in (0, 1]     | 0.83                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_ground**            | ground temperature for the ground longwave term [K]      | Real > 0           | 300.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z0_wall**             | momentum roughness length of the faces for the wall      | Real > 0           | 0.01                   |
+|                                   | function [m]                                             |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z0h_wall**            | heat roughness length of the faces [m]                   | Real > 0           | 0.001                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.stability_correction**| apply the surface layer's similarity functions to the    | Boolean            | false                  |
+|                                   | wall function on roofs, iterated on the face's own       |                    |                        |
+|                                   | Obukhov length; walls stay on the log law                |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.couple_heat**         | add the face sensible flux to the temperature equation;  | Boolean            | true                   |
+|                                   | false diagnoses it only                                  |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_file**       | material library CSV in the SLUCM schema (mat_id, name,  | String             | ""                     |
+|                                   | albedo, emissivity, k_therm, rho_cp, thickness,          |                    |                        |
+|                                   | description); empty keeps the uniform inputs             |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_default**    | material id of every building not listed below           | Integer            | 1                      |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.material_by_building**| one material id per building, in building order          | Integers           | none                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.k_therm**             | uniform slab conductivity [W/m/K]                        | Real > 0           | 1.0                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.rho_cp**              | uniform slab volumetric heat capacity [J/m3/K]           | Real > 0           | 1.6e6                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.thickness**           | uniform slab thickness [m]                               | Real > 0           | 0.3                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.prognostic**          | solve the balance for the skin temperature every step;   | Boolean            | true                   |
+|                                   | false keeps the skin fixed and diagnoses the terms       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_min**          | lower bound of the skin temperature [K]                  | Real > 0           | 260.0                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.T_skin_max**          | upper bound of the skin temperature [K]; raise it for    | Real > T_skin_min  | 380.0                  |
+|                                   | faces under a fire                                       |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_max_iter**     | Newton iteration cap per face and step                   | Integer >= 1       | 20                     |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_tol_K**        | Newton stops when a step changes the skin temperature    | Real > 0           | 1.0e-3                 |
+|                                   | by less than this [K]                                    |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.newton_max_step_K**   | largest Newton step [K]                                  | Real > 0           | 20.0                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.Q_ext_uniform**       | external incident flux on every face [W/m2], absorbed    | Real >= 0          | 0.0                    |
+|                                   | with the emissivity (test hook for the fire coupling)    |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.dump_faces_tag_step** | name each face dump by its step so every one is kept     | Boolean            | false                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.obukhov_seed**        | with the stability correction, seed the roof's Obukhov   | String             | "ground"               |
+|                                   | iteration from the ground surface layer's field at the   |                    |                        |
+|                                   | face's column ("ground") or from neutral ("neutral")     |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.convective_velocity** | "deardorff" adds a convective velocity scale to the wind |  String            | "none"                 |
+|                                   | of the wall function, sqrt(U_tan^2 + (beta w*)^2), with  |                    |                        |
+|                                   | w* from the previous step's flux out of the face; "none" |                    |                        |
+|                                   | keeps the neutral log law on the tangential wind         |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.beta_conv**           | gustiness factor on w*                                   | Real > 0           | 1.2                    |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z_i_mode**            | depth in w* on roofs: "bulk_ri" diagnoses the mixed      | String             | "bulk_ri"              |
+|                                   | layer on the horizontal-mean profile every step, "pblh"  |                    |                        |
+|                                   | reads the surface layer's boundary-layer height at the   |                    |                        |
+|                                   | column (falling back to bulk_ri), "fixed" uses z_i; the  |                    |                        |
+|                                   | roof height is subtracted and the building height is the |                    |                        |
+|                                   | floor; walls use the building height                     |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.z_i**                 | fixed mixed-layer depth [m]                              | Real > 0           | 1000.0                 |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.ri_crit**             | critical bulk Richardson number of the depth diagnostic  | Real > 0           | 0.25                   |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.obukhov_relax**       | under-relaxation of u* between passes of the roof's      | Real in (0, 1]     | 0.5                    |
+|                                   | Obukhov iteration (1 = none), as the surface layer's     |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+
+The plotfile variables ``ibseb_nfaces`` (wall faces touching each fluid
+cell), ``ibseb_tskin`` (their mean skin temperature), ``ibseb_sw_abs`` (their
+mean absorbed shortwave), ``ibseb_shadow`` (their mean shadow flag),
+``ibseb_lw_net`` (their mean net longwave), ``ibseb_f_sky`` (their mean
+sky view fraction), ``ibseb_H`` (their mean sensible flux) and ``ibseb_G``
+(their mean conduction into the wall) are available when the balance is on. The immersed forcing's own surface-temperature
+inputs (``erf.if_init_surf_temp``, ``erf.if_surf_temp_flux``,
+``erf.if_Olen``) must be absent when the balance is on: it owns the
+temperature condition at the buildings.
 
 .. _sec:SurfaceLayerInputs:
 
@@ -3818,7 +4011,7 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
+  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 
 Lateral Boundary Nudging for Real-Data Runs

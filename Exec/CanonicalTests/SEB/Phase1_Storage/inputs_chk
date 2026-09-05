@@ -1,0 +1,5 @@
+FILE = inputs_base
+
+max_step = 2
+erf.check_int = 2
+erf.ibseb.csv_file = "ibseb_chk.csv"

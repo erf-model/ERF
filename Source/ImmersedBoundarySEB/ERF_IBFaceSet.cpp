@@ -1,0 +1,1160 @@
+/**
+ * \file ERF_IBFaceSet.cpp
+ * \brief Detection, storage, output and reporting of the wall faces of
+ *        resolved buildings (phase 1 of the immersed-boundary surface energy
+ *        balance). The conventions are documented in ERF_IBFaceSet.H.
+ */
+#include "ERF_IBFaceSet.H"
+#include "ERF_IBSEBSolar.H"
+#include "ERF_IBSEBSlab.H"
+#include "ERF_IBSEBBalance.H"
+#include <ERF_EOS.H>
+#include <ERF_IndexDefines.H>
+#include <ERF_Constants.H>
+#include <ERF_MOSTStress.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Gpu.H>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <algorithm>
+
+using namespace amrex;
+
+namespace {
+
+/**
+ * Host-readable view of one fab of a MultiFab.
+ *
+ * The face detection is a host loop at initialisation. On CPU builds the fab
+ * is read in place; on GPU builds a pinned copy is made so the loop does not
+ * touch device memory. The copy keeps the fab's own box, so the returned
+ * Array4 is indexed with the same global (i, j, k) as the device fab.
+ */
+struct HostFab
+{
+#ifdef AMREX_USE_GPU
+    FArrayBox fab;
+    explicit HostFab (const FArrayBox& d) : fab(d.box(), d.nComp(), The_Pinned_Arena())
+    {
+        Gpu::dtoh_memcpy_async(fab.dataPtr(), d.dataPtr(), d.size() * sizeof(Real));
+        Gpu::streamSynchronize();
+    }
+    Array4<const Real> array () const { return fab.const_array(); }
+#else
+    const FArrayBox* fab;
+    explicit HostFab (const FArrayBox& d) : fab(&d) {}
+    Array4<const Real> array () const { return fab->const_array(); }
+#endif
+};
+
+/** Resize a device vector to a host vector and copy it over. */
+template <class T>
+void upload (Gpu::DeviceVector<T>& d, const std::vector<T>& h)
+{
+    d.resize(h.size());
+    Gpu::copy(Gpu::hostToDevice, h.begin(), h.end(), d.begin());
+}
+
+/** Resize a device vector to n entries all equal to value. */
+template <class T>
+void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
+{
+    std::vector<T> h(n, value);
+    upload(d, h);
+}
+
+} // namespace
+
+/**
+ * Detect the faces owned by this rank and allocate the per-face arrays.
+ *
+ * The scan visits every valid cell of every local fab in MFIter order. A
+ * fluid cell (blanking < 0.5) contributes one face for each of its six
+ * neighbours that is solid (blanking >= 0.5); the neighbour may sit in a
+ * ghost cell, which is why the blanking must have its ghost cells filled.
+ * Neighbours outside the domain in a non-periodic direction are skipped, so
+ * a building against a non-periodic boundary has no face there. Solid cells
+ * contribute nothing but the column mask used for the building ids.
+ *
+ * Faces are appended in scan order, which makes them contiguous per fab;
+ * m_fab_start records where each fab's faces begin. The per-direction,
+ * per-building and total counts are reduced over all ranks here, once, so
+ * report() does not have to reduce static numbers every time.
+ */
+void
+IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
+{
+    const Box& domain = geom.Domain();
+    const int nx  = domain.length(0);
+    const int ny  = domain.length(1);
+    const int ilo = domain.smallEnd(0);
+    const int jlo = domain.smallEnd(1);
+    const auto dx = geom.CellSizeArray();
+    const auto plo = geom.ProbLoArray();
+    const Real face_area[3] = { dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1] };
+    m_nx = nx; m_ny = ny;
+    m_x_lo = plo[0]; m_y_lo = plo[1];
+    for (int d = 0; d < 3; ++d) { m_dx[d] = dx[d]; }
+    m_per_x = geom.isPeriodic(0); m_per_y = geom.isPeriodic(1);
+    m_max_path = 4.0 * (geom.ProbLength(0) + geom.ProbLength(1));
+    m_z_ground = plo[2];
+
+    std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj;
+    std::vector<Real> h_area, h_xf, h_yf, h_zf;
+    // Largest blanking in each column of this rank; reduced below so every
+    // rank labels the same solid columns. The highest solid cell of each
+    // column gives the column top for the ray cast.
+    std::vector<Real> colmax(static_cast<size_t>(nx) * ny, 0.0);
+    std::vector<Real> colk(static_cast<size_t>(nx) * ny, -1.0);
+
+    m_fab_start.clear();
+    for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+        m_fab_start.push_back(static_cast<int>(h_i.size()));
+        const Box& bx = mfi.validbox();
+        const HostFab hf(blanking[mfi]);
+        auto const& b = hf.array();
+        const Box& fbox = Box(b);
+        const auto lo = lbound(bx);
+        const auto hi = ubound(bx);
+        for (int k = lo.z; k <= hi.z; ++k) {
+        for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+            if (b(i, j, k) >= 0.5) {
+                const size_t c = static_cast<size_t>(i - ilo) * ny + (j - jlo);
+                colmax[c] = std::max(colmax[c], b(i, j, k));
+                colk[c]   = std::max(colk[c], static_cast<Real>(k - domain.smallEnd(2)));
+                continue;
+            }
+            for (int d = 0; d < 3; ++d) {
+                for (int s = -1; s <= 1; s += 2) {
+                    IntVect nb(i, j, k);
+                    nb[d] += s;
+                    if (!fbox.contains(nb)) { continue; }
+                    if (!geom.isPeriodic(d) && !domain.contains(nb)) { continue; }
+                    if (b(nb) < 0.5) { continue; }
+                    h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
+                    h_dir.push_back(d); h_side.push_back(s);
+                    // Face centre: the fluid cell centre moved half a cell toward the solid.
+                    Real c[3] = { Real(plo[0] + (i + 0.5) * dx[0]), Real(plo[1] + (j + 0.5) * dx[1]), Real(plo[2] + (k + 0.5) * dx[2]) };
+                    c[d] += 0.5 * s * dx[d];
+                    h_xf.push_back(c[0]); h_yf.push_back(c[1]); h_zf.push_back(c[2]);
+                    // Column of the solid neighbour, wrapped for periodic directions.
+                    int ci = nb[0] - ilo, cj = nb[1] - jlo;
+                    ci = (ci % nx + nx) % nx;
+                    cj = (cj % ny + ny) % ny;
+                    h_nbi.push_back(ci); h_nbj.push_back(cj);
+                    h_area.push_back(face_area[d]);
+                }
+            }
+        }}}
+    }
+    m_fab_start.push_back(static_cast<int>(h_i.size()));
+    m_nface = static_cast<int>(h_i.size());
+
+    // Buildings: 4-connected solid columns, numbered in scan order. The column
+    // mask is reduced so every rank labels the same columns with the same ids;
+    // the labelling itself is a plain depth-first flood fill on the host.
+    ParallelDescriptor::ReduceRealMax(colmax.data(), nx * ny);
+    ParallelDescriptor::ReduceRealMax(colk.data(), nx * ny);
+    // Column tops for the ray cast: one cell above the highest solid cell,
+    // the ground where the column is fluid.
+    std::vector<Real> h_col_top(static_cast<size_t>(nx) * ny, plo[2]);
+    m_col_top_max = plo[2];
+    for (size_t c = 0; c < h_col_top.size(); ++c) {
+        if (colk[c] >= 0.0) { h_col_top[c] = plo[2] + (colk[c] + 1.0) * dx[2]; }
+        m_col_top_max = std::max(m_col_top_max, h_col_top[c]);
+    }
+    upload(d_col_top, h_col_top);
+    // Height of each face's building column, for the wall-function depth.
+    {
+        std::vector<Real> h_hb(h_i.size());
+        for (size_t n = 0; n < h_i.size(); ++n) {
+            h_hb[n] = h_col_top[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]] - plo[2];
+        }
+        upload(d_hbld, h_hb);
+    }
+    std::vector<int> label(static_cast<size_t>(nx) * ny, 0);
+    std::vector<int> stack;
+    m_nbld = 0;
+    for (int ci = 0; ci < nx; ++ci) {
+        for (int cj = 0; cj < ny; ++cj) {
+            const size_t p = static_cast<size_t>(ci) * ny + cj;
+            if (colmax[p] < 0.5 || label[p] > 0) { continue; }
+            ++m_nbld;
+            label[p] = m_nbld;
+            stack.clear();
+            stack.push_back(static_cast<int>(p));
+            while (!stack.empty()) {
+                const int q = stack.back(); stack.pop_back();
+                const int qi = q / ny, qj = q % ny;
+                const int ni[4] = {qi - 1, qi + 1, qi, qi};
+                const int nj[4] = {qj, qj, qj - 1, qj + 1};
+                for (int n = 0; n < 4; ++n) {
+                    if (ni[n] < 0 || ni[n] >= nx || nj[n] < 0 || nj[n] >= ny) { continue; }
+                    const size_t r = static_cast<size_t>(ni[n]) * ny + nj[n];
+                    if (colmax[r] >= 0.5 && label[r] == 0) {
+                        label[r] = m_nbld;
+                        stack.push_back(static_cast<int>(r));
+                    }
+                }
+            }
+        }
+    }
+    std::vector<int> h_bid(m_nface);
+    for (int n = 0; n < m_nface; ++n) {
+        h_bid[n] = label[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]];
+    }
+    // Footprints, for the debug summary: columns and bounding box per building.
+    m_bld_ncol.assign(m_nbld + 1, 0);
+    m_bld_ilo.assign(m_nbld + 1, nx); m_bld_ihi.assign(m_nbld + 1, -1);
+    m_bld_jlo.assign(m_nbld + 1, ny); m_bld_jhi.assign(m_nbld + 1, -1);
+    for (int ci = 0; ci < nx; ++ci) {
+        for (int cj = 0; cj < ny; ++cj) {
+            const int b = label[static_cast<size_t>(ci) * ny + cj];
+            if (b == 0) { continue; }
+            m_bld_ncol[b] += 1;
+            m_bld_ilo[b] = std::min(m_bld_ilo[b], ci + ilo); m_bld_ihi[b] = std::max(m_bld_ihi[b], ci + ilo);
+            m_bld_jlo[b] = std::min(m_bld_jlo[b], cj + jlo); m_bld_jhi[b] = std::max(m_bld_jhi[b], cj + jlo);
+        }
+    }
+
+    // Static totals: per direction, per building, and the summed area.
+    std::vector<long> nd(3, 0);
+    std::vector<long> bn(m_nbld + 1, 0);
+    std::vector<Real> ba(m_nbld + 1, 0.0);
+    Real area = 0.0;
+    for (int n = 0; n < m_nface; ++n) {
+        nd[h_dir[n]] += 1;
+        bn[h_bid[n]] += 1;
+        ba[h_bid[n]] += h_area[n];
+        area += h_area[n];
+    }
+    ParallelDescriptor::ReduceLongSum(nd.data(), 3);
+    ParallelDescriptor::ReduceLongSum(bn.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(ba.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(area);
+    for (int d = 0; d < 3; ++d) { m_nface_dir[d] = nd[d]; }
+    m_bld_nface = bn;
+    m_bld_area  = ba;
+    m_area_total = area;
+
+    // Device arrays. The state starts uniform at T_skin_init (the slab too:
+    // phase 5 sets the interior boundary); the view fractions and fluxes start
+    // at zero and are filled by the later phases.
+    const size_t nf = static_cast<size_t>(m_nface);
+    upload(d_i, h_i); upload(d_j, h_j); upload(d_k, h_k);
+    upload(d_dir, h_dir); upload(d_side, h_side); upload(d_bid, h_bid);
+    upload(d_area, h_area);
+    upload(d_xf, h_xf); upload(d_yf, h_yf); upload(d_zf, h_zf);
+    fill(d_mat,      nf, 0);
+    fill(d_albedo,   nf, m_params.albedo);
+    fill(d_emis,     nf, m_params.emissivity);
+    fill(d_kth,      nf, m_params.k_therm);
+    fill(d_rhocp,    nf, m_params.rho_cp);
+    fill(d_thick,    nf, m_params.thickness);
+    fill(d_T_skin,   nf, m_params.T_skin_init);
+    fill(d_T_slab,   nf * static_cast<size_t>(n_layers()), m_params.T_skin_init);
+    // View fractions: placeholders (a roof sees the whole sky, a wall half sky
+    // and half ground) that compute_view_fractions() replaces at initialisation.
+    {
+        std::vector<Real> fs(nf), fg(nf), fb(nf, 0.0);
+        for (size_t n = 0; n < nf; ++n) {
+            const bool roof = (h_dir[n] == 2);
+            fs[n] = roof ? 1.0 : 0.5;
+            fg[n] = roof ? 0.0 : 0.5;
+        }
+        upload(d_f_sky, fs); upload(d_f_ground, fg); upload(d_f_bldg, fb);
+    }
+    fill(d_shadow,        nf, Real(0.0));
+    fill(d_SW_direct_in,  nf, Real(0.0));
+    fill(d_SW_diffuse_in, nf, Real(0.0));
+    fill(d_LW_down_in,    nf, Real(0.0));
+    fill(d_T_air,         nf, m_params.T_skin_init);
+    fill(d_theta_air,     nf, m_params.T_skin_init);
+    fill(d_rho,           nf, Real(1.0));
+    fill(d_U_tan,         nf, Real(0.0));
+    fill(d_ustar,         nf, Real(0.0));
+    fill(d_SW_abs,   nf, Real(0.0));
+    fill(d_LW_net,   nf, Real(0.0));
+    fill(d_H,        nf, Real(0.0));
+    fill(d_LE,       nf, Real(0.0));
+    fill(d_G,        nf, Real(0.0));
+    fill(d_Q_ext,    nf, m_params.Q_ext_uniform);
+    fill(d_H_coeff,  nf, Real(0.0));
+    fill(d_w_star,   nf, Real(0.0));
+    fill(d_olen,     nf, Real(1.0e30));
+    fill(d_z_i,      nf, Real(0.0));
+    fill(d_LW_ext,   nf, Real(0.0));
+    fill(d_resid,    nf, Real(0.0));
+    fill(d_niter,    nf, 0);
+    Gpu::streamSynchronize();
+
+    if (m_params.debug) { print_debug_summary(); }
+}
+
+/**
+ * Hemisphere sampling for the view fractions. One kernel over the faces,
+ * each looping over its rays; the count of rays ending on the sky, the
+ * ground and a building over the total gives the three fractions. Roofs
+ * point up and never see the ground; a wall on flat open ground sees half
+ * sky and half ground, which the regtest checks.
+ */
+void
+IBFaceSet::compute_view_fractions ()
+{
+    const int n_az = m_params.view_n_az, n_el = m_params.view_n_el;
+    const Real* col_top = d_col_top.data();
+    const int   nx = m_nx, ny = m_ny;
+    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
+    const bool  per_x = m_per_x, per_y = m_per_y;
+    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
+    const int*  pd = d_dir.data();  const int* ps = d_side.data();
+    const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    Real* pfs = d_f_sky.data(); Real* pfg = d_f_ground.data(); Real* pfb = d_f_bldg.data();
+    ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+        int n_sky = 0, n_gnd = 0, n_bld = 0;
+        for (int ie = 0; ie < n_el; ++ie) {
+            for (int ia = 0; ia < n_az; ++ia) {
+                Real sx, sy, sz;
+                ibseb::hemisphere_direction(pd[f], -ps[f], ia, ie, n_az, n_el, sx, sy, sz);
+                const int hit = ibseb::ray_hit(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny,
+                                               x_lo, y_lo, dx, dy, per_x, per_y, z_ground, z_max, max_path);
+                if (hit == ibseb::RAY_SKY) ++n_sky; else if (hit == ibseb::RAY_GROUND) ++n_gnd; else ++n_bld;
+            }
+        }
+        const Real inv = 1.0 / static_cast<Real>(n_az * n_el);
+        pfs[f] = n_sky * inv; pfg[f] = n_gnd * inv; pfb[f] = n_bld * inv;
+    });
+    Gpu::streamSynchronize();
+
+    if (m_params.debug) {
+        std::vector<Real> fs(m_nface), fg(m_nface), fb(m_nface);
+        Gpu::copy(Gpu::deviceToHost, d_f_sky.begin(), d_f_sky.end(), fs.begin());
+        Gpu::copy(Gpu::deviceToHost, d_f_ground.begin(), d_f_ground.end(), fg.begin());
+        Gpu::copy(Gpu::deviceToHost, d_f_bldg.begin(), d_f_bldg.end(), fb.begin());
+        Gpu::streamSynchronize();
+        Real s[3] = {0.0, 0.0, 0.0};
+        for (int n = 0; n < m_nface; ++n) { s[0] += fs[n]; s[1] += fg[n]; s[2] += fb[n]; }
+        ParallelDescriptor::ReduceRealSum(s, 3);
+        const Real nf_all = static_cast<Real>(m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2]);
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " view fractions: " << n_az * n_el
+                << " rays per face, mean f_sky=" << s[0] / nf_all << " f_ground=" << s[1] / nf_all
+                << " f_bldg=" << s[2] / nf_all << "\n";
+    }
+}
+
+/**
+ * Longwave of the current step. One kernel per fab over that fab's faces,
+ * reading the air temperature of the fluid cell from the conserved state
+ * (potential temperature and density through the equation of state).
+ */
+void
+IBFaceSet::compute_longwave (const MultiFab& cons)
+{
+    constexpr Real sigma = 5.670374419e-8;
+    const bool  gray   = (m_params.lw_mode == "gray");
+    const Real  lw_fix = m_params.lw_down, eps_sky = m_params.sky_emissivity;
+    const Real  eps_g  = m_params.emissivity_ground;
+    const Real* peps   = d_emis.data();
+    const Real  Tg4    = std::pow(m_params.T_ground, 4);
+    const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data(); const Real* pfb = d_f_bldg.data();
+    const Real* pT = d_T_skin.data();
+    Real* pTa = d_T_air.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
+    Real* pext = d_LW_ext.data();
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& c = cons.const_array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            const Real rho = c(pi[f], pj[f], pk[f], Rho_comp);
+            const Real Ta  = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp));
+            const Real lw_sky = gray ? eps_sky * sigma * Ta * Ta * Ta * Ta : lw_fix;
+            const Real Ts4 = pT[f] * pT[f] * pT[f] * pT[f];
+            // Sky and ground do not depend on the face; the wall term does
+            // (isothermal surroundings), so the balance keeps them apart.
+            const Real lw_ext = pfs[f] * lw_sky + pfg[f] * eps_g * sigma * Tg4;
+            const Real lw_in  = lw_ext + pfb[f] * sigma * Ts4;
+            pTa[f]  = Ta;
+            pext[f] = lw_ext;
+            pin[f]  = lw_in;
+            pnet[f] = peps[f] * (lw_in - sigma * Ts4);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Materials per face from the library by building id, or the uniform
+ * inputs. Host work on the static geometry, once.
+ */
+void
+IBFaceSet::assign_materials ()
+{
+    if (m_params.material_file.empty()) { return; }
+    const Vector<IBSEBMaterial> table = read_ibseb_materials(m_params.material_file);
+    auto find = [&](int id) -> const IBSEBMaterial& {
+        for (const auto& m : table) { if (m.mat_id == id) return m; }
+        Abort("erf.ibseb: material id " + std::to_string(id) + " is not in " + m_params.material_file);
+        return table[0];
+    };
+    std::vector<int> h_b(m_nface);
+    Gpu::copy(Gpu::deviceToHost, d_bid.begin(), d_bid.end(), h_b.begin());
+    Gpu::streamSynchronize();
+    std::vector<int>  h_mat(m_nface);
+    std::vector<Real> h_alb(m_nface), h_emi(m_nface), h_k(m_nface), h_rc(m_nface), h_th(m_nface);
+    for (int n = 0; n < m_nface; ++n) {
+        const int b = h_b[n];
+        int id = m_params.material_default;
+        if (b >= 1 && b <= static_cast<int>(m_params.material_by_building.size())) {
+            id = m_params.material_by_building[b - 1];
+        }
+        const IBSEBMaterial& m = find(id);
+        h_mat[n] = m.mat_id; h_alb[n] = m.albedo; h_emi[n] = m.emissivity;
+        h_k[n] = m.k_therm; h_rc[n] = m.rho_cp; h_th[n] = m.thickness;
+    }
+    upload(d_mat, h_mat); upload(d_albedo, h_alb); upload(d_emis, h_emi);
+    upload(d_kth, h_k); upload(d_rhocp, h_rc); upload(d_thick, h_th);
+    Gpu::streamSynchronize();
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " materials: " << table.size() << " in "
+                << m_params.material_file << ", default id " << m_params.material_default;
+        for (size_t b = 0; b < m_params.material_by_building.size(); ++b) {
+            Print() << ", building " << b + 1 << " -> " << m_params.material_by_building[b];
+        }
+        Print() << "\n";
+        for (const auto& m : table) {
+            Print() << "[IBSEB DEBUG]   material " << m.mat_id << " (" << m.name << "): albedo=" << m.albedo
+                    << " emissivity=" << m.emissivity << " k=" << m.k_therm << " W/m/K rho_cp=" << m.rho_cp
+                    << " J/m3/K thickness=" << m.thickness << " m\n";
+        }
+    }
+}
+
+/**
+ * Slab conduction on every face: one kernel over the faces, each solving
+ * its own tridiagonal system with the skin at the top and the interior at
+ * the bottom.
+ */
+void
+IBFaceSet::compute_ground (Real dt)
+{
+    const int  nl   = n_layers();
+    const Real Tint = m_params.T_interior;
+    const Real* pT  = d_T_skin.data();
+    const Real* pkt = d_kth.data(); const Real* prc = d_rhocp.data(); const Real* pth = d_thick.data();
+    Real* pS = d_T_slab.data();   Real* pG = d_G.data();
+    ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+        Real T[ibseb::SLAB_MAX_LAYERS];
+        for (int l = 0; l < nl; ++l) { T[l] = pS[f * nl + l]; }
+        const Real dz = pth[f] / nl;
+        pG[f] = ibseb::advance_slab_dirichlet(T, pT[f], Tint, pkt[f], prc[f], dz, dt, nl);
+        for (int l = 0; l < nl; ++l) { pS[f * nl + l] = T[l]; }
+    });
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Prognostic balance on every face: one kernel over the faces, each with its
+ * own slab response, Newton solve and slab advance. Everything the solve
+ * needs was stored by the three flux routines of the step, so no fab data is
+ * touched here. The fluxes are rewritten at the solution so that the dump,
+ * the reports and the heat deposited into the air all describe the same
+ * closed balance; d_resid holds what is left of it.
+ */
+void
+IBFaceSet::solve_balance (Real dt)
+{
+    const int  nl   = n_layers();
+    const Real Tint = m_params.T_interior;
+    const Real Tmin = m_params.T_skin_min, Tmax = m_params.T_skin_max;
+    const Real tol  = m_params.newton_tol_K, max_step = m_params.newton_max_step_K;
+    const int  max_iter = m_params.newton_max_iter;
+    const Real* pkt = d_kth.data(); const Real* prc = d_rhocp.data(); const Real* pth = d_thick.data();
+    const Real* peps = d_emis.data(); const Real* pfb = d_f_bldg.data();
+    const Real* psw = d_SW_abs.data(); const Real* pq = d_Q_ext.data(); const Real* pext = d_LW_ext.data();
+    const Real* pHc = d_H_coeff.data(); const Real* pTa = d_T_air.data(); const Real* ptha = d_theta_air.data();
+    const Real* pLE = d_LE.data();
+    Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data(); Real* pG = d_G.data();
+    Real* pH = d_H.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
+    Real* pres = d_resid.data(); int* pnit = d_niter.data();
+    ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+        Real T[ibseb::SLAB_MAX_LAYERS];
+        for (int l = 0; l < nl; ++l) { T[l] = pS[f * nl + l]; }
+        const Real dz = pth[f] / nl;
+        // Conduction the implicit slab step will take for a skin temperature Ts: a Ts - b.
+        Real a = 0.0, b = 0.0;
+        ibseb::slab_skin_response(T, Tint, pkt[f], prc[f], dz, dt, nl, a, b);
+        const Real exner = pTa[f] / ptha[f];
+        const Real q_abs = peps[f] * pq[f];
+        int n_it = 0; Real res = 0.0;
+        const Real Ts = ibseb::solve_skin_balance(pT[f], psw[f], q_abs, pext[f], peps[f], pfb[f],
+                                                  pHc[f], exner, ptha[f], pLE[f], a, b,
+                                                  Tmin, Tmax, max_step, tol, max_iter, n_it, res);
+        // Advance the slab with the solution and store every term at it.
+        pG[f] = ibseb::advance_slab_dirichlet(T, Ts, Tint, pkt[f], prc[f], dz, dt, nl);
+        for (int l = 0; l < nl; ++l) { pS[f * nl + l] = T[l]; }
+        const Real Ts4 = Ts * Ts * Ts * Ts;
+        pin[f]  = pext[f] + pfb[f] * ibseb::SIGMA_SB * Ts4;
+        pnet[f] = peps[f] * (pin[f] - ibseb::SIGMA_SB * Ts4);
+        pH[f]   = pHc[f] * (Ts / exner - ptha[f]);
+        pT[f]   = Ts;
+        // The residual with the stored terms (the slab's own G, not a Ts - b),
+        // so it reports the closure of what is written out.
+        pres[f] = std::abs(psw[f] + q_abs + pnet[f] - pH[f] - pLE[f] - pG[f]);
+        pnit[f] = n_it;
+    });
+    Gpu::streamSynchronize();
+
+    if (m_params.debug) {
+        std::vector<Real> h_r(m_nface), h_T(m_nface);
+        std::vector<int>  h_n(m_nface);
+        Gpu::copy(Gpu::deviceToHost, d_resid.begin(), d_resid.end(), h_r.begin());
+        Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
+        Gpu::copy(Gpu::deviceToHost, d_niter.begin(), d_niter.end(), h_n.begin());
+        Gpu::streamSynchronize();
+        Real rmax = 0.0; int nmax = 0; long nclamp = 0;
+        for (int n = 0; n < m_nface; ++n) {
+            rmax = std::max(rmax, h_r[n]); nmax = std::max(nmax, h_n[n]);
+            if (h_T[n] <= Tmin || h_T[n] >= Tmax) { ++nclamp; }
+        }
+        ParallelDescriptor::ReduceRealMax(rmax);
+        ParallelDescriptor::ReduceIntMax(nmax);
+        ParallelDescriptor::ReduceLongSum(nclamp);
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " balance: dt=" << dt << " s newton iterations max=" << nmax
+                << " residual max=" << rmax << " W/m2 faces at a bound=" << nclamp << "\n";
+    }
+}
+
+/**
+ * Wall function on every face. One kernel per fab over that fab's faces:
+ * the cell-centred velocity of the fluid cell from its face values, its
+ * tangential part with respect to the wall, the neutral log law for u*
+ * and theta*, and on request the additions of phase 8: a convective
+ * velocity scale in the wind (Beljaars' gustiness form with Deardorff's
+ * w* from the previous step's flux) and, on roofs, the surface layer's
+ * similarity functions iterated on the face's own Obukhov length. The
+ * skin temperature is converted to a potential temperature with the fluid
+ * cell's Exner function before the difference is taken.
+ *
+ * The Obukhov length of a face is ``L = u*^2 theta / (kappa g theta*)``
+ * (negative over a hot face). Walls stay on the log law even with the
+ * stability correction: the similarity functions assume a horizontal
+ * surface, and the convective scale is what carries free convection on a
+ * wall. The ground's 2D Obukhov field only seeds the roof iteration.
+ */
+void
+IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
+                             const MultiFab& yvel, const MultiFab& zvel, Real c_p,
+                             const MultiFab* olen_ground, const MultiFab* pblh_ground, Real z_i_bulk)
+{
+    const Real z0   = m_params.z0_wall, z0h = m_params.z0h_wall;
+    const bool stab = m_params.stability_correction;
+    const bool conv = (m_params.convective_velocity == "deardorff");
+    const bool seed = stab && (olen_ground != nullptr) && (m_params.obukhov_seed == "ground");
+    const bool use_pblh = conv && (pblh_ground != nullptr) && (m_params.z_i_mode == "pblh");
+    const Real beta = m_params.beta_conv;
+    const Real relax = m_params.obukhov_relax;
+    const Real zi_fallback = (z_i_bulk > 0.0) ? z_i_bulk : m_params.z_i;
+    const Real dxa[3] = {m_dx[0], m_dx[1], m_dx[2]};
+    const Real z_lo = m_z_ground;
+    const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const int*  pd = d_dir.data();
+    const Real* pT = d_T_skin.data(); const Real* phb = d_hbld.data(); const Real* pzf = d_zf.data();
+    Real* pth = d_theta_air.data(); Real* prho = d_rho.data(); Real* pU = d_U_tan.data();
+    Real* pus = d_ustar.data();     Real* pH = d_H.data();     Real* pTa = d_T_air.data();
+    Real* pHc = d_H_coeff.data();   Real* pws = d_w_star.data(); Real* pol = d_olen.data(); Real* pzi = d_z_i.data();
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& c = cons.const_array(mfi);
+        auto const& u = xvel.const_array(mfi);
+        auto const& v = yvel.const_array(mfi);
+        auto const& w = zvel.const_array(mfi);
+        // The surface layer's 2D fields share the level's distribution with
+        // the boxes collapsed to k = 0, so the same iterator indexes them.
+        Array4<const Real> ol = seed     ? olen_ground->const_array(mfi) : Array4<const Real>{};
+        Array4<const Real> pb = use_pblh ? pblh_ground->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            const int i = pi[f], j = pj[f], k = pk[f], d = pd[f];
+            const Real rho = c(i, j, k, Rho_comp);
+            const Real rth = c(i, j, k, RhoTheta_comp);
+            const Real th  = rth / rho;
+            const Real Ta  = getTgivenRandRTh(rho, rth);
+            const Real th_skin = pT[f] * th / Ta;            // skin temperature as a potential temperature
+            // Cell-centred velocity and its tangential part with respect to the wall.
+            Real U[3] = { Real(0.5) * (u(i, j, k) + u(i + 1, j, k)),
+                          Real(0.5) * (v(i, j, k) + v(i, j + 1, k)),
+                          Real(0.5) * (w(i, j, k) + w(i, j, k + 1)) };
+            U[d] = 0.0;
+            const Real Ut = amrex::max(std::sqrt(U[0] * U[0] + U[1] * U[1] + U[2] * U[2]), Real(1.0e-3));
+            // Convective velocity scale from the previous step's flux out of the face.
+            Real wstar = 0.0, depth = 0.0;
+            if (conv && pH[f] > 0.0) {
+                if (d == 2) {
+                    Real zi = use_pblh ? pb(i, j, 0) : zi_fallback;
+                    if (!(zi > 0.0 && zi < 1.0e5)) { zi = zi_fallback; }
+                    depth = amrex::max(zi - (pzf[f] - z_lo), phb[f]);
+                } else {
+                    depth = phb[f];
+                }
+                wstar = std::cbrt(CONST_GRAV / th * pH[f] / (rho * c_p) * depth);
+            }
+            const Real Ut_eff = std::sqrt(Ut * Ut + beta * beta * wstar * wstar);
+            const Real delta = 0.5 * dxa[d];
+            const Real lnm = std::log(delta / z0), lnh = std::log(delta / z0h);
+            Real ustar = KAPPA * Ut_eff / lnm;
+            Real thstar = KAPPA * (th - th_skin) / lnh;
+            Real lnh_eff = lnh;
+            Real olen = 1.0e30;
+            if (stab && d == 2) {
+                // Roofs: the surface layer's similarity functions on the
+                // face's own Obukhov length, a few fixed-point passes, seeded
+                // from the ground's field at this column when available.
+                similarity_funs sf;
+                Real L = 1.0e30;
+                if (seed) {
+                    const Real Lg = ol(i, j, 0);
+                    if (std::abs(Lg) > 0.0 && std::abs(Lg) < 1.0e5) { L = Lg; }
+                }
+                if (!(std::abs(L) < 1.0e5)) {
+                    L = ustar * ustar * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+                }
+                // Fixed point on L until u*, theta* and L agree to 1e-6, so
+                // the stored values are mutually consistent (a fixed number
+                // of passes leaves L one pass behind). u* is under-relaxed
+                // between passes, as the surface layer's iteration is in
+                // erf-model #3486, which keeps a strongly unstable roof from
+                // oscillating at low wind; the converged values do not
+                // depend on the factor.
+                Real us_it = ustar;
+                for (int it = 0; it < 50; ++it) {
+                    const Real zeta = delta / L;
+                    const Real psi_m = sf.calc_psi_m(zeta), psi_h = sf.calc_psi_h(zeta);
+                    const Real us_new = KAPPA * Ut_eff / amrex::max(lnm - psi_m, Real(0.1));
+                    us_it   = (it == 0) ? us_new : (1.0 - relax) * us_it + relax * us_new;
+                    lnh_eff = amrex::max(lnh - psi_h, Real(0.1));
+                    thstar  = KAPPA * (th - th_skin) / lnh_eff;
+                    const Real L_new = us_it * us_it * th / (KAPPA * CONST_GRAV * thstar + 1.0e-20);
+                    const bool done = std::abs(L_new - L) <= 1.0e-6 * std::abs(L_new) &&
+                                      std::abs(us_new - us_it) <= 1.0e-6 * us_new;
+                    L = L_new;
+                    if (done) { us_it = us_new; break; }
+                }
+                ustar = us_it;
+                olen  = L;
+            }
+            pth[f]  = th;
+            pTa[f]  = Ta;
+            prho[f] = rho;
+            pU[f]   = Ut;
+            pus[f]  = ustar;
+            pws[f]  = wstar;
+            pol[f]  = olen;
+            pzi[f]  = depth;
+            pHc[f]  = rho * c_p * KAPPA * ustar / lnh_eff;   // H = H_coeff (theta_skin - theta_air)
+            pH[f]   = -rho * c_p * ustar * thstar;           // positive out of the face
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Face flux into the temperature equation. The rho-theta tendency of the
+ * fluid cell is H A / (c_p V Pi); with several faces on one cell the adds
+ * are atomic.
+ */
+void
+IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
+                                    const Geometry& geom, Real c_p, Real rdOcp) const
+{
+    const auto dx = geom.CellSizeArray();
+    const Real vol = dx[0] * dx[1] * dx[2];
+    const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const Real* pH = d_H.data();  const Real* pA = d_area.data();
+    for (MFIter mfi(source); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& src = source.array(mfi);
+        auto const& c   = cons.const_array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            const int i = pi[f], j = pj[f], k = pk[f];
+            const Real exner = getExnergivenRTh(c(i, j, k, RhoTheta_comp), rdOcp);
+            const Real tend  = pH[f] * pA[f] / (c_p * vol * exner);
+            Gpu::Atomic::AddNoRet(&src(i, j, k, RhoTheta_comp), tend);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Shortwave of the current step. The sun and the irradiances are scalars
+ * computed on the host from the provider inputs; the per-face work is one
+ * kernel: incidence cosine, ray cast against the column tops, direct and
+ * diffuse incident, absorbed.
+ *
+ * With sun_mode = fixed the direct-normal irradiance and the horizontal
+ * diffuse are the inputs as given. With sun_mode = solar the sun follows the
+ * site and time and the clear-sky formulas give both irradiances; the sun
+ * below the horizon gives zero everywhere.
+ *
+ * Diffuse on a face: ``f_sky * diffuse_h + f_ground * albedo_ground *
+ * (direct_h + diffuse_h)``, the second term being the ground-reflected part,
+ * with the direct on a horizontal surface ``direct_h = dni * cos z``. The
+ * view fractions are the placeholders of build() until phase 3.
+ */
+void
+IBFaceSet::compute_shortwave (Real time)
+{
+    // ---- Sun and irradiances (host scalars) ----
+    SunState s;
+    if (m_params.sun_mode == "fixed") {
+        s.zenith  = m_params.sun_zenith_deg  * M_PI / 180.0;
+        s.azimuth = m_params.sun_azimuth_deg * M_PI / 180.0;
+        const Real cz = std::cos(s.zenith);
+        s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
+        s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
+    } else {
+        const Real t_utc = m_params.time_zero_utc_s + time;
+        const Real decl  = ibseb::solar_declination(m_params.day_of_year);
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg,
+                                                   m_params.utc_offset_hours, m_params.day_of_year);
+        s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        const Real e0 = ibseb::earth_sun_distance_factor(m_params.day_of_year);
+        s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
+                                                 e0, m_params.sw_diffuse_coeff);
+    }
+    ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
+    m_sun = s;
+
+    // ---- Per face ----
+    const Real sx = s.sx, sy = s.sy, sz = s.sz;
+    const Real dni = s.dni, dif_h = s.diffuse_h;
+    const Real dir_h = dni * amrex::max(Real(0.0), sz);
+    const Real alb_g = m_params.albedo_ground;
+    const Real* palb = d_albedo.data();
+    const Real* col_top = d_col_top.data();
+    const int   nx = m_nx, ny = m_ny;
+    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
+    const bool  per_x = m_per_x, per_y = m_per_y;
+    const Real  z_max = m_col_top_max, max_path = m_max_path;
+    const int*  pd  = d_dir.data();  const int* ps = d_side.data();
+    const Real* pxf = d_xf.data();   const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data();
+    Real* psh = d_shadow.data();  Real* pdir = d_SW_direct_in.data();
+    Real* pdif = d_SW_diffuse_in.data();  Real* pabs = d_SW_abs.data();
+    ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+        // Outward normal: opposite to the side the solid is on.
+        Real n[3] = {0.0, 0.0, 0.0};
+        n[pd[f]] = -static_cast<Real>(ps[f]);
+        const Real cosi = n[0] * sx + n[1] * sy + n[2] * sz;
+        Real shadow = 0.0, direct = 0.0;
+        if (sz > 0.0 && cosi > 0.0 && dni > 0.0) {
+            shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny,
+                                        x_lo, y_lo, dx, dy, per_x, per_y, z_max, max_path) ? 1.0 : 0.0;
+            direct = dni * cosi * (1.0 - shadow);
+        }
+        const Real diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h);
+        psh[f]  = shadow;
+        pdir[f] = direct;
+        pdif[f] = diffuse;
+        pabs[f] = (1.0 - palb[f]) * (direct + diffuse);
+    });
+    Gpu::streamSynchronize();
+
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " sun: zenith=" << s.zenith * 180.0 / M_PI
+                << " deg azimuth=" << s.azimuth * 180.0 / M_PI << " deg s=(" << s.sx << "," << s.sy << "," << s.sz
+                << ") DNI=" << s.dni << " W/m2 diffuse_h=" << s.diffuse_h << " W/m2\n";
+    }
+}
+
+/**
+ * Scatter one per-face array as a per-cell mean, the same accumulation as
+ * scatter_diagnostics() with the face count as the divisor.
+ */
+void
+IBFaceSet::scatter_field (const Gpu::DeviceVector<Real>& v, MultiFab& out) const
+{
+    MultiFab cnt(out.boxArray(), out.DistributionMap(), 1, 0);
+    cnt.setVal(0.0);
+    out.setVal(0.0);
+    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const Real* pv = v.data();
+    for (MFIter mfi(out); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& n = cnt.array(mfi);
+        auto const& o = out.array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            Gpu::Atomic::AddNoRet(&n(pi[f], pj[f], pk[f]), Real(1.0));
+            Gpu::Atomic::AddNoRet(&o(pi[f], pj[f], pk[f]), pv[f]);
+        });
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (n(i, j, k) > 0.0) { o(i, j, k) /= n(i, j, k); }
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Per-rank face dump. Every rank writes its own file so no gather is
+ * needed; readers concatenate ``<prefix>.rank*.csv``.
+ */
+void
+IBFaceSet::dump_faces (const std::string& prefix) const
+{
+    const int nf = m_nface;
+    auto host = [&](const Gpu::DeviceVector<Real>& d) {
+        std::vector<Real> h(nf);
+        Gpu::copy(Gpu::deviceToHost, d.begin(), d.end(), h.begin());
+        return h;
+    };
+    auto hosti = [&](const Gpu::DeviceVector<int>& d) {
+        std::vector<int> h(nf);
+        Gpu::copy(Gpu::deviceToHost, d.begin(), d.end(), h.begin());
+        return h;
+    };
+    const auto i = hosti(d_i), j = hosti(d_j), k = hosti(d_k), dir = hosti(d_dir), side = hosti(d_side), bid = hosti(d_bid);
+    const auto xf = host(d_xf), yf = host(d_yf), zf = host(d_zf), area = host(d_area);
+    const auto fs = host(d_f_sky), fg = host(d_f_ground), fb = host(d_f_bldg);
+    const auto sh = host(d_shadow), sdir = host(d_SW_direct_in), sdif = host(d_SW_diffuse_in), sabs = host(d_SW_abs);
+    const auto T = host(d_T_skin), Ta = host(d_T_air), lwin = host(d_LW_down_in), lwn = host(d_LW_net);
+    const auto th = host(d_theta_air), rho = host(d_rho), Ut = host(d_U_tan), us = host(d_ustar), H = host(d_H);
+    const auto mat = hosti(d_mat);
+    const auto alb = host(d_albedo), emi = host(d_emis), kk = host(d_kth), rc = host(d_rhocp), thk = host(d_thick), G = host(d_G);
+    const auto Hc = host(d_H_coeff), Qx = host(d_Q_ext), LE = host(d_LE), lwe = host(d_LW_ext), res = host(d_resid);
+    const auto nit = hosti(d_niter);
+    const auto ws = host(d_w_star), ol = host(d_olen), zi = host(d_z_i), hb = host(d_hbld);
+    const int nl = n_layers();
+    std::vector<Real> slab(static_cast<size_t>(nf) * nl);
+    Gpu::copy(Gpu::deviceToHost, d_T_slab.begin(), d_T_slab.end(), slab.begin());
+    Gpu::streamSynchronize();
+    std::ofstream f(prefix + ".rank" + std::to_string(ParallelDescriptor::MyProc()) + ".csv");
+    f << "i,j,k,dir,side,bid,x_m,y_m,z_m,area_m2,f_sky,f_ground,f_bldg,shadow,SW_direct_in,SW_diffuse_in,SW_abs,T_skin,T_air,LW_in,LW_net,"
+         "theta_air,rho,U_tan,ustar,H,mat,albedo,emissivity,k_therm,rho_cp,thickness,G,T_slab_top,T_slab_bottom,"
+         "H_coeff,Q_ext,LE,LW_ext,resid,n_iter,w_star,Olen,z_i,h_bld";
+    for (int l = 0; l < nl; ++l) { f << ",T_slab_" << l; }
+    f << "\n";
+    f << std::setprecision(12);
+    for (int n = 0; n < nf; ++n) {
+        f << i[n] << "," << j[n] << "," << k[n] << "," << dir[n] << "," << side[n] << "," << bid[n] << ","
+          << xf[n] << "," << yf[n] << "," << zf[n] << "," << area[n] << ","
+          << fs[n] << "," << fg[n] << "," << fb[n] << "," << sh[n] << ","
+          << sdir[n] << "," << sdif[n] << "," << sabs[n] << "," << T[n] << ","
+          << Ta[n] << "," << lwin[n] << "," << lwn[n] << ","
+          << th[n] << "," << rho[n] << "," << Ut[n] << "," << us[n] << "," << H[n] << ","
+          << mat[n] << "," << alb[n] << "," << emi[n] << "," << kk[n] << "," << rc[n] << "," << thk[n] << ","
+          << G[n] << "," << slab[static_cast<size_t>(n) * nl] << "," << slab[static_cast<size_t>(n) * nl + nl - 1] << ","
+          << Hc[n] << "," << Qx[n] << "," << LE[n] << "," << lwe[n] << "," << res[n] << "," << nit[n]
+          << "," << ws[n] << "," << ol[n] << "," << zi[n] << "," << hb[n];
+        for (int l = 0; l < nl; ++l) { f << "," << slab[static_cast<size_t>(n) * nl + l]; }
+        f << "\n";
+    }
+}
+
+/**
+ * Debug description of the set, in the style of the fire module's
+ * ``[FIRE DEBUG]`` lines: what was read, what every rank holds, what the
+ * buildings look like, and what the arrays cost. Per-rank lines use
+ * AllPrint() so every rank reports; the rest is printed by the I/O rank.
+ */
+void
+IBFaceSet::print_debug_summary () const
+{
+    const int nl = n_layers();
+    Print() << "[IBSEB DEBUG] lev=" << m_lev << " inputs: n_slab_layers=" << nl
+            << " T_skin_init=" << m_params.T_skin_init << " K"
+            << " T_interior=" << m_params.T_interior << " K"
+            << " csv_file=" << m_params.csv_file << " csv_int=" << m_params.csv_int << "\n";
+    Print() << "[IBSEB DEBUG] lev=" << m_lev << " global faces=" << (m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2])
+            << " (x=" << m_nface_dir[0] << " y=" << m_nface_dir[1] << " z=" << m_nface_dir[2] << ")"
+            << " area=" << m_area_total << " m2 buildings=" << m_nbld << "\n";
+    for (int b = 1; b <= m_nbld; ++b) {
+        Print() << "[IBSEB DEBUG]   building " << b << ": columns=" << m_bld_ncol[b]
+                << " i=[" << m_bld_ilo[b] << "," << m_bld_ihi[b] << "]"
+                << " j=[" << m_bld_jlo[b] << "," << m_bld_jhi[b] << "]"
+                << " faces=" << m_bld_nface[b] << " area=" << m_bld_area[b] << " m2\n";
+    }
+    // Per-rank ownership: one line per rank with its fab ranges.
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    const size_t bytes = static_cast<size_t>(m_nface) *
+        (7 * sizeof(int) + (11 + static_cast<size_t>(nl)) * sizeof(Real));
+    std::ostringstream os;
+    os << "[IBSEB DEBUG] lev=" << m_lev << " rank " << ParallelDescriptor::MyProc()
+       << ": faces=" << m_nface << " over " << nfab << " fab(s), device memory "
+       << bytes / 1024.0 << " kB; fab ranges:";
+    for (int f = 0; f < nfab; ++f) { os << " [" << m_fab_start[f] << "," << m_fab_start[f + 1] << ")"; }
+    AllPrint() << os.str() << "\n";
+}
+
+/**
+ * Scatter the face count and the mean skin temperature into cell-centred
+ * fields. One kernel per fab over that fab's faces (contiguous, see
+ * fab_start()), with atomic adds since a corner cell collects several faces,
+ * then a kernel over the box divides the temperature sum by the count.
+ */
+void
+IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
+{
+    nfaces.setVal(0.0);
+    tskin.setVal(0.0);
+    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const Real* pT = d_T_skin.data();
+    for (MFIter mfi(nfaces); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& n = nfaces.array(mfi);
+        auto const& t = tskin.array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            Gpu::Atomic::AddNoRet(&n(pi[f], pj[f], pk[f]), Real(1.0));
+            Gpu::Atomic::AddNoRet(&t(pi[f], pj[f], pk[f]), pT[f]);
+        });
+        const Box& bx = mfi.validbox();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (n(i, j, k) > 0.0) { t(i, j, k) /= n(i, j, k); }
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * Write the skin and slab temperatures into the six-slot state field. The
+ * slot of a face is ``(dir*2 + (side>0)) * (1 + n_layers)``; no two faces of a
+ * cell share a slot, so the writes are plain stores.
+ */
+void
+IBFaceSet::save_state (MultiFab& state) const
+{
+    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp());
+    state.setVal(0.0);
+    const int nl = n_layers();
+    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const int* pd = d_dir.data(); const int* ps = d_side.data();
+    const Real* pT = d_T_skin.data(); const Real* pS = d_T_slab.data();
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& st = state.array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f  = f0 + m;
+            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (1 + nl);
+            st(pi[f], pj[f], pk[f], c0) = pT[f];
+            for (int l = 0; l < nl; ++l) { st(pi[f], pj[f], pk[f], c0 + 1 + l) = pS[f * nl + l]; }
+        });
+    }
+    Gpu::streamSynchronize();
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << state_ncomp()
+                << " components (6 slots x " << (1 + n_layers()) << ")\n";
+    }
+}
+
+/**
+ * Read the skin and slab temperatures back from the six-slot state field,
+ * the inverse of save_state(), into a list that build() has just recreated.
+ */
+void
+IBFaceSet::load_state (const MultiFab& state)
+{
+    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp());
+    const int nl = n_layers();
+    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const int* pd = d_dir.data(); const int* ps = d_side.data();
+    Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data();
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& st = state.const_array(mfi);
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f  = f0 + m;
+            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (1 + nl);
+            pT[f] = st(pi[f], pj[f], pk[f], c0);
+            for (int l = 0; l < nl; ++l) { pS[f * nl + l] = st(pi[f], pj[f], pk[f], c0 + 1 + l); }
+        });
+    }
+    Gpu::streamSynchronize();
+    if (m_params.debug) {
+        std::vector<Real> h_T(m_nface);
+        Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
+        Gpu::streamSynchronize();
+        Real tmin = 1.0e30, tmax = -1.0e30;
+        for (int n = 0; n < m_nface; ++n) { tmin = std::min(tmin, h_T[n]); tmax = std::max(tmax, h_T[n]); }
+        ParallelDescriptor::ReduceRealMin(tmin);
+        ParallelDescriptor::ReduceRealMax(tmax);
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state loaded: T_skin in ["
+                << tmin << ", " << tmax << "] K\n";
+    }
+}
+
+/**
+ * Summary line and per-building CSV rows. The dynamic quantities (skin
+ * temperature range and area-weighted mean per building) are gathered on the
+ * host from the device arrays and reduced; the static counts and areas were
+ * reduced in build().
+ */
+void
+IBFaceSet::report (Real time, int step, bool write_csv) const
+{
+    // Skin temperature: min, max and per-building mean over all ranks.
+    std::vector<Real> h_T(m_nface), h_A(m_nface);
+    std::vector<int>  h_b(m_nface);
+    Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
+    Gpu::copy(Gpu::deviceToHost, d_area.begin(),   d_area.end(),   h_A.begin());
+    Gpu::copy(Gpu::deviceToHost, d_bid.begin(),    d_bid.end(),    h_b.begin());
+    Gpu::streamSynchronize();
+
+    std::vector<Real> h_S(m_nface), h_sh(m_nface), h_L(m_nface), h_H(m_nface), h_G(m_nface), h_r(m_nface), h_Q(m_nface), h_w(m_nface);
+    Gpu::copy(Gpu::deviceToHost, d_w_star.begin(), d_w_star.end(), h_w.begin());
+    Gpu::copy(Gpu::deviceToHost, d_resid.begin(), d_resid.end(), h_r.begin());
+    Gpu::copy(Gpu::deviceToHost, d_Q_ext.begin(), d_Q_ext.end(), h_Q.begin());
+    Gpu::copy(Gpu::deviceToHost, d_SW_abs.begin(), d_SW_abs.end(), h_S.begin());
+    Gpu::copy(Gpu::deviceToHost, d_shadow.begin(), d_shadow.end(), h_sh.begin());
+    Gpu::copy(Gpu::deviceToHost, d_LW_net.begin(), d_LW_net.end(), h_L.begin());
+    Gpu::copy(Gpu::deviceToHost, d_H.begin(), d_H.end(), h_H.begin());
+    Gpu::copy(Gpu::deviceToHost, d_G.begin(), d_G.end(), h_G.begin());
+    Gpu::streamSynchronize();
+
+    std::vector<Real> bsum(m_nbld + 1, 0.0), bsw(m_nbld + 1, 0.0), bsh(m_nbld + 1, 0.0), blw(m_nbld + 1, 0.0), bH(m_nbld + 1, 0.0);
+    std::vector<Real> bG(m_nbld + 1, 0.0), bQ(m_nbld + 1, 0.0), btmin(m_nbld + 1, 1.0e30), btmax(m_nbld + 1, -1.0e30), bres(m_nbld + 1, 0.0);
+    Real tmin = 1.0e30, tmax = -1.0e30, sw_sum = 0.0, sw_max = 0.0, sh_area = 0.0, lw_sum = 0.0, H_sum = 0.0, G_sum = 0.0;
+    Real res_max = 0.0, Q_sum = 0.0, w_max = 0.0;
+    for (int n = 0; n < m_nface; ++n) {
+        w_max = std::max(w_max, h_w[n]);
+        G_sum += h_G[n] * h_A[n];
+        Q_sum += h_Q[n] * h_A[n];
+        res_max = std::max(res_max, h_r[n]);
+        bG[h_b[n]]   += h_G[n] * h_A[n];
+        bQ[h_b[n]]   += h_Q[n] * h_A[n];
+        btmin[h_b[n]] = std::min(btmin[h_b[n]], h_T[n]);
+        btmax[h_b[n]] = std::max(btmax[h_b[n]], h_T[n]);
+        bres[h_b[n]]  = std::max(bres[h_b[n]], h_r[n]);
+        bsum[h_b[n]] += h_T[n] * h_A[n];
+        bsw[h_b[n]]  += h_S[n] * h_A[n];
+        bsh[h_b[n]]  += h_sh[n] * h_A[n];
+        blw[h_b[n]]  += h_L[n] * h_A[n];
+        bH[h_b[n]]   += h_H[n] * h_A[n];
+        tmin = std::min(tmin, h_T[n]);
+        tmax = std::max(tmax, h_T[n]);
+        sw_sum  += h_S[n] * h_A[n];
+        sw_max   = std::max(sw_max, h_S[n]);
+        sh_area += h_sh[n] * h_A[n];
+        lw_sum  += h_L[n] * h_A[n];
+        H_sum   += h_H[n] * h_A[n];
+    }
+    ParallelDescriptor::ReduceRealSum(bsum.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(bsw.data(),  m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(bsh.data(),  m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(blw.data(),  m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(bH.data(),   m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(bG.data(),   m_nbld + 1);
+    ParallelDescriptor::ReduceRealSum(bQ.data(),   m_nbld + 1);
+    ParallelDescriptor::ReduceRealMin(btmin.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceRealMax(btmax.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceRealMax(bres.data(),  m_nbld + 1);
+    ParallelDescriptor::ReduceRealMax(res_max);
+    ParallelDescriptor::ReduceRealMax(w_max);
+    ParallelDescriptor::ReduceRealSum(Q_sum);
+    ParallelDescriptor::ReduceRealMin(tmin);
+    ParallelDescriptor::ReduceRealMax(tmax);
+    ParallelDescriptor::ReduceRealSum(sw_sum);
+    ParallelDescriptor::ReduceRealMax(sw_max);
+    ParallelDescriptor::ReduceRealSum(sh_area);
+    ParallelDescriptor::ReduceRealSum(lw_sum);
+    ParallelDescriptor::ReduceRealSum(H_sum);
+    ParallelDescriptor::ReduceRealSum(G_sum);
+    const Real G_mean   = (m_area_total > 0.0) ? G_sum / m_area_total : 0.0;
+    const Real sw_mean  = (m_area_total > 0.0) ? sw_sum / m_area_total : 0.0;
+    const Real sh_frac  = (m_area_total > 0.0) ? sh_area / m_area_total : 0.0;
+    const Real lw_mean  = (m_area_total > 0.0) ? lw_sum / m_area_total : 0.0;
+    const Real H_mean   = (m_area_total > 0.0) ? H_sum / m_area_total : 0.0;
+
+    const long nf_all = m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2];
+    Print() << "[IBSEB] lev=" << m_lev << " step=" << step << " t=" << time
+            << " faces=" << nf_all
+            << " (x=" << m_nface_dir[0] << " y=" << m_nface_dir[1] << " z=" << m_nface_dir[2] << ")"
+            << " buildings=" << m_nbld
+            << " area=" << std::setprecision(10) << m_area_total << " m2"
+            << " T_skin_min=" << ((nf_all > 0) ? tmin : Real(0.0))
+            << " T_skin_max=" << ((nf_all > 0) ? tmax : Real(0.0))
+            << " SW_abs_mean=" << sw_mean << " SW_abs_max=" << sw_max
+            << " shadow_frac=" << sh_frac << " LW_net_mean=" << lw_mean
+            << " H_mean=" << H_mean << " G_mean=" << G_mean
+            << " Q_ext_mean=" << ((m_area_total > 0.0) ? Q_sum / m_area_total : Real(0.0))
+            << " resid_max=" << res_max
+            << " w_star_max=" << w_max
+            << " H_total_W=" << std::setprecision(12) << H_sum << "\n";
+    // Cost line: the slowest rank's per-step time of the balance and its face
+    // count, so the cost of the face list on a larger case can be estimated.
+    {
+        Real ms = (m_cost_n > 0) ? 1000.0 * m_cost_s / m_cost_n : 0.0;
+        Real ms_max = ms; int nf_max = m_nface;
+        ParallelDescriptor::ReduceRealMax(ms_max);
+        ParallelDescriptor::ReduceIntMax(nf_max);
+        Print() << "[IBSEB] cost: lev=" << m_lev << " advance_ms_per_step_max=" << std::setprecision(4) << ms_max
+                << " faces_per_rank_max=" << nf_max << " ranks=" << ParallelDescriptor::NProcs()
+                << " init_s=" << m_init_cost_s << "\n";
+    }
+
+    if (m_params.debug) {
+        for (int b = 1; b <= m_nbld; ++b) {
+            const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
+            const Real swm = (m_bld_area[b] > 0.0) ? bsw[b] / m_bld_area[b] : Real(0.0);
+            const Real shf = (m_bld_area[b] > 0.0) ? bsh[b] / m_bld_area[b] : Real(0.0);
+            const Real lwm = (m_bld_area[b] > 0.0) ? blw[b] / m_bld_area[b] : Real(0.0);
+            const Real Hm  = (m_bld_area[b] > 0.0) ? bH[b]  / m_bld_area[b] : Real(0.0);
+            const Real Gm  = (m_bld_area[b] > 0.0) ? bG[b]  / m_bld_area[b] : Real(0.0);
+            Print() << "[IBSEB DEBUG]   building " << b << ": faces=" << m_bld_nface[b]
+                    << " area=" << m_bld_area[b] << " m2 T_skin_mean=" << tmean << " K"
+                    << " [" << btmin[b] << ", " << btmax[b] << "]"
+                    << " SW_abs_mean=" << swm << " W/m2 shadow_frac=" << shf
+                    << " LW_net_mean=" << lwm << " W/m2 H_mean=" << Hm << " W/m2 G_mean=" << Gm
+                    << " W/m2 resid_max=" << bres[b] << " W/m2\n";
+        }
+    }
+
+    if (write_csv && !m_params.dump_faces_file.empty()) {
+        std::string prefix = m_params.dump_faces_file;
+        if (m_params.dump_faces_tag_step) {
+            std::ostringstream os;
+            os << prefix << ".step" << std::setw(6) << std::setfill('0') << step;
+            prefix = os.str();
+        }
+        dump_faces(prefix);
+    }
+
+    if (!write_csv || !ParallelDescriptor::IOProcessor()) { return; }
+    bool need_header = true;
+    {
+        std::ifstream probe(m_params.csv_file, std::ios::ate);
+        if (probe.good() && probe.tellg() > 0) { need_header = false; }
+    }
+    std::ofstream csv(m_params.csv_file, std::ios::app);
+    if (need_header) {
+        csv << "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
+               "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
+               "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2\n";
+    }
+    for (int b = 1; b <= m_nbld; ++b) {
+        const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
+        const Real swm   = (m_bld_area[b] > 0.0) ? bsw[b]  / m_bld_area[b] : Real(0.0);
+        const Real shf   = (m_bld_area[b] > 0.0) ? bsh[b]  / m_bld_area[b] : Real(0.0);
+        const Real lwm   = (m_bld_area[b] > 0.0) ? blw[b]  / m_bld_area[b] : Real(0.0);
+        const Real Hm    = (m_bld_area[b] > 0.0) ? bH[b]   / m_bld_area[b] : Real(0.0);
+        const Real Gm    = (m_bld_area[b] > 0.0) ? bG[b]   / m_bld_area[b] : Real(0.0);
+        const Real Qm    = (m_bld_area[b] > 0.0) ? bQ[b]   / m_bld_area[b] : Real(0.0);
+        csv << std::setprecision(10) << time << "," << step << "," << m_lev << "," << b << ","
+            << m_bld_nface[b] << "," << m_bld_area[b] << "," << tmean << "," << swm << "," << shf << "," << lwm << "," << Hm << ","
+            << Gm << "," << Qm << "," << btmin[b] << "," << btmax[b] << "," << bres[b] << ","
+            << m_sun.zenith * 180.0 / M_PI << "," << m_sun.azimuth * 180.0 / M_PI << "," << m_sun.dni << "," << m_sun.diffuse_h << "\n";
+    }
+}
