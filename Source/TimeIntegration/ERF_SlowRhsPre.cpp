@@ -98,7 +98,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* Hfx3_EB,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
+                       const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
                        const MultiFab& z_phys_nd,
@@ -128,7 +128,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab*  t_mean_mf = nullptr;
-    if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
+    // TODO: t_mean_mf is only used in PBL, so it is hardcoded to use zlo surface layer for now - generalize?
+    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,3); }
 
     const Box& domain = geom.Domain();
     const bool use_physical_chamber_wall_flux =
@@ -160,7 +161,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      solverChoice.vert_implicit_fac[level][nrk] : zero;
 
     const bool l_use_moisture  = (solverChoice.moisture_type != MoistureType::None);
-    const bool l_use_SurfLayer = (SurfLayer != nullptr);
+
+    auto any_SurfLayer = [&SurfLayer_ = SurfLayer]() -> bool {
+        for (auto it = SurfLayer_.begin(); it != SurfLayer_.end(); it++)
+        {
+            if (*it != nullptr) { return true; }
+        }
+        return false;
+    };
+
+    const bool l_use_SurfLayer = any_SurfLayer();
     bool l_apply_surface_layer_fluxes_in_diffusion = l_use_SurfLayer;
     const bool l_rotate        = (solverChoice.use_rotate_surface_flux);
 
@@ -263,18 +273,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (!surface_layer_handled && l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
             if (!l_use_eb) {
-                SurfLayer->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
-                                                   Hfx1, Hfx2, Hfx3,
-                                                   Q1fx1, Q1fx2, Q1fx3,
-                                                   &z_phys_nd);
+                for (OrientationIter oit; oit; ++oit) {
+                    Orientation ori = oit();
+                    if (SurfLayer[ori]) {
+                        SurfLayer[ori]->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
+                                                                            Hfx1, Hfx2, Hfx3,
+                                                                            Q1fx1, Q1fx2, Q1fx3,
+                                                                            &z_phys_nd);
+                    }
+                }
 
                 //if (l_vert_implicit_fac > 0 && solverChoice.implicit_momentum_diffusion) {
                 //    copy_surface_tau_for_implicit(Tau_lev, Tau_corr_lev);
                 //}
             } else {
-                SurfLayer->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
-                                                      Hfx1, Hfx2, Hfx3_EB,
-                                                      Q1fx1, Q1fx2, Q1fx3);
+                SurfLayer[Orientation(Direction::z,Orientation::low)]->impose_SurfaceLayer_bcs_EB(level, mfs, Tau_EB,
+                                                                                                  Hfx1, Hfx2, Hfx3_EB,
+                                                                                                  Q1fx1, Q1fx2, Q1fx3);
             }
         }
         if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
@@ -536,13 +551,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
-        if (Tau_lev[TauType::tau21]) {
+        /*
+        if (Tau_lev[TauType::tau31]) {
             tau21 = Tau_lev[TauType::tau21]->array(mfi);
             tau31 = Tau_lev[TauType::tau31]->array(mfi);
             tau32 = Tau_lev[TauType::tau32]->array(mfi);
         } else {
             tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
+        */
+       tau21 = (Tau_lev[TauType::tau21]) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
+       tau31 = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
+       tau32 = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
 
         // EB surface layer fluxes
         Array4<Real> u_tau_eb13, u_tau_eb23;
@@ -687,9 +707,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        stretched_dz_d, dxInv, SmnSmn_a,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_z, q1fx_z, q2fx_z, diss,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -700,7 +720,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -710,7 +730,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dx, dxInv,
                                        hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -718,9 +738,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_z, q1fx_z, q2fx_z, diss,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             }
             if (use_physical_chamber_wall_flux) {
                 erf_resolved_wall_flux::apply(

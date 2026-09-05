@@ -17,6 +17,7 @@ public:
     /**
      * Construct the MOST averaging helper.
      *
+     * @param[in] face           orientation of face for MOST averaging
      * @param[in] geom           geometry for all AMR levels
      * @param[in] has_zphys      whether nodal physical-height data are available
      * @param[in] a_pp_prefix    ParmParse prefix
@@ -24,7 +25,8 @@ public:
      * @param[in] m_terrain_type terrain representation
      * @param[in] eb_vec         optional embedded-boundary geometry data
      */
-    explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
+    explicit MOSTAverage (amrex::Orientation face,
+                          amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
@@ -132,6 +134,17 @@ public:
      * @param[in] lev level index
      */
     void set_k_indices_N (const int& lev);
+
+    /**
+     * Verify that the lateral face-owned FAB contains the reference stencil.
+     *
+     * @param[in] lev level index
+     *
+     * This is a conservative preflight check for the direct regional-average
+     * path. It verifies that the reference point plus averaging radius, with
+     * allowance for staggered-field neighbors, is available in the owned FAB.
+     */
+    void validate_lateral_reference_stencil (const int& lev);
 
     /**
      * Populate the 2D k-index iMultiFab with terrain.
@@ -437,6 +450,7 @@ protected:
 
     // Passed through constructor
     //--------------------------------------------
+    amrex::Orientation m_face;                                       // Face to perform averages on
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
@@ -446,8 +460,8 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int  m_nvar{6};                                                  // 6 fields for U/V/T/Qv/Qr/W
-    int  m_navg{6};                                                  // 6 averages for U/V/T/Qv/Tv/Umag
+    int  m_nvar{6};                                                  // 6 fields for U/V/W/T/Qv/Qr
+    int  m_navg{9};                                                  // 9 averages for U/V/W/T/Qv/Tv/Umag_XY,Umag_XZ,Umag_YZ
     int  m_maxlev{0};                                                // Total number of levels
     int  m_policy{0};                                                // Policy for type of averaging
     bool m_rotate{false};                                            // Do vector rotations for terrain?
@@ -500,10 +514,11 @@ protected:
 
     // Sentinel used to detect whether most.zref was set by the user.  zref_default
     // is itself a legal user value, so "was it specified" cannot be read off the
-    // value unless we probe with something unreachable first.  A reference height
-    // is a distance above the surface and so is always positive.  See the parse
-    // sites in ERF_MOSTAverage.cpp: they use ParmParse::queryAdd, whose return value
-    // is only meaningful on the first parse of a key, and these routines run once
+    // value unless we probe with something unreachable first.  For lateral and
+    // z-high faces, most.zref is a wall-relative distance; z-low retains its
+    // legacy absolute-coordinate convention. See the parse sites in
+    // ERF_MOSTAverage.cpp: they use ParmParse::queryAdd, whose return value is
+    // only meaningful on the first parse of a key, and these routines run once
     // per level.
     const amrex::Real zref_sentinel = amrex::Real(-1.0);
 };

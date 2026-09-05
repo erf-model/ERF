@@ -325,6 +325,34 @@ void ERF::init_bcs ()
 
     init_phys_bcs(read_prim_theta);
 
+    // Deardorff LES, RANS, and PBL models consume lower-z SurfaceLayer fields
+    // explicitly. They cannot safely coexist with a lateral or upper
+    // SurfaceLayer wall. Smagorinsky LES uses the generic all-face diffusion
+    // path.
+    bool has_non_zlo_surface_layer = false;
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const bool is_zlo = (ori.coordDir() == static_cast<int>(Direction::z) &&
+                             ori.faceDir() == Orientation::low);
+        if (!is_zlo && phys_bc_type[ori] == ERF_BC::surface_layer) {
+            has_non_zlo_surface_layer = true;
+            break;
+        }
+    }
+
+    if (has_non_zlo_surface_layer) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            const auto& turb_choice = solverChoice.turbChoice[lev];
+            if (turb_choice.les_type  == LESType::Deardorff ||
+                turb_choice.rans_type != RANSType::None ||
+                turb_choice.pbl_type  != PBLType::None) {
+                Abort("Deardorff LES, RANS, and PBL models (including SHOC) support "
+                      "SurfaceLayer only at zlo. Remove non-zlo surface_layer boundaries "
+                      "or select Smagorinsky LES.");
+            }
+        }
+    }
+
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
@@ -468,10 +496,19 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::surface_layer )
             {
                 use_surfacelayer = true;
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::hoextrap);
+                    }
+                    // Only normal direction has ext_dir
+                    domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::ext_dir);
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::hoextrap);
+                    }
+                    // Only normal direction has ext_dir
+                    domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::ext_dir);
+                }
             }
         }
     }
@@ -666,9 +703,14 @@ void ERF::init_bcs ()
             }
             else if ( bct == ERF_BC::surface_layer )
             {
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
+                } else {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
                 }
                 if (keqn_dir) {
                     Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;

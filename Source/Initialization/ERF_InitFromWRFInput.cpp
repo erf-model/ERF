@@ -1881,7 +1881,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             update_sst_tsk(itime, geom[lev], ba2d[lev],
                            sst_lev[lev], tsk_lev[lev],
-                           m_SurfaceLayer, low_data_zlo,
+                           m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
                            l_rdOcp, lmask_lev[lev][0], use_moist);
         }

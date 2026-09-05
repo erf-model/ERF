@@ -865,8 +865,10 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
         m_coupled_sst_valid->ParallelCopy(*erf_coverage, 0, 0, 1);
     }
 
-    if (m_SurfaceLayer) {
-        m_SurfaceLayer->update_coupled_sst_ptr(0, m_coupled_sst.get(), m_coupled_sst_valid.get());
+    // Coupled SST is only consumed by the bottom z face.
+    if (m_SurfaceLayer[amrex::Orientation::zlo()]) {
+        m_SurfaceLayer[amrex::Orientation::zlo()]->update_coupled_sst_ptr(
+            0, m_coupled_sst.get(), m_coupled_sst_valid.get());
     }
 
     // Report over the covered cells only. The old whole-array min/max was

@@ -98,37 +98,43 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 
     // configure SurfaceLayer params if needed
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        if (m_SurfaceLayer) {
-            IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
-            if (solverChoice.moisture_type != MoistureType::None) {
-                ng = Qv_prim[lev]->nGrowVect();
+    bool updated_prim = false;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+            if (!updated_prim) {
+                // This only needs to be done once
+                IntVect ng = Theta_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
+                MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+                if (solverChoice.moisture_type != MoistureType::None) {
+                    ng = Qv_prim[lev]->nGrowVect();
 
-                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
 
-                if (solverChoice.moisture_indices.qr > -1) {
-                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
-                    MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
-                } else {
-                    Qr_prim[lev]->setVal(0);
+                    if (solverChoice.moisture_indices.qr > -1) {
+                        MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
+                        MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    } else {
+                        Qr_prim[lev]->setVal(0);
+                    }
                 }
+                updated_prim = true;
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
-            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                        solverChoice.moisture_indices);
+            m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_SurfaceLayer[ori]->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                             solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
             double elapsed_time_since_start_low = time + (start_time - start_low_time);
 #else
             double elapsed_time_since_start_low = time;
 #endif
-            m_SurfaceLayer->update_fluxes(lev, time, elapsed_time_since_start_low,
-                                          S_old, z_phys_nd[lev], walldist[lev]);
+            m_SurfaceLayer[ori]->update_fluxes(lev, time, elapsed_time_since_start_low,
+                                               S_old, z_phys_nd[lev], walldist[lev]);
         }
     }
 
@@ -154,12 +160,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (solverChoice.turbChoice[lev].uses_shoc_family()) {
         // Get SFC fluxes from SurfaceLayer
-        if (m_SurfaceLayer) {
+        if (m_SurfaceLayer[Orientation::zlo()]) {
             Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
-            m_SurfaceLayer->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
-                                                    SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
-                                                    SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                                                    z_phys_nd[lev].get());
+            m_SurfaceLayer[Orientation::zlo()]->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
+                                                                        SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
+                                                                        SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
+                                                                        z_phys_nd[lev].get());
         }
 
         // Apply SHOC before the dycore so it sees a coherent state.

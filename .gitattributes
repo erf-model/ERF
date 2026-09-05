@@ -1,2 +1,4 @@
 *.H linguist-language=C++
 *.h linguist-language=C++
+Tests/ERFGoldFiles/ABL_MOST_Cloudchamber/Level_0/Cell_D_* binary
+Tests/ERFGoldFiles/ABL_MOST_Cloudchamber/Level_0/Nu_nd_D_* binary

@@ -178,28 +178,43 @@ ERF::WriteCheckpointFile () const
        // filled would blend bogus_large_value into the next average.  Without this
        // file the filter simply starts over on restart, which is what checkpoints
        // written before this was added already did.
-       if (m_SurfaceLayer && m_SurfaceLayer->mac_avg_is_time_averaged()) {
-           std::string MostAvgFileName(checkpointname + "/most_time_average");
-           std::ofstream MostAvgFile;
-           MostAvgFile.open(MostAvgFileName.c_str(), std::ofstream::out   |
-                                                     std::ofstream::trunc |
-                                                     std::ofstream::binary);
-           if(! MostAvgFile.good()) {
-               FileOpenFailed(MostAvgFileName);
-           } else {
-               // Number of average components, then one line per level holding the
-               // initialization flag, how many plane averages follow (zero for the
-               // region policy, which keeps no plane averages), and those averages
-               MostAvgFile << m_SurfaceLayer->get_num_mac_avg() << "\n";
-               MostAvgFile.precision(17);
-               for (int lev = 0; lev <= finest_level; ++lev) {
-                   const Vector<Real> pavg = m_SurfaceLayer->get_mac_plane_avg(lev);
-                   MostAvgFile << (m_SurfaceLayer->mac_avg_is_initialized(lev) ? 1 : 0)
-                               << " " << pavg.size();
-                   for (int iavg(0); iavg < static_cast<int>(pavg.size()); ++iavg) {
-                       MostAvgFile << " " << pavg[iavg];
+       int n_faces = 0;
+       for (OrientationIter oit; oit; ++oit) {
+           Orientation ori = oit();
+           if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+               n_faces += 1;
+           }
+       }
+       for (OrientationIter oit; oit; ++oit) {
+           Orientation ori = oit();
+           if (m_SurfaceLayer[ori] && m_SurfaceLayer[ori]->mac_avg_is_time_averaged()) {
+               std::string face = "_" + std::to_string(ori);
+               if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                   face = "";
+               }
+
+               std::string MostAvgFileName(checkpointname + "/most_time_average" + face);
+               std::ofstream MostAvgFile;
+               MostAvgFile.open(MostAvgFileName.c_str(), std::ofstream::out   |
+                                                         std::ofstream::trunc |
+                                                         std::ofstream::binary);
+               if(! MostAvgFile.good()) {
+                   FileOpenFailed(MostAvgFileName);
+               } else {
+                   // Number of average components, then one line per level holding the
+                   // initialization flag, how many plane averages follow (zero for the
+                   // region policy, which keeps no plane averages), and those averages
+                   MostAvgFile << m_SurfaceLayer[ori]->get_num_mac_avg() << "\n";
+                   MostAvgFile.precision(17);
+                   for (int lev = 0; lev <= finest_level; ++lev) {
+                       const Vector<Real> pavg = m_SurfaceLayer[ori]->get_mac_plane_avg(lev);
+                       MostAvgFile << (m_SurfaceLayer[ori]->mac_avg_is_initialized(lev) ? 1 : 0)
+                                   << " " << pavg.size();
+                       for (int iavg(0); iavg < static_cast<int>(pavg.size()); ++iavg) {
+                           MostAvgFile << " " << pavg[iavg];
+                       }
+                       MostAvgFile << "\n";
                    }
-                   MostAvgFile << "\n";
                }
            }
        }
@@ -441,40 +456,56 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
-        if (m_SurfaceLayer)  {
-            amrex::Print() << "Writing SurfaceLayer variables at level " << lev << std::endl;
+        // Count number of surface layer boundaries to determine face prefix
+        int n_faces = 0;
+        for (OrientationIter oit; oit; ++oit) {
+            Orientation ori = oit();
+            if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+                n_faces += 1;
+            }
+        }
 
-            // These MultiFabs live on a 2D BoxArray for planar terrain but on the full 3D
-            // BoxArray (with a z ghost cell) for EB terrain, so we write each one on its own
-            // BoxArray -- copying into a hard-wired 2D MultiFab would silently drop everything
-            // above k=0 for EB (issue #3560)
-            auto write_sl_var = [&] (MultiFab* src, const std::string& name) {
-                VisMF::Write(*src, MultiFabFileFullPrefix(lev, checkpointname, "Level_", name));
-            };
+        for (OrientationIter oit; oit; ++oit) {
+            Orientation ori = oit();
+            if (m_SurfaceLayer[ori])  {
+                amrex::Print() << "Writing SurfaceLayer variables at level " << lev << " for face " << ori << std::endl;
+                std::string face = "_" + std::to_string(ori);
+                // if we only use a single surface layer, don't add the face prefix
+                if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                    face = "";
+                }
 
-            write_sl_var(m_SurfaceLayer->get_u_star(lev), "Ustar");
-            write_sl_var(m_SurfaceLayer->get_w_star(lev), "Wstar");
-            write_sl_var(m_SurfaceLayer->get_t_star(lev), "Tstar");
-            write_sl_var(m_SurfaceLayer->get_q_star(lev), "Qstar");
-            write_sl_var(m_SurfaceLayer->get_olen(lev)  , "Olen");
-            write_sl_var(m_SurfaceLayer->get_q_surf(lev), "Qsurf");
-            write_sl_var(m_SurfaceLayer->get_pblh(lev)  , "PBLH");
-            write_sl_var(m_SurfaceLayer->get_z0(lev)    , "Z0");
-            write_sl_var(m_SurfaceLayer->get_t_surf(lev), "Tsurf");
+                // These MultiFabs live on a 2D BoxArray for planar terrain but on the full 3D
+                // BoxArray (with a z ghost cell) for EB terrain, so we write each one on its own
+                // BoxArray -- copying into a hard-wired 2D MultiFab would silently drop everything
+                // above k=0 for EB (issue #3560)
+                auto write_sl_var = [&] (MultiFab* src, const std::string& name) {
+                    VisMF::Write(*src, MultiFabFileFullPrefix(lev, checkpointname, "Level_", name));
+                };
 
-            // The exponentially filtered averages behind erf.most.time_average.  The
-            // region policy carries the filter state in these MultiFabs (the plane and
-            // EB policies carry it in the plane averages written to the
-            // most_time_average file above), so without them the filter history is lost
-            // across a restart and the first update falls back to the instantaneous
-            // average.
-            //
-            // NOTE: we only write these once the filter has been initialized; before
-            //       that they hold bogus_large_value, which must never be blended in.
-            if (m_SurfaceLayer->mac_avg_is_initialized(lev)) {
-                for (int iavg(0); iavg < m_SurfaceLayer->get_num_mac_avg(); ++iavg) {
-                    write_sl_var(m_SurfaceLayer->get_mac_avg_ptr(lev,iavg),
-                                 "MOSTAvg" + std::to_string(iavg));
+                write_sl_var(m_SurfaceLayer[ori]->get_u_star(lev), "Ustar" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_w_star(lev), "Wstar" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_t_star(lev), "Tstar" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_q_star(lev), "Qstar" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_olen(lev)  , "Olen"  + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_q_surf(lev), "Qsurf" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_t_surf(lev), "Tsurf" + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_pblh(lev)  , "PBLH"  + face);
+                write_sl_var(m_SurfaceLayer[ori]->get_z0(lev)    , "Z0"    + face);
+                // The exponentially filtered averages behind erf.most.time_average. The
+                // region policy carries the filter state in these MultiFabs (the plane and
+                // EB policies carry it in the plane averages written to the
+                // most_time_average file above), so without them the filter history is lost
+                // across a restart and the first update falls back to the instantaneous
+                // average.
+                //
+                // NOTE: we only write these once the filter has been initialized; before
+                //       that they hold bogus_large_value, which must never be blended in.
+                if (m_SurfaceLayer[ori]->mac_avg_is_initialized(lev)) {
+                    for (int iavg(0); iavg < m_SurfaceLayer[ori]->get_num_mac_avg(); ++iavg) {
+                        write_sl_var(m_SurfaceLayer[ori]->get_mac_avg_ptr(lev,iavg),
+                                     "MOSTAvg" + std::to_string(iavg) + face);
+                    }
                 }
             }
         }
@@ -1595,115 +1626,134 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 void
 ERF::ReadCheckpointFileSurfaceLayer ()
 {
-    //
-    // State of the exponential time filter (erf.most.time_average), if this run uses it.
-    // A checkpoint written before this was persisted has no such file, in which case we
-    // leave the filter uninitialized and it starts over -- the behavior those files
-    // already had.  Anything unexpected in the file is likewise treated as "start over"
-    // rather than blending stale state into the average.
-    //
-    const bool most_time_avg = (m_SurfaceLayer && m_SurfaceLayer->mac_avg_is_time_averaged());
-    Vector<int>          most_avg_init;
-    Vector<Vector<Real>> most_plane_avg;
-    if (most_time_avg) {
-        const std::string MostAvgFile(restart_chkfile + "/most_time_average");
-        if (amrex::FileExists(MostAvgFile)) {
-            Vector<char> fileCharPtr;
-            ParallelDescriptor::ReadAndBcastFile(MostAvgFile, fileCharPtr);
-            std::string fileCharPtrString(fileCharPtr.dataPtr());
-            std::istringstream ism(fileCharPtrString, std::istringstream::in);
-
-            int navg_chk = 0;
-            ism >> navg_chk;
-            if (navg_chk == m_SurfaceLayer->get_num_mac_avg()) {
-                for (int lev = 0; lev <= finest_level; ++lev) {
-                    int is_init = 0, n_pavg = 0;
-                    if (!(ism >> is_init >> n_pavg)) { break; }
-                    Vector<Real> pavg(n_pavg);
-                    bool line_ok = true;
-                    for (int iavg(0); iavg < n_pavg; ++iavg) {
-                        if (!(ism >> pavg[iavg])) { line_ok = false; break; }
-                    }
-                    if (!line_ok) { break; }
-                    most_avg_init.push_back(is_init);
-                    most_plane_avg.push_back(pavg);
-                }
-            } else {
-                amrex::Print() << "NOTE: checkpoint holds " << navg_chk << " surface-layer "
-                                  "averages but this run expects "
-                               << m_SurfaceLayer->get_num_mac_avg()
-                               << "; the time filter will start over" << std::endl;
-            }
-        } else {
-            amrex::Print() << "NOTE: this checkpoint does not carry the surface-layer time "
-                              "filter state; the filtered averages will start over"
-                           << std::endl;
+    // Count number of surface layer boundaries to determine face prefix
+    int n_faces = 0;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            n_faces += 1;
         }
     }
 
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        amrex::Print() << "Reading MOST variables" << std::endl;
-
-        auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
-            const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
-            if (amrex::FileExists(mf_name + "_H")) {
-                MultiFab m_var;
-                VisMF::Read(m_var, mf_name);
-                // The number of ghost cells depends on whether these live on a 2D or a 3D
-                // BoxArray (see WriteCheckpointFile), and a checkpoint written before the
-                // fix for issue #3560 may have fewer than the destination holds, so only
-                // fill as many ghost cells as both sides have
-                IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
-                dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
-                return true;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (m_SurfaceLayer[ori])  {
+            std::string face = "_" + std::to_string(ori);
+            // if we only use a single surface layer, don't add the face prefix
+            if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+                face = "";
             }
-            return false;
-        };
 
-        // U*
-        read_most_var("Ustar", m_SurfaceLayer->get_u_star(lev));
+            //
+            // State of the exponential time filter (erf.most.time_average), if this run uses it.
+            // A checkpoint written before this was persisted has no such file, in which case we
+            // leave the filter uninitialized and it starts over -- the behavior those files
+            // already had.  Anything unexpected in the file is likewise treated as "start over"
+            // rather than blending stale state into the average.
+            //
+            const bool most_time_avg = m_SurfaceLayer[ori]->mac_avg_is_time_averaged();
+            Vector<int>          most_avg_init;
+            Vector<Vector<Real>> most_plane_avg;
+            if (most_time_avg) {
+                const std::string MostAvgFile(restart_chkfile + "/most_time_average" + face);
+                if (amrex::FileExists(MostAvgFile)) {
+                    Vector<char> fileCharPtr;
+                    ParallelDescriptor::ReadAndBcastFile(MostAvgFile, fileCharPtr);
+                    std::string fileCharPtrString(fileCharPtr.dataPtr());
+                    std::istringstream ism(fileCharPtrString, std::istringstream::in);
 
-        // W*
-        read_most_var("Wstar", m_SurfaceLayer->get_w_star(lev));
-
-        // T*
-        read_most_var("Tstar", m_SurfaceLayer->get_t_star(lev));
-
-        // Q*
-        read_most_var("Qstar", m_SurfaceLayer->get_q_star(lev));
-
-        // Olen
-        read_most_var("Olen", m_SurfaceLayer->get_olen(lev));
-
-        // Qsurf
-        read_most_var("Qsurf", m_SurfaceLayer->get_q_surf(lev));
-
-        // PBLH
-        read_most_var("PBLH", m_SurfaceLayer->get_pblh(lev));
-
-        // Z0
-        read_most_var("Z0", m_SurfaceLayer->get_z0(lev));
-        // Surface temperature. Not every path rewrites it each step (a fixed
-        // surface temperature with no heating rate keeps whatever was set at
-        // initialization), so it has to come back from the checkpoint too.
-        read_most_var("Tsurf", m_SurfaceLayer->get_t_surf(lev));
-
-        // The exponentially filtered averages.  We only mark the filter as initialized
-        // if every piece of its state came back, so that a partial restore degrades to
-        // "start the average over" instead of blending in whatever the containers hold.
-        if (most_time_avg && (lev < static_cast<int>(most_avg_init.size())) && most_avg_init[lev]) {
-            bool restored_all = m_SurfaceLayer->set_mac_plane_avg(lev, most_plane_avg[lev]);
-            for (int iavg(0); iavg < m_SurfaceLayer->get_num_mac_avg(); ++iavg) {
-                restored_all = read_most_var("MOSTAvg" + std::to_string(iavg),
-                                             m_SurfaceLayer->get_mac_avg_ptr(lev,iavg)) && restored_all;
+                    int navg_chk = 0;
+                    ism >> navg_chk;
+                    if (navg_chk == m_SurfaceLayer[ori]->get_num_mac_avg()) {
+                        for (int lev = 0; lev <= finest_level; ++lev) {
+                            int is_init = 0, n_pavg = 0;
+                            if (!(ism >> is_init >> n_pavg)) { break; }
+                            Vector<Real> pavg(n_pavg);
+                            bool line_ok = true;
+                            for (int iavg(0); iavg < n_pavg; ++iavg) {
+                                if (!(ism >> pavg[iavg])) { line_ok = false; break; }
+                            }
+                            if (!line_ok) { break; }
+                            most_avg_init.push_back(is_init);
+                            most_plane_avg.push_back(pavg);
+                        }
+                    } else {
+                        amrex::Print() << "NOTE: checkpoint holds " << navg_chk << " surface-layer "
+                                          "averages but this run expects "
+                                       << m_SurfaceLayer[ori]->get_num_mac_avg()
+                                       << "; the time filter will start over" << std::endl;
+                    }
+                } else {
+                    amrex::Print() << "NOTE: this checkpoint does not carry the surface-layer time "
+                                      "filter state; the filtered averages will start over"
+                                   << std::endl;
+                }
             }
-            if (restored_all) {
-                m_SurfaceLayer->set_mac_avg_initialized(lev);
-            } else {
-                amrex::Print() << "NOTE: the surface-layer time filter state at level " << lev
-                               << " is incomplete in this checkpoint; the filtered averages "
-                                  "will start over" << std::endl;
+
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                amrex::Print() << "Reading MOST variables for face " << ori << std::endl;
+
+                auto read_most_var = [&] (const std::string& name, MultiFab* dst) {
+                    const std::string mf_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", name);
+                    if (amrex::FileExists(mf_name + "_H")) {
+                        MultiFab m_var;
+                        VisMF::Read(m_var, mf_name);
+                        // The number of ghost cells depends on whether these live on a 2D or a 3D
+                        // BoxArray (see WriteCheckpointFile), and a checkpoint written before the
+                        // fix for issue #3560 may have fewer than the destination holds, so only
+                        // fill as many ghost cells as both sides have
+                        IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
+                        dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                        return true;
+                    }
+                    return false;
+                };
+
+                // U*
+                read_most_var("Ustar" + face, m_SurfaceLayer[ori]->get_u_star(lev));
+
+                // W*
+                read_most_var("Wstar" + face, m_SurfaceLayer[ori]->get_w_star(lev));
+
+                // T*
+                read_most_var("Tstar" + face, m_SurfaceLayer[ori]->get_t_star(lev));
+
+                // Q*
+                read_most_var("Qstar" + face, m_SurfaceLayer[ori]->get_q_star(lev));
+
+                // Olen
+                read_most_var("Olen" + face, m_SurfaceLayer[ori]->get_olen(lev));
+
+                // T*
+                read_most_var("Tsurf" + face, m_SurfaceLayer[ori]->get_t_surf(lev));
+
+                // Qsurf
+                read_most_var("Qsurf" + face, m_SurfaceLayer[ori]->get_q_surf(lev));
+
+                // PBLH
+                read_most_var("PBLH" + face, m_SurfaceLayer[ori]->get_pblh(lev));
+
+                // Z0
+                read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
+
+                // The exponentially filtered averages.  We only mark the filter as initialized
+                // if every piece of its state came back, so that a partial restore degrades to
+                // "start the average over" instead of blending in whatever the containers hold.
+                if (most_time_avg && (lev < static_cast<int>(most_avg_init.size())) && most_avg_init[lev]) {
+                    bool restored_all = m_SurfaceLayer[ori]->set_mac_plane_avg(lev, most_plane_avg[lev]);
+                    for (int iavg(0); iavg < m_SurfaceLayer[ori]->get_num_mac_avg(); ++iavg) {
+                        restored_all = read_most_var("MOSTAvg" + std::to_string(iavg) + face,
+                                                     m_SurfaceLayer[ori]->get_mac_avg_ptr(lev,iavg)) && restored_all;
+                    }
+                    if (restored_all) {
+                        m_SurfaceLayer[ori]->set_mac_avg_initialized(lev);
+                    } else {
+                        amrex::Print() << "NOTE: the surface-layer time filter state at level " << lev
+                                       << " is incomplete in this checkpoint; the filtered averages "
+                                          "will start over" << std::endl;
+                    }
+                }
             }
         }
     }

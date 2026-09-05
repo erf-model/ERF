@@ -119,6 +119,9 @@ ERF::ERF_shared ()
     m_forest_drag.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
+    // Surface layer object for each possible face
+    m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
+
     ReadParameters();
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.

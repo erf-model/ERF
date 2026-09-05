@@ -204,9 +204,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
         const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
-        const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 2)->const_array(mfi);
-        const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
-        const auto& ws10av_arr = SurfLayer->get_mac_avg(level, 5)->const_array(mfi);  // 10m wind speed for Rossby number
+        const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
+        const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 4)->const_array(mfi);
+        const auto& ws10av_arr = SurfLayer->get_mac_avg(level, 6)->const_array(mfi);  // 10m wind speed for Rossby number
         const auto& z0_arr     = SurfLayer->get_z0(level)->const_array(mfi);           // Roughness length for Rossby number
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         // Get land/water mask for proper handling of moisture countergradient
