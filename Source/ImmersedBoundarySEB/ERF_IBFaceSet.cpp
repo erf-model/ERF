@@ -136,7 +136,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                     h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
                     h_dir.push_back(d); h_side.push_back(s);
                     // Face centre: the fluid cell centre moved half a cell toward the solid.
-                    Real c[3] = { plo[0] + (i + 0.5) * dx[0], plo[1] + (j + 0.5) * dx[1], plo[2] + (k + 0.5) * dx[2] };
+                    Real c[3] = { Real(plo[0] + (i + 0.5) * dx[0]), Real(plo[1] + (j + 0.5) * dx[1]), Real(plo[2] + (k + 0.5) * dx[2]) };
                     c[d] += 0.5 * s * dx[d];
                     h_xf.push_back(c[0]); h_yf.push_back(c[1]); h_zf.push_back(c[2]);
                     // Column of the solid neighbour, wrapped for periodic directions.
@@ -586,9 +586,9 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             const Real Ta  = getTgivenRandRTh(rho, rth);
             const Real th_skin = pT[f] * th / Ta;            // skin temperature as a potential temperature
             // Cell-centred velocity and its tangential part with respect to the wall.
-            Real U[3] = { 0.5 * (u(i, j, k) + u(i + 1, j, k)),
-                          0.5 * (v(i, j, k) + v(i, j + 1, k)),
-                          0.5 * (w(i, j, k) + w(i, j, k + 1)) };
+            Real U[3] = { Real(0.5) * (u(i, j, k) + u(i + 1, j, k)),
+                          Real(0.5) * (v(i, j, k) + v(i, j + 1, k)),
+                          Real(0.5) * (w(i, j, k) + w(i, j, k + 1)) };
             U[d] = 0.0;
             const Real Ut = amrex::max(std::sqrt(U[0] * U[0] + U[1] * U[1] + U[2] * U[2]), Real(1.0e-3));
             // Convective velocity scale from the previous step's flux out of the face.

@@ -68,33 +68,33 @@ def independent_model(steps, dumps, dt, T_int):
     k = d0["k_therm"]; rc = d0["rho_cp"]; dz = d0["thickness"] / N
     out = []
     for d in dumps[1:]:
-        Fo = k * dt / (rc * dz * dz)
+        Fourier = k * dt / (rc * dz * dz)
         eps = d["emissivity"]; fb = d["f_bldg"]; Hc = d["H_coeff"]
-        Pi = d["T_air"] / d["theta_air"]; tha = d["theta_air"]
+        Pi = d["T_air"] / d["theta_air"]; th_air = d["theta_air"]
         Sin = d["SW_abs"] + eps * d["Q_ext"]; LWe = d["LW_ext"]; LE = d["LE"]
         for f in range(nf):
             # Implicit slab as a dense system M T^{n+1} = T^n + boundary terms,
             # with the skin temperature entering row 0 and the interior row N-1.
             M = np.zeros((N, N)); rhs = S[f].copy()
             for l in range(N):
-                M[l, l] = 1.0 + 2.0 * Fo[f]
-                if l > 0: M[l, l - 1] = -Fo[f]
-                if l < N - 1: M[l, l + 1] = -Fo[f]
-            M[0, 0] += Fo[f]; M[N - 1, N - 1] += Fo[f]      # half-spacing boundaries: 2 Fo each side
-            rhs[N - 1] += 2.0 * Fo[f] * T_int
+                M[l, l] = 1.0 + 2.0 * Fourier[f]
+                if l > 0: M[l, l - 1] = -Fourier[f]
+                if l < N - 1: M[l, l + 1] = -Fourier[f]
+            M[0, 0] += Fourier[f]; M[N - 1, N - 1] += Fourier[f]      # half-spacing boundaries: 2 Fourier each side
+            rhs[N - 1] += 2.0 * Fourier[f] * T_int
             Minv = np.linalg.inv(M)
             # T_0^{n+1} = alpha + beta T_skin  ->  G = 2k/dz ((1 - beta) T_skin - alpha)
-            alpha = (Minv @ rhs)[0]; beta = Minv[0, 0] * 2.0 * Fo[f]
+            alpha = (Minv @ rhs)[0]; beta = Minv[0, 0] * 2.0 * Fourier[f]
             a = 2.0 * k[f] / dz[f] * (1.0 - beta); b = 2.0 * k[f] / dz[f] * alpha
             e_eff = eps[f] * (1.0 - fb[f]) * SIGMA
             T = T_skin[f]
             for it in range(50):
-                F = Sin[f] + eps[f] * LWe[f] - e_eff * T**4 - Hc[f] * (T / Pi[f] - tha[f]) - LE[f] - (a * T - b)
+                F = Sin[f] + eps[f] * LWe[f] - e_eff * T**4 - Hc[f] * (T / Pi[f] - th_air[f]) - LE[f] - (a * T - b)
                 Fp = -4.0 * e_eff * T**3 - Hc[f] / Pi[f] - a
                 step = -F / Fp; T += step
                 if abs(step) < 1e-10: break
             T_skin[f] = T
-            rhs[0] += 2.0 * Fo[f] * T
+            rhs[0] += 2.0 * Fourier[f] * T
             S[f] = Minv @ rhs
         out.append(T_skin.copy())
     return out

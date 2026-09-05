@@ -346,7 +346,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         ParallelFor(xybx, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             const Real rho_sfc  = cell_data(i, j, ksrf, Rho_comp);
             const Real t_layer  = t10_eff_arr(i, j, 0);      // Dry potential temperature at z1
 
@@ -430,7 +429,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             // Determine surface-type-dependent critical Richardson number
             // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
             Real Ribcr;
@@ -686,7 +684,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-                const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
                 cloud_top_arr(i, j, 0) = -1;  // Initialize: no cloud found
 
                 // Search from PBL top downward for cloud-top cell
@@ -715,7 +712,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         ParallelFor(xybx, [=, zero_d=zero, one_d=one, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             const Real t_layer  = t10_eff_arr(i, j, 0);
             Real obuk_val = ol_eff_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
@@ -1118,7 +1114,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             // GAP 9: Seed from surface bulk Richardson number (WRF bl_ysu.F90 lines 620-621)
             // WRF seeds the loop with br (surface bulk Ri) so ksrf is checked first.
             int kpbl_zero = ksrf;
@@ -1144,7 +1139,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             ParallelFor(xybx, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-                const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
                 entr_arr(i,j,0) = zero;
                 if (!enable_ysu_entrainment) return;
 
@@ -1328,7 +1322,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                           zero_d=zero, one_d=one, two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
-            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             Real obuk_val = ol_eff_arr(i, j, 0);
             if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
