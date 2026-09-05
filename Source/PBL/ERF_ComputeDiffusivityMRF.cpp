@@ -351,10 +351,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // HOL computed from predictor height (WRF uses predictor height for wstar/VPERT)
             const Real HOL = sf * pblh_pred_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+            // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
+            // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
+            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
                             ? (1 + 5 * HOL_bounded)
-                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                            : std::pow(1 + 16 * HOL_abs, -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // wstar = u* / phi_m
@@ -515,10 +519,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // HOL now uses corrected PBLH for full internal consistency
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+            // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
+            // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
+            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
                             ? (1 + 5 * HOL_bounded)
-                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                            : std::pow(1 + 16 * HOL_abs, -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // Absolute bounds [0.01, 5.0] m/s
@@ -702,14 +710,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+                // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
+                // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
+                // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+                const Real HOL_abs = std::abs(HOL_bounded);
 
                 const Real one_quarter = Real(0.25);
                 const Real phiM = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                                : std::pow(1 + 16 * HOL_abs, -one_quarter);
                 const Real phit = (obuk_val > 0)
                                 ? (1 + 5 * HOL_bounded)
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -Real(0.5));
+                                : std::pow(1 + 16 * HOL_abs, -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
@@ -719,8 +731,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 } else if (has_cloud && obuk_val <= Real(0)) {
                     Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, Real(1));
-                    phiM_cloud = std::pow(amrex::max(Real(1) - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -one_quarter);
-                    phit_cloud = std::pow(amrex::max(Real(1) - Real(16.0) * HOL_bounded / cloud_boost, Real(0.01)), -Real(0.5));
+                    phiM_cloud = std::pow(Real(1) + Real(16.0) * HOL_abs / cloud_boost, -one_quarter);
+                    phit_cloud = std::pow(Real(1) + Real(16.0) * HOL_abs / cloud_boost, -Real(0.5));
                 }
 
                 const Real phiM_eff = phiM_cloud;
@@ -774,13 +786,29 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
+
+                    // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
+
+                    // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
+
+                    // arm\'s condition to drop the max and then hoisted the bare sqrt above the
+
+                    // selection, where Ri can be positive; written as min(Ri, 0) it folded the
+
+                    // sqrt into the arms of the min. Either way an invalid operation whose
+
+                    // result is discarded but whose flag kills the run under
+
+                    // amrex.fpe_trap_invalid. There is nothing to fold in the absolute value.
+
+                    const Real sqrt_neg_Ri = std::sqrt(std::abs(grad_Ri_safe));
                     Real Pr_rich = Real(1) + Real(2.1) * grad_Ri;
                     const Real fm = (grad_Ri_safe > 0)
                                   ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * sqrt_neg_Ri);
                     const Real ft = (grad_Ri_safe > 0)
                                   ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
+                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * sqrt_neg_Ri);
                     const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                     Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
@@ -824,13 +852,29 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
+
+                // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
+
+                // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
+
+                // arm\'s condition to drop the max and then hoisted the bare sqrt above the
+
+                // selection, where Ri can be positive; written as min(Ri, 0) it folded the
+
+                // sqrt into the arms of the min. Either way an invalid operation whose
+
+                // result is discarded but whose flag kills the run under
+
+                // amrex.fpe_trap_invalid. There is nothing to fold in the absolute value.
+
+                const Real sqrt_neg_Ri = std::sqrt(std::abs(grad_Ri_safe));
                 Real Pr = Real(1) + Real(2.1) * grad_Ri;
                 const Real fm = (grad_Ri_safe > 0)
                               ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * sqrt_neg_Ri);
                 const Real ft = (grad_Ri_safe > 0)
                               ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * std::sqrt(amrex::max(-grad_Ri_safe, Real(0))));
+                              : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * sqrt_neg_Ri);
                 const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));
