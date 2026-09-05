@@ -103,6 +103,17 @@ ERF::ERF_shared ()
 
     qheating_rates.resize(nlevs_max);
     rad_fluxes.resize(nlevs_max);
+    twostream_alb_sw.resize(nlevs_max);
+    twostream_emiss_lw.resize(nlevs_max);
+    twostream_t_sfc.resize(nlevs_max);
+    sw_flux_sfc.resize(nlevs_max);
+    lw_flux_sfc.resize(nlevs_max);
+    hfx_sfc.resize(nlevs_max);
+    lh_sfc.resize(nlevs_max);
+    grdflx_sfc.resize(nlevs_max);
+    q_sfc.resize(nlevs_max);
+    t_deep.resize(nlevs_max);
+    q_deep.resize(nlevs_max);
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);

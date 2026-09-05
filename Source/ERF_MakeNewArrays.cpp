@@ -497,12 +497,60 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    // Phase 5: allocate qheating_rates/rad_fluxes whenever EITHER the
+    // RRTMGP radiation path (solverChoice.rad_type) OR the Phase 1-5
+    // TwoStream radiation path (solverChoice.radChoice.rad_type) is
+    // active. Previously this was gated on RRTMGP alone, which meant
+    // compute_twostream_radiation_diagnostics() had nowhere to write its
+    // newly-added (Phase 5, Step 1) per-level (SW, LW) heating rates.
+    // Both paths share the same 2-component (SW, LW) convention, so no
+    // change to the array shape itself is needed -- only the gate.
+    if (solverChoice.rad_type != RadiationType::None ||
+        solverChoice.radChoice.rad_type == RadType::TwoStream)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(zero);
         rad_fluxes[lev]->setVal(zero);
+    }
+
+    // Phase 14A: Allocate standalone 2D MultiFabs for TwoStream fallback surface properties
+    // These are allocated only when TwoStream radiation is active and used to hold constant
+    // fallback values (from RadChoice scalars) when no LSM is present. When LSM is active,
+    // the real LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.
+    if (solverChoice.radChoice.rad_type == RadType::TwoStream)
+    {
+       // Use 2D box array (ba2d) for surface property arrays with 1 ghost cell in x/y
+       amrex::IntVect ng{1,1,0};
+       twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+       twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+       twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+
+       // Initialize from RadChoice scalar defaults (constant-filled)
+       twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
+       twostream_emiss_lw[lev]->setVal(solverChoice.radChoice.surface_emissivity_lw);
+       twostream_t_sfc[lev]->setVal(solverChoice.radChoice.surface_temp_k);
+
+       if (solverChoice.radChoice.seb_enable)
+       {
+           sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           lw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           hfx_sfc[lev]     = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           lh_sfc[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           grdflx_sfc[lev]  = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           q_sfc[lev]       = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           t_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           q_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+
+           sw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_sw_flux_default);
+           lw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_lw_flux_default);
+           hfx_sfc[lev]->setVal(solverChoice.radChoice.seb_hfx_default);
+           lh_sfc[lev]->setVal(solverChoice.radChoice.seb_lh_default);
+           grdflx_sfc[lev]->setVal(solverChoice.radChoice.seb_grdflx_default);
+           q_sfc[lev]->setVal(solverChoice.radChoice.seb_q_sfc_default);
+           t_deep[lev]->setVal(solverChoice.radChoice.seb_t_deep_default);
+           q_deep[lev]->setVal(solverChoice.radChoice.seb_q_deep_default);
+       }
     }
 
     //*********************************************************

@@ -437,6 +437,10 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // ***********************************************************************************************
+    // Compute and write radiation diagnostics (Phase 1 TwoStream only)
+    // ***********************************************************************************************
+    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev,"post_dycore");
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before
         // accumulating the first sample whose step starts at or beyond the

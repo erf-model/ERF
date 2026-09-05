@@ -87,6 +87,16 @@ if(ERF_ENABLE_TESTS)
   set(CLOUD_CHAMBER_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # Motivation: the TwoStream column sweep must keep the surface at k = 0 and
+  # cool to space from the top layer; this checker reads qsrc_sw / qsrc_lw
+  # from a plotfile and verifies that vertical structure without gold files.
+  add_executable(erf_two_stream_radiation_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/TwoStreamRadiationCheck.cpp)
+  target_link_libraries(erf_two_stream_radiation_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_two_stream_radiation_check PRIVATE cxx_std_17)
+  set(TWO_STREAM_RADIATION_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_two_stream_radiation_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
         erf_shoc_plotfile_check
@@ -94,7 +104,8 @@ if(ERF_ENABLE_TESTS)
         erf_shoc_mutation_differential
         erf_shoc_gold_differential
         erf_anelastic_wall_diffusion_check
-        erf_cloud_chamber_check)
+        erf_cloud_chamber_check
+        erf_two_stream_radiation_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()
   endif()

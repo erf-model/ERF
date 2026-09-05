@@ -255,6 +255,8 @@ void make_sources (int level,
                                                                Array4<const Real>{};
 
 
+        /*// *************************************************************************************
+        // two Add radiation source terms to (rho theta)
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
@@ -265,8 +267,47 @@ void make_sources (int level,
                 // Short-wavelength and long-wavelength radiation source terms
                 cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
             });
-        }
+        }*/
 
+        // *************************************************************************************
+        // two Add radiation source terms to (rho theta)
+        // *************************************************************************************
+        // Phase 5 (Step 4): extend this gate to also cover the Phase 1-5
+        // TwoStream radiation path (solverChoice.radChoice.rad_type), not
+        // just RRTMGP (solverChoice.rad_type). Both paths write into the
+        // same qheating_rates MultiFab using the identical 2-component
+        // (SW, LW) convention (see Source/ERF_MakeNewArrays.cpp and
+        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so no change
+        // to the injection formula itself is needed -- only the gate and a
+        // defensive nullptr check (qheating_rates is only allocated when at
+        // least one radiation path is active; guard here in case this is
+        // ever called before that allocation, e.g. during early init).
+        //
+        // Phase 6 (Temporal Consistency): The following temporal semantics are
+        // guaranteed by the advance_radiation() placement and is_slow_step gating:
+        //   1. qheating_rates[lev] contains heating rates computed from the old
+        //      state (t^n) at the beginning of the slow step (called in
+        //      ERF::Advance before dycore, see ERF_AdvanceRadiation.cpp).
+        //   2. This source term is ONLY added when is_slow_step==true, ensuring
+        //      it is computed once per slow step and NOT repeated in fast
+        //      substeps.
+        //   3. The resulting radiative tendency is consistent with the old-state
+        //      atmosphere throughout all fast substeps of the current slow step,
+        //      providing a single radiative "kick" per slow step.
+        //   4. No adaptation or re-evaluation of radiation occurs within a slow
+        //      step; the heating field is frozen at the beginning of the slow
+        //      step and applies uniformly to all fast substeps.
+        if ((solverChoice.rad_type != RadiationType::None ||
+             solverChoice.radChoice.rad_type == RadType::TwoStream) &&
+            is_slow_step && qheating_rates != nullptr) {
+            auto const& qheating_arr = qheating_rates->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Short-wavelength and long-wavelength radiation source terms
+                // Computed once per slow step from the old state (t^n)
+                cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
+            });
+        }
 
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
