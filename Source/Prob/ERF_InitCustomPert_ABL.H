@@ -1,11 +1,11 @@
 
-    ParmParse pp("prob");
+    ParmParse pp_prob("prob");
 
     int deterministic_ic_pert = 0;
     int fix_random_seed = 0;
     long random_seed = -1;
     {
-        amrex::ParmParse pp_erf("erf");
+        ParmParse pp_erf("erf");
         pp_erf.query("deterministic_ic_pert", deterministic_ic_pert);
         pp_erf.query("fix_random_seed", fix_random_seed);
         pp_erf.query("random_seed", random_seed);
@@ -15,30 +15,30 @@
         : ((random_seed >= 0) ? static_cast<std::uint64_t>(random_seed) : std::uint64_t(0));
     constexpr int temperature_hash_comp = 0;
 
-    Real rho_0 = amrex::Real(0); pp.query("rho_0", rho_0);
-    Real T_0   = amrex::Real(0); pp.query("T_0", T_0);
-    Real A_0   = amrex::Real(1); pp.query("A_0", A_0);
-    Real KE_0  = amrex::Real(0.1); pp.query("KE_0", KE_0);
-    Real rhoKE_0 = -1; pp.query("rhoKE_0", rhoKE_0);
+    Real rho_0 = amrex::Real(0); pp_prob.query("rho_0", rho_0);
+    Real T_0   = amrex::Real(0); pp_prob.query("T_0", T_0);
+    Real A_0   = amrex::Real(1); pp_prob.query("A_0", A_0);
+    Real KE_0  = amrex::Real(0.1); pp_prob.query("KE_0", KE_0);
+    Real rhoKE_0 = -1; pp_prob.query("rhoKE_0", rhoKE_0);
 
-    Real KE_decay_height = -1; pp.query("KE_decay_height", KE_decay_height);
-    Real KE_decay_order  =  1; pp.query("KE_decay_order", KE_decay_order);
+    Real KE_decay_height = -1; pp_prob.query("KE_decay_height", KE_decay_height);
+    Real KE_decay_order  =  1; pp_prob.query("KE_decay_order", KE_decay_order);
 
     // random initial perturbations (legacy code)
-    Real T_0_Pert_Mag = amrex::Real(0); pp.query("T_0_Pert_Mag", T_0_Pert_Mag);
-    bool pert_rhotheta = true; pp.query("pert_rhotheta", pert_rhotheta);
+    Real T_0_Pert_Mag = amrex::Real(0); pp_prob.query("T_0_Pert_Mag", T_0_Pert_Mag);
+    bool pert_rhotheta = true; pp_prob.query("pert_rhotheta", pert_rhotheta);
 
     // divergence-free initial perturbations
-    Real pert_deltaU = amrex::Real(0); pp.query("pert_deltaU", pert_deltaU);
-    Real pert_deltaV = amrex::Real(0); pp.query("pert_deltaV", pert_deltaV);
-    Real pert_ref_height = amrex::Real(100.0); pp.query("pert_ref_height", pert_ref_height);
+    Real pert_deltaU = amrex::Real(0); pp_prob.query("pert_deltaU", pert_deltaU);
+    Real pert_deltaV = amrex::Real(0); pp_prob.query("pert_deltaV", pert_deltaV);
+    Real pert_ref_height = amrex::Real(100.0); pp_prob.query("pert_ref_height", pert_ref_height);
 
     // sinusoidal perturbations for regression tests.  pert_periods_T defaults to
     // 5 to match pert_periods_U/V in ERF_InitCustomPertVels_ABL.H: a zero period
     // would make cos(cval*(x-xc)) identically one, i.e. a uniform warm bias
     // rather than a zero-mean perturbation.
-    Real pert_deltaT    = amrex::Real(0); pp.query("pert_deltaT", pert_deltaT);
-    Real pert_periods_T = amrex::Real(5.0); pp.query("pert_periods_T", pert_periods_T);
+    Real pert_deltaT    = amrex::Real(0); pp_prob.query("pert_deltaT", pert_deltaT);
+    Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
 
     // Capture by value for GPU
     const Real dx = geomdata.CellSize(0);

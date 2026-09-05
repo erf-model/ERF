@@ -17,6 +17,16 @@
 
 namespace
 {
+// Contract slot indices, in driver active-view order (mirrors
+// ERFRemoraCouplingContract.H; repeated to avoid a driver->submodule include).
+constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
+constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
+constexpr int nStateLanes = 9;
+
+constexpr int iTauX = 0, iTauY = 1, iSHflux = 2, iLHflux = 3;
+constexpr int iFluxSWrad = 4, iFluxLWrad = 5, iFluxRain = 6, iFluxEvap = 7;
+constexpr int nFluxLanes = 8;
+
 void
 PrintFluxLaneStats (const char* label, const amrex::MultiFab& mf, int comp = 0)
 {
@@ -286,6 +296,53 @@ ERF::GetLandMask (const amrex::iMultiFab*& lmask) const
     lmask = lmask_lev[0][0].get();
 }
 
+void
+ERF::GetFillableAtmosToOceanLanes (bool state_contract,
+                                   amrex::Vector<int>& can_fill) const
+{
+    // Each entry restates PackAtmosphericStates' own gate for that lane, which
+    // is why this lives beside it: changing a pack gate - re-enabling an #if 0
+    // block included - means changing the matching line here. Report false and
+    // the driver withholds the lane; report true wrongly and the ocean reads the
+    // driver's prefill as an atmospheric value.
+    //
+    // A configuration predicate, like HasRadiation()/HasCloudWater(): the lane
+    // will be written, not that any physics step has run.
+    const int lev = 0;
+    const bool has_moisture  = (solverChoice.moisture_type != MoistureType::None);
+    const bool has_radiation = HasRadiation();
+    const bool has_sfs_heat  = (!SFS_hfx3_lev.empty()  && SFS_hfx3_lev[lev]  != nullptr);
+    const bool has_sfs_moist = (!SFS_q1fx3_lev.empty() && SFS_q1fx3_lev[lev] != nullptr);
+
+    if (state_contract) {
+        can_fill.resize(nStateLanes, 0);
+        can_fill[iUwind] = 1;                       // always packed from Vars::xvel
+        can_fill[iVwind] = 1;                       // always packed from Vars::yvel
+        can_fill[iPatm]  = 1;                       // always packed via getPgivenRTh
+        can_fill[iTair]  = 1;                       // always packed via getTgivenRandRTh
+        // #if 0 below, pending Qair (RH vs specific humidity) and rain-rate
+        // semantics.
+        can_fill[iRH]    = 0;
+        can_fill[iRain]  = 0;
+        can_fill[iCloud] = (has_moisture &&
+                            (solverChoice.moisture_indices.qc != -1 ||
+                             solverChoice.moisture_indices.qi != -1)) ? 1 : 0;
+        can_fill[iSWrad] = has_radiation ? 1 : 0;
+        can_fill[iLWrad] = has_radiation ? 1 : 0;
+    } else {
+        can_fill.resize(nFluxLanes, 0);
+        // tau_x/tau_y assert rather than skip, so gate on what they assert on.
+        can_fill[iTauX]      = (Tau[lev][TauType::tau13] != nullptr) ? 1 : 0;
+        can_fill[iTauY]      = (Tau[lev][TauType::tau23] != nullptr) ? 1 : 0;
+        can_fill[iSHflux]    = has_sfs_heat  ? 1 : 0;
+        can_fill[iLHflux]    = has_sfs_moist ? 1 : 0;
+        can_fill[iFluxSWrad] = has_radiation ? 1 : 0;
+        can_fill[iFluxLWrad] = has_radiation ? 1 : 0;
+        can_fill[iFluxRain]  = 0;                   // pack block is #if 0
+        can_fill[iFluxEvap]  = has_sfs_moist ? 1 : 0;
+    }
+}
+
 /*
   Coupling reference context (implementation-side):
 
@@ -347,10 +404,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     const amrex::MultiFab* weight_mf = weight_mf_by_family[kScalarFamily];
     const amrex::iMultiFab* index_mf = index_mf_by_family[kScalarFamily];
 
-    // Contract slot indices (mirrors ERFRemoraCouplingContract.H; repeated here
-    // to avoid a driver→submodule header dependency).
-    constexpr int iUwind = 0, iVwind = 1, iPatm = 2, iRH = 3, iTair = 4;
-
     // Values for destination cells no source cell overlaps (see
     // ApplyConservativeRemap). These are standard-atmosphere placeholders, not
     // physics: they exist so the receiving model's flux formulas stay in their
@@ -360,8 +413,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     constexpr Real fallback_pressure_pa = Real(101325.0);   // sea-level standard
     constexpr Real fallback_temp_k      = Real(288.15);     // 15 C, standard
     constexpr Real fallback_wind_ms     = Real(0.0);        // calm
-    constexpr int iCloud = 5, iRain  = 6, iSWrad = 7, iLWrad = 8;
-    constexpr int nFluxLanes = 8;
 
     const int lev   = 0;
 
@@ -384,8 +435,6 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
 
     const bool flux_mode = (states.size() == nFluxLanes);
     if (flux_mode) {
-        constexpr int iTauX = 0, iTauY = 1, iSHflux = 2, iLHflux = 3;
-        constexpr int iFluxSWrad = 4, iFluxLWrad = 5, iFluxRain = 6, iFluxEvap = 7;
         if (verbose) {
             amrex::Print() << "ERF flux-pack: states.size()=" << states.size()
                            << " has_radiation=" << has_radiation
