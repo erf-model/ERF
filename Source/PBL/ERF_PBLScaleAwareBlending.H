@@ -63,9 +63,19 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pbl_blend_factor(amrex::Real dx,
                               amrex::Real L_blend) noexcept
 {
-    if (L_blend <= 0.0) return 1.0;
-    const amrex::Real r = dx / L_blend;
-    return (r * r) / (1.0 + r * r);
+    // Written as dx^2 / (L^2 + dx^2), which is the same function, instead of the
+    // early return followed by (dx/L)^2 / (1 + (dx/L)^2). The caller's L_blend > 0
+    // test does not stop the optimiser from hoisting this loop-invariant arithmetic
+    // ahead of it (a division is speculatable in the default floating-point model),
+    // and with L_blend = 0 the hoisted dx/L_blend was inf and the ratio an inf/inf,
+    // which raised the invalid-operation flag and killed every MRF run under
+    // amrex.fpe_trap_invalid even though the result was never used. Guarding the
+    // division with a select does not help either, since the division is folded
+    // into the select's arms. In this form the denominator is at least dx^2 > 0 for
+    // every L_blend, so nothing can be invalid, and L_blend <= 0 gives exactly 1.
+    const amrex::Real L  = amrex::max(L_blend, amrex::Real(0.0));
+    const amrex::Real d2 = dx * dx;
+    return d2 / (L * L + d2);
 }
 
 /**
