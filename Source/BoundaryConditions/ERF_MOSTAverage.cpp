@@ -113,6 +113,9 @@ MOSTAverage::MOSTAverage (Orientation face,
         "MOST interpolation is only supported on z faces.");
     if (m_rotate) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Stress rotations are only valid with terrain!");
     if (m_norm_vec) AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_zphys, "Normal vector is only valid with terrain!");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !(m_face.coordDir() != 2 && m_norm_vec),
+        "MOST normal-vector terrain handling is only supported on z faces.");
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
@@ -184,7 +187,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=ng[0];
+        IntVect ng = mf.nGrowVect();
 
         m_fields[lev][0] = vars_old[Vars::xvel];
         m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -214,7 +217,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         BoxArray ba2d(std::move(bl2d));
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=ng[1];
+        IntVect ng = mf.nGrowVect();
 
         m_fields[lev][1] = vars_old[Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -267,7 +270,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp  = 1;
         const int incomp = 1;
-        IntVect ng = mf.nGrowVect(); ng[2]=ng[0];
+        IntVect ng = mf.nGrowVect();
 
         // Get field pointers
         m_fields[lev][3] = Theta_prim.get();
@@ -432,24 +435,36 @@ MOSTAverage::update_field_ptrs (const int& lev,
 IntVect
 MOSTAverage::get_ng_fill (const int& lev) const
 {
-    // The averages can hold no more than they were allocated with
-    int ng_min = m_averages[lev][0]->nGrowVect()[0];
+    // The averages can hold no more than they were allocated with.  Keep a
+    // separate limit for each direction: z is a tangential direction for
+    // x/y faces, while x/y are tangential for a z face.
+    IntVect ng_min = m_averages[lev][0]->nGrowVect();
     for (int iavg(0); iavg < m_navg; ++iavg) {
         const IntVect ng = m_averages[lev][iavg]->nGrowVect();
-        ng_min = min(ng_min, min(ng[0],ng[1]));
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            ng_min[idim] = min(ng_min[idim], ng[idim]);
+        }
     }
 
     // The velocities carry one fewer ghost cell than the CC fields, so they
-    // are what limits us in practice
+    // are what limits us in practice.  Apply the same per-direction limit.
     for (int imf(0); imf < m_nvar; ++imf) {
         if (!m_fields[lev][imf]) { continue; }
         const IntVect ng = m_fields[lev][imf]->nGrowVect();
-        ng_min = min(ng_min, min(ng[0],ng[1]));
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            ng_min[idim] = min(ng_min[idim], ng[idim]);
+        }
     }
 
-    // No ghost cells in the vertical: all the 2D data are slabs at klo
-    const int ng_fill = max(0, ng_min - (m_radius + 1));
-    return IntVect(ng_fill,ng_fill,0);
+    IntVect ng_fill(0);
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (idim == m_face.coordDir()) { continue; }
+        // A radius-r average reads r cells in either direction.  Staggered
+        // velocity interpolation reaches one additional cell on the high
+        // side, so that cell must also be available in the source field.
+        ng_fill[idim] = max(0, ng_min[idim] - (m_radius + 1));
+    }
+    return ng_fill;
 }
 
 /**
@@ -476,10 +491,8 @@ MOSTAverage::set_rotated_fields (const int& lev)
     //       isolated fine patch, so we rotate the ghost cells as well.  We stop
     //       one cell shy of the full ghost region since the rotation reaches one
     //       cell ahead in w (and one node ahead in z_phys).
-    IntVect ngu = rot_fields[0]->nGrowVect(); ngu[2] = 0;
-    IntVect ngv = rot_fields[1]->nGrowVect(); ngv[2] = 0;
-    ngu = max(ngu - IntVect(1,1,0), IntVect(0));
-    ngv = max(ngv - IntVect(1,1,0), IntVect(0));
+    IntVect ngu = max(rot_fields[0]->nGrowVect() - IntVect(1,1,1), IntVect(0));
+    IntVect ngv = max(rot_fields[1]->nGrowVect() - IntVect(1,1,1), IntVect(0));
 
     // Populate rotated U & V for terrain
 #ifdef _OPENMP
@@ -603,7 +616,8 @@ MOSTAverage::set_eb_normalization (const int& lev)
     m_plane_average[lev].resize(m_navg, zero);
 
     // Compute total area for each field type based on its centering
-    // iavg: 0=U(xface), 1=V(yface), 2=T(cc), 3=Qv(cc), 4=Tv(cc), 5=Umag(cc)
+    // iavg: 0=U(xface), 1=V(yface), 2=W(zface), 3=T(cc), 4=Qv(cc),
+    //       5=Tv(cc), 6=Umag_XY(cc), 7=Umag_XZ(cc), 8=Umag_YZ(cc)
 
     // Get geometry for cell sizes
     auto const& dx_arr = m_geom[lev].CellSizeArray();
@@ -902,11 +916,12 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real d_zref   = zref_tmp;
     Real d_radius = static_cast<Real>(m_radius);
     const bool is_lo_face = m_face.isLow();
+    const int ng = m_k_indx[lev]->nGrow() - 1;
 
     // The k indices are needed everywhere an average is computed, ghost cells
     // included; the box is made nodal so that we also cover the U & V averages,
     // which are face centered
-    const IntVect ng_indx = max(get_ng_fill(lev), IntVect(1,1,0));
+    const IntVect ng_indx = max(get_ng_fill(lev), IntVect(ng,ng,0));
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
@@ -914,7 +929,6 @@ MOSTAverage::set_k_indices_T (const int& lev)
         const int zlo = domain.smallEnd(2);
         const int zhi = domain.bigEnd(2);
         const int top_node = zhi + 1;
-        const int ng = m_k_indx[lev]->nGrow() - 1;
 
         for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             Box npbx = mfi.tilebox(IntVect(1,1,0),ng_indx);
@@ -925,14 +939,13 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 npbx.makeSlab(2,zlo);
             } else {
                 if (vbx.bigEnd(2) != zhi) { continue; }
-
-                // Include the ghost cells below the top face.  They all use
-                // the same fixed domain-top node as their reference face.
                 npbx.makeSlab(2,zhi);
-                npbx.grow(2, m_k_indx[lev]->nGrow());
-                npbx.setBig(2, top_node);
             }
 
+            const Box& z_phys_fab = m_z_phys_nd[lev]->fabbox(mfi.index());
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                z_phys_fab.bigEnd(2) >= top_node,
+                "Terrain FAB does not contain the top nodal plane.");
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto k_arr = m_k_indx[lev]->array(mfi);
             auto zref_arr = m_zref[lev]->array(mfi);
@@ -1800,31 +1813,42 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
     auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
 
-    int klo = m_geom[lev].Domain().smallEnd(2);
-
     // NOTE: The fields and averages have different indexing.
-    //       The averages are: U/V/T/Qv/Tv/Umag
-    //       The fields   are: U/V/T/Qv/Qr/W
-    //       We clip iavg at 2 since all the remaining data is CC
-    const int imf = min(iavg,2);
+    //       The averages are: U/V/W/T/Qv/Tv/Umag_XY/Umag_XZ/Umag_YZ
+    //       The fields   are: U/V/W/T/Qv/Qr
+    //       We clip iavg at 3 since all the remaining data is CC.
+    const int imf = min(iavg,3);
 
-    IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
+    IntVect ng = averages[iavg]->nGrowVect();
+    // Only the selected wall-normal direction is collapsed.  For x/y faces
+    // the z ghosts are tangential and must be extrapolated/fillable.
+    ng[m_face.coordDir()] = 0;
+
+    // With no field-derived ghost region, retain the original FillBoundary
+    // behavior and do not extrapolate from a mismatched source layout.
+    if (ng_fill.allLE(IntVect(0))) { return; }
 
     // Everything we hold was computed above
     if (ng.allLE(ng_fill)) { return; }
+
+    IntVect ng_computed = ng_fill;
+    ng_computed[m_face.coordDir()] = 0;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box gpbx = mfi.growntilebox(ng);
+        // Use the average's index space.  The source field and the average
+        // have different layouts for U/V/W and for the selected wall face.
+        const Box avg_fab = averages[iavg]->fabbox(mfi.index());
+        Box gpbx = averages[iavg]->boxArray()[mfi.index()];
+        gpbx.grow(ng);
+        gpbx &= avg_fab;
 
-        if (gpbx.smallEnd(2) != klo) { continue; }
-
-        gpbx.makeSlab(2,klo);
-
-        // Region of this box that holds computed averages
-        Box cbx = mfi.validbox(); cbx.grow(ng_fill);
+        // Region of this average FAB that was computed from field data.
+        Box cbx = averages[iavg]->boxArray()[mfi.index()];
+        cbx.grow(ng_computed);
+        cbx &= avg_fab;
 
         if (cbx.contains(gpbx)) { continue; }
 
@@ -1832,15 +1856,18 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 
         int i_lo = cbx.smallEnd(0); int i_hi = cbx.bigEnd(0);
         int j_lo = cbx.smallEnd(1); int j_hi = cbx.bigEnd(1);
-        ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+        int k_lo = cbx.smallEnd(2); int k_hi = cbx.bigEnd(2);
+        ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int li, lj;
+            int li, lj, lk;
             li = i  < i_lo ? i_lo : i;
             li = li > i_hi ? i_hi : li;
             lj = j  < j_lo ? j_lo : j;
             lj = lj > j_hi ? j_hi : lj;
+            lk = k < k_lo ? k_lo : k;
+            lk = lk > k_hi ? k_hi : lk;
 
-            ma_arr(i,j,0) = ma_arr(li,lj,0);
+            ma_arr(i,j,k) = ma_arr(li,lj,lk);
         });
     } // MFiter
 }

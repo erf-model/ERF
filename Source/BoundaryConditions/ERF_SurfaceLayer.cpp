@@ -474,6 +474,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 (dir != 2 && tbx.smallEnd(dir) != sm_index)) {
                 continue;
             }
+            gtbx.setSmall(dir, sm_index);
             gtbx.setBig(dir, sm_index);
         } else {
             if (vbx.bigEnd(dir) != sm_index ||
@@ -481,6 +482,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 continue;
             }
             gtbx.setSmall(dir, sm_index);
+            gtbx.setBig(dir, sm_index);
         }
 
         // X/Y faces still need the full valid z column
@@ -1815,12 +1817,12 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
 
-        if (m_face.isLow()) {
-            gtbx.grow(2, ng_z);
-            gtbx.setBig(dir, sm_index);
+        if (dir == 2) {
+            gtbx.makeSlab(2, sm_index);
         } else {
             gtbx.grow(2, ng_z);
             gtbx.setSmall(dir, sm_index);
+            gtbx.setBig(dir, sm_index);
         }
 
         if (tbx[m_face] != sm_index ||

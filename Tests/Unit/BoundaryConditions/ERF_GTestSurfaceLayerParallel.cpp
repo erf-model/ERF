@@ -214,7 +214,9 @@ TEST(SurfaceLayerParallel, LateralSurfaceParameterGhostsAreFaceOwned)
                 break;
             }
         }
-        EXPECT_TRUE(has_cross_rank_pair);
+        const bool expect_cross_rank_pair =
+            ParallelDescriptor::NProcs() > 1;
+        EXPECT_EQ(has_cross_rank_pair, expect_cross_rank_pair);
 
         const std::array<const MultiFab*, 4> parameters{{
             layer->get_u_star(0), layer->get_t_star(0),
