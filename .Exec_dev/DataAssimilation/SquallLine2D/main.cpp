@@ -96,51 +96,80 @@ int main (int argc, char* argv[])
 
     ParmParse pp_ens("ensemble");
 
+    int num_da_cycles = -1;
+    pp_erf.query("num_da_cycles", num_da_cycles);
+
+    if(num_da_cycles != -1 and !is_init_for_ensemble) {
+        Abort("You are trying to run data assimilation by using the erf.num_da_cycles option. For this, you also "
+              "have to specify erf.is_init_for_ensemble=true, as ensembles have to be run for data assimilation");
+    }
+
     int n_ens = 1;
     pp_ens.query("n_members", n_ens);
 
-    // Ensemble run loop
-    for (int ens_no = 0; ens_no < n_ens; ++ens_no)
-    {
-        // --------------------------------------------------------
-        // Fresh ERF instance per ensemble
-        // --------------------------------------------------------
-        ERF erf;
+    // Data assimilation cycle loop
+    for (int da_iter = 0; da_iter < num_da_cycles; ++da_iter) {
+        // Ensemble run loop
+        for (int ens_no = 0; ens_no < n_ens; ++ens_no)
+        {
+            // --------------------------------------------------------
+            // Fresh ERF instance per ensemble
+            // --------------------------------------------------------
+            ERF erf;
 
-        if(is_init_for_ensemble) {
-            erf.SetDirsForPlotfilesAndCheckpointsForDA(ens_no);
-        }
-        erf.InitData();
-        erf.Evolve();
+            if(is_init_for_ensemble) {
+                erf.SetDirsForPlotfilesAndCheckpointsForDA(da_iter, ens_no);
+            }
+            // InitData() handles all the initialization including when doing a
+            // restart. But in the inputs file, for DA runs, we do not specify a
+            // erf.restart. So, the ERF class does not know it is a restart.
+            // So, whenever InitData() is called, it just does the from-scratch
+            // initialization, if restart_chkfile is not speficied.
+            // So, for InitData () to do the restart pathway, the restart has
+            // to be explicitly handled by specifying the restart_chkfile variable
+            // for the corresponding ensemble.
 
-        Real end_total = amrex::second() - strt_total;
-        ParallelDescriptor::ReduceRealMax(
-            end_total, ParallelDescriptor::IOProcessorNumber());
+            // So, for da_iter=0, ie. the first DA cycle, the simulation starts from scratch
+            // for all ensembles, and for iteration da_iter>=1,
+            // there has to be a erf.restart_chkfile specified (for each ensemble),
+            // which is the checkpoint file which contains the latest updated ensemble after
+            // data assimilation for that ensemble. The InitData then reads that checkpoint file
+            // and continues the simulation from that.
 
-        if (erf.Verbose()) {
-            amrex::Print() << "Ensemble " << ens_no
-                           << " wallclock time: "
-                           << end_total << '\n';
-        }
+            // This call will fill the restart_chkfile string
+            if(da_iter > 0){
+                erf.GetEnsembleCheckpointName(da_iter-1, ens_no);
+            }
+            erf.InitData();
+            erf.Evolve();
 
-        // --------------------------------------------------------
-        // MPI barrier to ensure all ranks finish Evolve
-        // --------------------------------------------------------
-        ParallelDescriptor::Barrier();
+            Real end_total = amrex::second() - strt_total;
+            ParallelDescriptor::ReduceRealMax(
+                end_total, ParallelDescriptor::IOProcessorNumber());
 
-   } // Ensemble run loop complete
+            if (erf.Verbose()) {
+                amrex::Print() << "Ensemble " << ens_no
+                              << " wallclock time: "
+                               << end_total << '\n';
+            }
 
-   ERF tmp_erf;
-   // This is only a post-processing step for visualization
-   //tmp_erf.ComputeAndWriteEnsemblePerturbations();
+            // --------------------------------------------------------
+            // MPI barrier to ensure all ranks finish Evolve
+            // --------------------------------------------------------
+            ParallelDescriptor::Barrier();
+        } // Ensemble run loop complete
 
-   // Perform data assimilation
-   int da_iter = 0;
-   tmp_erf.PerformDataAssimilation(da_iter);
+        ERF tmp_erf;
+        // This is only a post-processing step for visualization
+        //tmp_erf.ComputeAndWriteEnsemblePerturbations(da_iter);
 
-   BL_PROFILE_VAR_STOP(pmain);
+        // After all ensemble runs are complete, perform data assimilation
+        tmp_erf.PerformDataAssimilation(da_iter);
+    }
 
-   amrex::Finalize();
+    BL_PROFILE_VAR_STOP(pmain);
+
+    amrex::Finalize();
 
 #ifdef AMREX_USE_MPI
     MPI_Finalize();
