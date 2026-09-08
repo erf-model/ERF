@@ -3571,17 +3571,22 @@ Reproducibility
 List of Parameters
 ------------------
 
-+--------------------------+-------------------------------+---------------------+---------+
-| Parameter                | Definition                    | Acceptable Values   | Default |
-+==========================+===============================+=====================+=========+
-| **erf.fix_random_seed**  | Use a fixed random seed for   | 0 or 1              | 0       |
-|                          | reproducible runs             |                     |         |
-+--------------------------+-------------------------------+---------------------+---------+
-| **erf.random_seed**      | Seed for the random number    | Integer >= 0        | -1      |
-|                          | generator, offset by MPI      |                     |         |
-|                          | rank; ignored if              |                     |         |
-|                          | ``erf.fix_random_seed`` is 1  |                     |         |
-+--------------------------+-------------------------------+---------------------+---------+
++-------------------------------+-------------------------------+---------------------+---------+
+| Parameter                     | Definition                    | Acceptable Values   | Default |
++===============================+===============================+=====================+=========+
+| **erf.fix_random_seed**       | Use a fixed random seed for   | 0 or 1              | 0       |
+|                               | reproducible runs             |                     |         |
++-------------------------------+-------------------------------+---------------------+---------+
+| **erf.random_seed**           | Seed for the random number    | Integer >= 0        | -1      |
+|                               | generator, offset by MPI      |                     |         |
+|                               | rank; ignored if              |                     |         |
+|                               | ``erf.fix_random_seed`` is 1  |                     |         |
++-------------------------------+-------------------------------+---------------------+---------+
+| **erf.deterministic_ic_pert** | Use index-keyed ABL initial-  | 0 or 1              | 0       |
+|                               | condition perturbations that  |                     |         |
+|                               | are independent of MPI, box,  |                     |         |
+|                               | and tile decomposition        |                     |         |
++-------------------------------+-------------------------------+---------------------+---------+
 
 .. _inputs-embedded-boundary-eb-tuning:
 

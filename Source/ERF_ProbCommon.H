@@ -718,7 +718,7 @@ public:
         const amrex::Real terrain_dy = m_yterrain[1] - m_yterrain[0];
 
         if (!mass_point_terrain && !zbx.isEmpty()) {
-            amrex::Box target_box = zbx & amrex::convert(geom.Domain(), amrex::IntVect(1, 1, 0));
+            amrex::Box target_box = zbx & amrex::convert(geom.Domain(), zbx.ixType());
             if (!target_box.isEmpty()) {
                 target_box.setSmall(2, zbx.smallEnd(2));
                 target_box.setBig(2, zbx.smallEnd(2));

@@ -29,12 +29,26 @@ NOAHMP::interp_from_lev0 (const int& lev,
 
     Print () << "Noah-MP interpolation at level " << lev << " started at time step: " << nstep+1 << std::endl;
     m_updated = true;
+
+    //
+    // These fields have no vertical extent: Init collapses them to a single z index at
+    // every level and carries the soil profile in components rather than in cells, so
+    // there is nothing in the vertical for the interpolation to do.  It must therefore be
+    // handed a ratio of 1 in z even when the levels really are refined in the vertical --
+    // a ratio greater than 1 makes the interpolater ask for a layer of coarse ghost cells
+    // in z that these MultiFabs do not, and cannot, carry.
+    //
+    // NOTE: m_refRatio is the ratio between level 0 and this level, which is what we need
+    //       since we interpolate from level 0 (m_geom0) rather than from the parent.
+    //
+    const IntVect rr2d(m_refRatio[0], m_refRatio[1], 1);
+
     for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
         InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                               *lsm_lev0_data[ivar], 0, 0, 1,
                               m_geom0, m_geom,
-                              m_refRatio, &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               m_domain_bcs_type, BCVars::cons_bc);
     }
 
@@ -45,7 +59,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                               *lsm_lev0_flux[ivar], 0, 0, 1,
                               m_geom0, m_geom,
-                              m_refRatio, &cell_cons_interp,
+                              rr2d, &cell_cons_interp,
                               m_domain_bcs_type, BCVars::cons_bc);
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;

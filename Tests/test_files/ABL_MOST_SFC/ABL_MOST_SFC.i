@@ -105,9 +105,22 @@ erf.custom_forcing_uses_primitive_vars = false
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.01
-prob.V_0_Pert_Mag = 0.01
+#
+# Use the deterministic (sinusoidal / divergence-free) perturbations rather than
+# the legacy random *_Pert_Mag path.  The random path draws from a per-box RNG,
+# so the initial condition -- and therefore this gold-file comparison -- depended
+# on the box decomposition: it passed at 2 ranks and failed in serial.
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
 prob.W_0_Pert_Mag = 0.0
+prob.T_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1600.0
-prob.T_0_Pert_Mag    = 0.1
+
+prob.pert_deltaU    = 0.01
+prob.pert_deltaV    = 0.01
+prob.pert_periods_U = 5.0
+prob.pert_periods_V = 5.0
+
+prob.pert_deltaT    = 0.1
+prob.pert_periods_T = 5.0

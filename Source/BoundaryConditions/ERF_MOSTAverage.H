@@ -398,6 +398,41 @@ public:
         }
     }
 
+    /**
+     * Return the number of ghost cells of the 2D data (averages, indices and
+     * positions) that can be filled from the field data at this level.
+     *
+     * With more than one level we must explicitly fill the ghost cells of the 2D
+     * data: an isolated fine patch has no neighboring box for a FillBoundary to
+     * communicate with, while the fields themselves do carry valid ghost data
+     * (filled from the coarse level).  The 2D data are allocated with as many
+     * ghost cells as the fields they are built from, but an average reads the
+     * fields over m_radius cells in each direction and the tangential velocity
+     * magnitude (like the interpolation stencil) reaches one cell beyond that.
+     * So a ghost cell of the 2D data can only be computed where the fields carry
+     * m_radius+1 ghost cells past it.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
+
+    /**
+     * Fill the ghost cells of one average that cannot be computed from the field
+     * data with a zeroth-order extrapolation of the nearest computed value.
+     *
+     * The averages hold as many ghost cells as the fields, which is more than
+     * can be computed from them (see get_ng_fill), so the outermost layers are
+     * filled here to leave no average undefined.  This is done before the
+     * FillBoundary, which then overwrites whatever is shared with a neighbor.
+     *
+     * @param[in] lev     level index
+     * @param[in] iavg    average component index
+     * @param[in] ng_fill number of ghost cells that hold computed data
+     */
+    void extrap_ghost_cells (const int& lev,
+                             const int& iavg,
+                             const amrex::IntVect& ng_fill);
+
 protected:
 
     // Passed through constructor

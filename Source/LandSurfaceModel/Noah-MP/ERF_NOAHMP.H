@@ -346,7 +346,8 @@ private:
     // geometry for lsm
     amrex::Geometry m_lsm_geom;
 
-    // refinement ratio
+    // refinement ratio between lev==0 and this level (the product across every
+    // interface beneath it), since interp_from_lev0 interpolates from m_geom0
     amrex::IntVect m_refRatio;
 
     // domain bc types
