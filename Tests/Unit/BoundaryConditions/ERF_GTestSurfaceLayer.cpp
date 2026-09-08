@@ -136,6 +136,91 @@ is_changed (const Real value)
     return std::isfinite(value) && value != tau_sentinel;
 }
 
+struct MoengStressValues
+{
+    std::array<Real, AMREX_SPACEDIM> low_u{};
+    std::array<Real, AMREX_SPACEDIM> high_u{};
+    std::array<Real, AMREX_SPACEDIM> low_v{};
+    std::array<Real, AMREX_SPACEDIM> high_v{};
+};
+
+MoengStressValues compute_moeng_stress_values ()
+{
+    const Geometry geom = make_geometry();
+    const Box domain = geom.Domain();
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    constexpr int ng = 2;
+
+    MultiFab cons(ba, dm, 3, ng);
+    MultiFab xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, ng);
+    MultiFab yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, ng);
+    MultiFab zvel(BoxArray(surroundingNodes(domain, 2)), dm, 1, ng);
+    MultiFab um(ba, dm, 1, ng);
+    MultiFab vm(ba, dm, 1, ng);
+    MultiFab wm(ba, dm, 1, ng);
+    MultiFab umm(ba, dm, 1, ng);
+    MultiFab ustar(ba, dm, 1, ng);
+    MultiFab stress(ba, dm, 2, 0);
+
+    cons.setVal(Real(1.0));
+    xvel.setVal(Real(3.0));
+    yvel.setVal(Real(4.0));
+    zvel.setVal(Real(5.0));
+    um.setVal(Real(3.0));
+    vm.setVal(Real(4.0));
+    wm.setVal(Real(5.0));
+    umm.setVal(Real(6.4));
+    ustar.setVal(Real(0.8));
+
+    MoengStressValues values;
+    for (const auto& face : all_faces()) {
+        const moeng_flux flux(Real(0.1), face.isLow(),
+                              domain.smallEnd(2), domain.bigEnd(2));
+        const int dir = face.coordDir();
+        int i = domain.smallEnd(0) + 1;
+        int j = domain.smallEnd(1) + 1;
+        int k = domain.smallEnd(2) + 1;
+        const int normal_index = face.isLow()
+            ? domain.smallEnd(dir) : domain.bigEnd(dir) + 1;
+        if (dir == 0) { i = normal_index; }
+        else if (dir == 1) { j = normal_index; }
+        else { k = normal_index; }
+
+        const auto cons_arr = cons[0].const_array();
+        const auto xvel_arr = xvel[0].const_array();
+        const auto yvel_arr = yvel[0].const_array();
+        const auto zvel_arr = zvel[0].const_array();
+        const auto um_arr = um[0].const_array();
+        const auto vm_arr = vm[0].const_array();
+        const auto wm_arr = wm[0].const_array();
+        const auto umm_arr = umm[0].const_array();
+        const auto ustar_arr = ustar[0].const_array();
+        auto stress_arr = stress[0].array();
+        const Box output_box(domain.smallEnd(), domain.smallEnd());
+        ParallelFor(output_box, [=] AMREX_GPU_DEVICE (int oi, int oj, int ok)
+        {
+            stress_arr(oi,oj,ok,0) = flux.compute_u_flux(
+                i, j, k, dir, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                umm_arr, um_arr, vm_arr, wm_arr, ustar_arr);
+            stress_arr(oi,oj,ok,1) = flux.compute_v_flux(
+                i, j, k, dir, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                umm_arr, um_arr, vm_arr, wm_arr, ustar_arr);
+        });
+        Gpu::streamSynchronize();
+        const Real stress_u = single_value(stress, output_box, 0);
+        const Real stress_v = single_value(stress, output_box, 1);
+        if (face.isLow()) {
+            values.low_u[dir] = stress_u;
+            values.low_v[dir] = stress_v;
+        } else {
+            values.high_u[dir] = stress_u;
+            values.high_v[dir] = stress_v;
+        }
+    }
+    return values;
+}
+
 class ScopedSurfaceLayerParams
 {
 public:
@@ -333,6 +418,45 @@ face_point (const Box& domain, const Orientation face)
     return point;
 }
 
+Long check_qsurf_values (const SurfaceLayerFields& fields,
+                         const MultiFab& qsurf,
+                         const Orientation face,
+                         const Real expected)
+{
+    Long selected_count = 0;
+    for (MFIter mfi(qsurf, false); mfi.isValid(); ++mfi) {
+        const Box& source = fields.ba[mfi.index()];
+        const int dir = face.coordDir();
+        const bool selected = face.isLow()
+            ? source.smallEnd(dir) == fields.domain.smallEnd(dir)
+            : source.bigEnd(dir) == fields.domain.bigEnd(dir);
+        const Box& valid = mfi.validbox();
+        const auto qsurf_arr = qsurf.const_array(mfi);
+        ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+        ReduceData<Real, Real> reduce_data(reduce_op);
+        reduce_op.eval(valid, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                -> GpuTuple<Real, Real>
+            {
+                const Real value = qsurf_arr(i,j,k);
+                return {value, value};
+            });
+        Gpu::streamSynchronize();
+        const auto qsurf_range = reduce_data.value();
+        const Real qsurf_min = get<0>(qsurf_range);
+        const Real qsurf_max = get<1>(qsurf_range);
+        if (selected) {
+            selected_count += static_cast<Long>(valid.numPts());
+            ERF_EXPECT_NEAR(qsurf_min, expected, qsat_tolerance(expected));
+            ERF_EXPECT_NEAR(qsurf_max, expected, qsat_tolerance(expected));
+        } else {
+            EXPECT_EQ(qsurf_min, tau_sentinel);
+            EXPECT_EQ(qsurf_max, tau_sentinel);
+        }
+    }
+    return selected_count;
+}
+
 } // namespace
 
 // Motivation: the Moeng stress functor has separate x-, y-, and z-wall
@@ -341,91 +465,18 @@ face_point (const Box& domain, const Orientation face)
 // to the adjacent interior cell.
 TEST(SurfaceLayer, MoengDirectionalFluxesAreFiniteOnEveryWall)
 {
-    const Geometry geom = make_geometry();
-    const Box domain = geom.Domain();
-    const BoxArray ba(domain);
-    const DistributionMapping dm(ba);
-    constexpr int ng = 2;
+    const auto values = compute_moeng_stress_values();
+    const auto& low_u = values.low_u;
+    const auto& high_u = values.high_u;
+    const auto& low_v = values.low_v;
+    const auto& high_v = values.high_v;
 
-    MultiFab cons(ba, dm, 3, ng);
-    MultiFab xvel(BoxArray(surroundingNodes(domain, 0)), dm, 1, ng);
-    MultiFab yvel(BoxArray(surroundingNodes(domain, 1)), dm, 1, ng);
-    MultiFab zvel(BoxArray(surroundingNodes(domain, 2)), dm, 1, ng);
-    MultiFab um(ba, dm, 1, ng);
-    MultiFab vm(ba, dm, 1, ng);
-    MultiFab wm(ba, dm, 1, ng);
-    MultiFab umm(ba, dm, 1, ng);
-    MultiFab ustar(ba, dm, 1, ng);
-    MultiFab stress(ba, dm, 2, 0);
-
-    cons.setVal(Real(1.0));
-    xvel.setVal(Real(3.0));
-    yvel.setVal(Real(4.0));
-    zvel.setVal(Real(5.0));
-    um.setVal(Real(3.0));
-    vm.setVal(Real(4.0));
-    wm.setVal(Real(5.0));
-    umm.setVal(Real(6.4));
-    ustar.setVal(Real(0.8));
-
-    const auto faces = all_faces();
-    std::array<Real, AMREX_SPACEDIM> low_u{};
-    std::array<Real, AMREX_SPACEDIM> high_u{};
-    std::array<Real, AMREX_SPACEDIM> low_v{};
-    std::array<Real, AMREX_SPACEDIM> high_v{};
-
-    for (const auto& face : faces) {
-        const moeng_flux flux(Real(0.1), face.isLow(),
-                              domain.smallEnd(2), domain.bigEnd(2));
+    for (const auto& face : all_faces()) {
         const int dir = face.coordDir();
-        int i = domain.smallEnd(0) + 1;
-        int j = domain.smallEnd(1) + 1;
-        int k = domain.smallEnd(2) + 1;
-        const int normal_index = face.isLow()
-            ? domain.smallEnd(dir) : domain.bigEnd(dir) + 1;
-        if (dir == 0) {
-            i = normal_index;
-        } else if (dir == 1) {
-            j = normal_index;
-        } else {
-            k = normal_index;
-        }
-        const auto cons_arr = cons[0].const_array();
-        const auto xvel_arr = xvel[0].const_array();
-        const auto yvel_arr = yvel[0].const_array();
-        const auto zvel_arr = zvel[0].const_array();
-        const auto um_arr = um[0].const_array();
-        const auto vm_arr = vm[0].const_array();
-        const auto wm_arr = wm[0].const_array();
-        const auto umm_arr = umm[0].const_array();
-        const auto ustar_arr = ustar[0].const_array();
-        auto stress_arr = stress[0].array();
-        const Box output_box(domain.smallEnd(), domain.smallEnd());
-        ParallelFor(output_box, [=] AMREX_GPU_DEVICE (int oi, int oj, int ok)
-        {
-            stress_arr(oi,oj,ok,0) = flux.compute_u_flux(
-                i, j, k, dir, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                umm_arr, um_arr, vm_arr, wm_arr, ustar_arr);
-            stress_arr(oi,oj,ok,1) = flux.compute_v_flux(
-                i, j, k, dir, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                umm_arr, um_arr, vm_arr, wm_arr, ustar_arr);
-        });
-        Gpu::streamSynchronize();
-        const Real stress_u = single_value(stress, output_box, 0);
-        const Real stress_v = single_value(stress, output_box, 1);
-
-        EXPECT_TRUE(std::isfinite(stress_u))
+        EXPECT_TRUE(std::isfinite(face.isLow() ? low_u[dir] : high_u[dir]))
             << "direction=" << dir << ", high=" << !face.isLow();
-        EXPECT_TRUE(std::isfinite(stress_v))
+        EXPECT_TRUE(std::isfinite(face.isLow() ? low_v[dir] : high_v[dir]))
             << "direction=" << dir << ", high=" << !face.isLow();
-
-        if (face.isLow()) {
-            low_u[dir] = stress_u;
-            low_v[dir] = stress_v;
-        } else {
-            high_u[dir] = stress_u;
-            high_v[dir] = stress_v;
-        }
     }
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -510,39 +561,8 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             face, active_faces({face}), "unit_surface_layer_qsurf_serial", true);
         const MultiFab* qsurf = layer->get_q_surf(0);
         const Real expected = expected_qsat(fields.geom);
-        Long selected_count = 0;
-        for (MFIter mfi(*qsurf, false); mfi.isValid(); ++mfi) {
-            const Box& source = fields.ba[mfi.index()];
-            const int dir = face.coordDir();
-            const bool selected = face.isLow()
-                ? source.smallEnd(dir) == fields.domain.smallEnd(dir)
-                : source.bigEnd(dir) == fields.domain.bigEnd(dir);
-            const Box& valid = mfi.validbox();
-            const auto qsurf_arr = qsurf->const_array(mfi);
-            ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
-            ReduceData<Real, Real> reduce_data(reduce_op);
-            reduce_op.eval(valid, reduce_data,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    -> GpuTuple<Real, Real>
-                {
-                    const Real value = qsurf_arr(i,j,k);
-                    return {value, value};
-                });
-            Gpu::streamSynchronize();
-            const auto qsurf_range = reduce_data.value();
-            const Real qsurf_min = get<0>(qsurf_range);
-            const Real qsurf_max = get<1>(qsurf_range);
-            if (selected) {
-                selected_count += static_cast<Long>(valid.numPts());
-                ERF_EXPECT_NEAR(qsurf_min, expected,
-                                qsat_tolerance(expected));
-                ERF_EXPECT_NEAR(qsurf_max, expected,
-                                qsat_tolerance(expected));
-            } else {
-                EXPECT_EQ(qsurf_min, tau_sentinel);
-                EXPECT_EQ(qsurf_max, tau_sentinel);
-            }
-        }
+        const Long selected_count = check_qsurf_values(
+            fields, *qsurf, face, expected);
         EXPECT_GT(selected_count, 0);
     }
 }

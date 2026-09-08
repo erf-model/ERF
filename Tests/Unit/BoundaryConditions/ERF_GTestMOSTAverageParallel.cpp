@@ -95,6 +95,19 @@ void expect_all_region_values (const MOSTAverage& averages,
     }
 }
 
+void fill_theta_by_normal_index (MultiFab& theta, const int dir)
+{
+    for (MFIter mfi(theta, false); mfi.isValid(); ++mfi) {
+        auto theta_arr = theta.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const int normal_index = dir == 0 ? i : (dir == 1 ? j : k);
+            theta_arr(i,j,k) = Real(100.0) + Real(10.0) * normal_index;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 // Motivation: plane averages must be independent of MPI ownership and the
 // lateral tile boundaries used by TileNoZ(). Metadata is part of this oracle
 // because it selects the source plane used by every average component.
@@ -218,14 +231,7 @@ TEST(MOSTAverageParallel, DistributedTerrainKIndexDrivesBothPolicies)
 
         for (const int policy : {0, 1}) {
             MOSTAverageFields fields(geom, true);
-            for (MFIter mfi(*fields.theta, false); mfi.isValid(); ++mfi) {
-                auto theta_arr = fields.theta->array(mfi);
-                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    const int normal_index = dir == 0 ? i : (dir == 1 ? j : k);
-                    theta_arr(i,j,k) = Real(100.0) + Real(10.0) * normal_index;
-                });
-            }
+            fill_theta_by_normal_index(*fields.theta, dir);
             BoxArray ba_nd(fields.ba);
             ba_nd.surroundingNodes();
             auto z_phys_nd = std::make_unique<MultiFab>(ba_nd, fields.dm, 1, 1);
