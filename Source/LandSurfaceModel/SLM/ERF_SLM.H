@@ -195,6 +195,10 @@ namespace SLM_Diag {
       canopy_energy_residual, // net_rad1 - shf_canop - lhf_canop [W/m2]
       canopy_storage_flux, // realized heat storage from canopy temperature change [W/m2]
       canopy_delta_t, // canopy temperature change over this SLM step [K]
+      ground_conduction_flux, // ground skin to top soil, positive downward [W/m2]
+      ground_skin_energy_residual, // net_rad2 - shf_soil - lhf_soil - conduction [W/m2]
+      ground_skin_iterations, // Newton iterations used by the ground-skin solve
+      ground_skin_converged, // 1 when the local ground-skin solve converged
       NumVars
     };
 }
@@ -324,6 +328,7 @@ public:
 
                     auto sstxy_arr = sstxy.array(mfi);
                     auto tskin_arr = t_skin.array(mfi);
+                    auto t_ground_skin_arr = t_ground_skin.array(mfi);
 
                     auto vegetype_arr = vegetype.array(mfi);
                     auto vege_YES_arr = vege_YES.array(mfi);
@@ -348,6 +353,7 @@ public:
                         sstxy_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
                         in_tsk_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
                         tskin_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
+                        t_ground_skin_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
 
                         in_vegfrac_arr(i,j,d_khi_lsm) *= 0.01;
                         in_vegfrac_arr(i,j,0) = in_vegfrac_arr(i,j,d_khi_lsm);
@@ -650,7 +656,7 @@ public:
 
     void fluxes_canopy(const amrex::MFIter &mfi);
     
-    void fluxes_soil(const amrex::MFIter &mfi);
+    void solve_ground_skin_temperature(const amrex::MFIter &mfi);
 
     void soil_water(const amrex::MFIter &mfi);
 
@@ -825,6 +831,7 @@ private:
     amrex::MultiFab mw; // water storage on leaves, kg/m^2 = mm of water
     amrex::MultiFab mws; // water storage in puddle, kg/m^2 = mm of water
     amrex::MultiFab t_skin; // skin temperature, surface level viewed from atmosphere
+    amrex::MultiFab t_ground_skin; // massless ground-atmosphere interface temperature
     amrex::MultiFab t_sfc; // 'surface' level temperature. for vegetated, t_sfc = t_cas, for non-vegetated = t_sfc=top soil t
 	amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity 
     amrex::MultiFab t_cas; // canopy air space temperature
@@ -980,6 +987,7 @@ private:
     amrex::Real grain_growth_rad = 5000.; // growth from vapor diffusion yang97 eqn. 10b
     amrex::Real extra_growth_rad = 10.;   // extra growth near freezing yang97 eqn. 10c
     amrex::Real dirt_soot_rad = 0.3;      // dirt and soot term yang97 eqn. 10d
+    amrex::Real rsurf_exp = 5.0;          // NoahMP option-1 soil resistance exponent
     amrex::Real bats_cosz_rad = 2.0;      // zenith angle snow albedo adjustment; b in yang97 eqn. 15
     amrex::Real bats_vis_new_rad = 0.95;  // new snow visible albedo
     amrex::Real bats_nir_new_rad = 0.65;  // new snow nir albedo
@@ -1206,7 +1214,11 @@ private:
         "canopy_heat_capacity",
         "canopy_energy_residual",
         "canopy_storage_flux",
-        "canopy_delta_t"
+        "canopy_delta_t",
+        "ground_conduction_flux",
+        "ground_skin_energy_residual",
+        "ground_skin_iterations",
+        "ground_skin_converged"
     };
 
     inline static const std::vector<std::string> soilt_var_names = {

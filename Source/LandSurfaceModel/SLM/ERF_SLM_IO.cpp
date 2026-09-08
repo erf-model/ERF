@@ -537,6 +537,9 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     MultiFab::Copy(mf,t_skin,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_skin"));
 
+    MultiFab::Copy(mf,t_ground_skin,0,0,1,ng);
+    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_ground_skin"));
+
     MultiFab::Copy(mf,t_cas,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_cas"));
 
@@ -815,6 +818,9 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
 
     VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_skin"));
     MultiFab::Copy(t_skin,mf,0,0,1,ng);
+
+    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_ground_skin"));
+    MultiFab::Copy(t_ground_skin,mf,0,0,1,ng);
 
     VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_cas"));
     MultiFab::Copy(t_cas,mf,0,0,1,ng);
