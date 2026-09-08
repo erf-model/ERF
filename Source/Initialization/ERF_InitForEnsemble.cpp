@@ -696,6 +696,12 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
     // Optional safety check (recommended)
     AMREX_ALWAYS_ASSERT(mf_cc_pert.nComp() == ncomp);
 
+    // Create a GPU-accessible array and copy the host vector into it
+    GpuArray<Real, 8> scale_gpu; // Use the maximum possible ncomp, e.g., 8
+    for (int n = 0; n < ncomp; ++n) {
+        scale_gpu[n] = perturb_scale[n];
+    }
+
     for (MFIter mfi(mf_cc_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -706,7 +712,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = ens_pert_amplitude*perturb_scale[n]*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*scale_gpu[n]*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }
