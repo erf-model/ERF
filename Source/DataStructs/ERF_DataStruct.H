@@ -752,6 +752,9 @@ struct SolverChoice {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
 
+        // Whether the terrain is flat - this allows planar averages (lsf, nudging) with StaticFittedMesh
+        pp.queryAdd("flat_terrain", flat_terrain);
+
         // Get buildings type
         std::string buildings_type_temp = "";
         pp.queryAdd("buildings_type", buildings_type_temp);
@@ -819,6 +822,10 @@ struct SolverChoice {
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
+        }
+
+        if (flat_terrain && terrain_type != TerrainType::StaticFittedMesh) {
+            amrex::Error("erf.flat_terrain requires terrain_type = StaticFittedMesh");
         }
 
         if ( (moisture_type == MoistureType::SAM                ||
@@ -1704,6 +1711,9 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
+        amrex::Print() << "Flat fitted terrain: "
+                       << (flat_terrain ? "true" : "false") << std::endl;
+
         if (buildings_type == BuildingsType::ImmersedForcing) {
             amrex::Print() << "Buildings Type: ImmersedForcing" << std::endl;
         } else {
@@ -1850,6 +1860,9 @@ struct SolverChoice {
 
     inline static
     TerrainType terrain_type = TerrainType::None;
+
+    inline static
+    bool flat_terrain = false;
 
     inline static
     BuildingsType buildings_type = BuildingsType::None;
@@ -2229,6 +2242,8 @@ struct SolverChoice {
  * @brief Interpretation used for input sounding profiles.
  * @var SolverChoice::terrain_type
  * @brief Terrain or immersed-boundary representation.
+ * @var SolverChoice::flat_terrain
+ * @brief Permit fixed-index planar averages after validating a flat fitted mesh.
  * @var SolverChoice::buildings_type
  * @brief Building representation.
  * @var SolverChoice::use_real_bcs

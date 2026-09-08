@@ -2703,6 +2703,9 @@ List of Parameters
 |                                  |                                                          | EB,                |                  |
 |                                  |                                                          | ImmersedForcing    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.flat_terrain**             | require a horizontally flat ``StaticFittedMesh`` and     | Boolean            | false            |
+|                                  | permit fixed-index planar averages after validation.     |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.amr_terrain_refinement**   | terrain refinement strategy for AMR with STF/Sullivan    | "interpolate",     | "interpolate"    |
@@ -3767,7 +3770,8 @@ Initialization, Terrain and Vertical Mesh
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
   ``erf.sounding_type``, ``erf.use_real_bcs``
-* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.terrain_type``
+* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.flat_terrain``,
+  ``erf.terrain_type``
 
 Physics Model Selection
 -----------------------

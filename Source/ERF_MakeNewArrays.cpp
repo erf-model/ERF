@@ -878,6 +878,10 @@ ERF::init_zphys (int lev, double elapsed_time)
         }
     } // init_type
 
+    if (solverChoice.flat_terrain) {
+        validate_flat_terrain(lev, *z_phys_nd[lev], zlevels_stag[lev]);
+    }
+
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         // Read the small_volfrac threshold from eb2 namespace

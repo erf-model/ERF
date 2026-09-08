@@ -7,6 +7,39 @@
 
 using namespace amrex;
 
+void
+validate_flat_terrain (int lev,
+                       const MultiFab& z_phys_nd,
+                       const Vector<Real>& z_levels_h)
+{
+    const Real scale = std::max(Real(1.0), std::abs(z_levels_h.back()));
+    const Real tolerance = Real(1.0e-10) * scale;
+
+    MultiFab expected(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 0);
+    Gpu::DeviceVector<Real> z_levels_d(z_levels_h.size());
+    Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
+    const Real* z_levels = z_levels_d.data();
+
+    for (MFIter mfi(expected); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto const& expected_arr = expected.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            expected_arr(i,j,k) = z_levels[k];
+        });
+    }
+
+    MultiFab error(expected.boxArray(), expected.DistributionMap(), 1, 0);
+    MultiFab::Copy(error, expected, 0, 0, 1, 0);
+    MultiFab::Subtract(error, z_phys_nd, 0, 0, 1, 0);
+    const Real max_error = error.norminf(0, 0, false);
+
+    if (max_error > tolerance) {
+        Abort("erf.flat_terrain = true, but z_phys_nd is not horizontally "
+              "flat or does not match the configured vertical spacing at "
+              "level " + std::to_string(lev) + ".");
+    }
+}
+
 /**
  * Define a default z_phys so we have it even if a completely regular grid
  * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
