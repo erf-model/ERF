@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ImposeBCsOnPhi.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -8,6 +11,10 @@ using namespace amrex;
 
 /**
  * Impose bc's on the pressure that comes out of the solve
+ *
+ * @param lev Level index for the pressure field
+ * @param phi Pressure increment with ghost cells to fill
+ * @param subdomain Subdomain over which the solve was performed
  */
 void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
 {
@@ -92,7 +99,7 @@ void ERF::ImposeBCsOnPhi (int lev, MultiFab& phi, const Box& subdomain)
         // At low z we are always Neumann whether the box touches the bottom boundary or not
         Box zbx(bx); zbx.grow(0,1); zbx.grow(1,1); // Grow in x-dir and y-dir because we have filled that above
         if (bx_lo.z == sub_lo.z) {
-            ParallelFor(makeSlab(zbx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(makeSlab(zbx,2,sub_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pp_arr(i,j,k-1) = pp_arr(i,j,k);
             });

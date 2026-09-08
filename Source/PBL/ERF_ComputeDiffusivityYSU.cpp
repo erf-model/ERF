@@ -7,6 +7,23 @@
 
 using namespace amrex;
 
+/**
+ * Compute eddy diffusivity using the YSU PBL scheme.
+ *
+ * @param[in] xvel x-velocity field
+ * @param[in] yvel y-velocity field
+ * @param[in] cons_in Conservative state
+ * @param[out] eddyViscosity Computed eddy viscosity coefficients
+ * @param[in] geom Geometry used for spacing and domain info
+ * @param[in] turbChoice Turbulence model options
+ * @param[in] SurfLayer Surface layer model data
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted coordinates
+ * @param[in] level AMR level
+ * @param[in] bc_ptr Boundary condition records
+ * @param[in] z_phys_nd Nodal physical heights
+ * @param[in] z_phys_cc Cell-centered physical heights
+ * @param[in] moisture_indices Indices for moisture components
+ */
 void
 ComputeDiffusivityYSU (const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -21,6 +38,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
+                       const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
     /*
@@ -71,12 +89,13 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                   Array4<int> {};
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
+        const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox pbl_height(xybx,1);
-        IArrayBox pbl_index(xybx,1);
+        FArrayBox pbl_height(xybx,1,The_Async_Arena());
+        IArrayBox pbl_index(xybx,1,The_Async_Arena());
         const auto& pblh_arr = pbl_height.array();
         const auto& pbli_arr = pbl_index.array();
 
@@ -89,7 +108,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Reconstruct a surface bulk Richardson number from the surface layer model
-            // In WRF, this value is supplied to YSU by the MM5 surface layer model
+            // In WRF, this value is supplied to YSU by the surface layer model
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);
@@ -191,9 +210,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             if (k < pbli_arr(i,j,0)) {
                 // -- Compute diffusion coefficients within PBL
                 constexpr Real zfacmin = Real(1e-8); // value from WRF
-                constexpr Real phifac = Real(8.0); // value from H10 and WRF
-                constexpr Real wstar3 = zero; // only nonzero for unstable
-                constexpr Real pfac = two; // profile exponent
+                constexpr Real phifac  = Real(8.0); // value from H10 and WRF
+                constexpr Real wstar3  = Real(0.);  // only nonzero for unstable
+                constexpr Real pfac    = Real(2.);  // profile exponent
                 const Real zfac = std::min(std::max(amrex::Real(1) - zval / pblh_arr(i,j,0), zfacmin ), amrex::Real(1));
                 // Not including YSU top down PBL term (not in H10, added to WRF later)
                 const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
@@ -211,7 +230,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 constexpr Real prandtl_max = Real(4.0);
                 Real dthetadz, dudz, dvdz;
                 ComputeVerticalDerivativesPBL(i, j, k,
-                                              uvel, vvel, cell_data, izmin, izmax, one/dz_terrain,
+                                              uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,

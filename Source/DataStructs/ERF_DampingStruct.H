@@ -8,6 +8,9 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * @brief Time integration treatment used for Rayleigh damping.
+ */
 enum struct RayleighDampingType {
     None, SlowExplicit, FastExplicit, FastImplicit
 };
@@ -18,12 +21,16 @@ enum struct RayleighDampingType {
 
 struct DampingChoice {
   public:
+    /**
+     * @brief Read damping options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
         static std::string rayleigh_type_string = "SlowExplicit";
-        pp.query("rayleigh_damping_type",rayleigh_type_string);
+        pp.queryAdd("rayleigh_damping_type",rayleigh_type_string);
 
         if (!rayleigh_type_string.compare("SlowExplicit")) {
             rayleigh_damping_type = RayleighDampingType::SlowExplicit;
@@ -36,28 +43,31 @@ struct DampingChoice {
         }
 
         // Include Rayleigh damping (separate flags for each variable)
-        pp.query("rayleigh_damp_U", rayleigh_damp_U);
-        pp.query("rayleigh_damp_V", rayleigh_damp_V);
-        pp.query("rayleigh_damp_W", rayleigh_damp_W);
-        pp.query("rayleigh_damp_T", rayleigh_damp_T);
-        pp.query("rayleigh_dampcoef", rayleigh_dampcoef);
-        pp.query("rayleigh_zdamp", rayleigh_zdamp);
+        pp.queryAdd("rayleigh_damp_U", rayleigh_damp_U);
+        pp.queryAdd("rayleigh_damp_V", rayleigh_damp_V);
+        pp.queryAdd("rayleigh_damp_W", rayleigh_damp_W);
+        pp.queryAdd("rayleigh_damp_T", rayleigh_damp_T);
+        pp.queryAdd("rayleigh_dampcoef", rayleigh_dampcoef);
+        pp.queryAdd("rayleigh_zdamp", rayleigh_zdamp);
 
         if (pp.countval("rayleigh_damp_substep") > 0) {
             amrex::Abort("The input rayleigh_damp_substep is deprecated.  Set rayleigh_damping_type instead.");
         }
 
         // Include vertical-velocity damping to improve robustness
-        pp.query("w_damping", w_damping);
-        pp.query("w_damping_cfl", w_damping_cfl);
-        pp.query("w_damping_const", w_damping_const);
-        pp.query("w_damping_coeff", w_damping_coeff);
+        pp.queryAdd("w_damping", w_damping);
+        pp.queryAdd("w_damping_cfl", w_damping_cfl);
+        pp.queryAdd("w_damping_const", w_damping_const);
+        pp.queryAdd("w_damping_coeff", w_damping_coeff);
 
         if (w_damping && (w_damping_const < 0 && w_damping_coeff < 0)) {
             amrex::Abort("Need to specify vertical damping coefficient w_damping_const (like WRF) or w_damping_coeff (~ dz/dt**2)");
         }
     }
 
+    /**
+     * @brief Print the configured damping options.
+     */
     void display()
     {
         amrex::Print() << "Rayleigh damping            :";
@@ -100,4 +110,31 @@ struct DampingChoice {
     // Molecular transport model
     RayleighDampingType rayleigh_damping_type = RayleighDampingType::SlowExplicit;
 };
+
+/**
+ * @var DampingChoice::rayleigh_damp_U
+ * @brief Whether Rayleigh damping is applied to x-momentum.
+ * @var DampingChoice::rayleigh_damp_V
+ * @brief Whether Rayleigh damping is applied to y-momentum.
+ * @var DampingChoice::rayleigh_damp_W
+ * @brief Whether Rayleigh damping is applied to vertical momentum.
+ * @var DampingChoice::rayleigh_damp_T
+ * @brief Whether Rayleigh damping is applied to potential temperature.
+ * @var DampingChoice::rayleigh_dampcoef
+ * @brief Rayleigh damping inverse time scale [1/s].
+ * @var DampingChoice::rayleigh_zdamp
+ * @brief Rayleigh damping layer depth [m].
+ * @var DampingChoice::rayleigh_ztop
+ * @brief Top of the Rayleigh damping layer [m].
+ * @var DampingChoice::w_damping
+ * @brief Whether vertical-velocity damping is enabled.
+ * @var DampingChoice::w_damping_cfl
+ * @brief CFL threshold used by vertical-velocity damping.
+ * @var DampingChoice::w_damping_const
+ * @brief Constant vertical damping coefficient.
+ * @var DampingChoice::w_damping_coeff
+ * @brief Grid-dependent vertical damping coefficient multiplier.
+ * @var DampingChoice::rayleigh_damping_type
+ * @brief Selected Rayleigh damping time-integration treatment.
+ */
 #endif

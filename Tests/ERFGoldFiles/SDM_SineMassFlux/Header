@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-18
+21
 density
 rhotheta
 x_velocity
@@ -10,7 +10,10 @@ theta
 pressure
 qv
 qc
+qi
 qrain
+qsnow
+qgraup
 qt
 qp
 qsat

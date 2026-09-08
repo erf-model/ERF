@@ -94,4 +94,3 @@ Need more detail? Choose the path that fits your situation:
    submodule
    building
    InputFiles
-   testing

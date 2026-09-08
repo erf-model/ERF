@@ -7,7 +7,7 @@ using namespace amrex;
 
 void
 GeneralAD::advance (const Geometry& geom,
-                    const Real& dt_advance,
+                    const double& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& mf_vars_generalAD,
                     MultiFab& U_old,
@@ -15,7 +15,7 @@ GeneralAD::advance (const Geometry& geom,
                     MultiFab& W_old,
                     const MultiFab& mf_Nturb,
                     const MultiFab& mf_SMark,
-                    const Real& time)
+                    const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
@@ -28,7 +28,7 @@ GeneralAD::advance (const Geometry& geom,
 }
 
 void
-GeneralAD::compute_power_output (const Real& time)
+GeneralAD::compute_power_output (const double& time)
 {
      get_turb_loc(xloc, yloc);
      get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
@@ -57,7 +57,7 @@ GeneralAD::compute_power_output (const Real& time)
 
 
 void
-GeneralAD::update (const Real& dt_advance,
+GeneralAD::update (const double& dt_advance,
                    MultiFab& cons_in,
                    MultiFab& U_old,
                    MultiFab& V_old,
@@ -123,7 +123,12 @@ void GeneralAD::compute_freestream_velocity (const MultiFab& cons_in,
         auto SMark_array    = mf_SMark.array(mfi);
         auto u_vel          = U_old.array(mfi);
         auto v_vel          = V_old.array(mfi);
-        Box tbx = mfi.nodaltilebox(0);
+        // NOTE: this reduction is driven by the cell-centered SMark, so it must
+        //       run over the cell-centered tilebox. Using nodaltilebox(0) here
+        //       would include the plane at bigEnd(0)+1, which is a ghost cell of
+        //       this box and a valid cell of its x-neighbor, and so would count
+        //       that plane twice in the sums below.
+        Box tbx = mfi.tilebox();
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -390,16 +395,34 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cl(n_bld_sections);
     Vector<Gpu::DeviceVector<Real>> d_bld_airfoil_Cd(n_bld_sections);
 
-    int n_pts_airfoil = static_cast<int>(bld_airfoil_aoa[0].size());
+    Vector<int> h_n_pts_airfoil(n_bld_sections);
+    Gpu::DeviceVector<int> d_n_pts_airfoil(n_bld_sections);
 
-    for(int i=0;i<n_bld_sections;i++){
-        d_bld_airfoil_aoa[i].resize(n_pts_airfoil);
-        d_bld_airfoil_Cl[i].resize(n_pts_airfoil);
-        d_bld_airfoil_Cd[i].resize(n_pts_airfoil);
-        Gpu::copy(Gpu::hostToDevice, bld_airfoil_aoa[i].begin(), bld_airfoil_aoa[i].end(), d_bld_airfoil_aoa[i].begin());
-        Gpu::copy(Gpu::hostToDevice, bld_airfoil_Cl[i].begin(), bld_airfoil_Cl[i].end(), d_bld_airfoil_Cl[i].begin());
-        Gpu::copy(Gpu::hostToDevice, bld_airfoil_Cd[i].begin(), bld_airfoil_Cd[i].end(), d_bld_airfoil_Cd[i].begin());
+    for (int i = 0; i < n_bld_sections; ++i) {
+        h_n_pts_airfoil[i] = static_cast<int>(bld_airfoil_aoa[i].size());
+
+        d_bld_airfoil_aoa[i].resize(bld_airfoil_aoa[i].size());
+        d_bld_airfoil_Cl[i].resize(bld_airfoil_Cl[i].size());
+        d_bld_airfoil_Cd[i].resize(bld_airfoil_Cd[i].size());
+
+        Gpu::copy(Gpu::hostToDevice,
+                  bld_airfoil_aoa[i].begin(), bld_airfoil_aoa[i].end(),
+                  d_bld_airfoil_aoa[i].begin());
+
+        Gpu::copy(Gpu::hostToDevice,
+                  bld_airfoil_Cl[i].begin(), bld_airfoil_Cl[i].end(),
+                  d_bld_airfoil_Cl[i].begin());
+
+        Gpu::copy(Gpu::hostToDevice,
+                  bld_airfoil_Cd[i].begin(), bld_airfoil_Cd[i].end(),
+                  d_bld_airfoil_Cd[i].begin());
     }
+
+    Gpu::copy(Gpu::hostToDevice,
+              h_n_pts_airfoil.begin(), h_n_pts_airfoil.end(),
+              d_n_pts_airfoil.begin());
+
+    int* d_n_pts_airfoil_ptr = d_n_pts_airfoil.data();
 
     Vector<Real*> hp_bld_airfoil_aoa, hp_bld_airfoil_Cl, hp_bld_airfoil_Cd;
     for (auto & v :d_bld_airfoil_aoa) {
@@ -493,7 +516,7 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
                                                                d_bld_airfoil_aoa_ptr[index],
                                                                d_bld_airfoil_Cl_ptr[index],
                                                                d_bld_airfoil_Cd_ptr[index],
-                                                               n_pts_airfoil,
+                                                               d_n_pts_airfoil_ptr[index],
                                                                d_velocity_ptr,
                                                                d_rotor_RPM_ptr,
                                                                d_blade_pitch_ptr,

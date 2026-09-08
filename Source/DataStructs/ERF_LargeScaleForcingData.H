@@ -3,6 +3,8 @@
 
 #include <string>
 #include <iostream>
+#include <sstream>
+#include <fstream>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -16,19 +18,33 @@
 #include <ERF_InputSoundingData.H>
 
 /**
- * Data structure storing large scale forcing data.
+ * Data structure storing large-scale forcing data.
+ *
+ * This provides time-varying vertical profiles for large scale temperature,
+ * and water vapor tendencies, as well as observed large scale zonal and meridonal wind,
+ * and vertical subsidence.
+ * Profiles are read from a text file, interpolated to the model vertical grid, and then copied
+ * to device memory for use during time integration.
+ *
+ * This mirrors the lsf functionality as implemented in SAM.
  */
 struct LargeScaleForcingData {
 public:
+    /**
+     * @brief Construct large-scale forcing metadata from the ERF input namespace.
+     */
     LargeScaleForcingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("forcing_timescale", tau_lsf);
-        pp.query("large_scale_forcing_file", lsf_file);
+        pp.queryAdd("forcing_timescale", tau_lsf);
+        pp.queryAdd("large_scale_forcing_file", lsf_file);
+    }
 
-
-    };
-
+    /**
+     * @brief Count the number of whitespace-separated columns in a line.
+     * @param str Input line to inspect.
+     * @return Number of columns in the line.
+     */
     int get_columns_in_str(std::string &str)
     {
         std::istringstream iss(str);
@@ -42,6 +58,9 @@ public:
     }
 
 
+    /**
+     * @brief Read the forcing file and cache the raw time slices on host.
+     */
     void read_forcing_file()
     {
         amrex::Print() << "  Opening LSF file '" << lsf_file << "'" << std::endl;
@@ -64,8 +83,7 @@ public:
         num_times = 0;
         nz_lsf = 0;
 
-        amrex::Real curr_time = 0.0;
-        amrex::Real start_time = 0.0; // first time in file, in days, other inputs are relative to this time
+        amrex::Real file_start_time = zero; // first time in file, in days, other inputs are relative to this time
 
         amrex::Real pres0;
         while(std::getline(ifs, line)) {
@@ -88,9 +106,9 @@ public:
                 // convert time to seconds (relative to first time), and pres from mb to Pa
                 if (num_times == 0)
                 {
-                    start_time = time;
+                    file_start_time = time;
                 }
-                time = (time - start_time) * 86400.0;
+                time = (time - file_start_time) * amrex::Real(86400.0);
 
                 if (times_lsf.size() > 0 && time != times_lsf.back())
                 {
@@ -116,7 +134,7 @@ public:
                 times_lsf.push_back(time);
                 num_times++;
 
-                pres0 *= 100.0;
+                pres0 *= amrex::Real(100.0);
                 if (nz_lsf == 0)
                 {
                     nz_lsf = nlev;
@@ -126,13 +144,13 @@ public:
                     AMREX_ALWAYS_ASSERT(nlev == nz_lsf);
                 }
 
-                z_in.push_back(0.0); // assuming zbot = 0.0 for now, this will get interpolated later once we have grid info
+                z_in.push_back(zero); // assuming zbot = 0.0 for now, this will get interpolated later once we have grid info
                 p_in.push_back(pres0);
-                t_in.push_back(0.0); // assuming temperature change at surf is 0
-                q_in.push_back(0.0);
-                u_in.push_back(0.0);
-                v_in.push_back(0.0);
-                w_in.push_back(0.0);
+                t_in.push_back(zero); // assuming temperature change at surf is 0
+                q_in.push_back(zero);
+                u_in.push_back(zero);
+                v_in.push_back(zero);
+                w_in.push_back(zero);
             }
             else if (ncol == 7)
             {
@@ -140,29 +158,13 @@ public:
                 amrex::Real z, p, tls, qls, uls, vls, wls;
                 iss >> z >> p >> tls >> qls >> uls >> vls >> wls;
 
-                /*
-                if (z_in.size() == 1)
-                {
-                    u_in[0] = uls;
-                    v_in[0] = vls;
-                    w_in[0] = wls;
-                    //t_in[0] = getThgivenPandT(tls, p*100.0, R_d/Cp_d);
-                    //t_in[0] = tls*std::pow(pres0/(p*100.0), R_d/Cp_d);
-                    t_in[0] = tls;
-                    q_in[0] = qls;
-
-                    z_in[0] = 0.0;
-                }
-                */
-                if (z < 0.0) {
+                if (z < zero) {
                     // if z < 0, then LSF is defined on pressure levels
                     use_z_grid = false;
                 }
 
                 z_in.push_back(z);
-                p_in.push_back(p * 100.0);
-                //t_in.push_back(getThgivenPandT(tls, p*100.0, R_d/Cp_d));
-                //t_in.push_back(tls*std::pow(pres0/(p*100.0), R_d/Cp_d));
+                p_in.push_back(p * amrex::Real(100.0));
                 t_in.push_back(tls);
                 q_in.push_back(qls);
                 u_in.push_back(uls);
@@ -187,21 +189,30 @@ public:
         w_lsf.push_back(w_in);
 
         num_times = times_lsf.size();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == num_times,
+                                         "repeated timestamp in the large-scale forcing file");
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
 
         // debugging print
-        for (int i = 0; i < times_lsf.size(); i++)
-        {
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
             amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
             for (int lev = 0; lev < nz_lsf + 1; lev++)
             {
-                amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = " << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = " << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
+                amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = "
+                               << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = "
+                               << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
             }
-            break;
         }
     }
 
 
+    /**
+     * @brief Interpolate the forcing profiles onto the model grid.
+     * @param geom Geometry defining the vertical grid.
+     * @param zlevels_stag Staggered vertical coordinates used for interpolation.
+     * @param sounding Input sounding data used when the forcing file is on pressure levels.
+     */
     void
     interp_forcing(const amrex::GeometryData &geom,
                    const amrex::Vector<amrex::Real>& zlevels_stag,
@@ -216,8 +227,7 @@ public:
         const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
         const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
-        int num_times = times_lsf.size();
-        AMREX_ALWAYS_ASSERT(num_times == num_times);
+        AMREX_ALWAYS_ASSERT(num_times == static_cast<int>(times_lsf.size()));
 
         z_int_lsf.resize(num_times);
         t_int_lsf.resize(num_times);
@@ -243,77 +253,78 @@ public:
 
             for (int k = 0; k < Nz; k++)
             {
+                z_int_lsf[itime][k] = (use_terrain) ? myhalf * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                    : zbot + (k + myhalf) * dz;
+
                 bool set = false;
-                if (use_z_grid) {
-                    for (int lk = 2; lk < nz_lsf + 1; lk++)
+                for (int lk = 2; lk < nz_lsf + 1; lk++)
+                {
+                    // Determine if grid cell k falls in bracket [lk-1, lk]:
+                    //   z-grid mode: cell z <= forcing z (z increases with lk)
+                    //   p-grid mode: cell p >= forcing p (p decreases with lk)
+                    bool in_bracket = use_z_grid
+                        ? (z_int_lsf[itime][k] <= z_lsf[itime][lk])
+                        : (sounding.pm_integ[k] >= p_lsf[itime][lk]);
+
+                    if (in_bracket)
                     {
-                        z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                            : zbot + (k + 0.5) * dz;
-                        if (z_int_lsf[itime][k] <= z_lsf[itime][lk])
-                        {
-                            amrex::Real coef = (z_int_lsf[itime][k] - z_lsf[itime][lk - 1]) / (z_lsf[itime][lk] - z_lsf[itime][lk - 1]);
-                            t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
-                            q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
-                            u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
-                            v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
-                            w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
-                            set = true;
-                            break;
-                        }
-                    }
-                } else {
-                    for (int lk = 2; lk < nz_lsf + 1; lk++)
-                    {
-                        z_int_lsf[itime][k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
-                                                            : zbot + (k + 0.5) * dz;
-                        if (sounding.pm_integ[k] >= p_lsf[itime][lk])
-                        {
-                            amrex::Real coef = (sounding.pm_integ[k] - p_lsf[itime][lk - 1]) / (p_lsf[itime][lk] - p_lsf[itime][lk - 1]);
-                            t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
-                            q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
-                            u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
-                            v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
-                            w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
-                            set = true;
-                            break;
-                        }
+                        // Interpolation coordinate: z or p depending on mode
+                        const auto& coord_lsf = use_z_grid ? z_lsf[itime] : p_lsf[itime];
+                        amrex::Real coord_k = use_z_grid ? z_int_lsf[itime][k] : sounding.pm_integ[k];
+                        amrex::Real coef = (coord_k - coord_lsf[lk - 1]) / (coord_lsf[lk] - coord_lsf[lk - 1]);
+
+                        t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
+                        q_int_lsf[itime][k] = q_lsf[itime][lk - 1] + (q_lsf[itime][lk] - q_lsf[itime][lk-1])*coef;
+                        u_int_lsf[itime][k] = u_lsf[itime][lk - 1] + (u_lsf[itime][lk] - u_lsf[itime][lk-1])*coef;
+                        v_int_lsf[itime][k] = v_lsf[itime][lk - 1] + (v_lsf[itime][lk] - v_lsf[itime][lk-1])*coef;
+                        w_int_lsf[itime][k] = w_lsf[itime][lk - 1] + (w_lsf[itime][lk] - w_lsf[itime][lk-1])*coef;
+                        set = true;
+                        break;
                     }
                 }
 
                 if (set) {
-                    set = false;
                     continue;
                 }
 
-                t_int_lsf[itime][k] = 0.0;
-                q_int_lsf[itime][k] = 0.0;
-                u_int_lsf[itime][k] = u_int_lsf[itime][k-1];
-                v_int_lsf[itime][k] = v_int_lsf[itime][k-1];
-                w_int_lsf[itime][k] = 0.0;
+                t_int_lsf[itime][k] = zero;
+                q_int_lsf[itime][k] = zero;
+                u_int_lsf[itime][k] = (k > 0) ? u_int_lsf[itime][k-1] : zero;
+                v_int_lsf[itime][k] = (k > 0) ? v_int_lsf[itime][k-1] : zero;
+                w_int_lsf[itime][k] = zero;
             }
 
             z_int_lsf[itime][Nz] = ztop;
-            t_int_lsf[itime][Nz] = 0.0;
-            q_int_lsf[itime][Nz] = 0.0;
+            t_int_lsf[itime][Nz] = zero;
+            q_int_lsf[itime][Nz] = zero;
             u_int_lsf[itime][Nz] = u_int_lsf[itime][Nz-1];
             v_int_lsf[itime][Nz] = v_int_lsf[itime][Nz-1];
-            w_int_lsf[itime][Nz] = 0.0;
+            w_int_lsf[itime][Nz] = zero;
 
             host_to_device(itime);
         }
 
         // debugging print
-        for (int i = 0; i < times_lsf.size(); i++)
-        {
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
             amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
             for (int k = 0; k <= Nz; k++)
             {
-                amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k] << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = " << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
+                amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k]
+                               << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = "
+                               << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
             }
-            break;
         }
     }
 
+    /**
+     * @brief Determine interpolation coefficients to apply tendencies for the given time
+     * @param time Elapsed simulation time in seconds.
+     * @param curr Index of the lower bracketing forcing time.
+     * @param next Index of the upper bracketing forcing time.
+     * @param coeff_curr Interpolation weight for the lower time slice.
+     * @param coeff_next Interpolation weight for the upper time slice.
+     */
     void
     get_forcing_time_coeffs(const amrex::Real& time,
                             int& curr,
@@ -322,16 +333,16 @@ public:
                             amrex::Real& coeff_next)
     {
         // helper function to get the current time indices of forcing data to use and
-        // coefficients based on the current simulation time
+        // coefficients based on the current simulation time.
         curr = 0;
         next = 0;
-        coeff_curr = 1.0;
-        coeff_next = 0.0;
+        coeff_curr = one;
+        coeff_next = zero;
 
         // find the time index of forcing data to use
         for (int nt = 1; nt < num_times; nt++)
         {
-            if (time - start_time > times_lsf[nt])
+            if (time > times_lsf[nt])
             {
                 curr = nt;
             }
@@ -340,14 +351,20 @@ public:
         if (curr == num_times - 1)
         {
             // use last set if time > last forcing time
-            next = num_times;
+            next = num_times - 1;
+            coeff_curr = one;
+            coeff_next = zero;
         } else {
             next = curr + 1;
-            coeff_next = ((time - start_time) - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
-            coeff_curr = (1.0 - coeff_next);
+            coeff_next = (time - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
+            coeff_curr = (one - coeff_next);
         }
     }
 
+    /**
+     * @brief Copy one interpolated forcing slice from host memory to device memory.
+     * @param itime Time-slice index to copy.
+     */
     void host_to_device (int itime)
     {
         const int nz = z_int_lsf[itime].size();
@@ -378,17 +395,38 @@ public:
                          w_int_lsf_d[itime].begin());
     }
 
-    amrex::Real start_time = 0.0; // simulation start time
-    amrex::Real tau_lsf = 0.0; // timescale to apply lsf
+    /**
+     * Relaxation time scale used by the large-scale forcing and nudging terms.
+     */
+    amrex::Real tau_lsf = zero;
+    /**
+     * Path to the large-scale forcing input file.
+     */
     std::string lsf_file = "";
 
+    /**
+     * True when the forcing file is tabulated on height levels, false when it is
+     * tabulated on pressure levels.
+     */
     bool use_z_grid = true;
 
-    // inputs from large scale forcing file
-    int nz_lsf = -1;    // number of z levels in the LSF file
-    int num_times = -1; // number of times found in the LSF file
+    /**
+     * Whether to display the lsf at initialization (before and after interpolation)
+     */
+    bool verbose_print = false;
+
+    /**
+     * Number of vertical levels and times found in the forcing file.
+     */
+    int nz_lsf = -1;
+    int num_times = -1;
+    /**
+     * Forcing times read from the file, converted to elapsed seconds.
+     */
     amrex::Vector<amrex::Real> times_lsf;
-    // original data from the file
+    /**
+     * Raw forcing profiles read from the input file, indexed by time then level.
+     */
     amrex::Vector<amrex::Vector<amrex::Real>> z_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> p_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> t_lsf;
@@ -397,15 +435,19 @@ public:
     amrex::Vector<amrex::Vector<amrex::Real>> v_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> w_lsf;
 
-    // interpolated data from file
+    /**
+     * Forcing profiles interpolated onto the model grid, indexed by time then level.
+     */
     amrex::Vector<amrex::Vector<amrex::Real>> z_int_lsf;
-    amrex::Vector<amrex::Vector<amrex::Real>> p_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> t_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> q_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> u_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> v_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> w_int_lsf;
 
+    /**
+     * Device copies of the interpolated forcing profiles.
+     */
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> z_int_lsf_d, t_int_lsf_d, q_int_lsf_d, u_int_lsf_d, v_int_lsf_d, w_int_lsf_d;
 
 };

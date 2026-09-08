@@ -119,8 +119,12 @@ SyntheticRadiationResult run_synthetic_radiation_case (
     land_surface.Define(0, solver_choice);
 
     std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    amrex::Vector<amrex::BCRec> domain_bcs_type;
+    amrex::IntVect ref_ratio(1);
+    amrex::Vector<amrex::Vector<std::string>> nc_init_file;
     land_surface.Init(0, state.cons, state.uvel, state.vvel,
-                      state.geom, amrex::Real(1.0), z_phys_nd);
+                      state.geom, state.geom, domain_bcs_type, ref_ratio,
+                      amrex::Real(1.0), z_phys_nd, nc_init_file);
     state.cons.setVal(1.0);
     state.cons.setVal(amrex::Real(1.0), Rho_comp, 1);
     state.cons.setVal(amrex::Real(300.0), RhoTheta_comp, 1);
@@ -206,8 +210,12 @@ protected:
         land_surface.Define(0, solver_choice);
 
         std::unique_ptr<amrex::MultiFab> z_phys_nd;
+        amrex::Vector<amrex::BCRec> domain_bcs_type;
+        amrex::IntVect ref_ratio(1);
+        amrex::Vector<amrex::Vector<std::string>> nc_init_file;
         land_surface.Init(0, state->cons, state->uvel, state->vvel,
-                          state->geom, amrex::Real(1.0), z_phys_nd);
+                          state->geom, state->geom, domain_bcs_type, ref_ratio,
+                          amrex::Real(1.0), z_phys_nd, nc_init_file);
 
         // Use a physically valid synthetic atmospheric state.  Setting every
         // conservative component to one produces an approximately 1 K

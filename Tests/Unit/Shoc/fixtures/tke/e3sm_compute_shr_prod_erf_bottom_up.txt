@@ -1,0 +1,11 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_tke_shr_prod_tests.cpp
+# Property-style translated case for ERF bottom-up ordering with uniform
+# 100 m layer spacing and linear wind shear.
+# Values are interface shear production from k = 0..nlev.
+0.000000000000000
+0.000020000000000
+0.000020000000000
+0.000020000000000
+0.000020000000000
+0.000000000000000

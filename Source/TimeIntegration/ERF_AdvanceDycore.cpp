@@ -11,6 +11,7 @@
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
 #include <ERF_PlaneAverage.H>
+#include <ERF_CanopyBiophysics.H>
 
 using namespace amrex;
 
@@ -45,23 +46,25 @@ void ERF::advance_dycore (int level,
                           MultiFab& ymom_src, MultiFab& zmom_src,
                           MultiFab& buoyancy,
                           const Geometry fine_geom,
-                          const Real dt_advance, const Real old_time)
+                          const double dt_advance, const double old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 
     const Box& domain = fine_geom.Domain();
+
+    if (cloud_chamber_budget) {
+        cloud_chamber_budget->set_initial_state(state_old[IntVars::cons], fine_geom, 0, old_time);
+    }
 
     DiffChoice dc    = solverChoice.diffChoice;
     TurbChoice tc    = solverChoice.turbChoice[level];
 
     MultiFab r_hse (base_state[level], make_alias, BaseState::r0_comp , 1);
     MultiFab p_hse (base_state[level], make_alias, BaseState::p0_comp , 1);
-    MultiFab pi_hse(base_state[level], make_alias, BaseState::pi0_comp, 1);
 
     // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
-    MultiFab* pi0 = &pi_hse;
 
     MultiFab* rhotheta_src_ptr = solverChoice.custom_rhotheta_forcing ? rhotheta_src[level].get() : nullptr;
     MultiFab* rhoqt_src_ptr    = solverChoice.custom_moisture_forcing ? rhoqt_src[level].get()   : nullptr;
@@ -100,6 +103,7 @@ void ERF::advance_dycore (int level,
     const MultiFab* z_0     = (use_SurfLayer) ? m_SurfaceLayer->get_z0(level) : nullptr;
 
     const bool use_nudging = solverChoice.nudging_from_input_sounding;
+    const bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_lsf = solverChoice.large_scale_forcing;
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
@@ -116,19 +120,27 @@ void ERF::advance_dycore (int level,
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // *****************************************************************************
-    // Planar averages for subsidence terms
+    // Planar averages for subsidence terms, nudging, and immersed forcing
     // *****************************************************************************
+    bool use_immersed_forcing = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                  solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+
     Table1D<Real> dptr_r_plane, dptr_t_plane, dptr_qv_plane;
     TableData<Real, 1> r_plane_tab, t_plane_tab,  qv_plane_tab;
 
     Table1D<Real> dptr_u_plane, dptr_v_plane;
     TableData<Real, 1> u_plane_tab, v_plane_tab;
-    if (use_nudging)
+    if (use_nudging || use_immersed_forcing)
     {
         // Rho
         IntVect ng_c(state_old[IntVars::cons].nGrowVect()); ng_c[2] = 1;
         int ncomp = (solverChoice.moisture_type == MoistureType::None) ? 2 : RhoQ2_comp;
         MultiFab cons(state_old[IntVars::cons], make_alias, 0, ncomp);
+
+        // Immersed forcing requires z-direction (ave_plane=2) averages to match persistent table sizing
+        if (use_immersed_forcing) {
+            AMREX_ALWAYS_ASSERT(solverChoice.ave_plane == 2);
+        }
 
         PlaneAverage cons_ave(&cons, fine_geom, solverChoice.ave_plane, ng_c);
         cons_ave.compute_averages(ZDir(), cons_ave.field());
@@ -150,13 +162,19 @@ void ERF::advance_dycore (int level,
         Real* dptr_t = t_plane_d.data();
 
         Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
-        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-        t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-
         int offset = ng_c[2];
 
-        dptr_r_plane = r_plane_tab.table();
-        dptr_t_plane = t_plane_tab.table();
+        // For immersed forcing without nudging, write directly to persistent storage
+        // to avoid redundant allocation and kernel launch
+        if (use_immersed_forcing && !use_nudging) {
+            dptr_r_plane = r_plane_avg[level].table();
+            dptr_t_plane = t_plane_avg[level].table();
+        } else {
+            r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            dptr_r_plane = r_plane_tab.table();
+            dptr_t_plane = t_plane_tab.table();
+        }
 
         ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
         {
@@ -164,77 +182,95 @@ void ERF::advance_dycore (int level,
             dptr_t_plane(k-offset) = dptr_t[k];
         });
 
-        if (solverChoice.moisture_type != MoistureType::None)
-        {
-            Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
-            Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
-
-            // Water vapor
-            cons_ave.line_average(RhoQ1_comp, qv_plane_h);
-            Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
-
-            Real* dptr_qv = qv_plane_d.data();
-            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-            dptr_qv_plane = qv_plane_tab.table();
-            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        // U, V, and Qv velocity (only needed for nudging, not for immersed forcing)
+        if (use_nudging) {
+            if (solverChoice.moisture_type != MoistureType::None)
             {
-                dptr_qv_plane(k-offset) = dptr_qv[k];
-            });
+                Gpu::HostVector<  Real> qv_plane_h(ncell), qc_plane_h(ncell);
+                Gpu::DeviceVector<Real> qv_plane_d(ncell), qc_plane_d(ncell);
+
+                // Water vapor
+                cons_ave.line_average(RhoQ1_comp, qv_plane_h);
+                Gpu::copy(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
+
+                Real* dptr_qv = qv_plane_d.data();
+                qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+                dptr_qv_plane = qv_plane_tab.table();
+                ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_qv_plane(k-offset) = dptr_qv[k];
+                });
+            }
+            // U, V velocity averages are only needed for the momentum nudging diagnostics below
+            // (either sounding-based, gated by nudging_u, or LSF-based, gated by use_lsf)
+            if (solverChoice.nudging_u || use_lsf) {
+                IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
+                IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+
+                PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
+                PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
+
+                u_ave.compute_averages(ZDir(), u_ave.field());
+                v_ave.compute_averages(ZDir(), v_ave.field());
+
+                int u_ncell = u_ave.ncell_line();
+                int v_ncell = v_ave.ncell_line();
+                Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
+                Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
+
+                u_ave.line_average(0, u_plane_h);
+                v_ave.line_average(0, v_plane_h);
+
+                Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+                Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+
+                Real* dptr_u = u_plane_d.data();
+                Real* dptr_v = v_plane_d.data();
+
+                Box udomain = domain; udomain.grow(2,ng_u[2]);
+                Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+                u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+                v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+
+                int u_offset = ng_u[2];
+                dptr_u_plane = u_plane_tab.table();
+                ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_u_plane(k-u_offset) = dptr_u[k];
+                });
+
+                int v_offset = ng_v[2];
+                dptr_v_plane = v_plane_tab.table();
+                ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+                {
+                    dptr_v_plane(k-v_offset) = dptr_v[k];
+                });
+            }
         }
 
-        // U and V velocity
-        IntVect ng_u = xvel_old.nGrowVect(); ng_u[2] = 1;
-        IntVect ng_v = yvel_old.nGrowVect(); ng_v[2] = 1;
+        // Store planar averages in persistent ERF member variables for immersed forcing
+        // (only needed when nudging is also enabled; otherwise we wrote directly above)
+        if (use_immersed_forcing && use_nudging) {
+            Table1D<Real> r_avg_persistent = r_plane_avg[level].table();
+            Table1D<Real> t_avg_persistent = t_plane_avg[level].table();
 
-        PlaneAverage u_ave(&(xvel_old), fine_geom, solverChoice.ave_plane, ng_u);
-        PlaneAverage v_ave(&(yvel_old), fine_geom, solverChoice.ave_plane, ng_v);
-
-        u_ave.compute_averages(ZDir(), u_ave.field());
-        v_ave.compute_averages(ZDir(), v_ave.field());
-
-        int u_ncell = u_ave.ncell_line();
-        int v_ncell = v_ave.ncell_line();
-        Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
-        Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
-
-        u_ave.line_average(0, u_plane_h);
-        v_ave.line_average(0, v_plane_h);
-
-        Gpu::copy(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
-        Gpu::copy(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
-
-        Real* dptr_u = u_plane_d.data();
-        Real* dptr_v = v_plane_d.data();
-
-        Box udomain = domain; udomain.grow(2,ng_u[2]);
-        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
-        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
-        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
-
-        int u_offset = ng_u[2];
-        dptr_u_plane = u_plane_tab.table();
-        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_u_plane(k-u_offset) = dptr_u[k];
-        });
-
-        int v_offset = ng_v[2];
-        dptr_v_plane = v_plane_tab.table();
-        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_v_plane(k-v_offset) = dptr_v[k];
-        });
+            // Copy from local computation to persistent storage
+            // Both use the same Table1D indexing with offset, so direct copy
+            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                r_avg_persistent(k-offset) = dptr_r_plane(k-offset);
+                t_avg_persistent(k-offset) = dptr_t_plane(k-offset);
+            });
+        }
     }
 
-    /**/
     if (use_lsf) {
-        lsf_data[0]->setVal(0.0);
+        lsf_data[level]->setVal(0.0);
 
         int itime_curr = 0;
         int itime_next = 0;
         amrex::Real coeff_curr = 1.0;
         amrex::Real coeff_next = 0.0;
-        amrex::Real inv_scale = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
 
         lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
 
@@ -248,22 +284,19 @@ void ERF::advance_dycore (int level,
         const Real* w_lsf_n   = lsf.w_int_lsf_d[itime_curr].dataPtr();
         const Real* w_lsf_np1 = lsf.w_int_lsf_d[itime_next].dataPtr();
 
-
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         {
         for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx  = mfi.growntilebox(IntVect(1, 1, 0));
+            Box bx  = mfi.tilebox();
             const Array4<Real>& cell_data = state_old[IntVars::cons].array(mfi);
-            const Array4<Real>& lsf_arr = lsf_data[0]->array(mfi);
-            Real zlo = fine_geom.ProbLo(2);
+            const Array4<Real>& lsf_arr = lsf_data[level]->array(mfi);
             Real dzInv = fine_geom.InvCellSize(2);
             const int kmin = domain.smallEnd(2) + 1; // minimum k for vertical subsidence
             const int kmax = domain.bigEnd(2) - 1;   // maximum k for vertical subsidence
-            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[0]->const_array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -279,9 +312,9 @@ void ERF::advance_dycore (int level,
                 lsf_arr(i, j, k, 3) = ttend;
                 lsf_arr(i, j, k, 4) = qtend;
 
-                if (k > kmin && k < kmax) {
+                if (k >= kmin && k <= kmax) {
                     int k1, k2;
-                    amrex::Real inv_dz, rdz;
+                    amrex::Real rdz;
                     if (wsub >= 0.0)
                     {
                         k1 = k;
@@ -294,8 +327,11 @@ void ERF::advance_dycore (int level,
                     rdz *= wsub;
 
                     amrex::Real tvtend = -rdz * ( (cell_data(i, j, k1, RhoTheta_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoTheta_comp) / cell_data(i, j, k2, Rho_comp)));
-                    amrex::Real qvtend = -rdz * ( (cell_data(i, j, k1, RhoQ1_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ1_comp) / cell_data(i, j, k2, Rho_comp)));
-                    amrex::Real qctend = -rdz * ( (cell_data(i, j, k1, RhoQ2_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ2_comp) / cell_data(i, j, k2, Rho_comp)));
+                    amrex::Real qvtend = zero, qctend = zero;
+                    if (has_moisture) {
+                        qvtend = -rdz * ( (cell_data(i, j, k1, RhoQ1_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ1_comp) / cell_data(i, j, k2, Rho_comp)));
+                        qctend = -rdz * ( (cell_data(i, j, k1, RhoQ2_comp) / cell_data(i, j, k1, Rho_comp)) - (cell_data(i, j, k2, RhoQ2_comp) / cell_data(i, j, k2, Rho_comp)));
+                    }
 
                     lsf_arr(i, j, k, 0) += tvtend;
                     lsf_arr(i, j, k, 1) += qvtend;
@@ -306,24 +342,22 @@ void ERF::advance_dycore (int level,
                 }
             });
 
-            amrex::Gpu::streamSynchronize();
-
             // subsidence
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // directly apply tendencies for theta and qv
                 cell_data(i, j, k, RhoTheta_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 0) * dt_advance;
-                cell_data(i, j, k, RhoQ1_comp) = max(0.0, cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * dt_advance);
-                cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
+                if (has_moisture) {
+                    cell_data(i, j, k, RhoQ1_comp) = max(Real(0), cell_data(i, j, k, RhoQ1_comp) + cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 1) * Real(dt_advance));
+                    cell_data(i, j, k, RhoQ2_comp) += cell_data(i, j, k, Rho_comp) * lsf_arr(i, j, k, 7) * dt_advance;
+                }
             });
-
-            amrex::Gpu::streamSynchronize();
         }
         }
     }
 
     if (use_nudging) {
-        nudge_data[0]->setVal(0.0);
+        nudge_data[level]->setVal(0.0);
 
         int itime_n    = 0;
         int itime_np1  = 0;
@@ -352,15 +386,24 @@ void ERF::advance_dycore (int level,
 
         const int n  = RhoTheta_comp;
         const int nq  = RhoQ1_comp;
-        const int nr = Rho_comp;
 
         // lower and upper bounds to apply theta nudging
         const Real t_z1 = solverChoice.nudging_t_z1;
         const Real t_z2 = solverChoice.nudging_t_z2;
 
+        // whether to nudge theta at all
+        const bool nudge_theta   = solverChoice.nudging_t;
+
         // lower and upper bounds to apply qv nudging
         const Real q_z1 = solverChoice.nudging_q_z1;
         const Real q_z2 = solverChoice.nudging_q_z2;
+
+        // whether to nudge qv at all
+        const bool nudge_q = solverChoice.nudging_q;
+
+        // lower and upper bounds to apply u,v nudging (sounding-based branch only; see below)
+        const Real u_z1 = solverChoice.nudging_u_z1;
+        const Real u_z2 = solverChoice.nudging_u_z2;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -368,10 +411,10 @@ void ERF::advance_dycore (int level,
         {
         for ( MFIter mfi(state_old[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            Box bx = mfi.growntilebox(IntVect(1, 1, 0));
+            Box bx = mfi.tilebox();
             const Array4<Real>& cell_data  = state_old[IntVars::cons].array(mfi);
-            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[0]->const_array(mfi) : Array4<Real>{};
-            const Array4<Real>& nudge_arr = nudge_data[0]->array(mfi);
+            const Array4<const Real>& z_cc_arr = (l_use_terrain_fitted_coords) ? z_phys_cc[level]->const_array(mfi) : Array4<Real>{};
+            const Array4<Real>& nudge_arr = nudge_data[level]->array(mfi);
             Real zlo = fine_geom.ProbLo(2);
             Real dz = fine_geom.CellSize(2);
 
@@ -382,7 +425,7 @@ void ERF::advance_dycore (int level,
                 // nudge_data = tnudge, qnudge, unudge, vnudge
 
                 // Nudging for theta
-                if (z >= t_z1 && z <= t_z2) {
+                if (nudge_theta && z >= t_z1 && z <= t_z2) {
                     Real nudge = (coeff_n*theta_inp_sound_n[k] + coeff_np1*theta_inp_sound_np1[k]) - (dptr_t_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 0) = nudge * tau_inv;
                     //if (i == 0 && j == 0)
@@ -391,7 +434,7 @@ void ERF::advance_dycore (int level,
                 }
 
                 // Nudging for qv
-                if (z >= q_z1 && z <= q_z2) {
+                if (has_moisture && nudge_q && z >= q_z1 && z <= q_z2) {
                     Real nudge = (coeff_n*qv_inp_sound_n[k] + coeff_np1*qv_inp_sound_np1[k]) - (dptr_qv_plane(k)/dptr_r_plane(k));
                     nudge_arr(i, j, k, 1) = nudge * tau_inv;
                     //if (i == 0 && j == 0)
@@ -402,41 +445,47 @@ void ERF::advance_dycore (int level,
 
             // Nudging for u and v
             // NOTE: if LSF is enabled, then the U,V nudging here uses the LSF values, not U and V from the input sounding
-            Real uv_coeff_n = coeff_n;
-            Real uv_coeff_np1 = coeff_np1;
-            Real tau = tau_inv;
-            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
-            if (!use_lsf)
-            {
-                u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
-                u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
-                v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
-                v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
-            } else {
-                int itime_curr = 0;
-                int itime_next = 0;
-                uv_coeff_n = 1.0;
-                uv_coeff_np1 = 0.0;
-                tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
+            if (solverChoice.nudging_u || use_lsf) {
+                Real uv_coeff_n = coeff_n;
+                Real uv_coeff_np1 = coeff_np1;
+                Real tau = tau_inv;
+                Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+                if (!use_lsf)
+                {
+                    u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
+                    u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                    v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
+                    v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
+                } else {
+                    int itime_curr = 0;
+                    int itime_next = 0;
+                    uv_coeff_n = 1.0;
+                    uv_coeff_np1 = 0.0;
+                    tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
 
-                lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
-                u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
-                u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
-                v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
-                v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                    lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                    u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
+                    u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
+                    v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
+                    v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                }
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    // height bound below applies only to sounding-based wind nudging, not LSF
+                    Real z = (z_cc_arr) ? z_cc_arr(i,j,k) : zlo + (k+0.5)*dz;
+                    if (use_lsf || (z >= u_z1 && z <= u_z2)) {
+                        Real unudge = -(dptr_u_plane(k) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
+                        unudge *= tau;
+
+                        Real vnudge = -(dptr_v_plane(k) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
+                        vnudge *= tau;
+
+                        nudge_arr(i, j, k, 2) = unudge;
+                        nudge_arr(i, j, k, 3) = vnudge;
+                    }
+                });
             }
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real unudge = -(dptr_u_plane(k) - (uv_coeff_n*u_nudge_n[k] + uv_coeff_np1*u_nudge_np1[k]));
-                unudge *= tau;
-
-                Real vnudge = -(dptr_v_plane(k) - (uv_coeff_n*v_nudge_n[k] + uv_coeff_np1*v_nudge_np1[k]));
-                vnudge *= tau;
-
-                nudge_arr(i, j, k, 2) = unudge;
-                nudge_arr(i, j, k, 3) = vnudge;
-            });
         }
         }
     }
@@ -583,39 +632,35 @@ void ERF::advance_dycore (int level,
                                   *walldist[level].get(),
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, mapfac[level],
-                                  z_phys_nd[level], solverChoice,
+                                  z_phys_nd[level], z_phys_cc[level], solverChoice,
                                   m_SurfaceLayer, z_0, l_use_terrain_fitted_coords,
                                   l_use_moisture, level,
                                   bc_ptr_h,
-                                  get_eb(level));
-    }
+                                  get_eb(level),
+                                  false, // vert_only
+                                  qheating_rates[level].get());
 
-    // ***********************************************************************************************
-    // Update user-defined source terms -- these are defined once per time step (not per RK stage)
-    // ***********************************************************************************************
-    if (solverChoice.custom_rhotheta_forcing) {
-        prob->update_rhotheta_sources(old_time,
-                                      rhotheta_src_ptr,
-                                      fine_geom, z_phys_cc[level]);
-    }
+        // Zero turbulent mixing in fully immersed cells
+        MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                   solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
+            terrain_blanking[level].get() : nullptr;
 
-    if (solverChoice.custom_moisture_forcing) {
-        prob->update_rhoqt_sources(old_time,
-                                   rhoqt_src_ptr,
-                                   fine_geom, z_phys_cc[level]);
-    }
+        if (terrain_blank) {
+            for (MFIter mfi(*eddyDiffs); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.growntilebox(eddyDiffs->nGrowVect());
+                auto const& t_blank_arr = terrain_blank->const_array(mfi);
+                auto const& eddy_arr = eddyDiffs->array(mfi);
 
-    if (solverChoice.custom_geostrophic_profile) {
-        prob->update_geostrophic_profile(old_time,
-                                   h_u_geos[level], d_u_geos[level],
-                                   h_v_geos[level], d_v_geos[level],
-                                   fine_geom, z_phys_cc[level]);
-    }
-
-    if (solverChoice.custom_w_subsidence) {
-        prob->update_w_subsidence(old_time,
-                                  h_w_subsid[level], d_w_subsid[level],base_state[level],
-                                  fine_geom, z_phys_nd[level]);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    // Zero eddy diffusivities in fully immersed cells (sanitizes NaN/Inf)
+                    if (t_blank_arr(i,j,k) == one) {
+                        for (int n = 0; n < EddyDiff::NumDiffs; ++n) {
+                            eddy_arr(i,j,k,n) = zero;
+                        }
+                    }
+                });
+            }
+        }
     }
 
     if (solverChoice.do_radiation)
@@ -667,6 +712,34 @@ void ERF::advance_dycore (int level,
         }
 
         Print() << "  QSRC curr time = " << curr << " next time = " << next << " (ccurr = " << coeff_curr << " cnext = " << coeff_next << ")" << std::endl;
+    }
+
+    // ***********************************************************************************************
+    // Update user-defined source terms -- these are defined once per time step (not per RK stage)
+    // ***********************************************************************************************
+    if (solverChoice.custom_rhotheta_forcing) {
+        prob->update_rhotheta_sources(old_time,
+                                      rhotheta_src_ptr,
+                                      fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        prob->update_rhoqt_sources(old_time,
+                                   rhoqt_src_ptr,
+                                   fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_geostrophic_profile) {
+        prob->update_geostrophic_profile(old_time,
+                                   h_u_geos[level], d_u_geos[level],
+                                   h_v_geos[level], d_v_geos[level],
+                                   fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_w_subsidence) {
+        prob->update_w_subsidence(old_time,
+                                  h_w_subsid[level], d_w_subsid[level],base_state[level],
+                                  fine_geom, z_phys_nd[level]);
     }
 
     // ***********************************************************************************************

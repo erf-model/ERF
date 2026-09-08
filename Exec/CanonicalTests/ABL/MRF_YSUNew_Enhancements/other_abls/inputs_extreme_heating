@@ -1,0 +1,145 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Extreme Heat Flux Test Case
+# 
+# Reference: Extreme heat wave, desert thermals, heat stress conditions
+# This test validates upper bounds on HGAMT (limited to GAMCRT = 3 K)
+# and VPERT limiting to prevent unphysical PBL height overshoot.
+#
+# Physical Context:
+#   - Very strong surface heating (> 10 K/h) representing extreme conditions
+#   - Tests HGAMT limiting to GAMCRT = 3 K threshold
+#   - Tests VPERT limiting to [0, GAMCRT] = [0, 3 K]
+#   - Validates that excessive buoyancy anomaly doesn't cause runaway PBL
+#
+# This case is critical for:
+# - Testing GAMCRT bounding (maximum heat countergradient limit)
+# - Validating VPERT limited to physically reasonable range
+# - Preventing PBL height overshoot under extreme forcing
+# - Testing model stability under extreme atmospheric conditions
+
+erf.prob_name = "ABL"
+
+# 12-hour simulation: 43200 s
+# With dt=0.05, max_step = 864000
+max_step = 864000
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+# Larger domain needed for extreme convection
+geometry.prob_extent = 8000  8000  2048
+amr.n_cell           =  8   8   64
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY - EXTREME HEATING (testing upper bounds)
+# Very strong surface heating rate (15-20 K/h) representing heat wave or desert
+zlo.type = "surface_layer"
+erf.most.z0   = 0.01    # roughness length [m] (desert-like, sparse vegetation)
+erf.most.zref = 48.0    # reference height [m]
+erf.most.surf_temp = 320.0  # very hot surface temperature [K]
+erf.most.surf_heating_rate = 15.0  # EXTREME heating rate [K/h]
+
+# Upper boundary - weak stable layer (will be overcome by extreme heating)
+zhi.type = "SlipWall"
+zhi.theta_grad = 0.001  # very weak inversion [K/m]
+
+# TIME STEP CONTROL - Standard for extreme conditions
+erf.fixed_dt = 0.05  # time step [s]
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# Frequent diagnostics to monitor HGAMT and PBL height
+erf.data_log    = extreme_heat_hist.dat extreme_heat_profiles.dat
+erf.profile_int = 20
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk_extreme_heating     # root name of checkpoint file
+erf.check_int       = 50000                   # checkpoint every ~2500 s
+
+
+
+# PLOTFILES
+erf.plot_file_1     = plt_unstable      # prefix of plotfile name
+erf.plot_int_1      = 15                # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 rhoadv_1 x_velocity y_velocity z_velocity pressure temp theta
+
+# SOLVER CHOICE
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+# When using a PBL model, LES closure should be disabled
+erf.les_type        = "None"
+erf.Cs = 0.11
+erf.theta_ref = 300.0
+
+# INITIALIZATION - from sounding file
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding_MRF_extreme_heating"
+
+
+
+# Moderate perturbations for turbulence initiation
+
+# PBL CONFIGURATION - MRF with countergradient enabled
+erf.pbl_type = "MRF"
+
+# MRF PBL PARAMETERS (for MRF model)
+erf.enable_mrf_cloud_adjustment = false
+erf.enable_mrf_countergradient = true
+erf.enable_mrf_unbounded_vpert = false
+erf.mrf_moistvars = false
+erf.pbl_mrf_Ribcr = 0.5
+erf.pbl_mrf_const_b = 7.8
+erf.pbl_mrf_coriolis_freq = 1.0e-4
+erf.pbl_mrf_highres_bounds = false
+erf.pbl_mrf_sf = 0.1
+erf.pbl_mrf_use_zero_ri_extent = false
+
+# ============================================================
+# YSUNew PBL PARAMETERS (uncomment to use YSU model)
+# For YSUNew model:
+#   1. Comment out the MRF parameters above
+#   2. Uncomment the following YSU parameters
+#   3. Change 'erf.pbl_type = "MRF"' to 'erf.pbl_type = "YSUNew"'
+# ============================================================
+# erf.enable_ysu_cloud_pblh = true
+# erf.enable_ysu_countergradient = true
+# erf.enable_ysu_entrainment = true
+# erf.enable_ysu_liquid_theta = true
+# erf.enable_ysu_sat_limiter = false
+# erf.enable_ysu_terrain_pblh_floor = true
+# erf.enable_ysu_topdown = true
+# erf.pbl_ysu_coriolis_freq = 1.0e-4
+# erf.pbl_ysu_force_over_water = false
+# erf.pbl_ysu_land_Ribcr = 0.25
+# erf.pbl_ysu_unst_Ribcr = 0.0
+# erf.pbl_ysu_use_consistent_coriolis = false
+# erf.pbl_ysunew_highres_bounds = false
+# erf.ysu_moistvars = false
+# erf.ysu_qcloud_threshold = 1.0e-4
+
+# Enable countergradient corrections - test GAMCRT limit
+
+# Enable moisture diffusivity
+
+# Use conservative (strict) diffusivity bounds for extreme conditions
+
+# CORIOLIS EFFECT
+erf.latitude = 30.0  # subtropical latitude (realistic for extreme heat)
+
+# END OF INPUT FILE
+
+erf.use_coriolis = true
+
+erf.abl_driver_type = "GeostrophicWind"
+
+erf.abl_geo_wind = 4.0 0.0 0.0

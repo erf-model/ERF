@@ -1,0 +1,13 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_impli_comp_tmpi_tests.cpp
+# Property-case data translated into ERF bottom-up interface ordering.
+# This fixture covers the interior and lower interfaces only. The top ERF
+# interface uses an explicit top half-cell, so it does not map one-to-one to
+# the E3SM top boundary convention where tmpi(0) = 0.
+# Values are exact dtime * g * rho_zi / dz_zi with dtime = 300 s and
+# g = 9.81 m s^-2.
+353.159999999999968
+58.859999999999999
+26.487000000000002
+11.772000000000000
+3.531600000000000

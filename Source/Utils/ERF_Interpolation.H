@@ -23,6 +23,19 @@ isSupportedInterpolationAdvType (const AdvType adv_type) noexcept
            adv_type == AdvType::Centered_6th;
 }
 
+/**
+ * Compute interpolated value based on averages, differences, and advection type.
+ *
+ * @param avg1 First average
+ * @param avg2 Second average
+ * @param avg3 Third average
+ * @param diff1 First difference
+ * @param diff2 Second difference
+ * @param diff3 Third difference
+ * @param scaled_upw Scaled upwind factor
+ * @param adv_type Advection scheme type
+ * @return Interpolated value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -54,6 +67,18 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
     return myInterpolatedVal;
 }
 
+/**
+ * Interpolate a quantity in the x-direction.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param qty Quantity field
+ * @param qty_index Component index
+ * @param upw Upwind direction
+ * @param adv_type Advection scheme type
+ * @return Interpolated value in x
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -85,6 +110,18 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
     }
 }
 
+/**
+ * Interpolate a quantity in the y-direction.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param qty Quantity field
+ * @param qty_index Component index
+ * @param upw Upwind direction
+ * @param adv_type Advection scheme type
+ * @return Interpolated value in y
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -115,6 +152,18 @@ InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
     }
 }
 
+/**
+ * Interpolate a quantity in the z-direction.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param qty Quantity field
+ * @param qty_index Component index
+ * @param upw Upwind direction
+ * @param adv_type Advection scheme type
+ * @return Interpolated value in z
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -144,6 +193,20 @@ InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
     }
 }
 
+/**
+ * Interpolate the perturbation of a quantity from cell center to face.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param qty Quantity field
+ * @param qty_index Component index
+ * @param upw Upwind direction
+ * @param coordDir Coordinate direction
+ * @param adv_type Advection scheme type
+ * @param r0_arr Base state field
+ * @return Interpolated perturbation value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -224,6 +287,19 @@ InterpolatePertFromCell (int i, int j, int k,
     return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,adv_type);
 }
 
+/**
+ * Interpolate the density perturbation from cell center to face.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param cons_in Conservative variable field
+ * @param upw Upwind direction
+ * @param coordDir Coordinate direction
+ * @param adv_type Advection scheme type
+ * @param r0_arr Base state field
+ * @return Interpolated density perturbation
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

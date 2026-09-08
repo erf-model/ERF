@@ -15,7 +15,8 @@ SolverChoice make_sam_solver_choice (const MoistureType moisture_type = Moisture
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_shoc = false;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = false;
     return sc;
 }
 
@@ -75,6 +76,44 @@ SAMCellState make_cell_state (const amrex::Real tabs,
     state.theta = sam_theta_from_stored_mbar_converted_to_pa(tabs, pres_mbar, kRdOcp);
     state.rho = getRhogivenTandPress(tabs, sam_mbar_to_pa(pres_mbar), qv);
     return state;
+}
+
+SAMCellState run_newton_adjustment (const SAMCellState& initial,
+                                    const int sam_mode)
+{
+    amrex::FArrayBox tabs_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox pres_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qv_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qc_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qi_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qn_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+    amrex::FArrayBox qt_fab(single_cell_box(), 1, amrex::The_Pinned_Arena());
+
+    auto tabs = tabs_fab.array();
+    auto pres = pres_fab.array();
+    auto qv = qv_fab.array();
+    auto qc = qc_fab.array();
+    auto qi = qi_fab.array();
+    auto qn = qn_fab.array();
+    auto qt = qt_fab.array();
+    tabs(0,0,0) = initial.tabs;
+    pres(0,0,0) = initial.pres_mbar;
+    qv(0,0,0) = initial.qv;
+    qc(0,0,0) = initial.qcl;
+    qi(0,0,0) = initial.qci;
+    qn(0,0,0) = initial.qn;
+    qt(0,0,0) = initial.qt;
+
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    const amrex::Real tabs_final = SAM::NewtonIterSat(
+        i, j, k, sam_mode, kFacCond, kFacFus, kFacSub, a_bg, tbgmin * a_bg,
+        tabs, pres, qv, qc, qi, qn, qt);
+
+    return make_cell_state(tabs_final, initial.pres_mbar,
+                           qv(0,0,0), qc(0,0,0), qi(0,0,0),
+                           zero, zero, zero);
 }
 
 SAMPrecipConfig make_precip_config (const int sam_mode,
@@ -1092,16 +1131,67 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                                                     amrex::Real(1.0)})));
 }
 
-    struct CloudAdjustmentLimiterInvestigation {
+// Motivation: When SHOC owns cloud condensation, SAM::Cloud must not change a
+// warm supersaturated cloud-free cell. This exercises the public C++ no-op
+// path and guards against double-adjusting vapor and cloud water.
+TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
+{
+    const amrex::Real tabs = amrex::Real(290.0);
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real qsat = mixed_qsat_for_state(kSAMWithIceMode, tabs, pres_mbar);
+    const SAMCellState state = make_cell_state(
+        tabs,
+        pres_mbar,
+        qsat + amrex::Real(1.0e-4),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0),
+        amrex::Real(0.0));
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, 1.0)});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(ba, dm, RhoQ6_comp + 1, 0);
+    amrex::MultiFab before(ba, dm, RhoQ6_comp + 1, 0);
+    fill_single_cell_from_sam_state(cons, state);
+    amrex::MultiFab::Copy(before, cons, 0, 0, cons.nComp(), 0);
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+
+    SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
+    sc.use_native_shoc = true;
+    sc.turbChoice.resize(1);
+    sc.turbChoice[0].pbl_type = PBLType::NATIVE_SHOC;
+
+    SAM sam;
+    sam.Define(sc);
+    sam.Set_dzmin(geom.CellSize(2));
+    sam.Init(cons, ba, geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
+    sam.Copy_State_to_Micro(cons);
+    sam.Cloud(sc);
+    sam.Copy_Micro_to_State(cons);
+    amrex::Gpu::streamSynchronize();
+
+    for (int comp = Rho_comp; comp <= RhoQ6_comp; ++comp) {
+        SCOPED_TRACE("comp=" + std::to_string(comp));
+        EXPECT_NEAR(cons.max(comp), before.max(comp), exact_zero_or_near_zero_tol());
+    }
+}
+
+    struct CloudAdjustmentInvestigation {
         bool found{false};
         SAMCellState initial_state{};
         SAMCellState partitioned_state{};
         SAMCellState final_state{};
-        amrex::Real qsat_final{amrex::Real(0.0)};
-        amrex::Real requested_delta_qc{amrex::Real(0.0)};
-        amrex::Real requested_delta_qi{amrex::Real(0.0)};
-        bool clipped_qc{false};
-        bool clipped_qi{false};
+        amrex::Real qsatm_final{amrex::Real(0.0)};
+        amrex::Real omn_final{amrex::Real(0.0)};
     };
 
     amrex::Real cloud_adjustment_total_nonprecip_water (const SAMCellState& state)
@@ -1114,41 +1204,41 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
         return state.tabs + kFacCond * state.qv - kFacFus * state.qci;
     }
 
-    CloudAdjustmentLimiterInvestigation find_cloud_adjustment_limiter_active_case ()
+    CloudAdjustmentInvestigation find_cloud_adjustment_mixed_phase_case ()
     {
         constexpr amrex::Real an = a_bg;
         constexpr amrex::Real bn = tbgmin * a_bg;
 
         const amrex::Real pres_mbar = amrex::Real(900.0);
         const std::array<amrex::Real, 9> tabs_samples = {
+            amrex::Real(0.5) * (tbgmin + tbgmax),
             tbgmin + amrex::Real(0.1),
             tbgmin + amrex::Real(1.0),
             tbgmin + amrex::Real(2.5),
             tbgmin + amrex::Real(5.0),
-            amrex::Real(0.5) * (tbgmin + tbgmax),
             tbgmax - amrex::Real(5.0),
             tbgmax - amrex::Real(2.5),
             tbgmax - amrex::Real(1.0),
             tbgmax - amrex::Real(0.1)};
         const std::array<amrex::Real, 7> qn_samples = {
+            amrex::Real(3.0e-3),
             amrex::Real(2.0e-4),
             amrex::Real(4.0e-4),
             amrex::Real(8.0e-4),
             amrex::Real(1.2e-3),
             amrex::Real(1.8e-3),
-            amrex::Real(2.4e-3),
-            amrex::Real(3.0e-3)};
+            amrex::Real(2.4e-3)};
         const std::array<amrex::Real, 6> liquid_fractions = {
+            amrex::Real(0.35),
             amrex::Real(0.0),
             amrex::Real(0.15),
-            amrex::Real(0.35),
             amrex::Real(0.65),
             amrex::Real(0.85),
             amrex::Real(1.0)};
         const std::array<amrex::Real, 8> deficit_fractions = {
+            amrex::Real(0.25),
             amrex::Real(0.05),
             amrex::Real(0.15),
-            amrex::Real(0.25),
             amrex::Real(0.40),
             amrex::Real(0.55),
             amrex::Real(0.70),
@@ -1247,7 +1337,7 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                             qn_array,
                             qt_array);
 
-                        CloudAdjustmentLimiterInvestigation result{};
+                        CloudAdjustmentInvestigation result{};
                         result.initial_state = initial_state;
                         result.partitioned_state = partitioned_state;
                         result.final_state = make_cell_state(
@@ -1266,32 +1356,14 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                         erf_qsati(tabs_final, pres_mbar, qsati_final);
                         const amrex::Real omn_final =
                             sam_cloud_liquid_fraction(kSAMWithIceMode, tabs_final, an, bn);
-                        result.qsat_final = sam_mixed_qsat(omn_final, qsatw_final, qsati_final);
-                        result.requested_delta_qc =
-                            (partitioned_state.qv - result.qsat_final) * omn_final;
-                        result.requested_delta_qi =
-                            (partitioned_state.qv - result.qsat_final) * (one - omn_final);
+                        result.qsatm_final = sam_mixed_qsat(omn_final, qsatw_final, qsati_final);
+                        result.omn_final = omn_final;
 
-                        const amrex::Real actual_delta_qc =
-                            result.final_state.qcl - partitioned_state.qcl;
-                        const amrex::Real actual_delta_qi =
-                            result.final_state.qci - partitioned_state.qci;
-                        const amrex::Real qc_tol = property_accumulation_tol(
-                            2,
-                            std::max({std::abs(result.requested_delta_qc),
-                                      std::abs(actual_delta_qc),
-                                      amrex::Real(1.0)}));
-                        const amrex::Real qi_tol = property_accumulation_tol(
-                            2,
-                            std::max({std::abs(result.requested_delta_qi),
-                                      std::abs(actual_delta_qi),
-                                      amrex::Real(1.0)}));
-                        result.clipped_qc =
-                            std::abs(actual_delta_qc - result.requested_delta_qc) > qc_tol;
-                        result.clipped_qi =
-                            std::abs(actual_delta_qi - result.requested_delta_qi) > qi_tol;
-
-                        if (result.clipped_qc || result.clipped_qi) {
+                        // The mixed-phase solve saturates vapor against the
+                        // omega-weighted water/ice relation and partitions all
+                        // remaining condensate with the same omega_n.
+                        if (result.final_state.qcl > zero && result.final_state.qci > zero &&
+                            tabs_final > tbgmin && tabs_final < tbgmax) {
                             result.found = true;
                             return result;
                         }
@@ -1306,18 +1378,16 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
     // Motivation:
     // Reproduce the same held-pressure cloud-adjustment sequence used by SAM::Cloud
     // on a valid one-cell state: phase repartition first, then NewtonIterSat. The
-    // full non-precipitating cloud-adjustment contract is total water qv+qcl+qci
-    // and the latent proxy T + fac_cond*qv - fac_fus*qci. This test searches for a
-    // valid limiter-active NewtonIterSat case and verifies that the combined cloud
-    // adjustment still preserves that contract.
-    TEST(SAMPhysicalProperties, CloudAdjustmentLimiterActiveConservesWaterAndLatentProxy)
+    // mixed-phase contract is qv=qsatm, qcl=omega_n*(qt-qsatm), and
+    // qci=(1-omega_n)*(qt-qsatm), while total water and the latent proxy
+    // T + fac_cond*qv - fac_fus*qci remain conserved.
+    TEST(SAMPhysicalProperties, CloudAdjustmentMixedPhaseSatisfiesCoupledConstraints)
     {
-        const CloudAdjustmentLimiterInvestigation investigation =
-            find_cloud_adjustment_limiter_active_case();
+        const CloudAdjustmentInvestigation investigation =
+            find_cloud_adjustment_mixed_phase_case();
 
         ASSERT_TRUE(investigation.found)
-            << "No valid Cloud/NewtonIterSat limiter-active case was found in the deterministic search grid.";
-        ASSERT_TRUE(investigation.clipped_qc || investigation.clipped_qi);
+            << "No valid mixed-phase Cloud/NewtonIterSat case was found in the deterministic search grid.";
 
         const amrex::Real initial_total_water =
             cloud_adjustment_total_nonprecip_water(investigation.initial_state);
@@ -1330,9 +1400,9 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
         const amrex::Real total_water_residual = final_total_water - initial_total_water;
         const amrex::Real latent_proxy_residual = final_latent_proxy - initial_latent_proxy;
         const amrex::Real qv_minus_qsat_final =
-            investigation.final_state.qv - investigation.qsat_final;
+            investigation.final_state.qv - investigation.qsatm_final;
         const amrex::Real qsat_tol =
-            property_accumulation_tol(6, std::max(std::abs(investigation.qsat_final), amrex::Real(1.0)));
+            property_accumulation_tol(6, std::max(std::abs(investigation.qsatm_final), amrex::Real(1.0)));
         // NewtonIterSat stops on a temperature update tolerance, so the final
         // cloud-adjustment latent proxy should close far tighter than that, but
         // not necessarily to pure accumulation roundoff.
@@ -1367,10 +1437,7 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
             << " final_latent_proxy=" << final_latent_proxy
             << " latent_proxy_residual=" << latent_proxy_residual
             << " qv_minus_qsat_final=" << qv_minus_qsat_final
-            << " clipped_qc=" << investigation.clipped_qc
-            << " clipped_qi=" << investigation.clipped_qi
-            << " requested_delta_qc=" << investigation.requested_delta_qc
-            << " requested_delta_qi=" << investigation.requested_delta_qi;
+            << " omega_n=" << investigation.omn_final;
             EXPECT_NEAR(qv_minus_qsat_final,
                     amrex::Real(0.0),
                     qsat_tol)
@@ -1398,10 +1465,14 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
                 << " final_latent_proxy=" << final_latent_proxy
                 << " latent_proxy_residual=" << latent_proxy_residual
                 << " qv_minus_qsat_final=" << qv_minus_qsat_final
-                << " clipped_qc=" << investigation.clipped_qc
-                << " clipped_qi=" << investigation.clipped_qi
-                << " requested_delta_qc=" << investigation.requested_delta_qc
-                << " requested_delta_qi=" << investigation.requested_delta_qi;
+                << " omega_n=" << investigation.omn_final;
+        const amrex::Real final_qn = investigation.final_state.qcl + investigation.final_state.qci;
+        EXPECT_NEAR(investigation.final_state.qcl,
+                    investigation.omn_final * final_qn,
+                    property_accumulation_tol(3, std::max(std::abs(final_qn), amrex::Real(1.0))));
+        EXPECT_NEAR(investigation.final_state.qci,
+                    (one - investigation.omn_final) * final_qn,
+                    property_accumulation_tol(3, std::max(std::abs(final_qn), amrex::Real(1.0))));
         EXPECT_NEAR(final_latent_proxy,
                     initial_latent_proxy,
                     latent_proxy_tol)
@@ -1429,11 +1500,64 @@ TEST(SAMPhysicalProperties, PrecipFall_RainSnowGraupelComponentBudgetsClose)
             << " final_latent_proxy=" << final_latent_proxy
             << " latent_proxy_residual=" << latent_proxy_residual
             << " qv_minus_qsat_final=" << qv_minus_qsat_final
-            << " clipped_qc=" << investigation.clipped_qc
-            << " clipped_qi=" << investigation.clipped_qi
-            << " requested_delta_qc=" << investigation.requested_delta_qc
-            << " requested_delta_qi=" << investigation.requested_delta_qi;
+            << " omega_n=" << investigation.omn_final;
     }
+
+// Motivation:
+// In no-ice mode the coupled solve must saturate over water and put all
+// remaining non-precipitating water into cloud liquid.
+TEST(SAMPhysicalProperties, CloudAdjustmentNoIceSatisfiesLiquidOnlyConstraints)
+{
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs_initial = amrex::Real(280.0);
+    amrex::Real qsatw_initial;
+    erf_qsatw(tabs_initial, pres_mbar, qsatw_initial);
+    const SAMCellState initial = make_cell_state(
+        tabs_initial, pres_mbar,
+        qsatw_initial + amrex::Real(5.0e-4),
+        amrex::Real(1.0e-3), zero, zero, zero, zero);
+    const SAMCellState final = run_newton_adjustment(initial, kSAMNoIceMode);
+
+    amrex::Real qsatw_final;
+    erf_qsatw(final.tabs, pres_mbar, qsatw_final);
+    EXPECT_NEAR(final.qv, qsatw_final,
+                property_accumulation_tol(4, std::max(std::abs(qsatw_final), one)));
+    EXPECT_NEAR(final.qci, zero, exact_zero_tol());
+    EXPECT_NEAR(final.qcl, initial.qt - final.qv,
+                property_accumulation_tol(4, one));
+    EXPECT_NEAR(final.qt, initial.qt, property_accumulation_tol(4, one));
+    EXPECT_NEAR(final.tabs + kFacCond * final.qv,
+                initial.tabs + kFacCond * initial.qv,
+                std::max(property_accumulation_tol(4, initial.tabs), amrex::Real(1.0e-9)));
+}
+
+// Motivation:
+// At the cold omega cap, the unified mixed-saturation solve reduces to ice
+// saturation and assigns all remaining condensate to cloud ice.
+TEST(SAMPhysicalProperties, CloudAdjustmentColdCapSatisfiesIceOnlyConstraints)
+{
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs_initial = tbgmin - amrex::Real(5.0);
+    amrex::Real qsati_initial;
+    erf_qsati(tabs_initial, pres_mbar, qsati_initial);
+    const SAMCellState initial = make_cell_state(
+        tabs_initial, pres_mbar,
+        qsati_initial + amrex::Real(5.0e-4), zero,
+        amrex::Real(1.0e-3), zero, zero, zero);
+    const SAMCellState final = run_newton_adjustment(initial, kSAMWithIceMode);
+
+    amrex::Real qsati_final;
+    erf_qsati(final.tabs, pres_mbar, qsati_final);
+    EXPECT_NEAR(final.qv, qsati_final,
+                property_accumulation_tol(4, std::max(std::abs(qsati_final), one)));
+    EXPECT_NEAR(final.qcl, zero, exact_zero_tol());
+    EXPECT_NEAR(final.qci, initial.qt - final.qv,
+                property_accumulation_tol(4, one));
+    EXPECT_NEAR(final.qt, initial.qt, property_accumulation_tol(4, one));
+    EXPECT_NEAR(final.tabs + kFacCond * final.qv - kFacFus * final.qci,
+                initial.tabs + kFacCond * initial.qv - kFacFus * initial.qci,
+                std::max(property_accumulation_tol(4, initial.tabs), amrex::Real(1.0e-9)));
+}
 
 // Motivation:
 // The same component-wise PrecipFall budgets should close in terrain-like

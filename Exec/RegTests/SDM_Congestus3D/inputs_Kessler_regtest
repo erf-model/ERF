@@ -55,7 +55,6 @@ erf.use_gravity = true
 erf.use_coriolis = false
 
 erf.moisture_model  = "Kessler"
-erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"

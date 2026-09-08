@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBSlopes.H
+ * \brief Provides least-squares slope reconstruction helpers near EB cut cells.
+ */
 #ifndef ERF_EBSLOPES_H_
 #define ERF_EBSLOPES_H_
 
@@ -5,15 +9,19 @@
 #include <ERF_IndexDefines.H>
 
 /**
- * Function for computing the slopes with Dirichlet data
- * This function works for only face-centered grids
+ * \brief Compute least-squares slopes using EB Dirichlet data.
  *
- * @param[in] igrid_query index of grids where the query point is located (0=CC, 1=U, 2=V, 3=W)
- * @param[in] igrid_data index of grids where data points are located (0=CC, 1=U, 2=V, 3=W)
- * @param[in] bcent_eb centroid of the EB face
- * @param[in] state_eb state at the EB face (Dirichlet data)
- * @param[in] state array of state variable
- * @param[in] ccent array of cell centroid coordinates
+ * @param[in] dx Mesh spacing in x.
+ * @param[in] dy Mesh spacing in y.
+ * @param[in] dz Mesh spacing in z.
+ * @param[in] i Cell index in x.
+ * @param[in] j Cell index in y.
+ * @param[in] k Cell index in z.
+ * @param[in] bcent_eb EB boundary centroid.
+ * @param[in] state_eb Dirichlet state at the EB boundary.
+ * @param[in] state Cell-centered state array.
+ * @param[in] ccent Cell centroid coordinates.
+ * @param[in] flag Cell-centered EB flags and connectivity.
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
@@ -131,15 +139,21 @@ erf_calc_slopes_eb_Dirichlet (
 }
 
 /**
- * Function for computing the slopes with Dirichlet data in staggered grids
- * This function works for only face-centered grids
+ * \brief Compute least-squares slopes from staggered data using EB Dirichlet data.
  *
- * @param[in] igrid_query index of grids where the query point is located (0=CC, 1=U, 2=V, 3=W)
- * @param[in] igrid_data index of grids where data points are located (0=CC, 1=U, 2=V, 3=W)
- * @param[in] bcent_eb centroid of the EB face
- * @param[in] state_eb state at the EB face (Dirichlet data)
- * @param[in] state array of state variable
- * @param[in] ccent array of cell centroid coordinates
+ * @param[in] igrid_query Grid index for the query location.
+ * @param[in] igrid_data Grid index for the data locations.
+ * @param[in] dx Mesh spacing in x.
+ * @param[in] dy Mesh spacing in y.
+ * @param[in] dz Mesh spacing in z.
+ * @param[in] i Cell index in x.
+ * @param[in] j Cell index in y.
+ * @param[in] k Cell index in z.
+ * @param[in] bcent_eb EB boundary centroid.
+ * @param[in] state_eb Dirichlet state at the EB boundary.
+ * @param[in] state State array on the data grid.
+ * @param[in] ccent Cell centroid coordinates.
+ * @param[in] flag EB flags on the data grid.
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
@@ -284,6 +298,21 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
     return {xslope,yslope,zslope};
 }
 
+/**
+ * \brief Compute centered least-squares slopes from cell data to a staggered query grid.
+ *
+ * @param[in] igrid_query Grid index for the staggered query location.
+ * @param[in] igrid_data Grid index for the source data locations.
+ * @param[in] dx Mesh spacing in x.
+ * @param[in] dy Mesh spacing in y.
+ * @param[in] dz Mesh spacing in z.
+ * @param[in] i Cell index in x.
+ * @param[in] j Cell index in y.
+ * @param[in] k Cell index in z.
+ * @param[in] state State array on the data grid.
+ * @param[in] ccent Cell centroid coordinates.
+ * @param[in] flag EB flags on the data grid.
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
 erf_calc_slopes_eb_staggered (int igrid_query,
@@ -428,6 +457,22 @@ erf_calc_slopes_eb_staggered (int igrid_query,
     return {xslope,yslope,zslope};
 }
 
+/**
+ * \brief Compute upwind-biased least-squares slopes for staggered EB advection.
+ *
+ * @param[in] igrid_query Grid index for the staggered query location.
+ * @param[in] igrid_data Grid index for the source data locations.
+ * @param[in] dx Mesh spacing in x.
+ * @param[in] dy Mesh spacing in y.
+ * @param[in] dz Mesh spacing in z.
+ * @param[in] i Cell index in x.
+ * @param[in] j Cell index in y.
+ * @param[in] k Cell index in z.
+ * @param[in] vel_arr Velocity array used to choose the upwind stencil.
+ * @param[in] state State array on the data grid.
+ * @param[in] ccent Cell centroid coordinates.
+ * @param[in] flag EB flags on the data grid.
+ */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
 erf_calc_slopes_eb_staggered_upwind (int igrid_query,

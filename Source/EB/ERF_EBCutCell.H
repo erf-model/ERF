@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBCutCell.H
+ * \brief Defines cut-cell geometry reconstruction from EB plane intersections.
+ */
 #ifndef ERF_EB_CUT_CELL_H_
 #define ERF_EB_CUT_CELL_H_
 
@@ -11,6 +15,16 @@
 
 #include "ERF_EBPolygon.H"
 
+/**
+ * \brief Intersect a plane with a line segment.
+ * \param a_plane_point Point on the plane.
+ * \param a_plane_normal Unit normal for the plane.
+ * \param a_edge_point0 First endpoint of the edge.
+ * \param a_edge_point1 Second endpoint of the edge.
+ * \param[out] a_intersection_point Intersection point when the edge crosses the plane.
+ * \param[out] a_intersection_dist Distance from a_edge_point0 to the intersection.
+ * \return 1 if the segment intersects the plane, otherwise 0.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int
 intersect_plane_edge ( amrex::RealVect const& a_plane_point,
@@ -44,30 +58,49 @@ intersect_plane_edge ( amrex::RealVect const& a_plane_point,
   return 0;
 }
 
+/**
+ * \brief Reconstructs geometric moments for one EB cut cell.
+ *
+ * The class clips a rectangular cell by a planar EB approximation and exposes
+ * volume, face areas, centroids, boundary area, boundary centroid, and boundary
+ * normal data used by auxiliary face-centered EB factories.
+ */
 class eb_cut_cell_ {
 
   public:
 
+    /**
+     * \brief Construct cut-cell geometry from a cell flag, box, EB point, and EB normal.
+     * \param a_flag AMReX EB cell flag for the cell.
+     * \param a_rbox Physical-space cell box.
+     * \param a_point Point on the EB plane.
+     * \param a_normal Unit normal for the EB plane.
+     */
     AMREX_GPU_HOST_DEVICE
     eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
                    amrex::RealBox    const& a_rbox,
                    amrex::RealVect   const& a_point,
                    amrex::RealVect   const& a_normal );
 
+    //! Return true if the reconstructed cell is covered.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     bool isCovered () const noexcept { return m_flag.isCovered(); }
 
+    //! Return true if the reconstructed cell is regular.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     bool isRegular () const noexcept { return m_flag.isRegular(); }
 
+    //! Return true if the reconstructed cell is single-valued.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     bool isSingleValued () const noexcept { return m_flag.isSingleValued(); }
 
+    //! Mark the reconstructed cell as covered.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_covered () {
       m_flag.setCovered();
     }
 
+    //! Mark the reconstructed cell as regular and fill regular face areas.
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_regular () {
 
@@ -86,6 +119,7 @@ class eb_cut_cell_ {
 
     }
 
+    //! Return the physical volume of the reconstructed cell.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real volume () const {
 
@@ -107,6 +141,10 @@ class eb_cut_cell_ {
       return m_invert*volume + (one-m_invert)*(m_rbox.volume()-volume);
     }
 
+    /**
+     * \brief Return the low-side face area in one coordinate direction.
+     * \param idir Coordinate direction.
+     */
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaLo ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
@@ -116,6 +154,10 @@ class eb_cut_cell_ {
       return m_invert*area + (one-m_invert)*(m_rbox_area[idir] - area);
     }
 
+    /**
+     * \brief Return the high-side face area in one coordinate direction.
+     * \param idir Coordinate direction.
+     */
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaHi ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >= 0 && idir < AMREX_SPACEDIM );
@@ -125,11 +167,16 @@ class eb_cut_cell_ {
       return m_invert*area + (one-m_invert)*(m_rbox_area[idir] - area);
     }
 
+    //! Return the EB boundary area inside the cell.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real areaBoun () const noexcept {
       return m_F7.area();
     }
 
+    /**
+     * \brief Return the low-side face centroid in one coordinate direction.
+     * \param idir Coordinate direction.
+     */
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centLo ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
@@ -150,6 +197,10 @@ class eb_cut_cell_ {
       return cent;
     }
 
+    /**
+     * \brief Return the high-side face centroid in one coordinate direction.
+     * \param idir Coordinate direction.
+     */
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centHi ( int const idir ) const noexcept {
       AMREX_ASSERT( idir >=0 && idir < AMREX_SPACEDIM );
@@ -170,6 +221,7 @@ class eb_cut_cell_ {
       return cent;
     }
 
+    //! Return the EB boundary centroid.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centBoun () const noexcept {
       amrex::RealVect cent{zero,zero,zero};
@@ -179,6 +231,7 @@ class eb_cut_cell_ {
       return cent;
     }
 
+    //! Return the EB boundary normal.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect normBoun () const noexcept {
       amrex::RealVect normal{zero,zero,zero};
@@ -188,6 +241,7 @@ class eb_cut_cell_ {
       return normal;
     }
 
+    //! Return the volume centroid of the reconstructed cell.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect centVol () const noexcept {
       amrex::RealVect vcent = m_cell_cent;
@@ -218,6 +272,10 @@ class eb_cut_cell_ {
       return vcent;
     }
 
+    /**
+     * \brief Print cut-cell diagnostics on CPU builds.
+     * \param a_face Face identifier to report, or -1 for all faces.
+     */
     void debug ( int const a_face = -1 );
 
   private:
@@ -255,11 +313,14 @@ class eb_cut_cell_ {
     amrex::Array<int const,3> m_lo_faces_id {3,4,0};
     amrex::Array<int const,3> m_hi_faces_id {1,5,2};
 
+    //! Stores precomputed data for one edge-plane intersection path.
     struct path_data;
 
+    //! Compute all edge-plane intersections and populate polygon vertices.
     AMREX_GPU_HOST_DEVICE
     void calc_edge_intersections ();
 
+    //! Populate polygon vertices for cells that are fully covered or regular.
     AMREX_GPU_HOST_DEVICE
     void set_covered_regular_cell_vertices ();
 };
@@ -369,19 +430,36 @@ eb_cut_cell_ ( amrex::EBCellFlag const& a_flag,
 
 }
 
+/**
+ * \brief Intersection metadata for one ordered edge path in the cut-cell box.
+ */
 struct eb_cut_cell_::path_data
 {
+  //! Construct empty path data.
   AMREX_GPU_HOST_DEVICE
   AMREX_FORCE_INLINE
   path_data() = default;
 
+  //! Whether the edge intersects the EB plane.
   bool intersected{};
+  //! Whether the intersection lies on the start vertex.
   bool intersected_start{};
+  //! Whether the intersection lies on the end vertex.
   bool intersected_end{};
+  //! Coordinates of the intersection point.
   amrex::RealVect vIP{};
+  //! Distance from the start vertex to the intersection point.
   amrex::Real    distIP{};
+  //! Physical length of the edge.
   amrex::Real    edge_length{};
 
+  /**
+   * \brief Compute and store the intersection data for one edge.
+   * \param eb_point Point on the EB plane.
+   * \param eb_normal Unit normal for the EB plane.
+   * \param v_start First endpoint of the edge.
+   * \param v_end Second endpoint of the edge.
+   */
   AMREX_GPU_HOST_DEVICE
   AMREX_FORCE_INLINE
   void set(const amrex::RealVect& eb_point,

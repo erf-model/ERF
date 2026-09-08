@@ -1,0 +1,47 @@
+HyperCLaw-V1.1
+8
+density
+x_velocity
+y_velocity
+z_velocity
+theta
+pressure
+z_phys
+detJ
+3
+5
+1
+-3200 0 0 
+3200 400 3200 
+2 
+((0,0,0) (63,3,31) (0,0,0)) ((0,0,0) (127,3,63) (0,0,0)) 
+10 20 
+100 100 100 
+50 100 50 
+0
+0
+0 2 5
+10
+-3200 0
+0 400
+0 3200
+0 3200
+0 400
+0 3200
+Level_0/Cell
+1 2 5
+20
+-3200 -800
+0 400
+0 1700
+-800 800
+0 400
+0 1700
+Level_1/Cell
+1
+3
+amrexvec_nu_x
+amrexvec_nu_y
+amrexvec_nu_z
+Level_0/Nu_nd
+Level_1/Nu_nd

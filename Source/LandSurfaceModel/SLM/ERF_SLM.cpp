@@ -14,8 +14,12 @@ SLM::Init (const int& /*lev*/,
            const MultiFab& u_in,
            const MultiFab& v_in,
            const Geometry& geom,
+           const Geometry& /*geom0*/,
+           Vector<BCRec>& /*domain_bcs_type*/,
+           IntVect& /*refRatio*/,
            const Real& dt,
-           std::unique_ptr<amrex::MultiFab>& z_phys_nd_in)
+           std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
+           Vector<Vector<std::string>>& /*nc_init_file*/)
 {
     m_dt = dt;
     m_geom = geom;

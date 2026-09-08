@@ -1,2 +1,6 @@
-This problem setup is the evolution of a supercell, which primarily tests the ability
-of ERF to model moisture physics.
+This problem setup is the evolution of a 2D squall line.
+
+The current inputs file, "inputs_squallline", uses the compressible formulation of the equations
+with the Morrison moisture model and molecular diffusion with no LES or PBL model.
+
+The initial state is defined using by imposing HSE with perturbations as defined by prob_type = SquallLine.

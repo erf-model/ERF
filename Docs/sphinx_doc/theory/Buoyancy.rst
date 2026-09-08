@@ -49,10 +49,12 @@ One version of the buoyancy force is expressed simply as
 .. math::
      \rho^\prime = \rho_{total} - \rho_0
 
-where the total density :math:`\rho_{total} = \rho_d(1 + q_v + q_c + q_p)` is the sum of dry and moist components and :math:`\rho_0` is the total density
-for the background state. For example, a usual scenario is that of a background state that contains only air and vapor and no cloud water or precipitates. For such a state,
-the total background density :math:`\rho_0 = \rho_{d_0}(1 + q_{v_0})`, where :math:`\rho_{d_0}` and :math:`q_{v_0}` are the background dry density and vapor mixing ratio respectively.
-As a check, we observe that :math:`\rho^\prime_0 = 0`, which means that the background state is not buoyant.
+where the total density :math:`\rho_{total} = \rho_d(1 + q_v + q_c + q_p)` is the sum of dry and moist components. The stored base-state density :math:`\rho_0` is the dry density, and the only moisture variable carried in the base state is :math:`q_{v,0}`. Thus the type-1 density perturbation is
+
+.. math::
+     \rho^\prime = \rho_d(1 + q_t) - \rho_0(1 + q_{v,0}),
+
+where :math:`q_t` is the full-state total water mixing ratio. As a check, we observe that :math:`\rho^\prime_0 = 0`, which means that the background state is not buoyant.
 
 This is the default formulation for both dry and certain moist simulations.
 

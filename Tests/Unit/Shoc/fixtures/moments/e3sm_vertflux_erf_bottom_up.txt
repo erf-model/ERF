@@ -1,0 +1,7 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_vertflux_tests.cpp
+# Translated helper-kernel case for ERF bottom-up ordering.
+# Values correspond to k = 1..nlev-1 for the deterministic unit-test setup.
+0.040000000000000
+0.060000000000000
+0.080000000000000
