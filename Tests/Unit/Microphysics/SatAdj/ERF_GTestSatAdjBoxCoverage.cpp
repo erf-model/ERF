@@ -70,7 +70,8 @@ SolverChoice make_kessler_norain_solver_choice ()
     sc.c_p = Cp_d;
     sc.rdOcp = kRdOcp;
     sc.moisture_type = MoistureType::Kessler_NoRain;
-    sc.use_shoc = false;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = false;
     return sc;
 }
 

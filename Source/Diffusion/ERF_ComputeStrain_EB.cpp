@@ -6,10 +6,12 @@ using namespace amrex;
 /**
  * Function for computing the strain rates for EB.
  *
+ * @param[in] mfi MultiFab iterator
  * @param[in] bxcc cell center box for tau_ii
  * @param[in] tbxxy nodal xy box for tau_12
  * @param[in] tbxxz nodal xz box for tau_13
  * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] domain computational domain
  * @param[in] u x-direction velocity
  * @param[in] v y-direction velocity
  * @param[in] w z-direction velocity
@@ -21,6 +23,7 @@ using namespace amrex;
  * @param[out] tau23 23 strain
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
+ * @param[in] ebfact EB factories for face-centered variables
  * @param[in] tau13i contribution to strain from du/dz
  * @param[in] tau23i contribution to strain from dv/dz
  */

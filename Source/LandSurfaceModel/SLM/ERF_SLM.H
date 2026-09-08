@@ -18,6 +18,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_TerrainMetrics.H>
+#include <ERF_LSM_Types.H>
 
 #include <ERF_NCInterface.H>
 
@@ -266,15 +267,26 @@ public:
           const amrex::MultiFab& u_in,
           const amrex::MultiFab& v_in,
           const amrex::Geometry& geom,
+          const amrex::Geometry& geom0,
+          amrex::Vector<amrex::BCRec>& domain_bcs_type,
+          amrex::IntVect& refRatio,
           const amrex::Real& dt,
-          std::unique_ptr<amrex::MultiFab>& z_phys_nd_in) override;
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
+          amrex::Vector<amrex::Vector<std::string>>& nc_init_file) override;
 
     // Wrapper to do all the updating
+    void
+    Advance (const double& dt) override
+    {
+        Advance(static_cast<amrex::Real>(dt), time + static_cast<amrex::Real>(dt), start_time);
+    }
+
     void
     Advance (const amrex::Real& dt,
              const amrex::Real& t_new,
              const amrex::Real& t_start) override
     {
+        m_updated = false;
         m_dt = dt;
         //time += m_dt;
         time = t_new;
@@ -296,6 +308,7 @@ public:
                 const int isnature = 14; // nature cell type to use for urban cells
                 const int isurban  = 13; // urban cell type
                 const int islake   = 21; // lake cell
+                amrex::ignore_unused(isurban);
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     amrex::Box bx2d = mfi.tilebox();
 
@@ -439,6 +452,7 @@ public:
         }
 
         this->AdvanceSLM();
+        m_updated = true;
 
     }
 
@@ -542,6 +556,8 @@ public:
         //this->Diagnose();
         //this->Compute_Coefficients();
     }
+
+    bool Get_Update_Status () override { return m_updated; }
 
     void
     Update_State_Vars (amrex::MultiFab& cons_in) override
@@ -940,6 +956,7 @@ private:
     amrex::Real start_time = -1.0;
     amrex::Real time_unit = 1.0;
     bool first_step = true;
+    bool m_updated = false;
 
     std::string parameter_file = "NoahmpTable.TBL";
     std::string veg_dataset = "modis"; // modis or usgs

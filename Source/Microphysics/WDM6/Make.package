@@ -1,0 +1,13 @@
+CEXE_sources += ERF_InitWDM6.cpp
+CEXE_sources += ERF_AdvanceWDM6.cpp
+CEXE_sources += ERF_UpdateWDM6.cpp
+CEXE_headers += ERF_WDM6.H
+CEXE_headers += ERF_WDM6_Fortran_Interface.H
+
+# The shared support modules this scheme needs -- module_model_constants,
+# module_libmassv and mp_radar -- are added once in Exec/Make.ERF so that
+# enabling several Fortran bridges together does not compile them twice.
+ifeq ($(USE_WDM6_FORT),TRUE)
+     F90EXE_sources += ERF_module_mp_wdm6.F90
+     F90EXE_sources += ERF_module_mp_wdm6_isohelper.F90
+endif

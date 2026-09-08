@@ -12,21 +12,38 @@
 template <int Index>
 struct DirectionSelector
 {
+   /**
+    * Get the coordinate index for the selected direction.
+    *
+    * @param i x-index
+    * @param j y-index
+    * @param k z-index
+    * @return The index corresponding to the selected direction
+    */
    [[nodiscard]] int getIndx (int i, int j, int k) const;
 };
 
+/**
+ * Specialization of DirectionSelector for the x-direction.
+ */
 template <>
 struct DirectionSelector<0>
 {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx (int i, int, int) { return i; }
 };
 
+/**
+ * Specialization of DirectionSelector for the y-direction.
+ */
 template <>
 struct DirectionSelector<1>
 {
     [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx (int, int j, int) { return j; }
 };
 
+/**
+ * Specialization of DirectionSelector for the z-direction.
+ */
 template <>
 struct DirectionSelector<2>
 {

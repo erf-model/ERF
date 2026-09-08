@@ -42,11 +42,6 @@ Acknowledgments
 The development of the Energy Research and Forecasting (ERF) code is funded by the Wind Energy Technologies Office (WETO),
 part of the U.S. Department of Energy (DOE)'s Office of Energy Efficiency & Renewable Energy (EERE).
 
-It is part of the `WETO Software Stack <https://nrel.github.io/WETOStack>`_.
-
-For more information on the WETO Software Portfolio, see
-`Portfolio Overview <https://nrel.github.io/WETOStack/portfolio_analysis/overview.html>`_
-
 ERF is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.
 
 License

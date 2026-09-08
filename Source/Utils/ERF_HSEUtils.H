@@ -16,57 +16,71 @@ namespace HSEutils
     // to control Newton iterations in init_isentropic_hse*
     const int MAX_ITER = 10;
 #ifdef AMREX_USE_FLOAT
-    const amrex::Real TOL = Real(1.e-6);
+    const amrex::Real TOL = Real(1.e-4);
 #else
     const amrex::Real TOL = Real(1.e-8);
 #endif
 
     /**
      * Function to calculate the hydrostatic density and pressure
-     * from Newton-Raphson iterations
+     * from Newton-Raphson iterations at constant Th & Qv
      *
-     * @param[in]  m_tol     iteration tolerance
-     * @param[in]  RdOCp     Rd/Cp
-     * @param[out] dz        change in vertical height
-     * @param[out] g         magnitude of gravity
-     * @param[in]  C         sum of known terms in HSE balance
-     * @param[in]  T         theta at the current cell center
-     * @param[in] qt         total moisture (non-precip and precip)
-     * @param[in] qv         water vapor
-     * @param[in] P          pressure at cell center
-     * @param[in] rd         dry density at cell center
-     * @param[in] F          starting residual of non-linear eq
+     * @param[in]  m_tol      iteration tolerance
+     * @param[in]  RdOCp      Rd/Cp
+     * @param[out] dz         change in vertical height
+     * @param[out] g          magnitude of gravity
+     * @param[in]  C          sum of known terms in HSE balance
+     * @param[in]  Th         theta at the current cell center
+     * @param[in] qt          total moisture (non-precip and precip)
+     * @param[in] qv          water vapor
+     * @param[in] P           pressure at cell center
+     * @param[in] rd          dry density at cell center
+     * @param[in] F           starting residual of non-linear eq
+     * @param[in] maintain_Th maintain theta or temperature?
     */
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
     void
     Newton_Raphson_hse (const Real& m_tol,
-                        const Real& RdOCp,
+                        const Real& RdoCp,
                         const Real& dz,
                         const Real& g,
                         const Real& C,
                         const Real& Th,
+                        const Real& T,
                         const Real& qt,
                         const Real& qv,
                         Real& P,
                         Real& rd,
-                        Real& F)
+                        Real& F,
+                        const bool& maintain_Th)
     {
+        // A non-finite residual (or a non-positive initial guess) would make the
+        // convergence test below evaluate to false on the very first pass, so we
+        // would silently return the initial guess and leave, e.g., an all-zero
+        // base state.  Trap that here rather than propagating it downstream.
+        if (!(P > amrex::Real(0)) || !(rd > amrex::Real(0)) || !std::isfinite(F)) {
+            AMREX_DEVICE_PRINTF("ERROR: HSE Newton started from an invalid state: P = %e, rd = %e, F = %e\n",
+                                double(P), double(rd), double(F));
+            AMREX_DEVICE_PRINTF("       Check the surface pressure/temperature used to seed the integration%s\n", "");
+        }
+        AMREX_ALWAYS_ASSERT(P > amrex::Real(0) && rd > amrex::Real(0) && std::isfinite(F));
+
         int iter=0;
         int max_iter=20;
-        Real eps  = Real(1.e-6);
-        Real ieps = Real(1.e6);
-        while (std::abs(F)>m_tol && iter<max_iter) {
+        // Written as !(|F| <= tol) so that a NaN residual enters the loop instead
+        // of being mistaken for convergence
+        while (!(std::abs(F)<=m_tol) && iter<max_iter) {
             // Compute change in pressure
-            Real hi   = getRhogivenThetaPress(Th, P + eps, RdOCp, qv);
-            Real lo   = getRhogivenThetaPress(Th, P - eps, RdOCp, qv);
-            Real dFdp = one + fourth*ieps*(hi - lo)*g*dz;
+            Real dRdP = (maintain_Th) ? iGamma * rd / P : rd / P;
+            Real dFdp = one + myhalf*dRdP*g*dz;
             P -= F/dFdp;
             if (P < Real(1.e3)) amrex::Warning("P < 1000 [Pa]; Domain height may be too large...");
             AMREX_ALWAYS_ASSERT(P > amrex::Real(0));
 
             // Diagnose density and residual
-            rd = getRhogivenThetaPress(Th, P, RdOCp, qv);
+            rd = (maintain_Th) ? getRhogivenThetaPress(Th, P, RdoCp, qv) :
+                                 getRhogivenTandPress(T , P, qv);
             AMREX_ALWAYS_ASSERT(rd > amrex::Real(0));
             Real r_tot = rd * (one + qt);
             F = P + myhalf*r_tot*g*dz + C;
@@ -77,7 +91,6 @@ namespace HSEutils
             AMREX_DEVICE_PRINTF("HSE Newton tol: %e %e\n",F,m_tol);
         }
     }
-
 
     /**
      * Function to calculate the hydrostatic density and pressure with constant dz
@@ -432,7 +445,7 @@ Real compute_relative_humidity (const Real p_b, const Real T_b, const bool use_e
     if (which_zone > 0) {
         if (which_zone == 1) { // z <= height
             Real p_s = compute_saturation_pressure(T_b, use_empirical);
-            Real q_s = Rd_on_Rv*p_s/(p_b - p_s);
+            Real q_s = RdoRv*p_s/(p_b - p_s);
             return Real(0.014)/q_s;
         } else if (which_zone == 2) { // z > height and z <= z_tr; scaled_height = z/z_tr
             return one - Real(0.75)*std::pow(scaled_height,Real(1.25));
@@ -451,7 +464,7 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH, const bo
 {
     Real p_s = compute_saturation_pressure(T_b,use_empirical);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
+    Real q_v = RdoRv*p_v/(p_b - p_v);
 
     if (which_zone == 1) { // z <= height
         return Real(0.014);
@@ -481,7 +494,7 @@ Real compute_temperature (const Real p_b, const Real q_t, const Real eq_pot_temp
     Real T_b = Real(200.0), delta_T; // Initial guess
 
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1.e-6) * T_b;
+    Real eps = Real(1.e-4) * T_b;
 #else
     Real eps = Real(1.e-10) * T_b;
 #endif
@@ -538,10 +551,10 @@ void compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q_v, Real&
 
     if (T_from_theta) {
         theta   = compute_theta(scaled_height, theta_0, theta_tr, z_tr, T_tr);
-        T_b     = getTgivenPandTh(pressure, theta, (R_d/Cp_d));
+        T_b     = getTgivenPandTh(pressure, theta, RdoCp);
     } else {
         T_b     = compute_temperature(pressure, q_t, eq_pot_temp, use_empirical, which_zone, scaled_height);
-        theta   = getThgivenTandP(T_b, pressure, (R_d/Cp_d));
+        theta   = getThgivenTandP(T_b, pressure, RdoCp);
     }
 
     Real RH = compute_relative_humidity(pressure, T_b, use_empirical, which_zone, scaled_height);
@@ -594,8 +607,15 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 {
     Real delta_p_k;
 
+    // Perturbation used to form the difference quotient for dF/dp.  It has to
+    // be scaled by p_k rather than fixed in Pa: the pressures here are O(1e5),
+    // and in single precision one ulp at that magnitude is already ~1e-2 Pa,
+    // so a fixed 1e-4 Pa perturbation rounds away entirely -- p_k + eps == p_k,
+    // the difference quotient is zero, and the iteration returns NaN.  The
+    // double-precision perturbation is left exactly as it was so that results
+    // in double are unchanged.
 #ifdef AMREX_USE_FLOAT
-    Real eps = Real(1e-6);
+    Real eps = Real(1.e-5) * std::abs(p_k);
 #else
     Real eps = Real(1e-10);
 #endif
@@ -613,13 +633,42 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
         p_k            = p_k + delta_p_k;
     }
 
-    if (std::fabs(delta_p_k) > TOL) {
+    // Convergence is measured on the last Newton step relative to p_k, for the
+    // same reason: an absolute tolerance in Pa that is smaller than an ulp of
+    // p_k can never be met in single precision.  The double-precision value is
+    // set so that p_rel_tol * p_k reproduces the previous absolute tolerance of
+    // 1e-8 at the O(1e5) Pa pressures this is used at.
+#ifdef AMREX_USE_FLOAT
+    const Real p_rel_tol = Real(1.e-5);
+#else
+    const Real p_rel_tol = Real(1.e-13);
+#endif
+    if (std::fabs(delta_p_k) > p_rel_tol * std::abs(p_k)) {
         amrex::Abort("Newton Raphson for pressure could not converge");
     }
 
     return p_k;
 }
 
+/**
+ * Initialize an isentropic hydrostatic equilibrium base state without terrain.
+ *
+ * @param[out] theta Potential temperature profile.
+ * @param[out] r Density profile.
+ * @param[out] p Pressure profile.
+ * @param[out] q_v Water vapor mixing ratio profile.
+ * @param[in] dz Vertical grid spacing.
+ * @param[in] khi Top index of the domain.
+ * @param[in] q_t Total water mixing ratio.
+ * @param[in] eq_pot_temp Equilibrium potential temperature.
+ * @param[in] use_empirical Use empirical saturation formulas.
+ * @param[in] T_from_theta Whether temperature is derived from potential temperature.
+ * @param[in] z_tr_1 First transition height.
+ * @param[in] z_tr_2 Second transition height.
+ * @param[in] theta_0 Surface potential temperature.
+ * @param[in] theta_tr Potential temperature at transition height.
+ * @param[in] T_tr Temperature at transition height.
+ */
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void
@@ -628,8 +677,12 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real eq_pot_temp, const bool use_empirical,
                                const bool T_from_theta = false,
                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
-                               const Real theta_0 = amrex::Real(0), const Real theta_tr = amrex::Real(0), const Real T_tr = amrex::Real(0))
+                               const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
 {
+    // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
+    // defaults are still physical temperatures: compute_theta is inlined into
+    // the Newton loops and optimised builds evaluate its arm speculatively, so
+    // zeros would raise an FPE (g/(Cp_d*0), then 0*exp(inf)) on a discarded value.
     Real T_b, T_dp;
 
     int which_zone = -1;

@@ -1,5 +1,7 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
+#include "ERF_HashRNG.H"
+#include "ERF_Microphysics.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
@@ -16,8 +18,16 @@ amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem (const Real* /*problo*/, const Real* /*probhi*/)
+Problem::Problem (const Real* problo, const Real* probhi)
 {
+    ParmParse pp_erf("erf");
+    std::string prob_name;
+    pp_erf.query("prob_name", prob_name);
+    if (amrex::toLower(prob_name) == "cloud chamber" ||
+        amrex::toLower(prob_name) == "cloudchamber") {
+        m_cloud_chamber_config = erf_cloud_chamber::parse_config(problo, probhi);
+    }
+
     ParmParse pp_prob("prob");
     Real rho_0 =   1.0; int found_rho0 = pp_prob.query("rho_0", rho_0);
     Real p_inf        ; int found_p0   = pp_prob.query("p_inf", p_inf);
@@ -51,7 +61,7 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH)
 {
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
-    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
+    Real q_v = RdoRv*p_v/(p_b - p_v);
     return q_v;
 }
 
@@ -84,11 +94,17 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    ParmParse pp_erf("erf");
-    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
+#include "Prob/ERF_InitCustomPert_ABL.H"
+    } else if (my_prob_name_ci == "constant_rhotheta_src") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
     } else if (my_prob_name_ci == "density current") {
 #include "Prob/ERF_InitCustomPert_DensityCurrent.H"
@@ -119,6 +135,13 @@ Problem::init_custom_pert (
     else if (my_prob_name_ci == "eb poiseuille") {
 #include "Prob/ERF_InitCustomPert_EBPoiseuille.H"
     }
+    else if (my_prob_name_ci == "anelastic wall diffusion") {
+#include "Prob/ERF_InitCustomPert_AnelasticWallDiffusion.H"
+    }
+    else if (my_prob_name_ci == "cloud chamber" ||
+             my_prob_name_ci == "cloudchamber") {
+#include "Prob/ERF_InitCustomPert_CloudChamber.H"
+    }
     else if (my_prob_name_ci == "flow in a box") {
 #include "Prob/ERF_InitCustomPert_FlowInABox.H"
     }
@@ -134,7 +157,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPert_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -146,11 +171,20 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "supercell") {
 #include "Prob/ERF_InitCustomPert_SuperCell.H"
     }
-     else if  (my_prob_name_ci == "data_assimilation_isv") {
+    else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_InitCustomPert_GATE.H"
+    }
+    else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_InitCustomPert_SDMCongestus3DCold.H"
+    }
+    else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPert_DataAssimilation_ISV.H"
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
+    }
+    else if (my_prob_name_ci == "bellforest") {
+        // No state perturbation; uniform flow is set in init_custom_pert_vels
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
@@ -173,11 +207,15 @@ Problem::init_custom_pert_vels (
     Array4<Real const> const& mf_u,
     Array4<Real const> const& mf_v,
     const SolverChoice& sc,
-    const int /*lev*/)
+    const int lev)
 {
-    ParmParse pp("erf");
-    std::string my_prob_name; pp.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPertVels_ABL.H"
@@ -216,7 +254,8 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
     }
     else if ( (my_prob_name_ci == "flow over witch of agnesi hill") ||
-              (my_prob_name_ci == "flow over schar mountain") ) {
+              (my_prob_name_ci == "flow over schar mountain") ||
+              (my_prob_name_ci == "bellforest") ) {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
     }
     else if (my_prob_name_ci == "moving terrain") {
@@ -228,7 +267,9 @@ Problem::init_custom_pert_vels (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
-    else if  (my_prob_name_ci == "rico") {
+    else if  (   my_prob_name_ci == "rico"
+              || my_prob_name_ci == "dycoms2rf01"
+              || my_prob_name_ci == "dycoms2rf02") {
 #include "Prob/ERF_InitCustomPertVels_RICO.H"
     }
     else if  (my_prob_name_ci == "sdm_congestus3d") {
@@ -241,7 +282,11 @@ Problem::init_custom_pert_vels (
     else if (my_prob_name_ci == "userdefined") {
 #include "Prob/ERF_InitCustomPertVels_UserDefined.H"
     }
-     else if  (my_prob_name_ci == "data_assimilation_isv") {
+    else if ( (my_prob_name_ci == "gate") ||
+              (my_prob_name_ci == "sdm_congestus3d_cold") ) {
+#include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else if  (my_prob_name_ci == "data_assimilation_isv") {
 #include "Prob/ERF_InitCustomPertVels_DataAssimilation_ISV.H"
     }
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
@@ -256,7 +301,7 @@ Problem::init_custom_pert_vels (
 }
 
 void
-Problem::update_rhotheta_sources (const Real& time,
+Problem::update_rhotheta_sources (const double& time,
                                   amrex::MultiFab* src,
                                   const Geometry& geom,
                                   std::unique_ptr<MultiFab>& z_phys_cc)
@@ -275,8 +320,10 @@ Problem::update_rhotheta_sources (const Real& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    }
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -292,13 +339,17 @@ Problem::update_rhotheta_sources (const Real& time,
 #include "Prob/ERF_UpdateRhoThetaSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
 #include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3D.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateRhoThetaSources_GATE.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoThetaSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoThetaSources_SineMassFlux.H"
     }
 }
 
 void
-Problem::update_rhoqt_sources (const Real& time,
+Problem::update_rhoqt_sources (const double& time,
                                amrex::MultiFab* qsrc,
                                const Geometry& geom,
                                std::unique_ptr<MultiFab>& z_phys_cc)
@@ -317,8 +368,10 @@ Problem::update_rhoqt_sources (const Real& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
-    reduce_to_max_per_height(zlevels, z_phys_cc);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
+    }
 
     const Real* d_zlevels_arr = d_zlevels.dataPtr();
 
@@ -332,6 +385,10 @@ Problem::update_rhoqt_sources (const Real& time,
 #include "Prob/ERF_UpdateRhoQtSources_RICO.H"
     } else if  (my_prob_name_ci == "sdm_congestus3d") {
 #include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3D.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateRhoQtSources_GATE.H"
+    } else if  (my_prob_name_ci == "sdm_congestus3d_cold") {
+#include "Prob/ERF_UpdateRhoQtSources_SDMCongestus3DCold.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateRhoQtSources_SineMassFlux.H"
     }
@@ -341,7 +398,7 @@ Problem::update_rhoqt_sources (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& time,
+Problem::update_w_subsidence (const double& time,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& state,
@@ -357,7 +414,9 @@ Problem::update_w_subsidence (const Real& time,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+2);
-    reduce_to_max_per_height(zlevels, z_phys_nd);
+    if (z_phys_nd) {
+        reduce_to_max_per_height(zlevels, z_phys_nd);
+    }
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -367,6 +426,11 @@ Problem::update_w_subsidence (const Real& time,
 #include "Prob/ERF_UpdateWSubsidence_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateWSubsidence_RICO.H"
+    } else if  (   my_prob_name_ci == "dycoms2rf01"
+                || my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateWSubsidence_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateWSubsidence_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateWSubsidence_SineMassFlux.H"
     }
@@ -376,7 +440,7 @@ Problem::update_w_subsidence (const Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_geostrophic_profile (const Real& /*time*/,
+Problem::update_geostrophic_profile (const double& /*time*/,
                                      Vector<Real>& u_geos,
                                      Gpu::DeviceVector<Real>& d_u_geos,
                                      Vector<Real>& v_geos,
@@ -393,7 +457,9 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+1);
-    reduce_to_max_per_height(zlevels, z_phys_cc);
+    if (z_phys_cc) {
+        reduce_to_max_per_height(zlevels, z_phys_cc);
+    }
 
     ParmParse pp_erf("erf");
     std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
@@ -403,6 +469,12 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
 #include "Prob/ERF_UpdateGeostrophicProfile_Bomex.H"
     } else if  (my_prob_name_ci == "rico") {
 #include "Prob/ERF_UpdateGeostrophicProfile_RICO.H"
+    } else if  (my_prob_name_ci == "dycoms2rf01") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF01.H"
+    } else if  (my_prob_name_ci == "dycoms2rf02") {
+#include "Prob/ERF_UpdateGeostrophicProfile_DYCOMS2RF02.H"
+    } else if  (my_prob_name_ci == "gate") {
+#include "Prob/ERF_UpdateGeostrophicProfile_GATE.H"
     } else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_UpdateGeostrophicProfile_SineMassFlux.H"
     }

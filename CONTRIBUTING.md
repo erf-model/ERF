@@ -203,6 +203,15 @@ git reset --hard origin/development
 After this, the local `development` should be in sync with ERF `development` and your recent
 commits have been saved in `new_branch` branch.
 
+## Unit-test development
+
+The [Unit Testing guide](Docs/sphinx_doc/UnitTests.rst) explains how to build,
+run, debug, and add GoogleTest cases. It also defines the numerical,
+host/device, MPI, portability, and test-design rules for new tests.
+
+The rendered guide is available in the
+[ERF documentation](https://erf.readthedocs.io/en/latest/UnitTests.html).
+
 ## ERF Coding Style Guide
 
 ### Code Guidelines

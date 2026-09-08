@@ -11,6 +11,7 @@ using namespace amrex;
  * @param[in] tbxxy nodal xy box for tau_12
  * @param[in] tbxxz nodal xz box for tau_13
  * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] domain computational domain
  * @param[in] u x-direction velocity
  * @param[in] v y-direction velocity
  * @param[in] w z-direction velocity
@@ -24,6 +25,7 @@ using namespace amrex;
  * @param[out] tau31 31 strain
  * @param[out] tau32 32 strain
  * @param[in] z_nd nodal array of physical z heights
+ * @param[in] detJ Jacobian determinant
  * @param[in] bc_ptr container with boundary condition types
  * @param[in] dxInv inverse cell size array
  * @param[in] mf_mx map factor at cell center

@@ -58,7 +58,7 @@
         }
     }
 
-    ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
@@ -75,7 +75,7 @@
         // Add temperature perturbations
         if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one_d)*T_0_Pert_Mag;
             if (!pert_rhotheta) {
                 // we're perturbing theta, not rho*theta
                 state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
@@ -92,7 +92,7 @@
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
                 state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z/KE_decay_height,one), KE_decay_order), Real(1e-12));
+                    std::pow(1 - min(z/KE_decay_height,one_d), KE_decay_order), Real(1e-12));
             }
         }
     });

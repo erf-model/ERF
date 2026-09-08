@@ -7,4 +7,6 @@
 #include "ERF_Radiation.H"
 #endif
 
+#include "Simple/ERF_RadiationSimple.H"
+
 #endif

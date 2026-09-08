@@ -1,0 +1,7 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_compute_shoc_temperature_tests.cpp
+# Test-one translated fixture in ERF exner form. With ql = 0 and exner = 1,
+# tabs must equal thetal exactly.
+300.000000000000000
+290.000000000000000
+280.000000000000000

@@ -390,7 +390,7 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
 
         amrex::Print() << " Writing SLM checkpoint at level " << lev << std::endl;
 
-        std::string HeaderFileName(checkpointname + "/SLM_Header");
+        std::string HeaderFileName(checkpointname + "/Level_" + std::to_string(lev) + "/SLM_Header");
         VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
         std::ofstream HeaderFile;
         HeaderFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
@@ -681,7 +681,7 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     amrex::Print() << " Reading SLM checkpoint at level " << lev << std::endl;
 
     // Header
-    std::string File(checkpointname + "/SLM_Header");
+    std::string File(checkpointname + "/Level_" + std::to_string(lev) + "/SLM_Header");
 
     VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
 

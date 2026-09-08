@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Init From NetCDF File"
 
-max_step = 100  #12000
+#max_step = 100  #12000
 max_step = 0
 
 # PROBLEM SIZE & GEOMETRY
@@ -34,7 +34,7 @@ erf.check_int       = 100     # number of timesteps between checkpoints
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 10      # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity theta rhotheta pressure temp pres_hse dens_hse
-erf.plotfile_type = netcdf
+#erf.plotfile_type = netcdf
 erf.plotfile_type = amrex
 
 # SOLVER CHOICE

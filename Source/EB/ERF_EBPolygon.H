@@ -1,3 +1,7 @@
+/**
+ * \file ERF_EBPolygon.H
+ * \brief Defines polygon geometry utilities for EB cut-cell reconstruction.
+ */
 #ifndef ERF_EB_POLYGON_H_
 #define ERF_EB_POLYGON_H_
 
@@ -6,10 +10,21 @@
 
 #include "ERF_Constants.H"
 
+/**
+ * \brief Polygon helper used to accumulate cut-cell face geometry.
+ *
+ * The polygon stores up to six vertices, sorts them in a local plane, and
+ * computes area, centroid, distance, and normal data used by eb_cut_cell_.
+ */
 class polygon_ {
 
   public:
 
+    /**
+     * \brief Construct a cell-face polygon clipped by an EB plane.
+     * \param a_point Point on the EB plane.
+     * \param a_normal Unit normal for the EB plane.
+     */
     AMREX_GPU_HOST_DEVICE
     polygon_ ( amrex::RealVect a_point,
                amrex::RealVect a_normal )
@@ -25,6 +40,7 @@ class polygon_ {
       , m_zdir(zero)
     {}
 
+    //! Construct an empty EB-boundary polygon.
     AMREX_GPU_HOST_DEVICE
     polygon_ ( )
       : m_cell_face(0)
@@ -39,6 +55,10 @@ class polygon_ {
       , m_zdir(zero)
     {}
 
+    /**
+     * \brief Add a unique vertex to the polygon.
+     * \param a_v Vertex coordinates.
+     */
     AMREX_GPU_HOST_DEVICE
     void add_vertex ( amrex::RealVect const& a_v ) {
       for ( int i(0); i<m_num_vertices; ++i) {
@@ -53,14 +73,25 @@ class polygon_ {
       m_num_vertices++;
     }
 
+    //! Return the number of stored vertices.
     AMREX_GPU_HOST_DEVICE
     int get_num_vertices ( ) {
       return m_num_vertices;
     }
 
+    /**
+     * \brief Set the polygon area directly.
+     * \param a_area Area value assigned to the polygon.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void set_area ( amrex::Real const& a_area ) { m_area = a_area; }
 
+    /**
+     * \brief Finalize polygon ordering and compute its area.
+     *
+     * Vertices are sorted counter-clockwise in the polygon plane before area is
+     * computed by a triangle fan.
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     void define () {
 
@@ -146,17 +177,22 @@ class polygon_ {
       AMREX_ALWAYS_ASSERT( m_area > zero ); // <------------------------------- TODO remove ALWAYS
     } // void define
 
+    //! Return whether the polygon has been defined with a valid area state.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int ok ( ) const noexcept
     { return ((m_area > zero || (m_area == zero && m_defined == 1)) ? 1 : 0); }
 
+    //! Return the polygon area.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real area ( ) const noexcept {
       AMREX_ALWAYS_ASSERT( ok() ); // <-------------------------------------- TODO remove ALWAYS
       return m_area;
     }
 
-    // Distance from polygon to a_point
+    /**
+     * \brief Return the perpendicular distance from this polygon to a point.
+     * \param a_point Point used in the distance calculation.
+     */
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real distance ( amrex::RealVect const& a_point ) const noexcept {
       AMREX_ALWAYS_ASSERT( m_defined == 1 );  // <--------------------------- TODO remove ALWAYS
@@ -164,7 +200,7 @@ class polygon_ {
       return amrex::Math::abs(x0.dotProduct(m_zdir));
     }
 
-    // Centroid of the polygon based on the sub-triangulation
+    //! Return the polygon centroid from its sub-triangulation.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect get_centroid ( ) const noexcept {
       amrex::RealVect cent(zero);
@@ -187,12 +223,17 @@ class polygon_ {
       return cent;
     }
 
-    // Unit normal vector
+    //! Return the unit normal vector of the polygon plane.
     [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::RealVect normal () const noexcept {
       return m_zdir;
     }
 
+    /**
+     * \brief Print a diagnostic report for the polygon on CPU builds.
+     * \param a_id Face identifier used in the diagnostic output.
+     * \param a_v0 Reference point used to compute the reported distance.
+     */
 #ifndef AMREX_USE_GPU
     void report ( int const a_id, amrex::RealVect a_v0 )
 #else
@@ -220,12 +261,17 @@ class polygon_ {
 #endif
     }
 
+    /**
+     * \brief Print polygon vertices with a face identifier.
+     * \param a_id Face identifier used in the diagnostic output.
+     */
     void debug( int const a_id ) {
       amrex::Print() << "EBPolygon: id = " << a_id << ", m_num_vertices = " << m_num_vertices << '\n';
       for (int i(0); i<m_num_vertices; ++i) {
         amrex::Print() << "EBPolygon: v" << i << ":  " << m_vertices[i] << '\n';
       }
     }
+    //! Print polygon vertices without a face identifier.
     void debug() {
       debug(-1);
     }

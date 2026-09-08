@@ -1,0 +1,20 @@
+# Direct E3SM-derived full-column input fixture from:
+#   E3SM/components/eamxx/src/physics/shoc/tests/shoc_assumed_pdf_tests.cpp
+# This captures the nondegenerate top-level property-case profiles used for
+# the positive- and negative-skewness PDF tests. Values are translated into the
+# ERF bottom-up convention but otherwise follow the E3SM source test exactly.
+
+thetal: 300.0 298.0 298.0 300.0 303.0
+qw: 0.017 0.016 0.011 0.004 0.003
+pres: 100000.0 90000.0 85000.0 80000.0 70000.0
+zi_grid: 0.0 500.0 1000.0 1500.0 2000.0 3000.0
+zt_grid: 250.0 750.0 1250.0 1750.0 2500.0
+w_sec: 0.2 0.2 0.2 0.2 0.2
+thl_sec: 2.0 2.0 2.0 2.0 2.0 2.0
+qw_sec: 2.0e-4 2.0e-4 2.0e-4 2.0e-4 2.0e-4 2.0e-4
+wthl_sec: -0.03 -0.03 -0.03 -0.03 -0.03 -0.03
+wqw_sec: 2.0e-4 2.0e-4 2.0e-4 2.0e-4 2.0e-4 2.0e-4
+qwthl_sec: 1.0e-5 1.0e-5 1.0e-5 1.0e-5 1.0e-5 1.0e-5
+w3_symmetric: 0.0 0.0 0.0 0.0 0.0 0.0
+w3_positive: 1.0 1.0 1.0 1.0 1.0 1.0
+w3_negative: -1.0 -1.0 -1.0 -1.0 -1.0 -1.0

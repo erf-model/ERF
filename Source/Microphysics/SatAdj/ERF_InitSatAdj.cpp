@@ -43,6 +43,13 @@ void SatAdj::Init (const MultiFab& cons_in,
  */
 void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
 {
+    Update_Micro_Vars(const_cast<MultiFab&>(cons_in), nullptr);
+}
+
+void SatAdj::Update_Micro_Vars (MultiFab& cons_in,
+                                const MultiFab* base_state)
+{
+    const Real rdOcp = m_rdOcp;
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& tbx = mfi.tilebox();
 
@@ -55,6 +62,7 @@ void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
         auto theta_array = mic_fab_vars[MicVar_SatAdj::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_SatAdj::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_SatAdj::pres]->array(mfi);
+        const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
 
         // Use local scalars so temperature and pressure are diagnosed from the same
         // conserved state values copied into the microphysics arrays. This avoids
@@ -71,11 +79,15 @@ void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
             theta_array(i,j,k) = theta;
             qv_array(i,j,k)    = qv;
             qc_array(i,j,k)    = qc;
-            tabs_array(i,j,k)  = getTgivenRandRTh(rho, rhoTheta, qv);
-
-            // Pressure is stored in mbar/hPa because erf_qsatw expects that unit.
-            pres_array(i,j,k)  = getPgivenRTh(rhoTheta, qv) * Real(0.01);
+            if (base_state != nullptr) {
+                const Real p0 = base_array(i,j,k,BaseState::p0_comp);
+                tabs_array(i,j,k) = getTgivenPandTh(p0, theta, rdOcp);
+                pres_array(i,j,k) = p0 * Real(0.01);
+            } else {
+                tabs_array(i,j,k)  = getTgivenRandRTh(rho, rhoTheta, qv);
+                // Pressure is stored in mbar/hPa because erf_qsatw expects that unit.
+                pres_array(i,j,k)  = getPgivenRTh(rhoTheta, qv) * Real(0.01);
+            }
         });
     }
 }
-

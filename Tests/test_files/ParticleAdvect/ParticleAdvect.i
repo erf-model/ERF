@@ -3,7 +3,6 @@ erf.prob_name = "Particles Over Flat Ground"
 
 erf.init_type = Isentropic
 
-
 max_step =  10
 
 amrex.fpe_trap_invalid = 1
@@ -59,10 +58,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.les_type = "None"
-
-# MULTILEVEL
-amr.max_level = 0
-
 
 erf.dycore_horiz_adv_type  = Centered_2nd
 erf.dycore_vert_adv_type   = Centered_2nd

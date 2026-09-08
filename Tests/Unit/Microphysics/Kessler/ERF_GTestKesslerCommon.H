@@ -501,7 +501,10 @@ inline SolverChoice make_solver_choice (const MoistureType moisture_type,
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_shoc = use_shoc;
+    sc.use_eamxx_shoc = false;
+    sc.use_native_shoc = use_shoc;
+    sc.turbChoice.resize(1);
+    sc.turbChoice[0].pbl_type = use_shoc ? PBLType::NATIVE_SHOC : PBLType::None;
 
     if (moisture_type == MoistureType::Kessler) {
         sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);

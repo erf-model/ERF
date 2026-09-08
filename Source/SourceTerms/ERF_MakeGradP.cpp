@@ -109,6 +109,17 @@ void make_gradp_pert (int level,
     } // not anelastic
 }
 
+/**
+ * @brief Compute the full pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp (const MultiFab& p,
                const Geometry& geom,
@@ -123,6 +134,16 @@ compute_gradp (const MultiFab& p,
     compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
 }
 
+/**
+ * @brief Compute the horizontal components of the pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_xy (const MultiFab& p,
                   const Geometry& geom,
@@ -247,14 +268,19 @@ compute_gradp_xy (const MultiFab& p,
             Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
 
             // EB u-factory
-            Array4<const EBCellFlag> u_cellflg = (ebfact.get_u_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > u_volfrac = (ebfact.get_u_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > u_volcent = (ebfact.get_u_const_factory())->getCentroid().const_array(mfi);
+            auto const* u_factory = ebfact.get_u_const_factory();
+            Array4<const EBCellFlag> u_cellflg = u_factory->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > u_volfrac = u_factory->getVolFrac().const_array(mfi);
+            bool u_is_cut = (u_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued);
+            Array4<const Real      > u_volcent = u_is_cut ? u_factory->getCentroid().const_array(mfi) : Array4<const Real>{};
+
 
             // EB v-factory
-            Array4<const EBCellFlag> v_cellflg = (ebfact.get_v_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > v_volfrac = (ebfact.get_v_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > v_volcent = (ebfact.get_v_const_factory())->getCentroid().const_array(mfi);
+            auto const* v_factory = ebfact.get_v_const_factory();
+            Array4<const EBCellFlag> v_cellflg = v_factory->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > v_volfrac = v_factory->getVolFrac().const_array(mfi);
+            bool v_is_cut = (v_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued);
+            Array4<const Real      > v_volcent = v_is_cut ? v_factory->getCentroid().const_array(mfi) : Array4<const Real>{};
 
             if (l_fitting) {
 
@@ -338,6 +364,15 @@ compute_gradp_xy (const MultiFab& p,
     } // mfi
 }
 
+/**
+ * @brief Compute the vertical component of the pressure gradient.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] ebfact EB factory.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_z (const MultiFab& p,
                  const Geometry& geom,
@@ -400,9 +435,11 @@ compute_gradp_z (const MultiFab& p,
             Array4<const EBCellFlag> cellflg = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
 
             // EB w-factory
-            Array4<const EBCellFlag> w_cellflg = (ebfact.get_w_const_factory())->getMultiEBCellFlagFab()[mfi].const_array();
-            Array4<const Real      > w_volfrac = (ebfact.get_w_const_factory())->getVolFrac().const_array(mfi);
-            Array4<const Real      > w_volcent = (ebfact.get_w_const_factory())->getCentroid().const_array(mfi);
+            auto const* w_factory = ebfact.get_w_const_factory();
+            Array4<const EBCellFlag> w_cellflg = w_factory->getMultiEBCellFlagFab()[mfi].const_array();
+            Array4<const Real      > w_volfrac = w_factory->getVolFrac().const_array(mfi);
+            bool w_is_cut = (w_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued);
+            Array4<const Real      > w_volcent = w_is_cut ? w_factory->getCentroid().const_array(mfi) : Array4<Real>{};
 
             if (l_fitting) {
 
@@ -451,6 +488,16 @@ compute_gradp_z (const MultiFab& p,
     } // mfi
 }
 
+/**
+ * @brief Compute the pressure gradient using vertical interpolation.
+ * @param[in] p Pressure field.
+ * @param[in] geom Geometry container.
+ * @param[in] z_phys_nd Physical height on nodes.
+ * @param[in] z_phys_cc Physical height on cell centers.
+ * @param[in] mapfac Map factors.
+ * @param[out] gradp Pressure gradient components.
+ * @param[in] solverChoice Solver options.
+ */
 void
 compute_gradp_interpz (const MultiFab& p,
                        const Geometry& geom,

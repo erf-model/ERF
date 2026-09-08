@@ -14,6 +14,16 @@
 
 class MOSTAverage {
 public:
+    /**
+     * Construct the MOST averaging helper.
+     *
+     * @param[in] geom           geometry for all AMR levels
+     * @param[in] has_zphys      whether nodal physical-height data are available
+     * @param[in] a_pp_prefix    ParmParse prefix
+     * @param[in] m_mesh_type    mesh type
+     * @param[in] m_terrain_type terrain representation
+     * @param[in] eb_vec         optional embedded-boundary geometry data
+     */
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           const bool& has_zphys,
                           std::string a_pp_prefix,
@@ -22,23 +32,49 @@ public:
                           const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
+
+    /**
+     * Destroy the MOST averaging helper.
+     */
     ~MOSTAverage ()
     {}
 
-    // Declare a default move constructor so we ensure the destructor is
-    // not called when we return an object of this class by value
+    /**
+     * Default move constructor.
+     */
     MOSTAverage (MOSTAverage&&)  noexcept = default;
 
-    // Delete the move assignment operator
+    /**
+     * Deleted move-assignment operator.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
 
-    // Delete the copy constructor
+    /**
+     * Deleted copy constructor.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage (const MOSTAverage& other) = delete;
 
-    // Delete the copy assignment operator
+    /**
+     * Deleted copy-assignment operator.
+     *
+     * @param[in] other source object
+     */
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
-    // Make data structures at level
+    /**
+     * Make MOST-average data structures at one level.
+     *
+     * @param[in] lev        level index
+     * @param[in] vars_old   old-time state and velocity fields
+     * @param[in] Theta_prim primitive potential-temperature field
+     * @param[in] Qv_prim    primitive water-vapor field
+     * @param[in] Qr_prim    primitive rain-water field
+     * @param[in] z_phys_nd  nodal physical-height field
+     */
     void make_MOSTAverage_at_level (const int& lev,
                                     const amrex::Vector<amrex::MultiFab*>& vars_old,
                                     std::unique_ptr<amrex::MultiFab>& Theta_prim,
@@ -46,76 +82,241 @@ public:
                                     std::unique_ptr<amrex::MultiFab>& Qr_prim,
                                     std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
-    // Reset the pointers to field MFs
+    /**
+     * Reset pointers to field MultiFabs.
+     *
+     * @param[in] lev        level index
+     * @param[in] vars_old   old-time state and velocity fields
+     * @param[in] Theta_prim primitive potential-temperature fields by level
+     * @param[in] Qv_prim    primitive water-vapor fields by level
+     * @param[in] Qr_prim    primitive rain-water fields by level
+     */
     void update_field_ptrs (const int& lev,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                             amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qr_prim);
 
-    // Update the rotated fields
+    /**
+     * Update the rotated fields.
+     *
+     * @param[in] lev level index
+     */
     void set_rotated_fields (const int& lev);
 
-    // Compute ncells per plane
+    /**
+     * Compute number of cells per averaging plane.
+     *
+     * @param[in] lev level index
+     */
     void set_plane_normalization (const int& lev);
 
-    // Compute total boundary area over EB
+    /**
+     * Compute total embedded-boundary surface area.
+     *
+     * @param[in] lev level index
+     */
     void set_eb_normalization (const int& lev);
 
-    // Compute ncells per plane
+    /**
+     * Compute number of cells in the region average.
+     *
+     * @param[in] lev level index
+     */
     void set_region_normalization (const int& /*lev*/)
     {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
-    // Populate a 2D iMF k_indx (w/o terrain)
+    /**
+     * Populate the 2D k-index iMultiFab without terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_k_indices_N (const int& lev);
 
-    // Populate a 2D iMF k_indx (w/ terrain)
+    /**
+     * Populate the 2D k-index iMultiFab with terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_k_indices_T (const int& lev);
 
-    // Populate all 2D iMFs ijk_indx (w/ terrain)
+    /**
+     * Populate all 2D normal-index iMultiFabs with terrain.
+     *
+     * @param[in] lev level index
+     */
     void set_norm_indices_T (const int& lev);
 
-    // Populate positions (w/ terrain & norm vector & interpolation)
+    /**
+     * Populate terrain-aware z positions.
+     *
+     * @param[in] lev level index
+     */
     void set_z_positions_T (const int& lev);
 
-    // Populate positions (for EB)
+    /**
+     * Populate embedded-boundary z positions.
+     *
+     * @param[in] lev level index
+     */
     void set_z_positions_EB (const int& lev);
 
-    // Populate positions (w/ terrain & norm vector & interpolation)
+    /**
+     * Populate terrain-aware normal positions.
+     *
+     * @param[in] lev level index
+     */
     void set_norm_positions_T (const int& lev);
 
-    // Driver for the different average policies
+    /**
+     * Driver for the selected average policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_averages (const int& lev);
 
-    // Fill averages for policy::plane
+    /**
+     * Fill averages for the plane policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_plane_averages (const int& lev);
 
-    // Fill averages for policy::point
+    /**
+     * Fill averages for the point or region policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_region_averages (const int& lev);
 
-    // Fill averages for policy::EB
+    /**
+     * Fill averages for the embedded-boundary policy.
+     *
+     * @param[in] lev level index
+     */
     void compute_eb_averages (const int& lev);
 
-    // Write k indices
+    /**
+     * Write k-index data.
+     *
+     * @param[in] lev level index
+     */
     void write_k_indices (const int& lev);
 
-    // Write ijk indices
+    /**
+     * Write normal-index data.
+     *
+     * @param[in] lev level index
+     */
     void write_norm_indices (const int& lev);
 
-    // Write XZ planar positions
+    /**
+     * Write XZ planar positions.
+     *
+     * @param[in] lev level index
+     * @param[in] j   y-index of the plane to write
+     */
     void write_xz_positions (const int& lev,
                              const int& j);
 
-    // Write averages on 2D mf
+    /**
+     * Write averages on the 2D MultiFab.
+     *
+     * @param[in] lev level index
+     */
     void write_averages (const int& lev);
 
-    // Get pointer to the 2D mf of averages
+    /**
+     * Return one 2D average MultiFab.
+     *
+     * @param[in] lev  level index
+     * @param[in] comp average component index
+     */
     [[nodiscard]] const amrex::MultiFab* get_average (const int& lev, const int& comp) const { return m_averages[lev][comp].get(); }
 
-    // Get z_ref (may be computed from specified k_indx)
+    /**
+     * Return one 2D average MultiFab for modification (used to restore the
+     * exponential filter state from a checkpoint).
+     *
+     * @param[in] lev  level index
+     * @param[in] comp average component index
+     */
+    [[nodiscard]] amrex::MultiFab* get_average (const int& lev, const int& comp) { return m_averages[lev][comp].get(); }
+
+    /**
+     * Return whether the averages are filtered in time (erf.most.time_average).
+     */
+    [[nodiscard]] bool do_time_averaging () const { return m_t_avg; }
+
+    /**
+     * Return the number of average components.
+     */
+    [[nodiscard]] int get_navg () const { return m_navg; }
+
+    /**
+     * Return whether the time filter at this level holds meaningful history.
+     * Until it does, the next average is taken to be the instantaneous one.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] bool time_avg_is_initialized (const int& lev) const
+    {
+        return ( m_t_avg && (lev < static_cast<int>(m_t_init.size())) && (m_t_init[lev] == 1) );
+    }
+
+    /**
+     * Declare the time filter at this level to hold meaningful history.  This is
+     * used on restart, once the filter state has been read back in.
+     *
+     * @param[in] lev level index
+     */
+    void set_time_avg_initialized (const int& lev)
+    {
+        if (m_t_avg) { m_t_init[lev] = 1; }
+    }
+
+    /**
+     * Return the filtered plane averages, which hold the filter state for the
+     * plane and EB policies.  The region policy holds its state in m_averages
+     * instead and never allocates these, in which case this is empty.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] amrex::Vector<amrex::Real> get_plane_average (const int& lev) const
+    {
+        if (lev < static_cast<int>(m_plane_average.size())) { return m_plane_average[lev]; }
+        return amrex::Vector<amrex::Real>{};
+    }
+
+    /**
+     * Restore the filtered plane averages from a checkpoint.  Returns false if the
+     * checkpoint does not hold what this run expects, e.g. because the averaging
+     * policy changed, in which case nothing is restored.
+     *
+     * @param[in] lev  level index
+     * @param[in] pavg filtered plane averages, one per average component
+     */
+    bool set_plane_average (const int& lev, const amrex::Vector<amrex::Real>& pavg)
+    {
+        const int n_have = (lev < static_cast<int>(m_plane_average.size())) ?
+                            static_cast<int>(m_plane_average[lev].size()) : 0;
+        if (n_have != static_cast<int>(pavg.size())) { return false; }
+        if (n_have > 0) { m_plane_average[lev] = pavg; }
+        return true;
+    }
+
+    /**
+     * Return z_ref, which may be computed from a specified k-index.
+     *
+     * @param[in] lev level index
+     */
     [[nodiscard]] amrex::MultiFab* get_zref (const int& lev) const { return m_zref[lev].get(); }
 
-    // Get pointer to the k-index mf
+    /**
+     * Return the k-index iMultiFab.
+     *
+     * @param[in] lev level index
+     */
     [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
 
     /**
@@ -123,6 +324,7 @@ public:
      *
      * @param[in] xp X-position
      * @param[in] yp Y-position
+     * @param[in] zp Z-position
      * @param[out] interp_vals Values interpolated
      * @param[in] interp_array Array to interpolate on
      * @param[in] z_arr Physical heights
@@ -196,6 +398,41 @@ public:
         }
     }
 
+    /**
+     * Return the number of ghost cells of the 2D data (averages, indices and
+     * positions) that can be filled from the field data at this level.
+     *
+     * With more than one level we must explicitly fill the ghost cells of the 2D
+     * data: an isolated fine patch has no neighboring box for a FillBoundary to
+     * communicate with, while the fields themselves do carry valid ghost data
+     * (filled from the coarse level).  The 2D data are allocated with as many
+     * ghost cells as the fields they are built from, but an average reads the
+     * fields over m_radius cells in each direction and the tangential velocity
+     * magnitude (like the interpolation stencil) reaches one cell beyond that.
+     * So a ghost cell of the 2D data can only be computed where the fields carry
+     * m_radius+1 ghost cells past it.
+     *
+     * @param[in] lev level index
+     */
+    [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
+
+    /**
+     * Fill the ghost cells of one average that cannot be computed from the field
+     * data with a zeroth-order extrapolation of the nearest computed value.
+     *
+     * The averages hold as many ghost cells as the fields, which is more than
+     * can be computed from them (see get_ng_fill), so the outermost layers are
+     * filled here to leave no average undefined.  This is done before the
+     * FillBoundary, which then overwrites whatever is shared with a neighbor.
+     *
+     * @param[in] lev     level index
+     * @param[in] iavg    average component index
+     * @param[in] ng_fill number of ghost cells that hold computed data
+     */
+    void extrap_ghost_cells (const int& lev,
+                             const int& iavg,
+                             const amrex::IntVect& ng_fill);
+
 protected:
 
     // Passed through constructor
@@ -249,7 +486,7 @@ protected:
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time
     amrex::Vector<int> m_t_init;                                     // Flag to specify if averages are initialized
-    amrex::Real m_time_window{amrex::Real(1.0e-16)};                              // Width of the exp filter function
+    double m_time_window{1.0e-16};                                                // Width of the exp filter function
     amrex::Real m_fact_new, m_fact_old;                              // Time average factors for new and old means
 
     // Surface velocity correction
@@ -260,5 +497,14 @@ protected:
     // Default values
     //--------------------------------------------
     const amrex::Real zref_default = amrex::Real(10.0);
+
+    // Sentinel used to detect whether most.zref was set by the user.  zref_default
+    // is itself a legal user value, so "was it specified" cannot be read off the
+    // value unless we probe with something unreachable first.  A reference height
+    // is a distance above the surface and so is always positive.  See the parse
+    // sites in ERF_MOSTAverage.cpp: they use ParmParse::queryAdd, whose return value
+    // is only meaningful on the first parse of a key, and these routines run once
+    // per level.
+    const amrex::Real zref_sentinel = amrex::Real(-1.0);
 };
 #endif

@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
 
+erf.check_for_nans = 2
+
 max_step = 4000
 
 amrex.fpe_trap_invalid = 1

@@ -282,7 +282,7 @@ if(AMReX_GPU_BACKEND MATCHES "HIP" OR ERF_ENABLE_HIP)
 endif()
 
 # Kokkos Architecture Detection (for EKAT physics)
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "EKAT-based physics enabled, checking Kokkos architecture")
     
     set(KOKKOS_ARCH_SET FALSE)
@@ -458,7 +458,7 @@ else()
 endif()
 
 # E3SM Cloned Check
-if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
     set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
@@ -476,7 +476,7 @@ if(ERF_ENABLE_SHOC OR ERF_ENABLE_P3)
             "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
-            "  cmake -DERF_ENABLE_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
+            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
     endif()
 else()
     message(DEBUG "EKAT physics not enabled, skipping E3SM check")
@@ -496,7 +496,7 @@ message(DEBUG "  MPICH_GPU_SUPPORT_ENABLED: $ENV{MPICH_GPU_SUPPORT_ENABLED}")
 # Fix 1: CUDA + EKAT -> nvcc_wrapper complications
 # ==============================================================================
 
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3))
     message(STATUS "Applying Fix 1: CUDA+EKAT nvcc_wrapper")
 
     message(DEBUG "Problem: nvcc_wrapper doesn't inherit Cray include paths")
@@ -531,7 +531,7 @@ endif()
 # Fix 2: FCOMPARE + Cray + EKAT/Kokkos -> mpi_gnu_123 not found
 # ==============================================================================
 
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3))
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3))
     message(STATUS "Applying Fix 2: fcompare linker with EKAT")
 
     message(DEBUG "Problem: --as-needed drops required MPI libs when EKAT is enabled")
@@ -892,12 +892,12 @@ set(FIX56_ACTIVE OFF)
 set(FIX7_ACTIVE OFF)
 
 # Fix 1: CUDA + EKAT
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3) AND CRAY_CUDA_FLAGS)
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3) AND CRAY_CUDA_FLAGS)
     set(FIX1_ACTIVE ON)
 endif()
 
 # Fix 2: fcompare + EKAT
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_SHOC OR ERF_ENABLE_P3) AND CRAY_LIBS_CLEAN)
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3) AND CRAY_LIBS_CLEAN)
     set(FIX2_ACTIVE ON)
 endif()
 
