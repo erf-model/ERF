@@ -285,46 +285,34 @@ The default native configuration is:
 .. code-block:: text
 
    erf.shoc.transport_mode = state_update
-   erf.shoc.momentum_transport = host_diffusion
+   erf.shoc.momentum_transport = state_update
 
-This mixed configuration is the normal starting point for native SHOC.
+This is the normal starting point for native SHOC.
 
 ``erf.shoc.transport_mode = state_update``
   Native SHOC applies its coupled thermodynamic, moisture/cloud, and TKE column
   update to the ERF state before the dycore advances that state. This is the
   required native transport mode for moist SHOC configurations.
 
-``erf.shoc.transport_mode = host_diffusion``
-  Native SHOC diagnoses and exports the full vertical eddy-diffusivity block
-  for ERF's host diffusion path instead of applying the native pre-dycore
-  thermodynamic/moisture/TKE state update. This mode is currently supported
-  only for dry runs with ``erf.moisture_model = None`` because native SHOC does
-  not own cloud macrophysics in this mode while SHOC-family microphysics
-  condensation is suppressed. It requires
-  ``erf.shoc.momentum_transport = host_diffusion``.
+``erf.shoc.transport_mode`` accepts only ``state_update``. The former
+``host_diffusion`` value is removed and is rejected at startup with migration
+guidance.
 
 The former value ``erf.shoc.transport_mode = tendencies`` has been removed and
 is rejected at startup.
 
 Horizontal momentum is controlled independently:
 
-``erf.shoc.momentum_transport = host_diffusion``
-  Export the native SHOC vertical momentum diffusivity to ERF's host diffusion
-  path. This is the default. Because ERF's dycore then owns vertical momentum
-  diffusion, this mode leaves ERF's vertical implicit diffusion solve active for
-  momentum (``erf.implicit_momentum_diffusion``); see
-  :ref:`sec:Inputs` for the ``erf.vert_implicit*`` controls.
-
 ``erf.shoc.momentum_transport = state_update``
   Apply the native SHOC horizontal-velocity column increment directly to the
-  ERF face velocities. This is an alternate transport choice and is not the
-  default.
+  ERF face velocities. This is the default production path.
 
 ``erf.shoc.momentum_transport = none``
-  Disable SHOC horizontal-momentum transport.
+  Disable SHOC horizontal-momentum transport while preserving the existing
+  generic ERF momentum-diffusion ownership semantics.
 
-When the scalar/cloud/TKE transport mode is ``host_diffusion``, the momentum
-mode must also be ``host_diffusion``.
+The former ``host_diffusion`` momentum value is removed. Use ``state_update``
+to retain SHOC momentum transport or ``none`` to disable it.
 
 PBL height and turbulent structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -425,9 +413,10 @@ numerical/physical upper-boundary control, not only a plot-diagnostic filter.
 Diagnostics
 ~~~~~~~~~~~
 
-Native SHOC diagnostics are produced after the native driver runs in both
-``state_update`` and ``host_diffusion`` transport modes. The values reflect the
-selected transport path.
+Native SHOC diagnostics are produced after the native driver runs in the
+supported ``state_update`` transport path. The diagnosed diffusivities remain
+available as diagnostics even though they are no longer exported for generic
+host reapplication.
 
 Request 3-D fields through the ordinary plotfile variable list. For example:
 

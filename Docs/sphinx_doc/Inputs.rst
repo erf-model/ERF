@@ -3354,12 +3354,12 @@ The following controls apply to ``erf.pbl_type = NATIVE_SHOC``.
      - Default
    * - **erf.shoc.transport_mode**
      - Selects how native SHOC transports thermodynamic variables, moisture/cloud state, and TKE
-     - ``state_update``, ``host_diffusion``
+     - ``state_update``
      - ``state_update``
    * - **erf.shoc.momentum_transport**
      - Selects how native SHOC applies horizontal-momentum transport
-     - ``none``, ``state_update``, ``host_diffusion``
-     - ``host_diffusion``
+     - ``none``, ``state_update``
+     - ``state_update``
    * - **erf.shoc.top_taper_depth**
      - Depth below the model top over which native SHOC smoothly tapers TKE/diffusivity and higher-order turbulence quantities [m]; zero disables the taper
      - Real >= 0
@@ -3377,11 +3377,11 @@ The following controls apply to ``erf.pbl_type = NATIVE_SHOC``.
      - true / false
      - false
 
-For moist native SHOC runs, use ``erf.shoc.transport_mode = state_update``.
-The full ``host_diffusion`` transport mode is currently supported only when
-``erf.moisture_model = None`` because native SHOC does not own cloud
-macrophysics in this mode while SHOC-family microphysics condensation is
-suppressed. It also requires ``erf.shoc.momentum_transport = host_diffusion``.
+Native SHOC uses ``state_update`` for scalar/cloud/TKE transport. Use
+``erf.shoc.momentum_transport = state_update`` for the normal/default momentum
+path, or ``none`` to disable Native SHOC horizontal-momentum transport.
+The former ``host_diffusion`` values for either selector are removed and fail
+at startup with migration guidance.
 Native ``state_update`` rejects moisture layouts containing cloud-water or
 cloud-ice number concentrations because a number closure has not yet been
 implemented.
@@ -3510,7 +3510,7 @@ The native transport defaults are:
 .. code-block:: text
 
    erf.shoc.transport_mode = state_update
-   erf.shoc.momentum_transport = host_diffusion
+   erf.shoc.momentum_transport = state_update
 
 These two transport lines may be omitted when the defaults are desired.
 
