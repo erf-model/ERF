@@ -1,3 +1,20 @@
+#26.09
+    -- Surface Layer restart w/ input_sounding fix (#3956)
+
+    -- Dynamic AMR fixes (#3947)
+
+    -- MetGrid nodal reconstruction pathway (#3926)
+
+    -- Fix base state w/ wrfinput (#3800)
+
+    -- Remove base state from vertical implicit solver (#3881)
+
+    -- WSM6/WDM6 micro models added (#3872,3896)
+
+    -- Terrain aware CFL calculation (#3824)
+
+    -- Fixes for various bugs (#3811-3854)
+
 #26.06
     -- LSM + PBL coupling (#3246)
 
