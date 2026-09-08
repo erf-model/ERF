@@ -1210,6 +1210,10 @@ void SLM::init_soil_tw()
         auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
         auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
 
+        auto tsurf_arr   = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+        auto lai_arr     = lsm_fab_vars[LsmVar_SLM::lai]->array(mfi);
+        auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->array(mfi);
+
         auto sand_arr = lsm_fab_vars[LsmVar_SLM::sand]->array(mfi);
         auto clay_arr = lsm_fab_vars[LsmVar_SLM::clay]->array(mfi);
 
@@ -1219,6 +1223,8 @@ void SLM::init_soil_tw()
         auto sstxy_arr = sstxy.array(mfi);
 
         auto soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto LAI_local_arr = LAI.const_array(mfi);
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -1312,6 +1318,16 @@ void SLM::init_soil_tw()
                 }
 
                 soil_relax_hgt_arr(i, j, k) = d_relax[(k*-1)+d_khi_lsm];
+
+                // keep the 3D wrfinput copies consistent with the local SLM values if not using wrfinput
+                if (!wrfinput && k == d_khi_lsm) {
+                    tsurf_arr(i, j, d_khi_lsm) = d_st0[0];
+                    tsurf_arr(i, j, 0) = d_st0[0];
+                    lai_arr(i, j, d_khi_lsm) = LAI_local_arr(i, j, 0);
+                    lai_arr(i, j, 0) = LAI_local_arr(i, j, 0);
+                    vegtype_arr(i, j, d_khi_lsm) = landtype_arr(i, j, 0);
+                    vegtype_arr(i, j, 0) = landtype_arr(i, j, 0);
+                }
 
                 // TODO: nrestart conditional here
                 // TODO: sstxy - should be ERF surface temp array?
@@ -3750,6 +3766,7 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
         return;
     }
     auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
+    const int d_khi_lsm = khi_lsm;
 
     if (sst_in[0] && lmask_in[0]) {
         // Set SLM SST and land mask input from ERF
@@ -3767,10 +3784,12 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
             auto slm_lmask   = landmask.array(mfi);
 
             auto slm_tsk   = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+            auto slm_tskin = t_skin.array(mfi);
             ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 slm_sst(i, j, k) = sst_array(i, j, k, 0);
                 slm_tsk(i, j, k) = sst_array(i, j, k, 0);
+                slm_tskin(i, j, k) = sst_array(i, j, k, 0);
                 slm_lmask(i, j, k) = lmask_array(i, j, k, 0);
             });
         }
