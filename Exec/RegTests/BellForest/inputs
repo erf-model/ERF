@@ -1,0 +1,74 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# BellForest test case
+# Bell-shaped (Gaussian) terrain + Gaussian forest drag loaded from NetCDF files.
+# Domain: 2000 m x 2000 m x 1000 m, 40 x 40 x 40 cells (50 m horizontal, 25 m vertical).
+# Terrain: peak 100 m at domain centre, sigma 400 m.
+# Forest: peak height 20 m, peak LAI 2.0, sigma 250 m (at domain centre).
+#
+# Generate the three NC input files before running:
+#   cd <this directory> && python gen_nc_files.py
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =   0.   0.   0.
+geometry.prob_hi     = 2000. 2000. 1000.
+amr.n_cell           =  40   40   40
+
+geometry.is_periodic = 1 1 0
+
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.cfl               = 0.5
+erf.fixed_mri_dt_ratio = 4
+
+max_step = 200
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 10
+erf.v            = 1
+amr.v            = 1
+
+# REFINEMENT
+amr.max_level = 0
+
+# CHECKPOINT FILES
+erf.check_file = chk
+erf.check_int  = 200
+
+# PLOTFILES
+erf.plot_file_1  = plt
+erf.plot_int_1   = 20
+erf.plot_vars_1  = density x_velocity y_velocity z_velocity pressure theta \
+                   pert_pres pert_dens z_phys
+
+# INITIALIZATION
+erf.init_type = Isentropic
+erf.prob_name = "bellforest"
+
+prob.T_0   = 300.0
+prob.U_0   = 5.0       # m/s background wind in x
+
+# SOLVER
+erf.use_gravity  = true
+erf.use_coriolis = false
+erf.les_type     = "None"
+
+erf.molec_diff_type   = "Constant"
+erf.dynamic_viscosity = 1.5e-5
+erf.alpha_T           = 0.0
+erf.theta_ref         = 300.0
+
+erf.abl_driver_type  = "None"
+
+# TERRAIN
+erf.terrain_type       = StaticFittedMesh
+erf.terrain_smoothing  = 2          # Sullivan TF
+erf.terrain_file_name_nc = terrain_bell.nc
+
+# FOREST DRAG  (gridded NetCDF mode, constant Cd)
+erf.forest_lai_file    = forest_lai_bell.nc
+erf.forest_height_file = forest_height_bell.nc
+erf.forest_cd          = 0.15
+erf.forest_tree_type   = 2
+erf.forest_laimax      = 0.6

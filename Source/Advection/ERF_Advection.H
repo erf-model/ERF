@@ -12,7 +12,7 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_EB.H"
 
-/** Compute advection tendency for density and potential temperature */
+/** Compute advection tendency for density and averaged momentum fluxes */
 void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<amrex::Real>& src,
                          const amrex::Array4<const amrex::Real>& rho_u,    // These are being used
@@ -33,7 +33,7 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
                          const bool fixed_rho);
 
-/** Compute advection tendency for all scalars other than density and potential temperature */
+/** Compute advection tendencies for cell-centered scalar components */
 void AdvectionSrcForScalars (const amrex::Box& bx,
                              const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -199,7 +199,7 @@ AdvectionSrcForOpenBC_Normal (const amrex::Box& bx,
                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                               const bool do_lo=false);
 
-/** Compute advection tendencies for u momentum tangent to open bc*/
+/** Compute advection tendencies for u momentum tangent to open BC */
 void
 AdvectionSrcForOpenBC_Tangent_Xmom (const amrex::Box& bxx,
                                     const int& dir,
@@ -214,7 +214,7 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const amrex::Box& bxx,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
-/** Compute advection tendencies for v momentum tangent to open bc*/
+/** Compute advection tendencies for v momentum tangent to open BC */
 void
 AdvectionSrcForOpenBC_Tangent_Ymom (const amrex::Box& bxy,
                                     const int& dir,
@@ -229,7 +229,7 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const amrex::Box& bxy,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
-/** Compute advection tendencies for w momentum tangent to open bc*/
+/** Compute advection tendencies for w momentum tangent to open BC */
 void
 AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const int& dir,
@@ -246,7 +246,7 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const int domhi_z,
                                     const bool do_lo=false);
 
-/** Compute advection tendencies for cons tangential to BC (2nd order)*/
+/** Compute advection tendencies for conserved variables tangential to open BC */
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const int& dir,
@@ -261,7 +261,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
-/** Compute advection tendencies in normal dir for vars tangent to open bc */
+/** Compute advection tendencies in the normal direction for variables tangent to open BC */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -275,6 +275,7 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
                                const amrex::Real& dxInv,
                                const bool do_lo=false);
 
+/** Return the effective advection type used for the requested Runge-Kutta stage. */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 AdvType

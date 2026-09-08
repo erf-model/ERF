@@ -34,6 +34,27 @@ void interpolateFields(
     }
 }
 
+/**
+ * @brief Test whether a particle's vertical CIC stencil reads past the local
+ *        fab.  cic_interpolate reads cell-centered data at k0+1 and k0+2 with
+ *        k0 in {pk-1, pk}, so the maximum read offset is pk+2.  Returns true
+ *        if the stencil is out of bounds and the caller should skip the
+ *        particle.
+ */
+template <typename ParticleType, typename Array4Type>
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+bool stencilOutOfBoundsZ(
+    const ParticleType& p,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+    const Array4Type& zheight
+) noexcept
+{
+    const int pk = int(amrex::Math::floor((p.pos(AMREX_SPACEDIM-1) - plo[AMREX_SPACEDIM-1])
+                                          * dxi[AMREX_SPACEDIM-1]));
+    return (pk < zheight.begin[2] || pk + 2 >= zheight.end[2]);
+}
+
 } // namespace Interpolation
 } // namespace ERF
 

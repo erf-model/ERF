@@ -1,7 +1,11 @@
+/**
+ * \file ERF_ReadFromWRFBdy.cpp
+ */
 #include <sstream>
 #include <string>
 #include <ctime>
 #include <atomic>
+#include <utility>
 
 #include "AMReX_FArrayBox.H"
 #include "AMReX_Print.H"
@@ -9,6 +13,8 @@
 #include "ERF_NCWpsFile.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_EOS.H"
+#include "ERF_HSEUtils.H"
+#include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_Utils.H"
 #include "ERF_NCInterface.H"
@@ -17,6 +23,41 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
+void
+repack_wrfbdy_to_realbdy (Vector<FArrayBox>& bdy_data,
+                          const bool use_wrf_bdy_qc_qi,
+                          const bool separate_hydrometeors)
+{
+    if (!use_wrf_bdy_qc_qi ||
+        static_cast<int>(bdy_data.size()) == (separate_hydrometeors
+                                               ? static_cast<int>(RealBdyHydrometeorVars::NumTypes)
+                                               : static_cast<int>(RealBdyVars::NumTypes))) {
+        return;
+    }
+
+    const int expected_serialized_nvars = separate_hydrometeors
+        ? static_cast<int>(WRFBdyHydrometeorVars::NumTypes)
+        : static_cast<int>(WRFBdyVars::NumTypes);
+    if (static_cast<int>(bdy_data.size()) != expected_serialized_nvars) {
+        amrex::Error("Cannot repack WRF boundary data: unsupported serialized hydrometeor layout");
+    }
+
+    // The raw/cache layout preserves PH/MU/PC at 5/6/7 and appends QC/QI at
+    // 8/9. Separate-species caches append QR/QS/QG at 10/11/12. Runtime
+    // consumers use QC/QI at 5/6 and, for separate-species caches, QR/QS/QG
+    // at 7/8/9.
+    std::swap(bdy_data[RealBdyVars::QC], bdy_data[WRFBdyVars::QC]);
+    std::swap(bdy_data[RealBdyVars::QI], bdy_data[WRFBdyVars::QI]);
+    if (separate_hydrometeors) {
+        std::swap(bdy_data[RealBdyHydrometeorVars::QR], bdy_data[WRFBdyHydrometeorVars::QR]);
+        std::swap(bdy_data[RealBdyHydrometeorVars::QS], bdy_data[WRFBdyHydrometeorVars::QS]);
+        std::swap(bdy_data[RealBdyHydrometeorVars::QG], bdy_data[WRFBdyHydrometeorVars::QG]);
+        bdy_data.resize(RealBdyHydrometeorVars::NumTypes);
+    } else {
+        bdy_data.resize(RealBdyVars::NumTypes);
+    }
+}
+
 namespace WRFBdyTypes {
     enum {
         x_lo,
@@ -24,6 +65,18 @@ namespace WRFBdyTypes {
         y_lo,
         y_hi
     };
+}
+
+AMREX_FORCE_INLINE
+bool
+is_wrf_cell_centered_bdy_var (const int bdy_var)
+{
+    return bdy_var == WRFBdyVars::T || bdy_var == WRFBdyVars::QV ||
+           bdy_var == WRFBdyVars::R || bdy_var == WRFBdyVars::QC ||
+           bdy_var == WRFBdyVars::QI ||
+           bdy_var == WRFBdyHydrometeorVars::QR ||
+           bdy_var == WRFBdyHydrometeorVars::QS ||
+           bdy_var == WRFBdyHydrometeorVars::QG;
 }
 
 double
@@ -42,7 +95,7 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
     // *******************************************************************************
 
     int ntimes;
-    Real timeInterval;
+    double timeInterval;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
@@ -74,13 +127,13 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
             epochTimes.push_back(epochTime);
 
             if (nt == 1) {
-                timeInterval = static_cast<Real>(epochTimes[1] - epochTimes[0]);
+                timeInterval = static_cast<double>(epochTimes[1] - epochTimes[0]);
             } else if (nt >= 1) {
-                AMREX_ALWAYS_ASSERT(static_cast<Real>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
+                AMREX_ALWAYS_ASSERT(static_cast<double>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
-        start_bdy_time = static_cast<Real>(epochTimes[0]);
-        final_bdy_time = static_cast<Real>(epochTimes[ntimes-1] + timeInterval);
+        start_bdy_time = static_cast<double>(epochTimes[0]);
+        final_bdy_time = static_cast<double>(epochTimes[ntimes-1]) + timeInterval;
         Print() << "  start_bdy_time " << start_bdy_time << std::endl;
         Print() << "  final_bdy_time " << final_bdy_time << std::endl;
     }
@@ -107,23 +160,45 @@ convert_wrfbdy_data (const int itime,
                      std::unique_ptr<MultiFab>& wrf_MUB,
                      std::unique_ptr<MultiFab>& wrf_C1H,
                      std::unique_ptr<MultiFab>& wrf_C2H,
+                     std::unique_ptr<MultiFab>& wrf_RDNW,
                      std::unique_ptr<MultiFab>& wrf_PHB,
+                     std::unique_ptr<MultiFab>& z_phys_cc,
+                     std::unique_ptr<MultiFab>& z_phys_nd,
                      const iMultiFab* mask_u,
                      const iMultiFab* mask_v,
                      const iMultiFab* mask_c,
-                     const bool& use_moist)
+                     const bool& use_moist,
+                     const bool use_wrf_bdy_qc_qi,
+                     const bool has_cloud_ice,
+                     const bool separate_hydrometeors,
+                     const bool rebalance_wrf_state)
 {
-    // Temporary bdy data structures for global reductions
-    int vsize = bdy_data[itime].size() - 3; // Don't do PH, MU, or PC
-    amrex::Vector<amrex::FArrayBox> bdy_data_tmp; bdy_data_tmp.resize(vsize);
-    for (int ivar(0); ivar < vsize; ++ivar) {
+    // PH, MU, and PC are inputs to conversion, not vertically interpolated
+    // output fields.  Keep the serialized indices explicit now that QC/QI are
+    // appended after those legacy fields.  In aggregate mode the raw
+    // QRAIN/QSNOW/QGRAUP fields are combined into QC/QI before interpolation;
+    // in separate mode each hydrometeor receives its own converted target.
+    Vector<int> converted_vars = use_wrf_bdy_qc_qi
+        ? Vector<int>{WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
+                      WRFBdyVars::QV, WRFBdyVars::R, WRFBdyVars::QC,
+                      WRFBdyVars::QI}
+        : Vector<int>{WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
+                      WRFBdyVars::QV, WRFBdyVars::R};
+    if (use_wrf_bdy_qc_qi && separate_hydrometeors) {
+        converted_vars.push_back(WRFBdyHydrometeorVars::QR);
+        converted_vars.push_back(WRFBdyHydrometeorVars::QS);
+        converted_vars.push_back(WRFBdyHydrometeorVars::QG);
+    }
+
+    amrex::Vector<amrex::FArrayBox> bdy_data_tmp(bdy_data[itime].size());
+    for (const int ivar : converted_vars) {
         bdy_data_tmp[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
         bdy_data_tmp[ivar].template setVal<RunOn::Device>(0);
     }
 
     // Temporary bdy data structures for interpolation
-    amrex::Vector<amrex::FArrayBox> bdy_data_int; bdy_data_int.resize(vsize);
-    for (int ivar(0); ivar < vsize; ++ivar) {
+    amrex::Vector<amrex::FArrayBox> bdy_data_int(bdy_data[itime].size());
+    for (const int ivar : converted_vars) {
         bdy_data_int[ivar].resize(bdy_data[itime][ivar].box(),1,The_Managed_Arena());
         bdy_data_int[ivar].template setVal<RunOn::Device>(0);
     }
@@ -149,20 +224,26 @@ convert_wrfbdy_data (const int itime,
     // BDY data
     Array4<Real> bdy_u_arr  = bdy_data[itime][WRFBdyVars::U].array();  // This is x-face-centered
     Array4<Real> bdy_v_arr  = bdy_data[itime][WRFBdyVars::V].array();  // This is y-face-centered
-    Array4<Real> bdy_t_arr  = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
+    Array4<Real> bdy_th_arr = bdy_data[itime][WRFBdyVars::T].array();  // This is cell-centered
     Array4<Real> bdy_qv_arr = bdy_data[itime][WRFBdyVars::QV].array(); // This is cell-centered
+    Array4<Real> bdy_qc_arr, bdy_qi_arr;
+    Array4<Real> bdy_qr_arr, bdy_qs_arr, bdy_qg_arr;
+    if (use_wrf_bdy_qc_qi) {
+        bdy_qc_arr = bdy_data[itime][WRFBdyVars::QC].array();
+        bdy_qi_arr = bdy_data[itime][WRFBdyVars::QI].array();
+        bdy_qr_arr = bdy_data[itime][WRFBdyHydrometeorVars::QR].array();
+        bdy_qs_arr = bdy_data[itime][WRFBdyHydrometeorVars::QS].array();
+        bdy_qg_arr = bdy_data[itime][WRFBdyHydrometeorVars::QG].array();
+    }
     Array4<Real> mu_arr     = bdy_data[itime][WRFBdyVars::MU].array(); // This is cell-centered
     Array4<Real> bdy_ph_arr = bdy_data[itime][WRFBdyVars::PH].array(); // This is z-face-centered
-
-    // For height interpolation (removes averaging error)
-    Array4<Real> mu0_arr     = bdy_data[0][WRFBdyVars::MU].array(); // This is cell-centered
-    Array4<Real> bdy_ph0_arr = bdy_data[0][WRFBdyVars::PH].array(); // This is z-face-centered
 
     // Bounds limiting
     int ilo  = domain.smallEnd()[0];
     int ihi  = domain.bigEnd()[0];
     int jlo  = domain.smallEnd()[1];
     int jhi  = domain.bigEnd()[1];
+    int klo  = domain.smallEnd()[2];
     int khi  = domain.bigEnd()[2];
 
     // PH bounds limiting
@@ -180,20 +261,47 @@ convert_wrfbdy_data (const int itime,
 
         const Box& bx_u  = (xbx & bdy_data[itime][WRFBdyVars::U].box());
         const Box& bx_v  = (ybx & bdy_data[itime][WRFBdyVars::V].box());
-        const Box& bx_t  = (tbx & bdy_data[itime][WRFBdyVars::T].box());
+        const Box& bx_th = (tbx & bdy_data[itime][WRFBdyVars::T].box());
         const Box& bx_qv = (tbx & bdy_data[itime][WRFBdyVars::QV].box());
+        const Box& bx_r  = (tbx & bdy_data[itime][WRFBdyVars::R].box());
+
+        const Box& bx_th_slab = amrex::makeSlab(bx_th, 2, klo);
 
         // TMP BDY data
         Array4<Real> bdy_u_tmp  = bdy_data_tmp[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_tmp  = bdy_data_tmp[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_tmp  = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_th_tmp = bdy_data_tmp[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_tmp = bdy_data_tmp[WRFBdyVars::QV].array(); // This is cell-centered
+        Array4<Real> bdy_r_tmp  = bdy_data_tmp[WRFBdyVars::R].array();  // This is cell-centered
+        Array4<Real> bdy_qc_tmp, bdy_qi_tmp;
+        Array4<Real> bdy_qr_tmp, bdy_qs_tmp, bdy_qg_tmp;
+        if (use_wrf_bdy_qc_qi) {
+            bdy_qc_tmp = bdy_data_tmp[WRFBdyVars::QC].array();
+            bdy_qi_tmp = bdy_data_tmp[WRFBdyVars::QI].array();
+            if (separate_hydrometeors) {
+                bdy_qr_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QR].array();
+                bdy_qs_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QS].array();
+                bdy_qg_tmp = bdy_data_tmp[WRFBdyHydrometeorVars::QG].array();
+            }
+        }
 
         // TMP INTERP BDY data
         Array4<Real> bdy_u_int  = bdy_data_int[WRFBdyVars::U].array();  // This is x-face-centered
         Array4<Real> bdy_v_int  = bdy_data_int[WRFBdyVars::V].array();  // This is y-face-centered
-        Array4<Real> bdy_t_int  = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
+        Array4<Real> bdy_th_int = bdy_data_int[WRFBdyVars::T].array();  // This is cell-centered
         Array4<Real> bdy_qv_int = bdy_data_int[WRFBdyVars::QV].array(); // This is cell-centered
+        Array4<Real> bdy_r_int  = bdy_data_int[WRFBdyVars::R].array();  // This is cell-centered
+        Array4<Real> bdy_qc_int, bdy_qi_int;
+        Array4<Real> bdy_qr_int, bdy_qs_int, bdy_qg_int;
+        if (use_wrf_bdy_qc_qi) {
+            bdy_qc_int = bdy_data_int[WRFBdyVars::QC].array();
+            bdy_qi_int = bdy_data_int[WRFBdyVars::QI].array();
+            if (separate_hydrometeors) {
+                bdy_qr_int = bdy_data_int[WRFBdyHydrometeorVars::QR].array();
+                bdy_qs_int = bdy_data_int[WRFBdyHydrometeorVars::QS].array();
+                bdy_qg_int = bdy_data_int[WRFBdyHydrometeorVars::QG].array();
+            }
+        }
 
         // Mask data
         const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
@@ -201,86 +309,78 @@ convert_wrfbdy_data (const int itime,
         const Array4<const int>& mask_v_arr = mask_v->const_array(mfi);
 
         // Populated from read wrfinput
-        Array4<Real const> c1h_arr = wrf_C1H->const_array(mfi);
-        Array4<Real const> c2h_arr = wrf_C2H->const_array(mfi);
-        Array4<Real const> mub_arr = wrf_MUB->const_array(mfi);
-        Array4<Real>       PHB_arr = wrf_PHB->array(mfi);
+        Array4<Real const> c1h_arr  = wrf_C1H->const_array(mfi);
+        Array4<Real const> c2h_arr  = wrf_C2H->const_array(mfi);
+        Array4<Real const> rdnw_arr = wrf_RDNW->const_array(mfi);
+        Array4<Real const> mub_arr  = wrf_MUB->const_array(mfi);
+        Array4<Real const> phb_arr  = wrf_PHB->const_array(mfi);
+
+        // Physical heights for rebalancing
+        const Array4<const Real>& z_cc_arr = z_phys_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
 
         // New z values
-        ParallelFor(bx_t, bx_u, bx_v,
+        ParallelFor(bx_th, bx_u, bx_v,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Mass coupling
             Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
-            Real mu0   = mu0_arr(i ,j ,0) + mub_arr(i ,j ,0);
 
             // Pert and base geopotential
-            Real P     = PHB_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
-            Real P_kp  = PHB_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
-            Real P0    = PHB_arr(i ,j ,k  ) + bdy_ph0_arr(i ,j ,k  )/mu0;
-            Real P0_kp = PHB_arr(i ,j ,k+1) + bdy_ph0_arr(i ,j ,k+1)/mu0;
+            Real P     = phb_arr(i ,j ,k  ) + bdy_ph_arr(i ,j ,k  )/mu  ;
+            Real P_kp  = phb_arr(i ,j ,k+1) + bdy_ph_arr(i ,j ,k+1)/mu  ;
 
-            // New heights
+            // WRF heights
             bdy_c_z_src(i,j,k) = Real(0.5  ) * ( P + P_kp ) / CONST_GRAV;
 
-            // Original heights
-            bdy_c_z_dst(i,j,k) = Real(0.5  ) * ( P0 + P0_kp ) / CONST_GRAV;
+            // ERF heights
+            bdy_c_z_dst(i,j,k) = z_cc_arr(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
-            int ii = std::max(std::min(i  ,ihi_ph),ilo_ph);
-            int im = std::max(std::min(i-1,ihi_ph),ilo_ph);
+            int ii  = std::max(std::min(i  ,ihi_ph),ilo_ph);
+            int iim = std::max(std::min(i-1,ihi_ph),ilo_ph);
 
             // Mass coupling
-            Real mu      = mu_arr(ii,j ,0)  + mub_arr(ii,j ,0);
-            Real mu_im   = mu_arr(im,j ,0)  + mub_arr(im,j ,0);
-            Real mu0     = mu0_arr(ii,j ,0) + mub_arr(ii,j ,0);
-            Real mu0_im  = mu0_arr(im,j ,0) + mub_arr(im,j ,0);
+            Real mu      = mu_arr(ii ,j ,0)  + mub_arr(ii ,j ,0);
+            Real mu_im   = mu_arr(iim,j ,0)  + mub_arr(iim,j ,0);
 
             // Pert and base geopotential
-            Real P        = PHB_arr(ii,j ,k  ) + bdy_ph_arr(ii,j ,k  )/mu     ;
-            Real P_im     = PHB_arr(im,j ,k  ) + bdy_ph_arr(im,j ,k  )/mu_im  ;
-            Real P_kp     = PHB_arr(ii,j ,k+1) + bdy_ph_arr(ii,j ,k+1)/mu     ;
-            Real P_im_kp  = PHB_arr(im,j ,k+1) + bdy_ph_arr(im,j ,k+1)/mu_im  ;
-            Real P0       = PHB_arr(ii,j ,k  ) + bdy_ph0_arr(ii,j ,k  )/mu0   ;
-            Real P0_im    = PHB_arr(im,j ,k  ) + bdy_ph0_arr(im,j ,k  )/mu0_im;
-            Real P0_kp    = PHB_arr(ii,j ,k+1) + bdy_ph0_arr(ii,j ,k+1)/mu0   ;
-            Real P0_im_kp = PHB_arr(im,j ,k+1) + bdy_ph0_arr(im,j ,k+1)/mu0_im;
+            Real P        = phb_arr(ii ,j ,k  ) + bdy_ph_arr(ii ,j ,k  )/mu     ;
+            Real P_im     = phb_arr(iim,j ,k  ) + bdy_ph_arr(iim,j ,k  )/mu_im  ;
+            Real P_kp     = phb_arr(ii ,j ,k+1) + bdy_ph_arr(ii ,j ,k+1)/mu     ;
+            Real P_im_kp  = phb_arr(iim,j ,k+1) + bdy_ph_arr(iim,j ,k+1)/mu_im  ;
 
-            // New heights
+            // WRF heights
             bdy_u_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_im + P_im_kp ) / CONST_GRAV;
 
-            // Original heights
-            bdy_u_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_im + P0_im_kp ) / CONST_GRAV;
+            // ERF heights
+            bdy_u_z_dst(i,j,k) = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                              + z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1) );
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Prevent averaging outside domain and match init from WRF input
-            int jj = std::max(std::min(j  ,jhi_ph),jlo_ph);
-            int jm = std::max(std::min(j-1,jhi_ph),jlo_ph);
+            int jj  = std::max(std::min(j  ,jhi_ph),jlo_ph);
+            int jjm = std::max(std::min(j-1,jhi_ph),jlo_ph);
 
             // Mass coupling
-            Real mu      = mu_arr(i ,jj,0)  + mub_arr(i ,jj,0);
-            Real mu_jm   = mu_arr(i ,jm,0)  + mub_arr(i ,jm,0);
-            Real mu0     = mu0_arr(i ,jj,0) + mub_arr(i ,jj,0);
-            Real mu0_jm  = mu0_arr(i ,jm,0) + mub_arr(i ,jm,0);
+            Real mu      = mu_arr(i ,jj ,0)  + mub_arr(i ,jj ,0);
+            Real mu_jm   = mu_arr(i ,jjm,0)  + mub_arr(i ,jjm,0);
 
             // Pert and base geopotential
-            Real P        = PHB_arr(i ,jj,k  ) + bdy_ph_arr(i ,jj,k  )/mu     ;
-            Real P_jm     = PHB_arr(i ,jm,k  ) + bdy_ph_arr(i ,jm,k  )/mu_jm  ;
-            Real P_kp     = PHB_arr(i ,jj,k+1) + bdy_ph_arr(i ,jj,k+1)/mu     ;
-            Real P_jm_kp  = PHB_arr(i ,jm,k+1) + bdy_ph_arr(i ,jm,k+1)/mu_jm  ;
-            Real P0       = PHB_arr(i ,jj,k  ) + bdy_ph0_arr(i ,jj,k  )/mu0   ;
-            Real P0_jm    = PHB_arr(i ,jm,k  ) + bdy_ph0_arr(i ,jm,k  )/mu0_jm;
-            Real P0_kp    = PHB_arr(i ,jj,k+1) + bdy_ph0_arr(i ,jj,k+1)/mu0   ;
-            Real P0_jm_kp = PHB_arr(i ,jm,k+1) + bdy_ph0_arr(i ,jm,k+1)/mu0_jm;
+            Real P        = phb_arr(i ,jj ,k  ) + bdy_ph_arr(i ,jj ,k  )/mu   ;
+            Real P_jm     = phb_arr(i ,jjm,k  ) + bdy_ph_arr(i ,jjm,k  )/mu_jm;
+            Real P_kp     = phb_arr(i ,jj ,k+1) + bdy_ph_arr(i ,jj ,k+1)/mu   ;
+            Real P_jm_kp  = phb_arr(i ,jjm,k+1) + bdy_ph_arr(i ,jjm,k+1)/mu_jm;
 
             // New heights
             bdy_v_z_src(i,j,k) = Real(0.25) * ( P + P_kp + P_jm + P_jm_kp ) / CONST_GRAV;
 
             // Original heights
-            bdy_v_z_dst(i,j,k) = Real(0.25) * ( P0 + P0_kp + P0_jm + P0_jm_kp ) / CONST_GRAV;
+            bdy_v_z_dst(i,j,k) = Real(0.25) * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                              + z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1) );
         });
 
         // Define u velocity
@@ -323,19 +423,21 @@ convert_wrfbdy_data (const int itime,
 
         // Convert perturbational moist pot. temp. (Th_m) to dry pot. temp. (Th_d)
         const Real wrf_theta_ref = Real(300.);
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_th, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
-                Real xmu         = (mu_arr(i,j,0) + mub_arr(i,j,0));
-                Real xmu_mult    = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-                Real new_bdy_Th  = bdy_t_arr(i,j,k) / xmu_mult + wrf_theta_ref;
-                Real qv_fac      = (one + (R_v/R_d) * bdy_qv_arr(i,j,k) / xmu_mult);
-                new_bdy_Th      /= qv_fac;
-                bdy_t_tmp(i,j,k) = new_bdy_Th;
+                Real xmu          = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_Th   = bdy_th_arr(i,j,k) / xmu_mult + wrf_theta_ref;
+                Real qv_fac       = (one + RvoRd * bdy_qv_arr(i,j,k) / xmu_mult);
+                new_bdy_Th       /= qv_fac;
+                bdy_th_tmp(i,j,k) = new_bdy_Th;
             }
         });
 
-        // Define Qv
+        // Define primitive moisture. WRF boundary mixing ratios are mass
+        // coupled, so the combined QCLOUD+QRAIN and
+        // QICE+QSNOW+QGRAUP targets use the same conversion as QVAPOR.
         ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
@@ -343,24 +445,49 @@ convert_wrfbdy_data (const int itime,
                 Real xmu_mult     = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
                 Real new_bdy_QV   = bdy_qv_arr(i,j,k) / xmu_mult;
                 bdy_qv_tmp(i,j,k) = (use_moist) ? new_bdy_QV : zero;
+                if (use_wrf_bdy_qc_qi) {
+                    if (separate_hydrometeors) {
+                        bdy_qc_tmp(i,j,k) = bdy_qc_arr(i,j,k) / xmu_mult;
+                        bdy_qi_tmp(i,j,k) = bdy_qi_arr(i,j,k) / xmu_mult;
+                        bdy_qr_tmp(i,j,k) = bdy_qr_arr(i,j,k) / xmu_mult;
+                        bdy_qs_tmp(i,j,k) = bdy_qs_arr(i,j,k) / xmu_mult;
+                        bdy_qg_tmp(i,j,k) = bdy_qg_arr(i,j,k) / xmu_mult;
+                    } else {
+                        bdy_qc_tmp(i,j,k) = (bdy_qc_arr(i,j,k) + bdy_qr_arr(i,j,k)) / xmu_mult;
+                        bdy_qi_tmp(i,j,k) = has_cloud_ice
+                            ? (bdy_qi_arr(i,j,k) + bdy_qs_arr(i,j,k) + bdy_qg_arr(i,j,k)) / xmu_mult
+                            : Real(0.0);
+                    }
+                }
             }
         });
 
+        // Define density
+        ParallelFor(bx_r, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Mass coupling
+            Real mu    = mu_arr(i ,j ,0)  + mub_arr(i ,j ,0);
+
+            Real xmu  = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
+            Real dpht = (bdy_ph_arr(i,j,k+1)/mu + phb_arr(i,j,k+1)) - (bdy_ph_arr(i,j,k)/mu + phb_arr(i,j,k));
+            bdy_r_tmp(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
+        });
+
         // Interpolate in height
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx_th, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             if (mask_c_arr(i,j,k)) {
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_c_z_dst(i,j,k);
                 z_lo_src = bdy_c_z_src(i,j,kstart);
 
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_c_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -371,11 +498,36 @@ convert_wrfbdy_data (const int itime,
 
                 if (found) {
                     Real dz_rat = (z_dst - z_lo_src) / (z_hi_src - z_lo_src);
-                    bdy_t_int(i,j,k) = (  bdy_t_tmp(i,j,kend) -  bdy_t_tmp(i,j,kstart) ) * dz_rat +  bdy_t_tmp(i,j,kstart);
+                    bdy_th_int(i,j,k) = ( bdy_th_tmp(i,j,kend) - bdy_th_tmp(i,j,kstart) ) * dz_rat + bdy_th_tmp(i,j,kstart);
                     bdy_qv_int(i,j,k) = ( bdy_qv_tmp(i,j,kend) - bdy_qv_tmp(i,j,kstart) ) * dz_rat + bdy_qv_tmp(i,j,kstart);
+                    if (use_wrf_bdy_qc_qi) {
+                        bdy_qc_int(i,j,k) = amrex::max(
+                            (bdy_qc_tmp(i,j,kend) - bdy_qc_tmp(i,j,kstart)) * dz_rat + bdy_qc_tmp(i,j,kstart), Real(0.0));
+                        bdy_qi_int(i,j,k) = amrex::max(
+                            (bdy_qi_tmp(i,j,kend) - bdy_qi_tmp(i,j,kstart)) * dz_rat + bdy_qi_tmp(i,j,kstart), Real(0.0));
+                        if (separate_hydrometeors) {
+                            bdy_qr_int(i,j,k) = amrex::max(
+                                (bdy_qr_tmp(i,j,kend) - bdy_qr_tmp(i,j,kstart)) * dz_rat + bdy_qr_tmp(i,j,kstart), Real(0.0));
+                            bdy_qs_int(i,j,k) = amrex::max(
+                                (bdy_qs_tmp(i,j,kend) - bdy_qs_tmp(i,j,kstart)) * dz_rat + bdy_qs_tmp(i,j,kstart), Real(0.0));
+                            bdy_qg_int(i,j,k) = amrex::max(
+                                (bdy_qg_tmp(i,j,kend) - bdy_qg_tmp(i,j,kstart)) * dz_rat + bdy_qg_tmp(i,j,kstart), Real(0.0));
+                        }
+                    }
+                    bdy_r_int(i,j,k)  = (  bdy_r_tmp(i,j,kend) -  bdy_r_tmp(i,j,kstart) ) * dz_rat +  bdy_r_tmp(i,j,kstart);
                 } else {
-                    bdy_t_int(i,j,k)  =  bdy_t_tmp(i,j,k);
+                    bdy_th_int(i,j,k) =  bdy_th_tmp(i,j,k);
                     bdy_qv_int(i,j,k) = bdy_qv_tmp(i,j,k);
+                    if (use_wrf_bdy_qc_qi) {
+                        bdy_qc_int(i,j,k) = amrex::max(bdy_qc_tmp(i,j,k), Real(0.0));
+                        bdy_qi_int(i,j,k) = amrex::max(bdy_qi_tmp(i,j,k), Real(0.0));
+                        if (separate_hydrometeors) {
+                            bdy_qr_int(i,j,k) = amrex::max(bdy_qr_tmp(i,j,k), Real(0.0));
+                            bdy_qs_int(i,j,k) = amrex::max(bdy_qs_tmp(i,j,k), Real(0.0));
+                            bdy_qg_int(i,j,k) = amrex::max(bdy_qg_tmp(i,j,k), Real(0.0));
+                        }
+                    }
+                    bdy_r_int(i,j,k)  =  bdy_r_tmp(i,j,k);
                 }
             }
         });
@@ -386,14 +538,14 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_u_z_dst(i,j,k);
                 z_lo_src = bdy_u_z_src(i,j,kstart);
 
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_u_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -417,14 +569,14 @@ convert_wrfbdy_data (const int itime,
                 int kstart, kend;
                 Real z_dst, z_hi_src, z_lo_src;
 
-                kstart   = k - amrex::min(5,k);
+                kstart   = klo;
                 z_dst    = bdy_v_z_dst(i,j,k);
                 z_lo_src = bdy_v_z_src(i,j,kstart);
 
                 bool found = false;
                 for (int lk(kstart+1); lk<=khi; ++lk) {
                     z_hi_src = bdy_v_z_src(i,j,lk);
-                    if (z_dst >= z_lo_src && z_dst <= z_hi_src) {
+                    if (z_dst >= z_lo_src && z_dst < z_hi_src) {
                         found = true;
                         kend  = lk;
                         break;
@@ -441,9 +593,73 @@ convert_wrfbdy_data (const int itime,
                 }
             }
         });
+
+        // Rebalance density
+        if (rebalance_wrf_state) {
+#ifdef AMREX_USE_FLOAT
+            Real tol  = Real(1.0e-6);
+#else
+            Real tol  = Real(1.0e-10);
+#endif
+            Real grav = CONST_GRAV;
+            ParallelFor(bx_th_slab,
+            [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+            {
+                // integrate from surface to domain top
+                Real dz, F, C;
+                Real rho_tot_hi, rho_tot_lo;
+                Real z_lo, z_hi;
+                Real R_lo, R_hi;
+                Real qv_lo, qv_hi;
+                Real qt_lo, qt_hi;
+                Real Th_lo, Th_hi;
+                Real T_hi;
+                Real P_lo, P_hi;
+
+                // Use SFC state at first CC
+                z_lo = z_cc_arr(i,j,klo);
+                P_lo = getPgivenRTh(bdy_r_int(i,j,klo)*bdy_th_int(i,j,klo),bdy_qv_int(i,j,klo));
+                P_hi = P_lo;
+
+                for (int k(klo+1); k<=khi; ++k)
+                {
+                    z_hi = z_cc_arr(i,j,k);
+                    dz   = z_hi - z_lo;
+
+                    // Establish known constant
+                    qt_lo = bdy_qv_int(i,j,k-1);
+                    qv_lo = bdy_qv_int(i,j,k-1);
+                    Th_lo = bdy_th_int(i,j,k-1);
+                    R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                    rho_tot_lo = R_lo * (one + qt_lo);
+                    C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
+
+                    // Initial guess and residual
+                    qt_hi = bdy_qv_int(i,j,k);
+                    qv_hi = bdy_qv_int(i,j,k);
+                    Th_hi = bdy_th_int(i,j,k);
+                    T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                    R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                    rho_tot_hi = R_hi * (one + qt_hi);
+                    F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
+
+                    // Do iterations
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, Th_hi, T_hi,
+                                                 qt_hi, qv_hi,
+                                                 P_hi, R_hi, F, maintain_Th);
+
+                    // Assign data
+                    bdy_r_int(i,j,k) = R_hi;
+                    P_lo = P_hi;
+                    z_lo = z_hi;
+                }
+            });
+        } // rebalance wrf
     } // mfi
 
-    for (int ivar(0); ivar < vsize; ++ivar) {
+    for (const int ivar : converted_vars) {
         amrex::ParallelAllReduce::Sum(bdy_data_int[ivar].dataPtr(),
                                       bdy_data_int[ivar].size(),
                                       ParallelContext::CommunicatorAll());
@@ -460,17 +676,33 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<MultiFab>& wrf_MUB,
                               std::unique_ptr<MultiFab>& wrf_C1H,
                               std::unique_ptr<MultiFab>& wrf_C2H,
+                              std::unique_ptr<MultiFab>& wrf_RDNW,
                               std::unique_ptr<MultiFab>& wrf_PHB,
-                              const MultiFab& xvel, const MultiFab& yvel, const MultiFab& cons,
+                              std::unique_ptr<MultiFab>& z_phys_cc,
+                              std::unique_ptr<MultiFab>& z_phys_nd,
+                              const MultiFab& xvel,
+                              const MultiFab& yvel,
+                              const MultiFab& cons,
                               const MultiFab& rho0,
                               Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const Geometry& geom,
                               const bool& use_moist,
+                              const bool use_wrf_bdy_qc_qi,
+                              const bool has_cloud_ice,
+                              const bool separate_hydrometeors,
+                              const bool rebalance_wrf_state,
                               const Vector<BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,
                               bool is_anelastic, bool do_conversion)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+    static bool printed_rebalance_status = false;
+    if (!printed_rebalance_status) {
+        amrex::Print() << "WRF input and boundary hydrostatic rebalance: "
+                       << (rebalance_wrf_state ? "enabled" : "disabled") << '\n';
+        printed_rebalance_status = true;
+    }
 
     // If we are trying to define the bdy data at the final time, we must do it by first reading the tendency from
     // the previous time, then adding the previous time value + dT * tendency.
@@ -479,34 +711,78 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     // If we are going to extrapolate from the older time we need to re-grab it since it has been over-written already
     if (do_tendency)
     {
+        // Rebuild this preceding slice in serialized layout if it was already
+        // compacted for runtime use.
+        bdy_data_xlo[itime-1].clear();
+        bdy_data_xhi[itime-1].clear();
+        bdy_data_ylo[itime-1].clear();
+        bdy_data_yhi[itime-1].clear();
         read_and_convert_from_wrfbdy(itime-1,nc_bdy_file,
                                      bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB,
+                                     wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                     z_phys_cc, z_phys_nd,
                                      xvel, yvel, cons, rho0, area_vec, geom,
-                                     use_moist, domain_bcs_type_h, real_width, bdy_time_interval,
+                                     use_moist, use_wrf_bdy_qc_qi, has_cloud_ice,
+                                     separate_hydrometeors,
+                                     rebalance_wrf_state, domain_bcs_type_h,
+                                     real_width, bdy_time_interval,
                                      is_anelastic, false);
     }
-
-    // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
-    int nvars = WRFBdyVars::NumTypes*4;
 
     const Box& domain = geom.Domain();
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
-    const int khi = hi[2];
+    const int khi  = hi[2];
 
     IntVect plo(lo);
     IntVect phi(hi);
 
     // ******************************************************************
     // Read the netcdf file and fill these FABs
-    // NOTE: the order and number of these must match the WRFBdyVars enum!
-    // WRFBdyVars:  U, V, T, QV, PH, MU, PC
+    // The first descriptors match the serialized WRFBdyVars layout.  When the
+    // opt-in hydrometeor path is enabled, three additional raw fields are
+    // read into slots 10-12.  They are combined into QC/QI for aggregate
+    // schemes, or retained as separate converted targets for fully explicit
+    // hydrometeor schemes.
     //
     // These fields are at myhalf levels (unstaggered)
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","PH","MU","PC"};
+    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","R","PH","MU","PC"};
+    Vector<int> nc_var_types = {WRFBdyVars::U, WRFBdyVars::V, WRFBdyVars::T,
+                                WRFBdyVars::QV, WRFBdyVars::R, WRFBdyVars::PH,
+                                WRFBdyVars::MU, WRFBdyVars::PC};
+    if (use_wrf_bdy_qc_qi) {
+        nc_var_prefix.push_back("QCLOUD");
+        nc_var_types.push_back(WRFBdyVars::QC);
+        nc_var_prefix.push_back("QRAIN");
+        nc_var_types.push_back(WRFBdyHydrometeorVars::QR);
+        if (has_cloud_ice) {
+            nc_var_prefix.push_back("QICE");
+            nc_var_types.push_back(WRFBdyVars::QI);
+            nc_var_prefix.push_back("QSNOW");
+            nc_var_types.push_back(WRFBdyHydrometeorVars::QS);
+            nc_var_prefix.push_back("QGRAUP");
+            nc_var_types.push_back(WRFBdyHydrometeorVars::QG);
+        }
+    }
+
+    // Reading a wrfbdy file always retains the three raw precipitating fields
+    // through conversion.  Aggregate mode drops those transient slots after
+    // QC/QI have been formed; separate mode keeps them in the converted cache.
+    const int serialized_nvars = use_wrf_bdy_qc_qi
+        ? WRFBdyHydrometeorVars::NumTypes : WRFBdyVars::LegacyNumTypes;
+    bdy_data_xlo[itime].resize(serialized_nvars);
+    bdy_data_xhi[itime].resize(serialized_nvars);
+    bdy_data_ylo[itime].resize(serialized_nvars);
+    bdy_data_yhi[itime].resize(serialized_nvars);
+
+    Vector<FArrayBox>* bdy_sides[WRFBdyTypes::y_hi+1] = {
+        &bdy_data_xlo[itime], &bdy_data_xhi[itime],
+        &bdy_data_ylo[itime], &bdy_data_yhi[itime]};
+    auto read_fab = [&] (const int bdy_type, const int bdy_var) -> FArrayBox& {
+        return (*bdy_sides[bdy_type])[bdy_var];
+    };
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -523,6 +799,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         }
     }
 
+    const int nvars = static_cast<int>(nc_var_names.size());
+
     using RARRAY = NDArray<float>;
     Vector<RARRAY> tslice(nc_var_names.size());
 
@@ -535,8 +813,19 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         int itime_to_read = (do_tendency) ? itime-1 : itime;
         ReadTimeSliceFromNetCDFFile(nc_bdy_file, itime_to_read, nc_var_names, tslice, success);
 
-        for (auto &istat:success) {
-            AMREX_ALWAYS_ASSERT(istat==1);
+        for (int iv = 0; iv < static_cast<int>(success.size()); ++iv) {
+            if (success[iv] != 1) {
+                const int bdy_var_type = nc_var_types[iv / 4];
+                if (bdy_var_type == WRFBdyVars::QC || bdy_var_type == WRFBdyVars::QI ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QR ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QS ||
+                    bdy_var_type == WRFBdyHydrometeorVars::QG) {
+                    amrex::Error("Required WRF boundary variable " + nc_var_names[iv] +
+                                 " is missing; disable erf.use_wrf_bdy_qc_qi or regenerate wrfbdy with QCLOUD/QRAIN/QICE/QSNOW/QGRAUP fields");
+                } else {
+                    amrex::Error("Required WRF boundary variable " + nc_var_names[iv] + " is missing");
+                }
+            }
         }
 
         // Width of the boundary region
@@ -555,43 +844,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     {
         // Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
 
-        int bdyVarType;
-
-        std::string first1 = nc_var_names[iv].substr(0,1);
-        std::string first2 = nc_var_names[iv].substr(0,2);
-
-        if        (first1 == "U") {
-            bdyVarType = WRFBdyVars::U;
-        } else if (first1 == "V") {
-            bdyVarType = WRFBdyVars::V;
-        } else if (first1 == "T") {
-            bdyVarType = WRFBdyVars::T;
-        } else if (first2 == "QV") {
-            bdyVarType = WRFBdyVars::QV;
-        } else if (first2 == "PH") {
-            bdyVarType = WRFBdyVars::PH;
-        } else if (first2 == "MU") {
-            bdyVarType = WRFBdyVars::MU;
-        } else if (first2 == "PC") {
-            bdyVarType = WRFBdyVars::PC;
-        } else {
-            Print() << "Trying to read " << first1 << " or " << first2 << std::endl;
-            Abort("dont know this variable");
-        }
-
-        std::string last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
-        std::string last4 = nc_var_names[iv].substr(nc_var_names[iv].size()-4, 4);
-        int bdyType;
-
-        if        (last3 == "BXS" || last4 == "BTXS") {
-            bdyType = WRFBdyTypes::x_lo;
-        } else if (last3 == "BXE" || last4 == "BTXE") {
-            bdyType = WRFBdyTypes::x_hi;
-        } else if (last3 == "BYS" || last4 == "BTYS") {
-            bdyType = WRFBdyTypes::y_lo;
-        } else if (last3 == "BYE" || last4 == "BTYE") {
-            bdyType = WRFBdyTypes::y_hi;
-        }
+        const int bdyVarType = nc_var_types[iv / 4];
+        const int bdyType = iv % 4;
 
         Arena* Arena_Used = The_Arena();
 #ifdef AMREX_USE_GPU
@@ -615,17 +869,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+real_width-1, hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(xlo_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xlo[itime].push_back(FArrayBox(xlo_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(xlo_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::x_hi) {
@@ -645,17 +899,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box xhi_line(IntVect(hi[0]-real_width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(xhi_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_xhi[itime].push_back(FArrayBox(xhi_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(xhi_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_lo) {
@@ -675,17 +929,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+real_width-1, 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(ylo_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_ylo[itime].push_back(FArrayBox(ylo_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(ylo_line, 1, Arena_Used);          // MU/PC
             }
 
         } else if (bdyType == WRFBdyTypes::y_hi) {
@@ -705,17 +959,17 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
             Box yhi_line(IntVect(lo[0], hi[1]-real_width+1, 0), IntVect(hi[0], hi[1], 0));
 
             if        (bdyVarType == WRFBdyVars::U) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_x_stag, 1, Arena_Used));  // U
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_x_stag, 1, Arena_Used);  // U
             } else if (bdyVarType == WRFBdyVars::V) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used));  // V
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_y_stag, 1, Arena_Used);  // V
             } else if (bdyVarType == WRFBdyVars::T) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
-            } else if (bdyVarType == WRFBdyVars::QV) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_no_stag, 1, Arena_Used); // T
+            } else if (is_wrf_cell_centered_bdy_var(bdyVarType)) {
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_no_stag, 1, Arena_Used);
             } else if (bdyVarType == WRFBdyVars::PH) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_plane_z_stag, 1, Arena_Used));  // PH
+                read_fab(bdyType,bdyVarType).resize(yhi_plane_z_stag, 1, Arena_Used);  // PH
             } else if (bdyVarType == WRFBdyVars::MU || bdyVarType == WRFBdyVars::PC) {
-                bdy_data_yhi[itime].push_back(FArrayBox(yhi_line, 1, Arena_Used));          // MU/PC
+                read_fab(bdyType,bdyVarType).resize(yhi_line, 1, Arena_Used);          // MU/PC
             }
         }
 
@@ -731,8 +985,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
             Array4<Real> fab_arr;
 
-            if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V  ||
-                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV ||
+            if (is_wrf_cell_centered_bdy_var(bdyVarType) ||
+                bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
                 bdyVarType == WRFBdyVars::PH)
             {
                 // xlo,xhi dims: (Time, bdy_width, bottom_top, south_north)
@@ -745,8 +999,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
 
                 if (bdyType == WRFBdyTypes::x_lo) {
                     num_pts  = tslice[iv].ndim();
-                    int ioff = bdy_data_xlo[itime][bdyVarType].smallEnd()[0];
-                    fab_arr  = bdy_data_xlo[itime][bdyVarType].array();
+                    int ioff = read_fab(bdyType,bdyVarType).smallEnd()[0];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
@@ -757,8 +1011,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::x_hi) {
                     num_pts  = tslice[iv].ndim();
-                    int ioff = bdy_data_xhi[itime][bdyVarType].bigEnd()[0];
-                    fab_arr  = bdy_data_xhi[itime][bdyVarType].array();
+                    int ioff = read_fab(bdyType,bdyVarType).bigEnd()[0];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int i = n / (ns2 * ns3);
                         if (i >= real_width) continue;
@@ -769,8 +1023,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::y_lo) {
                     num_pts  = tslice[iv].ndim();
-                    int joff = bdy_data_ylo[itime][bdyVarType].smallEnd()[1];
-                    fab_arr  = bdy_data_ylo[itime][bdyVarType].array();
+                    int joff = read_fab(bdyType,bdyVarType).smallEnd()[1];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
@@ -781,8 +1035,8 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                     }
                 } else if (bdyType == WRFBdyTypes::y_hi) {
                     num_pts  = tslice[iv].ndim();
-                    int joff = bdy_data_yhi[itime][bdyVarType].bigEnd()[1];
-                    fab_arr  = bdy_data_yhi[itime][bdyVarType].array();
+                    int joff = read_fab(bdyType,bdyVarType).bigEnd()[1];
+                    fab_arr  = read_fab(bdyType,bdyVarType).array();
                     for (int n(0); n < num_pts; ++n) {
                         int j = n / (ns2 * ns3);
                         if (j >= real_width) continue;
@@ -843,6 +1097,18 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                         fab_arr(i, joff-j, 0, 0) = static_cast<Real>(*(tslice[iv].get_data() + n));
                     }
                 }
+
+                // Make sure that qv in the bdyfiles is >= 0
+                if (bdyVarType == WRFBdyVars::QV) {
+                    Real min_qv_xlo = read_fab(WRFBdyTypes::x_lo,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_xhi = read_fab(WRFBdyTypes::x_hi,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_ylo = read_fab(WRFBdyTypes::y_lo,bdyVarType).min<amrex::RunOn::Device>(0);
+                    Real min_qv_yhi = read_fab(WRFBdyTypes::y_hi,bdyVarType).min<amrex::RunOn::Device>(0);
+                    if (min_qv_xlo < zero) amrex::Warning("qv in bdy_data_xlo < 0");
+                    if (min_qv_xhi < zero) amrex::Warning("qv in bdy_data_xhi < 0");
+                    if (min_qv_ylo < zero) amrex::Warning("qv in bdy_data_ylo < 0");
+                    if (min_qv_yhi < zero) amrex::Warning("qv in bdy_data_yhi < 0");
+                }
             } // bdyVarType
         } // if ParalleDescriptor::IOProcessor()
     } // nc_var_names
@@ -853,29 +1119,53 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
     // When an FArrayBox is built, space is allocated on every rank.  However, we only
     //    filled the data in these FABs on the IOProcessor.  So here we broadcast
     //    the data to every rank.
-    int n_per_time = nc_var_prefix.size();
-    for (int i = 0; i < n_per_time; i++)
+    for (const int bdy_var : nc_var_types)
     {
-        ParallelDescriptor::Bcast(bdy_data_xlo[itime][i].dataPtr(),bdy_data_xlo[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_xhi[itime][i].dataPtr(),bdy_data_xhi[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_ylo[itime][i].dataPtr(),bdy_data_ylo[itime][i].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(bdy_data_yhi[itime][i].dataPtr(),bdy_data_yhi[itime][i].box().numPts(),ioproc);
+        for (int bdy_type = WRFBdyTypes::x_lo; bdy_type <= WRFBdyTypes::y_hi; ++bdy_type) {
+            FArrayBox& fab = read_fab(bdy_type,bdy_var);
+            ParallelDescriptor::Bcast(fab.dataPtr(),fab.box().numPts(),ioproc);
+        }
+    }
+
+    if (use_wrf_bdy_qc_qi && !has_cloud_ice) {
+        Arena* arena_used = The_Arena();
+#ifdef AMREX_USE_GPU
+        arena_used = The_Pinned_Arena();
+#endif
+        auto zero_unused_ice = [&] (Vector<FArrayBox>& data) {
+            const int unused_ice_vars[] = {
+                WRFBdyVars::QI, WRFBdyHydrometeorVars::QS,
+                WRFBdyHydrometeorVars::QG};
+            for (const int bdy_var : unused_ice_vars) {
+                data[bdy_var].resize(data[WRFBdyVars::QC].box(), 1, arena_used);
+                data[bdy_var].template setVal<RunOn::Device>(zero);
+            }
+        };
+        zero_unused_ice(bdy_data_xlo[itime]);
+        zero_unused_ice(bdy_data_xhi[itime]);
+        zero_unused_ice(bdy_data_ylo[itime]);
+        zero_unused_ice(bdy_data_yhi[itime]);
     }
 
     if (do_tendency) {
-        for (int i = 0; i < n_per_time; i++)
+        for (const int bdy_var : nc_var_types)
         {
             // Multiply the tendency bdy_tend_prev (stored in bdy_data at itime) by dt to get difference between old and new
-            bdy_data_xlo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_xhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_ylo[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
-            bdy_data_yhi[itime][i].template mult<RunOn::Device>(bdy_time_interval,0,1);
+            Real dT = static_cast<Real>(bdy_time_interval);
+            read_fab(WRFBdyTypes::x_lo,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::x_hi,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::y_lo,bdy_var).template mult<RunOn::Device>(dT,0,1);
+            read_fab(WRFBdyTypes::y_hi,bdy_var).template mult<RunOn::Device>(dT,0,1);
 
             // Add bdy_prev to dt*bdy_tend_prev to get bdy_current
-            bdy_data_xlo[itime][i].template plus<RunOn::Device>(bdy_data_xlo[itime-1][i], 0, 0, 1);
-            bdy_data_xhi[itime][i].template plus<RunOn::Device>(bdy_data_xhi[itime-1][i], 0, 0, 1);
-            bdy_data_ylo[itime][i].template plus<RunOn::Device>(bdy_data_ylo[itime-1][i], 0, 0, 1);
-            bdy_data_yhi[itime][i].template plus<RunOn::Device>(bdy_data_yhi[itime-1][i], 0, 0, 1);
+            read_fab(WRFBdyTypes::x_lo,bdy_var).template plus<RunOn::Device>(
+                bdy_data_xlo[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::x_hi,bdy_var).template plus<RunOn::Device>(
+                bdy_data_xhi[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::y_lo,bdy_var).template plus<RunOn::Device>(
+                bdy_data_ylo[itime-1][bdy_var], 0, 0, 1);
+            read_fab(WRFBdyTypes::y_hi,bdy_var).template plus<RunOn::Device>(
+                bdy_data_yhi[itime-1][bdy_var], 0, 0, 1);
         }
     }
 
@@ -887,16 +1177,56 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
         std::unique_ptr<iMultiFab> mask_v = OwnerMask(yvel, geom.periodicity());
 
         if (do_tendency) {
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xlo,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                                rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_xhi,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                                rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_ylo,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                                rebalance_wrf_state);
+            convert_wrfbdy_data(itime-1, domain, bdy_data_yhi,
+                                wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                                z_phys_cc, z_phys_nd,
+                                mask_u.get(), mask_v.get(), mask_c.get(),
+                                use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                                rebalance_wrf_state);
         }
 
-        convert_wrfbdy_data(itime, domain, bdy_data_xlo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_xhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_ylo, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
-        convert_wrfbdy_data(itime, domain, bdy_data_yhi, wrf_MUB, wrf_C1H, wrf_C2H, wrf_PHB, mask_u.get(), mask_v.get(), mask_c.get(), use_moist);
+        convert_wrfbdy_data(itime, domain, bdy_data_xlo,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                            rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_xhi,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                            rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_ylo,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                            rebalance_wrf_state);
+        convert_wrfbdy_data(itime, domain, bdy_data_yhi,
+                            wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB,
+                            z_phys_cc, z_phys_nd,
+                            mask_u.get(), mask_v.get(), mask_c.get(),
+                            use_moist, use_wrf_bdy_qc_qi, has_cloud_ice, separate_hydrometeors,
+                            rebalance_wrf_state);
 
         if (is_anelastic) {
             if (do_tendency) {
@@ -912,5 +1242,24 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                         area_vec, geom, domain_bcs_type_h);
         } // anelastic
     } // do_conversion
+
+    // Aggregate targets drop the raw QRAIN/QSNOW/QGRAUP slots before the
+    // caller writes/repackages the cache. Separate targets retain the slots
+    // as converted hydrometeor fields for advection and independent nudging.
+    if (use_wrf_bdy_qc_qi && do_conversion) {
+        const int output_nvars = separate_hydrometeors
+            ? static_cast<int>(WRFBdyHydrometeorVars::NumTypes)
+            : static_cast<int>(WRFBdyVars::NumTypes);
+        bdy_data_xlo[itime].resize(output_nvars);
+        bdy_data_xhi[itime].resize(output_nvars);
+        bdy_data_ylo[itime].resize(output_nvars);
+        bdy_data_yhi[itime].resize(output_nvars);
+        if (do_tendency) {
+            bdy_data_xlo[itime-1].resize(output_nvars);
+            bdy_data_xhi[itime-1].resize(output_nvars);
+            bdy_data_ylo[itime-1].resize(output_nvars);
+            bdy_data_yhi[itime-1].resize(output_nvars);
+        }
+    }
 }
 #endif // ERF_USE_NETCDF

@@ -15,7 +15,7 @@ public:
     virtual ~EWP () = default;
 
     void advance (const amrex::Geometry& geom,
-                  const amrex::Real& dt_advance,
+                  const double& dt_advance,
                   amrex::MultiFab& cons_in,
                   amrex::MultiFab& mf_vars_ewp,
                   amrex::MultiFab& U_old,
@@ -23,7 +23,7 @@ public:
                   amrex::MultiFab& W_old,
                   const amrex::MultiFab& mf_Nturb,
                   const amrex::MultiFab& mf_SMark,
-                  const amrex::Real& time) override;
+                  const double& time) override;
 
     void source_terms_cellcentered (const amrex::Geometry& geom,
                                     const amrex::MultiFab& cons_in,
@@ -33,7 +33,7 @@ public:
                                     const amrex::MultiFab& W_old,
                                     const amrex::MultiFab& mf_Nturb);
 
-    void update (const amrex::Real& dt_advance,
+    void update (const double& dt_advance,
                  amrex::MultiFab& cons_in,
                  amrex::MultiFab& U_old,
                  amrex::MultiFab& V_old,
@@ -45,7 +45,7 @@ public:
                                 const amrex::MultiFab& W_old,
                                const amrex::MultiFab& mf_SMark,
                                const amrex::MultiFab& mf_Nturb,
-                               const amrex::Real& time);
+                               const double& time);
 
 protected:
     amrex::Vector<amrex::Real> xloc, yloc;

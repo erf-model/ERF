@@ -1,18 +1,42 @@
+/**
+ * \file ERF_WriteJobInfo.cpp
+ */
 #include <ERF.H>
 #include <ERF_InputsName.H>
 #include <ERF_EpochTime.H>
 #include <AMReX_buildInfo.H>
+#include <ERF_Provenance.H>
+
+#include <iomanip>
 
 using namespace amrex;
 
 void
-ERF::writeJobInfo (const std::string& dir) const
+ERF::writeJobInfo (const std::string& dir,
+                   erf_provenance::ArtifactType artifact_type,
+                   int artifact_step,
+                   double artifact_time_seconds) const
 {
+    if (!ParallelDescriptor::IOProcessor()) {
+        return;
+    }
+
     // job_info file with details about the run
     std::ofstream jobInfoFile;
     std::string FullPathJobInfoFile = dir;
     FullPathJobInfoFile += "/job_info";
-    jobInfoFile.open(FullPathJobInfoFile.c_str(), std::ios::out);
+    jobInfoFile.open(FullPathJobInfoFile.c_str(), std::ios::out | std::ios::trunc);
+    if (!jobInfoFile.good()) {
+        FileOpenFailed(FullPathJobInfoFile);
+    }
+
+    erf_provenance::ProvenanceRecord provenance;
+    provenance.execution = execution_provenance;
+    provenance.artifact.artifact_uuid = erf_provenance::generate_uuid_v4();
+    provenance.artifact.artifact_type = artifact_type;
+    provenance.artifact.artifact_step = artifact_step;
+    provenance.artifact.artifact_time_seconds = artifact_time_seconds;
+    provenance.artifact.artifact_created_utc = erf_provenance::current_utc();
 
     std::string PrettyLine = "==================================================="
       "============================\n";
@@ -24,6 +48,9 @@ ERF::writeJobInfo (const std::string& dir) const
     jobInfoFile << PrettyLine;
     jobInfoFile << " ERF Job Information\n";
     jobInfoFile << PrettyLine;
+
+    jobInfoFile << erf_provenance::serialize_provenance_block(provenance);
+    jobInfoFile << "\n";
 
     jobInfoFile << "inputs file: " << inputs_name << "\n\n";
 
@@ -45,10 +72,18 @@ ERF::writeJobInfo (const std::string& dir) const
         jobInfoFile << "\n\n";
     }
 
-    // plotfile information
+    // Output information
     jobInfoFile << PrettyLine;
-    jobInfoFile << " Plotfile Information\n";
+    jobInfoFile << " Output Information\n";
     jobInfoFile << PrettyLine;
+
+    jobInfoFile << "artifact type:    "
+                << erf_provenance::artifact_type_token(artifact_type) << "\n";
+    jobInfoFile << "artifact step:    " << artifact_step << "\n";
+    const auto existing_precision = jobInfoFile.precision();
+    jobInfoFile << std::setprecision(17)
+                << "simulation time:  " << artifact_time_seconds << "\n";
+    jobInfoFile.precision(existing_precision);
 
     time_t now = time(nullptr);
 

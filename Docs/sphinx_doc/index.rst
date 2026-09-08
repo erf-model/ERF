@@ -44,7 +44,9 @@ In addition to this documentation, there is API documentation for ERF generated 
    GettingStarted.rst
    buildingConfiguration.rst
    Inputs.rst
+   SLM.rst
    Initialization.rst
+   CloudChamber.rst
    BestPractices.rst
    AgenticWorkFlow.rst
    ERFKnowledgeAssistant.rst
@@ -62,6 +64,8 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/PBLschemes.rst
    theory/Forcings.rst
    Particles.rst
+   SuperDroplets.rst
+   ProblemInputs.rst
    theory/Forest.rst
    theory/HindCast.rst
    theory/UnitsAndConstants.rst
@@ -82,6 +86,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    SurfaceLayer.rst
    DerivedQuantities.rst
    Checkpoint.rst
+   Provenance.rst
    Plotfiles.rst
    Visualization.rst
 
@@ -103,9 +108,11 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: TESTING
    :maxdepth: 1
 
+   testing.rst
+   UnitTests.rst
+   RegressionTests.rst
    Verification.rst
    Performance.rst
-   RegressionTests.rst
 
 .. toctree::
    :caption: CONTAINERS

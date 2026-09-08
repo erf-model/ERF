@@ -58,7 +58,7 @@ erf.v              = 1        # verbosity in ERF.cpp
 amr.v              = 1        # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
+#amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file

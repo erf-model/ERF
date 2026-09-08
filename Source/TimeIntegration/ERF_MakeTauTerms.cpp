@@ -50,12 +50,13 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
                                     tc.pbl_type  == PBLType::YSU  ||
+                                    tc.pbl_type  == PBLType::YSUNew  ||
                                     tc.pbl_type  == PBLType::MRF);
 
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
 
-    const bool do_implicit = (solverChoice.vert_implicit_fac[nrk] > 0) && solverChoice.implicit_momentum_diffusion;
+    const bool do_implicit = (solverChoice.vert_implicit_fac[level][nrk] > 0) && solverChoice.implicit_momentum_diffusion;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -225,15 +226,15 @@ void erf_make_tau_terms (int level, int nrk,
             //
             // These are the steps taken below...
             //
-            // one Calculate expansion rate
+            // 1. Calculate expansion rate
             //    - will be added to the normal strain rates in ComputeStress
             //
-            // two Call ComputeStrain
+            // 2. Call ComputeStrain
             //    - IMPLICIT path: s31_corr and s32_corr are modified in here
             //
-            // three Call ComputeSmnSmn, if needed for turbulence model
+            // 3. Call ComputeSmnSmn, if needed for turbulence model
             //
-            // Real(4.) Call ComputeStress
+            // 4. Call ComputeStress
             //    - add expansion rates to terms on diagonal
             //    - multiply strain rates by diffusivities, with the total
             //      viscosity calculated as the sum of a constant viscosity (or
@@ -241,7 +242,7 @@ void erf_make_tau_terms (int level, int nrk,
             //      from the turbulence model
             //    - IMPLICIT path: s33_corr is modified in here
             //
-            // Real(5.) Copy temp Sij fabs into Tau_lev multifabs
+            // 5. Copy temp Sij fabs into Tau_lev multifabs
             //    - stress tensor is symmetric if no terrain and no implicit diffusion
             //    - otherwise, stress tensor is asymmetric
             //

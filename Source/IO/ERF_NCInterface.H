@@ -1,4 +1,4 @@
-/** \file nc_interface.H
+/** \file ERF_NCInterface.H
  *
  *  Interface to NetCDF library
  *

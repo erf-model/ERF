@@ -192,28 +192,28 @@ amrex::Real erf_dtesatw (amrex::Real t) {
 }
 
 // Saturation mixing-ratio helper for a precomputed saturation pressure. qsat is
-// capped at Rd_on_Rv whenever esat > p/2, i.e. when max(esat, p - esat) = esat.
+// capped at RdoRv whenever esat > p/2, i.e. when max(esat, p - esat) = esat.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_qsat_from_esat (amrex::Real esat, amrex::Real p)
 {
-    return Rd_on_Rv * esat / std::max(esat, p - esat);
+    return RdoRv * esat / std::max(esat, p - esat);
 }
 
 // Temperature derivative of the capped saturation-mixing-ratio helper. The
-// derivative is zero on the capped branch where qsat == Rd_on_Rv.
+// derivative is zero on the capped branch where qsat == RdoRv.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_dtqsat_from_esat (amrex::Real esat, amrex::Real dtesat, amrex::Real p)
 {
     if ((p - esat) >= esat) {
         amrex::Real const denom = p - esat;
-        return Rd_on_Rv * dtesat * p / (denom * denom);
+        return RdoRv * dtesat * p / (denom * denom);
     }
 
     return amrex::Real(0);
 }
 
 // Saturated ice vapor mixing ratio [-]. Input temperature is in K and input
-// pressure is in mbar. The result is capped at Rd_on_Rv when esat > p/2.
+// pressure is in mbar. The result is capped at RdoRv when esat > p/2.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsati (amrex::Real t, amrex::Real p, amrex::Real &qsati) {
     qsati = erf_qsat_from_esat(erf_esati(t), p);
@@ -222,7 +222,7 @@ void erf_qsati (amrex::Real t, amrex::Real p, amrex::Real &qsati) {
 /* saturated water vapor mixing ratio
  * t: temperature [K]
  * p: pressure [mbar]
- * return value is capped at Rd_on_Rv when esat > p/2.
+ * return value is capped at RdoRv when esat > p/2.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
@@ -230,7 +230,7 @@ void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
 }
 
 // Temperature derivative of the capped erf_qsati relation. This is zero on the
-// capped branch where qsat == Rd_on_Rv.
+// capped branch where qsat == RdoRv.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsati (amrex::Real t, amrex::Real p, amrex::Real &dtqsati) {
     amrex::Real esati   = erf_esati(t);
@@ -239,7 +239,7 @@ void erf_dtqsati (amrex::Real t, amrex::Real p, amrex::Real &dtqsati) {
 }
 
 // Temperature derivative of the capped erf_qsatw relation. This is zero on the
-// capped branch where qsat == Rd_on_Rv.
+// capped branch where qsat == RdoRv.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsatw (amrex::Real t, amrex::Real p, amrex::Real &dtqsatw) {
     amrex::Real esatw   = erf_esatw(t);
