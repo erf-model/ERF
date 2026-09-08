@@ -251,6 +251,10 @@ public:
           amrex::Abort("Undefined MOST roughness type for land!");
       }
 
+      // Allow for smooth-flow limit?
+      pp.queryAdd("most.smooth_flow_viscosity", smooth_flow_visc);
+      amrex::Print() << "The smooth-flow limit will be included for variable roughness models over sea: " << smooth_flow_visc << "\n";
+
       // Specify how to compute the surface flux over sea (if there is any)
       std::string rough_sea_string_in;
       std::string rough_sea_string{"charnock"};
@@ -261,29 +265,30 @@ public:
       if (rough_sea_string == "charnock") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           pp.queryAdd("most.charnock_constant", cnk_a);
-          pp.queryAdd("most.charnock_viscosity", cnk_visc);
           if (cnk_a > 0) {
               amrex::Print() << "If there is water, Charnock relation with C_a="
-                             << cnk_a << (cnk_visc ? " and viscosity" : "")
-                             << " will be used" << std::endl;
+                             << cnk_a << " will be used" << std::endl;
           } else {
               amrex::Print() << "If there is water, Charnock relation with variable "
-                  "Charnock parameter (COARE3.0)"
-                             << (cnk_visc ? " and viscosity" : "") << " will be used"
-                             << std::endl;
+                  "Charnock parameter (COARE3.0) will be used" << std::endl;
           }
       } else if (rough_sea_string == "coare3.0") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           amrex::Print() << "If there is water, Charnock relation with variable "
-              "Charnock parameter (COARE3.0)"
-                         << (cnk_visc ? " and viscosity" : "") << " will be used"
-                         << std::endl;
+              "Charnock parameter (COARE3.0) will be used" << std::endl;
           cnk_a = -1;
       } else if (rough_sea_string == "donelan") {
           rough_type_sea = RoughCalcType::DONELAN;
       } else if (rough_sea_string == "modified_charnock") {
           rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
           pp.queryAdd("most.modified_charnock_depth", depth);
+          if (depth < amrex::Real(10.0) || depth > amrex::Real(100.0) ) {
+              amrex::Print() << "Specified depth of " << depth
+                             << " is outside the valid range of [10 100], resetting to bounds now."
+                             << std::endl;
+          }
+          // Limiter based upon the fit range in Jiménez & Dudhia
+          depth = amrex::min(amrex::max(depth,amrex::Real(10.0)),amrex::Real(100.0));
       } else if (rough_sea_string == "wave_coupled") {
           rough_type_sea = RoughCalcType::WAVE_COUPLED;
       } else if (rough_sea_string == "constant") {
@@ -1266,7 +1271,7 @@ private:
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
   amrex::Real cnk_a{amrex::Real(0.0185)};
-  bool cnk_visc{true};
+  bool smooth_flow_visc{true};
   amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};

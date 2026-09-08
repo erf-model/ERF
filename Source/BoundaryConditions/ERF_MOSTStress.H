@@ -86,12 +86,12 @@ struct adiabatic_charnock
     adiabatic_charnock (amrex::Real Tflux,
                         amrex::Real Qvflux,
                         amrex::Real cnk_a,
-                        bool cnk_visc)
+                        bool use_visc)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_a = cnk_a;
-        mdata.visc  = cnk_visc;
+        mdata.visc  = use_visc;
     }
 
     /**
@@ -146,9 +146,11 @@ struct adiabatic_charnock
             C = std::log(zref / z0_old);
             ustar = mdata.kappa * umm / (C - psi_m);
             if (mdata.Cnk_a > 0) {
+                // NOTE: air_viscosity should take T and not Th!
                 z0 = Charnock_roughness(ustar, mdata.Cnk_a,
                                         air_viscosity(tm_arr(i,j,k)), mdata.visc);
             } else {
+                // NOTE: air_viscosity should take T and not Th!
                 z0 = COARE3_roughness(zref, umm, ustar,
                                       air_viscosity(tm_arr(i,j,k)), mdata.visc);
             }
@@ -193,12 +195,14 @@ struct adiabatic_mod_charnock
      */
     adiabatic_mod_charnock (amrex::Real Tflux,
                             amrex::Real Qvflux,
-                            amrex::Real depth)
+                            amrex::Real depth,
+                            bool use_visc)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
+        mdata.visc  = use_visc;
     }
 
     /**
@@ -291,10 +295,12 @@ struct adiabatic_donelan
      * @param[in] Qvflux prescribed moisture flux
      */
     adiabatic_donelan (amrex::Real Tflux,
-                       amrex::Real Qvflux)
+                       amrex::Real Qvflux,
+                       bool use_visc)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc  = use_visc;
     }
 
     /**
@@ -348,6 +354,7 @@ struct adiabatic_donelan
             // Update
             C = std::log(zref / z0_old);
             ustar = mdata.kappa * umm / (C - psi_m);
+            // NOTE: air_viscosity should take T and not Th!
             z0    = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
@@ -387,10 +394,12 @@ struct adiabatic_wave_coupled
      * @param[in] Qvflux prescribed moisture flux
      */
     adiabatic_wave_coupled (amrex::Real Tflux,
-                            amrex::Real Qvflux)
+                            amrex::Real Qvflux,
+                            bool use_visc)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc  = use_visc;
     }
 
     /**
@@ -444,6 +453,7 @@ struct adiabatic_wave_coupled
             // Update
             C = std::log(zref / z0_old);
             ustar = mdata.kappa * umm / (C - psi_m);
+            // NOTE: air_viscosity should take T and not Th!
             z0    = WaveCoupled_roughness(Hwave_arr(i,j,k), Lwave_arr(i,j,k), eps, ustar,
                                           air_viscosity(tm_arr(i,j,k)), mdata.visc);
             ++iter_z;
@@ -615,13 +625,13 @@ struct surface_flux_charnock
     surface_flux_charnock (amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
-                           bool cnk_visc,
+                           bool use_visc,
                            bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_a = cnk_a;
-        mdata.visc  = cnk_visc;
+        mdata.visc  = use_visc;
         spec_qflux  = cons_qflux;
     }
 
@@ -682,9 +692,11 @@ struct surface_flux_charnock
         do {
             ustar = u_star_arr(i,j,k);
             if (mdata.Cnk_a > 0) {
+                // NOTE: air_viscosity should take T and not Th!
                 z0 = Charnock_roughness(ustar, mdata.Cnk_a,
                                         air_viscosity(tm_arr(i,j,k)), mdata.visc);
             } else {
+                // NOTE: air_viscosity should take T and not Th!
                 z0 = COARE3_roughness(zref, umm, ustar,
                                       air_viscosity(tm_arr(i,j,k)), mdata.visc);
             }
@@ -750,11 +762,13 @@ struct surface_flux_mod_charnock
     surface_flux_mod_charnock (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                amrex::Real depth,
+                               bool use_visc,
                                bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_d = depth;
+        mdata.visc  = use_visc;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
         spec_qflux  = cons_qflux;
     }
@@ -876,10 +890,12 @@ struct surface_flux_donelan
      */
     surface_flux_donelan (amrex::Real Tflux,
                           amrex::Real Qvflux,
+                          bool use_visc,
                           bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc = use_visc;
         spec_qflux = cons_qflux;
     }
 
@@ -939,6 +955,7 @@ struct surface_flux_donelan
         }
         do {
             ustar = u_star_arr(i,j,k);
+            // NOTE: air_viscosity should take T and not Th!
             z0    = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
                                  -(qvm_arr(i,j,k) - q_surf_arr(i,j,k)) * ustar * mdata.kappa /
@@ -1000,10 +1017,12 @@ struct surface_flux_wave_coupled
      */
     surface_flux_wave_coupled (amrex::Real Tflux,
                                amrex::Real Qvflux,
+                               bool use_visc,
                                bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc = use_visc;
         spec_qflux = cons_qflux;
     }
 
@@ -1063,6 +1082,7 @@ struct surface_flux_wave_coupled
         }
         do {
             ustar = u_star_arr(i,j,k);
+            // NOTE: air_viscosity should take T and not Th!
             z0    = WaveCoupled_roughness(Hwave_arr(i,j,k), Lwave_arr(i,j,k), eps, ustar,
                                           air_viscosity(tm_arr(i,j,k)), mdata.visc);
             qflux = (spec_qflux) ? mdata.surf_moist_flux :
@@ -1283,13 +1303,13 @@ struct surface_temp_charnock
     surface_temp_charnock (amrex::Real Tflux,
                            amrex::Real Qvflux,
                            amrex::Real cnk_a,
-                           bool cnk_visc,
+                           bool use_visc,
                            bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_a = cnk_a;
-        mdata.visc  = cnk_visc;
+        mdata.visc  = use_visc;
         spec_qflux  = cons_qflux;
     }
 
@@ -1398,12 +1418,15 @@ struct surface_temp_charnock
                 z0_old = z0;
 
                 // Update
-                C = std::log(zref / z0_old);
-                ustar = mdata.kappa * umm / (C - psi_m);
+                C      = std::log(zref / z0_old);
+                CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+                ustar  = mdata.kappa * umm / CmPsim;
                 if (mdata.Cnk_a > 0) {
+                    // NOTE: air_viscosity should take T and not Th!
                     z0 = Charnock_roughness(ustar, mdata.Cnk_a,
                                             air_viscosity(tm_arr(i,j,k)), mdata.visc);
                 } else {
+                    // NOTE: air_viscosity should take T and not Th!
                     z0 = COARE3_roughness(zref, umm, ustar,
                                           air_viscosity(tm_arr(i,j,k)), mdata.visc);
                 }
@@ -1471,11 +1494,13 @@ struct surface_temp_mod_charnock
     surface_temp_mod_charnock (amrex::Real Tflux,
                                amrex::Real Qvflux,
                                amrex::Real depth,
+                               bool use_visc,
                                bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
         mdata.Cnk_d = depth;
+        mdata.visc  = use_visc;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
         spec_qflux  = cons_qflux;
     }
@@ -1585,9 +1610,10 @@ struct surface_temp_mod_charnock
                 z0_old = z0;
 
                 // Update
-                C = std::log(zref / z0_old);
-                ustar = mdata.kappa * umm / (C - psi_m);
-                z0    = Mod_Charnock_roughness(ustar, mdata.Cnk_b);
+                C      = std::log(zref / z0_old);
+                CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+                ustar  = mdata.kappa * umm / CmPsim;
+                z0     = Mod_Charnock_roughness(ustar, mdata.Cnk_b);
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
@@ -1650,10 +1676,12 @@ struct surface_temp_donelan
      */
     surface_temp_donelan (amrex::Real Tflux,
                           amrex::Real Qvflux,
+                          bool use_visc,
                           bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc = use_visc;
         spec_qflux = cons_qflux;
     }
 
@@ -1762,9 +1790,11 @@ struct surface_temp_donelan
                 z0_old = z0;
 
                 // Update
-                C     = std::log(zref / z0_old);
-                ustar = mdata.kappa * umm / (C - psi_m);
-                z0    = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
+                C      = std::log(zref / z0_old);
+                CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+                ustar  = mdata.kappa * umm / CmPsim;
+                // NOTE: air_viscosity should take T and not Th!
+                z0     = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
@@ -1827,10 +1857,12 @@ struct surface_temp_wave_coupled
      */
     surface_temp_wave_coupled (amrex::Real Tflux,
                                amrex::Real Qvflux,
+                               bool use_visc,
                                bool cons_qflux)
     {
         mdata.surf_temp_flux  = Tflux;
         mdata.surf_moist_flux = Qvflux;
+        mdata.visc = use_visc;
         spec_qflux = cons_qflux;
     }
 
@@ -1939,10 +1971,12 @@ struct surface_temp_wave_coupled
                 z0_old = z0;
 
                 // Update
-                C     = std::log(zref / z0_old);
-                ustar = mdata.kappa * umm / (C - psi_m);
-                z0    = WaveCoupled_roughness(Hwave_arr(i,j,k), Lwave_arr(i,j,k), eps, ustar,
-                                              air_viscosity(tm_arr(i,j,k)), mdata.visc);
+                C      = std::log(zref / z0_old);
+                CmPsim = std::max(C - psi_m, amrex::Real(1.0));
+                ustar  = mdata.kappa * umm / CmPsim;
+                // NOTE: air_viscosity should take T and not Th!
+                z0     = WaveCoupled_roughness(Hwave_arr(i,j,k), Lwave_arr(i,j,k), eps, ustar,
+                                               air_viscosity(tm_arr(i,j,k)), mdata.visc);
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );

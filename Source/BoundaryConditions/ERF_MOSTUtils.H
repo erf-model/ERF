@@ -19,7 +19,7 @@ public:
     amrex::Real Cnk_b1{one/amrex::Real(30.0)}; ///< Modified Charnock Eq (4) https://doi.org/amrex::Real(10.1175)/JAMC-D-17-amrex::Real(0137.1)
     amrex::Real Cnk_b2{amrex::Real(1260.0)};   ///< Modified Charnock Eq (4) https://doi.org/amrex::Real(10.1175)/JAMC-D-17-amrex::Real(0137.1)
     amrex::Real Cnk_d{amrex::Real(30.0)};      ///< Modified Charnock Eq (4) https://doi.org/amrex::Real(10.1175)/JAMC-D-17-amrex::Real(0137.1)
-    amrex::Real Cnk_b;                         ///< Modified Charnock derived quantity
+    amrex::Real Cnk_b = Cnk_b1 * std::log(Cnk_b2 / Cnk_d); ///< Modified Charnock derived quantity
     bool visc{true};                           ///< Use viscous Charnock formulation
 
     amrex::Real Cd{amrex::Real(0.001)};

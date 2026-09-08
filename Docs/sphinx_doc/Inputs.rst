@@ -2930,16 +2930,18 @@ the ones marked **Required** abort the run if they are not given.
 |                                       |                                                          | wave_coupled,       |                  |
 |                                       |                                                          | constant            |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.smooth_flow_viscosity**    | include the viscous term in the variable roughness       | Boolean             | true             |
+|                                       | models used over sea?                                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.charnock_constant**        | Charnock constant *a*; a non-positive value selects the  | Real                | 0.0185           |
 |                                       | variable COARE3.0 parameter.  Read only when             |                     |                  |
 |                                       | ``roughness_type_sea`` = ``charnock``                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.charnock_viscosity**       | include the viscous term in the Charnock relation.  Read | Boolean             | true             |
-|                                       | only when ``roughness_type_sea`` = ``charnock``          |                     |                  |
-+---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real > 0            | 30.0             |
+| **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real in [10, 100]   | 30.0             |
 |                                       | Read only when ``roughness_type_sea`` =                  |                     |                  |
-|                                       | ``modified_charnock``                                    |                     |                  |
+|                                       | ``modified_charnock``.  Values outside the range are     |                     |                  |
+|                                       | clamped to the bounds, which follow the fit range of     |                     |                  |
+|                                       | Jiménez & Dudhia (2018).                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.roughness_file_name**      | text file of (x, y, z0) giving a spatially varying       | String, or list of  | None             |
 |                                       | roughness length; may be given once or once per level.   | Strings             |                  |
