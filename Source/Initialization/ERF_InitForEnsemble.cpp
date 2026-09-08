@@ -10,7 +10,8 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
-perturb_scale[8] =
+Vector<Real>
+perturb_scale =
 {
     0.01,       // density [kg/m3]
     1.0,        // theta [K]
@@ -111,99 +112,98 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
  * @param lev Integer specifying the current level
  * @param mf_cc_pert MultiFab containing perturbations to smooth in place
  */
+
 void
-ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
-                                                MultiFab& mf_cc_pert)
+ERF::apply_gaussian_smoothing_to_perturbations(const int lev, MultiFab& mf_cc_pert)
 {
     const Geometry& gm = geom[lev];
     const Real dx = gm.CellSize(0);
     const Real dy = gm.CellSize(1);
     const Real dz = gm.CellSize(2);
 
-    // Dynamic scale selection based on minimum grid spacing
-    const Real dmesh = std::min({dx, dy, dz});
-
-    // Correlation radius (sigma) from solverChoice
     const Real sigma = solverChoice.ens_pert_correlated_radius;
 
-    // Truncate stencil at 3*sigma
     const int rx = static_cast<int>(std::ceil(3.0 * sigma / dx));
     const int ry = static_cast<int>(std::ceil(3.0 * sigma / dy));
     const int rz = static_cast<int>(std::ceil(3.0 * sigma / dz));
 
     const int ncomp = mf_cc_pert.nComp();
 
-    // ---- Precompute 3D Gaussian weights on Host ----
-    const int wx_size = 2 * rx + 1;
-    const int wy_size = 2 * ry + 1;
-    const int wz_size = 2 * rz + 1;
-
-    Vector<Real> w_host(wx_size * wy_size * wz_size);
-
-    Real Z = zero;
-    for (int m = -rx; m <= rx; ++m) {
-        for (int n = -ry; n <= ry; ++n) {
-            for (int p = -rz; p <= rz; ++p) {
-                Real r_sq = (m * m * dx * dx) + (n * n * dy * dy) + (p * p * dz * dz);
-                Real val  = std::exp(-r_sq / (two * sigma * sigma));
-
-                int idx = (m + rx) * (wy_size * wz_size) + (n + ry) * wz_size + (p + rz);
-                w_host[idx] = val;
-                Z += val;
-            }
+    // 1. Build 1D Gaussian weight vectors on host
+    auto compute_1d_weights = [](int r, Real d, Real sig) {
+        Vector<Real> w(2*r + 1);
+        Real sum = 0.0;
+        for (int m = -r; m <= r; ++m) {
+            Real val = std::exp(-(m * m * d * d) / (2.0 * sig * sig));
+            w[m + r] = val;
+            sum += val;
         }
-    }
+        for (auto& v : w) v /= sum;
+        return w;
+    };
 
-    // Normalize weights
-    for (auto& v : w_host) {
-        v /= Z;
-    }
+    Vector<Real> wx_h = compute_1d_weights(rx, dx, sigma);
+    Vector<Real> wy_h = compute_1d_weights(ry, dy, sigma);
+    Vector<Real> wz_h = compute_1d_weights(rz, dz, sigma);
 
-    // Copy weights to Device memory
-    Gpu::DeviceVector<Real> w_dev(w_host.size());
-    Gpu::copy(Gpu::hostToDevice, w_host.begin(), w_host.end(), w_dev.begin());
-    Real const* w = w_dev.data();
+    Gpu::DeviceVector<Real> wx_d(wx_h.size()), wy_d(wy_h.size()), wz_d(wz_h.size());
+    Gpu::copy(Gpu::hostToDevice, wx_h.begin(), wx_h.end(), wx_d.begin());
+    Gpu::copy(Gpu::hostToDevice, wy_h.begin(), wy_h.end(), wy_d.begin());
+    Gpu::copy(Gpu::hostToDevice, wz_h.begin(), wz_h.end(), wz_d.begin());
 
-    // ---- Create a grown copy in 3D for stencil ghost access ----
-    IntVect ngrow_big(AMREX_D_DECL(rx, ry, rz));
+    Real const* wx = wx_d.data();
+    Real const* wy = wy_d.data();
+    Real const* wz = wz_d.data();
 
-    MultiFab mf_copy(mf_cc_pert.boxArray(),
-                     mf_cc_pert.DistributionMap(),
-                     ncomp, ngrow_big);
+    // Temp MultiFab for separable intermediate states
+    IntVect ngrow(AMREX_D_DECL(rx, ry, rz));
+    MultiFab mf_tmp(mf_cc_pert.boxArray(), mf_cc_pert.DistributionMap(), ncomp, ngrow);
 
-    mf_copy.ParallelCopy(mf_cc_pert,
-                         0, 0, ncomp,
-                         IntVect(0), ngrow_big,
-                         gm.periodicity());
-
-    // ---- Apply 3D Smoothing Kernel ----
-    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
+    // --- Pass 1: X Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-
-        auto const& in  = mf_copy.const_array(mfi);
+        auto const& in  = mf_tmp.const_array(mfi);
         auto const& out = mf_cc_pert.array(mfi);
-
-        ParallelFor(bx, ncomp,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            Real sum = zero;
-
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
             for (int m = -rx; m <= rx; ++m) {
-                for (int nn = -ry; nn <= ry; ++nn) {
-                    for (int p = -rz; p <= rz; ++p) {
-                        int w_idx = (m + rx) * (wy_size * wz_size) + (nn + ry) * wz_size + (p + rz);
-                        Real wij  = w[w_idx];
-                        sum += wij * in(i + m, j + nn, k + p, n);
-                    }
-                }
+                sum += wx[m + rx] * in(i + m, j, k, n);
             }
-
             out(i, j, k, n) = sum;
         });
     }
 
-    // Preserve component variance scaling post-smoothing
+    // --- Pass 2: Y Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const& in  = mf_tmp.const_array(mfi);
+        auto const& out = mf_cc_pert.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
+            for (int nn = -ry; nn <= ry; ++nn) {
+                sum += wy[nn + ry] * in(i, j + nn, k, n);
+            }
+            out(i, j, k, n) = sum;
+        });
+    }
+
+    // --- Pass 3: Z Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const& in  = mf_tmp.const_array(mfi);
+        auto const& out = mf_cc_pert.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
+            for (int p = -rz; p <= rz; ++p) {
+                sum += wz[p + rz] * in(i, j, k + p, n);
+            }
+            out(i, j, k, n) = sum;
+        });
+    }
+
     NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
@@ -706,7 +706,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = ens_pert_amplitude*perturb_scale*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*perturb_scale[n]*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }

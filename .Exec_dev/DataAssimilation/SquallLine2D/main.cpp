@@ -109,6 +109,7 @@ int main (int argc, char* argv[])
 
     // Data assimilation cycle loop
     for (int da_iter = 0; da_iter < num_da_cycles; ++da_iter) {
+        Print() << "Doing data assimilation cycle " << da_iter <<std::endl;
         // Ensemble run loop
         for (int ens_no = 0; ens_no < n_ens; ++ens_no)
         {

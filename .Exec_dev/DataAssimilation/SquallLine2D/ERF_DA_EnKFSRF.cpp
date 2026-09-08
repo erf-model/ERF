@@ -314,11 +314,10 @@ ERF::PerformDataAssimilation(int da_iter)
 
     Print() << "add_multifabs(xf_bar, Xf_prime_alpha, xf_bar_updated) complete" << std::endl;
 
-    /*std::string pltname4 = WriteSingleLevelPlotfile("plt_xf_bar_updated", da_iter);
-    Vector<std::string> varnames4 = {"density", "theta", "x_velocity", "y_velocity", "z_velocity"};
+    std::string pltname4 = MakeFullPath("plt_xf_bar_updated", da_iter);
     WriteSingleLevelPlotfile(pltname4,
                             xf_bar_updated,
-                            varnames4,
+                            varnames,
                             geom[0],
                             0.0,   // time
                             0);    // level*/
