@@ -786,21 +786,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                     grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                     const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-
                     // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
-
                     // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
-
-                    // arm\'s condition to drop the max and then hoisted the bare sqrt above the
-
+                    // arm's condition to drop the max and then hoisted the bare sqrt above the
                     // selection, where Ri can be positive; written as min(Ri, 0) it folded the
-
                     // sqrt into the arms of the min. Either way an invalid operation whose
-
                     // result is discarded but whose flag kills the run under
-
                     // amrex.fpe_trap_invalid. There is nothing to fold in the absolute value.
-
                     const Real sqrt_neg_Ri = std::sqrt(std::abs(grad_Ri_safe));
                     Real Pr_rich = Real(1) + Real(2.1) * grad_Ri;
                     const Real fm = (grad_Ri_safe > 0)
@@ -852,21 +844,13 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-
                 // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
-
                 // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
-
-                // arm\'s condition to drop the max and then hoisted the bare sqrt above the
-
+                // arm's condition to drop the max and then hoisted the bare sqrt above the
                 // selection, where Ri can be positive; written as min(Ri, 0) it folded the
-
                 // sqrt into the arms of the min. Either way an invalid operation whose
-
                 // result is discarded but whose flag kills the run under
-
                 // amrex.fpe_trap_invalid. There is nothing to fold in the absolute value.
-
                 const Real sqrt_neg_Ri = std::sqrt(std::abs(grad_Ri_safe));
                 Real Pr = Real(1) + Real(2.1) * grad_Ri;
                 const Real fm = (grad_Ri_safe > 0)
