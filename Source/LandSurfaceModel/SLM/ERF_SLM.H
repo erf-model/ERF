@@ -248,6 +248,7 @@ public:
                 const int isnature = 14; // nature cell type to use for urban cells
                 const int isurban  = 13; // urban cell type
                 const int islake   = 21; // lake cell
+                amrex::ignore_unused(isurban);
                 for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
                     amrex::Box bx2d = mfi.tilebox();
 

@@ -280,6 +280,8 @@ public:
             } else if (plotfile_type == PlotFileType::Netcdf) {
                 int lev   = 0;
                 int l_which = 0;
+                amrex::ignore_unused(lev);
+                amrex::ignore_unused(l_which);
                 //writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(m_lsm_data_lev), varnames, level_steps, time);
 #endif
             } else {
