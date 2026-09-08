@@ -142,45 +142,45 @@ erf.shoc.momentum_transport = none
 erf.shoc.momentum_transport = state_update
 ```
 
-`none` disables SHOC momentum transport entirely while preserving the existing
-generic ERF momentum-diffusion ownership semantics.
+`none` disables the Native-SHOC horizontal-momentum transport contribution.
+ERF retains generic host ownership of vertical momentum diffusion in this mode.
+This does not by itself create a nonzero host momentum diffusivity; it only
+leaves the generic ERF momentum-diffusion path eligible to act when another
+configured host closure supplies one.
 
 `host_diffusion` is no longer a valid native SHOC momentum transport value.
 Use `state_update` to retain SHOC momentum transport or `none` to disable it.
 
-## Preferred baseline input settings
+## Baseline input settings
 
-Use `state_update` for both selectors as the baseline native SHOC coupling
-mode. Native SHOC runs its column physics before the ERF dycore, performs its
-implicit vertical turbulence solve, reconstructs one coupled heat, moisture,
-cloud, TKE, and horizontal-momentum update, and synchronizes the old-time ERF
-state before acoustic and Runge-Kutta dycore integration.
+The Sphinx SHOC documentation is the user-facing source of truth for runtime
+options and their defaults.
 
-A minimal preferred native SHOC block is:
+A minimal Native SHOC setup is:
 
 ```text
-# Native SHOC selection.
 zlo.type = "surface_layer"
 erf.pbl_type = NATIVE_SHOC
-
-# Native SHOC coupling.
-erf.shoc.transport_mode = state_update
-erf.shoc.momentum_transport = state_update
-
-# Preferred TKE-production behavior.
-erf.shoc.signed_tke_production = true
-
-# Useful during development and case bring-up.
-erf.shoc.extra_shoc_diags = true
 ```
 
-`state_update` is the supported coupled mode for moist native SHOC runs and the
-normal/default momentum path. Use `momentum_transport = none` when a case must
-disable Native SHOC horizontal-momentum transport.
+The Native transport defaults are:
 
-`erf.shoc.signed_tke_production = true` keeps the buoyancy contribution signed in
-the TKE production term. Use it for the baseline unless a case has a specific
-reason to use the clipped behavior.
+```text
+erf.shoc.transport_mode = state_update
+erf.shoc.momentum_transport = state_update
+```
+
+Those transport lines may be written explicitly for clarity, but they are not
+required when the defaults are desired.
+
+Leave closure-tuning and TKE-production options at their documented defaults
+unless the case is intentionally performing a sensitivity experiment.
+In particular, `erf.shoc.signed_tke_production` defaults to `false`;
+setting it to `true` changes the TKE production formulation.
+
+`erf.shoc.extra_shoc_diags = true` may be useful during case development when
+the additional diagnostics are needed. Plot variables must still be requested
+explicitly through the normal ERF plot-variable lists.
 
 Do not use `erf.shoc.transport_mode = tendencies` for native SHOC. That legacy
 mode has been removed and should be rejected by the runtime parser.

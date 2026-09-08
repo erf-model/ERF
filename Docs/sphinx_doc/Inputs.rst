@@ -3319,7 +3319,7 @@ bit-for-bit identical calculations.
      - Real > 0
      - 0.5
    * - **erf.shoc.c_diag_3rd_mom**
-     - Diagnostic third-moment closure coefficient
+     - Diagnostic third-moment vertical-velocity damping coefficient; the default 7.0 is the tested baseline
      - Real
      - 7.0
    * - **erf.shoc.coeff_kh**
@@ -3338,6 +3338,14 @@ bit-for-bit identical calculations.
      - Enable additional SHOC diagnostic calculations; plot variables must still be requested explicitly
      - true / false
      - false
+
+.. warning::
+
+   For Native SHOC, do not set ``erf.shoc.c_diag_3rd_mom`` to zero. The Native
+   third-moment closure contains factors proportional to the inverse of this
+   coefficient. The default value ``7.0`` is the tested baseline. Changes to
+   this closure coefficient should be treated as sensitivity experiments rather
+   than routine configuration.
 
 Native SHOC inputs
 ------------------
@@ -3394,11 +3402,14 @@ Use ``state_update`` instead.
 Native SHOC debugging controls
 ------------------------------
 
-These controls also apply to ``erf.pbl_type = NATIVE_SHOC``.  They exist for
-debugging and for regression testing rather than for production runs; the
-``debug_disable_*`` switches in particular deliberately break the scheme, and
-are what the ``SHOC_Mutation_*`` tests in ``Tests/CTestList.cmake`` use to
-confirm that each state update actually changes the answer.
+The following controls are intended for diagnosis and regression testing rather
+than routine production runs.  The ``debug_disable_*`` switches deliberately
+disable pieces of the coupled state update and are used by the SHOC mutation
+tests to verify that those updates affect the solution.
+
+Only controls listed here are part of the supported Native-SHOC debugging
+interface. Some historical or development ``erf.shoc`` keys may still be
+parsed internally but do not currently alter Native SHOC.
 
 .. list-table::
    :header-rows: 1
@@ -3408,14 +3419,6 @@ confirm that each state update actually changes the answer.
      - Definition
      - Acceptable Values
      - Default
-   * - **erf.shoc.column_conservation_check**
-     - Check column-integrated conservation after each native SHOC advance
-     - true / false
-     - false
-   * - **erf.shoc.allow_tendency_microphysics_overlap**
-     - Permit native SHOC tendencies to be applied in the same step as the microphysics update
-     - true / false
-     - false
    * - **erf.shoc.debug_bad_column**
      - Detect and report columns whose tendencies or stratification exceed the thresholds below
      - true / false
@@ -3437,7 +3440,7 @@ confirm that each state update actually changes the answer.
      - Real > 0
      - 1.0e-2
    * - **erf.shoc.debug_bad_column_brunt_threshold**
-     - Brunt-Vaisala frequency above which a column is flagged; must be positive
+     - Magnitude of the squared Brunt--Väisälä frequency, :math:`|N^2|` [s\ :sup:`-2`], above which a column is flagged; must be positive
      - Real > 0
      - 1.0
    * - **erf.shoc.debug_bad_column_min_dz**
