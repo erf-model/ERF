@@ -248,8 +248,28 @@ function(build_erf_lib erf_lib_name)
 
   ########################### RRTMGP #################################
   if(ERF_ENABLE_RRTMGP)
+    set(RRTMGP_ERF_SOURCES
+        ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_RRTMGP_Interface.cpp
+        ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_Radiation.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
+    )
+
+    # RRTMGP is third-party code. Mark only its include directories as SYSTEM
+    # so warnings from its headers do not leak into ordinary ERF translation
+    # units that include ERF.H.
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation>
+                              )
+    target_include_directories(${erf_lib_name} SYSTEM PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
@@ -261,19 +281,12 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
                               )
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_RRTMGP_Interface.cpp
-                   ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_Radiation.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
+                   ${RRTMGP_ERF_SOURCES}
                   )
+    set_source_files_properties(${RRTMGP_ERF_SOURCES}
+      PROPERTIES COMPILE_OPTIONS
+      "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-unused-local-typedefs>;$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-c++11-narrowing>"
+    )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
