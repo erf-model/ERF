@@ -1246,6 +1246,8 @@ public:
    *
    * The face set is used to suppress transpose stress writes at shared edges;
    * the face-normal component remains owned by its corresponding face path.
+   *
+   * @param[in] active_faces whether a specific x/y/z lo/hi face is enabled
    */
   void set_surface_layer_faces (const amrex::GpuArray<int, AMREX_SPACEDIM*2>& active_faces)
   {
@@ -1261,6 +1263,15 @@ public:
    */
   static amrex::Vector<amrex::Vector<amrex::Real>>
   read_cols(const std::string& fname, const int skip_nlines = 1);
+
+  /**
+   * Fills surface layer data for lateral faces. A normal FillBoundary on
+   * lateral faces would bring in data from other ranks or interior grids
+   * that do not own data on the lateral face.
+   *
+   * @param[in] lev level index
+   */
+  void fill_lateral_surface_parameter_ghosts (const int& lev);
 
   enum struct FluxCalcType {
     MOENG = 0, ///< Moeng functional form
@@ -1398,12 +1409,6 @@ private:
   amrex::Vector<amrex::MultiFab*> m_Hwave_lev;
   amrex::Vector<amrex::MultiFab*> m_Lwave_lev;
   amrex::Vector<amrex::MultiFab*> m_eddyDiffs_lev;
-
-  // Exchange surface parameters only among FABs that actually own the
-  // selected lateral face. A normal FillBoundary on the collapsed lateral
-  // layout would also use FABs from interior grids, whose values are not
-  // surface-layer data.
-  void fill_lateral_surface_parameter_ghosts (const int& lev);
 
   bool m_update_k_rans = false;
   amrex::Real inv_Cmu2 = zero;

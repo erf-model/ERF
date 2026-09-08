@@ -371,7 +371,7 @@ template <typename FluxIter>
 void
 SurfaceLayer::compute_fluxes (const int& lev,
                               const int& max_iters,
-                              MultiFab& cons_in,
+                              MultiFab& /*cons_in*/,
                               const FluxIter& most_flux,
                               bool is_land)
 {
@@ -1372,7 +1372,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
         const auto *const v_mean     = m_ma.get_average(lev,1);
-        const auto *const w_mean      = m_ma.get_average(lev,2);
+        // const auto *const w_mean     = m_ma.get_average(lev,2);
 
         const auto *const t_mean     = m_ma.get_average(lev,3);
         // const auto *const q_mean     = m_ma.get_average(lev,4);
@@ -1382,7 +1382,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
-        const auto wm_arr  = w_mean->array(mfi);
+        // const auto wm_arr  = w_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
         // const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);

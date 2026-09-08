@@ -166,7 +166,6 @@ TEST(MOSTAverageParallel, BothPoliciesSupportKAndZrefOnEveryWall)
                         ? fields.domain.smallEnd(dir) + wall_offset
                         : fields.domain.bigEnd(dir) - wall_offset;
                 } else {
-                    const bool zlo_absolute = dir == 2 && face.isLow();
                     wall_offset = zlo_absolute
                         ? requested_k - fields.domain.smallEnd(dir)
                         : requested_k;
