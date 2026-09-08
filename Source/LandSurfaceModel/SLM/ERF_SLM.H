@@ -140,67 +140,8 @@ namespace SLM_Diag {
      drain,
      drain_flux,
      evapo_wet,
-     evapo_dry,
      grflux,
-     fabd_vis,     // absorbed fraction for direct visible radiation
-     fabd_nir,     // absorbed fraction for direct NIR radiation
-     fabi_vis,     // absorbed fraction for diffuse visible radiation
-     fabi_nir,     // absorbed fraction for diffuse NIR radiation
-     gdir,         // projected leaf+stem area in solar direction
-     gap,          // total gap fraction for beam
-     ftdd_vis,     // direct flux transmitted to ground (VIS)
-     ftdd_nir,     // direct flux transmitted to ground (NIR)
-     albd_vis,     // surface albedo for direct (VIS)
-     albd_nir,     // surface albedo for direct (NIR)
-     xl_diag,      // leaf angle distribution parameter (for debugging)
-     chil_diag,    // intermediate chil (for debugging)
-     phi1_diag,    // intermediate phi1 (for debugging)
-     phi2_diag,    // intermediate phi2 (for debugging)
-     fre_vis,      // reflected flux (VIS)
-     fre_nir,      // reflected flux (NIR)
-     ftd_vis,      // transmitted direct flux (VIS) - note: same as ftdd
-     ftd_nir,      // transmitted direct flux (NIR) - note: same as ftdd
-     fti_vis,      // transmitted diffuse flux (VIS)
-     fti_nir,      // transmitted diffuse flux (NIR)
-      albgrd_vis,   // ground albedo for direct (VIS) - note: same as albd
-      albgrd_nir,   // ground albedo for direct (NIR) - note: same as albd
-      albgri_vis,   // ground albedo for diffuse (VIS)
-      albgri_nir,   // ground albedo for diffuse (NIR)
-      dt_canop_sfc, // t_canop - t_sfc driving canopy sensible heat flux [K]
-      dt_soil_sfc,  // soilt_top - t_sfc driving ground sensible heat flux [K]
-      dq_canop_sfc, // qsat_canop - q_sfc driving canopy evaporation [kg/kg]
-      dq_ground_sfc,// q_gr - q_sfc driving ground evaporation [kg/kg]
-      qsat_canop,   // saturation specific humidity at canopy temperature [kg/kg]
-      q_ground,     // near-surface ground specific humidity after soil moisture limiter [kg/kg]
-      soil_diff,    // soil evaporation diffusion factor [-]
-      soil_total_res,// total soil evaporation resistance [s/m]
-      cond_href,    // canopy-air temperature weight from reference air [-]
-      cond_hcnp,    // canopy-air temperature weight from canopy [-]
-      cond_hundercnp,// canopy-air temperature weight from undercanopy ground [-]
-      cond_vref,    // canopy-air humidity weight from reference air [-]
-      cond_vcnp,    // canopy-air humidity weight from canopy [-]
-      cond_vundercnp,// canopy-air humidity weight from undercanopy ground [-]
-      rc_fac_rad,   // Jarvis radiation factor in canopy stomatal resistance [-]
-      rc_fac_vpd,   // Jarvis vapor-pressure-deficit factor [-]
-      rc_fac_t,     // Jarvis temperature factor [-]
-      rc_fac_sw,    // Jarvis soil-water factor [-]
-      rc_tmp_radf,  // product of Jarvis factors used in r_c [-]
-      rc_vpd_q,     // qsat(t_cas)-q_cas used by VPD factor [kg/kg]
-      rc_root_depth,// active root-depth denominator used by soil-water factor [m]
-      rc_nroot,     // number of soil layers used by the soil-water factor [-]
-      rc_soil_numerator, // unfloored sum of layer thickness times moisture stress [m]
-      rd_cwpvt,     // class-specific canopy wind absorption parameter [-]
-      rd_vai,       // vegetation area index used by the under-canopy resistance [-]
-      rd_wind_ext,  // canopy wind extinction coefficient [-]
-      canopy_heat_capacity, // vegetation plus intercepted-water heat capacity [J/m2/K]
-      canopy_energy_residual, // net_rad1 - shf_canop - lhf_canop [W/m2]
-      canopy_storage_flux, // realized heat storage from canopy temperature change [W/m2]
-      canopy_delta_t, // canopy temperature change over this SLM step [K]
-      ground_conduction_flux, // ground skin to top soil, positive downward [W/m2]
-      ground_skin_energy_residual, // net_rad2 - shf_soil - lhf_soil - conduction [W/m2]
-      ground_skin_iterations, // Newton iterations used by the ground-skin solve
-      ground_skin_converged, // 1 when the local ground-skin solve converged
-      NumVars
+     NumVars
     };
 }
 
@@ -1176,66 +1117,7 @@ private:
         "drain",
         "drain_flux",
         "evapo_wet",
-        "evapo_dry",
-        "grflux",
-        "fabd_vis",
-        "fabd_nir",
-        "fabi_vis",
-        "fabi_nir",
-        "gdir",
-        "gap",
-        "ftdd_vis",
-        "ftdd_nir",
-        "albd_vis",
-        "albd_nir",
-        "xl_diag",
-        "chil_diag",
-        "phi1_diag",
-        "phi2_diag",
-        "fre_vis",
-        "fre_nir",
-        "ftd_vis",
-        "ftd_nir",
-        "fti_vis",
-        "fti_nir",
-        "albgrd_vis",
-        "albgrd_nir",
-        "albgri_vis",
-        "albgri_nir",
-        "dt_canop_sfc",
-        "dt_soil_sfc",
-        "dq_canop_sfc",
-        "dq_ground_sfc",
-        "qsat_canop",
-        "q_ground",
-        "soil_diff",
-        "soil_total_res",
-        "cond_href",
-        "cond_hcnp",
-        "cond_hundercnp",
-        "cond_vref",
-        "cond_vcnp",
-        "cond_vundercnp",
-        "rc_fac_rad",
-        "rc_fac_vpd",
-        "rc_fac_t",
-        "rc_fac_sw",
-        "rc_tmp_radf",
-        "rc_vpd_q",
-        "rc_root_depth",
-        "rc_nroot",
-        "rc_soil_numerator",
-        "rd_cwpvt",
-        "rd_vai",
-        "rd_wind_ext",
-        "canopy_heat_capacity",
-        "canopy_energy_residual",
-        "canopy_storage_flux",
-        "canopy_delta_t",
-        "ground_conduction_flux",
-        "ground_skin_energy_residual",
-        "ground_skin_iterations",
-        "ground_skin_converged"
+        "grflux"
     };
 
     inline static const std::vector<std::string> soilt_var_names = {
