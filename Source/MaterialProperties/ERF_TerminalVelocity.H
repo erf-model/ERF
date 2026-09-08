@@ -5,10 +5,15 @@
 #include <AMReX_Gpu.H>
 #include "ERF_Constants.H"
 
+/**
+ * @brief Provide terminal velocity calculations for atmospheric particles.
+ * @tparam RT Real-valued type.
+ */
 template <typename RT /*!< real-type */>
 struct TerminalVelocity
 {
     RT m_rho_w; /*!< density of water */
+    RT m_rho_i; /*!< density of ice */
 
     /*! \brief Compute viscosity coefficient - Pruppacher & Klett, 1997*/
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -62,13 +67,12 @@ struct TerminalVelocity
         RT tb4l = RT(293.15);     // base temperature[20C] for mean free path of air molecules
 
         RT P_hPa = a_P / RT(100.0);           // [Pa] -> [hPa]
-        RT diameter_cm = RT(2.0)*a_r*RT(100.0);   // [m] -> [cm]
+        RT diameter_cm = RT(2.0)*std::min(a_r,RT(0.004))*RT(100.0);   // [m] -> [cm]
         RT rho_mat_cgs = m_rho_w/RT(1000.0);  // [kg/m^3] -> [g/cm^3]
         RT rho_air_cgs = a_rho/RT(1000.0);    // [kg/m^3] -> [g/cm^3]
         RT grav_cgs = CONST_GRAV * RT(100);   // [m/s^2] -> [cm/s^2]
 
         RT gxdrow = grav_cgs * ( rho_mat_cgs - rho_air_cgs );
-
         RT viscosity = viscCoeff(a_T);
 
         RT v_terminal = RT(0.0);
@@ -142,6 +146,77 @@ struct TerminalVelocity
                - RT(0.542819E-1)  * x2*x2
                + RT(0.238449E-2)  * x3*x2;
         return y;
+    }
+
+    /*! \brief Terminal velocity - ice particles (Bohm's theory)
+     *  Ref: Shima et al., 2020, "Predicting the morphology of ice particles
+     *  in deep convection using the super-droplet method: development and
+     *  evaluation of SCALE-SDM 0.2.5-2.2.0, -2.2.1, and -2.2.2.",
+     *  Geosci. Model Dev., 13, 4107–4157, 2020
+     *
+     *  and
+     *
+     *  Code: https://doi.org/10.5281/zenodo.3483650
+     *  File: [...]/contrib/SDM/sdm_motion.f90
+     *  Copyright (c) 2012-2014, Team SCALE, All rights reserved. */
+    AMREX_GPU_HOST_DEVICE
+    RT IceBohm ( const RT a_m,      /*!< mass */
+                 const RT a_a,      /*!< ice particle equatorial radius */
+                 const RT a_c,      /*!< ice particle polar radius */
+                 const RT a_rhoi,   /*!< ice particle density */
+                 const RT a_rho,    /*!< density */
+                 const RT a_T       /*!< temperature */) const noexcept
+    {
+        RT mu = RT(0.1) * viscCoeff(a_T); // viscCoeff is CGS poise; IceBohm is SI -> Pa.s
+
+        auto phi = a_c / a_a; // aspect ratio
+        auto d = RT(2.0) * a_a; // characteristic length
+        auto q = std::exp( std::exp(-phi) * std::log(a_rhoi/m_rho_i) ); // area ratio
+
+        RT X0 = RT(2.8e06);
+        auto t3 = RT(PI) * mu*mu * std::max(phi,RT(1.0)) * std::max(std::sqrt(std::sqrt(q)), q);
+        auto X = (RT(8.0)*a_m*RT(CONST_GRAV)*a_rho) / t3;
+        auto Xp = X * (RT(1.0) + (X/X0)*(X/X0)) / (RT(1.0) + RT(1.6)*(X/X0)*(X/X0));
+
+        auto k = std::min( std::max(RT(0.82)+RT(0.18)*phi, RT(0.85)),
+                           std::min( RT(0.37) + RT(0.63)/std::sqrt(phi),
+                                     RT(1.33)/(std::max(std::log(phi),RT(0.0))+RT(1.19)) ));
+
+        auto phi_poly = RT(3.76)-RT(8.41)*phi+RT(9.18)*phi*phi-RT(3.53)*phi*phi*phi;
+        auto TVGamma = std::max( RT(1.0), std::min(RT(1.98), phi_poly) );
+
+        auto C_DPS = std::max(RT(0.292)*k*TVGamma, RT(0.492) - RT(0.2)/std::sqrt(phi));
+        auto C_DP  = std::max(RT(1.0), q*(RT(1.46)*q-RT(0.46))) * C_DPS;
+        auto C_DO = RT(4.5) * k*k * std::max(phi, RT(1.0));
+
+        auto t2 = RT(1.0) + C_DP/(RT(6.0)*k) * std::sqrt(Xp/C_DP);
+        auto beta = std::sqrt(t2) - RT(1.0);
+        auto TVgamma = (C_DO-C_DP) / (RT(4.0)*C_DP);
+        auto t1 = RT(1.0) + (RT(2.0)*beta*std::exp(-beta*TVgamma)) / ((RT(2.0)+beta)*(RT(1.0)+beta));
+        auto N_Re = (RT(6.0)*k/C_DP) * beta*beta * t1;
+
+        auto vterm = (mu*N_Re)/(a_rho*d);
+        return vterm;
+    }
+
+    /*! \brief Frick et al. (2013, Geosci. Model Dev. 6, Eq. 15) liquid-water-fraction
+     *  weight for the fall speed of a melting (mixed) particle. Rises from 0 (dry
+     *  ice) to 1 (fully melted) as the meltwater mass fraction a_ell goes 0 -> 1. */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT MeltBlendWeight ( const RT a_ell /*!< meltwater (liquid) mass fraction in [0,1] */ ) const noexcept
+    {
+        return RT(0.246)*a_ell + RT(0.754)*a_ell*a_ell*a_ell*a_ell*a_ell*a_ell*a_ell;
+    }
+
+    /*! \brief Terminal velocity of a melting (mixed) ice-water particle, interpolated
+     *  between the dry-ice (Bohm) fall speed and the equivalent-raindrop fall speed by
+     *  the meltwater mass fraction (Frick et al. 2013, Eq. 14). */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT MixedPhaseVterm ( const RT a_v_ice,  /*!< dry-ice (Bohm) fall speed of the ice core */
+                         const RT a_v_rain, /*!< fall speed of the equivalent raindrop */
+                         const RT a_ell     /*!< meltwater (liquid) mass fraction in [0,1] */ ) const noexcept
+    {
+        return a_v_ice + (a_v_rain - a_v_ice) * MeltBlendWeight(a_ell);
     }
 
 };

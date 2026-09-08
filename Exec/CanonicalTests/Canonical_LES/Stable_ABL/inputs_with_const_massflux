@@ -4,7 +4,7 @@ erf.prob_name = "ABL"
 erf.anelastic = 1
 erf.use_fft   = true
 
-stop_time = 14400.0
+#stop_time = 14400.0
 stop_time = 21600.0
 
 # PROBLEM SIZE & GEOMETRY

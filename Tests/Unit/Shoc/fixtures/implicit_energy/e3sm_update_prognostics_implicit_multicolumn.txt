@@ -1,0 +1,19 @@
+# Direct E3SM-derived full-column input fixture from:
+#   E3SM/components/eamxx/src/physics/shoc/tests/shoc_update_prognostics_implicit_tests.cpp
+# This captures the nondegenerate multicolumn property-case inputs translated
+# into the ERF bottom-up column convention.
+
+zi_grid: 0.0 50.0 90.0 150.0 500.0 900.0
+zt_grid: 25.0 70.0 120.0 325.0 700.0
+dz_zt: 50.0 40.0 60.0 350.0 400.0
+rho_zt: 1.0 0.9 0.85 0.8 0.7
+tkh: 20.0 30.0 50.0 10.0 3.0
+thetal: 303.0 302.0 302.0 307.0 310.0
+qw: 1.4e-2 1.5e-2 1.5e-2 1.2e-2 1.0e-2
+u: -1.0 0.0 2.0 4.0 4.0
+v: 0.0 3.0 1.0 -2.0 -2.0
+tke: 0.1 0.4 0.5 0.3 0.2
+wthl_sfc: 0.03 -0.03 0.1 0.0 -0.1
+wqw_sfc: 2.0e-5 1.0e-6 0.0 -2.0e-5 1.0e-4
+uw_sfc: 0.03 -0.03 0.1 0.0 -0.1
+vw_sfc: -0.01 -0.01 0.3 0.0 -0.3

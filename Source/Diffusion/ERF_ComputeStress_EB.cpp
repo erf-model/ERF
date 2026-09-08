@@ -18,6 +18,7 @@ using namespace amrex;
  * @param[in,out] tau13 13 strain -> stress
  * @param[in,out] tau23 23 strain -> stress
  * @param[in] er_arr expansion rate
+ * @param[in] vfrac volume fractions
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz

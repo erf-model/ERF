@@ -8,6 +8,9 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * @brief Molecular diffusion model used for transport coefficients.
+ */
 enum struct MolecDiffType {
     None, Constant, ConstantAlpha
 };
@@ -18,12 +21,16 @@ enum struct MolecDiffType {
 
 struct DiffChoice {
   public:
+    /**
+     * @brief Read diffusion options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
         static std::string molec_diff_type_string = "None";
-        pp.query("molec_diff_type",molec_diff_type_string);
+        pp.queryAdd("molec_diff_type",molec_diff_type_string);
 
         if (!molec_diff_type_string.compare("Constant")) {
             molec_diff_type = MolecDiffType::Constant;
@@ -36,13 +43,13 @@ struct DiffChoice {
         }
 
         if (molec_diff_type != MolecDiffType::None) {
-            pp.query("alpha_T", alpha_T);
-            pp.query("alpha_C", alpha_C);
-            pp.query("dynamic_viscosity", dynamic_viscosity);
-            pp.query("rho0_trans", rho0_trans);
-            pp.query("eb_diff_constraint_x", eb_diff_constraint_x);
-            pp.query("eb_diff_constraint_y", eb_diff_constraint_y);
-            pp.query("eb_diff_constraint_z", eb_diff_constraint_z);
+            pp.queryAdd("alpha_T", alpha_T);
+            pp.queryAdd("alpha_C", alpha_C);
+            pp.queryAdd("dynamic_viscosity", dynamic_viscosity);
+            pp.queryAdd("rho0_trans", rho0_trans);
+            pp.queryAdd("eb_diff_constraint_x", eb_diff_constraint_x);
+            pp.queryAdd("eb_diff_constraint_y", eb_diff_constraint_y);
+            pp.queryAdd("eb_diff_constraint_z", eb_diff_constraint_z);
         }
 
         // Compute relevant forms of diffusion parameters
@@ -64,6 +71,9 @@ struct DiffChoice {
 
     }
 
+    /**
+     * @brief Print the configured diffusion options.
+     */
     void display ()
     {
         amrex::Print() << "Diffusion choices: " << std::endl;
@@ -98,4 +108,27 @@ struct DiffChoice {
     bool eb_diff_constraint_y = false;
     bool eb_diff_constraint_z = false;
 };
+
+/**
+ * @var DiffChoice::molec_diff_type
+ * @brief Selected molecular transport model.
+ * @var DiffChoice::alpha_T
+ * @brief Kinematic temperature diffusivity [m2/s].
+ * @var DiffChoice::alpha_C
+ * @brief Kinematic scalar diffusivity [m2/s].
+ * @var DiffChoice::rho0_trans
+ * @brief Reference density used to compute dynamic diffusion coefficients [kg/m3].
+ * @var DiffChoice::rhoAlpha_T
+ * @brief Dynamic temperature diffusion coefficient [kg/(m-s)].
+ * @var DiffChoice::rhoAlpha_C
+ * @brief Dynamic scalar diffusion coefficient [kg/(m-s)].
+ * @var DiffChoice::dynamic_viscosity
+ * @brief Dynamic viscosity for momentum diffusion [kg/(m-s)].
+ * @var DiffChoice::eb_diff_constraint_x
+ * @brief Whether to constrain EB diffusion in the x direction.
+ * @var DiffChoice::eb_diff_constraint_y
+ * @brief Whether to constrain EB diffusion in the y direction.
+ * @var DiffChoice::eb_diff_constraint_z
+ * @brief Whether to constrain EB diffusion in the z direction.
+ */
 #endif

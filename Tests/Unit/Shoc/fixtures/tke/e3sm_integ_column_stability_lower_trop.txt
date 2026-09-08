@@ -1,0 +1,5 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_tke_column_stab_tests.cpp
+# Lower-troposphere-only stability integral translated into ERF bottom-up
+# ordering for the deterministic unit-test column.
+0.800000000000000

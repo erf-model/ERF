@@ -1,0 +1,6 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_compute_shoc_temperature_tests.cpp
+# Test-three translated fixture in ERF exner form where exner = 1 / inv_exner.
+272.752160731254781
+233.358221337315399
+200.024888003982085

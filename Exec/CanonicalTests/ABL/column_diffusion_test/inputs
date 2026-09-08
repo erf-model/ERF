@@ -27,11 +27,11 @@ erf.init_type          = "input_sounding"
 # TIME STEP CONTROL
 erf.fixed_mri_dt_ratio = 4
 
-erf.vert_implicit_fac  = 0.0  # fully explicit (default)
-erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
+#erf.vert_implicit_fac  = 0.0  # fully explicit (default)
+#erf.fixed_dt           = 0.5  # largest stable dt with explicit diffusion (CFL=0.375)
 
-erf.vert_implicit_fac  = 0.5
-erf.fixed_dt           = 30.0
+#erf.vert_implicit_fac  = 0.5
+#erf.fixed_dt           = 30.0
 
 erf.vert_implicit_fac  = 1.0  # fully implicit
 erf.fixed_dt           = 60.0

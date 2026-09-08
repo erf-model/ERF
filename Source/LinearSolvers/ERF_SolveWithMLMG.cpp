@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolveWithMLMG.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_SolverUtils.H"
@@ -13,6 +16,16 @@ using namespace amrex;
  *
  * Important: we solve on the whole level even if there are disjoint regions
  *
+ * @param lev Level index for the solve
+ * @param rhs Right-hand side MultiFab vector
+ * @param phi Solution MultiFab vector to fill
+ * @param fluxes Face-centered gradient fluxes to fill
+ * @param geom Geometry for the solve level
+ * @param ref_ratio Coarse-fine refinement ratios
+ * @param domain_bc_type Domain boundary-condition names
+ * @param mg_verbose MLMG verbosity level
+ * @param reltol Relative solver tolerance
+ * @param abstol Absolute solver tolerance
  */
 void
 solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,

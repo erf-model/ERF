@@ -4,6 +4,21 @@
 
 using namespace amrex;
 
+/**
+ * Apply sponge zone damping to momentum RHS using target states read from a file.
+ *
+ * @param[in] spongeChoice Sponge zone configuration.
+ * @param[in] geom Geometry for grid spacing and bounds.
+ * @param[in] tbx Box for x-momentum update.
+ * @param[in] tby Box for y-momentum update.
+ * @param[in] cell_data Cell-centered state data.
+ * @param[in] z_phys_cc Cell-centered physical height.
+ * @param[in,out] rho_u_rhs Right-hand side for x-momentum.
+ * @param[in,out] rho_v_rhs Right-hand side for y-momentum.
+ * @param[in] rho_u Current x-momentum.
+ * @param[in] rho_v Current y-momentum.
+ * @param[in] d_sponge_ptrs_at_lev Pointers to target sponge velocities.
+ */
 void
 ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                        const Geometry geom,

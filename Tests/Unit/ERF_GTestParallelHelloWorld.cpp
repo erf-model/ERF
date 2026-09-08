@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
+#include <string>
 
 TEST(ParallelEnvironment, HelloWorld)
 {
@@ -28,3 +29,24 @@ TEST(ParallelEnvironment, HelloWorld)
 
     EXPECT_EQ(local_val, n_ranks);
 }
+
+class ParallelIntegerParameterTest : public ::testing::TestWithParam<int> {};
+
+TEST_P(ParallelIntegerParameterTest, GlobalSumIncludesEveryRank)
+{
+    const int value = GetParam();
+    const int nprocs = amrex::ParallelDescriptor::NProcs();
+
+    int global_sum = value;
+    amrex::ParallelDescriptor::ReduceIntSum(global_sum);
+
+    EXPECT_EQ(global_sum, value * nprocs);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    RepresentativeValues,
+    ParallelIntegerParameterTest,
+    ::testing::Values(0, 3),
+    [](const ::testing::TestParamInfo<int>& info) {
+        return info.param == 0 ? std::string("Zero") : std::string("Three");
+    });

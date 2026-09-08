@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <limits>
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -62,7 +63,7 @@ public:
     {
         m_fac_cond = lcond / sc.c_p;
         m_rdOcp    = sc.rdOcp;
-        m_do_cond  = (!sc.use_shoc);
+        m_do_cond  = (!sc.uses_shoc_family());
     }
 
     // init
@@ -78,6 +79,10 @@ public:
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
+
     // Copy state into micro vars
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
@@ -86,6 +91,7 @@ public:
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
+        if (!m_do_cond) { return; }
         this->Copy_State_to_Micro(cons_in);
     }
 
@@ -94,6 +100,7 @@ public:
     Update_State_Vars (amrex::MultiFab& cons_in,
                        const amrex::MultiFab& /*z_phys_nd*/) override
     {
+        if (!m_do_cond) { return; }
         this->Copy_Micro_to_State(cons_in);
     }
 
@@ -153,44 +160,75 @@ public:
                                const amrex::Real qv_old,
                                amrex::Real& qsat)
     {
-        constexpr amrex::Real tol = amrex::Real(1.0e-8);
-        constexpr int max_niter = 20;
-
-        amrex::Real dqsat;
+#ifdef AMREX_USE_FLOAT
+        constexpr amrex::Real tol = amrex::Real(1.e-4);
+#else
+        constexpr amrex::Real tol = amrex::Real(1.e-8);
+#endif
+        constexpr int max_iter = 20;
 
         int  niter = 0;
-        amrex::Real fff, dfff;
-        amrex::Real dtabs = one;
-
+        amrex::Real F, dFdT, dqsat;
         amrex::Real tabs = tabs_old;
 
         //==================================================
         // Newton iteration to qv=qsat (cloud phase only)
         //==================================================
-        do {
+        // Saturation moisture fractions
+        erf_qsatw(tabs, pres_mbar, qsat);
+        erf_dtqsatw(tabs, pres_mbar, dqsat);
+
+        // Function for root finding:
+        // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
+        F = -tabs + tabs_old + fac_cond*(qv_old - qsat);
+
+        // Iterate when necessary
+        while (std::abs(F) > tol && niter < max_iter) {
+            // Derivative of function (T_new iterated on)
+            dFdT  = -one - fac_cond*dqsat;
+
+            // Update the temperature
+            tabs -= F/dFdT;
+
             // Saturation moisture fractions
             erf_qsatw(tabs, pres_mbar, qsat);
             erf_dtqsatw(tabs, pres_mbar, dqsat);
 
             // Function for root finding:
             // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
-            fff   = -tabs + tabs_old + fac_cond*(qv_old - qsat);
-
-            // Derivative of function (T_new iterated on)
-            dfff  = -one - fac_cond*dqsat;
-
-            // Update the temperature
-            dtabs = -fff/dfff;
-            tabs += dtabs;
+            F = -tabs + tabs_old + fac_cond*(qv_old - qsat);
 
             // Update iteration
-            niter = niter+1;
-        } while(std::abs(dtabs) > tol && niter < max_niter);
+            ++niter;
+        }
 
-        // Return qsat evaluated at the final temperature, not a tangent extrapolation.
-        erf_qsatw(tabs, pres_mbar, qsat);
+        // NOTE: the while loop already enforces the iteration limit, so the
+        //       residual alone determines whether we found a valid root; testing
+        //       niter < max_iter here would spuriously fail a solve that
+        //       converged on exactly the last allowed iteration.
+        bool valid_solution = (std::abs(F) <= tol);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SatAdj single phase saturation adjustment failed to converge.");
 
         return tabs;
+    }
+
+    // Round-off tolerance for the debug-only moisture consistency and
+    // conservation checks, scaled to the working precision.
+    //
+    // NOTE: a hard-coded absolute tolerance (this used to be 1.e-14) is well
+    //       below single-precision round-off -- for mixing ratios of order 1.e-2
+    //       one ULP is roughly 1.e-9 in float -- so such a check fires
+    //       spuriously in an AMREX_USE_FLOAT + AMREX_DEBUG build while still
+    //       being far looser than round-off in double. Scaling by machine
+    //       epsilon and the magnitude of the quantities compared keeps the
+    //       check meaningful in both precisions.
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real
+    SatAdjMoistureTol (const amrex::Real qtot)
+    {
+        return amrex::Real(100.0) * std::numeric_limits<amrex::Real>::epsilon()
+             * amrex::max(amrex::Real(1.0), std::abs(qtot));
     }
 
     AMREX_GPU_HOST_DEVICE
@@ -238,8 +276,9 @@ public:
 #if defined(AMREX_DEBUG)
             amrex::Real qsatnew;
             erf_qsatw(tabs, pres_mbar, qsatnew);
-            AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-12);
-            AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+            const amrex::Real qtol = SatAdjMoistureTol(qvprev + qcprev);
+            AMREX_ASSERT(std::abs(qv-qsatnew) <= qtol);
+            AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) <= qtol);
 #endif
 
             theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);
@@ -272,11 +311,12 @@ public:
 #if defined(AMREX_DEBUG)
                 amrex::Real qsatnew;
                 erf_qsatw(tabs, pres_mbar, qsatnew);
+                const amrex::Real qtol = SatAdjMoistureTol(qvprev + qcprev);
                 AMREX_ASSERT(qv < qvprev);
                 AMREX_ASSERT(qc > qcprev);
                 AMREX_ASSERT(tabs > Tprev);
-                AMREX_ASSERT(std::abs(qv-qsatnew) < 1e-14);
-                AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) < 1e-14);
+                AMREX_ASSERT(std::abs(qv-qsatnew) <= qtol);
+                AMREX_ASSERT(std::abs(qv+qc-qvprev-qcprev) <= qtol);
 #endif
 
                 theta = getThgivenTandP(tabs, amrex::Real(100.0)*pres_mbar, rdOcp);

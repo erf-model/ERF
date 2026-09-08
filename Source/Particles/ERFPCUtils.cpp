@@ -9,6 +9,13 @@
 using namespace amrex;
 
 namespace {
+    /**
+     * @brief Geometry information for a specific AMR level.
+     * @var ERFPCLevelGeom::plo Problem lower bound coordinates.
+     * @var ERFPCLevelGeom::dxi Inverse cell spacing.
+     * @var ERFPCLevelGeom::k_max Maximum index in the vertical direction.
+     * @var ERFPCLevelGeom::ref_ratio Cumulative vertical refinement ratio.
+     */
     struct ERFPCLevelGeom {
         GpuArray<Real,AMREX_SPACEDIM> plo;
         GpuArray<Real,AMREX_SPACEDIM> dxi;

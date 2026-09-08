@@ -18,6 +18,7 @@ erf.anelastic = 1
 
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
+erf.flat_terrain = true
 erf.use_fft = true
 
 amrex.use_gpu_aware_mpi=1

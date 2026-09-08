@@ -2,6 +2,10 @@
 
 /**
  * COARE3.0, following WRF phys/module_sf_mynn.F
+ *
+ * @param[in] zref  reference height for the wind speed
+ * @param[in] umm   horizontal wind speed magnitude at zref
+ * @param[in] ustar friction velocity
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -22,6 +26,8 @@ COARE3_roughness (amrex::Real zref,
  *
  * Matches implementations in WRF phys/physics_mmm/sf_sfclayrev.F90 and
  * phys/module_sf_mynn.F
+ *
+ * @param[in] ustar friction velocity
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

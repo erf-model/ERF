@@ -51,7 +51,7 @@ public:
 #include "Prob/ERF_InitCustomPert.H"
 
       void update_w_subsidence (
-        const amrex::Real& /*time*/,
+        const double& /*time*/,
         amrex::Vector<amrex::Real>& wbar,
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
         const amrex::MultiFab& /*state*/,

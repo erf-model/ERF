@@ -96,6 +96,7 @@ super_droplets_moisture.place_randomly_in_cells = false
 super_droplets_moisture.distribution_type = "uniform"
 super_droplets_moisture.diagnostics_interval = 1
 super_droplets_moisture.coalescence_kernel = "Halls"
+super_droplets_moisture.kernel_relative_velocity = "absolute_velocity"
 super_droplets_moisture.aerosols = NH42SO4
 super_droplets_moisture.density_scaling = true
 

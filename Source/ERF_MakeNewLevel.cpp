@@ -81,7 +81,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+#endif
         }
     }
 
@@ -95,9 +99,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
     //********************************************************************************************
-    // Land Surface Model: This block must be executed after update_terrain_arrays(lev) function.
-	// Because z_phys_cc is used inside SLM to define the reference height
-    // NOTE: moved back to original place because lsm data needs to be defined before WRFInput
+    // Land Surface Model
     // *******************************************************************************************
     int lsm_data_size  = lsm.Get_Data_Size();
     int lsm_flux_size  = lsm.Get_Flux_Size();
@@ -106,9 +108,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     lsm_flux[lev].resize(lsm_flux_size);
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), zero, z_phys_nd[lev] ); // dummy dt value
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        //
+        // A level with no land file of its own takes its LSM state from level 0 rather
+        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
+        // just below), so this must be the ratio between level 0 and this level -- the
+        // product across every interface beneath it, not just the ratio across the last
+        // one.
+        //
+        IntVect RefRatio(1);
+        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                 vars_new[lev][Vars::yvel], Geom(lev), Geom(0), domain_bcs_type,
+                 RefRatio, zero, z_phys_nd[lev], nc_init_file); // dummy dt value
     }
     for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
         lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
@@ -118,8 +130,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
         lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
     }
-
-
+    if (lev>0) {
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
+    }
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -157,10 +171,28 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
             //
-            init_only(lev, time);
-            init_zphys(lev, time);
-            update_terrain_arrays(lev);
-            make_physbcs(lev);
+            if (nc_init_file[lev].empty()) {
+                //
+                // A refined level with no file of its own has no PH/PHB to build terrain
+                // from, so its terrain must be interpolated from the coarser level FIRST --
+                // the base state init_only builds is a function of the cell-centered heights
+                // and cannot run before they exist.  (init_zphys interpolates from coarse
+                // exactly when this level has no file, which is the same condition.)
+                //
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+                init_only(lev, time);
+            } else {
+                //
+                // A level that does have a file reads its terrain and its data in the same
+                // pass, so init_only must come first here.
+                //
+                init_only(lev, time);
+                init_zphys(lev, time);
+                update_terrain_arrays(lev);
+                make_physbcs(lev);
+            }
         } else {
             //
             // Note that "time" here is elapsed time, and start_time = 0 when not using wrfinput/metgrid
@@ -172,8 +204,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             init_only(lev, time);
         }
     } else {
-        // if restarting and nudging from input sounding, load the input sounding files
-        if (lev == 0 && solverChoice.init_type == InitType::Input_Sounding && solverChoice.nudging_from_input_sounding)
+        // If restarting from an input-sounding run, load the sounding again. It is
+        // needed for nudging, and InitData_post also takes the surface temperature
+        // and moisture of the surface layer from its reference values; without this
+        // read those are zero on a restart, the surface layer sees a 0 K surface,
+        // and the restarted run drifts from the uninterrupted one.
+        if (lev == 0 && solverChoice.init_type == InitType::Input_Sounding)
         {
             if (input_sounding_data.input_sounding_file.empty()) {
                 Error("input_sounding file name must be provided via input");
@@ -183,8 +219,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             // this will interpolate the input profiles to the nominal height levels
             // (ranging from 0 to the domain top)
+            bool is_moist = (solverChoice.moisture_type != MoistureType::None);
             for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n);
+                input_sounding_data.read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
             }
 
             input_sounding_data.set_start_time(start_time);
@@ -210,6 +247,49 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+     // Read in tables needed for windfarm simulations
+    // fill in Nturb multifab - number of turbines in each mesh cell
+    // write out the vtk files for wind turbine location and/or
+    // actuator disks
+    #ifdef ERF_USE_WINDFARM
+        init_windfarm(lev);
+    #endif
+
+    // ********************************************************************************************
+    // Build the data structures for canopy model (depends upon z_phys)
+    // ********************************************************************************************
+    if (restart_chkfile.empty()) {
+        if (solverChoice.do_forest_drag) {
+            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                                  z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                                  solverChoice.forest_biophysics &&
+                                                  solverChoice.forest_biophysics_heat, lev);
+        }
+    }
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size  = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), zero,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    //********************************************************************************************
+    // Radiation QSRC forcing from file
+    // *******************************************************************************************
 #ifdef ERF_USE_NETCDF
     if (solverChoice.do_radiation)
     {
@@ -240,7 +320,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             qrad_forcings[i] = std::make_unique<MultiFab>(ba, dm, 1, IntVect(0,0,0));
             qrad_forcings[i]->setVal(0.0);
         }
-        
+
         ncutils::NCVar rad_var = rad_forcing_ncf.var("QRAD");
 
         amrex::Arena* Arena_Used = amrex::The_Arena();
@@ -265,10 +345,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                               static_cast<unsigned long>(box.length()[1]),
                                               static_cast<unsigned long>(box.length()[0])};
 
-                amrex::Print() << "  -- reading {" << counts[0] << "," << counts[1] << "," << counts[2] << "," << counts[3] << "} at index {" << starts[0] << "," << starts[1] << "," << starts[2] << "," << starts[3] << "}" << std::endl;
                 rad_var.get(dataPtr, starts, counts);
 
-                //auto *mf_data = qrad_forcings[t]->get(mfi).dataPtr();
                 auto mf_arr = qrad_forcings[t]->array(mfi);
                 auto tmp_arr = tmp.array();
                 ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -283,39 +361,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         rad_forcing_ncf.close();
     }
 #endif
-
-     // Read in tables needed for windfarm simulations
-    // fill in Nturb multifab - number of turbines in each mesh cell
-    // write out the vtk files for wind turbine location and/or
-    // actuator disks
-    #ifdef ERF_USE_WINDFARM
-        init_windfarm(lev);
-    #endif
-
-    // ********************************************************************************************
-    // Build the data structures for canopy model (depends upon z_phys)
-    // ********************************************************************************************
-    if (restart_chkfile.empty()) {
-        if (solverChoice.do_forest_drag) {
-            m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
-        }
-    }
-
-    //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size  = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons],
-                    grids[lev], Geom(lev), zero,
-                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
 
     //********************************************************************************************
     // Radiation
@@ -380,29 +425,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
-    //********************************************************************************************
-    // Land Surface Model
-    // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-
     //
     // Note that t_new = time here is elapsed time
     //
@@ -422,20 +444,35 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
     init_zphys(lev, time);
     update_terrain_arrays(lev);
 
     //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     //     *and* if there is two-way coupling
     //
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
@@ -443,7 +480,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     //********************************************************************************************
@@ -484,6 +524,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -531,6 +575,20 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     } else {
 #endif
+
+#ifdef ERF_USE_NETCDF
+    //
+    // A WRFInput level created by refinement rather than read from a file: build its base
+    // state by the same construction level 0 used, on top of the coarse interpolation done
+    // above.  This must happen BEFORE FillCoarsePatch, which interpolates perturbational
+    // quantities relative to the base state.
+    //
+    if ( (solverChoice.init_type == InitType::WRFInput) && nc_init_file[lev].empty() ) {
+        rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+    }
+#endif
+
     //
     // Interpolate the solution data
     //
@@ -574,33 +632,66 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
-        Real dummy_dt = one;
+        double dummy_dt = 1.0;
+
+        // ****************************************************************************************
+        // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *before* projecting.
+        //
+        // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
+        // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
+        // project_momenta builds its per-subdomain RHS from grids[lev]/dmap[lev]; with those
+        // empty the subdomain box array is empty and the singular-solvability mean-subtraction
+        // divides by a zero-cell volume (0/0 -> NaN). That NaN traps with fpe_trap_invalid=1;
+        // with it off the projection is silently a no-op on the new level (empty RHS, early
+        // return) so the divergence-free constraint is never enforced. Setting them now
+        // (mirroring MakeNewLevelFromScratch) makes grids[lev] match the momentum MultiFabs
+        // built in init_stuff on the same ba/dm. This is idempotent with the
+        // SetBoxArray/SetDistributionMap that AmrCore performs with the identical ba/dm after
+        // this function returns.
+        // ****************************************************************************************
+        SetBoxArray(lev, ba);
+        SetDistributionMap(lev, dm);
+
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }
 
-    // //********************************************************************************************
-    // // Land Surface Model
-    // // *******************************************************************************************
-    // int lsm_data_size  = lsm.Get_Data_Size();
-    // int lsm_flux_size  = lsm.Get_Flux_Size();
-    // lsm_data[lev].resize(lsm_data_size);
-    // lsm_data_name.resize(lsm_data_size);
-    // lsm_flux[lev].resize(lsm_flux_size);
-    // lsm_flux_name.resize(lsm_flux_size);
-    // lsm.Define(lev, solverChoice);
-    // if (solverChoice.lsm_type != LandSurfaceType::None)
-    // {
-    //     lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
-    // }
-    // for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-    //     lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-    //     lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    // }
-    // for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-    //     lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-    //     lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    // }
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        //
+        // A level with no land file of its own takes its LSM state from level 0 rather
+        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
+        // just below), so this must be the ratio between level 0 and this level -- the
+        // product across every interface beneath it, not just the ratio across the last
+        // one.
+        //
+        IntVect RefRatio(1);
+        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
+        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                 vars_new[lev][Vars::yvel], Geom(lev), Geom(0), domain_bcs_type,
+                 RefRatio, zero, z_phys_nd[lev], nc_init_file); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+    if (lev>0) {
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
+    }
 
     // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
@@ -669,11 +760,88 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     std::unique_ptr<MultiFab> temp_zphys_nd;
 
+    //
+    // init_stuff below rebuilds mapfac[lev] on the new grids and resets it to 1, and nothing
+    // downstream of a regrid reads the map factors back out of a file, so hold on to the
+    // pre-regrid arrays here and restore them afterwards.  Without this a level-0 regrid
+    // (which restart() does whenever the checkpoint has fewer grids than ranks) silently
+    // threw away the MAPFAC_M/U/V read from wrfinput_d01.
+    //
+    Vector<std::unique_ptr<MultiFab>> old_mapfac(mapfac[lev].size());
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        old_mapfac[i] = std::move(mapfac[lev][i]);
+    }
+
+    //
+    // The surface pressure and the land mask / land type / soil type are in exactly the
+    // same position: init_stuff rebuilds them on the new grids and leaves a placeholder
+    // (an uninitialized PSFC, a uniform land mask and type 0), only init_from_wrfinput
+    // ever puts the real PSFC / LANDMASK / IVGTYP / ISLTYP there, and a regrid does not
+    // re-read the file.  So retain them here too.
+    //
+    // Retaining the land mask matters off the WRF pathways as well: init_zphys marks the
+    // cells under a building with a land mask of 2, and a regrid goes through
+    // remake_zphys instead, which does not redo that marking.
+    //
+    auto retain = [] (Vector<Vector<std::unique_ptr<iMultiFab>>>& v, int l)
+                  { return (v[l].empty()) ? nullptr : std::move(v[l][0]); };
+
+    std::unique_ptr<MultiFab>  old_psfc      = std::move(mf_PSFC[lev]);
+    std::unique_ptr<iMultiFab> old_lmask     = retain(    lmask_lev,lev);
+    std::unique_ptr<iMultiFab> old_land_type = retain(land_type_lev,lev);
+    std::unique_ptr<iMultiFab> old_soil_type = retain(soil_type_lev,lev);
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
+
+    //
+    // Restore the map factors onto the new grids.  At lev > 0 we interpolate from the parent
+    // first so that cells the new grids added -- which the pre-regrid arrays never covered --
+    // are filled as well, then copy the retained values on top wherever we still have them.
+    // (For a level with no init file of its own the Interp2DArrays call further down repeats
+    // that interpolation, which is what defines its map factors in the first place.)
+    //
+    if (lev > 0) { interp_mapfac_from_coarse(lev); }
+    for (int i = 0; i < mapfac[lev].size(); i++) {
+        if (!mapfac[lev][i] || !old_mapfac[i]) { continue; }
+        IntVect ngv = mapfac[lev][i]->nGrowVect(); ngv[2] = 0;
+        mapfac[lev][i]->ParallelCopy(*old_mapfac[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+        mapfac[lev][i]->FillBoundary(geom[lev].periodicity());
+    }
+
+    //
+    // Restore the surface pressure and the land arrays the same way.  Both interpolation
+    // helpers return without doing anything off the wrfinput pathway, since there these
+    // arrays hold what was asked for at this level rather than anything derived from the
+    // parent; the copy below is what carries them across the regrid in that case.
+    //
+    if (lev > 0) {
+        interp_psfc_from_coarse(lev);
+        interp_land_masks_from_coarse(lev);
+    }
+    if (mf_PSFC[lev] && old_psfc) {
+        IntVect ngv = mf_PSFC[lev]->nGrowVect(); ngv[2] = 0;
+        mf_PSFC[lev]->ParallelCopy(*old_psfc, 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+        mf_PSFC[lev]->FillBoundary(geom[lev].periodicity());
+    }
+    {
+        auto entry = [] (Vector<Vector<std::unique_ptr<iMultiFab>>>& v, int l) -> iMultiFab*
+                     { return (v[l].empty()) ? nullptr : v[l][0].get(); };
+
+        Vector<iMultiFab*> new_land = {entry(    lmask_lev,lev),
+                                       entry(land_type_lev,lev),
+                                       entry(soil_type_lev,lev)};
+        Vector<iMultiFab*> old_land = {old_lmask.get(), old_land_type.get(), old_soil_type.get()};
+        for (int i = 0; i < new_land.size(); i++) {
+            if (!new_land[i] || !old_land[i]) { continue; }
+            IntVect ngv = new_land[i]->nGrowVect(); ngv[2] = 0;
+            new_land[i]->ParallelCopy(*old_land[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+            new_land[i]->FillBoundary(geom[lev].periodicity());
+        }
+    }
 
     // ********************************************************************************************
     // Build the data structures for terrain-related quantities
@@ -688,21 +856,36 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+#if USE_FC_FACTORY
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+#else
             eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+#endif
         }
     }
-    remake_zphys(lev, temp_zphys_nd);
+    remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
     // ********************************************************************************************
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    // Make sure that detJ is the average of the data on a finer level if there is one
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
     // from the coarse ... but just in case ...
     // ********************************************************************************************
     if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+        // NOTE: z_phys_cc is deliberately NOT averaged down.  Every level's base state is
+        //       built to be in discrete hydrostatic balance against that level's own
+        //       cell-centered heights, so replacing the coarse heights with the average of
+        //       the fine ones -- after the base states have already been built -- leaves the
+        //       coarse base state out of balance with the heights the dycore then uses for
+        //       vertical gradients, Rayleigh damping and the sponge zones.  z_phys_cc is also
+        //       derived from z_phys_nd, which is not averaged down either, so averaging only
+        //       the cell-centered heights made the two disagree inside the refined region.
+        //
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
+        //       averaging and divides by it afterwards, so the coarse detJ must be the average
+        //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
     }
 
@@ -710,7 +893,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for canopy model (depends upon z_phys)
     // ********************************************************************************************
     if (solverChoice.do_forest_drag) {
-        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev], z_phys_cc[lev].get(), z_phys_nd[lev].get());
+        m_forest_drag[lev]->define_drag_field(ba, dm, geom[lev],
+                                              z_phys_cc[lev].get(), z_phys_nd[lev].get(),
+                                              solverChoice.forest_biophysics &&
+                                              solverChoice.forest_biophysics_heat, lev);
     }
 
     // *****************************************************************************************************
@@ -739,6 +925,28 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
         // Impose bc's outside the domain
         (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+
+#ifdef ERF_USE_NETCDF
+        // *************************************************************************************************
+        // For a WRFInput run, rebuild the base state on the new grids by the SAME construction
+        // used at initialization -- the analytic reference profile from the level-0 parameters,
+        // evaluated at this level's heights, followed by the discrete hydrostatic rebalance --
+        // rather than leaving it as the conservative interpolation of the parent's base state.
+        //
+        // Without this, the first regrid silently replaces a base state that is discretely
+        // hydrostatic on this level's mesh with one that is not, and the level stops agreeing
+        // with its parent in the way it did at t = 0.
+        //
+        // Note this must come AFTER the FillPatchTwoLevels above (which fills the region of
+        // this level outside the fine grids, and the ghost cells) and BEFORE the
+        // FillPatchFineLevel below, which interpolates perturbational quantities relative to
+        // the new base state.
+        // *************************************************************************************************
+        if (solverChoice.init_type == InitType::WRFInput) {
+            rebuild_base_state_from_wrfinput(lev, temp_base_state);
+            (*physbcs_base[lev])(temp_base_state,0,temp_base_state.nComp(),base_state[lev].nGrowVect());
+        }
+#endif
 
         // *************************************************************************************************
         // This will fill the temporary MultiFabs with data from vars_new
@@ -792,6 +1000,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Thin immersed body -- thin_[xyz]force and [xyz]flux_imask must be re-defined on the new
+    //                       (ba,dm), otherwise they still live on the pre-regrid grids
+    // ********************************************************************************************
+    init_thin_body(lev, ba, dm);
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -803,6 +1017,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         micro->Init(lev, vars_new[lev][Vars::cons],
                     grids[lev], Geom(lev), zero,
                     z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+        // Refresh the land/water mask pointer. Must be re-issued at every
+        // micro->Init site: init_stuff rebuilds lmask_lev[lev][0], so a stale
+        // pointer would dangle. No-op for every scheme except WDM6.
+        micro->Set_Lmask(lev, (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get());
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
@@ -829,30 +1047,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
           Define_ERFFillPatchers(lev);
         }
     }
-
-    //********************************************************************************************
-    // Land Surface Model
-    // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None)
-    {
-        lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], Geom(lev), 0.0, z_phys_nd[lev] ); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-
 
     // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
     // For a level 0 regrid we must explicitly do them here
@@ -902,16 +1096,18 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        int nlevs = finest_level+1;
-        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                   Qr_prim[lev], z_phys_nd[lev],
-                                                   Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    if (m_SurfaceLayer != nullptr) {
+        if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+            int nlevs = finest_level+1;
+            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
+                                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                       Qr_prim[lev], z_phys_nd[lev],
+                                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                       lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                       sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+        }
     }
 
     // ********************************************************************************************
