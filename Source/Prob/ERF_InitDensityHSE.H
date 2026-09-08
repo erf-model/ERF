@@ -167,8 +167,11 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     pp.query("height", z_tr_1);
     pp.query("z_tr", z_tr_2);
 
-    // We only set them to zero to make sure they are initialized
-    amrex::Real T_tr = zero, theta_tr = zero, theta_0 = zero;
+    // Placeholders, read only with T_from_theta_in_moist_init. They must be
+    // physical temperatures rather than zero: the compute_theta arm they feed
+    // is evaluated speculatively in optimised builds, and g/(Cp_d*0) followed
+    // by 0*exp(inf) raised the invalid flag under amrex.fpe_trap_invalid.
+    amrex::Real T_tr = amrex::Real(300), theta_tr = amrex::Real(300), theta_0 = amrex::Real(300);
 
     bool T_from_theta = false;
     pp.query("T_from_theta_in_moist_init", T_from_theta);

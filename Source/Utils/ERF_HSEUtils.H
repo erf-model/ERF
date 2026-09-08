@@ -677,8 +677,15 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real eq_pot_temp, const bool use_empirical,
                                const bool T_from_theta = false,
                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
-                               const Real theta_0 = amrex::Real(0), const Real theta_tr = amrex::Real(0), const Real T_tr = amrex::Real(0))
+                               const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
 {
+    // theta_0, theta_tr and T_tr are read only when T_from_theta is set, but
+    // compute_theta is inlined into the Newton loops below and clang evaluates
+    // its arm speculatively at -O3: with the old placeholders of zero that arm
+    // formed g/(Cp_d*0) and then 0*exp(inf), which raised the invalid flag and
+    // killed a run under amrex.fpe_trap_invalid (the MoistBubble regression
+    // test). The placeholders are now physical temperatures so every
+    // speculated expression stays finite; a selected result never sees them.
     Real T_b, T_dp;
 
     int which_zone = -1;
