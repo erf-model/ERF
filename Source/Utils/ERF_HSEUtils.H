@@ -677,8 +677,12 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real eq_pot_temp, const bool use_empirical,
                                const bool T_from_theta = false,
                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
-                               const Real theta_0 = amrex::Real(0), const Real theta_tr = amrex::Real(0), const Real T_tr = amrex::Real(0))
+                               const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
 {
+    // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
+    // defaults are still physical temperatures: compute_theta is inlined into
+    // the Newton loops and optimised builds evaluate its arm speculatively, so
+    // zeros would raise an FPE (g/(Cp_d*0), then 0*exp(inf)) on a discarded value.
     Real T_b, T_dp;
 
     int which_zone = -1;
