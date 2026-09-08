@@ -3021,6 +3021,7 @@ List of Parameters
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+   See :ref:`SLM` for the complete set of ``slm.`` options.
 
 .. _inputs-ocean-surface-model:
 
