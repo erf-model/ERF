@@ -278,9 +278,9 @@ pblh_mf.setVal(0.0);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
                 // to better represent shear associated with surface-layer turbulence at low wind speeds.
                 // Reference: Vogelezang, D.H.P., and A.A.M. Holtslag, 1996: Evaluation and model impacts of
@@ -305,9 +305,9 @@ pblh_mf.setVal(0.0);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
                 // to better represent shear associated with surface-layer turbulence at low wind speeds.
                 const Real ws2 = (turbChoice.enable_vh96_shear_correction)
