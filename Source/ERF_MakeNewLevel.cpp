@@ -731,17 +731,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     remake_zphys(lev, time, temp_zphys_nd);
     update_terrain_arrays(lev);
 
-    //
-    // Keep the vertical-spacing minimum in step with the new grids, as MakeNewLevelFromCoarse
-    // does.  Without this the dt constraint keeps its pre-regrid value on a stretched or
-    // terrain-fitted mesh, where the fine detJ minimum moves with the grids.
-    //
-    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
-    dz_min[lev] = geom[lev].CellSize(2);
-    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && detJ_cc[lev] ) {
-        dz_min[lev] *= (*detJ_cc[lev]).min(0);
-    }
-
     // ********************************************************************************************
     // Make sure that detJ is the average of the data on a finer level if there is one
     // Note that this shouldn't be necessary because the fine grid is created by interpolation
@@ -763,6 +752,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
+    }
+
+    //
+    // Keep the vertical-spacing minimum in step with the new grids, as MakeNewLevelFromCoarse
+    // does.  Without this the dt constraint keeps its pre-regrid value on a stretched or
+    // terrain-fitted mesh, where the fine detJ minimum moves with the grids.
+    //
+    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
+    dz_min[lev] = geom[lev].CellSize(2);
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && detJ_cc[lev] ) {
+        dz_min[lev] *= (*detJ_cc[lev]).min(0);
     }
 
     // ********************************************************************************************

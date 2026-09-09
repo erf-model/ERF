@@ -407,7 +407,7 @@ pblh_mf.setVal(0.0);
             // weighted by cube sum so either term can dominate smoothly
             Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
                                 wstar_conv*wstar_conv*wstar_conv);
-            
+
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
@@ -1051,7 +1051,7 @@ pblh_mf.setVal(0.0);
             // dz_inv factor. `Fact` already carries the single grid-spacing
             // factor needed to convert the countergradient correction into a
             // flux-divergence contribution consistent with the K*d(phi)/dz terms
-            // it is being added alongside. Adding a second dz_inv 
+            // it is being added alongside. Adding a second dz_inv
             // double-counts the grid spacing and is
             // dimensionally incorrect — do NOT "fix" this by inserting dz_inv
             // into the RHS_a += Fact * gam_hi/lo terms in ERF_ImplicitDiff_T.cpp.
