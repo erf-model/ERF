@@ -73,8 +73,11 @@ equal to the first cell and the surface-layer branch of the diffusion gives
 a zero wall flux); `erf_slow_rhs_post` restores the first-cell value from
 `S_old` after every stage; `ImplicitDiffForStateLU_{N,S,T}` pin the bottom
 row for RhoKE. KE(0)/u*^2 = 3.232 (target 3.2325), k_start/k_end = 1.000,
-restart bit-exact, interior profile unchanged. The `dirichlet_k` default
-stays false (decision left to Harish); the decks set it.
+restart bit-exact, interior profile unchanged. Harish's decision
+(2026-09-09): keep the default false, warn at startup when kEqn runs under a
+surface layer without it (near-wall k settles at half the AL01 value, the
+mean wind still follows the log law), and set the flag in every deck that
+enables kEqn (Canonical_RANS, Askervein; no Tests/test_files deck uses kEqn).
 
 ## Phase 3: robustness and hygiene
 

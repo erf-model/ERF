@@ -105,6 +105,7 @@ erf.use_gravity = true
 
 # Turbulence closure
 erf.rans_type       = "kEqn"
+erf.dirichlet_k     = true # wall k from u* (AL01 Eq. 16); see Canonical_RANS
 erf.sigma_k         = 1.0
 erf.max_geom_lscale = 30.0 # ~ kappa * (0.1 * zi)
 

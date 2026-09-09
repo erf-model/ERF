@@ -342,6 +342,20 @@ void ERF::init_bcs ()
         Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
     }
 
+    // k-eqn RANS under a surface layer without the Dirichlet wall value: the
+    // first cell cannot resolve the near-wall shear production, so k there
+    // settles at about half the AL01 equilibrium u*^2/Cmu0^2 (the mean wind
+    // still follows the log law because MOST supplies the stress). Warn.
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn &&
+            !solverChoice.turbChoice[lev].dirichlet_k &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+            Warning("erf.rans_type = kEqn with zlo.type = surface_layer but erf.dirichlet_k = false: "
+                    "near-wall TKE will be about half the Axell & Liungman equilibrium value; "
+                    "set erf.dirichlet_k = true");
+        }
+    }
+
     // *****************************************************************************
     //
     // Here we translate the physical boundary conditions -- one type per face --
