@@ -130,6 +130,11 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
                                     tc.rans_type == RANSType::kEqn );
+    // k-eqn RANS with a Dirichlet wall value: SurfaceLayer::update_fluxes
+    // writes AL01 Eq. 16 into the first cell of S_old at the start of the
+    // step; keep that value through every RK stage.
+    const bool l_dirichlet_k    = ( tc.rans_type == RANSType::kEqn && tc.dirichlet_k &&
+                                    (SurfLayer != nullptr) );
     const bool l_advect_KE      = ( tc.use_tke && tc.advect_tke );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -678,6 +683,16 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             } // is_valid
         } // ivar
+
+        // Re-impose the Dirichlet wall value of k (first cell above the wall)
+        if (l_dirichlet_k && is_valid_slow_var[RhoKE_comp]) {
+            const int klo = domain.smallEnd(2);
+            if (tbx.smallEnd(2) <= klo && tbx.bigEnd(2) >= klo) {
+                ParallelFor(makeSlab(tbx,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    cur_cons(i,j,k,RhoKE_comp) = old_cons(i,j,k,RhoKE_comp);
+                });
+            }
+        }
         } // profile
 
         {

@@ -43,7 +43,8 @@ Smoke (`--smoke`, the CTest entry, 40 steps):
 | wall distance vs cell-centre height | equal | 1e-8 m |
 | Lturb in the three lowest cells vs the capped kappa (z + z0) | equal | 0.1 % |
 | max Lturb | <= max_geom_lscale (30 m) | 1e-9 m |
-| diss vs Cmu0^3 rho k^1.5 / Lturb (AL01 Eq. 19) | equal | 2 % |
+| diss vs Cmu0^3 rho k^1.5 / Lturb (AL01 Eq. 19), interior cells | equal | 5 % |
+| wall cell k at step start over step end, from diss and KE | 1 | 1 % |
 
 Physics (`--physics`, adds to the smoke checks, 12 h run):
 

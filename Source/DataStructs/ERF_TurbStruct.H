@@ -520,6 +520,7 @@ public:
         amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+        amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
       }
     }
 

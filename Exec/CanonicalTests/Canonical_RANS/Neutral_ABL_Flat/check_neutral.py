@@ -108,10 +108,7 @@ def main(argv):
     #   (diss / diss_expected)^(2/3) = k_start / k_end.
     # A consistent wall condition keeps this at one.
     k_ratio = (p["diss"][0] / diss_expected(0)) ** (2.0 / 3.0)
-    if mode == "physics":
-        rep.check("wall cell k_start/k_end", k_ratio, 1.0, 0.05)
-    else:
-        print("info: wall cell k_start/k_end = %.4f (checked in --physics mode)" % k_ratio)
+    rep.check("wall cell k_start/k_end", k_ratio, 1.0, 0.01)
 
     # --- physics checks (converged run) ---------------------------------
     if mode == "physics":

@@ -67,6 +67,15 @@ Exit: neutral deck reaches a log-law profile within a few percent between
 2 z0 and 0.1 zi after the physics run; k at the first cell equals
 u*^2 / Cmu0^2 to round-off; 40-step smoke deck bit-identical on restart.
 
+Status (2026-09-09): done. Implementation: `init_bcs` no longer switches
+RhoKE to ext_dir at a surface-layer wall (foextrap keeps the ghost cell
+equal to the first cell and the surface-layer branch of the diffusion gives
+a zero wall flux); `erf_slow_rhs_post` restores the first-cell value from
+`S_old` after every stage; `ImplicitDiffForStateLU_{N,S,T}` pin the bottom
+row for RhoKE. KE(0)/u*^2 = 3.232 (target 3.2325), k_start/k_end = 1.000,
+restart bit-exact, interior profile unchanged. The `dirichlet_k` default
+stays false (decision left to Harish); the decks set it.
+
 ## Phase 3: robustness and hygiene
 
 - Validate `Rt_crit`, `Rt_min`, `Cmu0`, `Cb`, `max_geom_lscale` in

@@ -328,13 +328,18 @@ void ERF::init_bcs ()
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
-        // Need to change wall BC type, assume for now that all levels are RANS
+        // The wall value of k (AL01 Eq. 16) is written into the first cell by
+        // SurfaceLayer::update_fluxes and held there through every RK stage
+        // (erf_slow_rhs_post, ImplicitDiffForStateLU_*). The logical BC for
+        // RhoKE at the wall stays foextrap, so the ghost cell carries the same
+        // value and the surface-layer branch of the diffusion sets a zero flux
+        // through the wall face. Assume for now that all levels are RANS.
         for (int lev = 0; lev < max_level; ++lev) {
             if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
                 Error("If using one-eqn RANS, all levels must be RANS for now");
             }
         }
-        Print() << "Using dirichlet BC for k equation" << std::endl;
+        Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
     }
 
     // *****************************************************************************
@@ -670,10 +675,8 @@ void ERF::init_bcs ()
                 for (int i = 0; i < NBCVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 }
-                if (keqn_dir) {
-                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
-                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                }
+                // NOTE: with erf.dirichlet_k the RhoKE wall value lives in the
+                //       first cell (see above); foextrap is the right logical BC.
             }
         }
     }

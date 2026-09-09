@@ -1617,8 +1617,10 @@ List of Parameters
 | **erf.max_geom_lscale**          | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
 |                                  | (per-level)                                              |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.dirichlet_k**              | impose a Dirichlet condition on the turbulent kinetic    | Boolean            | false            |
-|                                  | energy at the wall (per-level)                           |                    |                  |
+| **erf.dirichlet_k**              | k-equation RANS under a surface layer: set the turbulent | Boolean            | false            |
+|                                  | kinetic energy of the first cell above the wall from u*  |                    |                  |
+|                                  | and t* (Axell & Liungman 2001, Eq. 16) and hold it       |                    |                  |
+|                                  | through the step (per-level)                             |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
