@@ -4,8 +4,9 @@
 #
 # Delta-only by construction: the base input is pulled in with ParmParse's FILE
 # include and only the keys below are overridden (ParmParse resolves a repeated
-# key to its LAST occurrence, AMReX_ParmParse.H:353). The base input is also
-# shared with the nightly Bubble_WSM6 test and must not be edited.
+# key to its LAST occurrence, AMReX_ParmParse.H:353). The base input is shared
+# with the other WDM6 variants alongside this file, so edit it only with those
+# in mind.
 #
 # WHY THIS FILE EXISTS
 # --------------------
@@ -57,7 +58,9 @@ erf.moisture_model = WDM6
 # Hail regime rather than the default graupel regime.
 wdm6.hail_opt = 1
 
-# plot_vars_1 is deliberately NOT overridden: the campaign runner supplies the
-# 32-entry list including nc/nn/nr. A standalone invocation inherits the base
-# input's list, which omits the number concentrations -- pass them explicitly if
-# you need them outside the runner.
+# plot_vars_1 is deliberately NOT overridden, so this file inherits the base
+# input's 29-entry list. That list predates WDM6 and omits the number
+# concentrations nc, nn and nr. To plot them, set erf.plot_vars_1 explicitly
+# below this line (or on the command line) with the three names appended to the
+# base list -- ParmParse resolves a repeated key to its LAST occurrence, so any
+# later setting replaces the inherited list rather than extending it.

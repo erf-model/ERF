@@ -288,9 +288,13 @@ public:
             // here previously sat below that floor, so the iteration burned all
             // of its allowed passes and reported a spurious non-convergence
             // warning for a column that had in fact converged to roundoff.
+#ifdef AMREX_USE_FLOAT
             const amrex::Real tol = amrex::Real(4)
                                   * std::numeric_limits<amrex::Real>::epsilon()
                                   * pm_integ[k-1];
+#else
+            const amrex::Real tol = amrex::Real(1.0e-12);
+#endif
 
             // Establish known constant
             rho_tot_lo = rhod_integ[k-1] * (one + qv_inp_sound[itime][k-1]);

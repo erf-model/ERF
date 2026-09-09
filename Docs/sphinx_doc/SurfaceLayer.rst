@@ -160,7 +160,15 @@ To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` m
 
 ::
 
-   erf.most.roughness_type    = STRING    #Z_0 type (constant, charnock, modified_charnock, wave_couples)
+   erf.most.roughness_type_land = STRING  #Z_0 type over land (constant)
+   erf.most.roughness_type_sea  = STRING  #Z_0 type over water (charnock, coare3.0,
+                                          # donelan, modified_charnock, wave_coupled,
+                                          # constant)
+
+Land and water are set separately.  The older single ``erf.most.roughness_type``
+input was replaced by these two and now aborts the run if it is present.  The
+complete list of surface-layer inputs, with acceptable values and defaults, is in
+:ref:`sec:SurfaceLayerInputs`.
 
 If the ``charnock`` method is employed, the :math:`a` constant may be specified with ``erf.most.charnock_constant`` (defaults to 0.0185). If the ``modified_charnock`` method is employed, the depth :math:`d` may be specified with ``erf.most.modified_charnock_depth`` (defaults to 30 m). If the ``wave_coupled`` method is employed, the user must provide wave height and mean wavelength data.
 

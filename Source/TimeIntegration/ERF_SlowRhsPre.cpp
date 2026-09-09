@@ -216,9 +216,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
-            // Native SHOC always owns the scalar fluxes in state_update mode.
-            // When it also owns momentum stresses, we skip the generic
-            // SurfaceLayer call entirely so the host does not re-apply them.
+            // Native SHOC owns the scalar fluxes and does not hand momentum
+            // stresses back to the generic host diffusion path.
+            l_apply_surface_layer_fluxes_in_diffusion = false;
             native_shoc_lev->set_eddy_diffs();
         }
 
@@ -253,12 +253,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
-            if (native_shoc_lev->owns_scalar_surface_fluxes()) {
-                l_apply_surface_layer_fluxes_in_diffusion = false;
-            }
-            if (!native_shoc_lev->needs_host_surface_momentum_stresses()) {
-                surface_layer_handled = true;
-            }
+            surface_layer_handled = true;
         }
         if (!surface_layer_handled && l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
@@ -277,7 +272,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                       Q1fx1, Q1fx2, Q1fx3);
             }
         }
-        if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
+        if (tc.uses_native_shoc() && native_shoc_lev) {
             // SHOC-owned scalar fluxes must not be reused by the host
             // diffusion source, even if the host SurfaceLayer path was also
             // evaluated for momentum stress ownership.
