@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include <AMReX_ParmParse.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 #include <ERF_TurbStruct.H>
@@ -716,12 +717,14 @@ public:
       pp, "radiation_type", rad_type, lev, max_level);
 
     // RadType::RRTMGP is reserved but not wired to a solver: nothing reads it,
-    // so accepting it would run the whole simulation with no radiation at all.
-    // RRTMGP is selected with erf.radiation_model instead.
-    if (rad_type == RadType::RRTMGP) {
-      amrex::Abort("erf.radiation_type = RRTMGP is not implemented. "
-                   "Select RRTMGP with erf.radiation_model, or set "
-                   "erf.radiation_type = TwoStream.");
+    // so the run proceeds with no radiation at all. Warn rather than abort,
+    // since existing inputs may still carry this setting. RRTMGP itself is
+    // selected with erf.radiation_model.
+    if (rad_type == RadType::RRTMGP && amrex::ParallelDescriptor::IOProcessor()) {
+      amrex::Print() << "WARNING: erf.radiation_type = RRTMGP is not wired to a "
+                        "solver, so no radiation will be computed. Select RRTMGP "
+                        "with erf.radiation_model, or set erf.radiation_type = "
+                        "TwoStream.\n";
     }
 
     // Only query sub-options if TwoStream radiation is selected
@@ -740,10 +743,14 @@ public:
       } else if (tau_model_str == "mass") {
         tau_model = TauModel::Mass;
       } else {
-        // The two models give very different column optical depths, so a
-        // misspelling must not quietly select the default.
-        amrex::Abort("Unknown erf.radiation.tau_model '" + tau_model_str +
-                     "'. Valid values are per_layer and mass.");
+        // The two models give very different column optical depths, so say so
+        // rather than let a misspelling quietly pick the default.
+        tau_model = TauModel::PerLayer;
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: unknown erf.radiation.tau_model '"
+                         << tau_model_str << "'; valid values are per_layer "
+                            "and mass. Using per_layer.\n";
+        }
       }
       pp.query("radiation.sw_kabs_dry", sw_kabs_dry);
       pp.query("radiation.sw_kscat_dry", sw_kscat_dry);
@@ -778,10 +785,14 @@ public:
       } else if (tau_profile_type_str == "cloud_layer") {
         tau_profile_type = TauProfileType::CloudLayer;
       } else {
-        // Falling back to constant would silently drop a requested cloud layer.
-        amrex::Abort("Unknown erf.radiation.tau_profile_type '" +
-                     tau_profile_type_str +
-                     "'. Valid values are constant and cloud_layer.");
+        // Falling back to constant drops a requested cloud layer, so say so.
+        tau_profile_type = TauProfileType::Constant;
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: unknown erf.radiation.tau_profile_type '"
+                         << tau_profile_type_str << "'; valid values are "
+                            "constant and cloud_layer. Using constant, so no "
+                            "cloud layer is applied.\n";
+        }
       }
       pp.query("radiation.cloud_base_height_m", cloud_base_height_m);
       pp.query("radiation.cloud_top_height_m", cloud_top_height_m);
@@ -828,9 +839,12 @@ public:
       if (diag_callsite_mode != "both" &&
           diag_callsite_mode != "pre_only" &&
           diag_callsite_mode != "post_only") {
-        amrex::Abort("Unknown erf.radiation.diag_callsite_mode '" +
-                     diag_callsite_mode +
-                     "'. Valid values are both, pre_only and post_only.");
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: unknown erf.radiation.diag_callsite_mode '"
+                         << diag_callsite_mode << "'; valid values are both, "
+                            "pre_only and post_only. Using both.\n";
+        }
+        diag_callsite_mode = "both";
       }
       // Ensure dedup tolerance is non-negative
       if (diag_dedup_tol < 0.0) diag_dedup_tol = 0.0;
@@ -899,15 +913,23 @@ public:
       } else if (aerosol_profile_type_str == "exponential") {
         aerosol_profile_type = AerosolProfileType::Exponential;
       } else if (aerosol_profile_type_str == "table") {
-        // The table lookup is not implemented; it would contribute no aerosol
-        // optical depth at all, which is indistinguishable from a typo.
-        amrex::Abort("erf.radiation.aerosol_profile_type = table is not "
-                     "implemented. Use constant or exponential.");
+        // The table lookup is not implemented and contributes no optical
+        // depth. Keep the selection so the run is not silently given a
+        // different profile, and say what it means.
+        aerosol_profile_type = AerosolProfileType::Table;
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: erf.radiation.aerosol_profile_type = table is "
+                            "not implemented and contributes no aerosol optical "
+                            "depth. Use constant or exponential.\n";
+        }
       } else {
-        // Falling through to Constant would silently ignore a misspelling.
-        amrex::Abort("Unknown erf.radiation.aerosol_profile_type '" +
-                     aerosol_profile_type_str +
-                     "'. Valid values are constant and exponential.");
+        // Falling through to constant would hide a misspelling.
+        aerosol_profile_type = AerosolProfileType::Constant;
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: unknown erf.radiation.aerosol_profile_type '"
+                         << aerosol_profile_type_str << "'; valid values are "
+                            "constant and exponential. Using constant.\n";
+        }
       }
 
       pp.query("radiation.aerosol_tau_per_layer", aerosol_tau_per_layer);
@@ -977,11 +999,16 @@ public:
       pp.query("radiation.seb_prognostic_q_min", seb_prognostic_q_min);
       pp.query("radiation.seb_prognostic_q_max", seb_prognostic_q_max);
 
-      // Auto-enable seb_enable and seb_diagnostic_enable if seb_prognostic_enable is requested
-      if (seb_prognostic_enable && !seb_enable) {
+      // The prognostic update needs the SEB fields and the residual, so
+      // requesting it turns on the infrastructure it depends on. Report that,
+      // since it changes settings the user did not set.
+      if (seb_prognostic_enable && (!seb_enable || !seb_diagnostic_enable)) {
+          if (amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Print() << "NOTE: erf.radiation.seb_prognostic_enable = true "
+                                "also enables seb_enable and "
+                                "seb_diagnostic_enable, which it depends on.\n";
+          }
           seb_enable = true;
-      }
-      if (seb_prognostic_enable && !seb_diagnostic_enable) {
           seb_diagnostic_enable = true;
       }
 
@@ -1002,12 +1029,6 @@ public:
       seb_q_sfc_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_sfc_default));
       seb_q_deep_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_deep_default));
 
-      // The prognostic update reads the SEB flux fields, which only exist when
-      // seb_enable is true; without it the request is silently inert.
-      if (seb_prognostic_enable && !seb_enable) {
-        amrex::Abort("erf.radiation.seb_prognostic_enable = true requires "
-                     "erf.radiation.seb_enable = true.");
-      }
 
       // Validate the prognostic parameters
       if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
