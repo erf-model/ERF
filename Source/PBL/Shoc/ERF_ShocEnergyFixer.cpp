@@ -7,7 +7,7 @@ ShocEnergyFixer::diagnose_active_top (const Vector<Real>& tke)
 {
     int shoc_top = -1;
     for (int k = static_cast<int>(tke.size()) - 1; k >= 0; --k) {
-        if (tke[k] > shoc::constants::min_tke()) {
+        if (tke[k] > shoc::constants::active_tke_threshold()) {
             shoc_top = k;
             break;
         }

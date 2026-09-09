@@ -539,6 +539,33 @@ TEST(ShocEnergyFixer, ActiveTopFollowsHighestTurbulentLevel)
     EXPECT_EQ(ShocEnergyFixer::diagnose_active_top(tke), -1);
 }
 
+TEST(ShocEnergyFixer, ActiveTopIgnoresRoundoffAboveTheTkeFloor)
+{
+    // The implicit TKE solve leaves an exponentially decaying tail on top of
+    // the clamped floor, so quiescent levels sit at min_tke() plus a few ulps.
+    // A bare "tke > min_tke()" test resolves that tail differently on host and
+    // device builds (FMA contraction), which flips the diagnosed active top and
+    // changes the depth over which the energy fixer spreads its increment.
+    const amrex::Real floor_tke = shoc::constants::min_tke();
+    const amrex::Real one_ulp_above = std::nextafter(floor_tke,
+                                                     amrex::Real(1.0));
+    EXPECT_GT(one_ulp_above, floor_tke);
+
+    amrex::Vector<amrex::Real> tke = {6.0e-4, one_ulp_above, one_ulp_above};
+    EXPECT_EQ(ShocEnergyFixer::diagnose_active_top(tke), 0);
+
+    // Anything inside the documented relative margin is likewise not active.
+    const amrex::Real inside_margin =
+        floor_tke * (amrex::Real(1.0)
+                     + amrex::Real(0.5) * shoc::constants::active_tke_rel_margin());
+    tke = {6.0e-4, inside_margin, inside_margin};
+    EXPECT_EQ(ShocEnergyFixer::diagnose_active_top(tke), 0);
+
+    // A level that is genuinely turbulent must still be found.
+    tke = {6.0e-4, one_ulp_above, 5.0e-4};
+    EXPECT_EQ(ShocEnergyFixer::diagnose_active_top(tke), 2);
+}
+
 TEST(ShocEnergyFixer, LiquidPartitionChangeDoesNotCreateEnergyCorrection)
 {
     auto col = shoc_test::make_column(3);
