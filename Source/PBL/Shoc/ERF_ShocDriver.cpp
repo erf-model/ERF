@@ -30,44 +30,6 @@ shoc_boxarray_spans_full_height (const BoxArray& ba, const Box& domain)
     return true;
 }
 
-void
-shoc_fill_physical_boundary_ghosts (MultiFab& mf,
-                                    const Geometry& geom,
-                                    int comp,
-                                    int ncomp)
-{
-    mf.FillBoundary(comp, ncomp, geom.periodicity());
-
-    const Box domain = geom.Domain();
-    const bool nonperiodic_x = !geom.isPeriodic(0);
-    const bool nonperiodic_y = !geom.isPeriodic(1);
-    const bool nonperiodic_z = !geom.isPeriodic(2);
-
-    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
-        const Box gbx = mfi.growntilebox();
-        auto data = mf.array(mfi);
-        ParallelFor(gbx, ncomp,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-            const int ii = nonperiodic_x
-                ? ((i < domain.smallEnd(0)) ? domain.smallEnd(0)
-                   : ((i > domain.bigEnd(0)) ? domain.bigEnd(0) : i))
-                : i;
-            const int jj = nonperiodic_y
-                ? ((j < domain.smallEnd(1)) ? domain.smallEnd(1)
-                   : ((j > domain.bigEnd(1)) ? domain.bigEnd(1) : j))
-                : j;
-            const int kk = nonperiodic_z
-                ? ((k < domain.smallEnd(2)) ? domain.smallEnd(2)
-                   : ((k > domain.bigEnd(2)) ? domain.bigEnd(2) : k))
-                : k;
-
-            if (ii != i || jj != j || kk != k) {
-                data(i,j,k,comp+n) = data(ii,jj,kk,comp+n);
-            }
-        });
-    }
-}
-
 namespace
 {
     constexpr int k_shoc_vertical_diff_comp = EddyDiff::Mom_v;
@@ -345,7 +307,6 @@ namespace
 
 ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
     : m_lev(lev),
-      m_moisture_type(solver_choice.moisture_type),
       m_moisture_indices(solver_choice.moisture_indices)
 {
     m_opts.transport_mode     = solver_choice.shoc_transport_mode;
@@ -354,11 +315,6 @@ ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
     read_shoc_runtime_options(m_opts);
     validate_shoc_runtime_options(m_opts);
     warn_if_shoc_debug_overrides_active_once(m_opts);
-
-    std::string error_message;
-    if (!shoc_driver_host_diffusion_moisture_supported(m_opts, m_moisture_type, error_message)) {
-        amrex::Abort(error_message.c_str());
-    }
 }
 
 void
@@ -542,7 +498,6 @@ ShocDriver::advance (MultiFab& cons,
     m_tau13_ptr = tau13;
     m_tau23_ptr = tau23;
     m_eddy_diffs_ptr = eddy_diffs;
-    m_geom_ptr = &geom;
 
     sync_face_multifab_impl(xvel, geom);
     sync_face_multifab_impl(yvel, geom);
@@ -559,7 +514,7 @@ ShocDriver::advance (MultiFab& cons,
     }
 
     std::string error_message;
-    if (!shoc_driver_state_update_layout_supported(m_opts, m_moisture_indices, cons.nComp(),
+    if (!shoc_driver_state_update_layout_supported(m_moisture_indices, cons.nComp(),
                                                     error_message)) {
         amrex::Abort(error_message.c_str());
     }
@@ -607,22 +562,16 @@ ShocDriver::advance (MultiFab& cons,
             seed_carried_turbulence(col, mfi, cons, *eddy_diffs);
         }
         const auto dx = geom.CellSizeArray();
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::cache_baseline_state");
-            ShocImplicit::cache_baseline_state(col);
-        }
+        BL_PROFILE("SHOC::advance::cache_baseline_state");
+        ShocImplicit::cache_baseline_state(col);
         ShocDiagnostics::diagnose_pre_implicit(col, m_opts, dx[0], dx[1], dt);
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::implicit");
-            ShocImplicit::advance_implicit_state(col, m_opts, dt);
-        }
+        BL_PROFILE("SHOC::advance::implicit");
+        ShocImplicit::advance_implicit_state(col, m_opts, dt);
         ShocDiagnostics::diagnose_post_implicit(col, m_opts, dt);
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::finalize");
-            ShocImplicit::finalize_from_pdf(col, m_opts, dt);
-            BL_PROFILE("SHOC::advance::debug_bad_column");
-            debug_check_bad_column(col, mfi, z_phys_nd, hfx3, qfx3, tau13, tau23, geom, dt);
-        }
+        BL_PROFILE("SHOC::advance::finalize");
+        ShocImplicit::finalize_from_pdf(col, m_opts, dt);
+        BL_PROFILE("SHOC::advance::debug_bad_column");
+        debug_check_bad_column(col, mfi, z_phys_nd, hfx3, qfx3, tau13, tau23, geom, dt);
         {
             BL_PROFILE("SHOC::advance::store_carried_buoyancy_flux");
             store_carried_buoyancy_flux(col, mfi);
@@ -825,15 +774,11 @@ ShocDriver::advance (MultiFab& cons,
         }
     }
 
-    if (uses_state_update()) {
-        sync_face_multifab_impl(m_u_tend_fc, geom);
-        sync_face_multifab_impl(m_v_tend_fc, geom);
-    }
+    sync_face_multifab_impl(m_u_tend_fc, geom);
+    sync_face_multifab_impl(m_v_tend_fc, geom);
 
-    if (uses_state_update()) {
-        BL_PROFILE("SHOC::advance::state_update");
-        apply_state_update(cons, xvel, yvel, dt);
-    }
+    BL_PROFILE("SHOC::advance::state_update");
+    apply_state_update(cons, xvel, yvel, dt);
 
     if (uses_momentum_state_update()) {
         sync_face_multifab_impl(xvel, geom);
@@ -858,39 +803,12 @@ ShocDriver::set_eddy_diffs () const
                              m_eddy_diffs_ptr->nGrow());
     MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
                    EddyDiff::Turb_lengthscale, EddyDiff::Turb_lengthscale, 1, 0);
-
-    if (uses_host_diffusion()) {
-        MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
-                       k_shoc_vertical_diff_comp, k_shoc_vertical_diff_comp,
-                       k_shoc_vertical_diff_count, 0);
-    } else if (uses_momentum_host_diffusion()) {
-        MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
-                       EddyDiff::Mom_v, EddyDiff::Mom_v, 1, 0);
-    }
-    const bool export_host_diff =
-        uses_host_diffusion() || uses_momentum_host_diffusion();
-    if (!export_host_diff) {
-        return;
-    }
-
-    AMREX_ALWAYS_ASSERT(m_geom_ptr != nullptr);
-    const Geometry& geom = *m_geom_ptr;
-    const int comp = uses_host_diffusion() ? k_shoc_vertical_diff_comp : EddyDiff::Mom_v;
-    const int ncomp = uses_host_diffusion() ? k_shoc_vertical_diff_count : 1;
-
-    shoc_fill_physical_boundary_ghosts(*m_eddy_diffs_ptr, geom, comp, ncomp);
 }
 
 void
 ShocDriver::set_diff_stresses () const
 {
     BL_PROFILE("SHOC::set_diff_stresses");
-
-    if (uses_host_diffusion()) {
-        // Full host-diffusion mode preserves the existing host-owned lower
-        // boundary fluxes and stresses.
-        return;
-    }
 
     if (!m_hfx3_ptr || !m_qfx3_ptr) {
         return;
@@ -908,8 +826,7 @@ ShocDriver::set_diff_stresses () const
             qfx(i,j,k) = 0.0;
         });
 
-        if ((owns_momentum_surface_stresses() || disables_momentum_transport()) &&
-            m_tau13_ptr && m_tau23_ptr) {
+        if (m_tau13_ptr && m_tau23_ptr) {
             auto tau13 = m_tau13_ptr->array(mfi);
             auto tau23 = m_tau23_ptr->array(mfi);
             ParallelFor(vbx_xz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -940,27 +857,9 @@ ShocDriver::add_slow_tend (const MFIter& mfi,
 }
 
 bool
-ShocDriver::uses_host_diffusion () const
-{
-    return shoc_uses_host_diffusion(m_opts.transport_mode);
-}
-
-bool
-ShocDriver::uses_state_update () const
-{
-    return shoc_uses_state_update(m_opts.transport_mode);
-}
-
-bool
 ShocDriver::uses_momentum_state_update () const
 {
     return shoc_uses_momentum_state_update(m_opts.momentum_transport);
-}
-
-bool
-ShocDriver::uses_momentum_host_diffusion () const
-{
-    return shoc_uses_momentum_host_diffusion(m_opts.momentum_transport);
 }
 
 bool
@@ -972,25 +871,7 @@ ShocDriver::disables_momentum_transport () const
 bool
 ShocDriver::owns_scalar_surface_fluxes () const
 {
-    return uses_state_update();
-}
-
-bool
-ShocDriver::owns_momentum_surface_stresses () const
-{
-    return uses_momentum_state_update();
-}
-
-bool
-ShocDriver::needs_host_surface_momentum_stresses () const
-{
-    return uses_momentum_host_diffusion();
-}
-
-bool
-ShocDriver::owns_surface_fluxes () const
-{
-    return owns_scalar_surface_fluxes();
+    return true;
 }
 
 void
@@ -1570,7 +1451,7 @@ ShocDriver::print_debug_summary (double dt) const
                    << " dt=" << dt
                    << " transport_mode=" << shoc_transport_mode_name(m_opts.transport_mode)
                    << " momentum_transport=" << shoc_momentum_transport_name(m_opts.momentum_transport)
-                   << " state_update=" << (uses_state_update() ? "on" : "off")
+                   << " state_update=on"
                    << "\n";
     print_shoc_debug_settings_once(m_opts);
 
