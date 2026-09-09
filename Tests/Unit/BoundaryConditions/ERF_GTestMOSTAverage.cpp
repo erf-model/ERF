@@ -201,6 +201,41 @@ initialize_uniform_terrain_height (MultiFab& z_phys_nd, const Geometry& geom)
     Gpu::streamSynchronize();
 }
 
+void
+initialize_periodic_test_fields (MultiFab& theta, MultiFab& qv)
+{
+    for (MFIter mfi(theta, false); mfi.isValid(); ++mfi) {
+        const Box box = mfi.fabbox();
+        auto theta_arr = theta.array(mfi);
+        auto qv_arr = qv.array(mfi);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            theta_arr(i,j,k) = test_theta +
+                Real(0.25) * static_cast<Real>(i) +
+                Real(0.5) * static_cast<Real>(j);
+            qv_arr(i,j,k) = test_qv +
+                Real(0.0001) * static_cast<Real>(i) +
+                Real(0.0002) * static_cast<Real>(j);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+void
+initialize_terrain_test_field (MultiFab& theta, const int normal_dir)
+{
+    for (MFIter mfi(theta, false); mfi.isValid(); ++mfi) {
+        auto theta_arr = theta.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const int normal_index = (normal_dir == 0) ? i
+                : ((normal_dir == 1) ? j : k);
+            theta_arr(i,j,k) = Real(100.0) + Real(10.0) * normal_index;
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 std::array<Orientation, 6>
 all_faces ()
 {
@@ -358,21 +393,7 @@ TEST(MOSTAverage, PeriodicTangentialGhostsAreFilledForRegionAverages)
                      ", high=" + std::to_string(!face.isLow()));
         MOSTAverageFields fields(make_tangential_periodic_geometry(face.coordDir()));
         const auto& geom = fields.geom;
-        for (MFIter mfi(*fields.theta, false); mfi.isValid(); ++mfi) {
-            const Box box = mfi.fabbox();
-            auto theta_arr = fields.theta->array(mfi);
-            auto qv_arr = fields.qv->array(mfi);
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                theta_arr(i,j,k) = test_theta +
-                    Real(0.25) * static_cast<Real>(i) +
-                    Real(0.5) * static_cast<Real>(j);
-                qv_arr(i,j,k) = test_qv +
-                    Real(0.0001) * static_cast<Real>(i) +
-                    Real(0.0002) * static_cast<Real>(j);
-            });
-        }
-        Gpu::streamSynchronize();
+        initialize_periodic_test_fields(*fields.theta, *fields.qv);
 
         const std::string prefix = "unit_most_periodic_tangential_" +
             std::to_string(face.coordDir()) + (face.isLow() ? "_lo" : "_hi");
@@ -649,15 +670,7 @@ TEST(MOSTAverage, TerrainKIndexDrivesBothAveragingPoliciesOnEveryWall)
 
         for (const int policy : {0, 1}) {
             MOSTAverageFields fields(geom);
-            for (MFIter mfi(*fields.theta, false); mfi.isValid(); ++mfi) {
-                auto theta_arr = fields.theta->array(mfi);
-                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    const int normal_index = (dir == 0) ? i : ((dir == 1) ? j : k);
-                    theta_arr(i,j,k) = Real(100.0) + Real(10.0) * normal_index;
-                });
-            }
-            Gpu::streamSynchronize();
+            initialize_terrain_test_field(*fields.theta, dir);
 
             const std::string prefix =
                 "unit_most_terrain_average_" + std::to_string(face_index) +
