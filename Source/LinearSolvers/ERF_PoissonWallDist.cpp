@@ -215,7 +215,7 @@ void ERF::poisson_wall_dist (int lev)
     // ****************************************************************************
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bc3d_lo, bc3d_hi;
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        if (geom[0].isPeriodic(dir)) {
+        if (geom[lev].isPeriodic(dir)) {
             bc3d_lo[dir] = LinOpBCType::Periodic;
             bc3d_hi[dir] = LinOpBCType::Periodic;
         } else {

@@ -386,6 +386,23 @@ public:
     query_one_or_per_level(pp, "Rt_min", Rt_min, lev, max_level);
     query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
     query_one_or_per_level(pp, "dirichlet_k", dirichlet_k, lev, max_level);
+    query_one_or_per_level(pp, "tke_floor", tke_floor, lev, max_level);
+    query_one_or_per_level(pp, "implicit_tke_dissipation", implicit_tke_dissipation, lev, max_level);
+
+    if (rans_type == RANSType::kEqn) {
+        // The stability functions (AL01 Eqs. 31, 32) have poles near Rt = -3.6;
+        // the Burchard & Petersen smoothing maps Rt < Rt_crit onto
+        // (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0.
+        if (!(Cmu0 > 0)) { amrex::Error("erf.Cmu0 must be > 0 for the k-eqn RANS"); }
+        if (!(Cb > 0)) { amrex::Error("erf.Cb must be > 0 for the k-eqn RANS"); }
+        if (!(l_g_max > 0)) { amrex::Error("erf.max_geom_lscale must be > 0 for the k-eqn RANS"); }
+        if (!(Rt_crit <= 0)) { amrex::Error("erf.Rt_crit must be <= 0 for the k-eqn RANS"); }
+        if (!(Rt_min < Rt_crit)) { amrex::Error("erf.Rt_min must be < erf.Rt_crit for the k-eqn RANS"); }
+        if (!(Rt_min > amrex::Real(-3.6))) {
+            amrex::Error("erf.Rt_min must be > -3.6 for the k-eqn RANS (stability functions have poles near -3.61)");
+        }
+    }
+    if (tke_floor < 0) { amrex::Error("erf.tke_floor must be >= 0"); }
 
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
@@ -521,6 +538,8 @@ public:
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
+        amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
+        amrex::Print() << "implicit_tke_dissipation    : " << implicit_tke_dissipation << std::endl;
       }
     }
 
@@ -695,6 +714,15 @@ public:
   RANSType rans_type = RANSType::None;
 
   bool dirichlet_k = false;
+
+  // Runtime floor on the turbulent kinetic energy [m2/s2] in the k-equation
+  // update and the RANS closure; 0 means machine epsilon on rho*k (the
+  // historical floor). Distinct from tke_min, the initial TKE value.
+  amrex::Real tke_floor = zero;
+
+  // Treat the TKE dissipation implicitly: eps = (Cmu0^3 sqrt(k_old)/L) * k_new
+  // folded into the update (Deardorff and k-eqn RANS)
+  bool implicit_tke_dissipation = false;
 
   // PBL model
   PBLType pbl_type = PBLType::None;

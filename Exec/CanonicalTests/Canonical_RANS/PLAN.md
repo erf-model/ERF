@@ -83,8 +83,9 @@ enables kEqn (Canonical_RANS, Askervein; no Tests/test_files deck uses kEqn).
 
 - Validate `Rt_crit`, `Rt_min`, `Cmu0`, `Cb`, `max_geom_lscale` in
   `TurbChoice::init_params`; guard the cmu' and smoothing denominators.
-- `erf.tke_min` (default the current epsilon) used for the floor in the
-  viscosity and the slow RHS.
+- `erf.tke_floor` (default 0, meaning the historical machine-epsilon floor)
+  used in the viscosity and the slow RHS. Not `tke_min`: that existing key
+  is the initial TKE of the prognostic closures.
 - Opt-in `erf.implicit_tke_dissipation`: dissipation linearised as
   (Cmu0^3 sqrt(k) / l) * k and folded into the update.
 - Remove the dead grown-box loop in `ComputeTurbulentViscosityRANS`, drop
@@ -95,6 +96,29 @@ enables kEqn (Canonical_RANS, Askervein; no Tests/test_files deck uses kEqn).
 
 Exit: unit tests pass; neutral deck at 4x the CFL-limited dt stays bounded
 with the implicit dissipation on.
+
+Status (2026-09-09): done, with the exit criterion corrected. Landed:
+closure relations factored into `Source/Diffusion/ERF_RANSClosure.H`
+(namespace `AL01`, bit-identical refactor); input validation for Cmu0, Cb,
+max_geom_lscale, Rt_crit <= 0, Rt_min < Rt_crit, Rt_min > -3.6 (poles of
+Eqs. 31-32); `erf.tke_floor`; opt-in `erf.implicit_tke_dissipation`
+(source skips the sink, the update divides by 1 + dt c with
+c = diss_old / (rho k)_old, half-weighted on the anelastic stage 1);
+component fill on the tilebox only; unused parameters dropped; comment
+and per-level periodicity fixes; 7 gtests. The unit test caught the
+smoothing formula cancelling for |Rt| > 1e15; it is now
+`Rt_crit + a x / (x + a)`. Two limiters from Harish's Kynema KLAxell were
+reviewed against the paper: the unstable length now evaluates Eq. 28 once
+with the smoothed Rt from the geometric length (bounded by about
+1.31 l_g), replacing the two-pass corrector, which iterated the fixed-point
+map of Eq. 26 that has no fixed point in strong convection (AL01 p. 78);
+the extra stable cap sqrt(Cmu k / N^2) is never active because Cb = 0.35 is
+below sqrt(Cmu0) = 0.75, so it was not added. Kynema's sigma_k = 0.5
+differs from Table I (1.0); ERF keeps 1.0. The 4x-dt criterion turned out
+to test the anelastic integrator's explicit vertical diffusion, not the
+dissipation (see RESULTS.md); the dissipation option was verified with a
+compressible dt = 60 s pair instead. Harish (2026-09-09): anelastic with
+FFT is the main use, compressible stays optional.
 
 ## Phase 4: stratified flat cases
 

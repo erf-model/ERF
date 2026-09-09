@@ -1622,6 +1622,15 @@ List of Parameters
 |                                  | and t* (Axell & Liungman 2001, Eq. 16) and hold it       |                    |                  |
 |                                  | through the step (per-level)                             |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.tke_floor**                | runtime floor on the turbulent kinetic energy [m^2/s^2]  | Real >= 0          | 0 (machine       |
+|                                  | in the k-equation update and the RANS closure; distinct  |                    | epsilon on rho k)|
+|                                  | from ``erf.tke_min``, the initial value (per-level)      |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_tke_dissipation** | Deardorff or k-equation RANS: treat the TKE dissipation  | Boolean            | false            |
+|                                  | implicitly, eps = (C k_old^1/2 / L) k_new folded into   |                    |                  |
+|                                  | the update, which removes the dissipation time-step      |                    |                  |
+|                                  | limit near the wall (per-level)                          |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.

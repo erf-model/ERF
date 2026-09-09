@@ -11,6 +11,7 @@
 
     [[maybe_unused]] const int end_comp   = start_comp + num_comp - 1;
     [[maybe_unused]] bool l_use_keqn = turbChoice.use_keqn;
+    [[maybe_unused]] bool l_implicit_diss = turbChoice.use_keqn && turbChoice.implicit_tke_dissipation;
     [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
     // used by ERF_AddTKESources.H
