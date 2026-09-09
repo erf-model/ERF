@@ -1144,17 +1144,6 @@ struct SolverChoice {
 
         radChoice.init_params(0, max_level, pp_prefix);
 
-        // The two radiation solvers are mutually exclusive, and advance_radiation()
-        // picks the RRTMGP branch first. Selecting both would silently discard the
-        // two-stream configuration, so reject it here instead.
-        if (rad_type != RadiationType::None &&
-            radChoice.rad_type != RadType::None) {
-            amrex::Abort("erf.radiation_model and erf.radiation_type both select a "
-                         "radiation solver; they are mutually exclusive. Use "
-                         "erf.radiation_model for RRTMGP or erf.radiation_type for "
-                         "TwoStream, not both.");
-        }
-
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             vert_implicit_fac[lev].resize(3);
