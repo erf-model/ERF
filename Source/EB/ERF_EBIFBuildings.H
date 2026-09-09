@@ -64,6 +64,7 @@ public:
         using namespace amrex;
 
         // Load STL file with BVH optimization
+        // This broadcasts triangle data to all ranks internally
         m_stl_tools.setBVHOptimization(true);
         m_stl_tools.read_stl_file(stl_file, scale, center, reverse_normal);
 
@@ -76,34 +77,38 @@ public:
         Box sampled_box = domain;
         sampled_box.grow(ngrow_vec);
 
-        // Create a FArrayBox to hold signed distance values (replicated on all ranks)
-        // This is simpler than MultiFab for EB implicit functions
-        m_levelset_fab = std::make_shared<FArrayBox>(sampled_box, 1);
+        // Create distributed BoxArray and DistributionMapping for parallel computation
+        // Chunk the domain into reasonable-sized boxes for load balancing
+        BoxArray ba(sampled_box);
+        ba.maxSize(32);
+        DistributionMapping dm(ba);
 
-        // Compute signed distances on IO processor
-        if (ParallelDescriptor::IOProcessor()) {
-            // Create temporary MultiFab for STL filling (on the domain, not grown box)
-            BoxArray ba(domain);
-            Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
-            DistributionMapping dm(std::move(pmap));
-            MultiFab mf_tmp(ba, dm, 1, ngrow_vec, MFInfo());
+        // Create distributed MultiFab to hold signed distance values
+        // Each rank will compute its portion in parallel
+        MultiFab mf_distributed(ba, dm, 1, ngrow_vec);
 
-            // Fill with signed distances from STL
-            m_stl_tools.fillSignedDistance(mf_tmp, ngrow_vec, geom);
+        // Compute signed distances in parallel across all ranks
+        // fillSignedDistance uses ParallelFor internally, distributing work
+        // across the MultiFab's boxes according to the DistributionMapping
+        m_stl_tools.fillSignedDistance(mf_distributed, ngrow_vec, geom);
 
-            // Copy to FArrayBox from the grown box
-            // FArrayBox::copy(const FArrayBox& src, const Box& srcbox, int srccomp,
-            //                 const Box& destbox, int destcomp, int numcomp)
-            m_levelset_fab->copy(mf_tmp[0], sampled_box, 0, sampled_box, 0, 1);
-        }
+        // Now copy the distributed result to a single-box MultiFab
+        // that contains the full domain on all ranks for operator() access
+        BoxArray ba_single(sampled_box);
+        DistributionMapping dm_single(ba_single);  // Single box on all ranks
 
-        // Broadcast data from IO processor to all other ranks
-        ParallelDescriptor::Bcast(m_levelset_fab->dataPtr(),
-                                 sampled_box.numPts(),
-                                 ParallelDescriptor::IOProcessorNumber());
+        m_levelset_mf = std::make_shared<MultiFab>(ba_single, dm_single, 1, 0);
+
+        // ParallelCopy from distributed to replicated
+        // Signature: ParallelCopy(src, src_comp, dst_comp, num_comp, src_nghost, dst_nghost)
+        IntVect dst_nghost(0);  // Destination has no ghost cells
+        m_levelset_mf->ParallelCopy(mf_distributed, 0, 0, 1, ngrow_vec, dst_nghost);
 
         // Store bounds for interpolation
         m_data_box = sampled_box;
+
+        // Set up local array view for operator() access
+        m_local_array = (*m_levelset_mf)[0].const_array();
     }
 
     /**
@@ -117,6 +122,9 @@ public:
      * This operator performs trilinear interpolation of the pre-sampled signed
      * distance field. For points outside the sampled domain, it returns a
      * negative value (fluid region).
+     *
+     * Note: The signed distance field is computed in parallel across ranks
+     * during construction, then replicated for fast operator() access.
      */
     AMREX_GPU_HOST_DEVICE inline
     amrex::Real operator()(AMREX_D_DECL(amrex::Real x,
@@ -151,8 +159,8 @@ public:
         Real wy = j_real - static_cast<Real>(j);
         Real wz = k_real - static_cast<Real>(k);
 
-        // Get array view from the replicated FArrayBox
-        auto const& arr = m_levelset_fab->const_array();
+        // Access replicated levelset data
+        auto const& arr = m_local_array;
 
         // Trilinear interpolation
         Real phi_000 = arr(i, j, k);
@@ -196,11 +204,14 @@ protected:
     //! STL tools object (for loading and processing STL files)
     amrex::STLtools m_stl_tools;
 
-    //! Pre-sampled signed distance field (replicated FArrayBox for thread-safe parallel access)
-    std::shared_ptr<amrex::FArrayBox> m_levelset_fab;
+    //! Pre-sampled signed distance field (distributed MultiFab for parallel computation)
+    std::shared_ptr<amrex::MultiFab> m_levelset_mf;
 
     //! Bounding box of sampled data
     amrex::Box m_data_box;
+
+    //! Local array view for GPU-compatible operator() access
+    mutable amrex::Array4<const amrex::Real> m_local_array;
 };
 
 #endif // ERF_BUILDINGS_IF_H_
