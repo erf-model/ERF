@@ -89,6 +89,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     std::string const& call_site
     )
 {
+    BL_PROFILE("ERF::compute_twostream_radiation_diagnostics()");
     const auto& rad_choice = solverChoice.radChoice;
 
     // Only proceed if TwoStream radiation is enabled

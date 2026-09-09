@@ -55,7 +55,10 @@ void ERF::advance_radiation (int lev,
                              MultiFab& cons,
                              const double& dt_advance)
 {
+    BL_PROFILE("ERF::advance_radiation()");
+
     if (solverChoice.rad_type != RadiationType::None) {
+        BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
 #ifdef ERF_USE_NETCDF
         MultiFab *lat_ptr = lat_m[lev].get();
         MultiFab *lon_ptr = lon_m[lev].get();

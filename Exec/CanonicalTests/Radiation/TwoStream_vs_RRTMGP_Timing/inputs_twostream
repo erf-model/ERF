@@ -1,0 +1,24 @@
+# Two-stream half of the timing comparison. See shared_settings for everything
+# that is deliberately shared with inputs_rrtmgp; the only difference between
+# the two files is the solver selected below.
+erf.prob_name = "Radiation Timing Comparison"
+
+FILE = shared_settings
+
+amr.n_cell = 42 4 42
+
+# SOLVER UNDER TEST
+erf.radiation_type   = "TwoStream"
+erf.radiation.sw_enabled = true
+erf.radiation.lw_enabled = true
+erf.radiation.solar_zenith = 60.0
+erf.radiation.S0 = 1361.0
+erf.radiation.tau_per_layer = 0.003125
+erf.radiation.tau_lw_per_layer = 0.05
+erf.radiation.surface_temp_k = 300.0
+
+# No diagnostic file: RRTMGP's log is off too, so neither solver pays for I/O.
+erf.radiation.v = 0
+erf.radiation.diag_enable = false
+erf.radiation.diag_csv_enable = false
+erf.radiation.diag_stdout_enable = false
