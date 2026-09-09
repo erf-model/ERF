@@ -176,6 +176,29 @@ The smoke-mode dissipation-lag tolerance is 10 % (early transient),
 Exit: walldist error under the tolerance on both meshes; hill deck runs
 40 steps on 1 and 2 ranks and the physics run gives a smooth speed-up.
 
+Status (2026-09-09): done, with a wall-distance bug found and fixed. The
+flat-fitted check showed the Poisson distance short by exactly z dz/(2H)
+(0.78 % on 64 cells): `poisson_wall_dist` took the cell's low-face fluxes
+as its gradient, half a cell off centre in every direction, which
+overstates |grad phi| by dz/2. It now forms a cell-centred gradient from
+centred differences with the cell-centre metrics (chain rule for a mesh
+deformed in z), needing one ghost cell of phi and the cell's own nodes.
+After the fix the flat-fitted distance is exact to 1e-6 m above the first
+cell (1.5 cm there, the odd-reflection Dirichlet ghost); on the ridge the
+mean error is 1.0 %, the max 5.2 % (at 900 m, above the 30 m cap) and
+2.4 m within 100 m of the surface on a 40 m by 15.6 m grid. Kynema uses
+the vertical height above the terrain, clamped to dz/2, so there is no
+counterpart to compare. `Neutral_Hill_2D` (periodic Witch of Agnesi,
+h 100 m, L 500 m, ny = 1, anelastic with MLMG since FFT needs a flat
+mesh, blocking factor 1, dt 1.5 s for Courant 0.375 at dx 40 m) passes:
+crest speed-up 0.55, 0.45, 0.39 in the three lowest cells against the
+Jackson-Hunt 2 h/L = 0.4, upstream log law within 4 %. The Poisson solve
+with ny = 1 works without the hidden-direction hint. 1 and 2 ranks agree
+to 1e-6 in walldist and 1e-11 in the state, the iterative-solver
+tolerances. `RANS_Flat_Fitted_2D` runs the same deck with prob.hmax = 1e-6.
+The first trial at dt 5 s aborted from a Courant number of 1.25 in the
+no-RANS control as well: a deck error, not the closure.
+
 ## Phase 6: 3D terrain canonical case and restart
 
 - `Neutral_Hill_3D/`: Gaussian hill (h/L about 0.2), 3D, neutral, MOST,

@@ -428,16 +428,26 @@ void ERF::poisson_wall_dist (int lev)
         auto dist_arr = walldist[lev]->arrays();
 
         ParallelFor(*walldist[lev], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
-            Real dpdx{0}, dpdy{0}, dpdz{0};
-
-            dpdx = terrpoisson_flux_x(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0]);
-            dpdy = terrpoisson_flux_y(i, j, k, phi_arr[b], zphys_arr[b], dxinv[1]);
-            if (k == dom_lo.z) {
-                dpdz = terrpoisson_flux_zlo_dir(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
-            } else {
-                // This returns 0 at the wall, hence the need for the separate calc above
-                dpdz = terrpoisson_flux_z(i, j, k, phi_arr[b], zphys_arr[b], dxinv[0], dxinv[1]);
-            }
+            // Cell-centred gradient of phi in physical space: centred
+            // differences in computational space with the cell-centre
+            // terrain metrics (chain rule for a mesh deformed in z only).
+            // The face fluxes used before sat half a cell below and beside
+            // the centre, which overstated |grad phi| by dz/2 and shortened
+            // every distance by z dz / (2H) on a flat mesh (0.8 % for 64
+            // cells). The ghost cells of phi carry the Dirichlet (odd) value
+            // below the wall and even values elsewhere, so the stencil needs
+            // nothing beyond one ghost cell and the cell's own eight nodes.
+            const auto& p  = phi_arr[b];
+            const auto& zp = zphys_arr[b];
+            Real dpdxi   = myhalf * (p(i+1,j,k) - p(i-1,j,k)) * dxinv[0];
+            Real dpdeta  = myhalf * (p(i,j+1,k) - p(i,j-1,k)) * dxinv[1];
+            Real dpdzeta = myhalf * (p(i,j,k+1) - p(i,j,k-1)) * dxinv[2];
+            Real h_zeta  = Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zp);
+            Real h_xi    = Compute_h_xi_AtCellCenter  (i, j, k, dxinv, zp);
+            Real h_eta   = Compute_h_eta_AtCellCenter (i, j, k, dxinv, zp);
+            Real dpdz = dpdzeta / h_zeta;
+            Real dpdx = dpdxi  - h_xi  * dpdz;
+            Real dpdy = dpdeta - h_eta * dpdz;
 
             Real magsqr_dphi = dpdx*dpdx + dpdy*dpdy + dpdz*dpdz;
             Real mag_dphi = std::sqrt(magsqr_dphi);

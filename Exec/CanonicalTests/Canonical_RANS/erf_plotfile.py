@@ -139,3 +139,39 @@ def read_surf_hist(path):
     header = rows[0]
     last = [float(v) for v in rows[-1]]
     return dict(zip(header, last))
+
+
+def read_fields(plotfile, fields):
+    """Full 3D cell data of the named fields on a single-level plotfile.
+
+    Returns (hdr, data) where data[field][i][j][k] is a nested list over the
+    whole domain (0-based from the domain's low corner). Meant for the small
+    canonical grids; it is pure Python.
+    """
+    hdr = _read_header(plotfile)
+    names = hdr["names"]
+    for f in fields:
+        if f not in names:
+            raise KeyError("field %s not in plotfile (have: %s)" % (f, ", ".join(names)))
+    comps = [names.index(f) for f in fields]
+    lo, hi = hdr["lo"], hdr["hi"]
+    nx, ny, nz = [hi[d] - lo[d] + 1 for d in range(3)]
+    out = {f: [[[0.0] * nz for _ in range(ny)] for _ in range(nx)] for f in fields}
+    level_dir = os.path.join(plotfile, "Level_0")
+    ncomp, ng, boxes, fabs = _read_cell_h(level_dir)
+    for (blo, bhi), (fname, off) in zip(boxes, fabs):
+        flo, fhi, data = _read_fab(os.path.join(level_dir, fname), off, ncomp)
+        fnx = fhi[0] - flo[0] + 1
+        fny = fhi[1] - flo[1] + 1
+        fnz = fhi[2] - flo[2] + 1
+        npts = fnx * fny * fnz
+        for f, c in zip(fields, comps):
+            base = c * npts
+            arr = out[f]
+            for k in range(blo[2], bhi[2] + 1):
+                for j in range(blo[1], bhi[1] + 1):
+                    row = base + ((k - flo[2]) * fny + (j - flo[1])) * fnx
+                    for i in range(blo[0], bhi[0] + 1):
+                        arr[i - lo[0]][j - lo[1]][k - lo[2]] = data[row + (i - flo[0])]
+    return hdr, out
+

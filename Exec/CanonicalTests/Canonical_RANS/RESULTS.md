@@ -126,3 +126,25 @@ superadiabatic lapse of -1 to -3 K/km through the mixed layer (K_h 40 to
 67 kg/m/s, Lturb 24 to 45 m under the PBL-height cap), the expected
 behaviour of a local-K closure without countergradient transport.
 
+## Neutral_Hill_2D (phase 5)
+
+6 h run at dt = 1.5 s, 2 ranks, `check_hill.py --physics plt14400`.
+
+| check | target | measured |
+| --- | --- | --- |
+| walldist vs exact ridge distance, max relative | <= 10 % | 5.2 % |
+| walldist vs exact ridge distance, mean relative | <= 3 % | 1.0 % |
+| walldist abs error within 100 m of the surface [m] | <= 3 | 2.36 |
+| crest speed-up, k = 0, 1, 2 | 0.2 to 0.8 (2 h/L = 0.4) | 0.55, 0.45, 0.39 |
+| speed-up positive in the lowest ten cells | > 0 | min 1.43 m/s |
+| upstream u* from the wall k [m/s] | 0.25 to 0.55 | 0.346 |
+| upstream wind vs log law, k = 0, 1, 2 | within 15 % | 1.5 %, 1.7 %, 3.7 % |
+| max Lturb over bound | <= 1 | 0.76 |
+| wall-cell k retention along the surface | within 1 % | 3e-16 |
+
+Flat-fitted variant (prob.hmax = 1e-6, 40 steps): before the gradient fix
+the Poisson distance was z (1 - dz/2H), 0.78 % short at every height;
+after it, exact to 1e-6 m above the first cell and 1.5 cm long in the
+first cell. The ridge mean error went from 1.5 % to 1.0 %; the speed-ups
+did not change to three digits because the length is capped at 30 m.
+
