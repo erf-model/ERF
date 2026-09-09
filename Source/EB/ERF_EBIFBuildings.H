@@ -16,10 +16,12 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_BoxArray.H>
+#include <AMReX_BoxList.H>
 #include <AMReX_DistributionMapping.H>
 
 #include <string>
 #include <memory>
+#include <numeric>  // for std::iota
 
 /**
  * \brief Buildings implicit function backed by STL triangle mesh.
@@ -92,23 +94,41 @@ public:
         // across the MultiFab's boxes according to the DistributionMapping
         m_stl_tools.fillSignedDistance(mf_distributed, ngrow_vec, geom);
 
-        // Now copy the distributed result to a single-box MultiFab
-        // that contains the full domain on all ranks for operator() access
-        BoxArray ba_single(sampled_box);
-        DistributionMapping dm_single(ba_single);  // Single box on all ranks
+        // Now create a replicated MultiFab where each rank has a copy of the full domain
+        // This is needed because operator() must access data locally (no MPI in GPU kernels)
 
-        m_levelset_mf = std::make_shared<MultiFab>(ba_single, dm_single, 1, 0);
+        // Create BoxArray with one box per rank, all covering the same spatial region
+        int nprocs = ParallelDescriptor::NProcs();
+        Vector<Box> boxes(nprocs, sampled_box);  // All boxes cover the full domain
+        BoxList bl;
+        for (const auto& bx : boxes) {
+            bl.push_back(bx);
+        }
+        BoxArray ba_replicated(std::move(bl));
+
+        // Create DistributionMapping so each rank owns exactly one box
+        Vector<int> pmap(nprocs);
+        std::iota(pmap.begin(), pmap.end(), 0);  // pmap = [0, 1, 2, ..., nprocs-1]
+        DistributionMapping dm_replicated(std::move(pmap));
+
+        // Each rank will own one box covering the full domain
+        m_levelset_mf = std::make_shared<MultiFab>(ba_replicated, dm_replicated, 1, 0);
 
         // ParallelCopy from distributed to replicated
-        // Signature: ParallelCopy(src, src_comp, dst_comp, num_comp, src_nghost, dst_nghost)
-        IntVect dst_nghost(0);  // Destination has no ghost cells
+        // Source: mf_distributed (each rank has different spatial portions)
+        // Dest: m_levelset_mf (each rank will receive the full domain)
+        IntVect dst_nghost(0);
         m_levelset_mf->ParallelCopy(mf_distributed, 0, 0, 1, ngrow_vec, dst_nghost);
 
         // Store bounds for interpolation
         m_data_box = sampled_box;
 
         // Set up local array view for operator() access
-        m_local_array = (*m_levelset_mf)[0].const_array();
+        // Each rank iterates its own local box (which contains the full domain)
+        for (MFIter mfi(*m_levelset_mf); mfi.isValid(); ++mfi) {
+            m_local_array = (*m_levelset_mf)[mfi].const_array();
+            break;  // Only one box per rank
+        }
     }
 
     /**
