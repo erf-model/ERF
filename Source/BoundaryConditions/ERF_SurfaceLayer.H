@@ -834,6 +834,8 @@ public:
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
+  void set_pblh(const int& lev, const amrex::MultiFab& pblh_in);
+
   /**
    * Updates current time index for interpolating data from SFC/SST file.
    *
