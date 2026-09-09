@@ -183,3 +183,50 @@ Exit: docs build; every input key documented.
   the buoyancy production; both are follow-ups after the merge.
 
 Exit: PR open; memory note updated.
+
+## Phase 9: implicit vertical diffusion of scalars under anelastic
+
+Added 2026-09-09 after phase 3 showed that the anelastic integrator, the
+main use for RANS, runs every vertical diffusion explicitly (dz^2 / 2K,
+about 19 s on the neutral deck) while the compressible path has a column
+tridiagonal (Thomas) solve that works with the RANS diffusivities
+(4 h compressible, explicit vs implicit at the same dt: 3e-6 m/s in wind,
+2e-7 in KE). PR erf-model/ERF#3329 zeroed `vert_implicit_fac` under
+anelastic without a stated reason; the momentum solve lives in the
+substepping path, which anelastic replaces with a projection, so the
+switch reads as a guard against a half-wired configuration.
+
+- Assert at grid creation that no level is decomposed in z (the z entry of
+  `amr.max_grid_size` below the domain height) whenever any
+  `vert_implicit_fac` is nonzero: the column solves take the box bounds as
+  the column and would apply domain BCs at interior faces. This closes a
+  silent error in the compressible path as it stands.
+- Let the post-stage scalar solve (theta, KE, moisture) run under
+  anelastic: stop zeroing the factor for scalars; on the second stage of
+  the trapezoidal update, which recovers the first-stage tendency from the
+  state difference, apply the implicit operator with half the step (the
+  same pattern as the implicit dissipation in phase 3).
+- Momentum stays explicit in this phase; its factor stays zero under
+  anelastic.
+
+Exit: neutral deck under anelastic at dt = 20 s with implicit scalars
+passes the physics checks (it aborts today at dt = 20 s); dt = 5 s matches
+the explicit answer to the tolerances above; compressible results
+unchanged; CTest entry with `erf.vert_implicit_fac = 1 1` on the neutral
+deck.
+
+## Phase 10: implicit vertical diffusion of momentum under anelastic
+
+- Call the momentum tridiagonal on the explicitly updated momenta in the
+  no-substep path, before the projection (diffuse, then project, so the
+  divergence constraint holds), for the constant-dz, stretched and terrain
+  variants; the MOST wall stress enters as it does in the compressible
+  path.
+- Remove the anelastic zeroing entirely; `erf.vert_implicit` keeps its
+  meaning.
+
+Exit: neutral deck under anelastic at dt = 60 s passes the physics checks
+and matches the compressible implicit run at dt = 60 s (phase 3, RESULTS)
+to the same tolerances; 2D hill deck (phase 5) under anelastic at 4x its
+explicit limit runs and matches its explicit answer; restart bit-exact.
+
