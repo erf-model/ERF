@@ -84,3 +84,45 @@ round-off up to |Rt| of 1e8 and holds Rt_min beyond.
 Input validation: `erf.Rt_min = -4` now aborts with the pole message;
 `erf.tke_floor = 1e-4` runs.
 
+## Stable_ABL_Flat (phase 4)
+
+9 h GABLS1 run, 2 ranks, `check_stable.py --physics plt16200`.
+
+| check | target | measured |
+| --- | --- | --- |
+| u* [m/s] | 0.20 to 0.35 | 0.244 |
+| theta(k=0) minus imposed surface theta [K] | 0 to 1.5 | 0.25 |
+| min dtheta/dz below 200 m [K/m] | >= 0 | 0.011 |
+| max wind over Ug (low-level jet) | >= 1.02 | 1.23 |
+| height of the wind maximum [m] | 50 to 300 | 154 |
+| BL depth from KE [m] | 80 to 300 | 134 |
+| KE(k=0)/u*^2 | 3.23 within 5 % | 3.232 |
+| Lturb over neutral length, 120 to 300 m | <= 1 | 0.12 |
+
+GABLS1 LES ensemble for reference: u* 0.26 to 0.30, jet near 150 to 200 m,
+depth 150 to 200 m.
+
+## Convective_ABL_Flat (phase 4)
+
+4 h run at dt = 2 s, 2 ranks, `check_convective.py --physics plt07200`.
+
+| check | target | measured |
+| --- | --- | --- |
+| u* [m/s] | 0.30 to 0.80 | 0.485 |
+| column heat gain over rho_sfc F t | 1 within 10 % | 0.9998 |
+| inversion height [m] | 900 to 1250 | 1020 |
+| theta spread in 0.2 to 0.7 zi [K] | <= 2 (local closure) | 1.12 |
+| max dtheta/dz in 0.2 to 0.7 zi [K/m] | <= 0 | -0.0012 |
+| mixed-layer warming over F t / zi | 1 within 30 % | 1.075 |
+| KE(k=0)/u*^2 | >= 3.23 (buoyancy adds) | 3.82 |
+| min KE in 0.1 to 0.8 zi [m2/s2] | >= 0.05 | 0.55 |
+| max KE above 1.3 zi [m2/s2] | <= 0.05 | 2e-16 |
+| max Lturb over bound | <= 1 | 0.79 |
+
+At dt = 5 s the run aborts after 1.7 h with a negative theta at 290 m:
+Kmv reaches 42 kg/m/s, i.e. K/rho at the explicit limit dz^2/(2 dt) = 40
+m2/s of the anelastic integrator. The profile at 4 h keeps a
+superadiabatic lapse of -1 to -3 K/km through the mixed layer (K_h 40 to
+67 kg/m/s, Lturb 24 to 45 m under the PBL-height cap), the expected
+behaviour of a local-K closure without countergradient transport.
+

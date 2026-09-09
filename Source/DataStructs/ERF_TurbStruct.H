@@ -388,6 +388,12 @@ public:
     query_one_or_per_level(pp, "dirichlet_k", dirichlet_k, lev, max_level);
     query_one_or_per_level(pp, "tke_floor", tke_floor, lev, max_level);
     query_one_or_per_level(pp, "implicit_tke_dissipation", implicit_tke_dissipation, lev, max_level);
+    query_one_or_per_level(pp, "rans_consistent_diffusivities", rans_consistent_diffusivities, lev, max_level);
+    query_one_or_per_level(pp, "rans_lscale_from_pblh", rans_lscale_from_pblh, lev, max_level);
+    query_one_or_per_level(pp, "rans_lscale_min", rans_lscale_min, lev, max_level);
+    if (rans_lscale_from_pblh && !(rans_lscale_min > 0)) {
+        amrex::Error("erf.rans_lscale_min must be > 0 with erf.rans_lscale_from_pblh");
+    }
 
     if (rans_type == RANSType::kEqn) {
         // The stability functions (AL01 Eqs. 31, 32) have poles near Rt = -3.6;
@@ -540,6 +546,9 @@ public:
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
         amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
         amrex::Print() << "implicit_tke_dissipation    : " << implicit_tke_dissipation << std::endl;
+        amrex::Print() << "consistent diffusivities    : " << rans_consistent_diffusivities << std::endl;
+        amrex::Print() << "lscale cap from PBL height  : " << rans_lscale_from_pblh
+                       << " (floor " << rans_lscale_min << " m)" << std::endl;
       }
     }
 
@@ -723,6 +732,17 @@ public:
   // Treat the TKE dissipation implicitly: eps = (Cmu0^3 sqrt(k_old)/L) * k_new
   // folded into the update (Deardorff and k-eqn RANS)
   bool implicit_tke_dissipation = false;
+
+  // k-eqn RANS: horizontal heat, scalar and moisture diffusivities follow the
+  // AL01 scalar stability function (cmu') like the vertical heat diffusivity,
+  // instead of Pr_t and Sc_t times the eddy viscosity
+  bool rans_consistent_diffusivities = false;
+
+  // k-eqn RANS: cap the geometric length at kappa * 0.1 * PBL height (from
+  // erf.most.pblh_calc), clamped to [rans_lscale_min, max_geom_lscale],
+  // instead of the fixed max_geom_lscale
+  bool rans_lscale_from_pblh = false;
+  amrex::Real rans_lscale_min = one;
 
   // PBL model
   PBLType pbl_type = PBLType::None;

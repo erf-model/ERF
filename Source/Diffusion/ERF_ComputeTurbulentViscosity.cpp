@@ -575,7 +575,8 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  SurfLayer optional surface-layer model
  * @param[in]  z_0 roughness length
  */
-void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
+void ComputeTurbulentViscosityRANS (int level,
+                                    const MultiFab& cons_in,
                                     const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
                                     MultiFab& Hfx1,
@@ -593,6 +594,14 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
 
+    // Optional cap of the geometric length from the diagnosed PBL height
+    const bool lscale_from_pblh = turbChoice.rans_lscale_from_pblh;
+    if (lscale_from_pblh) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_SurfLayer && SurfLayer->computes_pblh(),
+            "erf.rans_lscale_from_pblh needs zlo.type = surface_layer and erf.most.pblh_calc = MYNN25");
+    }
+    const MultiFab* pblh_mf = (lscale_from_pblh) ? SurfLayer->get_pblh(level) : nullptr;
+
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = one / turbChoice.sigma_k;
@@ -607,6 +616,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
         const Real Rt_crit    = turbChoice.Rt_crit;
         const Real Rt_min     = turbChoice.Rt_min;
         const Real l_g_max    = turbChoice.l_g_max;
+        const Real l_min      = turbChoice.rans_lscale_min;
         const Real abs_g      = const_grav;
         // floor on k: erf.tke_floor if set, otherwise machine epsilon
         const Real tke_floor  = amrex::max(turbChoice.tke_floor, std::numeric_limits<Real>::epsilon());
@@ -623,6 +633,7 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
 
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
             const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& hfx_x   = Hfx1.array(mfi);
@@ -658,8 +669,13 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
                                     : KAPPA * d_arr(i, j, k);
 
-                // Enforce a maximum value
-                l_g = AL01::geom_length(l_g, l_g_max);
+                // Enforce a maximum value: fixed, or kappa * 0.1 * zi clamped to
+                // [rans_lscale_min, max_geom_lscale] when the PBL height is diagnosed
+                Real l_cap = l_g_max;
+                if (pblh_arr) {
+                    l_cap = amrex::min(l_g_max, amrex::max(l_min, KAPPA * Real(0.1) * pblh_arr(i,j,0)));
+                }
+                l_g = AL01::geom_length(l_g, l_cap);
 
                 // Turbulent length scale (neutral / stable Eq. 26 / unstable Eq. 28,
                 // the latter bounded through the smoothed Rt)
@@ -711,6 +727,11 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
     Real* fac_ptr = d_Factors.data();
 
     const bool use_KE = ( turbChoice.rans_type == RANSType::kEqn );
+    // With erf.rans_consistent_diffusivities every heat, scalar and moisture
+    // diffusivity is rho * cmu' * sqrt(k) * L, i.e. the Theta_v value set by
+    // the closure; without it the horizontal heat and all scalar diffusivities
+    // are the eddy viscosity over Pr_t / Sc_t (the historical behaviour).
+    const bool consistent = use_KE && turbChoice.rans_consistent_diffusivities;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -742,11 +763,18 @@ void ComputeTurbulentViscosityRANS (const MultiFab& cons_in,
                     int indx   = n;
                     int indx_v = indx + offset;
 
-                    mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+                    if (consistent) {
+                        mu_turb(i,j,k,indx) = mu_turb(i,j,k,EddyDiff::Theta_v);
+                        if (indx_v != EddyDiff::Theta_v) {
+                            mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,EddyDiff::Theta_v);
+                        }
+                    } else {
+                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
 
-                    // NOTE: Theta_v has already been set for Deardorff
-                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
-                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                        // NOTE: Theta_v has already been set for the closure
+                        if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                            mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                        }
                     }
                 });
                 break;
@@ -850,7 +878,7 @@ void ComputeTurbulentViscosity (double dt,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
-        ComputeTurbulentViscosityRANS(cons_in, wdist,
+        ComputeTurbulentViscosityRANS(level, cons_in, wdist,
                                       eddyViscosity,
                                       Hfx1, Hfx2, Hfx3, Diss,
                                       geom, use_terrain_fitted_coords,

@@ -16,6 +16,12 @@ unless stated in the phase; each phase ends with its deck(s) passing and a
 commit; decks are sized for 40-step CTest smoke runs plus a longer
 "physics" run documented in the README.
 
+Reference-implementation rule (Harish, 2026-09-09): every change to the
+closure or its TKE sources is cross-checked against the Kynema KLAxell and
+KransAxell code (github.com/kynema/kynema-sgf, `src/turbulence/RANS/` and
+`src/equation_systems/tke/source_terms/`), and the phase status records what
+matches and what differs.
+
 Regression-test rule (Harish, 2026-09-09): every deck ships with a Python
 check script (`check_<case>.py`) that reads the run output (plotfile via yt
 or the `data_log` profiles) and compares numbers against stated targets with
@@ -132,6 +138,28 @@ FFT is the main use, compressible stays optional.
   k > 0 everywhere, well-mixed theta in the convective case.
 
 Exit: both decks pass their checks; 40-step smoke entries registered.
+
+Status (2026-09-09): done. `erf.rans_consistent_diffusivities` (heat,
+scalar and moisture diffusivities all rho cmu' sqrt(k) L) and
+`erf.rans_lscale_from_pblh` with `erf.rans_lscale_min` (cap
+kappa 0.1 zi from `erf.most.pblh_calc = MYNN25`, clamped to
+[rans_lscale_min, max_geom_lscale]) landed, both opt-in; the neutral deck
+is bit-identical with them off. `Stable_ABL_Flat` (GABLS1, 9 h) passes
+every physics check first time: u* 0.244, jet 1.23 Ug at 154 m, BL depth
+134 m, KE(0)/u*^2 3.23. `Convective_ABL_Flat` (MS94-B sounding, 0.24 K m/s,
+4 h) closes the column heat budget to 0.02 %, holds the inversion at
+1020 m, warms the mixed layer 1.08 times the encroachment estimate, and
+carries the AL01 buoyancy term at the wall (3.82 against 3.23 neutral).
+Two findings: the convective deck aborted at dt = 5 s because K/rho
+reaches 40 m2/s, exactly the explicit vertical-diffusion limit of the
+anelastic integrator (phases 9-10), so the deck runs at 2 s; and a
+local-K closure keeps a superadiabatic lapse of about -2 K/km through
+the mixed layer (1.1 K spread where LES gives under 0.3 K), which the
+check bounds at 2 K with the gradient sign checked separately. Kynema
+comparison: no countergradient term there either, and its Prandtl
+function gives the same 2.2 heat-to-momentum ratio at Rt = -3 as cmu'/cmu.
+The smoke-mode dissipation-lag tolerance is 10 % (early transient),
+5 % in physics mode. Shared check code moved to `rans_checks.py`.
 
 ## Phase 5: terrain wall distance
 

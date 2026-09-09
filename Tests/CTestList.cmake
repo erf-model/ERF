@@ -863,8 +863,9 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-    # shared plotfile reader used by every check script
-    file(COPY ${_rans_root}/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    # shared plotfile reader and check helpers used by every check script
+    file(GLOB _rans_py "${_rans_root}/*.py")
+    file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
         if("${ADD_TEST_RANS_NRANKS}" STREQUAL "")
@@ -905,7 +906,9 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
     )
 endfunction(add_test_rans)
 
-add_test_rans(RANS_Neutral_ABL_Flat  Neutral_ABL_Flat  inputs_neutral  40  check_neutral.py)
+add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py)
+add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py)
+add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py)
 
 #=============================================================================
 # Performance tests

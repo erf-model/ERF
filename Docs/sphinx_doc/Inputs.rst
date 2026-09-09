@@ -1631,6 +1631,20 @@ List of Parameters
 |                                  | the update, which removes the dissipation time-step      |                    |                  |
 |                                  | limit near the wall (per-level)                          |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_consistent_diffusivit-| k-equation RANS: horizontal heat, scalar and moisture    | Boolean            | false            |
+| ies**                            | diffusivities follow the scalar stability function       |                    |                  |
+|                                  | (Axell & Liungman Eq. 32) like the vertical heat         |                    |                  |
+|                                  | diffusivity, instead of Pr_t and Sc_t times the eddy     |                    |                  |
+|                                  | viscosity (per-level)                                    |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_from_pblh**    | k-equation RANS: cap the geometric length at kappa times | Boolean            | false            |
+|                                  | 0.1 times the diagnosed PBL height (needs                |                    |                  |
+|                                  | ``erf.most.pblh_calc = MYNN25``), clamped to             |                    |                  |
+|                                  | [``erf.rans_lscale_min``, ``erf.max_geom_lscale``]       |                    |                  |
+|                                  | (per-level)                                              |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_min**          | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
