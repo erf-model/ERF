@@ -633,9 +633,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = std::max(tmp_rho*tmp_qv,0.0);
-            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = std::max(tmp_rho*tmp_qc,0.0);
-            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = std::max(tmp_rho*tmp_qrain,0.0);
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)  = std::max(tmp_rho*tmp_qv,0.0_rt);
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)  = std::max(tmp_rho*tmp_qc,0.0_rt);
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)  = std::max(tmp_rho*tmp_qrain,0.0_rt);
         });
     }
 
