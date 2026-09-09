@@ -1,14 +1,14 @@
-# Phase 13 Two-Stream Radiation: YSUNew PBL Coupling with Radiative Tendency Limiter/Smoother
+# Two-Stream Radiation: YSUNew PBL Coupling with Radiative Tendency Limiter/Smoother
 #
-# This test exercises Phase 13 enhancements:
+# This test exercises enhancements:
 #   1. YSUNew (not MRF) is selected as PBL model
 #   2. Radiative tendency limiter/smoother is available for YSUNew
 #   3. qheating_rates from radiation are coupled to YSUNew top-down mixing
 #   4. Optional diagnostic tracking of radiative tendency smoothing
 #
-# Key differences from Phase 5:
+# Key differences from
 #   - PBL model: MRF → YSUNew
-#   - New Phase 13 parameters for YSUNew radiation coupling
+# - New parameters for YSUNew radiation coupling
 #   - Validation of YSUNew + radiation wiring consistency
 #
 erf.prob_name = "ABL"
@@ -49,7 +49,7 @@ erf.data_log    = ysu_coupling_hist.dat ysu_coupling_profiles.dat
 erf.profile_int = 10
 
 # PLOTFILES
-# Include the per-level radiation heating-rate diagnostic fields (Phase 5)
+# Include the per-level radiation heating-rate diagnostic fields
 # so the YSUNew top-down coupling can be visually/numerically inspected if desired.
 erf.plot_file_1     = plt_ysu_coupling      # prefix of plotfile name
 erf.plot_int_1      = 5                     # number of timesteps between plotfiles
@@ -69,7 +69,7 @@ erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
 
 
-# PBL CONFIGURATION - YSUNew (Phase 13 primary focus)
+# PBL CONFIGURATION - YSUNew
 erf.pbl_type = "YSUNew"
 
 # YSUNew PBL PARAMETERS
@@ -85,8 +85,8 @@ erf.pbl_ysu_land_Ribcr             = 0.25     # Critical Bulk Richardson number 
 erf.ysu_qcloud_threshold           = 1.0e-4   # Cloud liquid water threshold (kg/kg)
 erf.ysu_moistvars                  = false    # Turbulence on moisture variables
 
-# Phase 13: YSUNew Radiative Tendency Limiter/Smoother
-# Disabled by default to preserve Phase 12 baseline behavior
+# YSUNew Radiative Tendency Limiter/Smoother
+# Disabled by default to preserve the feature-off baseline behavior
 erf.enable_ysu_rad_tend_limiter    = false    # if true, apply finite guards and bounds to qheating_rates
 erf.ysu_rad_tend_limiter_magnitude = 1.0      # Magnitude bound on radiative tendency (K/s)
 erf.ysu_rad_tend_smooth_strength   = 0.0      # Smoothing parameter [0, 1]; 0=off, 1=max
@@ -100,13 +100,13 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.abl_geo_wind = 15.0 0.0 0.0
 
-erf.input_sounding_file = "input_sounding_phase13_ysu"
+erf.input_sounding_file = "input_sounding_ysu"
 
 # RADIATION - Two-Stream SW + LW, both enabled, non-isothermal
 # Non-isothermal (isothermal_test defaults to false) so LW heating is
 # genuinely computed via the two-stream sweeps rather than forced to zero
 # by the isothermal override -- this exercises the real per-level LW
-# heating-rate computation coupled to YSUNew PBL model (Phase 13 focus).
+# heating-rate computation coupled to YSUNew PBL model.
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -115,4 +115,4 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
-erf.radiation.diag_file = "radiation_phase13_ysu_coupling_diag.dat"
+erf.radiation.diag_file = "radiation_ysu_coupling_diag.dat"

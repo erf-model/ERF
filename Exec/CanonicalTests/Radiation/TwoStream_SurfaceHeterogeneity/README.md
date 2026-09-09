@@ -1,19 +1,19 @@
-# Phase 11 Two-Stream Radiation RegTest: Surface Heterogeneity + Fallback
+# Two-Stream Radiation RegTest: Surface Heterogeneity + Fallback
 
 ## Overview
 
-This regression test validates the **Phase 11** implementation of per-column heterogeneous surface properties in the TwoStream radiation solver, with a robust fallback chain for missing or invalid data.
+This regression test validates the implementation of per-column heterogeneous surface properties in the TwoStream radiation solver, with a robust fallback chain for missing or invalid data.
 
 ## Test Purpose
 
-Phase 11 extends TwoStream to:
+This feature extends TwoStream to:
 
 1. **Consume Per-Column Surface Properties**: Accept albedo, emissivity, and surface temperature from optional LSM/radiation interface fields
 2. **Implement Robust Fallback Chain**: 
    - Primary: Use hetero field value if finite and in valid range
    - Secondary: Fall back to scalar RadChoice parameter (from inputs file)
    - Tertiary: Fall back to hard-coded default value
-3. **Maintain Backward Compatibility**: When hetero fields unavailable, produce bitwise-identical results to Phase 10
+3. **Maintain Backward Compatibility**: When hetero fields unavailable, produce bitwise-identical results
 
 ## Test Configuration
 
@@ -70,7 +70,7 @@ This scenario is not included in this basic test but can be added by:
 
 ## Expected Outputs
 
-### Radiation Diagnostics File: `radiation_diag_phase11.dat`
+### Radiation Diagnostics File: `radiation_hetero_diag.dat`
 
 CSV format with columns:
 ```
@@ -125,7 +125,7 @@ python3 check_hetero_accuracy.py
 
 This runs the validation script in the current directory (where the test was run).
 
-## Key Phase 11 Features Exercised
+## Key Features Exercised
 
 1. **Helper Functions**:
    - `resolve_surface_albedo_sw()`: Resolves per-column albedo
@@ -150,14 +150,14 @@ This runs the validation script in the current directory (where the test was run
 
 ## Backward Compatibility Validation
 
-This test implicitly validates Phase 10 compatibility:
-- When hetero fields are nullptr (as they are here), the code path is **identical** to Phase 10
-- Domain-averaged surface fluxes should match Phase 10 output exactly
+This test implicitly validates compatibility:
+- When hetero fields are nullptr (as they are here), the code path is **identical**
+- Domain-averaged surface fluxes should match the baseline output exactly
 - Heating rates should show identical spatial and temporal patterns
 
 To explicitly verify:
 1. Run this test → get diagnostics
-2. Run equivalent Phase 10 test (e.g., TwoStream_NonuniformDZ) → get diagnostics
+2. Run equivalent test (e.g., TwoStream_NonuniformDZ) → get diagnostics
 3. Compare CSV files → differences should be < 1e-12 (rounding only)
 
 ## Future Extensions
@@ -189,13 +189,13 @@ Expected result: LW upwelling flux varies with local time
 
 ### Issue: Test fails to compile
 
-**Solution**: Check that all Phase 11 code changes were applied:
+**Solution**: Check that all code changes were applied:
 - ERF_RadStruct.H: Three new fields + init_params() queries
 - ERF_AdvanceTwoStreamRadiation.cpp: Five helper functions + modified vertical_two_stream_sweep()
 
 ### Issue: Checker script reports failures
 
-**Solution**: Inspect radiation_diag_phase11.dat:
+**Solution**: Inspect radiation_hetero_diag.dat:
 - Check that file exists and contains data
 - Look for non-finite values (NaN, Inf)
 - Verify flux ranges are sensible (0-2000 W/m²)
@@ -210,9 +210,8 @@ Expected result: LW upwelling flux varies with local time
 
 ## References
 
-- **RAD_DEVELOPMENT.md**: Detailed Phase 11 implementation notes
-- **ERF_AdvanceTwoStreamRadiation.cpp**: Source code (lines with Phase 11 comments)
-- **MANUAL_VERIFICATION.md**: Step-by-step verification procedures
+- **RAD_DEVELOPMENT.md**: Detailed implementation notes
+- **ERF_AdvanceTwoStreamRadiation.cpp**: Source code (lines comments)
 
 ---
 

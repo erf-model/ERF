@@ -1,7 +1,7 @@
-# Phase 3 Two-Stream Radiation: Shortwave Cloud Layer Test
+# Two-Stream Radiation: Shortwave Cloud Layer Test
 # Tests height-varying optical depth (cloud layer) added on top of the
 # clear-sky Beer-Lambert background, with cloud_fraction blending.
-# Uses the same base template as SW_ClearSky_Analytical (Phase 1/2/2c),
+# Uses the same base template as SW_ClearSky_Analytical,
 # with a cloud layer added between 300m and 700m.
 erf.prob_name = "ABL"
 
@@ -85,7 +85,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 
 erf.input_sounding_file = "input_sounding_sw_cloud_layer"
 
-# RADIATION - Two-Stream Shortwave with Cloud Layer (Phase 3)
+# RADIATION - Two-Stream Shortwave with Cloud Layer
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = false
@@ -95,7 +95,7 @@ erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
 erf.radiation.diag_file = "radiation_sw_cloud_diag.dat"
 
-# Phase 3: cloud layer between 300m and 700m, cloud fraction 0.5
+# cloud layer between 300m and 700m, cloud fraction 0.5
 erf.radiation.tau_profile_type = "cloud_layer"
 erf.radiation.cloud_base_height_m = 300.0
 erf.radiation.cloud_top_height_m = 700.0

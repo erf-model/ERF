@@ -1,4 +1,4 @@
-# Phase 1 Two-Stream Radiation: Shortwave Clear-Sky Analytical Test
+# Two-Stream Radiation: Shortwave Clear-Sky Analytical Test
 # Tests Beer-Lambert direct-beam solar radiation without clouds or scattering
 # Verifies against analytical solution: F(z) = S0 * cos(zenith) * exp(-tau_cumulative / cos(zenith))
 erf.prob_name = "ABL"

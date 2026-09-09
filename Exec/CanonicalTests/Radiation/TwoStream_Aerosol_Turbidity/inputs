@@ -1,6 +1,6 @@
-# Phase 15 Two-Stream Radiation: Bulk Aerosol/Turbidity Test
+# Two-Stream Radiation: Bulk Aerosol/Turbidity Test
 #
-# This test validates the Phase 15 implementation of prescribed bulk aerosol/turbidity
+# This test validates the implementation of prescribed bulk aerosol/turbidity
 # optical depth profiles. The aerosol optical depth is added on top of existing
 # tau contributions (tau_base + tau_cloud + tau_dynamic).
 #
@@ -9,7 +9,7 @@
 #   - Tests Exponential aerosol profile: tau decays with height via scale-height
 #   - Validates backward compatibility when feature disabled (aerosol_enable=false)
 #   - Confirms aerosol tau is added, not replaced
-#   - Tests both SW and LW contributions (Phase 15 implements both)
+# - Tests both SW and LW contributions
 #
 erf.prob_name = "ABL"
 
@@ -94,7 +94,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 # SOUNDING FILE
 erf.input_sounding_file = "input_sounding"
 
-# RADIATION - Two-Stream SW + LW with Phase 15 Aerosol Optical Depth
+# RADIATION - Two-Stream SW + LW Aerosol Optical Depth
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -110,7 +110,7 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0  # No cloud for simple baseline
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 15: Bulk Aerosol/Turbidity (disabled by default for Phase 14B compat)
+# RADIATION - Bulk Aerosol/Turbidity (disabled by default compat)
 # Test configuration: Use Constant profile for simple validation
 erf.radiation.aerosol_enable = true
 erf.radiation.aerosol_profile_type = "exponential"

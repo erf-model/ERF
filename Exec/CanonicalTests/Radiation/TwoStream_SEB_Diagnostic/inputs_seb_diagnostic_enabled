@@ -1,4 +1,4 @@
-# Phase 18 SEB Diagnostic Mode - Feature On (Enabled)
+# SEB Diagnostic Mode - Feature On (Enabled)
 # Verifies SEB residual computation and diagnostic output with scalar fallback defaults.
 # Expected residual = (50 + (-25)) - 10 - 20 - 5 = -10 W/m^2
 
@@ -101,7 +101,7 @@ erf.radiation.cloud_tau_per_layer = 0.0
 erf.radiation.cloud_fraction = 0.0
 
 
-# RADIATION - Phase 17 SEB infrastructure (must be enabled for Phase 18 diagnostic to work)
+# RADIATION - SEB infrastructure (must be enabled diagnostic to work)
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
@@ -112,7 +112,7 @@ erf.radiation.seb_q_sfc_default = 0.01
 erf.radiation.seb_t_deep_default = 295.0
 erf.radiation.seb_q_deep_default = 0.20
 
-# RADIATION - Phase 18 SEB diagnostic (ENABLED for feature test)
+# RADIATION - SEB diagnostic (ENABLED for feature test)
 erf.radiation.seb_diagnostic_enable = true
 
 

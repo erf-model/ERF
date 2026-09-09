@@ -10,7 +10,6 @@ This test confirms that:
 - Cloud fraction is computed from RH/qc without explicit input
 - Cloud-layer opacity masks only cloudy portions of each column
 - Heating rates are reduced in non-cloudy regions
-- Temporal smoothing (if enabled) prevents spurious oscillations
 - Backward compatibility maintained (disabled by default)
 
 ## Test Design
@@ -22,7 +21,7 @@ This test confirms that:
 - **Sounding**: Includes moisture profile with RH variations
 - **Cloud Optical Depth**: τ_cloud = 1.0 (where clouds form)
 - **Cloud Fraction**: Diagnosed from RH relative to saturation and qc
-- **Prognostic Cloud Fraction**: Enabled with smoothing timescale ~10 min
+- **Prognostic Cloud Fraction**: Enabled (`cloud_fraction_prog_enable = true`)
 
 ### Key Physics
 
@@ -64,7 +63,6 @@ The checker script verifies:
 1. **Cloud fraction** is bounded 0 ≤ cf ≤ 1 everywhere
 2. **Cloud fraction** is highest where RH is highest (physical consistency)
 3. **Heating** reduced in low-cf regions, enhanced in high-cf regions
-4. **Temporal smoothing** prevents spurious oscillations between steps
 5. **Diagnostics file** includes cloud fraction or heating diagnostics
 6. **No NaN or Inf values** in output
 7. **Backward compatibility** (disabled by default, no change to clear-sky case)

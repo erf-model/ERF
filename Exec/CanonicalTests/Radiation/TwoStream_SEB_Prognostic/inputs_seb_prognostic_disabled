@@ -1,5 +1,5 @@
-# Phase 19b SEB Prognostic Mode - Feature Off (Disabled)
-# Verifies backward compatibility with Phase 19a baseline.
+# SEB Prognostic Mode - Feature Off (Disabled)
+# Verifies backward compatibility with the feature-off baseline.
 # T_s and q_s should NOT evolve (prognostic mode disabled).
 
 erf.prob_name = "ABL"
@@ -100,7 +100,7 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 17 SEB infrastructure (must be enabled for Phase 18/19 to work)
+# RADIATION - SEB infrastructure (must be enabled to work)
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
@@ -111,10 +111,10 @@ erf.radiation.seb_q_sfc_default = 0.01
 erf.radiation.seb_t_deep_default = 295.0
 erf.radiation.seb_q_deep_default = 0.20
 
-# RADIATION - Phase 18 SEB diagnostic (enabled for completeness)
+# RADIATION - SEB diagnostic (enabled for completeness)
 erf.radiation.seb_diagnostic_enable = true
 
-# RADIATION - Phase 19b SEB prognostic (DISABLED for baseline)
+# RADIATION - SEB prognostic (DISABLED for baseline)
 erf.radiation.seb_prognostic_enable = false
 
 # RADIATION - Solar geometry parameters (for completeness)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 8 Benchmark Suite: Metrics Extraction and Validation
+Benchmark Suite: Metrics Extraction and Validation
 
 This module reads radiation diagnostic CSV files, computes aggregate metrics,
 and validates them against configured tolerances. Returns pass/fail results

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 1 Two-Stream Radiation Validation Script
+Two-Stream Radiation Validation Script
 Shortwave Clear-Sky Analytical Test
 
 This script verifies SW flux accuracy against the Beer-Lambert analytical solution:
@@ -113,8 +113,8 @@ def check_sw_flux_accuracy():
     S0 = 1361.0  # Solar constant [W/m^2]
     zenith_deg = 60.0  # Solar zenith angle [degrees]
     cos_zenith = math.cos(math.radians(zenith_deg))
-    tau_per_layer = 0.003125  # Optical depth per layer [1/m]
-    dz = 1024.0 / 64  # Layer thickness from domain setup: 64 layers over 10 km
+    tau_per_layer = 0.003125  # Optical depth per layer [dimensionless]
+    dz = 1024.0 / 64  # Layer thickness [m]: 64 layers over a 1024 m domain
 
     # Compute tau per unit height
     tau_per_m = tau_per_layer / dz  # Convert from per-layer to per-meter
@@ -136,7 +136,7 @@ def check_sw_flux_accuracy():
     tolerance = 0.05
 
     print(f"\n{'='*70}")
-    print("Phase 1 Two-Stream Radiation: SW Clear-Sky Analytical Test")
+    print("Two-Stream Radiation: SW Clear-Sky Analytical Test")
     print(f"{'='*70}")
     print(f"\nTest Parameters:")
     print(f"  Solar constant S0 = {S0:.2f} W/m^2")

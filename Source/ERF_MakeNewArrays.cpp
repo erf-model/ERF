@@ -497,14 +497,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    // Phase 5: allocate qheating_rates/rad_fluxes whenever EITHER the
-    // RRTMGP radiation path (solverChoice.rad_type) OR the Phase 1-5
-    // TwoStream radiation path (solverChoice.radChoice.rad_type) is
-    // active. Previously this was gated on RRTMGP alone, which meant
-    // compute_twostream_radiation_diagnostics() had nowhere to write its
-    // newly-added (Phase 5, Step 1) per-level (SW, LW) heating rates.
-    // Both paths share the same 2-component (SW, LW) convention, so no
-    // change to the array shape itself is needed -- only the gate.
+    // Two independent inputs can ask for radiation, and either one needs
+    // this storage:
+    //   erf.radiation_model (SolverChoice::rad_type, a RadiationType)
+    //     selects the RRTMGP solver;
+    //   erf.radiation_type  (RadChoice::rad_type, a RadType)
+    //     selects the two-stream solver.
+    // Both write the same 2-component (SW, LW) heating rates, so the arrays
+    // are shaped the same way whichever solver is active.
     if (solverChoice.rad_type != RadiationType::None ||
         solverChoice.radChoice.rad_type == RadType::TwoStream)
     {
@@ -514,7 +514,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rad_fluxes[lev]->setVal(zero);
     }
 
-    // Phase 14A: Allocate standalone 2D MultiFabs for TwoStream fallback surface properties
+    // Allocate standalone 2D MultiFabs for TwoStream fallback surface properties
     // These are allocated only when TwoStream radiation is active and used to hold constant
     // fallback values (from RadChoice scalars) when no LSM is present. When LSM is active,
     // the real LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.

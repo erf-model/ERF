@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-Phase 5 Two-Stream Radiation Validation Script
+Two-Stream Radiation Validation Script
 RhoTheta Coupling Smoke Test
 
-Unlike the Phase 1-4 RegTest checkers (which independently re-derive the
+Unlike the RegTest checkers (which independently re-derive the
 expected flux/heating values via a Python replica of the C++ algorithm),
-this script validates the Phase 5 WIRING itself -- i.e. that:
+this script validates the WIRING itself -- i.e. that:
 
   1. compute_twostream_radiation_diagnostics() is now actually being
-     called every step from advance_radiation() (Phase 5 Step 3). Before
-     Phase 5, this function was never called anywhere in the codebase, so
+     called every step from advance_radiation. Before
+, this function was never called anywhere in the codebase, so
      the diagnostic CSV would not exist / would not accumulate multiple
      rows under a real simulation run.
   2. qheating_rates gets populated with finite, physically reasonable
-     per-level heating rates every step (Phase 5 Step 1), which is a
+     per-level heating rates every step, which is a
      necessary (though not sufficient, since this script only reads the
      domain-averaged/max diagnostics, not the full 3D MultiFab) condition
-     for the RhoTheta source-term injection (Phase 5 Step 4) to have a
+     for the RhoTheta source-term injection to have a
      real effect.
   3. No NaN/Inf appears in any diagnostic column across multiple steps,
      which would indicate a numerical breakdown introduced by the new
      per-level heating-rate computation (e.g. the LW net-flux-divergence
-     calculation added in Phase 5 Step 1, which is new code exercised here
-     for the first time with lw_enabled=true and isothermal_test=false
-     together).
+     calculation, which is exercised here with lw_enabled=true and a
+     non-isothermal sounding).
 
 This is intentionally a "smoke test" rather than a flux-accuracy check:
-Phase 5 does not change the underlying flux formulas validated by
+does not change the underlying flux formulas validated by
 SW_ClearSky_Analytical / LW_Isothermal / SW_Cloud_Layer /
 SW_Scattering_Cloud; it only wires the existing (already-validated)
 per-level heating-rate calculation into the simulation's source terms.
@@ -78,14 +77,14 @@ def read_radiation_diag(filename):
     return data
 
 def check_rhotheta_coupling_smoke_test():
-    """Smoke-test the Phase 5 RhoTheta coupling wiring."""
+    """Smoke-test the RhoTheta coupling wiring."""
 
-    diag_file = "radiation_phase5_coupling_diag.dat"
+    diag_file = "radiation_rhotheta_coupling_diag.dat"
     if not os.path.exists(diag_file):
         print(f"ERROR: Diagnostic file {diag_file} not found")
         print("This likely means compute_twostream_radiation_diagnostics() "
               "was never called -- check that advance_radiation() wiring "
-              "(Phase 5 Step 3) is present and erf.radiation_type is set "
+              " is present and erf.radiation_type is set "
               "correctly in the inputs file.")
         return False
 
@@ -104,7 +103,7 @@ def check_rhotheta_coupling_smoke_test():
     expected_min_steps = int(round(stop_time / fixed_dt))  # 5 steps
 
     print(f"\n{'='*70}")
-    print("Phase 5 Two-Stream Radiation: RhoTheta Coupling Smoke Test")
+    print("Two-Stream Radiation: RhoTheta Coupling Smoke Test")
     print(f"{'='*70}")
     print(f"\nTest Parameters:")
     print(f"  Solar constant S0 = {S0:.2f} W/m^2")
@@ -121,8 +120,8 @@ def check_rhotheta_coupling_smoke_test():
 
     # --------------------------------------------------------------------
     # Check 1: Multiple rows present -- confirms the driver is being
-    # called repeatedly across the simulation (Phase 5 Step 3 wiring),
-    # not just once (or never, prior to Phase 5).
+    # called repeatedly across the simulation wiring),
+    # not just once (or never).
     # --------------------------------------------------------------------
     if n_rows < expected_min_steps:
         errors.append(
@@ -157,10 +156,10 @@ def check_rhotheta_coupling_smoke_test():
     # --------------------------------------------------------------------
     # Check 3: heating_rate_max is finite and nonzero at every step --
     # confirms qheating_rates is genuinely being populated with real
-    # (non-garbage, non-zero) values by the Phase 5 per-level heating-rate
-    # computation, both for SW (existing since Phase 1-4, now written
-    # per-level instead of reduced-only) and LW (newly computed in Phase 5
-    # Step 1 via compute_lw_heating_rate(), previously dead code).
+    # (non-garbage, non-zero) values by the per-level heating-rate
+    # computation, both for SW (existing, now written
+    # per-level instead of reduced-only) and LW (newly computed
+    # via compute_lw_heating_rate, previously dead code).
     # --------------------------------------------------------------------
     finite_ok = True
     nonzero_ok = True
@@ -178,10 +177,9 @@ def check_rhotheta_coupling_smoke_test():
     if not nonzero_ok:
         errors.append(
             "heating_rate_max is exactly zero at every step; expected "
-            "nonzero SW+LW heating with sw_enabled=true, lw_enabled=true, "
-            "isothermal_test=false. This suggests qheating_rates is not "
-            "being populated (Phase 5 Step 1 regression) or the RhoTheta "
-            "coupling wiring (Phase 5 Steps 3-4) is not active."
+            "nonzero SW+LW heating with sw_enabled=true and lw_enabled=true "
+            "over a non-isothermal sounding. This suggests qheating_rates is "
+            "not being populated, or that the RhoTheta coupling is not active."
         )
         print(f"  heating_rate_max nonzero (at least one step) check [FAIL]")
     else:
@@ -210,7 +208,7 @@ def check_rhotheta_coupling_smoke_test():
             print(f"  - {err}")
         return False
     else:
-        print("TEST PASSED - Phase 5 RhoTheta coupling wiring confirmed "
+        print("TEST PASSED - RhoTheta coupling wiring confirmed "
               "active and numerically stable across multiple timesteps")
         return True
 

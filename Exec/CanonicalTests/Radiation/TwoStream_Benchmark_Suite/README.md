@@ -1,8 +1,8 @@
-# Phase 8: Validation & Benchmarking Suite for TwoStream Radiation
+# Validation & Benchmarking Suite for TwoStream Radiation
 
 ## Overview
 
-Phase 8 establishes a canonical validation and benchmarking workflow for the TwoStream radiation module. This suite provides:
+establishes a canonical validation and benchmarking workflow for the TwoStream radiation module. This suite provides:
 
 - **Repeatable test matrix** covering SW, LW, clouds, and coupled cases
 - **Automated metric extraction** from diagnostic CSV files
@@ -20,7 +20,7 @@ The suite includes 5 benchmark cases, each testing a specific aspect of the radi
 | `lw_isothermal` | LW isothermal baseline | Gray-gas with energy balance check | 1 | 2 | both |
 | `sw_cloud_layer` | Cloud-layer absorption | Cloud optical depth attenuation | 1 | 2 | both |
 | `sw_scattering` | Cloud scattering | Two-stream scattering approximation | 1 | 2 | both |
-| `phase6_timing` | Coupled SW+LW time-stepping | RhoTheta coupling over 10 steps | 10 | 1 | pre_only |
+| `timing` | Coupled SW+LW time-stepping | RhoTheta coupling over 10 steps | 10 | 1 | pre_only |
 
 ### Case Descriptions
 
@@ -148,7 +148,7 @@ All tolerances are centrally defined in `benchmark_tolerances.py`. See that file
 
 ## Diagnostics Modes
 
-The suite tests multiple diagnostics cadence modes to verify Phase 6/7 functionality:
+The suite tests multiple diagnostics cadence modes to verify functionality:
 
 - **`both`** (Cases 1–4): Both pre_dycore and post_dycore calls logged
   - Expected: 2 rows per timestep
@@ -192,26 +192,26 @@ If heating rate coefficient of variation is too high:
 If call-site filtering isn't working:
 - Verify `diag_callsite_mode` parameter in inputs file
 - Check that diagnostic code correctly tags pre/post calls
-- Ensure Phase 6/7 diagnostics module is active
+- Ensure diagnostics module is active
 
-## Phase 6/7 Integration
+## Integration
 
-The benchmark suite preserves and validates Phase 6/7 diagnostics semantics:
+The benchmark suite preserves and validates diagnostics semantics:
 
 ✅ **call_site support**: Each record tagged with pre/post identifier
 ✅ **mode-aware cadence**: `both`, `pre_only`, `post_only` modes respected
 ✅ **dedup identity**: Not weaker than `(step,time,call_site)` 
-✅ **GPU safety**: No host I/O in device code (unchanged from Phase 6/7)
+✅ **GPU safety**: No host I/O in device code (unchanged)
 
-Case 5 specifically tests single call-site mode to ensure Phase 6/7 filtering works.
+Case 5 specifically tests single call-site mode to ensure filtering works.
 
 ## Documentation
 
-- **`RAD_DEVELOPMENT.md`**: Phase 8 section with architecture overview
+- **`RAD_DEVELOPMENT.md`**: section with architecture overview
 - **`RAD_MPI_SKILLS.md`**: Lesson on benchmark reproducibility and diagnostics-aware validation
 - **`README.md`** (this file): User guide and case descriptions
 
-## Future Extensions (Phase 9+)
+## Future Extensions
 
 Potential enhancements:
 - Performance profiling and timing metrics

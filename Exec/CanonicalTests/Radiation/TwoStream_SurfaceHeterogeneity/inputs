@@ -1,6 +1,6 @@
-# Phase 11 Two-Stream Radiation: Surface Heterogeneity + Fallback
+# Two-Stream Radiation: Surface Heterogeneity + Fallback
 #
-# This test exercises the Phase 11 surface heterogeneity feature:
+# This test exercises the surface heterogeneity feature:
 #   1. TwoStream now consumes per-column surface properties (albedo, emissivity, t_sfc)
 #      from optional LSM/radiation interface fields
 #   2. Robust fallback chain: hetero field → RadChoice scalar → hard default
@@ -12,7 +12,7 @@
 #   - No hetero surface fields provided (all nullptr)
 #   - Uses RadChoice scalar parameters: surface_albedo_sw=0.3, 
 #     surface_emissivity_lw=0.99, surface_temp_k=300.0
-#   - Output should match Phase 10 (bitwise identical)
+# - Output should match the baseline (bitwise identical)
 #
 # Scenario B (via modified inputs): Heterogeneous Mode
 #   - (Future: provide hetero field arrays)
@@ -102,7 +102,7 @@ erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"
 
 
-# RADIATION (Phase 11 Surface Heterogeneity Test)
+# RADIATION
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -111,31 +111,31 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 45.0
 erf.radiation.S0 = 1361.0
 
-# Phase 11 Surface Properties (Fallback Scalars)
+# Surface Properties (Fallback Scalars)
 # These are used when hetero fields are unavailable/invalid
 erf.radiation.surface_albedo_sw = 0.3      # Land/water typical albedo
 erf.radiation.surface_emissivity_lw = 0.99 # Land/water typical emissivity (blackbody-like)
 erf.radiation.surface_temp_k = 300.0       # Typical surface temperature [K]
 
-# Phase 3 Cloud Layer (optional, for testing with clouds)
+# Cloud Layer (optional, for testing with clouds)
 erf.radiation.tau_profile_type = "constant"
 erf.radiation.cloud_fraction = 0.0
 erf.radiation.cloud_base_height_m = 500.0
 erf.radiation.cloud_top_height_m = 1000.0
 erf.radiation.cloud_tau_per_layer = 0.5
 
-# Phase 4 Scattering (optional)
+# Scattering (optional)
 erf.radiation.single_scattering_albedo = 0.0
 erf.radiation.asymmetry_factor = 0.0
 erf.radiation.cloud_single_scattering_albedo = 0.0
 erf.radiation.cloud_asymmetry_factor = 0.0
 
-# Phase 7 Diagnostics Controls
+# Diagnostics Controls
 erf.radiation.diag_enable = true
 erf.radiation.diag_stdout_enable = true
 erf.radiation.diag_tagged_enable = true
 erf.radiation.diag_regtest_line_enable = true
 erf.radiation.diag_csv_enable = true
-erf.radiation.diag_file = "radiation_diag_phase11.dat"
+erf.radiation.diag_file = "radiation_hetero_diag.dat"
 
 

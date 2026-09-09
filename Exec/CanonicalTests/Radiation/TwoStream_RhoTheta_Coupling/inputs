@@ -1,10 +1,10 @@
-# Phase 5 Two-Stream Radiation: RhoTheta Coupling Smoke Test
+# Two-Stream Radiation: RhoTheta Coupling Smoke Test
 #
-# Unlike the Phase 1-4 RegTests (which validate flux/diagnostic accuracy
-# for a radiation calculation that was never actually wired into the time
-# loop), this test exercises the Phase 5 wiring itself:
+# Where the other RegTests validate flux and diagnostic accuracy for the
+# radiation calculation itself, this test exercises the wiring that connects
+# it to the time loop:
 #   1. advance_radiation() now calls compute_twostream_radiation_diagnostics()
-#      every step when erf.radiation_type = "TwoStream" (previously dead code)
+#      every step when erf.radiation_type = "TwoStream"
 #   2. qheating_rates[lev] is allocated and populated with per-level (SW, LW)
 #      heating rates by vertical_two_stream_sweep()
 #   3. ERF_MakeSources.cpp injects those heating rates into the RhoTheta
@@ -57,7 +57,7 @@ erf.data_log    = neutral_hist.dat neutral_profiles.dat
 erf.profile_int = 10
 
 # PLOTFILES
-# Include the per-level radiation heating-rate diagnostic fields (Phase 5)
+# Include the per-level radiation heating-rate diagnostic fields
 # so the RhoTheta coupling can be visually/numerically inspected if desired.
 erf.plot_file_1     = plt_neutral      # prefix of plotfile name
 erf.plot_int_1      = 5                # number of timesteps between plotfiles
@@ -101,13 +101,12 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.abl_geo_wind = 15.0 0.0 0.0
 
-erf.input_sounding_file = "input_sounding_phase5_coupling"
+erf.input_sounding_file = "input_sounding_rhotheta_coupling"
 
-# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal (Phase 5)
-# Non-isothermal (isothermal_test defaults to false) so LW heating is
-# genuinely computed via the two-stream sweeps rather than forced to zero
-# by the isothermal override -- this exercises the real per-level LW
-# heating-rate computation added in Phase 5 Step 1.
+# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal
+# The sounding is non-isothermal so that longwave heating is genuinely
+# computed by the two-stream sweeps, which exercises the per-level longwave
+# heating-rate calculation.
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -116,4 +115,4 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
-erf.radiation.diag_file = "radiation_phase5_coupling_diag.dat"
+erf.radiation.diag_file = "radiation_rhotheta_coupling_diag.dat"

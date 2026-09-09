@@ -1,8 +1,7 @@
-# Phase 6 Two-Stream Radiation: Time-Stepping Integration Smoke Test
+# Two-Stream Radiation: Time-Stepping Integration Smoke Test
 #
-# Phase 6 audits and formally documents the temporal semantics of radiation
-# forcing in ERF's slow-step/fast-substep time integration scheme. This test
-# exercises the wiring to verify:
+# This case documents the temporal semantics of radiation forcing in ERF's
+# slow-step and fast-substep time integration scheme. It verifies that:
 #   1. advance_radiation() is called once per slow step (not per substep or
 #      multiple times)
 #   2. Diagnostic CSV accumulates the expected number of rows (one per slow
@@ -10,7 +9,7 @@
 #   3. Heating rates are applied consistently via the is_slow_step gate
 #   4. No unintended temporal aliasing or missing forcing occurs
 #
-# This test is identical in configuration to Phase 5 (SW+LW both enabled,
+# This test is identical in configuration (SW+LW both enabled,
 # non-isothermal) but runs for more timesteps (10 slow steps instead of 5)
 # to establish temporal consistency and rule out transient effects. The
 # diagnostic cadence and heating-rate finiteness are verified by the check
@@ -54,7 +53,7 @@ erf.data_log    = neutral_hist.dat neutral_profiles.dat
 erf.profile_int = 10
 
 # PLOTFILES
-# Include the per-level radiation heating-rate diagnostic fields (Phase 5)
+# Include the per-level radiation heating-rate diagnostic fields
 # so the RhoTheta coupling can be visually/numerically inspected if desired.
 erf.plot_file_1     = plt_neutral      # prefix of plotfile name
 erf.plot_int_1      = 10               # number of timesteps between plotfiles
@@ -98,10 +97,10 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.abl_geo_wind = 15.0 0.0 0.0
 
-erf.input_sounding_file = "input_sounding_phase6_timing"
+erf.input_sounding_file = "input_sounding_timing"
 
-# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal (Phase 5)
-# Phase 6: Extended from Phase 5 (stop_time 2.5, dt 0.5, 5 steps) to 10 steps
+# RADIATION - Two-Stream SW + LW, both enabled, non-isothermal
+# Extended (stop_time 2.5, dt 0.5, 5 steps) to 10 steps
 # (stop_time 5.0) to verify temporal consistency over a longer simulation.
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
@@ -111,4 +110,4 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
-erf.radiation.diag_file = "radiation_phase6_timing_diag.dat"
+erf.radiation.diag_file = "radiation_timing_diag.dat"

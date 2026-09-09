@@ -1,6 +1,6 @@
-# Phase 10 Two-Stream Radiation: Nonuniform Vertical Spacing Test
+# Two-Stream Radiation: Nonuniform Vertical Spacing Test
 #
-# This test validates the Phase 10 implementation of per-level nonuniform
+# This test validates the implementation of per-level nonuniform
 # vertical spacing (dz(k)) in the TwoStream radiation heating divergence
 # calculation. Unlike previous phases (1-9) that used uniform dz, this test
 # exercises the actual terrain-following grid integration.
@@ -97,8 +97,8 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 # SOUNDING FILE
 erf.input_sounding_file = "input_sounding_nonuniform_dz"
 
-# RADIATION - Two-Stream SW + LW, both enabled (Phase 10 test)
-# Key difference from Phase 5: uses nonuniform dz(k) from z_phys_cc heights
+# RADIATION - Two-Stream SW + LW, both enabled
+# Key difference from uses nonuniform dz(k) from z_phys_cc heights
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true

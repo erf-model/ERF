@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 7 Two-Stream Radiation: Time-Integration Timing Check with Diagnostics Controls
+Two-Stream Radiation: Time-Integration Timing Check with Diagnostics Controls
 
 Checks:
   1) Expected diagnostic row count for configured cadence and diagnostics mode
@@ -10,7 +10,7 @@ Checks:
   5) heating_rate_max stability (coefficient of variation)
   6) Call-site filtering behavior based on diag_callsite_mode
 
-This script is enhanced for Phase 7 diagnostics controls, accounting for:
+This script is enhanced diagnostics controls, accounting for:
   - diag_enable: master switch (if false, may be no diagnostics file)
   - diag_callsite_mode: "both" (pre+post), "pre_only", or "post_only"
   - Other output stream controls (stdout, tagged, regtest, csv)
@@ -32,7 +32,7 @@ from pathlib import Path
 # User-tunable test configuration
 # Use environment variables or hardcoded defaults
 # ---------------------------------------------------------------------
-CSV_PATH = Path("radiation_phase6_timing_diag.dat")
+CSV_PATH = Path("radiation_timing_diag.dat")
 
 S0 = 1361.0
 SOLAR_ZENITH_DEG = 60.0
@@ -40,7 +40,7 @@ SOLAR_ZENITH_DEG = 60.0
 DT = 0.5
 STOP_TIME = 5.0
 
-# Phase 7 diagnostics configuration
+# diagnostics configuration
 # Can be set via environment or command line
 DIAG_CALLSITE_MODE = "both"  # "both", "pre_only", or "post_only"
 DIAG_ENABLE = True
@@ -114,7 +114,7 @@ def to_int(row, key):
 
 def main():
     print("\n======================================================================")
-    print("Phase 7 Two-Stream Radiation: Time-Integration Timing Check")
+    print("Two-Stream Radiation: Time-Integration Timing Check")
     print("======================================================================\n")
 
     cosz = math.cos(math.radians(SOLAR_ZENITH_DEG))

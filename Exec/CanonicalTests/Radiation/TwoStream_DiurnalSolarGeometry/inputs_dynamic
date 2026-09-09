@@ -1,6 +1,6 @@
-# Phase 16 Two-Stream Radiation: Time-Varying Solar Geometry Test (Dynamic)
+# Two-Stream Radiation: Time-Varying Solar Geometry Test (Dynamic)
 #
-# This test validates Phase 16 dynamic solar geometry:
+# This test validates dynamic solar geometry:
 # - With solar_geometry_dynamic_enable = true, solar zenith angle is computed
 #   dynamically from simulation time, latitude, longitude, and day-of-year
 #   using astronomical formulas.
@@ -115,7 +115,7 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0  # No cloud
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 16: Solar Geometry (ENABLED for feature test)
+# RADIATION - Solar Geometry (ENABLED for feature test)
 # Note: time_utc_seconds = 0 at simulation start corresponds to 00:00 UTC (midnight)
 # Sunrise/sunset times depend on latitude, longitude, and day-of-year
 erf.radiation.solar_geometry_dynamic_enable = true

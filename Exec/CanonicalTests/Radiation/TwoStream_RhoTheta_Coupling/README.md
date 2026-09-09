@@ -41,7 +41,7 @@ Over the test duration, cumulative heating should:
 ## Files
 
 - `inputs` — Main control file with TwoStream and thermodynamic coupling enabled
-- `input_sounding_phase5_coupling` — Reference atmospheric sounding
+- `input_sounding_rhotheta_coupling` — Reference atmospheric sounding
 - `check_flux_accuracy.py` — Python validation script
 
 ## Running the Test

@@ -1,17 +1,17 @@
-# Phase 12 Two-Stream Radiation: Moisture/Cloud-Aware Dynamic Optical Depth
+# Two-Stream Radiation: Moisture/Cloud-Aware Dynamic Optical Depth
 #
-# This test exercises the Phase 12 dynamic optical depth feature:
+# This test exercises the dynamic optical depth feature:
 #   1. SW/LW optical depth is diagnosed per-level from water vapor (qv) and cloud
 #      liquid water (qc) using configurable coefficients
 #   2. Robust fallback to static tau when dynamic feature is disabled
-#   3. Backward compatibility: dynamic tau disabled by default, preserving Phase 11 behavior
+# 3. Backward compatibility: dynamic tau disabled by default, preserving the baseline behavior
 #
 # This test runs two scenarios:
 #
 # Scenario A (default): Static Tau Mode (backward compat check)
 #   - Dynamic tau disabled (tau_sw_dynamic_enable=false, tau_lw_dynamic_enable=false)
-#   - Uses static tau_per_layer and tau_lw_per_layer (Phase 11 behavior)
-#   - Output should match Phase 11 exactly (bitwise identical)
+# - Uses static tau_per_layer and tau_lw_per_layer (the baseline behavior)
+# - Output should match the baseline exactly (bitwise identical)
 #
 # Scenario B (via modified inputs): Dynamic Tau Mode
 #   - Enable dynamic tau diagnosis: tau_sw_dynamic_enable=true, tau_lw_dynamic_enable=true
@@ -24,7 +24,7 @@
 #   - SW_TOA, SW_surface, LW fluxes are finite and nonzero
 #   - heating_rate_max is computed and reasonable
 #   - Dynamic tau path produces sensible output (no crashes or NaN)
-#   - Static tau mode is byte-identical to Phase 11 (no regressions)
+# - Static tau mode is byte-identical to the feature-off baseline (no regressions)
 #   - Dynamic coefficients with zero values reduce to static path
 #   - Invalid moisture fields handled gracefully (fallback to static)
 
@@ -57,15 +57,15 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-erf.check_file      = chk_phase12_dynamic_tau     # root name of checkpoint file
+erf.check_file      = chk_dynamic_tau     # root name of checkpoint file
 erf.check_int       = -1             # number of timesteps between checkpoints
 
 # DATA COLLECTION
-erf.data_log    = phase12_hist.dat phase12_profiles.dat
+erf.data_log    = dynamic_tau_hist.dat dynamic_tau_profiles.dat
 erf.profile_int = 10
 
 # PLOTFILES
-erf.plot_file_1     = plt_phase12_dynamic_tau      # prefix of plotfile name
+erf.plot_file_1     = plt_dynamic_tau      # prefix of plotfile name
 erf.plot_int_1      = 5                # number of timesteps between plotfiles
 erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qv qc qsrc_sw qsrc_lw
 
@@ -81,7 +81,7 @@ erf.theta_ref = 300.0
 # INITIALIZATION - from sounding file (includes moisture)
 erf.init_type = "input_sounding"
 erf.sounding_type = Ideal
-erf.input_sounding_file = "input_sounding_phase12_moist"
+erf.input_sounding_file = "input_sounding_moist"
 
 # PBL CONFIGURATION - Baseline MRF (neutral case)
 erf.pbl_type = "MRF"
@@ -107,7 +107,7 @@ erf.moisture_model = "Kessler"    # or repo’s standard moist model
 
 
 
-# RADIATION (Phase 12 Dynamic Tau Test)
+# RADIATION
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -116,28 +116,28 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 45.0
 erf.radiation.S0 = 1361.0
 
-# Phase 11 Surface Properties (Fallback Scalars)
+# Surface Properties (Fallback Scalars)
 # These are used when hetero fields are unavailable/invalid
 erf.radiation.surface_albedo_sw = 0.3      # Land/water typical albedo
 erf.radiation.surface_emissivity_lw = 0.99 # Land/water typical emissivity (blackbody-like)
 erf.radiation.surface_temp_k = 300.0       # Typical surface temperature [K]
 
-# Phase 3 Cloud Layer (optional, for testing with clouds)
+# Cloud Layer (optional, for testing with clouds)
 erf.radiation.tau_profile_type = "constant"
 erf.radiation.cloud_fraction = 0.0
 erf.radiation.cloud_base_height_m = 500.0
 erf.radiation.cloud_top_height_m = 1000.0
 erf.radiation.cloud_tau_per_layer = 0.5
 
-# Phase 4 Scattering (optional)
+# Scattering (optional)
 erf.radiation.single_scattering_albedo = 0.0
 erf.radiation.asymmetry_factor = 0.0
 erf.radiation.cloud_single_scattering_albedo = 0.0
 erf.radiation.cloud_asymmetry_factor = 0.0
 
 # PHASE 12 DYNAMIC TAU PARAMETERS
-# Default: disabled (backward compat with Phase 11)
-# When disabled, reduces to static tau behavior (Phase 11 output)
+# Default: disabled (backward compatibility with the feature-off baseline)
+# When disabled, reduces to static tau behavior (the baseline output)
 erf.radiation.tau_sw_dynamic_enable = false
 erf.radiation.tau_lw_dynamic_enable = false
 erf.radiation.tau_sw_coeff_qv = 0.0   # SW optical depth coefficient for water vapor
@@ -145,10 +145,10 @@ erf.radiation.tau_sw_coeff_qc = 0.0   # SW optical depth coefficient for cloud l
 erf.radiation.tau_lw_coeff_qv = 0.0   # LW optical depth coefficient for water vapor
 erf.radiation.tau_lw_coeff_qc = 0.0   # LW optical depth coefficient for cloud liquid
 
-# Phase 7 Diagnostics Controls
+# Diagnostics Controls
 erf.radiation.diag_enable = true
 erf.radiation.diag_stdout_enable = true
 erf.radiation.diag_tagged_enable = true
 erf.radiation.diag_regtest_line_enable = true
 erf.radiation.diag_csv_enable = true
-erf.radiation.diag_file = "radiation_diag_phase12.dat"
+erf.radiation.diag_file = "radiation_dynamic_tau_diag.dat"

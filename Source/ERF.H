@@ -1194,7 +1194,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
 
-    // Phase 14A: Standalone 2D MultiFabs for TwoStream fallback surface properties when no LSM is active
+    // Standalone 2D MultiFabs for TwoStream fallback surface properties when no LSM is active
     // These are allocated and constant-filled from RadChoice scalar defaults when TwoStream is enabled and no LSM is available.
     // When LSM is active, the per-column LSM fields take precedence via the resolution chain in resolve_surface_*() helpers.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> twostream_alb_sw;      // SW albedo fallback / SEB sfc_alb_sw (2D: i,j)

@@ -35,7 +35,7 @@
       }
     },
     {
-      "case": "phase6_timing",
+      "case": "timing",
       "case_name": "Coupled SW+LW non-isothermal time-integration",
       "is_pass": true,
       "errors": [],

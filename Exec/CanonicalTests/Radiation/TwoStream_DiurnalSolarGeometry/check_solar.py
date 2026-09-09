@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_solar.py - Validation script for Phase 16 Solar Geometry Test
+check_solar.py - Validation script Solar Geometry Test
 
 This script validates the TwoStream_DiurnalSolarGeometry test by checking:
 1. No NaN/Inf in diagnostic output
@@ -138,7 +138,7 @@ def check_dynamic_behavior(dynamic_file):
 def main():
     """Main validation routine."""
     print("=" * 70)
-    print("Phase 16 Solar Geometry Test - Validation")
+    print("Solar Geometry Test - Validation")
     print("=" * 70)
 
     baseline_file = "radiation_solar_baseline_diag.dat"

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Phase 4 Two-Stream Radiation Validation Script
+Two-Stream Radiation Validation Script
 Shortwave Scattering Cloud Test
 
 This script verifies SW flux accuracy for the Meador-Weaver two-stream
-diffuse (scattering) flux contribution introduced in Phase 4, combined
-with the Phase 3 cloud-layer optical depth enhancement and cloud fraction
+diffuse (scattering) flux contribution introduced, combined
+with the cloud-layer optical depth enhancement and cloud fraction
 blending.
 
 It replicates, level-by-level, the EXACT same algorithm implemented in
@@ -201,7 +201,7 @@ def read_input_real(inputs_file, key, default):
     return default
 
 def check_sw_scattering_cloud_accuracy():
-    """Check SW flux accuracy for the Phase 4 scattering + cloud-layer test."""
+    """Check SW flux accuracy for the scattering + cloud-layer test."""
 
     diag_file = "radiation_sw_scatter_diag.dat"
     if not os.path.exists(diag_file):
@@ -226,7 +226,7 @@ def check_sw_scattering_cloud_accuracy():
     cloud_tau_per_layer = 0.5
     cloud_fraction = 0.5
 
-    # Phase 4 scattering parameters
+    # scattering parameters
     omega_clear = 0.0
     g_clear = 0.0
     omega_cloud = 0.9999
@@ -270,7 +270,7 @@ def check_sw_scattering_cloud_accuracy():
     tolerance = 0.05  # 5%
 
     print(f"\n{'='*70}")
-    print("Phase 4 Two-Stream Radiation: SW Scattering Cloud Test")
+    print("Two-Stream Radiation: SW Scattering Cloud Test")
     print(f"{'='*70}")
     print(f"\nTest Parameters:")
     print(f"  Solar constant S0 = {S0:.2f} W/m^2")
@@ -336,7 +336,7 @@ def check_sw_scattering_cloud_accuracy():
     # strictly positive (confirms compute_sw_layer_two_stream() is actually
     # exercised for the cloud layer), while the clear-sky column's diffuse
     # flux must be exactly zero (confirms omega=0 clear-sky path is
-    # unaffected, preserving Phase 1-3/Phase 3 behavior elsewhere).
+    # unaffected, preserving the baseline behavior elsewhere).
     print(f"  Clear-sky diffuse flux == 0 (omega_clear=0)?"
           f" diffuse_clear={F_diff_clear:.6e}", end="")
     if F_diff_clear == 0.0:

@@ -233,7 +233,7 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
-        // Phase 13: Radiative tendency smoothing/limiter (YSUNew-only)
+        // Radiative tendency smoothing/limiter (YSUNew-only)
         query_one_or_per_level(
           pp, "enable_ysu_rad_tend_limiter", enable_ysu_rad_tend_limiter, lev, max_level);
         query_one_or_per_level(
@@ -535,7 +535,7 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
-      // Phase 13: Radiative tendency limiter/smoothing (YSUNew-only)
+      // Radiative tendency limiter/smoothing (YSUNew-only)
       amrex::Print() << "    enable_ysu_rad_tend_limiter        : "
                      << enable_ysu_rad_tend_limiter << std::endl;
       amrex::Print() << "    ysu_rad_tend_limiter_magnitude     : "
@@ -729,7 +729,7 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
-  // Phase 13: Radiative tendency smoothing/limiter (YSUNew-only)
+  // Radiative tendency smoothing/limiter (YSUNew-only)
   bool enable_ysu_rad_tend_limiter = false; // if true, apply limiter/guard to qheating_rates coupling
   amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on limited radiative tendency (K/s)
   amrex::Real ysu_rad_tend_smooth_strength = amrex::Real(0.0); // Smoothing strength parameter [0, 1]

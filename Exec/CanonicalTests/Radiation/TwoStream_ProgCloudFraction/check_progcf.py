@@ -1,132 +1,120 @@
 #!/usr/bin/env python3
 """
-Phase 14 Regression Test Checker: Prognostic Cloud Fraction for TwoStream Radiation
+Regression Test Checker: Prognostic Cloud Fraction for TwoStream Radiation
 
 Validates:
-1. Simulation completes without NaN/Inf errors
-2. Heating rates and radiation diagnostics are finite
-3. Cloud fraction diagnostics (if available) stay within bounds [0, 1]
-4. No regression vs Phase 13 baseline when feature disabled
+1. The radiation diagnostics CSV exists and carries the expected columns
+2. Every radiative flux and heating rate is finite
+3. Shortwave fluxes are physically ordered (0 <= SW_surface <= SW_TOA,
+   0 <= SW_up_TOA <= SW_TOA)
+4. The column heats: heating_rate_max is non-zero
 """
 
-import sys
+import csv
+import math
 import os
-import glob
+import sys
 
-def check_diag_file(filepath):
-    """
-    Check radiation diagnostics CSV file for:
-    - No NaN/Inf values
-    - Reasonable bounds on heating rates
-    """
-    if not os.path.exists(filepath):
-        print(f"WARNING: Diagnostics file not found: {filepath}")
-        return True
+DIAG_FILE = "radiation_progcf_diag.dat"
 
-    try:
-        with open(filepath, 'r') as f:
-            lines = f.readlines()
-            if len(lines) < 2:
-                print(f"WARNING: Diagnostics file too short: {filepath}")
-                return True
+# Columns written for every run. The SEB columns that follow are NaN by design
+# unless the surface energy balance is enabled, so they are not checked here.
+REQUIRED = [
+    "step", "time", "call_site", "SW_surface", "SW_TOA", "SW_up_TOA",
+    "LW_net_surface", "LW_up_TOA", "heating_rate_max",
+]
+NUMERIC = REQUIRED[3:]
 
-            # Skip header, check data lines
-            for i, line in enumerate(lines[1:], start=1):
-                if line.strip().startswith('#'):
-                    continue
 
-                parts = line.split()
-                for j, val in enumerate(parts):
-                    try:
-                        fval = float(val)
-                        if fval != fval:  # NaN check
-                            print(f"ERROR: NaN found in diagnostics at line {i}, column {j}")
-                            return False
-                        if abs(fval) == float('inf'):  # Inf check
-                            print(f"ERROR: Inf found in diagnostics at line {i}, column {j}")
-                            return False
-                    except ValueError:
-                        # Non-numeric column (e.g., step/time labels), skip
-                        pass
+def fail(msg):
+    print(f"ERROR: {msg}")
+    return False
 
-        print(f"✓ Diagnostics file {os.path.basename(filepath)} OK (finite values)")
-        return True
 
-    except Exception as e:
-        print(f"ERROR: Failed to read {filepath}: {e}")
-        return False
+def read_rows(path):
+    """Return (rows, error). A missing or empty file is an error, not a pass."""
+    if not os.path.isfile(path):
+        return None, f"diagnostics file not found: {path}"
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return None, f"no CSV header in {path}"
+        cols = [c.strip() for c in reader.fieldnames]
+        missing = [c for c in REQUIRED if c not in cols]
+        if missing:
+            return None, f"missing required columns in {path}: {missing}"
+        rows = [r for r in reader if r.get("step")]
+    if not rows:
+        return None, f"no data rows in {path}"
+    return rows, None
 
-def check_plotfile(directory):
-    """
-    Check plotfile directory for existence and basic structure.
-    """
-    if not os.path.isdir(directory):
-        print(f"WARNING: Plotfile directory not found: {directory}")
-        return True
 
-    # Check for Header and data files
-    header_file = os.path.join(directory, "Header")
-    if not os.path.exists(header_file):
-        print(f"WARNING: Header file not found in {directory}")
-        return True
+def check_diag(path):
+    rows, err = read_rows(path)
+    if err:
+        return fail(err)
 
-    print(f"✓ Plotfile {os.path.basename(directory)} OK")
+    heating = []
+    for i, r in enumerate(rows):
+        vals = {}
+        for c in NUMERIC:
+            try:
+                vals[c] = float(r[c])
+            except (TypeError, ValueError):
+                return fail(f"row {i}: column {c} is not a number: {r[c]!r}")
+            if not math.isfinite(vals[c]):
+                return fail(f"row {i}: column {c} is not finite: {vals[c]}")
+
+        if vals["SW_TOA"] < 0.0:
+            return fail(f"row {i}: negative SW_TOA {vals['SW_TOA']}")
+        if not (0.0 <= vals["SW_surface"] <= vals["SW_TOA"] + 1.0e-6):
+            return fail(
+                f"row {i}: SW_surface {vals['SW_surface']} outside "
+                f"[0, SW_TOA={vals['SW_TOA']}]"
+            )
+        if not (0.0 <= vals["SW_up_TOA"] <= vals["SW_TOA"] + 1.0e-6):
+            return fail(
+                f"row {i}: SW_up_TOA {vals['SW_up_TOA']} outside "
+                f"[0, SW_TOA={vals['SW_TOA']}]"
+            )
+        heating.append(vals["heating_rate_max"])
+
+    if all(abs(h) < 1.0e-15 for h in heating):
+        return fail("heating_rate_max is zero in every row; radiation did not heat the column")
+
+    print(f"  Parsed {len(rows)} rows from {os.path.basename(path)}")
+    print(f"  heating_rate_max range: {min(heating):.6e} .. {max(heating):.6e} K/s")
+    print(f"  SW_surface range: {min(float(r['SW_surface']) for r in rows):.3f} .. "
+          f"{max(float(r['SW_surface']) for r in rows):.3f} W/m^2")
     return True
 
+
+def check_plotfiles():
+    plots = sorted(d for d in os.listdir(".") if d.startswith("plt") and os.path.isdir(d))
+    if not plots:
+        return fail("no plotfile directories were written")
+    for d in plots:
+        if not os.path.isfile(os.path.join(d, "Header")):
+            return fail(f"plotfile {d} has no Header")
+    print(f"  {len(plots)} plotfiles written, all with a Header")
+    return True
+
+
 def main():
-    """
-    Main checker logic
-    """
     print("=" * 70)
-    print("Phase 14 Regression Test: Prognostic Cloud Fraction for TwoStream")
+    print("Regression Test: Prognostic Cloud Fraction for TwoStream")
     print("=" * 70)
 
-    # Get the current working directory (test execution dir)
-    test_dir = os.getcwd()
-
-    success = True
-
-    # Check for radiation diagnostics CSV
-    diag_files = [
-        "radiation_progcf_diag.dat",
-    ]
-
-    for diag_file in diag_files:
-        if os.path.exists(diag_file):
-            if not check_diag_file(diag_file):
-                success = False
-
-    # Check for plotfiles
-    plotfile_patterns = [
-        "plt_progcf*",
-    ]
-
-    for pattern in plotfile_patterns:
-        for plotfile_dir in glob.glob(pattern):
-            if not check_plotfile(plotfile_dir):
-                success = False
-
-    # Check for history data files
-    history_files = [
-        "progcf_hist.dat",
-        "progcf_profiles.dat",
-    ]
-
-    for hist_file in history_files:
-        if os.path.exists(hist_file):
-            print(f"✓ Data file {hist_file} exists")
-        else:
-            print(f"WARNING: Data file {hist_file} not found")
+    ok = check_diag(DIAG_FILE)
+    ok = check_plotfiles() and ok
 
     print("=" * 70)
-    if success:
-        print("RESULT: PASS ✓")
-        print("All finite-value and diagnostic checks passed.")
+    if ok:
+        print("RESULT: PASS")
         return 0
-    else:
-        print("RESULT: FAIL ✗")
-        print("One or more checks failed.")
-        return 1
+    print("RESULT: FAIL")
+    return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

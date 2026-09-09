@@ -44,12 +44,12 @@ def parse_diag_csv(path):
 
 def main():
     print("="*70)
-    print("Phase 11 Surface Heterogeneity RegTest Validation")
+    print("Surface Heterogeneity RegTest Validation")
     print("="*70)
     cwd = os.getcwd()
     print(f"\nWorking directory: {cwd}")
 
-    diag = os.path.join(cwd, "radiation_diag_phase11.dat")
+    diag = os.path.join(cwd, "radiation_hetero_diag.dat")
 
     passed = 0
     total = 5
@@ -108,8 +108,8 @@ def main():
             print(f"✓ Surface/TOA flux finite; SW_surface(last)={sw[-1]:.6f}, SW_TOA(last)={toa[-1]:.6f}")
             passed += 1
 
-    print("\n6. Phase 11 feature validation...")
-    print("  Note: Phase 11 test runs in fallback mode (hetero fields all nullptr)")
+    print("\n6. feature validation...")
+    print(" Note: test runs in fallback mode (hetero fields all nullptr)")
     print("  - surface_albedo_sw = 0.3 (from inputs)")
     print("  - surface_emissivity_lw = 0.99 (from inputs)")
     print("  - surface_temp_k = 300.0 K (from inputs)")

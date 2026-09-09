@@ -1,12 +1,12 @@
-# Phase 4 Two-Stream Radiation: Shortwave Scattering Cloud Test
+# Two-Stream Radiation: Shortwave Scattering Cloud Test
 # Tests the Meador-Weaver two-stream diffuse (scattering) SW flux
-# contribution added in Phase 4, using the Phase 3 cloud-layer optical
+# contribution added, using the cloud-layer optical
 # depth enhancement as the scattering medium. Clear-sky air remains
-# purely absorbing (single_scattering_albedo = 0.0, matching Phase 1-3
+# purely absorbing (single_scattering_albedo = 0.0, matching
 # direct-beam-only behavior); the cloud layer is configured with a
 # realistic liquid-water-cloud single-scattering albedo and asymmetry
 # factor, so scattering effects are isolated to the cloud band.
-# Uses the same base template as SW_Cloud_Layer (Phase 3).
+# Uses the same base template as SW_Cloud_Layer.
 erf.prob_name = "ABL"
 
 stop_time = 0.25
@@ -89,7 +89,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 
 erf.input_sounding_file = "input_sounding_sw_scattering_cloud"
 
-# RADIATION - Two-Stream Shortwave with Cloud Layer + Scattering (Phase 4)
+# RADIATION - Two-Stream Shortwave with Cloud Layer + Scattering
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = false
@@ -99,14 +99,14 @@ erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
 erf.radiation.diag_file = "radiation_sw_scatter_diag.dat"
 
-# Phase 3: cloud layer between 300m and 700m, cloud fraction 0.5
+# cloud layer between 300m and 700m, cloud fraction 0.5
 erf.radiation.tau_profile_type = "cloud_layer"
 erf.radiation.cloud_base_height_m = 300.0
 erf.radiation.cloud_top_height_m = 700.0
 erf.radiation.cloud_tau_per_layer = 0.5
 erf.radiation.cloud_fraction = 0.5
 
-# Phase 4: scattering properties.
+# scattering properties.
 # Clear-sky (background gas) remains purely absorbing (omega=0), so
 # scattering effects are isolated to the cloud layer for this test.
 erf.radiation.single_scattering_albedo = 0.0

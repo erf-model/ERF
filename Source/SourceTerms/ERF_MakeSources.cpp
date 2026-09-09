@@ -272,19 +272,19 @@ void make_sources (int level,
         // *************************************************************************************
         // two Add radiation source terms to (rho theta)
         // *************************************************************************************
-        // Phase 5 (Step 4): extend this gate to also cover the Phase 1-5
-        // TwoStream radiation path (solverChoice.radChoice.rad_type), not
-        // just RRTMGP (solverChoice.rad_type). Both paths write into the
-        // same qheating_rates MultiFab using the identical 2-component
-        // (SW, LW) convention (see Source/ERF_MakeNewArrays.cpp and
-        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so no change
-        // to the injection formula itself is needed -- only the gate and a
-        // defensive nullptr check (qheating_rates is only allocated when at
-        // least one radiation path is active; guard here in case this is
-        // ever called before that allocation, e.g. during early init).
+        // The gate covers both radiation solvers: RRTMGP, selected by
+        // erf.radiation_model (SolverChoice::rad_type), and two-stream,
+        // selected by erf.radiation_type (RadChoice::rad_type). Both write
+        // the same 2-component (SW, LW) qheating_rates MultiFab (see
+        // Source/ERF_MakeNewArrays.cpp and
+        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so the
+        // injection formula is the same either way. The nullptr check is
+        // defensive: qheating_rates is only allocated when at least one
+        // solver is active, and this can be reached before that allocation
+        // during early init.
         //
-        // Phase 6 (Temporal Consistency): The following temporal semantics are
-        // guaranteed by the advance_radiation() placement and is_slow_step gating:
+        // Temporal consistency is guaranteed by where advance_radiation() sits
+        // and by the is_slow_step gating:
         //   1. qheating_rates[lev] contains heating rates computed from the old
         //      state (t^n) at the beginning of the slow step (called in
         //      ERF::Advance before dycore, see ERF_AdvanceRadiation.cpp).

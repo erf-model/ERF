@@ -1,4 +1,4 @@
-# Phase 19b SEB Prognostic Mode - Feature On (Enabled)
+# SEB Prognostic Mode - Feature On (Enabled)
 # Verifies T_s and q_s evolution with force-restore formulation.
 # T_s and q_s should evolve over time steps.
 
@@ -100,7 +100,7 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 17 SEB infrastructure (must be enabled for Phase 18/19 to work)
+# RADIATION - SEB infrastructure (must be enabled to work)
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
@@ -111,13 +111,13 @@ erf.radiation.seb_q_sfc_default = 0.01
 erf.radiation.seb_t_deep_default = 295.0
 erf.radiation.seb_q_deep_default = 0.20
 
-# RADIATION - Phase 18 SEB diagnostic (will be auto-enabled by Phase 19b)
+# RADIATION - SEB diagnostic (will be auto-enabled by)
 erf.radiation.seb_diagnostic_enable = true
 
-# RADIATION - Phase 19b SEB prognostic (ENABLED for feature test)
+# RADIATION - SEB prognostic (ENABLED for feature test)
 erf.radiation.seb_prognostic_enable = true
 
-# RADIATION - Phase 19b SEB prognostic parameters (using defaults)
+# RADIATION - SEB prognostic parameters (using defaults)
 # Surface heat capacity [J/(m^2*K)], default 2.0e4
 erf.radiation.seb_surface_heat_capacity = 2.0e4
 

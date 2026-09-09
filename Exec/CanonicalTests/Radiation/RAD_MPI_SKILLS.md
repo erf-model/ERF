@@ -531,7 +531,7 @@ Code comments should explain numerical intent, ordering constraints, or interfac
 
 **Problem**: Early diagnostics logic used only (step, time) for dedup, which accidentally collapsed legitimate multi-call-site entries (e.g., pre_dycore and post_dycore at the same step).
 
-**Solution (Phase 9)**: Use strict 3-tuple identity:
+**Solution**: Use strict 3-tuple identity:
 ```
 (step, call_site, time)
 ```
@@ -543,7 +543,7 @@ This ensures:
 
 **Key Implementation Detail**:
 ```cpp
-// Phase 9: Dedup guard order is critical
+// Dedup guard order is critical
 // 1. First: check mode filtering (returns early if unwanted)
 // 2. Then: check (step, call_site, time) dedup tuple
 // 3. Update: save last_step, last_call_site, last_time for next call
@@ -565,14 +565,14 @@ m_last_write_time = time;
 
 **Problem**: Heating divergence formulas divide by dz, which must be physically accurate for terrain-aware grids, but uniform grids benefit from algorithmic simplicity and performance.
 
-**Solution (Phase 9)**: 
+**Solution**:
 - Local per-level dz array `dz_level[MAX_RAD_LEVELS]`
 - Initialize all entries to uniform `geom.CellSize(2)` (current behavior)
 - When terrain/nonuniform support is added, populate from z_phys_cc or equivalent
 - Defensive fallback: bounds-check array access; return uniform dz if out-of-bounds
 
 ```cpp
-// Phase 9: Per-level dz framework
+// Per-level dz framework
 amrex::Real dz_level[MAX_RAD_LEVELS];
 for (int k = 0; k < nlev; ++k) {
     dz_level[k] = dz_uniform;  // Current: always uniform
@@ -601,7 +601,7 @@ amrex::Real Q_sw = compute_sw_heating_rate(..., dz_heating, ...);
 
 **Problem**: If dz becomes zero or negative (grid bug), the heating rate is NaN. If qheating_rates gets populated with NaN, it silently corrupts RhoTheta in later source-term injection.
 
-**Solution (Phase 9)**:
+**Solution**:
 1. Input guards in `compute_sw_heating_rate()` / `compute_lw_heating_rate()`:
    ```cpp
    if (dz <= 0.0 || rho <= 0.0 || cp <= 0.0) return 0.0;
@@ -613,7 +613,7 @@ amrex::Real Q_sw = compute_sw_heating_rate(..., dz_heating, ...);
    if (!std::isfinite(heating)) return 0.0;  // Catch NaN/Inf
    ```
 
-3. No warning/error log: Silently return 0 to avoid log spam in large simulations. (Future: Phase 10 can add counters to track how often this happens.)
+3. No warning/error log: Silently return 0 to avoid log spam in large simulations. (Future: can add counters to track how often this happens.)
 
 **Defensive Implication**:
 - These guards are GPU-safe inline functions.
@@ -629,11 +629,11 @@ amrex::Real Q_sw = compute_sw_heating_rate(..., dz_heating, ...);
 
 ---
 
-## Part D: Phase 14 Lessons (Prognostic Cloud Fraction)
+## Part D: Lessons (Prognostic Cloud Fraction)
 
 ### D.1 – RH/qc-based Cloud Fraction Diagnosis: Physical Consistency
 
-**Pattern (Phase 14):**
+**Pattern:**
 ```cpp
 // Diagnose RH from water vapor mixing ratio and T
 amrex::Real rh = compute_relative_humidity(qv, T, P);
@@ -673,7 +673,7 @@ rh = qv / qsat;  // Divide by zero if qsat=0 or invalid T
 
 ### D.2 – Finite Guards in RH Computation: Magnus Saturation Formula Safety
 
-**Pattern (Phase 14):**
+**Pattern:**
 ```cpp
 // Saturation vapor pressure (Magnus formula)
 amrex::Real e_sat = e0 * std::exp(a * (T - T0) / (T - b));
@@ -711,7 +711,7 @@ amrex::Real rh = qv / qsat;  // NaN if qsat=0 or very small
 
 ### D.3 – Per-Level Diagnosis in Vertical Sweeps: Integration Complexity
 
-**Pattern (Phase 14):**
+**Pattern:**
 ```cpp
 // Inside vertical sweep loop (SW down, LW up/down):
 for (int k = kmin; k <= kmax; ++k) {
@@ -722,7 +722,7 @@ for (int k = kmin; k <= kmax; ++k) {
         tau = diagnose_tau_dynamic(i, j, k, state_arr, tau, rad_choice);
     }
     
-    // NEW Phase 14: Per-level cloud fraction modulation
+       // Per-level cloud fraction modulation
     if (rad_choice.cloud_fraction_prog_enable && cloudy) {
         amrex::Real cf = diagnose_cloud_fraction_prognostic(i, j, k, state_arr, rad_choice, geom);
         amrex::Real tau_base = tau_layer_value(k, ..., /*cloudy=*/false);
@@ -738,8 +738,8 @@ for (int k = kmin; k <= kmax; ++k) {
 **Why:**
 - Each level has different qv, qc, T → different RH and thus cf
 - Scaling cloud_tau_per_layer by cf(k) makes cloud impact physically local
-- Integration point must be after other tau diagnostics (Phase 12 dynamic tau)
-- Order matters: Phase 12 first, then Phase 14, then flux computation
+- The integration point must come after the other tau diagnostics
+- Order matters: base tau, then dynamic tau, then cloud fraction, then the flux computation
 
 **Common Mistake:**
 ```cpp
@@ -750,13 +750,13 @@ for (int k = kmin; k <= kmax; ++k) {
 }
 
 // ❌ WRONG: Apply cf before dynamic tau, losing dynamic effect
-tau = tau_base + cf * cloud_tau_per_layer;  // Phase 14
-tau = diagnose_tau_dynamic(..., tau, ...);  // Phase 12 overwrites!
+tau = tau_base + cf * cloud_tau_per_layer;  // cloud fraction applied first
+tau = diagnose_tau_dynamic(..., tau, ...);  // then overwritten
 ```
 
 **Lesson:**
 - Diagnose cf(k) at EVERY level; never hoist out of sweep loop
-- Order integration steps: Phase 3 (base) → Phase 12 (dynamic) → Phase 14 (prognostic cf)
+- Order the integration steps: base tau → dynamic tau → prognostic cloud fraction
 - Test with varying qv/qc profiles (e.g., dry below 500m, cloud layer 500–2000m) to verify per-level diagnosis
 
 ---
@@ -783,7 +783,7 @@ sweep reads and updates.
 
 ### D.5 – Finite Guards: Saturation and Defensive Fallbacks
 
-**Pattern (Phase 14):**
+**Pattern:**
 ```cpp
 // Diagnose cloud fraction with multiple defensive layers
 amrex::Real cf = diagnose_cloud_fraction_from_rh_qc(rh, qc, rh_min, rh_max, qc_scale);
@@ -842,16 +842,16 @@ if (cf > 1.0) cf = 1.0;  // Too late; cf > 1 may have already corrupted downstre
 
 **Prognostic Cloud Fraction** combines thermodynamic (RH) and microphysical (qc) signals with:
 - Finite-guarded RH diagnosis from Magnus saturation formula
-- Per-level cf(k) diagnosis in vertical sweeps (after Phase 12 dynamic tau)
+- Per-level cf(k) diagnosis in vertical sweeps (after dynamic tau)
 - Saturation blending (cf ≤ 1) of RH + qc contributions
-- Temporal smoothing infrastructure ready for Phase 15+ persistent-state addition
+- Temporal smoothing infrastructure ready + persistent-state addition
 - Multiple defensive guards at input, intermediate, and output stages
 
 Enables physically consistent, per-level cloud fraction modulation of radiation while maintaining backward compatibility and GPU safety.
 
 ---
 
-## Part D.3 – Phase 14B Lesson: Multilevel Vector Allocation for Radiation State
+## Part D.3 – Lesson: Multilevel Vector Allocation for Radiation State
 
 ### D.3.1 – Allocate Before Use: Radiation Surface-Property MultiFabs
 
@@ -860,12 +860,12 @@ Enables physically consistent, per-level cloud fraction modulation of radiation 
 // ERF_Constructors.cpp::ERF_shared() – Constructor stage
 int nlevs_max = max_level + 1;
 
-// Step 1: Resize all radiation state vectors
+// Resize all radiation state vectors
 qheating_rates.resize(nlevs_max);
 rad_fluxes.resize(nlevs_max);
-twostream_alb_sw.resize(nlevs_max);      // Phase 14A/14B: Fallback surface albedo
-twostream_emiss_lw.resize(nlevs_max);    // Phase 14A/14B: Fallback surface emissivity
-twostream_t_sfc.resize(nlevs_max);       // Phase 14A/14B: Fallback surface temperature
+twostream_alb_sw.resize(nlevs_max); // Fallback surface albedo
+twostream_emiss_lw.resize(nlevs_max); // Fallback surface emissivity
+twostream_t_sfc.resize(nlevs_max); // Fallback surface temperature
 
 // Later in init_stuff() – Per-level allocation stage
 if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
@@ -905,7 +905,7 @@ if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
 1. Identify all radiation state vectors that hold per-level data (MultiFab, FAB, Array, etc.)
 2. For each vector, add a `.resize(nlevs_max)` call in `ERF::ERF_shared()` **after** `int nlevs_max = max_level + 1`
 3. Place all radiation vector resizes together (near qheating_rates/rad_fluxes) for maintainability
-4. Comment with the phase that added the vector (e.g., `// Phase 14A/14B`)
+4. Comment each vector with what it holds (e.g., `// Fallback surface albedo`)
 5. Verify in init_stuff() that vector indices are now valid before calling `.make_unique<>()`
 
 ### D.3.2 – Conditional Allocation Requires Unconditional Sizing
@@ -932,7 +932,7 @@ for (int lev = 0; lev <= max_level; ++lev) {
 - No performance cost (empty vectors are negligible)
 - No numerical impact (code never accesses nullptr vectors when TwoStream is off)
 
-### D.3.3 – Phase 14B Regression Test Pattern
+### D.3.3 – Regression Test Pattern
 
 **Test Setup** (TwoStream_ProgCloudFraction):
 ```
@@ -1088,22 +1088,22 @@ amrex::Real diagnose_tau_aerosol_gpu(const char* profile_type, ...) {
 
 **Pattern:**
 ```cpp
-// Compute base optical depth (from Phase 1-11)
+// Compute base optical depth
 amrex::Real tau = tau_layer_value(...);
 
-// Add Phase 12 dynamic tau (if enabled)
+// Add dynamic tau (if enabled)
 if (rad_choice.tau_sw_dynamic_enable) {
     tau = diagnose_tau_dynamic(...);  // Returns tau_base + dynamic_component
 }
 
-// Add Phase 14 cloud fraction scaling (if enabled and cloudy)
+// Add cloud fraction scaling (if enabled and cloudy)
 if (rad_choice.cloud_fraction_prog_enable && cloudy && ...) {
     amrex::Real cf = diagnose_cloud_fraction_prognostic(...);
     amrex::Real tau_base_k = tau_layer_value(..., /*cloudy=*/false);
     tau = tau_base_k + cf * rad_choice.cloud_tau_per_layer;
 }
 
-// Add Phase 15 aerosol (if enabled)
+// Add aerosol (if enabled)
 if (rad_choice.aerosol_enable) {
     amrex::Real tau_aero = diagnose_tau_aerosol_*(...);
     tau += tau_aero;  // ✅ ADDITIVE: += not =
@@ -1116,7 +1116,7 @@ F_sw = compute_sw_flux(tau, ...);
 **Why Additive:**
 1. **Separation of concerns**: Each phase contributes independently
 2. **No double-counting**: Cloud fraction already accounted for in tau_base_k recovery above
-3. **Backward compat**: When Phase 15 disabled, aerosol contribution is exactly zero
+3. **Backward compat**: When disabled, aerosol contribution is exactly zero
 4. **Physical interpretation**: tau_total = clear-sky + cloud + dynamic moisture + aerosol
 
 **Common Mistake:**

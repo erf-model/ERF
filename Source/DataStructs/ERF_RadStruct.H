@@ -25,7 +25,7 @@ AMREX_ENUM(RadType, None, TwoStream, RRTMGP);
  * @brief Optical depth profile type for the two-stream solver.
  *
  * - Constant: tau_per_layer / tau_lw_per_layer applied uniformly at every
- *   level (Phase 1/2 behavior, byte-identical).
+ *   level, independent of layer thickness.
  * - CloudLayer: an additional cloud optical depth is added within
  *   [cloud_base_height_m, cloud_top_height_m], on top of the clear-sky
  *   background tau_per_layer / tau_lw_per_layer.
@@ -33,7 +33,7 @@ AMREX_ENUM(RadType, None, TwoStream, RRTMGP);
 AMREX_ENUM(TauProfileType, Constant, CloudLayer);
 
 /**
- * @brief Aerosol optical depth profile type for the two-stream solver (Phase 15).
+ * @brief Aerosol optical depth profile type for the two-stream solver.
  *
  * - Constant: uniform aerosol tau_per_layer applied at every level.
  * - Exponential: aerosol tau decays exponentially with height via
@@ -60,13 +60,15 @@ AMREX_ENUM(TauModel, PerLayer, Mass);
  * @brief Container holding radiation-related choices and parameters.
  *
  * Manages the runtime selection and configuration of radiation solvers.
- * Phase 1/2: clear-sky, no-scattering physics, uniform optical depth.
- * Phase 3: adds height-varying optical depth (cloud layer) and cloud
- * fraction masking (blend of clear-sky and cloudy-column fluxes).
- * Phase 4: adds a diffuse (scattering) SW component via a two-stream
- * scattering approximation, parameterized by single-scattering albedo
- * and asymmetry factor, with independent clear-sky and cloud values.
- * Later phases will extend with RRTMGP support.
+ *
+ * The two-stream solver builds up from a clear-sky, no-scattering column of
+ * uniform optical depth. On top of that it offers height-varying optical
+ * depth (a cloud layer) with cloud-fraction masking, which blends clear-sky
+ * and cloudy-column fluxes, and a diffuse shortwave component from a
+ * two-stream scattering approximation parameterized by single-scattering
+ * albedo and asymmetry factor, with independent clear-sky and cloud values.
+ * Every addition is off by default, so the defaults reproduce the plain
+ * clear-sky column.
  */
 struct RadChoice
 {
@@ -179,74 +181,74 @@ public:
   std::string diag_file = "radiation_diag.dat";
 
   /**
-   * @brief (Phase 7) Master switch for radiation diagnostics emission.
+   * @brief Master switch for radiation diagnostics emission.
    * When false, no diagnostics output (stdout/tagged/regtest/csv).
-   * Default true preserves Phase 6 behavior.
+   * Default true.
    */
   bool diag_enable = true;
 
   /**
-   * @brief (Phase 7) Enable human-readable stdout diagnostics block.
+   * @brief Enable human-readable stdout diagnostics block.
    * Controls tagged [RAD][...] debug line emission (when verbosity >= 1).
-   * Default true preserves Phase 6 behavior.
+   * Default true.
    */
   bool diag_stdout_enable = true;
 
   /**
-   * @brief (Phase 7) Enable tagged [RAD][...] debug lines.
+   * @brief Enable tagged [RAD][...] debug lines.
    * Controls emission of bracketed-tag debug output.
-   * Default true preserves Phase 6 behavior.
+   * Default true.
    */
   bool diag_tagged_enable = true;
 
   /**
-   * @brief (Phase 7) Enable RADIATION_DIAG: line emission.
+   * @brief Enable RADIATION_DIAG: line emission.
    * Controls regtest-parsing diagnostics line.
-   * Default true preserves Phase 6 behavior.
+   * Default true.
    */
   bool diag_regtest_line_enable = true;
 
   /**
-   * @brief (Phase 7) Enable CSV file append behavior.
+   * @brief Enable CSV file append behavior.
    * When false, no file writes; other enabled streams may still print.
-   * Default true preserves Phase 6 behavior.
+   * Default true.
    */
   bool diag_csv_enable = true;
 
   /**
-   * @brief (Phase 7) Call-site filtering mode: "both" (pre+post rows),
-   * "pre_only", or "post_only". Default "both" preserves Phase 6 behavior.
+   * @brief Call-site filtering mode: "both" (pre+post rows),
+   * "pre_only", or "post_only".
    */
   std::string diag_callsite_mode = "both";
 
   /**
-   * @brief (Phase 7) Tolerance for time equality in duplicate guard [s].
+   * @brief Tolerance for time equality in duplicate guard [s].
    * Times within this tolerance are considered equal.
-   * Default 1e-12 preserves Phase 6 behavior.
+   * Default 1e-12.
    */
   amrex::Real diag_dedup_tol = 1.0e-12;
 
   /**
-   * @brief (Phase 3) Optical depth profile type: "constant" (default,
-   * byte-identical to Phase 1/2) or "cloud_layer" (adds height-varying
+   * @brief Optical depth profile type: "constant" (default,
+   * the thickness-independent tau) or "cloud_layer" (adds height-varying
    * cloud optical depth between cloud_base_height_m and cloud_top_height_m).
    */
   TauProfileType tau_profile_type = TauProfileType::Constant;
 
   /**
-   * @brief (Phase 3) Cloud layer base height [m]. Only used when
+   * @brief Cloud layer base height [m]. Only used when
    * tau_profile_type == CloudLayer.
    */
   amrex::Real cloud_base_height_m = 500.0;
 
   /**
-   * @brief (Phase 3) Cloud layer top height [m]. Only used when
+   * @brief Cloud layer top height [m]. Only used when
    * tau_profile_type == CloudLayer. Must be >= cloud_base_height_m.
    */
   amrex::Real cloud_top_height_m = 1000.0;
 
   /**
-   * @brief (Phase 3) Additional optical depth per layer contributed by the
+   * @brief Additional optical depth per layer contributed by the
    * cloud, added on top of the clear-sky tau_per_layer/tau_lw_per_layer
    * background within [cloud_base_height_m, cloud_top_height_m]. Only used
    * when tau_profile_type == CloudLayer.
@@ -254,25 +256,25 @@ public:
   amrex::Real cloud_tau_per_layer = 0.5;
 
   /**
-   * @brief (Phase 3) Cloud fraction in [0, 1] used to blend clear-sky and
+   * @brief Cloud fraction in [0, 1] used to blend clear-sky and
    * cloudy-column fluxes: F = (1 - cloud_fraction) * F_clear +
    * cloud_fraction * F_cloudy. Default 0.0 (fully clear sky), which
-   * reduces exactly to Phase 2d behavior regardless of tau_profile_type.
+   * reduces exactly to the clear-sky column regardless of tau_profile_type.
    */
   amrex::Real cloud_fraction = 0.0;
 
   /**
-   * @brief (Phase 4) Clear-sky (background gas) single-scattering albedo
+   * @brief Clear-sky (background gas) single-scattering albedo
    * in [0, 1] for the SW diffuse (scattering) two-stream calculation.
    * Default 0.0 means the clear-sky column is purely absorbing, and the
    * diffuse SW contribution from the clear-sky column is exactly zero —
-   * reducing EXACTLY to the Phase 1-3 direct-beam-only result.
+   * reducing exactly to the direct-beam-only result.
    * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
    */
   amrex::Real single_scattering_albedo = 0.0;
 
   /**
-   * @brief (Phase 4) Clear-sky (background gas) scattering asymmetry
+   * @brief Clear-sky (background gas) scattering asymmetry
    * factor in [-1, 1] (0 = isotropic scattering, close to 1 = strongly
    * forward-scattering). Only meaningful when single_scattering_albedo
    * > 0. Default 0.0.
@@ -280,11 +282,11 @@ public:
   amrex::Real asymmetry_factor = 0.0;
 
   /**
-   * @brief (Phase 4) Cloud single-scattering albedo in [0, 1], used
-   * instead of single_scattering_albedo for levels where the Phase 3
+   * @brief Cloud single-scattering albedo in [0, 1], used
+   * instead of single_scattering_albedo for levels where the
    * cloud-layer optical depth enhancement applies (i.e., within
    * [cloud_base_height_m, cloud_top_height_m] on the "cloudy" column
-   * evaluation). Default 0.0 preserves byte-identical Phase 3 behavior
+   * evaluation). Default 0.0 leaves the cloud band non-scattering
    * for SW_Cloud_Layer unless explicitly configured otherwise. Typical
    * liquid water cloud values are close to 1 (e.g., 0.9999).
    * Only used when tau_profile_type == CloudLayer.
@@ -292,8 +294,8 @@ public:
   amrex::Real cloud_single_scattering_albedo = 0.0;
 
   /**
-   * @brief (Phase 4) Cloud scattering asymmetry factor in [-1, 1], used
-   * instead of asymmetry_factor for levels where the Phase 3 cloud-layer
+   * @brief Cloud scattering asymmetry factor in [-1, 1], used
+   * instead of asymmetry_factor for levels where the cloud-layer
    * optical depth enhancement applies. Default 0.0. Typical liquid water
    * cloud droplet values are around 0.85 (strongly forward-scattering).
    * Only meaningful when cloud_single_scattering_albedo > 0.
@@ -301,7 +303,7 @@ public:
   amrex::Real cloud_asymmetry_factor = 0.0;
 
   /**
-   * @brief (Phase 11) Shortwave surface albedo fallback [0, 1] for per-column
+   * @brief Shortwave surface albedo fallback [0, 1] for per-column
    * heterogeneous-surface-property resolution. Used when per-column LSM/radiation
    * interface albedo field is unavailable or invalid. Default 0.3 represents
    * typical land/water reflectivity. Only used when hetero surface fields not
@@ -316,7 +318,7 @@ public:
   amrex::Real surface_albedo_sw_diffuse = -1.0;
 
   /**
-   * @brief (Phase 11) Longwave surface emissivity fallback [0, 1] for per-column
+   * @brief Longwave surface emissivity fallback [0, 1] for per-column
    * heterogeneous-surface-property resolution. Used when per-column LSM/radiation
    * interface emissivity field is unavailable or invalid. Default 0.99 represents
    * typical land/water/ice emissivity (nearly blackbody). Only used when hetero
@@ -325,7 +327,7 @@ public:
   amrex::Real surface_emissivity_lw = 0.99;
 
   /**
-   * @brief (Phase 11) Surface temperature fallback [K] for per-column heterogeneous
+   * @brief Surface temperature fallback [K] for per-column heterogeneous
    * -surface-property resolution. Used as LW boundary condition when per-column
    * LSM/radiation interface surface-temperature field is unavailable or invalid.
    * Default 300.0 K (typical surface temp). Only used when hetero t_sfc field
@@ -334,62 +336,63 @@ public:
   amrex::Real surface_temp_k = 300.0;
 
   /**
-   * @brief (Phase 17) Master switch for simplified SEB infrastructure.
+   * @brief Master switch for simplified SEB infrastructure.
    * When false (default), no SEB MultiFabs are allocated and behavior is unchanged.
    */
   bool seb_enable = false;
 
   /**
-   * @brief (Phase 17) Fallback SEB surface net shortwave flux [W/m^2].
+   * @brief Fallback SEB surface net shortwave flux [W/m^2].
    */
   amrex::Real seb_sw_flux_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB surface net longwave flux [W/m^2].
+   * @brief Fallback SEB surface net longwave flux [W/m^2].
    */
   amrex::Real seb_lw_flux_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB sensible heat flux [W/m^2].
+   * @brief Fallback SEB sensible heat flux [W/m^2].
    */
   amrex::Real seb_hfx_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB latent heat flux [W/m^2].
+   * @brief Fallback SEB latent heat flux [W/m^2].
    */
   amrex::Real seb_lh_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB ground heat flux [W/m^2].
+   * @brief Fallback SEB ground heat flux [W/m^2].
    */
   amrex::Real seb_grdflx_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB surface moisture [kg/kg].
+   * @brief Fallback SEB surface moisture [kg/kg].
    */
   amrex::Real seb_q_sfc_default = 0.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB deep soil temperature [K].
+   * @brief Fallback SEB deep soil temperature [K].
    */
   amrex::Real seb_t_deep_default = 300.0;
 
   /**
-   * @brief (Phase 17) Fallback SEB deep soil moisture [kg/kg].
+   * @brief Fallback SEB deep soil moisture [kg/kg].
    */
   amrex::Real seb_q_deep_default = 0.0;
 
   /**
-   * @brief (Phase 18) Enable diagnostic SEB residual computation and reporting.
+   * @brief Enable diagnostic SEB residual computation and reporting.
    * When true, computes and reports SEB residual = (SW_net + LW_net) - H - LE - G.
    * When false (default), no residual computation or new diagnostic output.
    * Requires seb_enable=true to be meaningful; if false but seb_enable=true, auto-enables internally.
-   * Note: This is diagnostic-only; no prognostic T_s or flux update (Phase 19).
+   * Note: this is diagnostic-only; it makes no prognostic T_s or flux update.
+   * Set seb_prognostic_enable for that.
    */
   bool seb_diagnostic_enable = false;
 
   /**
-   * @brief (Phase 19b) Enable prognostic SEB surface temperature and moisture evolution.
+   * @brief Enable prognostic SEB surface temperature and moisture evolution.
    * When true, integrates SEB residual forward in time to evolve T_s and q_s using
    * force-restore formulation. When false (default), no prognostic update occurs.
    * Requires seb_enable=true and seb_diagnostic_enable=true; auto-enables internally if needed.
@@ -398,7 +401,7 @@ public:
   bool seb_prognostic_enable = false;
 
   /**
-   * @brief (Phase 19b) Effective surface heat capacity [J/(m^2*K)].
+   * @brief Effective surface heat capacity [J/(m^2*K)].
    * Used in force-restore prognostic T_s equation: dT_s/dt = SEB_residual / C_s - (2*pi/tau)*(T_s - T_deep).
    * Default 2.0e4 J/(m^2*K) represents a thin surface-active layer.
    * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
@@ -406,7 +409,7 @@ public:
   amrex::Real seb_surface_heat_capacity = 2.0e4;
 
   /**
-   * @brief (Phase 19b) Force-restore timescale for surface temperature [s].
+   * @brief Force-restore timescale for surface temperature [s].
    * Relaxation time constant toward T_deep in prognostic T_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
    * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
@@ -414,7 +417,7 @@ public:
   amrex::Real seb_restore_timescale_s = 86400.0;
 
   /**
-   * @brief (Phase 19b) Effective surface moisture layer depth [m].
+   * @brief Effective surface moisture layer depth [m].
    * Used in force-restore prognostic q_s equation: dq_s/dt = -(LE/(L_v*rho_w*d_s)) - (1/tau_q)*(q_s - q_deep).
    * Default 0.1 m represents a thin surface-active moisture layer.
    * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
@@ -422,7 +425,7 @@ public:
   amrex::Real seb_moisture_layer_depth_m = 0.1;
 
   /**
-   * @brief (Phase 19b) Force-restore timescale for surface moisture [s].
+   * @brief Force-restore timescale for surface moisture [s].
    * Relaxation time constant toward q_deep in prognostic q_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
    * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
@@ -430,7 +433,7 @@ public:
   amrex::Real seb_moisture_restore_timescale_s = 86400.0;
 
   /**
-   * @brief (Phase 19b) Minimum clamping bound for prognostic surface temperature [K].
+   * @brief Minimum clamping bound for prognostic surface temperature [K].
    * After each Euler update, T_s is clamped to [seb_prognostic_t_min_k, seb_prognostic_t_max_k]
    * to prevent instability if dt is large relative to C_s/tau.
    * Default 200.0 K (far below realistic surface temperatures).
@@ -439,7 +442,7 @@ public:
   amrex::Real seb_prognostic_t_min_k = 200.0;
 
   /**
-   * @brief (Phase 19b) Maximum clamping bound for prognostic surface temperature [K].
+   * @brief Maximum clamping bound for prognostic surface temperature [K].
    * After each Euler update, T_s is clamped to [seb_prognostic_t_min_k, seb_prognostic_t_max_k].
    * Default 340.0 K (above typical surface temperatures, but prevents unrealistic excursions).
    * Only used when seb_prognostic_enable=true.
@@ -447,7 +450,7 @@ public:
   amrex::Real seb_prognostic_t_max_k = 340.0;
 
   /**
-   * @brief (Phase 19b) Minimum clamping bound for prognostic surface moisture [kg/kg].
+   * @brief Minimum clamping bound for prognostic surface moisture [kg/kg].
    * After each Euler update, q_s is clamped to [seb_prognostic_q_min, seb_prognostic_q_max].
    * Default 0.0 kg/kg prevents negative moisture.
    * Only used when seb_prognostic_enable=true.
@@ -455,7 +458,7 @@ public:
   amrex::Real seb_prognostic_q_min = 0.0;
 
   /**
-   * @brief (Phase 19b) Maximum clamping bound for prognostic surface moisture [kg/kg].
+   * @brief Maximum clamping bound for prognostic surface moisture [kg/kg].
    * After each Euler update, q_s is clamped to [seb_prognostic_q_min, seb_prognostic_q_max].
    * Default 1.0 kg/kg ensures physically meaningful moisture.
    * Only used when seb_prognostic_enable=true.
@@ -464,16 +467,16 @@ public:
 
 
   /**
-   * @brief (Phase 12) Enable dynamic longwave optical depth diagnosis from moisture/clouds.
+   * @brief Enable dynamic longwave optical depth diagnosis from moisture/clouds.
    * When true, LW optical depth is computed per-level from qv and qc.
-   * When false (default), uses static tau_lw_per_layer (Phase 11 behavior).
+   * When false (default), uses the static tau_lw_per_layer.
    * Only used when rad_type == RadType::TwoStream and lw_enabled == true.
    */
   bool tau_lw_dynamic_enable = false;
   bool tau_sw_dynamic_enable = false;
 
   /**
-   * @brief (Phase 12) Shortwave optical depth coefficient for water vapor [dimensionless].
+   * @brief Shortwave optical depth coefficient for water vapor [dimensionless].
    * Dynamic SW tau = tau_sw_coeff_qv * qv + tau_sw_coeff_qc * qc + tau_per_layer.
    * Default 0.0 means tau is purely from static tau_per_layer (no dynamic component).
    * Only used when tau_sw_dynamic_enable == true.
@@ -481,15 +484,15 @@ public:
   amrex::Real tau_sw_coeff_qv = 0.0;
 
   /**
-   * @brief (Phase 12) Shortwave optical depth coefficient for cloud liquid water [dimensionless].
+   * @brief Shortwave optical depth coefficient for cloud liquid water [dimensionless].
    * Default 0.0. When both coefficients are 0, dynamic path still invoked but yields
-   * tau_per_layer unchanged, preserving Phase 11 behavior.
+   * tau_per_layer unchanged.
    * Only used when tau_sw_dynamic_enable == true.
    */
   amrex::Real tau_sw_coeff_qc = 0.0;
 
   /**
-   * @brief (Phase 12) Longwave optical depth coefficient for water vapor [dimensionless].
+   * @brief Longwave optical depth coefficient for water vapor [dimensionless].
    * Dynamic LW tau = tau_lw_coeff_qv * qv + tau_lw_coeff_qc * qc + tau_lw_per_layer.
    * Default 0.0 means tau is purely from static tau_lw_per_layer (no dynamic component).
    * Only used when tau_lw_dynamic_enable == true.
@@ -497,23 +500,23 @@ public:
   amrex::Real tau_lw_coeff_qv = 0.0;
 
   /**
-   * @brief (Phase 12) Longwave optical depth coefficient for cloud liquid water [dimensionless].
+   * @brief Longwave optical depth coefficient for cloud liquid water [dimensionless].
    * Default 0.0. When both coefficients are 0, dynamic path still invoked but yields
-   * tau_lw_per_layer unchanged, preserving Phase 11 behavior.
+   * tau_lw_per_layer unchanged.
    * Only used when tau_lw_dynamic_enable == true.
    */
   amrex::Real tau_lw_coeff_qc = 0.0;
 
   /**
-   * @brief (Phase 14) Enable prognostic cloud fraction diagnosis from RH/qc.
+   * @brief Enable prognostic cloud fraction diagnosis from RH/qc.
    * When true, cloud fraction is computed per-level from relative humidity and cloud water.
-   * When false (default), uses static cloud_fraction (Phase 13 behavior).
+   * When false (default), uses the static cloud_fraction.
    * Only used when rad_type == RadType::TwoStream.
    */
   bool cloud_fraction_prog_enable = false;
 
   /**
-   * @brief (Phase 14) Minimum relative humidity threshold for cloud fraction diagnosis [0, 1].
+   * @brief Minimum relative humidity threshold for cloud fraction diagnosis [0, 1].
    * Cloud fraction ramps from 0 at rh < cloud_fraction_rh_min to 1 at rh >= cloud_fraction_rh_max.
    * Default 0.0 means cloud fraction depends primarily on qc content.
    * Only used when cloud_fraction_prog_enable == true.
@@ -521,7 +524,7 @@ public:
   amrex::Real cloud_fraction_rh_min = 0.0;
 
   /**
-   * @brief (Phase 14) Maximum relative humidity threshold for cloud fraction diagnosis [0, 1].
+   * @brief Maximum relative humidity threshold for cloud fraction diagnosis [0, 1].
    * Must be >= cloud_fraction_rh_min. Cloud fraction saturates to 1 at this RH.
    * Default 1.0 means cloud fraction increases linearly from rh_min to 1.0 RH.
    * Only used when cloud_fraction_prog_enable == true.
@@ -529,7 +532,7 @@ public:
   amrex::Real cloud_fraction_rh_max = 1.0;
 
   /**
-   * @brief (Phase 14) Scaling coefficient for cloud liquid water contribution to cloud fraction [dimensionless].
+   * @brief Scaling coefficient for cloud liquid water contribution to cloud fraction [dimensionless].
    * Cloud fraction has additional contribution from qc: cf += cloud_fraction_qc_scale * qc.
    * Default 1.0e-3 converts qc [kg/kg] to dimensionless cloud fraction contribution.
    * Only used when cloud_fraction_prog_enable == true.
@@ -537,15 +540,15 @@ public:
   amrex::Real cloud_fraction_qc_scale = 1.0e-3;
 
   /**
-   * @brief (Phase 15) Enable prescribed bulk aerosol/turbidity optical depth.
+   * @brief Enable prescribed bulk aerosol/turbidity optical depth.
    * When true, aerosol optical depth is added on top of existing tau_base + cloud + dynamic-moisture contributions.
-   * When false (default), no aerosol contribution (Phase 14B behavior preserved).
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true (LW optional, Phase 16+).
+   * When false (default), there is no aerosol contribution.
+   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
    */
   bool aerosol_enable = false;
 
   /**
-   * @brief (Phase 15) Aerosol optical depth profile type: Constant, Exponential, or Table.
+   * @brief Aerosol optical depth profile type: Constant, Exponential, or Table.
    * - Constant: uniform aerosol tau per layer (aerosol_tau_per_layer).
    * - Exponential: tau decays with height via tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / aerosol_scale_height_m).
    * - Table: per-level tau prescribed via lookup (future extension, currently not supported).
@@ -554,14 +557,14 @@ public:
   AerosolProfileType aerosol_profile_type = AerosolProfileType::Constant;
 
   /**
-   * @brief (Phase 15) Constant aerosol optical depth per layer [dimensionless].
+   * @brief Constant aerosol optical depth per layer [dimensionless].
    * Used for AerosolProfileType::Constant profile. Default 0.0 (no aerosol contribution).
    * Only used when aerosol_enable == true and aerosol_profile_type == Constant.
    */
   amrex::Real aerosol_tau_per_layer = 0.0;
 
   /**
-   * @brief (Phase 15) Scale height for exponential aerosol profile [m].
+   * @brief Scale height for exponential aerosol profile [m].
    * Controls decay rate: tau_aerosol(k) = aerosol_tau_surface * exp(-z(k) / scale_height).
    * Default 2000.0 m (typical scale height for tropospheric aerosols).
    * Only used when aerosol_enable == true and aerosol_profile_type == Exponential.
@@ -569,7 +572,7 @@ public:
   amrex::Real aerosol_scale_height_m = 2000.0;
 
   /**
-   * @brief (Phase 15) Total-column aerosol optical depth at surface [dimensionless].
+   * @brief Total-column aerosol optical depth at surface [dimensionless].
    * Used for AerosolProfileType::Exponential profile as the surface boundary condition.
    * Default 0.0 (no aerosol contribution).
    * Only used when aerosol_enable == true and aerosol_profile_type == Exponential.
@@ -577,16 +580,16 @@ public:
   amrex::Real aerosol_tau_surface = 0.0;
 
   /**
-   * @brief (Phase 16) Enable time-varying solar geometry from diurnal cycle.
+   * @brief Enable time-varying solar geometry from diurnal cycle.
    * When true, solar zenith angle is computed dynamically from simulation time,
    * latitude, longitude, and day-of-year using astronomical formulas.
-   * When false (default), uses static solar_zenith_deg (Phase 15 behavior).
+   * When false (default), uses the static solar_zenith_deg.
    * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
    */
   bool solar_geometry_dynamic_enable = false;
 
   /**
-   * @brief (Phase 16) Site latitude [degrees, -90 to 90, positive north].
+   * @brief Site latitude [degrees, -90 to 90, positive north].
    * Used to compute solar zenith angle when solar_geometry_dynamic_enable == true.
    * Clamped to [-90, 90] in init_params().
    * Default 0.0 (equator). Only used when solar_geometry_dynamic_enable == true.
@@ -594,7 +597,7 @@ public:
   amrex::Real latitude_deg = 0.0;
 
   /**
-   * @brief (Phase 16) Site longitude [degrees, -180 to 180, positive east].
+   * @brief Site longitude [degrees, -180 to 180, positive east].
    * Used to compute solar hour angle when solar_geometry_dynamic_enable == true.
    * Clamped to [-180, 180] in init_params().
    * Default 0.0 (prime meridian). Only used when solar_geometry_dynamic_enable == true.
@@ -602,7 +605,7 @@ public:
   amrex::Real longitude_deg = 0.0;
 
   /**
-   * @brief (Phase 16) Reference day-of-year at simulation start [1-366].
+   * @brief Reference day-of-year at simulation start [1-366].
    * Used to compute solar declination and equation-of-time correction.
    * Default 172 (approx. June 21, summer solstice in Northern Hemisphere).
    * Clamped to [1, 366] in init_params().
@@ -611,7 +614,7 @@ public:
   amrex::Real day_of_year = 172.0;
 
   /**
-   * @brief (Phase 16) Time zone offset from UTC [hours].
+   * @brief Time zone offset from UTC [hours].
    * Used to convert UTC simulation time to local solar time.
    * Positive east of Greenwich, negative west. Default 0.0 (UTC).
    * No explicit bounds; values outside ±12 hours are allowed (e.g., for
@@ -645,61 +648,61 @@ public:
    * - erf.radiation.surface_albedo_sw_diffuse (real, optional, default -1 = same as direct)
    * - erf.radiation.v (int, optional, debug verbosity)
    * - erf.radiation.diag_file (string, optional)
-   * - erf.radiation.tau_profile_type (string "constant"|"cloud_layer", optional, Phase 3)
-   * - erf.radiation.cloud_base_height_m (real, optional, Phase 3)
-   * - erf.radiation.cloud_top_height_m (real, optional, Phase 3)
-   * - erf.radiation.cloud_tau_per_layer (real, optional, Phase 3)
-   * - erf.radiation.cloud_fraction (real, optional, Phase 3)
-   * - erf.radiation.single_scattering_albedo (real, optional, Phase 4)
-   * - erf.radiation.asymmetry_factor (real, optional, Phase 4)
-   * - erf.radiation.cloud_single_scattering_albedo (real, optional, Phase 4)
-   * - erf.radiation.cloud_asymmetry_factor (real, optional, Phase 4)
-   * - erf.radiation.diag_enable (bool, optional, Phase 7, default true)
-   * - erf.radiation.diag_stdout_enable (bool, optional, Phase 7, default true)
-   * - erf.radiation.diag_tagged_enable (bool, optional, Phase 7, default true)
-   * - erf.radiation.diag_regtest_line_enable (bool, optional, Phase 7, default true)
-   * - erf.radiation.diag_csv_enable (bool, optional, Phase 7, default true)
-   * - erf.radiation.diag_callsite_mode (string, optional, Phase 7, default "both")
-   * - erf.radiation.diag_dedup_tol (real, optional, Phase 7, default 1e-12)
-   * - erf.radiation.tau_sw_dynamic_enable (bool, optional, Phase 12, default false)
-   * - erf.radiation.tau_lw_dynamic_enable (bool, optional, Phase 12, default false)
-   * - erf.radiation.tau_sw_coeff_qv (real, optional, Phase 12, default 0.0)
-   * - erf.radiation.tau_sw_coeff_qc (real, optional, Phase 12, default 0.0)
-   * - erf.radiation.tau_lw_coeff_qv (real, optional, Phase 12, default 0.0)
-   * - erf.radiation.tau_lw_coeff_qc (real, optional, Phase 12, default 0.0)
-   * - erf.radiation.cloud_fraction_prog_enable (bool, optional, Phase 14, default false)
-   * - erf.radiation.cloud_fraction_rh_min (real, optional, Phase 14, default 0.0)
-   * - erf.radiation.cloud_fraction_rh_max (real, optional, Phase 14, default 1.0)
-   * - erf.radiation.cloud_fraction_qc_scale (real, optional, Phase 14, default 1.0e-3)
-   * - erf.radiation.aerosol_enable (bool, optional, Phase 15, default false)
-   * - erf.radiation.aerosol_profile_type (string "constant"|"exponential"|"table", optional, Phase 15, default "constant")
-   * - erf.radiation.aerosol_tau_per_layer (real, optional, Phase 15, default 0.0)
-   * - erf.radiation.aerosol_scale_height_m (real, optional, Phase 15, default 2000.0)
-   * - erf.radiation.aerosol_tau_surface (real, optional, Phase 15, default 0.0)
-   * - erf.radiation.solar_geometry_dynamic_enable (bool, optional, Phase 16, default false)
-   * - erf.radiation.latitude_deg (real, optional, Phase 16, default 0.0, clamped to [-90, 90])
-   * - erf.radiation.longitude_deg (real, optional, Phase 16, default 0.0, clamped to [-180, 180])
-   * - erf.radiation.day_of_year (real, optional, Phase 16, default 172.0, clamped to [1, 366])
-   * - erf.radiation.time_zone_offset_hours (real, optional, Phase 16, default 0.0)
-   * - erf.radiation.seb_enable (bool, optional, Phase 17, default false)
-   * - erf.radiation.seb_sw_flux_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_lw_flux_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_hfx_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_lh_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_grdflx_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_q_sfc_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_t_deep_default (real, optional, Phase 17, default 300.0)
-   * - erf.radiation.seb_q_deep_default (real, optional, Phase 17, default 0.0)
-   * - erf.radiation.seb_diagnostic_enable (bool, optional, Phase 18, default false)
-   * - erf.radiation.seb_prognostic_enable (bool, optional, Phase 19b, default false)
-   * - erf.radiation.seb_surface_heat_capacity (real, optional, Phase 19b, default 2.0e4, validated > 0)
-   * - erf.radiation.seb_restore_timescale_s (real, optional, Phase 19b, default 86400.0, validated > 0)
-   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, Phase 19b, default 0.1, validated > 0)
-   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, Phase 19b, default 86400.0, validated > 0)
-   * - erf.radiation.seb_prognostic_t_min_k (real, optional, Phase 19b, default 200.0)
-   * - erf.radiation.seb_prognostic_t_max_k (real, optional, Phase 19b, default 340.0)
-   * - erf.radiation.seb_prognostic_q_min (real, optional, Phase 19b, default 0.0, clamped to [0, 1])
-   * - erf.radiation.seb_prognostic_q_max (real, optional, Phase 19b, default 1.0, clamped to [0, 1])
+   * - erf.radiation.tau_profile_type (string "constant"|"cloud_layer", optional)
+   * - erf.radiation.cloud_base_height_m (real, optional)
+   * - erf.radiation.cloud_top_height_m (real, optional)
+   * - erf.radiation.cloud_tau_per_layer (real, optional)
+   * - erf.radiation.cloud_fraction (real, optional)
+   * - erf.radiation.single_scattering_albedo (real, optional)
+   * - erf.radiation.asymmetry_factor (real, optional)
+   * - erf.radiation.cloud_single_scattering_albedo (real, optional)
+   * - erf.radiation.cloud_asymmetry_factor (real, optional)
+   * - erf.radiation.diag_enable (bool, optional, default true)
+   * - erf.radiation.diag_stdout_enable (bool, optional, default true)
+   * - erf.radiation.diag_tagged_enable (bool, optional, default true)
+   * - erf.radiation.diag_regtest_line_enable (bool, optional, default true)
+   * - erf.radiation.diag_csv_enable (bool, optional, default true)
+   * - erf.radiation.diag_callsite_mode (string, optional, default "both")
+   * - erf.radiation.diag_dedup_tol (real, optional, default 1e-12)
+   * - erf.radiation.tau_sw_dynamic_enable (bool, optional, default false)
+   * - erf.radiation.tau_lw_dynamic_enable (bool, optional, default false)
+   * - erf.radiation.tau_sw_coeff_qv (real, optional, default 0.0)
+   * - erf.radiation.tau_sw_coeff_qc (real, optional, default 0.0)
+   * - erf.radiation.tau_lw_coeff_qv (real, optional, default 0.0)
+   * - erf.radiation.tau_lw_coeff_qc (real, optional, default 0.0)
+   * - erf.radiation.cloud_fraction_prog_enable (bool, optional, default false)
+   * - erf.radiation.cloud_fraction_rh_min (real, optional, default 0.0)
+   * - erf.radiation.cloud_fraction_rh_max (real, optional, default 1.0)
+   * - erf.radiation.cloud_fraction_qc_scale (real, optional, default 1.0e-3)
+   * - erf.radiation.aerosol_enable (bool, optional, default false)
+   * - erf.radiation.aerosol_profile_type (string "constant"|"exponential"|"table", optional, default "constant")
+   * - erf.radiation.aerosol_tau_per_layer (real, optional, default 0.0)
+   * - erf.radiation.aerosol_scale_height_m (real, optional, default 2000.0)
+   * - erf.radiation.aerosol_tau_surface (real, optional, default 0.0)
+   * - erf.radiation.solar_geometry_dynamic_enable (bool, optional, default false)
+   * - erf.radiation.latitude_deg (real, optional, default 0.0, clamped to [-90, 90])
+   * - erf.radiation.longitude_deg (real, optional, default 0.0, clamped to [-180, 180])
+   * - erf.radiation.day_of_year (real, optional, default 172.0, clamped to [1, 366])
+   * - erf.radiation.time_zone_offset_hours (real, optional, default 0.0)
+   * - erf.radiation.seb_enable (bool, optional, default false)
+   * - erf.radiation.seb_sw_flux_default (real, optional, default 0.0)
+   * - erf.radiation.seb_lw_flux_default (real, optional, default 0.0)
+   * - erf.radiation.seb_hfx_default (real, optional, default 0.0)
+   * - erf.radiation.seb_lh_default (real, optional, default 0.0)
+   * - erf.radiation.seb_grdflx_default (real, optional, default 0.0)
+   * - erf.radiation.seb_q_sfc_default (real, optional, default 0.0)
+   * - erf.radiation.seb_t_deep_default (real, optional, default 300.0)
+   * - erf.radiation.seb_q_deep_default (real, optional, default 0.0)
+   * - erf.radiation.seb_diagnostic_enable (bool, optional, default false)
+   * - erf.radiation.seb_prognostic_enable (bool, optional, default false)
+   * - erf.radiation.seb_surface_heat_capacity (real, optional, default 2.0e4, validated > 0)
+   * - erf.radiation.seb_restore_timescale_s (real, optional, default 86400.0, validated > 0)
+   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, default 0.1, validated > 0)
+   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, default 86400.0, validated > 0)
+   * - erf.radiation.seb_prognostic_t_min_k (real, optional, default 200.0)
+   * - erf.radiation.seb_prognostic_t_max_k (real, optional, default 340.0)
+   * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
+   * - erf.radiation.seb_prognostic_q_max (real, optional, default 1.0, clamped to [0, 1])
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
@@ -712,6 +715,15 @@ public:
     query_one_or_per_level_enum_case_insensitive(
       pp, "radiation_type", rad_type, lev, max_level);
 
+    // RadType::RRTMGP is reserved but not wired to a solver: nothing reads it,
+    // so accepting it would run the whole simulation with no radiation at all.
+    // RRTMGP is selected with erf.radiation_model instead.
+    if (rad_type == RadType::RRTMGP) {
+      amrex::Abort("erf.radiation_type = RRTMGP is not implemented. "
+                   "Select RRTMGP with erf.radiation_model, or set "
+                   "erf.radiation_type = TwoStream.");
+    }
+
     // Only query sub-options if TwoStream radiation is selected
     if (rad_type == RadType::TwoStream) {
       pp.query("radiation.sw_enabled", sw_enabled);
@@ -723,10 +735,15 @@ public:
       pp.query("radiation.earth_sun_distance_enable", earth_sun_distance_enable);
       std::string tau_model_str = "per_layer";
       pp.query("radiation.tau_model", tau_model_str);
-      if (tau_model_str == "mass") {
+      if (tau_model_str == "per_layer") {
+        tau_model = TauModel::PerLayer;
+      } else if (tau_model_str == "mass") {
         tau_model = TauModel::Mass;
       } else {
-        tau_model = TauModel::PerLayer;
+        // The two models give very different column optical depths, so a
+        // misspelling must not quietly select the default.
+        amrex::Abort("Unknown erf.radiation.tau_model '" + tau_model_str +
+                     "'. Valid values are per_layer and mass.");
       }
       pp.query("radiation.sw_kabs_dry", sw_kabs_dry);
       pp.query("radiation.sw_kscat_dry", sw_kscat_dry);
@@ -752,14 +769,19 @@ public:
       pp.query("radiation.v", verbosity);
       pp.query("radiation.diag_file", diag_file);
 
-      // Phase 3: cloud optical properties (all optional; defaults preserve
-      // exact Phase 2d behavior)
+      // Cloud optical properties (all optional; the defaults leave the
+      // column clear-sky)
       std::string tau_profile_type_str = "constant";
       pp.query("radiation.tau_profile_type", tau_profile_type_str);
-      if (tau_profile_type_str == "cloud_layer") {
+      if (tau_profile_type_str == "constant") {
+        tau_profile_type = TauProfileType::Constant;
+      } else if (tau_profile_type_str == "cloud_layer") {
         tau_profile_type = TauProfileType::CloudLayer;
       } else {
-        tau_profile_type = TauProfileType::Constant;
+        // Falling back to constant would silently drop a requested cloud layer.
+        amrex::Abort("Unknown erf.radiation.tau_profile_type '" +
+                     tau_profile_type_str +
+                     "'. Valid values are constant and cloud_layer.");
       }
       pp.query("radiation.cloud_base_height_m", cloud_base_height_m);
       pp.query("radiation.cloud_top_height_m", cloud_top_height_m);
@@ -774,8 +796,8 @@ public:
         cloud_top_height_m = cloud_base_height_m;
       }
 
-      // Phase 4: scattering parameters (all optional; defaults preserve
-      // exact Phase 3 direct-beam-only behavior)
+      // Scattering parameters (all optional; the defaults leave the
+      // shortwave direct-beam only)
       pp.query("radiation.single_scattering_albedo", single_scattering_albedo);
       pp.query("radiation.asymmetry_factor", asymmetry_factor);
       pp.query("radiation.cloud_single_scattering_albedo", cloud_single_scattering_albedo);
@@ -792,8 +814,8 @@ public:
       if (cloud_asymmetry_factor < -1.0) cloud_asymmetry_factor = -1.0;
       if (cloud_asymmetry_factor > 1.0) cloud_asymmetry_factor = 1.0;
 
-      // Phase 7: runtime diagnostics controls (all optional; defaults preserve
-      // exact Phase 6 behavior)
+      // Runtime diagnostics controls (all optional; every channel is on
+      // by default)
       pp.query("radiation.diag_enable", diag_enable);
       pp.query("radiation.diag_stdout_enable", diag_stdout_enable);
       pp.query("radiation.diag_tagged_enable", diag_tagged_enable);
@@ -802,17 +824,19 @@ public:
       pp.query("radiation.diag_callsite_mode", diag_callsite_mode);
       pp.query("radiation.diag_dedup_tol", diag_dedup_tol);
 
-      // Parameter validation (Phase 7): validate callsite mode
+      // Validate the call-site mode
       if (diag_callsite_mode != "both" &&
           diag_callsite_mode != "pre_only" &&
           diag_callsite_mode != "post_only") {
-        diag_callsite_mode = "both";  // Default on invalid input
+        amrex::Abort("Unknown erf.radiation.diag_callsite_mode '" +
+                     diag_callsite_mode +
+                     "'. Valid values are both, pre_only and post_only.");
       }
       // Ensure dedup tolerance is non-negative
       if (diag_dedup_tol < 0.0) diag_dedup_tol = 0.0;
 
-      // Phase 11: surface heterogeneity fallback parameters (all optional;
-      // defaults preserve Phase 1-10 scalar behavior; only used when hetero
+      // Surface heterogeneity fallback parameters (all optional; only used
+      // when hetero
       // LSM/radiation interface fields are absent or invalid)
       pp.query("radiation.surface_albedo_sw", surface_albedo_sw);
       pp.query("radiation.surface_emissivity_lw", surface_emissivity_lw);
@@ -820,7 +844,7 @@ public:
       pp.query("radiation.surface_albedo_sw_diffuse", surface_albedo_sw_diffuse);
       if (surface_albedo_sw_diffuse > 1.0) surface_albedo_sw_diffuse = 1.0;
 
-      // Parameter validation (Phase 11): clamp albedo/emissivity to [0, 1],
+      // Clamp albedo/emissivity to [0, 1],
       // ensure surface temp is positive and finite
       if (surface_albedo_sw < 0.0) surface_albedo_sw = 0.0;
       if (surface_albedo_sw > 1.0) surface_albedo_sw = 1.0;
@@ -829,8 +853,8 @@ public:
       if (surface_temp_k <= 0.0) surface_temp_k = 300.0;  // Ensure positive
       if (!std::isfinite(surface_temp_k)) surface_temp_k = 300.0;  // Ensure finite
 
-      // Phase 12: dynamic optical depth diagnosis from moisture/clouds
-      // (all optional; defaults disable dynamic tau, preserving Phase 11 behavior)
+      // Dynamic optical depth diagnosis from moisture/clouds
+      // (all optional; disabled by default)
       pp.query("radiation.tau_sw_dynamic_enable", tau_sw_dynamic_enable);
       pp.query("radiation.tau_lw_dynamic_enable", tau_lw_dynamic_enable);
       pp.query("radiation.tau_sw_coeff_qv", tau_sw_coeff_qv);
@@ -838,21 +862,21 @@ public:
       pp.query("radiation.tau_lw_coeff_qv", tau_lw_coeff_qv);
       pp.query("radiation.tau_lw_coeff_qc", tau_lw_coeff_qc);
 
-      // Parameter validation (Phase 12): clamp dynamic tau coefficients
+      // Clamp the dynamic tau coefficients
       // to nonnegative (negative would give unphysical behavior)
       if (tau_sw_coeff_qv < 0.0) tau_sw_coeff_qv = 0.0;
       if (tau_sw_coeff_qc < 0.0) tau_sw_coeff_qc = 0.0;
       if (tau_lw_coeff_qv < 0.0) tau_lw_coeff_qv = 0.0;
       if (tau_lw_coeff_qc < 0.0) tau_lw_coeff_qc = 0.0;
 
-      // Phase 14: prognostic cloud fraction diagnosis from RH/qc
-      // (all optional; defaults disable prognostic cf, preserving Phase 13 behavior)
+      // Prognostic cloud fraction diagnosis from RH/qc
+      // (all optional; disabled by default)
       pp.query("radiation.cloud_fraction_prog_enable", cloud_fraction_prog_enable);
       pp.query("radiation.cloud_fraction_rh_min", cloud_fraction_rh_min);
       pp.query("radiation.cloud_fraction_rh_max", cloud_fraction_rh_max);
       pp.query("radiation.cloud_fraction_qc_scale", cloud_fraction_qc_scale);
 
-      // Parameter validation (Phase 14): clamp cloud fraction parameters
+      // Clamp the cloud fraction parameters
       // to physically reasonable ranges
       if (cloud_fraction_rh_min < 0.0) cloud_fraction_rh_min = 0.0;
       if (cloud_fraction_rh_min > 1.0) cloud_fraction_rh_min = 1.0;
@@ -863,40 +887,48 @@ public:
       }
       if (cloud_fraction_qc_scale < 0.0) cloud_fraction_qc_scale = 0.0;
 
-      // Phase 15: prescribed bulk aerosol/turbidity optical depth
-      // (all optional; defaults disable aerosol, preserving Phase 14B behavior)
+      // Prescribed bulk aerosol/turbidity optical depth
+      // (all optional; disabled by default)
       pp.query("radiation.aerosol_enable", aerosol_enable);
 
       // Parse aerosol profile type as string
       std::string aerosol_profile_type_str = "constant";
       pp.query("radiation.aerosol_profile_type", aerosol_profile_type_str);
-      if (aerosol_profile_type_str == "exponential") {
+      if (aerosol_profile_type_str == "constant") {
+        aerosol_profile_type = AerosolProfileType::Constant;
+      } else if (aerosol_profile_type_str == "exponential") {
         aerosol_profile_type = AerosolProfileType::Exponential;
       } else if (aerosol_profile_type_str == "table") {
-        aerosol_profile_type = AerosolProfileType::Table;
+        // The table lookup is not implemented; it would contribute no aerosol
+        // optical depth at all, which is indistinguishable from a typo.
+        amrex::Abort("erf.radiation.aerosol_profile_type = table is not "
+                     "implemented. Use constant or exponential.");
       } else {
-        aerosol_profile_type = AerosolProfileType::Constant;
+        // Falling through to Constant would silently ignore a misspelling.
+        amrex::Abort("Unknown erf.radiation.aerosol_profile_type '" +
+                     aerosol_profile_type_str +
+                     "'. Valid values are constant and exponential.");
       }
 
       pp.query("radiation.aerosol_tau_per_layer", aerosol_tau_per_layer);
       pp.query("radiation.aerosol_scale_height_m", aerosol_scale_height_m);
       pp.query("radiation.aerosol_tau_surface", aerosol_tau_surface);
 
-      // Parameter validation (Phase 15): clamp aerosol parameters
+      // Clamp the aerosol parameters
       // to physically reasonable ranges
       if (aerosol_tau_per_layer < 0.0) aerosol_tau_per_layer = 0.0;
       if (aerosol_tau_surface < 0.0) aerosol_tau_surface = 0.0;
       if (aerosol_scale_height_m <= 0.0) aerosol_scale_height_m = 2000.0;  // Ensure positive
 
-      // Phase 16: time-varying solar geometry from diurnal cycle
-      // (all optional; defaults disable dynamic solar geometry, preserving Phase 15 behavior)
+      // Time-varying solar geometry from the diurnal cycle
+      // (all optional; disabled by default)
       pp.query("radiation.solar_geometry_dynamic_enable", solar_geometry_dynamic_enable);
       pp.query("radiation.latitude_deg", latitude_deg);
       pp.query("radiation.longitude_deg", longitude_deg);
       pp.query("radiation.day_of_year", day_of_year);
       pp.query("radiation.time_zone_offset_hours", time_zone_offset_hours);
 
-      // Parameter validation (Phase 16): clamp latitude/longitude/day-of-year to valid ranges
+      // Clamp latitude/longitude/day-of-year to valid ranges
       // Latitude must be in [-90, 90]
       if (!std::isfinite(latitude_deg)) latitude_deg = 0.0;
       if (latitude_deg < -90.0) latitude_deg = -90.0;
@@ -915,7 +947,7 @@ public:
       // Time zone offset: no strict bounds, but ensure finite
       if (!std::isfinite(time_zone_offset_hours)) time_zone_offset_hours = 0.0;
 
-      // Phase 17: simplified SEB infrastructure fallback parameters
+      // Simplified SEB infrastructure fallback parameters
       pp.query("radiation.seb_enable", seb_enable);
       pp.query("radiation.seb_sw_flux_default", seb_sw_flux_default);
       pp.query("radiation.seb_lw_flux_default", seb_lw_flux_default);
@@ -926,7 +958,7 @@ public:
       pp.query("radiation.seb_t_deep_default", seb_t_deep_default);
       pp.query("radiation.seb_q_deep_default", seb_q_deep_default);
 
-      // Phase 18: SEB diagnostic mode
+      // SEB diagnostic mode
       pp.query("radiation.seb_diagnostic_enable", seb_diagnostic_enable);
 
       // Auto-enable seb_enable if seb_diagnostic_enable is requested but seb_enable is false
@@ -934,7 +966,7 @@ public:
           seb_enable = true;  // Internal auto-enable for safety/simplicity
       }
 
-      // Phase 19b: SEB prognostic mode parameters
+      // SEB prognostic mode parameters
       pp.query("radiation.seb_prognostic_enable", seb_prognostic_enable);
       pp.query("radiation.seb_surface_heat_capacity", seb_surface_heat_capacity);
       pp.query("radiation.seb_restore_timescale_s", seb_restore_timescale_s);
@@ -970,7 +1002,14 @@ public:
       seb_q_sfc_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_sfc_default));
       seb_q_deep_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_deep_default));
 
-      // Parameter validation (Phase 19b): validate prognostic parameters
+      // The prognostic update reads the SEB flux fields, which only exist when
+      // seb_enable is true; without it the request is silently inert.
+      if (seb_prognostic_enable && !seb_enable) {
+        amrex::Abort("erf.radiation.seb_prognostic_enable = true requires "
+                     "erf.radiation.seb_enable = true.");
+      }
+
+      // Validate the prognostic parameters
       if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
           seb_surface_heat_capacity = 2.0e4;  // Reset to default
       }

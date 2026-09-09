@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase 10 Two-Stream Radiation Validation Script
+Two-Stream Radiation Validation Script
 Nonuniform Vertical Spacing (dz(k)) Test
 
-This script validates the Phase 10 implementation by checking that:
+This script validates the implementation by checking that:
 
 1. The simulation completes successfully (no runtime failures)
 2. Radiation diagnostic file accumulates rows (driver is called repeatedly)
@@ -12,9 +12,9 @@ This script validates the Phase 10 implementation by checking that:
 5. Heating rates show expected nonuniform behavior (not constant uniform fallback)
 6. Vertical structure of heating varies with local dz(k)
 
-Key differences from Phase 5:
-- Phase 5 used uniform dz = geom.CellSize(2) for all levels
-- Phase 10 uses per-level dz(k) computed from z_phys_cc(i,j,k) heights
+Key differences from
+- used uniform dz = geom.CellSize(2) for all levels
+- uses per-level dz(k) computed from z_phys_cc(i,j,k) heights
 - Result: same total heating integrated over domain, but dz-aware rate computation
 """
 
@@ -193,7 +193,7 @@ def main():
     """Main validation routine."""
 
     print("=" * 70)
-    print("Phase 10 TwoStream NonuniformDZ Test Validation")
+    print("TwoStream NonuniformDZ Test Validation")
     print("=" * 70)
 
     # Locate diagnostic file
@@ -240,7 +240,7 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY: All validation checks passed")
     print("=" * 70)
-    print("\nPhase 10 Test Result: PASS")
+    print("\nTest Result: PASS")
     print("\nKey validation points:")
     print("  1. Simulation completed successfully")
     print("  2. Radiation diagnostics accumulated over multiple steps")

@@ -1,11 +1,11 @@
-# Phase 17 SEB MultiFab infrastructure enabled test
+# SEB MultiFab infrastructure enabled test
 # Verifies allocation/population of fallback SEB fields without changing legacy radiation behavior.
 
-# Phase 16 Two-Stream Radiation: Time-Varying Solar Geometry Test (Baseline)
+# Two-Stream Radiation: Time-Varying Solar Geometry Test (Baseline)
 #
-# This test validates Phase 16 backward compatibility:
+# This test validates backward compatibility:
 # - With solar_geometry_dynamic_enable = false (default), code behavior is
-#   bitwise-identical to Phase 15 (fixed solar_zenith_deg).
+# bitwise-identical to the feature-off baseline (fixed solar_zenith_deg).
 # - Confirms no regressions in existing TwoStream functionality.
 #
 erf.prob_name = "ABL"
@@ -92,7 +92,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 erf.input_sounding_file = "input_sounding"
 
 # RADIATION - Two-Stream SW + LW
-# Phase 16 Baseline: solar_geometry_dynamic_enable = false (Phase 15 behavior)
+# Baseline: solar_geometry_dynamic_enable = false (the baseline behavior)
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
@@ -108,7 +108,7 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0  # No cloud
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 16: Solar Geometry (disabled for backward compat baseline)
+# RADIATION - Solar Geometry (disabled for backward compat baseline)
 erf.radiation.solar_geometry_dynamic_enable = false
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0

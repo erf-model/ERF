@@ -122,13 +122,9 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
 
   // Print debug output (if verbosity >= 1, and IOProcessor only)
   //
-  // NOTE: The bracketed tag below is intentionally NOT hardcoded to a
-  // specific phase. This diagnostics module is shared by all radiation
-  // development features; using a static phase label here was a latent
-  // bug — it silently kept printing "[Phase1]" even after later
-  // functionality was added, misleading anyone grepping logs by phase.
-  // Use the module-generic "[RAD]" tag plus the call-site tag, which remains
-  // accurate and grepable across all features.
+  // The bracketed tag is the module-generic "[RAD]" plus the call site, so
+  // it stays accurate and grepable no matter which radiation feature is
+  // driving the call.
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor() &&
       m_diag_tagged_enable && m_diag_stdout_enable) {
     amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step

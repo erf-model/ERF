@@ -3348,8 +3348,8 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Cloud Optical Depth Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_profile_type**                 | Cloud optical depth profile: ``constant`` (uniform,        | "constant" or      | "constant"       |
-|                                                    | Phase 2 behavior) or ``cloud_layer`` (height-varying)      | "cloud_layer"      |                  |
+| **erf.radiation.tau_profile_type**                 | Cloud optical depth profile: ``constant`` (uniform)        | "constant" or      | "constant"       |
+|                                                    | or ``cloud_layer`` (height-varying)                        | "cloud_layer"      |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.cloud_base_height_m**              | Cloud layer base height [m]; only used if                  | Real               | 500.0            |
 |                                                    | tau_profile_type = cloud_layer                             |                    |                  |

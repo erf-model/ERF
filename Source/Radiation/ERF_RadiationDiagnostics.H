@@ -18,11 +18,10 @@
  * TAGGED DEBUG FORMAT:
  * -------------------
  * All debug prints use the bracketed-tag prefix format:
- *   [RAD][Phase1][FunctionName] step={nstep} time={time} ...
+ *   [RAD][ClassName::function] step={nstep} time={time} ...
  *
  * Tags:
  * - [RAD]       — module tag (parallel to [UCM])
- * - [Phase1]    — phase tag (will extend to [Phase2], [Phase3], etc.)
  * - [ClassName::function] — call-site tag for grepability
  *
  * VERBOSITY CONTROL:
@@ -143,7 +142,6 @@ private:
 
   int m_verbosity;              ///< Debug verbosity level
   std::string m_diag_file;      ///< Output CSV file path
-  //int m_amr_level;              ///< AMR level index
   int m_last_write_step = -1;   ///< Guard against duplicate writes
   bool m_header_written = false; ///< Track whether CSV header was written
   std::string m_last_write_call_site = "";

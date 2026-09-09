@@ -1,5 +1,5 @@
-# Phase 18 SEB Diagnostic Mode - Baseline (Disabled)
-# Verifies default seb_diagnostic_enable=false produces bitwise-identical output to Phase 17.
+# SEB Diagnostic Mode - Baseline (Disabled)
+# Verifies default seb_diagnostic_enable=false produces bitwise-identical output.
 
 erf.prob_name = "ABL"
 
@@ -99,19 +99,19 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Phase 17 SEB infrastructure (enabled)
+# RADIATION - SEB infrastructure (enabled)
 erf.radiation.solar_geometry_dynamic_enable = false
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
 erf.radiation.seb_hfx_default = 10.0
 erf.radiation.seb_lh_default = 20.0
-erf.radiation.seb_grdflux_default = 5.0
+erf.radiation.seb_grdflx_default = 5.0
 erf.radiation.seb_q_sfc_default = 0.01
 erf.radiation.seb_t_deep_default = 295.0
 erf.radiation.seb_q_deep_default = 0.20
 
-# RADIATION - Phase 18 SEB diagnostic (DISABLED for baseline)
+# RADIATION - SEB diagnostic (DISABLED for baseline)
 erf.radiation.seb_diagnostic_enable = false
 
 # RADIATION - Solar geometry parameters (for completeness)

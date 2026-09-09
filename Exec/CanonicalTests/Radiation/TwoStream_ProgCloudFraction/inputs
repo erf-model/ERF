@@ -1,11 +1,11 @@
-# Phase 14 Two-Stream Radiation: Prognostic Cloud Fraction Test
+# Two-Stream Radiation: Prognostic Cloud Fraction Test
 #
-# This test validates the Phase 14 implementation of prognostic cloud fraction
+# This test validates the implementation of prognostic cloud fraction
 # diagnosis from relative humidity and cloud water content. The diagnosed per-level
 # cloud fraction cf(k) scales the cloud optical depth contribution.
 #
 # Key features:
-#   - Uses per-level RH/qc-based cloud fraction diagnosis (Phase 14)
+# - Uses per-level RH/qc-based cloud fraction diagnosis
 #   - Cloud optical depth scaled by cf(k) at each level
 #   - Validates that cf(k) stays within [0, 1] bounds
 #   - Confirms backward compatibility when feature disabled
@@ -94,7 +94,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 # SOUNDING FILE
 erf.input_sounding_file = "input_sounding"
 
-# RADIATION - Two-Stream SW + LW with Phase 14 Prognostic Cloud Fraction
+# RADIATION - Two-Stream SW + LW Prognostic Cloud Fraction
 # When cloud_fraction_prog_enable = false (default), uses static cloud_fraction
 # When cloud_fraction_prog_enable = true, diagnoses cf(k) from RH/qc
 erf.radiation_type = "TwoStream"
@@ -105,15 +105,15 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 
-# RADIATION - Cloud properties (for Phase 14 test)
+# RADIATION - Cloud properties ( test)
 erf.radiation.tau_profile_type = "cloud_layer"
 erf.radiation.cloud_base_height_m = 500.0
 erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.5
 erf.radiation.cloud_fraction = 0.5  # Static blend factor (used when prog disabled)
 
-# RADIATION - Phase 14: Prognostic Cloud Fraction (disabled by default for compat)
-erf.radiation.cloud_fraction_prog_enable = false
+# RADIATION - Prognostic Cloud Fraction (disabled by default for compat)
+erf.radiation.cloud_fraction_prog_enable = true
 erf.radiation.cloud_fraction_rh_min = 0.7
 erf.radiation.cloud_fraction_rh_max = 1.0
 erf.radiation.cloud_fraction_qc_scale = 1.0e-3

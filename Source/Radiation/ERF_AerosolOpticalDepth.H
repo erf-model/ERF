@@ -105,13 +105,14 @@ amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
 
 
 /**
- * @brief Diagnose aerosol optical depth for Table profile (future extension).
+ * @brief Diagnose aerosol optical depth for the Table profile.
  *
- * Currently returns 0.0 as a placeholder. Future phases can implement
- * per-level table lookup via fixed-size array or MultiFab.
+ * Not implemented: a per-level table lookup would be supplied through a
+ * fixed-size array or a MultiFab. RadChoice::init_params() rejects this
+ * profile type, so this function is unreachable from a configured run.
  *
  * @param[in] k Level index
- * @return Zero (not yet implemented)
+ * @return Zero
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_table(int k)

@@ -1,4 +1,4 @@
-# Phase 8 Benchmark Suite Results
+# Benchmark Suite Results
 **Timestamp:** 2026-08-07T23:38:24.771362
 ## Summary
 - **Total Cases:** 5- **Passed:** 5- **Failed:** 0- **Overall Status:** ✅ PASS
@@ -6,7 +6,7 @@
 | Case | Name | Status | Errors |
 |------|------|--------|--------|
 | `lw_isothermal` | LW isothermal baseline | ✅ PASS | None |
-| `phase6_timing` | Coupled SW+LW non-isothermal time-integration | ✅ PASS | None |
+| `timing` | Coupled SW+LW non-isothermal time-integration | ✅ PASS | None |
 | `sw_clearsky` | Clear-sky SW baseline | ✅ PASS | None |
 | `sw_cloud_layer` | Cloud-layer absorption | ✅ PASS | None |
 | `sw_scattering` | Cloud scattering | ✅ PASS | None |
@@ -34,7 +34,7 @@
 - `heating_rate_max_min`: 1.000000e-15
 - `heating_rate_max_cv`: 0.000000e+00
 
-### phase6_timing: Coupled SW+LW non-isothermal time-integration [✅ PASS]
+### timing: Coupled SW+LW non-isothermal time-integration [✅ PASS]
 **Status:** No errors
 
 **Key Metrics:**

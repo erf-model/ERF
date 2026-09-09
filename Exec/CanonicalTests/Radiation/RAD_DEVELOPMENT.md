@@ -10,7 +10,7 @@ The TwoStream implementation provides shortwave and longwave column radiation, o
 
 | Capability Area | Primary Focus | Representative `RadChoice` Controls | Associated RegTests |
 |---|---|---|---|
-| Base Two-Stream | Clear-sky SW/LW transport and diagnostics | `rad_type`, `sw_enabled`, `lw_enabled`, `solar_constant`, `solar_zenith`, `tau_*`, `isothermal_test` | `SW_ClearSky_Analytical`, `LW_Isothermal` |
+| Base Two-Stream | Clear-sky SW/LW transport and diagnostics | `rad_type`, `sw_enabled`, `lw_enabled`, `solar_constant`, `solar_zenith`, `tau_*` | `SW_ClearSky_Analytical`, `LW_Isothermal` |
 | Cloud Optical Depth | Height-dependent cloud extinction | cloud optical-depth and cloud-layer controls | `SW_Cloud_Layer` |
 | Scattering | Diffuse SW scattering in cloudy columns | scattering enable/optical-property controls | `SW_Scattering_Cloud` |
 | RhoTheta Coupling | Heating-rate injection into model thermodynamics | `qheating_rates` pathway and thermodynamic source coupling | `TwoStream_RhoTheta_Coupling` |

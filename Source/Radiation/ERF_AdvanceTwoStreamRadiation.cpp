@@ -196,7 +196,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             // Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
-            //fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
@@ -240,10 +239,8 @@ void ERF::compute_twostream_radiation_diagnostics(
 
             // Get z_phys_cc for nonuniform dz support if available
             Array4<const amrex::Real> z_phys_cc_arr;
-            //bool has_z_phys = false;
             if (z_phys_cc[lev] != nullptr) {
                 z_phys_cc_arr = z_phys_cc[lev]->const_array(mfi);
-                //has_z_phys = true;
             }
 
             //  Wire LSM surface property fields or use standalone fallback MultiFabs
@@ -257,7 +254,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_hetero_alb_sw = false;
             Array4<const amrex::Real> hetero_alb_sw_arr;
             {
-                //int lsm_idx = lsm.Get_DataIdx(lev, "sfc_alb_dir_vis");
                 std::string varname_alb = "sfc_alb_dir_vis";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_alb);
                 if (lsm_idx >= 0) {
@@ -276,7 +272,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_hetero_emiss_lw = false;
             Array4<const amrex::Real> hetero_emiss_lw_arr;
             {
-                //int lsm_idx = lsm.Get_DataIdx(lev, "sfc_emis");
                 std::string varname_emiss = "sfc_emis";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_emiss);
                 if (lsm_idx >= 0) {
@@ -295,7 +290,6 @@ void ERF::compute_twostream_radiation_diagnostics(
             bool has_t_sfc_field = false;
             Array4<const amrex::Real> t_sfc_arr;
             {
-                //int lsm_idx = lsm.Get_DataIdx(lev, "t_sfc");
                 std::string varname_t_sfc = "t_sfc";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {

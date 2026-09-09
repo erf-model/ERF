@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 13 Two-Stream Radiation Validation Script
+Two-Stream Radiation Validation Script
 YSUNew PBL Coupling with Radiative Tendency Limiter/Smoother
 """
 
@@ -57,7 +57,7 @@ def read_radiation_diag(filename):
 
 
 def check_ysunew_radiation_coupling():
-    diag_file = "radiation_phase13_ysu_coupling_diag.dat"
+    diag_file = "radiation_ysu_coupling_diag.dat"
 
     print("=" * 70)
     print("PHASE 13 VALIDATION: YSUNew Radiation Coupling")

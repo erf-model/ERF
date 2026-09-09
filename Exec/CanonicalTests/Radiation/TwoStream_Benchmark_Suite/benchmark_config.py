@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Phase 8 Benchmark Suite: Case Definitions
+Benchmark Suite: Case Definitions
 
 Defines the 5 benchmark test cases:
 1. Clear-sky SW baseline
 2. LW isothermal baseline
 3. Cloud-layer absorption
 4. Cloud scattering
-5. Coupled SW+LW non-isothermal time-integration (Phase 6/7 style)
+5. Coupled SW+LW non-isothermal time-integration
 
 Each case references its input file and specifies expected diagnostics behavior,
 metrics to validate, and pass/fail thresholds.
@@ -157,13 +157,13 @@ CASES: Dict[str, BenchmarkCase] = {
     # =====================================================================
     # CASE 5: Coupled SW+LW non-isothermal time-integration
     # =====================================================================
-    "phase6_timing": BenchmarkCase(
+    "timing": BenchmarkCase(
         name="Coupled SW+LW non-isothermal time-integration",
-        short_name="phase6_timing",
-        description="Phase 6/7 style: coupled SW+LW with time-stepping and call-site diagnostics",
-        base_case_dir="./cases/phase6_timing",  # Local case directory with pre_only mode inputs
+        short_name="timing",
+        description="style: coupled SW+LW with time-stepping and call-site diagnostics",
+        base_case_dir="./cases/timing",  # Local case directory with pre_only mode inputs
         inputs_file="inputs",
-        diag_file="radiation_phase6_timing_diag.dat",
+        diag_file="radiation_timing_diag.dat",
         dt=0.5,
         stop_time=5.0,
         expected_steps=10,  # stop_time / dt = 5.0 / 0.5 = 10 steps

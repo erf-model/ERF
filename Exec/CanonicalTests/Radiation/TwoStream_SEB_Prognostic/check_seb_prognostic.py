@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase 19b SEB Prognostic Mode Validation Check
+SEB Prognostic Mode Validation Check
 
 Validates that:
-1. Baseline case (seb_prognostic_enable=false) produces bitwise-identical output to Phase 19a
+1. Baseline case (seb_prognostic_enable=false) produces bitwise-identical output
 2. Feature-on case (seb_prognostic_enable=true) produces finite T_s and q_s values
 3. T_s evolves in direction consistent with SEB residual sign (expected: -10 W/m^2)
 4. All T_s values remain within configured bounds [200, 340] K
@@ -65,10 +65,10 @@ def check_baseline():
     print(f"\nCSV header has {len(header)} columns:")
     print(f"  {', '.join(header)}")
 
-    # Phase 19a baseline should have 12 columns (no Phase 19b prognostic columns)
-    # Base 8 + Phase 18 SEB residual 2 + Phase 19b prognostic 4 = 14 total
+    # the feature-off baseline should have 12 columns (no prognostic columns)
+    # Base 8 + SEB residual 2 + prognostic 4 = 14 total
     # But baseline should have only 12 (skip prognostic columns)
-    expected_baseline_cols = 12  # 8 base + 2 Phase 18 SEB + 2 placeholder for prognostic (as NaN)
+    expected_baseline_cols = 12 # 8 base + 2 SEB + 2 placeholder for prognostic (as NaN)
 
     if len(header) < expected_baseline_cols:
         print(f"WARNING: Expected at least {expected_baseline_cols} columns, got {len(header)}")

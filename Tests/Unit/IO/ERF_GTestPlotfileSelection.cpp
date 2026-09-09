@@ -483,7 +483,7 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 }
 
-// Motivation (Phase 20): Verify that radiation heating variables (qsrc_sw, qsrc_lw)
+// Motivation: verify that radiation heating variables (qsrc_sw, qsrc_lw)
 // are available when either RRTMGP or TwoStream radiation is active, but not when
 // radiation is disabled. This regression test ensures the capability check correctly
 // recognizes both solverChoice.rad_type (RRTMGP) and solverChoice.radChoice.rad_type

@@ -74,11 +74,11 @@ def check_exists_nonempty(path, min_lines=2):
 
 def main():
     print("="*70)
-    print("Phase 12 Dynamic Tau Test Checker")
+    print("Dynamic Tau Test Checker")
     print("="*70)
 
     ok = True
-    ok &= check_diag("radiation_diag_phase12.dat")
+    ok &= check_diag("radiation_dynamic_tau_diag.dat")
 
     print("\nChecking plot files for heating rate fields...")
     plots = [d for d in os.listdir(".") if d.startswith("plt")]
@@ -90,15 +90,15 @@ def main():
         print("  ✓ Plot files readable")
 
     print("\nChecking data log files...")
-    ok &= check_exists_nonempty("phase12_hist.dat", 2)
-    ok &= check_exists_nonempty("phase12_profiles.dat", 2)
+    ok &= check_exists_nonempty("dynamic_tau_hist.dat", 2)
+    ok &= check_exists_nonempty("dynamic_tau_profiles.dat", 2)
 
     print("\n" + "="*70)
     if ok:
-        print("✓ Phase 12 test PASSED")
+        print("✓ test PASSED")
         return 0
     else:
-        print("✗ Phase 12 test FAILED")
+        print("✗ test FAILED")
         print("  - Check diagnostics file for NaN/Inf/invalid data")
         return 1
 

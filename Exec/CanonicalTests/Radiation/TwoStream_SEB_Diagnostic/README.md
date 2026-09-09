@@ -1,19 +1,19 @@
-# Phase 18: Simplified SEB — Diagnostic Mode
+# Simplified SEB — Diagnostic Mode
 
 ## Objective
 
-Validate the Phase 18 SEB diagnostic residual computation feature:
+Validate the SEB diagnostic residual computation feature:
 - **SEB residual diagnosed** from net radiation and turbulent/ground heat fluxes
-- **Diagnostic-only** — no prognostic surface temperature or flux update (Phase 19 work)
-- **Backward compatibility** — when disabled (default), output is bitwise-identical to Phase 17
+- **Diagnostic-only** — no prognostic surface temperature or flux update
+- **Backward compatibility** — when disabled (default), output is bitwise-identical to the feature-off baseline
 - **GPU-safe implementation** — residual computed via device-side reduction kernels
 
 ## Test Design
 
 ### Baseline Scenario (Disabled)
 - **SEB diagnostic disabled** (`seb_diagnostic_enable=false`, default)
-- **Phase 17 infrastructure still active** (`seb_enable=true`)
-- **Expected behavior**: Identical to Phase 17 baseline output
+- **infrastructure still active** (`seb_enable=true`)
+- **Expected behavior**: identical to the feature-off baseline baseline output
 - **Validates**: Full backward compatibility; no new computation when feature is off
 
 ### Feature-On Scenario
@@ -30,30 +30,30 @@ Physically reasonable mid-latitude sounding with moisture profile:
 - Surface (0 m): T=300K, qv=0.008 kg/kg (~8 g/kg, typical mid-latitude)
 - Upper levels: qv decays to 0.004 kg/kg at 1550 m (realistic moisture gradient)
 
-See Phase 17 README for full sounding documentation.
+See README for full sounding documentation.
 
 ### Input Configuration Files
 
 #### `inputs_seb_diagnostic_disabled`
 - **seb_diagnostic_enable = false** (default)
 - Tests baseline case for backward compatibility
-- Should produce bitwise-identical output to Phase 17
+- Should produce bitwise-identical output
 
 #### `inputs_seb_diagnostic_enabled`
 - **seb_diagnostic_enable = true** (feature on)
-- Uses Phase 17 scalar fallback defaults:
+- Uses scalar fallback defaults:
   - `seb_sw_flux_default = 50.0` W/m^2
   - `seb_lw_flux_default = -25.0` W/m^2
   - `seb_hfx_default = 10.0` W/m^2
   - `seb_lh_default = 20.0` W/m^2
-  - `seb_grdflux_default = 5.0` W/m^2
+  - `seb_grdflx_default = 5.0` W/m^2
 
 ## Validation Criteria
 
 ### Baseline Test
-1. **No new CSV columns** — CSV output must have exactly 8 columns (Phase 17 format)
+1. **No new CSV columns** — CSV output must have exactly 8 columns (the baseline format)
 2. **No SEB diagnostics** — CSV files contain no `SEB_residual_*` values
-3. **Bitwise-identical output** — Radiation fluxes/heating rates match Phase 17 exactly
+3. **Bitwise-identical output** — Radiation fluxes/heating rates match the baseline exactly
 4. **Finite values** — All flux diagnostics finite and physically reasonable
 
 ### Feature-On Test
@@ -95,7 +95,7 @@ A perfectly closed budget gives `SEB_residual ≈ 0`. In this test with scalar f
 ```bash
 erf inputs_seb_diagnostic_disabled
 python check_seb_diagnostic.py
-# Verify: 8 columns, no SEB residual output, bitwise-identical to Phase 17
+# Verify: 8 columns, no SEB residual output, bitwise-identical to the feature-off baseline
 ```
 
 ### Feature-On Mode
@@ -105,7 +105,7 @@ python check_seb_diagnostic.py
 # Verify: 10 columns, SEB residual ~-10.0 W/m^2, finite values
 ```
 
-## Phase 18 Implementation Summary
+## Implementation Summary
 
 ### New Files
 - `Source/Radiation/ERF_SimplifiedSEB.H` — GPU-safe residual diagnostic kernel
@@ -115,7 +115,7 @@ python check_seb_diagnostic.py
 - `Source/DataStructs/ERF_RadStruct.H` — Added `seb_diagnostic_enable` parameter
 - `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with SEB columns
 - `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` — Integrated residual computation
-- `Source/Radiation/RAD_DEVELOPMENT.md` — Phase 18 section and roadmap update
+- `Source/Radiation/RAD_DEVELOPMENT.md` — section and roadmap update
 
 ### Key Design Decisions
 1. **Diagnostic-only**: No feedback to T_s, heating rates, or any prognostic fields
@@ -126,6 +126,6 @@ python check_seb_diagnostic.py
 
 ## References
 
-- `Source/Radiation/RAD_DEVELOPMENT.md` — Phase 18 Implementation section
+- `Source/Radiation/RAD_DEVELOPMENT.md` — Implementation section
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice parameters documentation
 - Oke, T. R., 1987: Boundary Layer Climates (2nd ed.), Routledge. [SEB theory reference]

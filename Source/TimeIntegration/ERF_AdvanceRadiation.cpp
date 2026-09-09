@@ -5,49 +5,47 @@ using namespace amrex;
 /**
  * @brief Advance radiation diagnostics and heating rates for one time step.
  *
- * **Temporal Semantics (Phase 6):**
+ * **Temporal semantics**
  *
  * This function is called exactly once per ERF::Advance() invocation, after
- * SurfaceLayer/LSM updates but BEFORE the dycore (slow+fast substeps) are
- * executed. It operates on the "old" state (t^n) at the beginning of the
- * slow step.
+ * the SurfaceLayer and LSM updates and before the dycore slow and fast
+ * substeps. It operates on the old state (t^n) at the beginning of the slow
+ * step.
  *
- * - RRTMGP path (solverChoice.rad_type != None): Full spectral model with its
- *   own time-centering and source-term semantics; produces qheating_rates[lev].
+ * - RRTMGP path (erf.radiation_model, SolverChoice::rad_type != None): a full
+ *   spectral model with its own time-centering and source-term semantics.
+ *   Produces qheating_rates[lev].
  *
- * - TwoStream path (solverChoice.radChoice.rad_type == TwoStream): Two-stream
- *   SW/LW model that computes heating rates from the old-state atmosphere
- *   (t^n) using clear-sky/cloudy column algorithms. The heating rates are
- *   written to qheating_rates[lev] (2-component MultiFab: [SW, LW]).
+ * - Two-stream path (erf.radiation_type, RadChoice::rad_type == TwoStream): a
+ *   shortwave and longwave model that computes heating rates from the
+ *   old-state atmosphere (t^n) with clear-sky and cloudy column algorithms.
+ *   The heating rates go into qheating_rates[lev], a 2-component MultiFab
+ *   holding shortwave and longwave.
  *
- * **Source-Term Application (Phase 6):**
+ * **Source-term application**
  *
- * The computed qheating_rates are later injected into the RhoTheta source
- * term in ERF_MakeSources.cpp, ONLY during slow-RHS construction (is_slow_step
- * = true). This ensures:
+ * The computed qheating_rates are injected into the RhoTheta source term in
+ * ERF_MakeSources.cpp only while the slow RHS is being built (is_slow_step is
+ * true), which ensures:
  * 1. Radiation tendencies are applied once per slow step, not per substep.
  * 2. The tendencies represent the old-state atmosphere throughout all fast
  *    substeps of the current slow step.
- * 3. No temporal aliasing from multiple calls to advance_radiation() within a
- *    single slow step (there is only one call per slow step).
+ * 3. There is no temporal aliasing from repeated calls to advance_radiation()
+ *    within a slow step, since there is only one call per slow step.
  *
- * **Key Contracts (Phase 6):**
+ * **Key contracts**
  *
- * - R13: Radiation Heating as Old-State Forcing
- *   The qheating_rates computed in this function represent the radiative
- *   heating based on the old-state atmosphere (t^n). These rates are applied
- *   as a source term during the slow RHS construction, providing a single
- *   radiative "kick" per slow step that is consistent with the old state
- *   throughout all fast substeps. No state-dependent (adaptive) radiation
- *   updates occur within a slow-step's fast substeps; radiation is fixed
- *   across the slow step.
+ * - Radiation heating is an old-state forcing. The qheating_rates computed
+ *   here are the radiative heating of the old-state atmosphere (t^n), applied
+ *   as a source term while the slow RHS is built. That gives one radiative
+ *   increment per slow step, consistent with the old state across every fast
+ *   substep. Radiation does not adapt to the state within a slow step.
  *
- * - R14: Mutually Exclusive Radiation Paths
- *   RRTMGP and TwoStream paths NEVER coexist in the same simulation; they are
- *   mutually exclusive via the if/else_if structure below. Both produce
- *   qheating_rates in the same 2-component format (SW, LW). The source-term
- *   injection gate in ERF_MakeSources.cpp checks both paths; only one gate
- *   will ever match in any given simulation.
+ * - The two radiation paths are mutually exclusive. RRTMGP and two-stream
+ *   never both run in one simulation; the if/else below selects one. Both
+ *   produce qheating_rates in the same 2-component (SW, LW) format, and the
+ *   source-term gate in ERF_MakeSources.cpp tests both, so exactly one
+ *   matches in any given simulation.
  *
  * @param[in] lev Level of refinement (coarsest level is 0)
  * @param[in,out] cons Conservative quantities (Rho, RhoTheta, RhoQ*, RhoRE)
@@ -97,24 +95,18 @@ void ERF::advance_radiation (int lev,
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated);
     }
-    // Phase 6 (Audit + Timing Docs): Two-Stream TwoStream Radiation Driver.
+    // Two-stream radiation driver. This is a separate, mutually exclusive
+    // path from the RRTMGP branch above: RRTMGP is selected by
+    // erf.radiation_model (SolverChoice::rad_type), two-stream by
+    // erf.radiation_type (RadChoice::rad_type).
     //
-    // Phase 5 (Step 3) wired the Phase 1-5 two-stream radiation driver into
-    // the time loop for the first time. Prior to Phase 5,
-    // compute_twostream_radiation_diagnostics() was never called anywhere
-    // in the codebase -- Phase 1-4 code was fully correct but dead code
-    // from the simulation's perspective. This is a separate, independent
-    // path from the RRTMGP branch above (mutually exclusive: RRTMGP uses
-    // solverChoice.rad_type; TwoStream uses solverChoice.radChoice.rad_type).
-    //
-    // Phase 6 audit confirms:
-    // - This call happens exactly once per slow step (in ERF::Advance)
-    // - The heating rates computed here are old-state based (t^n)
-    // - The heating rates are injected into RhoTheta source only on is_slow_step
-    //   (see ERF_MakeSources.cpp), ensuring no unintended duplicate forcing
-    // - istep[lev] is used as both the "current step number" and (Phase 1-4
-    //   convention) as the CSV diagnostics row index; dt_advance provides the
-    //   time_step diagnostic value logged to the CSV/console output.
+    // - The call happens exactly once per slow step (from ERF::Advance).
+    // - The heating rates computed here are old-state based (t^n).
+    // - They are injected into the RhoTheta source only on is_slow_step
+    //   (see ERF_MakeSources.cpp), so there is no duplicate forcing.
+    // - istep[lev] serves as both the current step number and the CSV
+    //   diagnostics row index; dt_advance supplies the time_step value
+    //   logged to the CSV and console output.
     else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
         compute_twostream_radiation_diagnostics(lev, istep[lev], t_old[lev], "pre_dycore");
     }

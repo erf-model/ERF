@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase 18 SEB Diagnostic Mode Validation Check
+SEB Diagnostic Mode Validation Check
 
 Validates that:
-1. Baseline case (seb_diagnostic_enable=false) produces bitwise-identical output to Phase 17
+1. Baseline case (seb_diagnostic_enable=false) produces bitwise-identical output
 2. Feature-on case (seb_diagnostic_enable=true) produces finite SEB residual values
 3. SEB residual matches hand-computed expected value (-10 W/m^2 for test defaults)
 """
@@ -74,7 +74,7 @@ def check_baseline_case(diag_file, enabled_file=None):
     print(f"CSV Header columns: {len(columns)}")
     print(f"  {header}")
 
-    # Phase 17 baseline has exactly 8 columns (no SEB diagnostic columns)
+    # the feature-off baseline has exactly 8 columns (no SEB diagnostic columns)
     expected_cols = ['step', 'time', 'call_site', 'SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max']
     if len(columns) != len(expected_cols):
         print(f"WARNING: Expected {len(expected_cols)} columns, got {len(columns)}")
@@ -201,7 +201,7 @@ def check_feature_case(diag_file):
 
 def main():
     """Main validation script"""
-    print("Phase 18 SEB Diagnostic Mode Validation")
+    print("SEB Diagnostic Mode Validation")
     print("========================================\n")
 
     # Check for diagnostics files

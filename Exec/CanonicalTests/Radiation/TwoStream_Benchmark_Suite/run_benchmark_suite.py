@@ -28,7 +28,7 @@ TOL = {
 
 CASE_PATHS = {
     "LW_ISOTHERMAL": CASES_DIR / "lw_isothermal",
-    "PHASE6_TIMING": CASES_DIR / "phase6_timing",
+    "PHASE6_TIMING": CASES_DIR / "timing",
     "SW_CLEARSKY": CASES_DIR / "sw_clearsky",
     "SW_CLOUD_LAYER": CASES_DIR / "sw_cloud_layer",
     "SW_SCATTERING": CASES_DIR / "sw_scattering",
@@ -330,7 +330,7 @@ def write_reports(results: List[CaseResult]) -> Tuple[Path, Path]:
     js_path.write_text(json.dumps(payload, indent=2))
 
     lines = [
-        "# Phase 8 Benchmark Summary",
+        "# Benchmark Summary",
         "",
         f"- Timestamp: `{payload['timestamp']}`",
         f"- ERF_EXE: `{payload['erf_exe']}`",

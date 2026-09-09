@@ -36,9 +36,9 @@ If the solver is called twice per timestep (once pre-step, once post-step), tota
 ## Files
 
 - `inputs` — Main control file with TwoStream enabled
-- `input_sounding_phase6_timing` — Reference atmospheric sounding
+- `input_sounding_timing` — Reference atmospheric sounding
 - `check_timing_consistency.py` — Python validation script for temporal consistency
-- `radiation_phase6_timing_diag.dat` — Expected diagnostic output (reference)
+- `radiation_timing_diag.dat` — Expected diagnostic output (reference)
 
 ## Running the Test
 

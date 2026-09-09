@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 8 Benchmark Suite: Central Tolerance Configuration
+Benchmark Suite: Central Tolerance Configuration
 
 This module defines all tolerances used across the benchmark suite to avoid
 magic numbers scattered throughout the codebase. All metric checks should
