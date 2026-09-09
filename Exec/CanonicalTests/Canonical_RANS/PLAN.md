@@ -211,6 +211,45 @@ no-RANS control as well: a deck error, not the closure.
 
 Exit: speed-up within the expected band; restart bit-identical.
 
+Status (2026-09-09): done. `Neutral_Hill_3D` (periodic radial Witch of
+Agnesi, h 100 m, L 500 m, 64x64x20 at dx = dy = dz = 40 m, 4 h) passes:
+crest speed-up 0.41, 0.28, 0.22 in the lowest cells against the
+axisymmetric estimate 1.6 h/L = 0.32, upstream log law within 10 %.
+Restart is bit-exact on both the 2D and the 3D terrain decks (checkpoint
+at step 20, compare at 40). Askervein runs clean for 20 steps (all fields
+finite, first-cell wall distance 7.9 to 10 m on a 20 m cell); its deck
+gains nothing beyond the phase-2 flag.
+
+New option `erf.wall_dist_type = terrain_height` (Harish's suggestion,
+after the amr-wind immersed terrain and Kynema): height above the local
+surface projected on its normal, no linear solve. It is exact to 1e-10 on
+a flat fitted mesh and closer to the true distance than the Poisson solve
+on both hills (mean 0.02 % and 0.01 % against 1.0 % and 0.3 %), so the
+hill decks use it; the Poisson path keeps three `_Poisson` CTest
+variants. The Poisson solve is posed positive definite now (same
+iterates as before).
+
+Finding, outside this plan: on a 3D terrain-fitted mesh with dz different
+from dx (20 or 80 m at dx = 40 m, flat or hill, periodic or inflow,
+custom or file terrain, stretched or not, any box layout) the divergence
+of the initial field is of order 1e139 before the first projection, the
+wall-distance MLMG then diverges (residual 18x after one cycle, 1e10 by
+iteration 100, unchanged by the sign convention or by semi-coarsening),
+and the run aborts within a step. Askervein is unaffected at dx/dz of
+0.5, 1 and 2, so the aspect ratio is not the cause; the RANS code is not
+involved (same with Smagorinsky). Two separate defects: (1) the
+initialisation one is deterministic, since under `amrex.init_snan = 1`
+with the invalid-operation trap armed initialisation completes with no
+trap and the bit-identical 1.788e139 divergence, so it is an arithmetic
+error that depends on dz relative to dx, not a memory read; (2) the trap
+then fires in `ERFPhysBCFunct_w` during the first advance, an
+uninitialised read in the w boundary fill that the unit-aspect mesh does
+not trigger. Reproducer for (1): `inputs_hill3d amr.n_cell="64 64 40"
+prob.hmax=1e-6 max_step=0 erf.mg_v=2 erf.v=1` and read the divergence
+before the solve. Harish's rule for the decks: mass inflow and
+pressure outflow instead of periodic if periodic turns out to be the
+issue; it did not, so the hill decks stay periodic at unit aspect ratio.
+
 ## Phase 7: documentation and diagnostics
 
 - Theory: new `Docs/sphinx_doc/theory/RANS.rst` (equations 15-32 of AL01,

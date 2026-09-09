@@ -21,7 +21,11 @@ machinery.
 | smoke runs | 40 steps (`ctest -R RANS_Neutral_Hill_2D`, `ctest -R RANS_Flat_Fitted_2D`) |
 
 `amr.blocking_factor = 1` because the domain is one cell wide in y. The
-FFT projection needs a flat mesh, so the deck uses MLMG.
+wall distance is `erf.wall_dist_type = terrain_height`, the height above
+the local surface projected on its normal (exact to 1e-10 on a flat
+mesh, 0.02 % mean error on this ridge, no linear solve); the Poisson
+distance of Tucker (2003) is exercised by the `_Poisson` CTest variants
+of this deck and its flat-fitted version.
 
 ## Running
 
@@ -42,9 +46,9 @@ Wall distance (both modes; the field is set at initialisation):
 
 | check | target | tolerance |
 | --- | --- | --- |
-| ridge: max relative error vs the exact distance to the curve | 0 | 10 % |
+| ridge: max relative error vs the exact distance to the curve | 0 | 15 % (crest cells, Tucker's convex-corner error) |
 | ridge: mean relative error | 0 | 3 % |
-| ridge: max absolute error where the distance is under 100 m | 0 | 3 m |
+| ridge: max absolute error where the distance is under 100 m | 0 | 0.2 dz |
 | flat fitted: max relative error vs z - h | 0 | 3e-3 (first cell, see below) |
 | flat fitted: max absolute error where the distance is under 100 m | 0 | 0.1 m |
 

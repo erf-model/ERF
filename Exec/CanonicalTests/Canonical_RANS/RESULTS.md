@@ -148,3 +148,36 @@ after it, exact to 1e-6 m above the first cell and 1.5 cm long in the
 first cell. The ridge mean error went from 1.5 % to 1.0 %; the speed-ups
 did not change to three digits because the length is capped at 30 m.
 
+## Neutral_Hill_3D (phase 6)
+
+4 h run at dt = 1.5 s, 64 x 64 x 20 at 40 m, 2 ranks, `check_hill3d.py --physics plt09600`.
+
+| check | target | measured |
+| --- | --- | --- |
+| walldist vs exact hill distance, max relative | <= 15 % | 7.4 % (terrain_height), 9.5 % (poisson) |
+| walldist vs exact hill distance, mean relative | <= 3 % | 0.013 % (terrain_height), 0.31 % (poisson) |
+| walldist abs error within 100 m of the surface [cells] | <= 0.2 | 0.03 (terrain_height), 0.12 (poisson) |
+| crest speed-up, k = 0, 1, 2 | 0.16 to 0.64 (1.6 h/L = 0.32) | 0.41, 0.28, 0.22 |
+| speed-up positive in the lowest eight cells | > 0 | min 0.71 m/s |
+| upstream u* from the wall k [m/s] | 0.25 to 0.55 | 0.318 |
+| upstream wind vs log law, k = 0, 1, 2 | within 15 % | -5.7 %, +4.0 %, +10.4 % |
+| wall-cell k retention over the surface | within 1 % | 3e-16 |
+
+Wall-distance methods on the 2D ridge (40-step run): terrain_height mean
+0.02 %, max 2.3 %, 0.01 cells near the surface; poisson mean 1.0 %, max
+5.2 %, 0.15 cells. On the flat fitted mesh terrain_height is exact to
+2e-10, poisson 0.2 % in the first cell and 1e-6 above it.
+
+Restart (2D and 3D terrain decks, checkpoint at 20, compare at 40):
+every field identical to 1e-14.
+
+Askervein (20 steps, 4 ranks, 26 s): walldist 7.9 to 707 m, KE up to
+6.9 m2/s2, Kmv up to 9.4 kg/m/s, all finite.
+
+Mesh finding (not a RANS matter, see PLAN phase 6): any 3D fitted mesh
+here with dz != dx yields a deterministic pre-projection divergence of
+1.788e139 and aborts, independent of the closure and not a memory read
+(no trap under `amrex.init_snan` at initialisation); a separate
+uninitialised read in the w boundary fill trips the trap in the first
+advance.
+

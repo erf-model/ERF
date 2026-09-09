@@ -82,6 +82,33 @@ void ERF::poisson_wall_dist (int lev)
         Error("No solid boundaries in the computational domain");
     }
 
+    if (havewall && solverChoice.wall_dist_type == "terrain_height") {
+        // Height above the local surface projected on the surface normal:
+        // d = (z_cc - z_surf) / sqrt(1 + h_xi^2 + h_eta^2), exact for a
+        // plane, within a few percent of the true distance for hills with
+        // slopes below about 0.3, and free of any linear solve (cf. the
+        // terrain height used by the amr-wind immersed terrain and Kynema).
+        Print() << "Calculating wall distance from the terrain height (normal-projected)" << std::endl;
+        const int klo = geomdata.Domain().smallEnd(2);
+        for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto dist_arr = walldist[lev]->array(mfi);
+            const auto zcc_arr = z_phys_cc[lev]->const_array(mfi);
+            const auto znd_arr = z_phys_nd[lev]->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                Real z_surf = fourth * ( znd_arr(i,j,klo) + znd_arr(i+1,j,klo)
+                                       + znd_arr(i,j+1,klo) + znd_arr(i+1,j+1,klo) );
+                Real h_xi  = Compute_h_xi_AtKface (i, j, klo, dxinv, znd_arr);
+                Real h_eta = Compute_h_eta_AtKface(i, j, klo, dxinv, znd_arr);
+                Real dz_loc = zcc_arr(i,j,k) - z_surf;
+                dist_arr(i, j, k) = amrex::max(dz_loc / std::sqrt(one + h_xi*h_xi + h_eta*h_eta),
+                                               std::numeric_limits<Real>::epsilon());
+            });
+        }
+        fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
+        return;
+    }
+
     Print() << "Calculating Poisson wall distance for general terrain" << std::endl;
 
     // Make sure the solver only sees the levels over which we are solving
@@ -99,7 +126,7 @@ void ERF::poisson_wall_dist (int lev)
         phi.resize(1);   phi[0].define(ba_tmp[0], dm_tmp[0], 1, 1);
     }
 
-    rhs[0].setVal(-1.0);
+    rhs[0].setVal(1.0);
 
     auto const dom_lo = lbound(geom[lev].Domain());
     auto const dom_hi = ubound(geom[lev].Domain());
@@ -268,9 +295,17 @@ void ERF::poisson_wall_dist (int lev)
     // and
     //   \nabla \cdot (h_zeta T (T^T \nabla \phi)) = -h_zeta
     // where T = inv(J), T^T is the transpose of inv(J)
+    //
+    // Posed as -div(beta grad phi) = +h_zeta, i.e. B = +1, the positive
+    // definite form MLABecLaplacian documents (B = -1 with f = -h_zeta is
+    // the same equation and gave the same iterates). Note: on a 3D fitted
+    // mesh with dx != dz this multigrid diverges (residual 18x after the
+    // first cycle, 1e10 by iteration 100) with or without semi-coarsening;
+    // the anelastic projection on such a mesh fails the same way. Use
+    // erf.wall_dist_type = terrain_height there.
     // ****************************************************************************
     constexpr Real constA = zero;
-    constexpr Real constB = -one;
+    constexpr Real constB = one;
 
     MLABecLaplacian mlabec(geom_tmp, ba_tmp, dm_tmp, info);
 
@@ -308,10 +343,10 @@ void ERF::poisson_wall_dist (int lev)
 
     mlabec.setBCoeffs(0, GetArrOfConstPtrs(beta));
 
-    // Set RHS := -h_zeta
+    // Set RHS := +h_zeta (for -div(beta grad phi) = h_zeta)
     auto rhs_arr = rhs[0].arrays();
     ParallelFor(rhs[0], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
-        rhs_arr[b](i, j, k) = -Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
+        rhs_arr[b](i, j, k) = Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
     });
 #else
     mlabec.setBCoeffs(0, one);
@@ -495,10 +530,11 @@ void ERF::poisson_wall_dist (int lev)
 
                 Real detJ = Compute_h_zeta_AtCellCenter(i, j, k, dxinv, zphys_arr[b]);
 
-                rhs_arr[b](i, j, k) = -detJ
-                                    + dxinv[0] * ( h_xi_xhi * phi_zeta_xhi - h_xi_xlo * phi_zeta_xlo)
-                                    + dxinv[1] * ( h_eta_yhi * phi_zeta_yhi - h_eta_ylo * phi_zeta_ylo)
-                                    + dxinv[2] * ( h_xi_zhi * phi_xi_zhi - h_xi_zlo * phi_xi_zlo
+                // same sign convention as the predictor: -div(beta grad phi) = detJ - cross terms
+                rhs_arr[b](i, j, k) = detJ
+                                    - dxinv[0] * ( h_xi_xhi * phi_zeta_xhi - h_xi_xlo * phi_zeta_xlo)
+                                    - dxinv[1] * ( h_eta_yhi * phi_zeta_yhi - h_eta_ylo * phi_zeta_ylo)
+                                    - dxinv[2] * ( h_xi_zhi * phi_xi_zhi - h_xi_zlo * phi_xi_zlo
                                                  + h_eta_zhi * phi_eta_zhi - h_eta_zlo * phi_eta_zlo);
             }
         });

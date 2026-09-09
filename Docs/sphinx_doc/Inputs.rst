@@ -1645,6 +1645,10 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_lscale_min**          | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.wall_dist_type**           | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
+|                                  | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
+|                                  | local surface projected on its normal (no linear solve)  |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.

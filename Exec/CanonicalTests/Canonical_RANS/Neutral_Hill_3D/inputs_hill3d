@@ -1,36 +1,39 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-# Neutral flow over a periodic two-dimensional ridge (Witch of Agnesi,
+# Neutral flow over a periodic axisymmetric hill (radial Witch of Agnesi,
 # hmax = 100 m, L = 500 m at half height) on a terrain-fitted mesh with
-# the one-equation k RANS closure under a MOST surface layer. The wall
-# distance comes from the Poisson solve of Tucker (2003); the case checks
-# it against the exact distance to the ridge and measures the hill-top
-# speed-up against the Jackson-Hunt estimate 2 h/L.
+# the one-equation k RANS closure under a MOST surface layer. Three
+# dimensional counterpart of Neutral_Hill_2D: the wall distance is checked
+# against the exact distance to the surface of revolution and the crest
+# speed-up against the axisymmetric estimate of about 1.6 h/L.
 erf.prob_name = "ABL"
 
 erf.anelastic = 1
-erf.use_fft   = false    # terrain-fitted mesh: MLMG projection
+erf.use_fft   = true
 
-stop_time = 21600.0   # 6 h physics run (14400 steps); CTest overrides max_step
+stop_time = 14400.0   # 4 h physics run (9600 steps); CTest overrides max_step
 
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = -2560.   0.    0.
-geometry.prob_hi     =  2560.  40. 1000.
-amr.n_cell           =   128    1    64      # dx = 40 m, dz = 15.625 m
-amr.max_grid_size    = 64
-amr.blocking_factor  = 1        # ny = 1
+# Unit aspect ratio: on a 3D fitted mesh both the projection and the
+# wall-distance Poisson solves (MLMG) fail at dx = 2 dz (the 2D ridge and
+# Askervein, dx = dz, are fine), so dz = dx here.
+geometry.prob_lo     = -2560. -2560.   0.
+geometry.prob_hi     =  2560.  2560. 800.
+amr.n_cell           =    64     64   20     # dx = dy = dz = 40 m
+amr.max_grid_size    = 32
+amr.blocking_factor  = 4
 
 geometry.is_periodic = 1 1 0
 
-# TERRAIN: Witch of Agnesi ridge centred in x
+# TERRAIN: axisymmetric Witch of Agnesi hill centred in the domain
 erf.terrain_type         = StaticFittedMesh
 erf.terrain_smoothing    = 0        # basic terrain following
 erf.wall_dist_type       = terrain_height   # height above the surface on its normal; "poisson" is the Tucker (2003) solve
 prob.custom_terrain_type = "WoA"
-prob.dir                 = 0
+prob.dir                 = 2        # radial
 prob.hmax                = 100.0    # ridge height [m]
 prob.L                   = 500.0    # half-width at half height [m]
 
@@ -59,11 +62,11 @@ amr.max_level = 0
 
 # CHECKPOINT FILES
 erf.check_file = chk
-erf.check_int  = 14400
+erf.check_int  = 9600
 
 # PLOTFILES
 erf.plot_file_1 = plt
-erf.plot_int_1  = 14400
+erf.plot_int_1  = 9600
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss z_phys
 
 # SOLVER CHOICE
@@ -84,7 +87,7 @@ erf.abl_geo_wind    = 10.0 0.0 0.0
 # gravity-wave damping in the top 300 m
 erf.rayleigh_damp_W   = true
 erf.rayleigh_dampcoef = 0.2
-erf.rayleigh_zdamp    = 300.
+erf.rayleigh_zdamp    = 250.
 
 erf.molec_diff_type = "None"
 

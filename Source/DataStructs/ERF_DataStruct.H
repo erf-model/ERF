@@ -950,6 +950,13 @@ struct SolverChoice {
         // *******************************************************************************
 
         pp.queryAdd("ncorr", ncorr);
+        // Wall distance on a terrain-fitted mesh (RANS): "poisson" (Tucker 2003
+        // differential-equation distance) or "terrain_height" (height above the
+        // local surface projected on its normal, no linear solve)
+        pp.queryAdd("wall_dist_type", wall_dist_type);
+        if (wall_dist_type != "poisson" && wall_dist_type != "terrain_height") {
+            amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
+        }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
 #ifdef AMREX_USE_FLOAT
@@ -1894,6 +1901,7 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
+    std::string wall_dist_type      = "poisson";
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
