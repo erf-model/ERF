@@ -694,14 +694,25 @@ struct surface_flux
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
                 wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
-                umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                //umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                amrex::Real umm_new = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
+                umm = (one - alpha) * umm + alpha * umm_new;
                 umm = std::max(umm, WSMIN);
             }
-            Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            //Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
+            //zeta  = zref / Olen;
+             amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
+            Olen  = -ustar_floor * ustar_floor * ustar_floor * tvm_arr(i,j,k) /
+                    (mdata.kappa * mdata.gravity * tflux);
             zeta  = zref / Olen;
+            zeta  = amrex::max(amrex::min(zeta, amrex::Real(100.0)), -amrex::Real(100.0));
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+            //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+            {
+                amrex::Real ustar_new = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+                u_star_arr(i,j,k) = (one - alpha) * ustar + alpha * ustar_new;
+            }
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
@@ -709,7 +720,7 @@ struct surface_flux
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
+        /*t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
                             (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
         t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
         if (spec_qflux) {
@@ -719,7 +730,20 @@ struct surface_flux
         } else {
             q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
                                 (std::log(zref / z0_arr(i,j,k)) - psi_h);
+        }*/
+        amrex::Real ustar_final = amrex::max(u_star_arr(i,j,k), USTARMIN);
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
+                            (ustar_final * mdata.kappa) + tm_arr(i,j,k);
+        t_star_arr(i,j,k) = -mdata.surf_temp_flux / ustar_final;
+        if (spec_qflux) {
+            q_surf_arr(i,j,k) = mdata.surf_moist_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
+                                (ustar_final * mdata.kappa) + qvm_arr(i,j,k);
+            q_star_arr(i,j,k) = -mdata.surf_moist_flux / ustar_final;
+        } else {
+            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) /
+                                (std::log(zref / z0_arr(i,j,k)) - psi_h);
         }
+
     }
 
 private:
@@ -728,6 +752,8 @@ private:
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
     const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real USTARMIN = amrex::Real(0.001); // minimum friction velocity
+    const amrex::Real alpha = amrex::Real(0.5); // under-relaxation factor for umm/u* iteration
 };
 
 

@@ -152,9 +152,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 #endif
     if (tc.uses_native_shoc()) {
         AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
-        l_apply_surface_layer_fluxes_in_diffusion =
-            l_apply_surface_layer_fluxes_in_diffusion &&
-            native_shoc_lev->uses_host_diffusion();
+        l_apply_surface_layer_fluxes_in_diffusion = false;
     }
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();

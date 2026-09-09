@@ -179,7 +179,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                            eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
                                            dt_lev);
 
-            if (native_shoc_driver[lev] && native_shoc_driver[lev]->uses_state_update()) {
+            if (native_shoc_driver[lev]) {
                 // Native SHOC updates the old-time state before the dycore reads it.
                 // Re-fill the updated state, velocities, and momenta now so the
                 // pre-dycore checks and strain calculation see coherent fields.
