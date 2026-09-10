@@ -87,6 +87,22 @@ get_subsampled_clouds (const int ncol,
                        real2d_k& cld,
                        real2d_k& p_lay);
 
+optical_props2_t
+get_deterministic_clouds (const int ncol,
+                          const int nlay,
+                          const int ngpt,
+                          optical_props2_t& cloud_optics,
+                          gas_optics_t& kdist,
+                          const real2d_k& cld);
+
+optical_props1_t
+get_deterministic_clouds (const int ncol,
+                          const int nlay,
+                          const int ngpt,
+                          optical_props1_t& cloud_optics,
+                          gas_optics_t& kdist,
+                          const real2d_k& cld);
+
 void
 rrtmgp_initialize (gas_concs_t& gas_concs,
                    const std::string& coefficients_file_sw, const std::string& coefficients_file_lw,
@@ -132,7 +148,8 @@ rrtmgp_main (const int ncol, const int nlay,
              real3d_k& sw_bnd_flux_up      , real3d_k& sw_bnd_flux_dn      , real3d_k& sw_bnd_flux_dn_dir,
              real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn,
              const RealT tsi_scaling,
-             const bool extra_clnclrsky_diag = false, const bool extra_clnsky_diag = false);
+             const bool extra_clnclrsky_diag = false, const bool extra_clnsky_diag = false,
+             const bool do_subcol_sampling = true);
 
 
 void

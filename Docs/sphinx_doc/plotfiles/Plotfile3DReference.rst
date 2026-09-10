@@ -739,7 +739,9 @@ available.
      - Native SHOC ``pblh`` is reported in metres above local ground (AGL).
    * - ``shoc_cldfrac``
      - 1
-     - Subgrid cloud fraction diagnosed by the native SHOC PDF.
+     - Liquid-cloud fraction diagnosed by the native SHOC PDF. It excludes
+       cloud ice and is the optional liquid-fraction input to Native-SHOC
+       RRTMGP coupling.
    * - ``shoc_ql``
      - kg/kg
      - Cloud-liquid mixing ratio diagnosed by the native SHOC PDF.

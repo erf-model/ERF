@@ -301,6 +301,35 @@ below. Native ``state_update`` currently rejects moisture layouts containing
 cloud-water or cloud-ice number concentration components because a compatible
 number closure has not yet been implemented.
 
+Native SHOC and RRTMGP cloud coupling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For runtime Native SHOC with RRTMGP, ERF passes the same-step
+``shoc_cldfrac`` field to radiation after the Native SHOC state update and its
+required state refill. ``shoc_cldfrac`` is the SHOC PDF's liquid-cloud
+fraction only; it excludes cloud ice. The host ``qc`` remains the liquid
+condensate input to RRTMGP, and ``shoc_ql`` is not substituted for it.
+
+With the default ``erf.rad_use_shoc_cldfrac = true``, liquid-only layers use
+the diagnosed fraction and cloud ice retains its binary fraction. RRTMGP
+combines the phases under one total-cloud mask and normalizes both phases with
+that same mask. The existing ``1e-4`` fraction floor and ``0.005`` in-cloud
+mixing-ratio cap remain active. This bounded shared-mask approximation does
+not represent liquid occupying only part of an ice-cloud layer; any positive
+ice invokes the binary-ice rule.
+
+Setting ``erf.rad_use_shoc_cldfrac = false`` selects binary cloud fractions
+for the comparison while retaining the post-SHOC radiation ordering. It is a
+fraction-only comparison, not a restoration of the pre-PR algorithm. The
+``erf.rad_do_subcol_sampling`` combinations are:
+
+* ``true``: use the existing MCICA maximum-random-overlap sampling path;
+* ``false`` with binary fractions: use deterministic clear/cloudy
+  band-to-g-point mapping;
+* ``false`` with Native SHOC fractional coupling: reject the configuration at
+  startup with guidance to enable sampling or disable
+  ``rad_use_shoc_cldfrac``.
+
 Native SHOC transport modes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

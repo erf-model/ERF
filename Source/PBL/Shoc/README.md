@@ -443,6 +443,22 @@ liquid-cloud macrophysics only; cloud ice retains a binary fraction. ERF's host
 `qc` field remains the liquid input to RRTMGP, and `shoc_ql` is not substituted
 for it by this coupling.
 
+RRTMGP uses one shared total-cloud mask for the combined liquid and ice optics.
+Both phases are normalized with that total fraction, preserving the existing
+`1e-4` fraction floor, `0.005` in-cloud mixing-ratio cap, effective radii,
+and maximum-random-overlap behavior. Any positive ice invokes the binary-ice
+rule. This approximation cannot represent liquid occupying only part of an
+ice-cloud layer.
+
+Setting `erf.rad_use_shoc_cldfrac = false` selects binary fractions while
+retaining the post-SHOC radiation ordering; it is a fraction-only comparison,
+not a restoration of the pre-PR algorithm. With
+`erf.rad_do_subcol_sampling = true`, radiation uses the existing MCICA path.
+With sampling disabled, RRTMGP uses deterministic clear/cloudy band-to-g-point
+mapping for binary fractions. Native SHOC fractional coupling with sampling
+disabled is rejected at startup; enable sampling or disable the SHOC fraction
+for a binary experiment.
+
 ## See also
 
 User documentation:

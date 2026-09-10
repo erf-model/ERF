@@ -1,3 +1,5 @@
+#include <AMReX.H>
+
 #include "ERF_RRTMGP_Interface.H"
 
 namespace rrtmgp {
@@ -220,6 +222,65 @@ get_subsampled_clouds (const int ncol,
 }
 
 
+optical_props2_t
+get_deterministic_clouds (const int ncol,
+                          const int nlay,
+                          const int ngpt,
+                          optical_props2_t& cloud_optics,
+                          gas_optics_t& kdist,
+                          const real2d_k& cld)
+{
+    optical_props2_t deterministic_optics;
+    deterministic_optics.init(kdist.get_band_lims_wavenumber(),
+                              kdist.get_band_lims_gpoint(),
+                              "deterministic_optics");
+    deterministic_optics.alloc_2str(ncol, nlay);
+
+    const auto gpoint_bands = kdist.get_gpoint_bands();
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0},
+                                                                  {ncol, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
+    {
+        const auto ibnd = gpoint_bands(igpt);
+        const bool cloudy = cld(icol,ilay) > zero;
+        deterministic_optics.tau(icol,ilay,igpt) =
+            cloudy ? cloud_optics.tau(icol,ilay,ibnd) : zero;
+        deterministic_optics.ssa(icol,ilay,igpt) =
+            cloudy ? cloud_optics.ssa(icol,ilay,ibnd) : zero;
+        deterministic_optics.g(icol,ilay,igpt) =
+            cloudy ? cloud_optics.g(icol,ilay,ibnd) : zero;
+    });
+    return deterministic_optics;
+}
+
+
+optical_props1_t
+get_deterministic_clouds (const int ncol,
+                          const int nlay,
+                          const int ngpt,
+                          optical_props1_t& cloud_optics,
+                          gas_optics_t& kdist,
+                          const real2d_k& cld)
+{
+    optical_props1_t deterministic_optics;
+    deterministic_optics.init(kdist.get_band_lims_wavenumber(),
+                              kdist.get_band_lims_gpoint(),
+                              "deterministic_optics");
+    deterministic_optics.alloc_1scl(ncol, nlay);
+
+    const auto gpoint_bands = kdist.get_gpoint_bands();
+    Kokkos::parallel_for(Kokkos::MDRangePolicy<Kokkos::Rank<3>>({0, 0, 0},
+                                                                  {ncol, nlay, ngpt}),
+                         KOKKOS_LAMBDA (int icol, int ilay, int igpt)
+    {
+        const auto ibnd = gpoint_bands(igpt);
+        deterministic_optics.tau(icol,ilay,igpt) =
+            (cld(icol,ilay) > zero) ? cloud_optics.tau(icol,ilay,ibnd) : zero;
+    });
+    return deterministic_optics;
+}
+
+
 /*
  * The following routines provide a simple interface to RRTMGP. These
  * can be used as-is, but are intended to be wrapped by the SCREAM AD
@@ -400,7 +461,8 @@ rrtmgp_main (const int ncol, const int nlay,
              real3d_k& sw_bnd_flux_up      , real3d_k& sw_bnd_flux_dn      , real3d_k& sw_bnd_flux_dn_dir,
              real3d_k& lw_bnd_flux_up      , real3d_k& lw_bnd_flux_dn      ,
              const RealT tsi_scaling,
-             const bool extra_clnclrsky_diag, const bool extra_clnsky_diag)
+             const bool extra_clnclrsky_diag, const bool extra_clnsky_diag,
+             const bool do_subcol_sampling)
 {
     // Setup pointers to RRTMGP SW fluxes
     fluxes_t fluxes_sw;
@@ -463,16 +525,41 @@ rrtmgp_main (const int ncol, const int nlay,
     optical_props1_t clouds_lw = get_cloud_optics_lw(ncol, nlay,
                                                      *cloud_optics_lw_k, *k_dist_lw_k,
                                                      lwp, iwp, rel, rei);
-    // Do subcolumn sampling to map bands -> gpoints based on cloud fraction and overlap assumption;
-    // This implements the Monte Carlo Independent Column Approximation by mapping only a single
-    // subcolumn (cloud state) to each gpoint.
+    const auto sampling_mode = radiation_cloud_sampling_mode(do_subcol_sampling);
+    if (sampling_mode == RadiationCloudSamplingMode::DeterministicBinary) {
+        // The deterministic mode is intentionally binary. Native SHOC's
+        // fractional mode is rejected during configuration; this guard keeps
+        // any other fractional supplier from silently becoming a binary run.
+        auto cldfrac_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), cldfrac);
+        for (int icol = 0; icol < ncol; ++icol) {
+            for (int ilay = 0; ilay < nlay; ++ilay) {
+                const RealT fraction = cldfrac_host(icol,ilay);
+                if (fraction != zero && fraction != one) {
+                    amrex::Abort("RRTMGP deterministic cloud mapping requires binary "
+                                 "total cloud fractions, but a fractional value was supplied.");
+                }
+            }
+        }
+    }
+
+    // Map bands to gpoints either through the existing MCICA maximum-random
+    // path or through a deterministic clear/cloudy mapping. Both shortwave
+    // and longwave use the same dispatch contract.
     auto nswgpts = k_dist_sw_k->get_ngpt();
-    auto clouds_sw_gpt = get_subsampled_clouds(ncol, nlay, nswbands, nswgpts,
-                                               clouds_sw, *k_dist_sw_k, cldfrac, p_lay);
+    auto clouds_sw_gpt =
+        (sampling_mode == RadiationCloudSamplingMode::MCICA)
+            ? get_subsampled_clouds(ncol, nlay, nswbands, nswgpts,
+                                    clouds_sw, *k_dist_sw_k, cldfrac, p_lay)
+            : get_deterministic_clouds(ncol, nlay, nswgpts,
+                                       clouds_sw, *k_dist_sw_k, cldfrac);
     // Longwave
     auto nlwgpts = k_dist_lw_k->get_ngpt();
-    auto clouds_lw_gpt = get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts,
-                                               clouds_lw, *k_dist_lw_k, cldfrac, p_lay);
+    auto clouds_lw_gpt =
+        (sampling_mode == RadiationCloudSamplingMode::MCICA)
+            ? get_subsampled_clouds(ncol, nlay, nlwbands, nlwgpts,
+                                    clouds_lw, *k_dist_lw_k, cldfrac, p_lay)
+            : get_deterministic_clouds(ncol, nlay, nlwgpts,
+                                       clouds_lw, *k_dist_lw_k, cldfrac);
 
   // Do shortwave
   rrtmgp_sw(ncol, nlay,
@@ -1217,4 +1304,3 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
 }
 
 }  // namespace rrtmgp
-

@@ -126,6 +126,15 @@ Radiation::Radiation (const int& lev,
     // Do MCICA subcolumn sampling
     pp.queryAdd("rad_do_subcol_sampling", m_do_subcol_sampling);
 
+    if (radiation_sampling_config_unsupported(
+            m_do_subcol_sampling, sc.turbChoice[lev].uses_native_shoc(),
+            m_use_shoc_cldfrac)) {
+        amrex::Abort(
+            "erf.rad_do_subcol_sampling=false does not support Native SHOC "
+            "fractional-cloud coupling. Set erf.rad_do_subcol_sampling=true, "
+            "or set erf.rad_use_shoc_cldfrac=false for binary cloud fractions.");
+    }
+
     // Determine orbital year. If orbital_year is negative, use current year
     // from timestamp for orbital year; if non-negative, use provided orbital year
     // for duration of simulation.  Note that this is keyed off the value itself,
@@ -1299,8 +1308,11 @@ Radiation::run_impl ()
     Kokkos::deep_copy(mu0, h_mu0);
 
     // Compute layer cloud mass per unit area (populates lwp/iwp)
-    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_liq, r_lay, z_del, lwp);
-    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_ice, r_lay, z_del, iwp);
+    // Both phases are represented by the same combined optical mask below. Use
+    // that same fraction for both conversions so the grid-mean condensate mass
+    // is not inflated when liquid and ice coexist in a layer.
+    rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
+    rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
 
     // Convert to g/m2 (needed by RRTMGP)
     Table2D<Real,Order::C> lwp_tab(lwp.data(), {0,0}, {static_cast<int>(lwp.extent(0)),static_cast<int>(lwp.extent(1))});
@@ -1464,7 +1476,8 @@ Radiation::run_impl ()
                             lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c,
                             sw_bnd_flux_up_c, sw_bnd_flux_dn_c, sw_bnd_flux_dir_c,
                             lw_bnd_flux_up_c, lw_bnd_flux_dn_c,
-                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
+                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag,
+                            m_do_subcol_sampling);
 
         // Compute heating rates for this chunk
         rrtmgp::compute_heating_rate(sw_flux_up_c, sw_flux_dn_c, r_lay_c, z_del_c, sw_heating_c);
