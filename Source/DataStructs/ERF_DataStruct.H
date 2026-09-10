@@ -1996,7 +1996,7 @@ struct SolverChoice {
 
     // Native shoc transport mode
     ShocTransportMode     shoc_transport_mode     = ShocTransportMode::StateUpdate;
-    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::HostDiffusion;
+    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
 
     // Transport the passive scalar?
     bool transport_scalar = true;
@@ -2073,8 +2073,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return (shoc_uses_momentum_host_diffusion(shoc_momentum_transport) ||
-                shoc_disables_momentum_transport (shoc_momentum_transport));
+        return shoc_disables_momentum_transport(shoc_momentum_transport);
     }
 
     /**
@@ -2085,7 +2084,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return shoc_uses_host_diffusion(shoc_transport_mode);
+        return false;
     }
 
     /**

@@ -16,6 +16,7 @@
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_MOSTUtils.H"
 #include "ERF_EBMOSTStress.H"
 #include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
@@ -93,12 +94,10 @@ public:
           if (read_flux) {
               flux_string = amrex::toLower(flux_string_in);
           }
-          if (flux_string == "donelan") {
-              flux_type = FluxCalcType::DONELAN;
-          } else if (flux_string == "moeng") {
+          if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
           } else if (flux_string == "rico") {
-                flux_type = FluxCalcType::RICO;
+              flux_type = FluxCalcType::RICO;
           } else if (flux_string == "bulk_coeff") {
               flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
@@ -252,6 +251,10 @@ public:
           amrex::Abort("Undefined MOST roughness type for land!");
       }
 
+      // Allow for smooth-flow limit?
+      pp.queryAdd("most.smooth_flow_viscosity", smooth_flow_visc);
+      amrex::Print() << "The smooth-flow limit will be included for variable roughness models over sea: " << smooth_flow_visc << "\n";
+
       // Specify how to compute the surface flux over sea (if there is any)
       std::string rough_sea_string_in;
       std::string rough_sea_string{"charnock"};
@@ -262,29 +265,30 @@ public:
       if (rough_sea_string == "charnock") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           pp.queryAdd("most.charnock_constant", cnk_a);
-          pp.queryAdd("most.charnock_viscosity", cnk_visc);
           if (cnk_a > 0) {
               amrex::Print() << "If there is water, Charnock relation with C_a="
-                             << cnk_a << (cnk_visc ? " and viscosity" : "")
-                             << " will be used" << std::endl;
+                             << cnk_a << " will be used" << std::endl;
           } else {
               amrex::Print() << "If there is water, Charnock relation with variable "
-                  "Charnock parameter (COARE3.0)"
-                             << (cnk_visc ? " and viscosity" : "") << " will be used"
-                             << std::endl;
+                  "Charnock parameter (COARE3.0) will be used" << std::endl;
           }
       } else if (rough_sea_string == "coare3.0") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           amrex::Print() << "If there is water, Charnock relation with variable "
-              "Charnock parameter (COARE3.0)"
-                         << (cnk_visc ? " and viscosity" : "") << " will be used"
-                         << std::endl;
+              "Charnock parameter (COARE3.0) will be used" << std::endl;
           cnk_a = -1;
       } else if (rough_sea_string == "donelan") {
           rough_type_sea = RoughCalcType::DONELAN;
       } else if (rough_sea_string == "modified_charnock") {
           rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
           pp.queryAdd("most.modified_charnock_depth", depth);
+          if (depth < amrex::Real(10.0) || depth > amrex::Real(100.0) ) {
+              amrex::Print() << "Specified depth of " << depth
+                             << " is outside the valid range of [10 100], resetting to bounds now."
+                             << std::endl;
+          }
+          // Limiter based upon the fit range in Jiménez & Dudhia
+          depth = amrex::min(amrex::max(depth,amrex::Real(10.0)),amrex::Real(100.0));
       } else if (rough_sea_string == "wave_coupled") {
           rough_type_sea = RoughCalcType::WAVE_COUPLED;
       } else if (rough_sea_string == "constant") {
@@ -834,6 +838,8 @@ public:
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
+  void set_pblh(const int& lev, const amrex::MultiFab& pblh_in);
+
   /**
    * Updates current time index for interpolating data from SFC/SST file.
    *
@@ -1203,9 +1209,8 @@ public:
   read_cols(const std::string& fname, const int skip_nlines = 1);
 
   enum struct FluxCalcType {
-    MOENG = 0, ///< Moeng functional form
-    DONELAN,   ///< Donelan functional form
-    CUSTOM,    ///< Custom constant flux functional form
+    MOENG = 0,  ///< Moeng functional form
+    CUSTOM,     ///< Custom constant flux functional form
     BULK_COEFF, ///< Bulk transfer coefficient functional form
     ROTATE,     ///< Terrain rotation flux functional form
     RICO
@@ -1268,7 +1273,7 @@ private:
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
   amrex::Real cnk_a{amrex::Real(0.0185)};
-  bool cnk_visc{false};
+  bool smooth_flow_visc{true};
   amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
