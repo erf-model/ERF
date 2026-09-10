@@ -63,9 +63,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pbl_blend_factor(amrex::Real dx,
                               amrex::Real L_blend) noexcept
 {
-    if (L_blend <= 0.0) return 1.0;
-    const amrex::Real r = dx / L_blend;
-    return (r * r) / (1.0 + r * r);
+    // dx^2 / (L^2 + dx^2): the denominator is never 0, so no inf/inf under amrex.fpe_trap_invalid
+    const amrex::Real L  = amrex::max(L_blend, amrex::Real(0.0));
+    const amrex::Real d2 = dx * dx;
+    return d2 / (L * L + d2);
 }
 
 /**

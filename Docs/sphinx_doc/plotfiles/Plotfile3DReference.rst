@@ -797,10 +797,12 @@ the native SHOC coefficients: ``Kmv`` is :math:`\rho K_m`, ``Khv`` is
 :math:`\rho K_h`, ``Lturb`` is the native SHOC mixing length, and ``nut`` is
 the kinematic momentum diffusivity ``Kmv / density``.
 
-* ``nc``, ``ni``, ``nr``, ``ns``, and ``ng`` are moisture number
+* ``nc``, ``ni``, ``nn``, ``nr``, ``ns``, and ``ng`` are moisture number
   concentrations. They are available when the active moisture model provides
   the corresponding conserved component; the output units follow that model's
-  number-concentration convention.
+  number-concentration convention. ``nn`` is the CCN / total aerosol number
+  carried by ``WDM6``; it shares a conserved component with ``ni``, so the two
+  are never selectable at the same time.
 * ``xvel_err``, ``yvel_err``, ``zvel_err``, and ``pp_err`` are error diagnostics
   available when ``ERF_COMPUTE_ERROR`` is enabled. Their units follow the
   corresponding velocity or pressure quantity.
@@ -978,9 +980,6 @@ additional plot names. There is no universal static list for these fields.
 The current providers expose the following families:
 
 * Morrison exposes the 19 ``micro_*`` names listed in the section above.
-* WDM6 exposes number concentration fields: ``nn`` (CCN number concentration),
-  ``nc`` (cloud droplet number concentration), and ``nr`` (rain drop number concentration).
-  To output these, add them to your plot variables list (e.g., ``erf.plot_vars_1 = nn nc nr``).
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.

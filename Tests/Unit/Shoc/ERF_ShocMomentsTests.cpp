@@ -248,13 +248,17 @@ TEST(ShocMoments, OnePointFiveTkeModeZerosVarianceAndThirdMoment)
     }
 }
 
-TEST(ShocMoments, ThirdMomentClippingUsesPositiveFallback)
+TEST(ShocMoments, ThirdMomentClippingLimitsMagnitudeAndKeepsSign)
 {
     auto col = shoc_test::make_column(5);
     const amrex::Box iface_box(amrex::IntVect(0,0,0), amrex::IntVect(col.layout.ncell - 1, col.layout.nlev, 0));
     amrex::FArrayBox w_sec_zi(iface_box, 1, shoc_test::test_arena());
     amrex::FArrayBox w3(iface_box, 1, shoc_test::test_arena());
-    shoc::set_fab_val(w_sec_zi, 0.1, shoc::InitRunOn::Host);
+
+    const amrex::Real w_sec_val = 0.1;
+    const amrex::Real clip_cond = 1.2 * std::sqrt(2.0 * w_sec_val * w_sec_val * w_sec_val);
+
+    shoc::set_fab_val(w_sec_zi, w_sec_val, shoc::InitRunOn::Host);
     shoc::set_fab_val(w3, -10.0, shoc::InitRunOn::Host);
 
     shoc_test::run_and_sync([&] {
@@ -262,7 +266,59 @@ TEST(ShocMoments, ThirdMomentClippingUsesPositiveFallback)
     });
 
     for (int k = 0; k <= col.layout.nlev; ++k) {
-        EXPECT_DOUBLE_EQ(w3.const_array()(0,k,0), 0.02);
+        EXPECT_DOUBLE_EQ(w3.const_array()(0,k,0), -clip_cond);
+    }
+
+    shoc::set_fab_val(w3, 10.0, shoc::InitRunOn::Host);
+
+    shoc_test::run_and_sync([&] {
+        ShocMoments::clip_third_moments(col, w_sec_zi, w3);
+    });
+
+    for (int k = 0; k <= col.layout.nlev; ++k) {
+        EXPECT_DOUBLE_EQ(w3.const_array()(0,k,0), clip_cond);
+    }
+}
+
+TEST(ShocMoments, ThirdMomentClippingLeavesInRangeValuesAlone)
+{
+    auto col = shoc_test::make_column(5);
+    const amrex::Box iface_box(amrex::IntVect(0,0,0), amrex::IntVect(col.layout.ncell - 1, col.layout.nlev, 0));
+    amrex::FArrayBox w_sec_zi(iface_box, 1, shoc_test::test_arena());
+    amrex::FArrayBox w3(iface_box, 1, shoc_test::test_arena());
+
+    const amrex::Real w_sec_val = 0.1;
+    const amrex::Real clip_cond = 1.2 * std::sqrt(2.0 * w_sec_val * w_sec_val * w_sec_val);
+    const amrex::Real w3_val = -0.5 * clip_cond;
+
+    shoc::set_fab_val(w_sec_zi, w_sec_val, shoc::InitRunOn::Host);
+    shoc::set_fab_val(w3, w3_val, shoc::InitRunOn::Host);
+
+    shoc_test::run_and_sync([&] {
+        ShocMoments::clip_third_moments(col, w_sec_zi, w3);
+    });
+
+    for (int k = 0; k <= col.layout.nlev; ++k) {
+        EXPECT_DOUBLE_EQ(w3.const_array()(0,k,0), w3_val);
+    }
+}
+
+TEST(ShocMoments, ThirdMomentClippingZeroesQuiescentLevels)
+{
+    auto col = shoc_test::make_column(5);
+    const amrex::Box iface_box(amrex::IntVect(0,0,0), amrex::IntVect(col.layout.ncell - 1, col.layout.nlev, 0));
+    amrex::FArrayBox w_sec_zi(iface_box, 1, shoc_test::test_arena());
+    amrex::FArrayBox w3(iface_box, 1, shoc_test::test_arena());
+
+    shoc::set_fab_val(w_sec_zi, 0.0, shoc::InitRunOn::Host);
+    shoc::set_fab_val(w3, 1.0, shoc::InitRunOn::Host);
+
+    shoc_test::run_and_sync([&] {
+        ShocMoments::clip_third_moments(col, w_sec_zi, w3);
+    });
+
+    for (int k = 0; k <= col.layout.nlev; ++k) {
+        EXPECT_DOUBLE_EQ(w3.const_array()(0,k,0), 0.0);
     }
 }
 

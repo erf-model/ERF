@@ -3,7 +3,6 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
-#include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
 
 #include <ERF_TI_slow_headers.H>
