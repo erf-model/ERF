@@ -316,7 +316,7 @@ HurricaneMaxVelTracker(const amrex::Geometry& geom,
             amrex::Real y = prob_lo[1] + (j+myhalf)*dx[1];
             amrex::Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
-            if(k==1 && dist < 200e3) {
+            if(k==0 && dist < 200e3) {
                 amrex::Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     amrex::Real vel = vel_arr(i, j, k, comp);

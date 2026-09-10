@@ -174,7 +174,7 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int kk = std::max(k,0);
-            rho_hse_arr(i,j,k) = r[kk];
+            rho_hse_arr(i,j,k) = 0.0;//r[kk];
         });
     } // mfi
 }
