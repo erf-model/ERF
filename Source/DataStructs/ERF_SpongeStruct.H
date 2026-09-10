@@ -35,7 +35,7 @@ struct SpongeChoice {
 
         if (sponge_type == SpongeType::None) return;
 
-        pp.query("sponge_strength" , sponge_strength);
+        pp.queryAdd("sponge_strength" , sponge_strength);
 
         // If sponge_strength == 0 then we set sponge_type to None
         if (std::abs(sponge_strength) == zero)
@@ -44,12 +44,12 @@ struct SpongeChoice {
         }
         else
         {
-            pp.query("use_xlo_sponge_damping", use_xlo_sponge_damping);
-            pp.query("use_xhi_sponge_damping", use_xhi_sponge_damping);
-            pp.query("use_ylo_sponge_damping", use_ylo_sponge_damping);
-            pp.query("use_yhi_sponge_damping", use_yhi_sponge_damping);
-            pp.query("use_zlo_sponge_damping", use_zlo_sponge_damping);
-            pp.query("use_zhi_sponge_damping", use_zhi_sponge_damping);
+            pp.queryAdd("use_xlo_sponge_damping", use_xlo_sponge_damping);
+            pp.queryAdd("use_xhi_sponge_damping", use_xhi_sponge_damping);
+            pp.queryAdd("use_ylo_sponge_damping", use_ylo_sponge_damping);
+            pp.queryAdd("use_yhi_sponge_damping", use_yhi_sponge_damping);
+            pp.queryAdd("use_zlo_sponge_damping", use_zlo_sponge_damping);
+            pp.queryAdd("use_zhi_sponge_damping", use_zhi_sponge_damping);
 
             if (use_xlo_sponge_damping) {
                 pp.get("xlo_sponge_end"  , xlo_sponge_end);
@@ -70,12 +70,12 @@ struct SpongeChoice {
                 pp.get("zhi_sponge_start"  , zhi_sponge_start);
             }
 
-            pp.query("sponge_density"    , sponge_density);
-            pp.query("sponge_rhotheta"   , sponge_rhotheta);
-            pp.query("sponge_rhomoist"   , sponge_rhomoist);
-            pp.query("sponge_x_velocity" , sponge_x_velocity);
-            pp.query("sponge_y_velocity" , sponge_y_velocity);
-            pp.query("sponge_z_velocity" , sponge_z_velocity);
+            pp.queryAdd("sponge_density"    , sponge_density);
+            pp.queryAdd("sponge_rhotheta"   , sponge_rhotheta);
+            pp.queryAdd("sponge_rhomoist"   , sponge_rhomoist);
+            pp.queryAdd("sponge_x_velocity" , sponge_x_velocity);
+            pp.queryAdd("sponge_y_velocity" , sponge_y_velocity);
+            pp.queryAdd("sponge_z_velocity" , sponge_z_velocity);
         }
     }
 

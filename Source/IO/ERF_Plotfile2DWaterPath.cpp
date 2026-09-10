@@ -202,7 +202,7 @@ available_diagnostic_names (const SolverChoice& solver_choice,
         amrex::ParmParse pp("erf");
         int nsoil = 4;
         const auto soil_names = active_lsm_names.empty()
-            ? (pp.query("lsm_nsoil", nsoil), dynamic_soil_diagnostic_names(nsoil))
+            ? (pp.queryAdd("lsm_nsoil", nsoil), dynamic_soil_diagnostic_names(nsoil))
             : dynamic_soil_diagnostic_names(active_lsm_names);
         names.insert(names.end(), soil_names.begin(), soil_names.end());
     }

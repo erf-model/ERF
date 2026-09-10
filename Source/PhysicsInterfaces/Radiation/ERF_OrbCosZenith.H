@@ -288,10 +288,18 @@ orbital_params (int& iyear_AD,
     real eccen3;  // eccentricity cubed
     real yb4_1950AD; // number of years before 1950 AD
 
+    // Any of obliq/eccen/mvelp that is non-negative on entry was supplied by the
+    // user and must survive this routine; the negative ones are the ones we fill
+    // in below, either from the Berger series or from the AMIP II defaults.
+    real obliq_in = obliq;
+    real eccen_in = eccen;
+    real mvelp_in = mvelp;
+
     // Check for flag to use input orbit parameters
     if ( iyear_AD == ORB_UNDEF_INT ) {
 
-        // The AMIP II settings (for a 1995 orbit) are adopted
+        // No orbital year is available, so the AMIP II settings (for a 1995
+        // orbit) are adopted
         obliq  = amrex::Real(23.4441);
         eccen  = amrex::Real(0.016715);
         mvelp  = amrex::Real(102.7);
@@ -404,19 +412,29 @@ orbital_params (int& iyear_AD,
         }
         mvelp = fvelp/degrad + real(amrex::Real(50.439273))*psecdeg*years + real(amrex::Real(3.392506)) + mvsum;
 
-        // Cases to make sure mvelp is between 0 and amrex::Real(360.)
-        if (mvelp < zero) {
-            do {
-                mvelp += amrex::Real(360.0);
-            } while (mvelp < zero);
-        }
-        if (mvelp >= amrex::Real(360.0)) {
-            do {
-                mvelp -= amrex::Real(360.0);
-            } while (mvelp >= amrex::Real(360.0));
-        }
-
     }  // end of test on whether to calculate or use input orbital params
+
+    // Restore any parameter the user specified explicitly, overriding whatever
+    // value was just computed for it
+    if (obliq_in >= zero) { obliq = obliq_in; }
+    if (mvelp_in >= zero) { mvelp = mvelp_in; }
+    if (eccen_in >= zero) {
+        eccen  = eccen_in;
+        eccen2 = eccen*eccen;
+        eccen3 = eccen2*eccen;
+    }
+
+    // Cases to make sure mvelp is between 0 and amrex::Real(360.)
+    if (mvelp < zero) {
+        do {
+            mvelp += amrex::Real(360.0);
+        } while (mvelp < zero);
+    }
+    if (mvelp >= amrex::Real(360.0)) {
+        do {
+            mvelp -= amrex::Real(360.0);
+        } while (mvelp >= amrex::Real(360.0));
+    }
 
     // Orbit needs the obliquity in radians
 

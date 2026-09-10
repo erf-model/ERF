@@ -55,6 +55,8 @@
         // Canopy data for mom sources
         MultiFab* forest_drag = (solverChoice.do_forest_drag) ?
             m_forest_drag[level]->get_drag_field() : nullptr;
+        MultiFab* frontal_area = (solverChoice.do_forest_drag) ?
+            m_forest_drag[level]->get_frontal_area() : nullptr;
 
         // Immersed Forcing
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -107,6 +109,12 @@
               dJ_to_use =   detJ_cc[level].get();
         }
 
+        // Get planar averages from persistent storage for immersed forcing
+        bool l_use_IF = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                         solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+        Table1D<Real> r_avg_to_pass = l_use_IF ? r_plane_avg[level].table() : Table1D<Real>();
+        Table1D<Real> t_avg_to_pass = l_use_IF ? t_plane_avg[level].table() : Table1D<Real>();
+
         // *****************************************************************************
         // Construct the source terms for the cell-centered (conserved) variables
         // *****************************************************************************
@@ -118,7 +126,9 @@
                      mapfac[level],
                      rhotheta_src[level].get(), rhoqt_src[level].get(),
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
-                     turbPert, true);
+                     turbPert,
+                     r_avg_to_pass, t_avg_to_pass,
+                     true);
 
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
@@ -141,9 +151,22 @@
                                     bdy_factor, real_width, geom[level],
                                     bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
                                     m_r2d, l_c_p, l_rdOcp,
+                                    solverChoice.moisture_indices,
                                     solverChoice.use_wrf_bdy_density, moist_nudge_type);
         }
 #endif
+
+        // Accumulate fixed-leaf-temperature canopy exchange in the staged
+        // source storage.  The existing slow-pre and slow-post paths then
+        // apply rho-theta and rho-qv with their normal RK/anelastic weighting.
+        if (solverChoice.do_forest_drag && solverChoice.forest_biophysics &&
+            solverChoice.forest_biophysics_heat && frontal_area) {
+            AddCanopyBiophysicsHeatSources(cc_src,
+                                           S_data[IntVars::cons],
+                                           xvel_new, yvel_new, zvel_new,
+                                           frontal_area, base_to_use,
+                                           solverChoice);
+        }
 
         // *****************************************************************************
         // Define the pressure gradient
@@ -176,7 +199,8 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, lsf, lsf_data[level], get_eb(level), true);
+                         input_sounding_data, lsf, lsf_data[level],
+                         get_eb(level), true);
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

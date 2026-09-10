@@ -38,7 +38,7 @@ class ParticleData
 
             amrex::ParmParse pp("particles");
             m_disable_particle_op = false;
-            pp.query("disable_plt", m_disable_particle_op);
+            pp.queryAdd("disable_plt", m_disable_particle_op);
 
             m_particle_species.clear();
             m_namelist.clear();

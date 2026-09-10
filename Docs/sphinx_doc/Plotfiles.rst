@@ -324,9 +324,12 @@ level domain.
 Subvolume output supports a restricted variable inventory, not the complete 3D
 plotfile catalog. The default fields are the three cell-centered velocity
 components. ``erf.subvol_sampling_vars`` may select supported conserved state
-variables and the derived fields ``temp``, ``theta``, ``KE``, ``scalar``, and
-``soundspeed``. Moisture-state availability follows the active moisture scheme;
-unsupported or unavailable names are omitted by the current selection path.
+variables and the derived fields ``temp``, ``theta``, ``KE``, ``scalar``,
+``soundspeed``, ``precipitable``, and ``mucape``. The last two are available
+only for a moist run. Conserved-state availability is decided by exactly the
+predicate the 3D plotfile uses, so the two output paths accept the same
+``rhoQn`` names for a given moisture scheme; unsupported or unavailable names
+are omitted from the output rather than reported as an error.
 
 .. _sec:PlotfileGeneralNotes:
 

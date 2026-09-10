@@ -18,17 +18,33 @@
 #include <ERF_InputSoundingData.H>
 
 /**
- * Data structure storing large scale forcing data.
+ * Data structure storing large-scale forcing data.
+ *
+ * This provides time-varying vertical profiles for large scale temperature,
+ * and water vapor tendencies, as well as observed large scale zonal and meridonal wind,
+ * and vertical subsidence.
+ * Profiles are read from a text file, interpolated to the model vertical grid, and then copied
+ * to device memory for use during time integration.
+ *
+ * This mirrors the lsf functionality as implemented in SAM.
  */
 struct LargeScaleForcingData {
 public:
+    /**
+     * @brief Construct large-scale forcing metadata from the ERF input namespace.
+     */
     LargeScaleForcingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("forcing_timescale", tau_lsf);
-        pp.query("large_scale_forcing_file", lsf_file);
+        pp.queryAdd("forcing_timescale", tau_lsf);
+        pp.queryAdd("large_scale_forcing_file", lsf_file);
     }
 
+    /**
+     * @brief Count the number of whitespace-separated columns in a line.
+     * @param str Input line to inspect.
+     * @return Number of columns in the line.
+     */
     int get_columns_in_str(std::string &str)
     {
         std::istringstream iss(str);
@@ -42,6 +58,9 @@ public:
     }
 
 
+    /**
+     * @brief Read the forcing file and cache the raw time slices on host.
+     */
     void read_forcing_file()
     {
         amrex::Print() << "  Opening LSF file '" << lsf_file << "'" << std::endl;
@@ -173,9 +192,27 @@ public:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_lsf.size() == num_times,
                                          "repeated timestamp in the large-scale forcing file");
         amrex::Print() << "  Read " << nz_lsf << " levels at " << num_times << " times" << std::endl;
+
+        // debugging print
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
+            amrex::Print() << " LSF at time = " << times_lsf[i] << std::endl;
+            for (int lev = 0; lev < nz_lsf + 1; lev++)
+            {
+                amrex::Print() << "   level " << lev << ": z = " << z_lsf[i][lev] << " p = " << p_lsf[i][lev] << " tls = "
+                               << t_lsf[i][lev] << " qls = " << q_lsf[i][lev] << " uls = " << u_lsf[i][lev] << " vls = "
+                               << v_lsf[i][lev] << " wls = " << w_lsf[i][lev] << std::endl;
+            }
+        }
     }
 
 
+    /**
+     * @brief Interpolate the forcing profiles onto the model grid.
+     * @param geom Geometry defining the vertical grid.
+     * @param zlevels_stag Staggered vertical coordinates used for interpolation.
+     * @param sounding Input sounding data used when the forcing file is on pressure levels.
+     */
     void
     interp_forcing(const amrex::GeometryData &geom,
                    const amrex::Vector<amrex::Real>& zlevels_stag,
@@ -266,8 +303,28 @@ public:
 
             host_to_device(itime);
         }
+
+        // debugging print
+        if (verbose_print && !times_lsf.empty()) {
+            const int i = 0; // print only the first time block
+            amrex::Print() << " INTERPOLATED LSF at time = " << times_lsf[i] << std::endl;
+            for (int k = 0; k <= Nz; k++)
+            {
+                amrex::Print() << "   level " << k << ": z = " << z_int_lsf[i][k] << " tls = " << t_int_lsf[i][k]
+                               << " qls = " << q_int_lsf[i][k] << " uls = " << u_int_lsf[i][k] << " vls = "
+                               << v_int_lsf[i][k] << " wls = " << w_int_lsf[i][k] << std::endl;
+            }
+        }
     }
 
+    /**
+     * @brief Determine interpolation coefficients to apply tendencies for the given time
+     * @param time Elapsed simulation time in seconds.
+     * @param curr Index of the lower bracketing forcing time.
+     * @param next Index of the upper bracketing forcing time.
+     * @param coeff_curr Interpolation weight for the lower time slice.
+     * @param coeff_next Interpolation weight for the upper time slice.
+     */
     void
     get_forcing_time_coeffs(const amrex::Real& time,
                             int& curr,
@@ -276,7 +333,7 @@ public:
                             amrex::Real& coeff_next)
     {
         // helper function to get the current time indices of forcing data to use and
-        // coefficients based on the current simulation time
+        // coefficients based on the current simulation time.
         curr = 0;
         next = 0;
         coeff_curr = one;
@@ -285,7 +342,7 @@ public:
         // find the time index of forcing data to use
         for (int nt = 1; nt < num_times; nt++)
         {
-            if (time - start_time > times_lsf[nt])
+            if (time > times_lsf[nt])
             {
                 curr = nt;
             }
@@ -299,11 +356,15 @@ public:
             coeff_next = zero;
         } else {
             next = curr + 1;
-            coeff_next = ((time - start_time) - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
+            coeff_next = (time - times_lsf[curr]) / (times_lsf[next] - times_lsf[curr]);
             coeff_curr = (one - coeff_next);
         }
     }
 
+    /**
+     * @brief Copy one interpolated forcing slice from host memory to device memory.
+     * @param itime Time-slice index to copy.
+     */
     void host_to_device (int itime)
     {
         const int nz = z_int_lsf[itime].size();
@@ -334,17 +395,38 @@ public:
                          w_int_lsf_d[itime].begin());
     }
 
-    amrex::Real start_time = zero; // simulation start time
-    amrex::Real tau_lsf = zero; // timescale to apply lsf
+    /**
+     * Relaxation time scale used by the large-scale forcing and nudging terms.
+     */
+    amrex::Real tau_lsf = zero;
+    /**
+     * Path to the large-scale forcing input file.
+     */
     std::string lsf_file = "";
 
+    /**
+     * True when the forcing file is tabulated on height levels, false when it is
+     * tabulated on pressure levels.
+     */
     bool use_z_grid = true;
 
-    // inputs from large scale forcing file
-    int nz_lsf = -1;    // number of z levels in the LSF file
-    int num_times = -1; // number of times found in the LSF file
+    /**
+     * Whether to display the lsf at initialization (before and after interpolation)
+     */
+    bool verbose_print = false;
+
+    /**
+     * Number of vertical levels and times found in the forcing file.
+     */
+    int nz_lsf = -1;
+    int num_times = -1;
+    /**
+     * Forcing times read from the file, converted to elapsed seconds.
+     */
     amrex::Vector<amrex::Real> times_lsf;
-    // original data from the file
+    /**
+     * Raw forcing profiles read from the input file, indexed by time then level.
+     */
     amrex::Vector<amrex::Vector<amrex::Real>> z_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> p_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> t_lsf;
@@ -353,7 +435,9 @@ public:
     amrex::Vector<amrex::Vector<amrex::Real>> v_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> w_lsf;
 
-    // interpolated data from file
+    /**
+     * Forcing profiles interpolated onto the model grid, indexed by time then level.
+     */
     amrex::Vector<amrex::Vector<amrex::Real>> z_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> t_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> q_int_lsf;
@@ -361,6 +445,9 @@ public:
     amrex::Vector<amrex::Vector<amrex::Real>> v_int_lsf;
     amrex::Vector<amrex::Vector<amrex::Real>> w_int_lsf;
 
+    /**
+     * Device copies of the interpolated forcing profiles.
+     */
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> z_int_lsf_d, t_int_lsf_d, q_int_lsf_d, u_int_lsf_d, v_int_lsf_d, w_int_lsf_d;
 
 };

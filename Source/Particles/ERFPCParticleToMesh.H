@@ -32,6 +32,11 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
     const Real dy  = geom.CellSize(1);
     const Box  domain = geom.Domain();
     const int  k_max  = domain.bigEnd(AMREX_SPACEDIM-1);
+    const int  i_lo   = domain.smallEnd(0), i_hi = domain.bigEnd(0);
+    const int  j_lo   = domain.smallEnd(1), j_hi = domain.bigEnd(1);
+    const int  k_lo   = domain.smallEnd(AMREX_SPACEDIM-1);
+    const bool per_x  = geom.isPeriodic(0);
+    const bool per_y  = geom.isPeriodic(1);
 
     a_mf.setVal(0.0);
 
@@ -146,9 +151,23 @@ void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
 
             auto deposit = [=] AMREX_GPU_DEVICE (int ic, int jc, int kc, Real w_horiz, Real w_z)
             {
-                // Clamp kc only for dz lookup; still write to ghost rho cell.
-                const int kc_dz = amrex::max(0, amrex::min(k_max, kc));
-                const Real dz = dz_cell(ic, jc, kc_dz);
+                // A corner with zero CIC weight deposits nothing.  Skip it before
+                // touching dz_cell: when a particle sits exactly on a cell-center
+                // plane the outermost corner lands in the ghost region, where the
+                // node-averaged thickness can come out exactly zero (z_phys_nd
+                // ghost nodes outside the domain are not filled), and 0/0 raises
+                // an invalid-operation FPE.
+                if (w_horiz == Real(0.0) || w_z == Real(0.0)) { return; }
+
+                // Clamp only for the dz lookup; still write to the ghost rho cell. In a
+                // periodic direction the exterior nodes hold the wrapped image, so the
+                // unclamped stencil already gives the thickness of the cell SumBoundary
+                // folds into; only the non-periodic exterior nodes need clamping.
+                const int ic_dz = per_x ? ic : amrex::max(i_lo, amrex::min(i_hi, ic));
+                const int jc_dz = per_y ? jc : amrex::max(j_lo, amrex::min(j_hi, jc));
+                const int kc_dz = amrex::max(k_lo, amrex::min(k_max, kc));
+                const Real dz = dz_cell(ic_dz, jc_dz, kc_dz);
+                AMREX_ALWAYS_ASSERT(dz > Real(0.0));
                 const Real contrib = pval * w_horiz * w_z * inv_dxdy / dz;
                 Gpu::Atomic::AddNoRet(&rho(ic, jc, kc, a_comp), contrib);
             };

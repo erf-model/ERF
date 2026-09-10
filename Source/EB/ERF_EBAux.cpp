@@ -14,11 +14,6 @@
 using namespace amrex;
 
 eb_aux_::
-~eb_aux_ ()
-{
-}
-
-eb_aux_::
 eb_aux_ ()
   : m_verbose(0)
 // ,m_defined(0)
@@ -46,8 +41,9 @@ define( [[maybe_unused]] int const& a_level,
 
   const BoxArray& my_grids = amrex::convert(a_grids, vdim);
 
-  m_cellflags = new FabArray<EBCellFlagFab>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
-                                            DefaultFabFactory<EBCellFlagFab>());
+  // NOTE: assigning here frees whatever a previous call to define() allocated
+  m_cellflags = std::make_unique<FabArray<EBCellFlagFab>>(my_grids, a_dmap, 1, a_ngrow[0], MFInfo(),
+                                                          DefaultFabFactory<EBCellFlagFab>());
 
   // Set m_cellflags type to singlevalued
   m_cellflags->setVal(EBCellFlag::TheDefaultCell());
@@ -56,17 +52,17 @@ define( [[maybe_unused]] int const& a_level,
     fab.setType(FabType::singlevalued);
   }
 
-  m_volfrac = new MultiFab(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
-  m_volcent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_volfrac = std::make_unique<MultiFab>(my_grids, a_dmap, 1, a_ngrow[1], MFInfo(), FArrayBoxFactory());
+  m_volcent = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-    m_areafrac[idim] = new MultiFab(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
-    m_facecent[idim] = new MultiFab(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+    m_areafrac[idim] = std::make_unique<MultiFab>(a_grids, a_dmap,                1, a_ngrow[1]+1, MFInfo(), FArrayBoxFactory());
+    m_facecent[idim] = std::make_unique<MultiFab>(a_grids, a_dmap, AMREX_SPACEDIM-1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
   }
 
-  m_bndryarea = new MultiFab(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrycent = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
-  m_bndrynorm = new MultiFab(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndryarea = std::make_unique<MultiFab>(my_grids, a_dmap, 1, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrycent = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
+  m_bndrynorm = std::make_unique<MultiFab>(my_grids, a_dmap, AMREX_SPACEDIM, a_ngrow[2], MFInfo(), FArrayBoxFactory());
 
   // Initialize with zeros
   m_volfrac->setVal(0.0);
@@ -1191,12 +1187,12 @@ Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getAreaFrac () const
 {
     AMREX_ASSERT(m_areafrac[0] != nullptr);
-    return {AMREX_D_DECL(m_areafrac[0], m_areafrac[1], m_areafrac[2])};
+    return {AMREX_D_DECL(m_areafrac[0].get(), m_areafrac[1].get(), m_areafrac[2].get())};
 }
 
 Array<const MultiFab*, AMREX_SPACEDIM>
 eb_aux_::getFaceCent () const
 {
     AMREX_ASSERT(m_facecent[0] != nullptr);
-    return {AMREX_D_DECL(m_facecent[0], m_facecent[1], m_facecent[2])};
+    return {AMREX_D_DECL(m_facecent[0].get(), m_facecent[1].get(), m_facecent[2].get())};
 }

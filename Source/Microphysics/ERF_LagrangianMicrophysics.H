@@ -225,6 +225,13 @@ public:
         m_moist_model->Set_dzmin(dz_min);
     }
 
+     /*! \brief Populates ERF's land/water mask in the micro model */
+    virtual void Set_Lmask (const int /*a_lev*/,
+                            amrex::iMultiFab* lmask) const override
+    {
+        m_moist_model->Set_Lmask(lmask);
+    }
+
 protected:
 
     /*! \brief Create and set the specified moisture model */

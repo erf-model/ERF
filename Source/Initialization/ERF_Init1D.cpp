@@ -32,8 +32,6 @@ ERF::initHSE (int lev)
     bool all_boxes_touch_bottom = true;
     Box domain(geom[lev].Domain());
 
-    int icomp = 0; int ncomp = BaseState::num_comps;
-
     if (lev == 0) {
         BoxArray ba(base_state[lev].boxArray());
         for (int i = 0; i < ba.size(); i++) {
@@ -45,26 +43,12 @@ ERF::initHSE (int lev)
     else
     {
         //
-        // We need to do this interp from coarse level in order to set the values of
-        // the base state inside the domain but outside of the fine region
+        // Set the values of the base state inside the domain but outside of the fine region,
+        // and in the fine ghost cells; the vertical integration below then overwrites only
+        // the fine grids, and for a box whose klo is in the interior it reads the value this
+        // leaves in klo-1 as its starting point.
         //
-        base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
-        //
-        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-        //       have been pre-filled - this includes ghost cells both inside and outside
-        //       the domain
-        //
-        InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
-                              IntVect(0,0,0), // do not fill ghost cells outside the domain
-                              base_state[lev-1], icomp, icomp, ncomp,
-                              geom[lev-1], geom[lev],
-                              refRatio(lev-1), &cell_cons_interp,
-                              domain_bcs_type, BCVars::cons_bc);
-
-         // We need to do this here because the interpolation above may leave corners unfilled
-         //    when the corners need to be filled by, for example, reflection of the fine ghost
-         //    cell outside the fine region but inide the domain.
-         (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
+        interp_base_state_from_coarse(lev);
     }
 
     bool is_constant_dz  = (solverChoice.mesh_type == MeshType::ConstantDz);
@@ -175,6 +159,43 @@ ERF::initHSE (int lev)
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //
     (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+}
+
+/**
+ * Fill base_state[lev] by conservative interpolation from the next coarser level and then
+ * apply the base-state physical boundary conditions.
+ *
+ * This is what gives values to the part of a fine level that lies inside the domain but
+ * outside the fine grids, and to the fine ghost cells.  Any construction that writes only
+ * the fine grids -- initHSE's vertical integration, or the analytic WRF profile -- must run
+ * after this, not before.
+ *
+ * @param lev Integer specifying the current level; must be > 0
+ */
+void
+ERF::interp_base_state_from_coarse (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
+    int icomp = 0; int ncomp = BaseState::num_comps;
+
+    base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
+    //
+    // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+    //       have been pre-filled - this includes ghost cells both inside and outside
+    //       the domain
+    //
+    InterpFromCoarseLevel(base_state[lev], base_state[lev].nGrowVect(),
+                          IntVect(0,0,0), // do not fill ghost cells outside the domain
+                          base_state[lev-1], icomp, icomp, ncomp,
+                          geom[lev-1], geom[lev],
+                          refRatio(lev-1), &cell_cons_interp,
+                          domain_bcs_type, BCVars::cons_bc);
+
+    // We need to do this here because the interpolation above may leave corners unfilled
+    //    when the corners need to be filled by, for example, reflection of the fine ghost
+    //    cell outside the fine region but inside the domain.
+    (*physbcs_base[lev])(base_state[lev],icomp,ncomp,base_state[lev].nGrowVect());
 }
 
 /**

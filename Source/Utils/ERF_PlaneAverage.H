@@ -281,11 +281,59 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     lavg.copyToHost(m_line_average.data(), m_line_average.size());
     amrex::ParallelDescriptor::ReduceRealSum(cnt_h.data(), cnt_h.size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
+    //
+    // With AMR, a level need not cover every plane in the direction we average over: a
+    // fine level typically covers only the bottom of the domain.  A plane holding no
+    // cells has nothing to divide by, and leaving it at the accumulated sum -- exactly
+    // zero, since m_line_average was zeroed before the reduction -- is indistinguishable
+    // from a legitimate average of zero.  A consumer that divides one profile by another,
+    // as the subsidence forcing in MakeSources does, then gets 0/0 = NaN far from the
+    // cause.  So fill each empty plane from the closest plane that does hold cells,
+    // preferring the one below it, which extends the profile as a constant beyond the
+    // range of the level.
+    //
+    amrex::Vector<int> plane_has_cells(m_ncell_line);
+    int ncell_line_empty = 0;
     for (int ind(0); ind<m_ncell_line; ++ind) {
-        for (int n(0); n<ncomp; ++n) {
-            m_line_average[ncomp*ind + n] /= cnt_h[ind];
+        plane_has_cells[ind] = (cnt_h[ind] > zero);
+        if (plane_has_cells[ind]) {
+            for (int n(0); n<ncomp; ++n) {
+                m_line_average[ncomp*ind + n] /= cnt_h[ind];
+            }
+        } else {
+            ++ncell_line_empty;
         }
     }
-    m_ncell_plane = static_cast<int>(cnt_h[0]);
+
+    if (ncell_line_empty == m_ncell_line) {
+        amrex::Abort("PlaneAverage: no cells were found in any plane");
+    }
+
+    if (ncell_line_empty > 0) {
+        // Sweeping up first and then down leaves every empty plane holding the value of
+        // the nearest non-empty plane below it, or above it if there is none below.
+        for (int ind(1); ind<m_ncell_line; ++ind) {
+            if (!plane_has_cells[ind] && plane_has_cells[ind-1]) {
+                for (int n(0); n<ncomp; ++n) {
+                    m_line_average[ncomp*ind + n] = m_line_average[ncomp*(ind-1) + n];
+                }
+                plane_has_cells[ind] = 1;
+            }
+        }
+        for (int ind(m_ncell_line-2); ind>=0; --ind) {
+            if (!plane_has_cells[ind] && plane_has_cells[ind+1]) {
+                for (int n(0); n<ncomp; ++n) {
+                    m_line_average[ncomp*ind + n] = m_line_average[ncomp*(ind+1) + n];
+                }
+                plane_has_cells[ind] = 1;
+            }
+        }
+    }
+
+    // Take the size of a plane from one that actually holds cells: plane 0 need not be
+    // one of them on a level whose grids do not reach the bottom of the domain.
+    amrex::Real cnt_max = zero;
+    for (int ind(0); ind<m_ncell_line; ++ind) { cnt_max = amrex::max(cnt_max,cnt_h[ind]); }
+    m_ncell_plane = static_cast<int>(cnt_max);
 }
 #endif /* ERF_PlaneAverage.H */

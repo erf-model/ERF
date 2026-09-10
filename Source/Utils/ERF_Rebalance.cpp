@@ -35,13 +35,35 @@ rebalance_columns (MultiFab& rho,
 
     // int ncomp    = cons.nComp();
     int k_dom_lo = geom.Domain().smallEnd(2);
-    int k_dom_hi = geom.Domain().bigEnd(2);
 
     for (MFIter mfi(rho,TileNoZ()); mfi.isValid(); ++mfi) {
         Box bx  = mfi.tilebox();
         int klo = bx.smallEnd(2);
         int khi = bx.bigEnd(2);
-        AMREX_ALWAYS_ASSERT((klo == k_dom_lo) && (khi == k_dom_hi));
+
+        //
+        // This is a bottom-up integration: the value in cell k depends only on cells at
+        // or below k.  A box that stops below the top of the domain is therefore perfectly
+        // well defined -- it produces exactly the values the full-height column would have
+        // had in the cells it does contain -- so we deliberately do NOT require
+        // khi == geom.Domain().bigEnd(2) here.  That matters for a refined level whose
+        // patch covers only the lower part of the domain, which is the normal way to nest
+        // an LES region inside a mesoscale parent.
+        //
+        // What the integration does require is a valid starting value in its lowest cell.
+        // The use_sfc seeding below marches up from p_0 at z = 0, so it is only meaningful
+        // for a box that reaches the ground; a box whose klo is in the interior has no
+        // surface to start from.  (With amr.refine_grid_layout_z = 0, which is the ERF
+        // default set in main.cpp, grids are never chopped in z and this always holds.)
+        //
+        // NOTE: TileNoZ() above guarantees that klo/khi are the *box's* z extent rather
+        //       than a tile's, so each column is integrated exactly once.
+        //
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_sfc || (klo == k_dom_lo),
+                                         "rebalance_columns with use_sfc requires boxes that "
+                                         "reach the bottom of the domain: the integration is "
+                                         "seeded from p_0 at the surface. Set erf.max_grid_size_z "
+                                         "large enough that the grids are not decomposed in z.");
         bx.makeSlab(2,klo);
 
         const Array4<      Real>& rho_arr = rho.array(mfi);
@@ -53,7 +75,7 @@ rebalance_columns (MultiFab& rho,
 
         ParallelFor(bx, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
         {
-            // integrate from surface to domain top
+            // Integrate upward from the bottom of this box to its top
             Real dz, F, C;
             Real rho_tot_hi, rho_tot_lo;
             Real z_lo, z_hi;

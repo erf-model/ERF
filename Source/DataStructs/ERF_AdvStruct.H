@@ -27,17 +27,17 @@ struct AdvChoice {
         amrex::ParmParse pp(pp_prefix);
 
         // Order and type of spatial discretizations used in advection
-        pp.query("use_efficient_advection", use_efficient_advection);
+        pp.queryAdd("use_efficient_advection", use_efficient_advection);
         std::string dycore_horiz_adv_string    = "" ; std::string dycore_vert_adv_string   = "";
         std::string dryscal_horiz_adv_string   = "" ; std::string dryscal_vert_adv_string  = "";
-        pp.query("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
-        pp.query("dycore_vert_adv_type"    , dycore_vert_adv_string);
-        pp.query("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
-        pp.query("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
+        pp.queryAdd("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
+        pp.queryAdd("dycore_vert_adv_type"    , dycore_vert_adv_string);
+        pp.queryAdd("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
+        pp.queryAdd("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
 
         std::string moistscal_horiz_adv_string = ""; std::string moistscal_vert_adv_string = "";
-        pp.query("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
-        pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
+        pp.queryAdd("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
+        pp.queryAdd("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 
         if (use_efficient_advection){
            amrex::Print() << "Using efficient advection scheme" << std::endl;
@@ -46,7 +46,7 @@ struct AdvChoice {
         if ( (dycore_horiz_adv_string == "Blended_3rd4th") ||
              (dycore_horiz_adv_string == "Blended_5th6th") )
         {
-            pp.query("dycore_horiz_upw_frac" , dycore_horiz_upw_frac);
+            pp.queryAdd("dycore_horiz_upw_frac" , dycore_horiz_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((dycore_horiz_upw_frac >= zero) && (dycore_horiz_upw_frac <= one),
                                       "The dycore horizontal upwinding fraction must be between 0 and 1");
         }
@@ -54,7 +54,7 @@ struct AdvChoice {
         if ( (dycore_vert_adv_string == "Blended_3rd4th") ||
              (dycore_vert_adv_string == "Blended_5th6th") )
         {
-            pp.query("dycore_vert_upw_frac" , dycore_vert_upw_frac);
+            pp.queryAdd("dycore_vert_upw_frac" , dycore_vert_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((dycore_vert_upw_frac >= zero) && (dycore_vert_upw_frac <= one),
                                       "The dycore vertical upwinding fraction must be between 0 and 1");
         }
@@ -62,7 +62,7 @@ struct AdvChoice {
         if ( (dryscal_horiz_adv_string == "Blended_3rd4th") ||
              (dryscal_horiz_adv_string == "Blended_5th6th") )
         {
-            pp.query("dryscal_horiz_upw_frac" , dryscal_horiz_upw_frac);
+            pp.queryAdd("dryscal_horiz_upw_frac" , dryscal_horiz_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((dryscal_horiz_upw_frac >= zero) && (dryscal_horiz_upw_frac <= one),
                                       "The dry scalar horizontal upwinding fraction must be between 0 and 1");
         }
@@ -70,7 +70,7 @@ struct AdvChoice {
         if ( (dryscal_vert_adv_string == "Blended_3rd4th") ||
              (dryscal_vert_adv_string == "Blended_5th6th") )
         {
-            pp.query("dryscal_vert_upw_frac" , dryscal_vert_upw_frac);
+            pp.queryAdd("dryscal_vert_upw_frac" , dryscal_vert_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((dryscal_vert_upw_frac >= zero) && (dryscal_vert_upw_frac <= one),
                                       "The dry scalar vertical upwinding fraction must be between 0 and 1");
         }
@@ -78,7 +78,7 @@ struct AdvChoice {
         if ( (moistscal_horiz_adv_string == "Blended_3rd4th") ||
              (moistscal_horiz_adv_string == "Blended_5th6th") )
         {
-            pp.query("moistscal_horiz_upw_frac" , moistscal_horiz_upw_frac);
+            pp.queryAdd("moistscal_horiz_upw_frac" , moistscal_horiz_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((moistscal_horiz_upw_frac >= zero) && (moistscal_horiz_upw_frac <= one),
                                       "The moist scalar horizontal upwinding fraction must be between 0 and 1");
         }
@@ -86,7 +86,7 @@ struct AdvChoice {
         if ( (moistscal_vert_adv_string == "Blended_3rd4th") ||
              (moistscal_vert_adv_string == "Blended_5th6th") )
         {
-            pp.query("moistscal_vert_upw_frac" , moistscal_vert_upw_frac);
+            pp.queryAdd("moistscal_vert_upw_frac" , moistscal_vert_upw_frac);
             AMREX_ASSERT_WITH_MESSAGE((moistscal_vert_upw_frac >= zero) && (moistscal_vert_upw_frac <= one),
                                       "The moist scalar vertical upwinding fraction must be between 0 and 1");
         }
@@ -227,7 +227,7 @@ struct AdvChoice {
 
         // We can can't use weno with Embedded Boundaries (for now)
         std::string terrain_type;
-        pp.query("terrain_type", terrain_type);
+        pp.queryAdd("terrain_type", terrain_type);
         validate_weno_momentum_compatibility(terrain_type == "EB");
 
         pp.queryarr("zero_xflux_faces", zero_xflux);
@@ -248,13 +248,13 @@ struct AdvChoice {
         amrex::ParmParse pp(pp_prefix);
         std::string dycore_horiz_adv_string    = "" ; std::string dycore_vert_adv_string   = "";
         std::string dryscal_horiz_adv_string   = "" ; std::string dryscal_vert_adv_string  = "";
-        pp.query("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
-        pp.query("dycore_vert_adv_type"    , dycore_vert_adv_string);
-        pp.query("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
-        pp.query("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
+        pp.queryAdd("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
+        pp.queryAdd("dycore_vert_adv_type"    , dycore_vert_adv_string);
+        pp.queryAdd("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
+        pp.queryAdd("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
         std::string moistscal_horiz_adv_string = ""; std::string moistscal_vert_adv_string = "";
-        pp.query("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
-        pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
+        pp.queryAdd("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
+        pp.queryAdd("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 
         if (dycore_horiz_adv_string != "") {
             amrex::Print() << "    dycore_horiz_adv_type   : " << dycore_horiz_adv_string;

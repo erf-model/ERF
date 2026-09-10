@@ -109,7 +109,7 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
     // Rotate about that point
     ParmParse pp("erf");
     std::string fname_usgs;
-    auto valid_fname_USGS = pp.query("terrain_file_name_USGS",fname_usgs);
+    auto valid_fname_USGS = pp.queryAdd("terrain_file_name_USGS",fname_usgs);
     Real lon_ref, lat_ref;
 
     if (valid_fname_USGS) {

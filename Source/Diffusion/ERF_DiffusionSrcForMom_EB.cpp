@@ -10,8 +10,24 @@
 using namespace amrex;
 
 /**
- * Compute orthonormal tangent vectors at an EB boundary given the normal vector.
- * Uses Gram-Schmidt orthogonalization against standard basis vectors.
+ * Compute the tangent directions at an EB boundary given the unit normal vector.
+ *
+ * t_bx and t_by are the unit vectors along the projections of e_x and e_y onto the
+ * tangent plane. They are the directions in which the stored EB surface stresses
+ * tau_eb13 and tau_eb23 act, since those are built from the x- and y-components of
+ * the tangential velocity (see ERF_EBMOSTStress.H). For a horizontal surface they are
+ * exactly e_x and e_y. Note that they are individually unit but are not orthogonal to
+ * each other unless nx*ny is zero -- t_bx . t_by = -nx*ny.
+ *
+ * e_x has no projection onto the tangent plane when n is parallel to e_x, and likewise
+ * for e_y, so one of the two is undefined for an axis-aligned normal such as (1,0,0)
+ * (issue #3533). That limit is genuinely two-sided -- approaching n = (1,0,0) from
+ * nz > 0 and from nz < 0 gives t_bx of -e_z and +e_z -- so there is no continuous
+ * choice, and the degenerate vector is returned as zero. That keeps the momentum RHS
+ * finite, and it keeps the component that does have a limit continuous: the x-component
+ * of t_bx is sqrt(1-nx*nx), which tends to zero here as well. It also avoids driving
+ * w-momentum with tau_eb13, an x-associated stress, along an arbitrarily signed
+ * direction. Only nx and ny can be degenerate, and never both at once.
  *
  * @param[in]  nx x-component of the normal vector
  * @param[in]  ny y-component of the normal vector
@@ -28,25 +44,38 @@ void compute_tangent_vectors (Real nx, Real ny, Real nz,
                                Real& tbx_x, Real& tbx_y, Real& tbx_z,
                                Real& tby_x, Real& tby_y, Real& tby_z)
 {
+    // Below this the projection is all round-off and its direction is meaningless.
+    // The squared norms are formed as ny^2+nz^2 and nx^2+nz^2 rather than as the
+    // algebraically equal 1-nx^2 and 1-ny^2 to avoid cancellation for a near-axis normal
+    constexpr Real tol = Real(1.e-12);
+
     // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
     // e_x = (1,0,0), so e_x · n = nx
-    tbx_x = one - nx * nx;
-    tbx_y = - nx * ny;
-    tbx_z = - nx * nz;
-    Real tbx_norm = std::sqrt(tbx_x*tbx_x + tbx_y*tbx_y + tbx_z*tbx_z);
-    tbx_x /= tbx_norm;
-    tbx_y /= tbx_norm;
-    tbx_z /= tbx_norm;
+    Real tbx_norm2 = ny*ny + nz*nz;
+    if (tbx_norm2 > tol) {
+        Real tbx_norm_inv = one / std::sqrt(tbx_norm2);
+        tbx_x = ( one - nx * nx) * tbx_norm_inv;
+        tbx_y = (     - nx * ny) * tbx_norm_inv;
+        tbx_z = (     - nx * nz) * tbx_norm_inv;
+    } else {
+        tbx_x = zero;
+        tbx_y = zero;
+        tbx_z = zero;
+    }
 
     // y-tangential vector: t_by = (e_y - (e_y · n)n) / ||e_y - (e_y · n)n||
     // e_y = (0,1,0), so e_y · n = ny
-    tby_x = - ny * nx;
-    tby_y = one - ny * ny;
-    tby_z = - ny * nz;
-    Real tby_norm = std::sqrt(tby_x*tby_x + tby_y*tby_y + tby_z*tby_z);
-    tby_x /= tby_norm;
-    tby_y /= tby_norm;
-    tby_z /= tby_norm;
+    Real tby_norm2 = nx*nx + nz*nz;
+    if (tby_norm2 > tol) {
+        Real tby_norm_inv = one / std::sqrt(tby_norm2);
+        tby_x = (     - ny * nx) * tby_norm_inv;
+        tby_y = ( one - ny * ny) * tby_norm_inv;
+        tby_z = (     - ny * nz) * tby_norm_inv;
+    } else {
+        tby_x = zero;
+        tby_y = zero;
+        tby_z = zero;
+    }
 }
 
 /**

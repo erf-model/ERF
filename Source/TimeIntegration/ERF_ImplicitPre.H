@@ -64,8 +64,12 @@
                     const Array4<const Real>& hfx_z = Hfx3->const_array(mfi);
                     const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                             && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF);
+                    // NOTE: Only ComputeDiffusivityYSUNew fills EddyDiff::HGAMU_v/HGAMV_v;
+                    //       the legacy PBLType::YSU never writes them.  Gating on YSU
+                    //       therefore both disabled the term where it is produced and read
+                    //       an unwritten component where it was not.
                     const bool l_use_ysu_mom_cg = solverChoice.turbChoice[level].enable_ysu_countergradient
-                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSU);
+                                               && (solverChoice.turbChoice[level].pbl_type == PBLType::YSUNew);
                     if (l_use_stretched_dz) {
                         if (l_do_implicit_theta) {
 

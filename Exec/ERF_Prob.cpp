@@ -1,5 +1,7 @@
 #include "ERF_Prob.H"
 #include "ERF_EOS.H"
+#include "ERF_HashRNG.H"
+#include "ERF_Microphysics.H"
 #include "ERF_TerrainMetrics.H"
 #include "Prob/ERF_ProblemDispatch.H"
 
@@ -93,9 +95,13 @@ Problem::init_custom_pert (
     const SolverChoice& sc,
     const int lev)
 {
-    ParmParse pp_erf("erf");
-    std::string my_prob_name; pp_erf.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPert_ABL.H"
@@ -178,6 +184,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "sinusoidalmassflux") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else if (my_prob_name_ci == "bellforest") {
+        // No state perturbation; uniform flow is set in init_custom_pert_vels
+    }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
                 << "does not add any state perturbations. \n";
@@ -199,11 +208,15 @@ Problem::init_custom_pert_vels (
     Array4<Real const> const& mf_u,
     Array4<Real const> const& mf_v,
     const SolverChoice& sc,
-    const int /*lev*/)
+    const int lev)
 {
-    ParmParse pp("erf");
-    std::string my_prob_name; pp.get("prob_name",my_prob_name);
-    std::string my_prob_name_ci = amrex::toLower(my_prob_name);
+    std::string my_prob_name;
+    std::string my_prob_name_ci;
+    {
+        ParmParse pp_erf("erf");
+        pp_erf.get("prob_name",my_prob_name);
+        my_prob_name_ci = amrex::toLower(my_prob_name);
+    }
 
     if (my_prob_name_ci == "abl") {
 #include "Prob/ERF_InitCustomPertVels_ABL.H"
@@ -242,7 +255,8 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_TurbulentInflow.H"
     }
     else if ( (my_prob_name_ci == "flow over witch of agnesi hill") ||
-              (my_prob_name_ci == "flow over schar mountain") ) {
+              (my_prob_name_ci == "flow over schar mountain") ||
+              (my_prob_name_ci == "bellforest") ) {
 #include "Prob/ERF_InitCustomPertVels_WitchOfAgnesi.H"
     }
     else if (my_prob_name_ci == "moving terrain") {

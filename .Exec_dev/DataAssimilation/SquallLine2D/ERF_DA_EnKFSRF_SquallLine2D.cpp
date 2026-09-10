@@ -22,7 +22,7 @@ Apply_H(const amrex::MultiFab& x_mf,
     // Define y_mf with 2 velocity components
     y_mf.define(x_mf.boxArray(),
                 x_mf.DistributionMap(),
-                2,
+                8,
                 x_mf.nGrowVect());
 
     for (amrex::MFIter mfi(y_mf); mfi.isValid(); ++mfi)
@@ -35,10 +35,14 @@ Apply_H(const amrex::MultiFab& x_mf,
         amrex::ParallelFor(bx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            amrex::Real rho = x(i,j,k,0);
-
-            y(i,j,k,0) = x(i,j,k,2); // u velocity
-            y(i,j,k,1) = x(i,j,k,3); // v velocity
+            y(i,j,k,0) = x(i,j,k,0); // density
+            y(i,j,k,1) = x(i,j,k,1); // theta
+            y(i,j,k,2) = x(i,j,k,2); // x velocity
+            y(i,j,k,3) = x(i,j,k,3); // y velocity
+            y(i,j,k,4) = x(i,j,k,4); // z velocity
+            y(i,j,k,5) = x(i,j,k,5); // qv
+            y(i,j,k,6) = x(i,j,k,6); // qc
+            y(i,j,k,7) = x(i,j,k,7); // qrain
         });
     }
 }
@@ -90,7 +94,7 @@ read_in_observations(const int& da_iter,
 void compute_R_diag_vals(Vector<Real>& R_diag)
 {
     // Set the size to 2
-    R_diag.resize(2);
+    R_diag.resize(8,0.01);
 
     R_diag[0] = 0.01;
     R_diag[1] = 0.01;

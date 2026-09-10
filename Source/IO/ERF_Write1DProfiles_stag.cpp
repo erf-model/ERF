@@ -516,8 +516,6 @@ ERF::derive_diag_profiles_stag (double /*time*/,
 
     if (use_moisture)
     {
-        int n_qstate_moist = micro->Get_Qstate_Moist_Size();
-
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
@@ -529,12 +527,21 @@ ERF::derive_diag_profiles_stag (double /*time*/,
             const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
+            // The moisture map is the authority on which species this scheme
+            // carries; a slot the scheme allocates but never integrates must not
+            // be reported as a profile of data.
+            int rhoqv_comp = solverChoice.moisture_indices.qv;
+            int rhoqc_comp = solverChoice.moisture_indices.qc;
             int rhoqr_comp = solverChoice.moisture_indices.qr;
+            int rhoqi_comp = solverChoice.moisture_indices.qi;
+            int rhoqs_comp = solverChoice.moisture_indices.qs;
+            int rhoqg_comp = solverChoice.moisture_indices.qg;
+            AMREX_ALWAYS_ASSERT( (rhoqv_comp > -1) && (rhoqc_comp > -1) );
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real qv = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);
-                Real qc = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qv = cons_arr(i,j,k,rhoqv_comp) / cons_arr(i,j,k,Rho_comp);
+                Real qc = cons_arr(i,j,k,rhoqc_comp) / cons_arr(i,j,k,Rho_comp);
                 Real qr = (rhoqr_comp > -1) ?  cons_arr(i,j,k,rhoqr_comp) / cons_arr(i,j,k,Rho_comp) :
                                                zero;
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv);
@@ -546,24 +553,21 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 fab_arr(i, j, k,16) = qv;  // qv
                 fab_arr(i, j, k,17) = qc;  // qc
                 fab_arr(i, j, k,18) = qr;  // qr
-                if (n_qstate_moist > 3) { // SAM model
-                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
-                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
-                    fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
-                } else {
-                    fab_arr(i, j, k,19) = zero;  // qi
-                    fab_arr(i, j, k,20) = zero;  // qs
-                    fab_arr(i, j, k,21) = zero;  // qg
-                }
+                fab_arr(i, j, k,19) = (rhoqi_comp > -1) ?
+                    cons_arr(i,j,k,rhoqi_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qi
+                fab_arr(i, j, k,20) = (rhoqs_comp > -1) ?
+                    cons_arr(i,j,k,rhoqs_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qs
+                fab_arr(i, j, k,21) = (rhoqg_comp > -1) ?
+                    cons_arr(i,j,k,rhoqg_comp) / cons_arr(i,j,k,Rho_comp) : zero;  // qg
             });
 
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                Real qv0 = cons_arr(i,j,k  ,RhoQ1_comp) / cons_arr(i,j,k  ,Rho_comp);
-                Real qv1 = cons_arr(i,j,k-1,RhoQ1_comp) / cons_arr(i,j,k-1,Rho_comp);
-                Real qc0 = cons_arr(i,j,k  ,RhoQ2_comp) / cons_arr(i,j,k  ,Rho_comp);
-                Real qc1 = cons_arr(i,j,k-1,RhoQ2_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qv0 = cons_arr(i,j,k  ,rhoqv_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qv1 = cons_arr(i,j,k-1,rhoqv_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qc0 = cons_arr(i,j,k  ,rhoqc_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qc1 = cons_arr(i,j,k-1,rhoqc_comp) / cons_arr(i,j,k-1,Rho_comp);
                 Real qr0 = (rhoqr_comp > -1) ? cons_arr(i,j,k  ,rhoqr_comp) / cons_arr(i,j,k  ,Rho_comp) :
                                                zero;
                 Real qr1 = (rhoqr_comp > -1) ? cons_arr(i,j,k-1,rhoqr_comp) / cons_arr(i,j,k-1,Rho_comp) :

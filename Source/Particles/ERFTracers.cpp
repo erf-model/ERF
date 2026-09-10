@@ -13,7 +13,7 @@ void ERF::readTracersParams ()
 
     m_use_tracer_particles = 0;
 
-    pp.query(std::string("use_"+ERFParticleNames::tracers).c_str(), m_use_tracer_particles);
+    pp.queryAdd(std::string("use_"+ERFParticleNames::tracers).c_str(), m_use_tracer_particles);
 
     if (m_use_tracer_particles) {
         particleData.addName(ERFParticleNames::tracers);

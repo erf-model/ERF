@@ -706,7 +706,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                             QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D, &
                             NI_TEND1D, NS_TEND1D, NR_TEND1D,             &
                             QC1D, QI1D, QR1D,NI1D, NS1D, NR1D, QS1D,     &
-                            T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, W1D,     &
+                            T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, W1D, RHO_ERF1D, &
                             EFFC1D, EFFI1D, EFFS1D, EFFR1D,DZ1D,         &
                             QG_TEND1D, NG_TEND1D, QG1D, NG1D, EFFG1D,    &
 ! ADD SEDIMENTATION TENDENCIES (UNITS OF KG/KG/S)
@@ -815,6 +815,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
           P1D(k)        = P(i,j,k)
           DZ1D(k)       = DZ(i,j,k)
           W1D(k)        = W(i,j,k)
+          RHO_ERF1D(k)  = RHO(i,j,k)
 ! add cumulus tendencies, already decoupled
           qrcu1d(k)     = qrcuten(i,j,k)
           qscu1d(k)     = qscuten(i,j,k)
@@ -840,7 +841,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
       call MORR_TWO_MOMENT_MICRO(i,j,ITIMESTEP,kts,kte,QC_TEND1D, QI_TEND1D, QNI_TEND1D, QR_TEND1D,   &
                                  NI_TEND1D, NS_TEND1D, NR_TEND1D,               &
                                  QC1D, QI1D, QS1D, QR1D,NI1D, NS1D, NR1D,       &
-                                 T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, DZ1D, W1D, &
+                                 T_TEND1D,QV_TEND1D, T1D, QV1D, P1D, DZ1D, W1D, RHO_ERF1D, &
                                  PRECPRT1D,SNOWRT1D,                            &
                                  SNOWPRT1D,GRPLPRT1D,                 & ! hm added 7/13/13
                                  EFFC1D,EFFI1D,EFFS1D,EFFR1D,DT,                &
@@ -880,7 +881,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
           EFFG(I,j,k)      = EFFG1D(K)
 
 ! wrf-chem
-          IF (flag_qndrop .AND. PRESENT( qndrop )) THEN
+          IF (PRESENT( qndrop )) THEN
              qndrop(i,j,k) = nc1d(k)
 !jdf         CSED3D(i,j,k) = CSED(k)
           END IF
@@ -923,7 +924,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       SUBROUTINE MORR_TWO_MOMENT_MICRO(i,j,istep,kts,kte,                                                   &
                                        QC3DTEN,QI3DTEN,QNI3DTEN,QR3DTEN,                              &
                                        NI3DTEN,NS3DTEN,NR3DTEN,QC3D,QI3D,QNI3D,QR3D,NI3D,NS3D,NR3D,   &
-                                       T3DTEN,QV3DTEN,T3D,QV3D,PRES,DZQ,W3D,PRECRT,SNOWRT,            &
+                                       T3DTEN,QV3DTEN,T3D,QV3D,PRES,DZQ,W3D,RHO_ERF,PRECRT,SNOWRT,    &
                                        SNOWPRT,GRPLPRT,                                               &
                                        EFFC,EFFI,EFFS,EFFR,DT,                                        &
                                        QG3DTEN,NG3DTEN,QG3D,NG3D,EFFG,qrcu1d,qscu1d, qicu1d,          &
@@ -981,6 +982,7 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  PRES               ! ATMOSPHERIC PRESSURE (PA)
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  DZQ                ! DIFFERENCE IN HEIGHT ACROSS LEVEL (m)
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  W3D                ! GRID-SCALE VERTICAL VELOCITY (M/S)
+      REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  RHO_ERF            ! ERF DRY-AIR DENSITY (KG_DRY/M^3)
 ! below for wrf-chem
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  nc3d
       REAL(C_DOUBLE), DIMENSION(KTS:KTE) ::  nc3dten
@@ -1470,8 +1472,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! INUM = 1, SET CONSTANT DROPLET NUMBER
 
          IF (iinum.EQ.1) THEN
-! CONVERT NDCNST FROM CM-3 TO KG-1
-            NC3D(K)=NDCNST*1.E6/RHO(K)
+! NDCNST: #/CM^3 -> #/M^3; RHO_ERF: KG_DRY/M^3; NC3D: #/KG_DRY
+            NC3D(K)=NDCNST*1.E6/RHO_ERF(K)
          END IF
 
 ! GET SIZE DISTRIBUTION PARAMETERS
@@ -2074,8 +2076,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
 ! INUM = 1, SET CONSTANT DROPLET NUMBER
 
          IF (iinum.EQ.1) THEN
-! CONVERT NDCNST FROM CM-3 TO KG-1
-            NC3D(K)=NDCNST*1.E6/RHO(K)
+! NDCNST: #/CM^3 -> #/M^3; RHO_ERF: KG_DRY/M^3; NC3D: #/KG_DRY
+            NC3D(K)=NDCNST*1.E6/RHO_ERF(K)
          END IF
 
 ! CALCULATE SIZE DISTRIBUTION PARAMETERS
@@ -4003,8 +4005,8 @@ END SUBROUTINE MP_MORR_TWO_MOMENT
           END IF
 ! SWITCH FOR CONSTANT DROPLET NUMBER
           IF (iinum.EQ.1) THEN
-! CHANGE NDCNST FROM CM-3 TO KG-1
-             NC3D(K) = NDCNST*1.E6/RHO(K)
+! NDCNST: #/CM^3 -> #/M^3; RHO_ERF: KG_DRY/M^3; NC3D: #/KG_DRY
+             NC3D(K) = NDCNST*1.E6/RHO_ERF(K)
           END IF
 
       END DO !!! K LOOP

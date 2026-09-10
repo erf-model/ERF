@@ -359,18 +359,21 @@ TEST(Plotfile2D, WaterPathDiagnosticsFollowIntegratedQv)
 // predict or accumulate surface precipitation.
 TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
 {
-    const std::vector<std::pair<MoistureType, MoistureComponentIndices>> cases{
-        {MoistureType::None, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
-        {MoistureType::SatAdj, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
-        {MoistureType::MoistNoCondensation, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
-        {MoistureType::Kessler_NoRain, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
-        {MoistureType::SAM_NoPrecip_NoIce, MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp)},
+    // NOTE: the map comes from from_moisture_model() rather than being written
+    //       out here, so that this test cannot drift from the one place a scheme
+    //       declares what it carries.
+    const std::vector<MoistureType> cases{
+        MoistureType::None,
+        MoistureType::SatAdj,
+        MoistureType::MoistNoCondensation,
+        MoistureType::Kessler_NoRain,
+        MoistureType::SAM_NoPrecip_NoIce,
     };
 
-    for (const auto& [moisture_type, moisture_indices] : cases) {
+    for (const auto moisture_type : cases) {
         SolverChoice sc;
         sc.moisture_type = moisture_type;
-        sc.moisture_indices = moisture_indices;
+        sc.moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         const auto available = plotfile2d::available_diagnostic_names(sc);
         for (const char* name : {"precip_total_accum", "precip_rain_accum", "precip_snow_accum",
@@ -409,26 +412,24 @@ TEST(Plotfile2DWaterPath, SchemeSpecificPrecipitationAvailabilityMatchesCurrentS
 {
     struct Case {
         MoistureType moisture_type;
-        MoistureComponentIndices moisture_indices;
         amrex::Vector<std::string> expected_present;
     };
 
+    // NOTE: as above, the layout is taken from from_moisture_model() so that a
+    //       change to a scheme's declared species shows up here.
     const std::vector<Case> cases{
         {MoistureType::Kessler,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp),
          {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
         {MoistureType::SAM_NoIce,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ4_comp),
          {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
         {MoistureType::Morrison_NoIce,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ4_comp),
          {"precip_total_accum", "precip_rain_accum", "precip_frozen_accum"}},
     };
 
     for (const auto& c : cases) {
         SolverChoice sc;
         sc.moisture_type = c.moisture_type;
-        sc.moisture_indices = c.moisture_indices;
+        sc.moisture_indices = MoistureComponentIndices::from_moisture_model(c.moisture_type);
 
         const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -446,31 +447,19 @@ TEST(Plotfile2DWaterPath, SchemeSpecificPrecipitationAvailabilityMatchesCurrentS
 // and the derived total/frozen fields, but not the reserved hail slot.
 TEST(Plotfile2DWaterPath, MixedPhasePrecipitationAvailabilityMatchesCurrentSupport)
 {
-    struct Case {
-        MoistureType moisture_type;
-        MoistureComponentIndices moisture_indices;
+    // NOTE: as above, from_moisture_model() owns the layout.  Writing it out
+    //       here once claimed that SAM carries all eleven moist components,
+    //       which its six-component state never did.
+    const std::vector<MoistureType> cases{
+        MoistureType::SAM,
+        MoistureType::Morrison,
+        MoistureType::WSM6,
     };
 
-    const std::vector<Case> cases{
-        {MoistureType::SAM,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
-                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
-                                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
-                                  RhoQ10_comp, RhoQ11_comp)},
-        {MoistureType::Morrison,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
-                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
-                                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp,
-                                  RhoQ10_comp, RhoQ11_comp)},
-        {MoistureType::WSM6,
-         MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
-                                  RhoQ4_comp, RhoQ5_comp, RhoQ6_comp)},
-    };
-
-    for (const auto& c : cases) {
+    for (const auto moisture_type : cases) {
         SolverChoice sc;
-        sc.moisture_type = c.moisture_type;
-        sc.moisture_indices = c.moisture_indices;
+        sc.moisture_type = moisture_type;
+        sc.moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -1325,9 +1314,7 @@ TEST(Plotfile2DPrecip, TotalDerivedRainIsAvailableForCurrentSchemes)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::WSM6;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
-                                                   RhoQ3_comp, RhoQ4_comp,
-                                                   RhoQ5_comp, RhoQ6_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -1346,12 +1333,7 @@ TEST(Plotfile2DPrecip, HailRemainsUnavailableWithoutSource)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::Morrison;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
-                                                   RhoQ3_comp, RhoQ4_comp,
-                                                   RhoQ5_comp, RhoQ6_comp,
-                                                   RhoQ7_comp, RhoQ8_comp,
-                                                   RhoQ9_comp, RhoQ10_comp,
-                                                   RhoQ11_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -1592,7 +1574,7 @@ TEST(Plotfile2DSampledField, KesslerAvailabilityMatchesMoistureIndices)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::Kessler;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = available_sampled_field_names(sc);
 
@@ -1610,9 +1592,7 @@ TEST(Plotfile2DSampledField, FullIceAvailabilityIncludesAllMassSpecies)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::Morrison;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
-                                                   RhoQ3_comp, RhoQ4_comp,
-                                                   RhoQ5_comp, RhoQ6_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = available_sampled_field_names(sc);
 
@@ -2451,7 +2431,7 @@ TEST(Plotfile2DWaterPath, KesslerAvailabilityMatchesMoistureIndices)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::Kessler;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -2468,9 +2448,7 @@ TEST(Plotfile2DWaterPath, FullIceAvailabilityIncludesAllCondensedWaterPaths)
 {
     SolverChoice sc;
     sc.moisture_type = MoistureType::Morrison;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp,
-                                                   RhoQ3_comp, RhoQ4_comp,
-                                                   RhoQ5_comp, RhoQ6_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto available = plotfile2d::available_diagnostic_names(sc);
 
@@ -2521,7 +2499,7 @@ TEST(Plotfile2DWaterPath, FillCondensedWaterPathsUsesColumnSumAndMetric)
 
     SolverChoice sc;
     sc.moisture_type = MoistureType::Kessler;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const amrex::Vector<std::string> plot_var_names{
         "integrated_qv", "integrated_qc", "integrated_qr"
@@ -3042,7 +3020,7 @@ TEST(Plotfile2DMetadata, SampledLevelMetadataPreservesOutputOrder)
 
     SolverChoice sc;
     sc.moisture_type = MoistureType::Kessler;
-    sc.moisture_indices = MoistureComponentIndices(RhoQ1_comp, RhoQ2_comp, -1, RhoQ3_comp);
+    sc.moisture_indices = MoistureComponentIndices::from_moisture_model(sc.moisture_type);
 
     const auto descriptors =
         build_sampled_level_output_descriptors_from_definitions(

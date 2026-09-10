@@ -852,8 +852,8 @@ WSM6::Advance(const Real& dt_advance,
     std::vector<int> micro_diag_target_column;
     {
       amrex::ParmParse pp("erf");
-      pp.query("microphysics_debug", microphysics_debug);
-      pp.query("micro_diag_mode", micro_diag_mode);
+      pp.queryAdd("microphysics_debug", microphysics_debug);
+      pp.queryAdd("micro_diag_mode", micro_diag_mode);
       pp.queryarr("micro_diag_tags", micro_diag_tags);
       pp.queryarr("micro_diag_expr", micro_diag_expr);
       pp.queryarr("micro_diag_store", micro_diag_store);
@@ -868,7 +868,7 @@ WSM6::Advance(const Real& dt_advance,
         : std::min(microphysics_debug, 1);
     bool use_wsm6_cpp_answer = false;
     { amrex::ParmParse pp("erf");
-      pp.query("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
+      pp.queryAdd("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
     bool run_wsm6_fort = !use_wsm6_cpp_answer;
 
     static bool wsm6_inited = false;

@@ -311,7 +311,11 @@ public:
             ++niter;
         }
 
-        bool valid_solution = (std::abs(F) <= tol && niter < max_iter);
+        // NOTE: the while loop already enforces the iteration limit, so the
+        //       residual alone determines whether we found a valid root; testing
+        //       niter < max_iter here would spuriously fail a solve that
+        //       converged on exactly the last allowed iteration.
+        bool valid_solution = (std::abs(F) <= tol);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(valid_solution, "SAM mixed phase saturation adjustment failed to converge.");
 
         // Partition the change in non-precipitating q

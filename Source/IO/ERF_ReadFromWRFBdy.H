@@ -12,6 +12,12 @@
 
 #ifdef ERF_USE_NETCDF
 
+/** Repack one converted WRF boundary side from serialized to runtime layout. */
+void
+repack_wrfbdy_to_realbdy (amrex::Vector<amrex::FArrayBox>& bdy_data,
+                          bool use_wrf_bdy_qc_qi,
+                          bool separate_hydrometeors = false);
+
 double
 read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
@@ -39,6 +45,9 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const amrex::MultiFab& rho0,
                               amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
                               const amrex::Geometry& geom, const bool& use_moist,
+                              const bool use_wrf_bdy_qc_qi,
+                              const bool has_cloud_ice,
+                              const bool separate_hydrometeors,
                               const bool rebalance_wrf_state,
                               const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                               int real_width, double bdy_time_interval,

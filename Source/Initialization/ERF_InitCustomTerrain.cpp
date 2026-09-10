@@ -26,7 +26,7 @@ init_my_custom_terrain ( const Geometry& geom,
     //
     ParmParse pp("erf");
     bool test_mapfactor = false;
-    pp.query("test_mapfactor",test_mapfactor);
+    pp.queryAdd("test_mapfactor",test_mapfactor);
 
     Real mf_m;
     if (test_mapfactor) {
@@ -55,7 +55,7 @@ init_my_custom_terrain ( const Geometry& geom,
     int k0 = domlo_z;
 
     std::string custom_terrain_type = "None";
-    ParmParse pp_prob("prob"); pp_prob.query("custom_terrain_type", custom_terrain_type);
+    ParmParse pp_prob("prob"); pp_prob.queryAdd("custom_terrain_type", custom_terrain_type);
 
     amrex::Box zbx = terrain_fab.box();
     if (zbx.smallEnd(2) <= k0)
@@ -65,13 +65,13 @@ init_my_custom_terrain ( const Geometry& geom,
         if (custom_terrain_type == "WoA") {
 
             // Default to x-direction
-            int dir = 0;  pp_prob.query("dir", dir);
+            int dir = 0;  pp_prob.queryAdd("dir", dir);
 
-            Real  L        = Real(100.0); pp_prob.query("L"        , L);
-            Real  z_offset =   zero; pp_prob.query("z_offset" , z_offset);
+            Real  L        = Real(100.0); pp_prob.queryAdd("L"        , L);
+            Real  z_offset =   zero; pp_prob.queryAdd("z_offset" , z_offset);
 
             // If hm is nonzero, then use alternate hill definition
-            Real  hm       =   zero; pp_prob.query("hmax" , hm);
+            Real  hm       =   zero; pp_prob.queryAdd("hmax" , hm);
 
             // This is a 2D hill with variation in only the x-direction
             if (dir == 0) {
@@ -197,8 +197,8 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "MovingSineWave") {
 
-            Real Ampl        = zero;  pp_prob.query("Ampl", Ampl);
-            Real wavelength  = Real(100.); pp_prob.query("wavelength", wavelength);
+            Real Ampl        = zero;  pp_prob.queryAdd("Ampl", Ampl);
+            Real wavelength  = Real(100.); pp_prob.queryAdd("wavelength", wavelength);
 
             Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;
@@ -240,7 +240,7 @@ init_my_custom_terrain ( const Geometry& geom,
             });
 
         } else if (custom_terrain_type == "RaisedFlat") {
-            Real  z_offset = zero; pp_prob.query("z_offset" , z_offset);
+            Real  z_offset = zero; pp_prob.queryAdd("z_offset" , z_offset);
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
                 z_arr(i,j,k0) = z_offset;
@@ -248,9 +248,9 @@ init_my_custom_terrain ( const Geometry& geom,
         } else if (custom_terrain_type == "Cos4Hill") {
 
             // Get prob parameters (must be outside GPU kernel)
-            Real hm = zero; pp_prob.query("hmax", hm);
-            Real L  = Real(100.0); pp_prob.query("L", L);
-            Real z_offset = zero; pp_prob.query("z_offset", z_offset);
+            Real hm = zero; pp_prob.queryAdd("hmax", hm);
+            Real L  = Real(100.0); pp_prob.queryAdd("L", L);
+            Real z_offset = zero; pp_prob.queryAdd("z_offset", z_offset);
             Real fourL = four * L;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)

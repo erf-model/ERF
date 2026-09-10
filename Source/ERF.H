@@ -23,6 +23,7 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_EBFabFactory.H>
 #include <AMReX_EBMultiFabUtil.H>
+#include <AMReX_TableData.H>
 
 #include <ERF_EB.H>
 #include "Prob/ERF_CloudChamberBudget.H"
@@ -40,6 +41,7 @@
 
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
 #include <ERF_LargeScaleForcingData.H>
@@ -158,6 +160,19 @@ public:
     // by the WRF-grid init paths, e.g. ERF_InitFromWRFInput.cpp/ERF_InitFromMetgrid.cpp)
     // used to build ocean->atmos remap weights. Sets both to nullptr if
     // unavailable (e.g. idealized/non-WRF configurations).
+    //
+    // Staggering contract: both MultiFabs always carry CELL index type, but what
+    // they actually hold depends on the init path, and a caller building a corner
+    // mesh must account for the difference:
+    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
+    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
+    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
+    //     the south face -- nodal in j, cell-centred in i. The extra staggered
+    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
+    //     so a corner mesh must read one ghost beyond the valid box in the nodal
+    //     direction; ghosts further out are duplicates of that edge.
+    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
+    //     so both are genuinely cell-centred and there is no staggered edge.
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
@@ -182,6 +197,32 @@ public:
         return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
     }
 
+    // Whether ERF can pack cloud fraction on the atmos->ocean Cloud lane. The
+    // pack fills that lane only when moisture is active AND the moisture model
+    // carries cloud liquid or ice, so this mirrors that condition exactly; a
+    // driver that handed the lane over regardless would be passing its own
+    // prefill as though it were an ERF value.
+    //
+    // Like HasRadiation, this is a configuration predicate rather than a
+    // data-validity one: it says the lane will be filled, not that any moisture
+    // step has run yet.
+    [[nodiscard]] bool HasCloudWater () const {
+        return (solverChoice.moisture_type != MoistureType::None) &&
+               (solverChoice.moisture_indices.qc != -1 ||
+                solverChoice.moisture_indices.qi != -1);
+    }
+
+    // Which atmos->ocean lanes PackAtmosphericStates actually writes here, as
+    // 0/1 in that routine's slot order: the 9-lane state view when
+    // state_contract, else the 8-lane flux view.
+    //
+    // A lane reported 0 is one the pack leaves untouched, so handing it over
+    // would pass the driver's own prefill off as an atmospheric value.
+    // HasRadiation()/HasCloudWater() answer this for two lanes; this covers all
+    // of them, and lives beside the pack so the gates cannot drift apart.
+    void GetFillableAtmosToOceanLanes (bool state_contract,
+                                       amrex::Vector<int>& can_fill) const;
+
     // weight_mf/index_mf are keyed by WeightFamily slot order
     // {SCALAR_CENTERED, TAUX_FACE, TAUY_FACE, WIND_FACE_TO_CENTER} as built by
     // the driver's ERFRemoraMultiBlockContainer::BuildRemapWeights(); each
@@ -201,7 +242,22 @@ public:
                                 const amrex::MultiFab* dst_mskr = nullptr,
                                 const amrex::MultiFab* dst_msku = nullptr,
                                 const amrex::MultiFab* dst_mskv = nullptr);
-    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state, double time);
+    // Apply ocean-model sea-surface temperature to the ERF lower boundary.
+    //
+    // state[0] carries SST in Kelvin on the layout reported by
+    // GetOceanToAtmosSurfaceLayout. erf_coverage is the per-cell coverage flag on
+    // that same layout: nonzero where the driver's remap found at least one
+    // ocean donor for that ERF cell.
+    //
+    // Coverage is a contract, not a hint. Where erf_coverage is zero the ocean
+    // supplied nothing and state[0] holds the remap's zero fill, which is
+    // indistinguishable from a computed zero; ERF keeps its own wrflowinp SST
+    // there instead. Passing erf_coverage = nullptr therefore means "no cell is
+    // covered", not "every cell is covered" -- a driver that has coverage
+    // information must pass it.
+    void ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
+                                 double time,
+                                 const amrex::iMultiFab* erf_coverage = nullptr);
 
     // Tag cells for refinement
     void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
@@ -299,6 +355,19 @@ public:
     // Interpolate 2D arrays lat_m, lon_m, sinPhi, cosPhi
     void Interp2DArrays (int lev, const amrex::BoxArray& my_ba2d, const amrex::DistributionMapping& my_dm);
 
+    // Fill the map factors at lev by interpolation from lev-1
+    void interp_mapfac_from_coarse (int lev);
+
+    // Fill the surface pressure at lev by interpolation from lev-1
+    void interp_psfc_from_coarse (int lev);
+
+    // Fill the land mask and the land / soil types at lev by injection from lev-1
+    void interp_land_masks_from_coarse (int lev);
+
+    // True if this level read its own initialization file, so its map factors
+    //     came from that file rather than from its parent
+    bool has_own_init_file (int lev) const;
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -350,6 +419,10 @@ public:
     void check_for_low_temp       (amrex::MultiFab& S);
 
     void compute_max_pressure_gradient_diagnostic(int lev);
+
+    // Max of (buoyancy - vertical gradient of perturbational pressure);
+    //    this is identically zero if the state is in HSE and buoyancy_type = 1
+    void compute_max_buoyancy_gradp_diagnostic(int lev);
 
     void check_mesh_type(int lev);
 
@@ -568,8 +641,11 @@ public:
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // Write plotfile to disk
-    void Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    bool Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
+    void ResetIntervalMeansAfter3DPlotfileBatch (int plotfiles_written,
+                                                 bool interval_diagnostic_consumed);
+    void ResetIntervalMeans ();
 
     // Write subvolume of data into a different "plotfile"
     void WriteSubvolume (int isub, amrex::Vector<std::string> subvol_var_names);
@@ -656,9 +732,11 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations();
+    void ComputeAndWriteEnsemblePerturbations ();
 
-    void PerformDataAssimilation(int da_iter);
+    void PerformDataAssimilation (int da_iter);
+
+    void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
 
     void init_custom (int lev);
 
@@ -693,6 +771,14 @@ public:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // The configured time reset is one global, one-shot event.  Keep this
+    // separate from the per-level accumulation storage so regridding a level
+    // cannot re-arm an event that has already happened.
+    int mean_vars_time_reset_done{0};
 #endif
 
     std::string pp_prefix {"erf"};
@@ -715,6 +801,19 @@ public:
     void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
+
+    // Rebuild the WRF base state on the grids of base_state_mf at this level, using the
+    // level-0 reference parameters (wrf_bsp) and this level's z_phys_cc.  This is the same
+    // construction init_from_wrfinput performs at initialization, factored out so that a
+    // level remade by a regrid gets the same base state rather than one interpolated from
+    // its parent.  Requires z_phys_cc[lev] and wrf_bsp to be valid.
+    void rebuild_base_state_from_wrfinput (int lev, amrex::MultiFab& base_state_mf);
+
+    // Re-read the six reference parameters that define the WRF base state from the level-0
+    // wrfinput file.  These are read at initialization but are not part of the checkpoint,
+    // so on restart wrf_bsp would otherwise be left unset -- and the first regrid that has
+    // to rebuild a base state would abort in init_base_state_from_wrfinput.
+    void restore_base_state_params_on_restart ();
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
@@ -758,13 +857,25 @@ public:
     // read checkpoint file from disk -- called after instantiating m_SurfaceLayer
     void ReadCheckpointFileSurfaceLayer ();
 
+    void fill_terrain_surface  (int lev, amrex::MultiFab& z_phys, double elapsed_time);
     void init_zphys            (int lev, double elapsed_time);
-    void remake_zphys          (int lev, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
+    void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
 
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
+
+    // Coupled sea-surface temperature and its per-cell coverage flag, on the
+    // layout reported by GetOceanToAtmosSurfaceLayout. Allocated on the first
+    // ApplyOceanSurfaceState call and handed to the SurfaceLayer as borrowed
+    // pointers, so ERF must outlive the SurfaceLayer's use of them. Level 0
+    // only: the coupler exchanges on the base grid.
+    std::unique_ptr<amrex::MultiFab>  m_coupled_sst;
+    std::unique_ptr<amrex::iMultiFab> m_coupled_sst_valid;
+
+    // One-shot latch so a misconfigured deck says so once rather than every step.
+    bool m_warned_coupled_sst_declined = false;
 
 private:
 
@@ -805,6 +916,9 @@ private:
 
     // Create the physbcs objects
     void make_physbcs (int lev);
+
+    // (Re)build the land surface model on this level's current grids
+    void make_lsm_at_level (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -858,6 +972,12 @@ private:
     //! Initialize HSE
     void initHSE ();
     void initHSE (int lev);
+
+    // Fill base_state[lev] by conservative interpolation from base_state[lev-1], then apply
+    // the base-state physical bc's.  This is how the part of a fine level that lies inside
+    // the domain but outside the fine grids -- and the fine ghost cells -- get their values,
+    // so it must run before any construction that overwrites only the fine grids.
+    void interp_base_state_from_coarse (int lev);
 
     //! Initialize Rayleigh damping profiles at a level
     void initRayleigh_at_level (const int& lev);
@@ -946,6 +1066,10 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> th_bc_data;
 
+    // Planar averages for immersed forcing (computed on slow step, used in slow and fast steps)
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> r_plane_avg;   // density planar average per level
+    amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
+
     // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (const std::string input_file);
 
@@ -994,6 +1118,12 @@ private:
     // Velocity time averaged field
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
     amrex::Vector<double> t_avg_cnt;
+
+    // Interval first and second moments used by mean/fluctuation plot fields
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> interval_means;
+    amrex::Vector<double> t_mean_cnt;
+    // Global one-shot time-reset state; interval_means remains per level.
+    int mean_vars_time_reset_done{0};
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
@@ -1320,16 +1450,21 @@ private:
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "helicity", "local_helicity",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "theta_hse", "qv_hse",
+                                                    "pres_hse", "dens_hse", "theta_hse", "pi_hse", "qv_hse",
                                                     "pressure", "pert_pres", "pert_dens",
                                                     "buoyancy", "eq_pot_temp", "VPD",
 #ifdef ERF_USE_WINDFARM
                                                     "num_turb", "SMark0", "SMark1",
 #endif
                                                     "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
-                                                    "z_phys", "detJ", "mapfac", "lat_m", "lon_m",
+                                                    "z_phys", "detJ", "h_xi", "h_eta", "h_zeta",
+                                                    "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
+                                                    // Interval means and resolved turbulence moments
+                                                    "u_mean", "v_mean", "w_mean", "theta_mean",
+                                                    "uu_mean", "vv_mean", "ww_mean", "uw_mean", "vw_mean", "wtheta_mean",
+                                                    "uu_fluct", "vv_fluct", "ww_fluct", "uw_fluct", "vw_fluct", "wtheta_fluct", "tke_resolved",
                                                     // eddy viscosity
                                                     "nut",
                                                     // eddy diffusivity of momentum
@@ -1349,7 +1484,7 @@ private:
                                                     "diss",
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
-                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng",
+                                                    "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
                                                     "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
@@ -1364,9 +1499,13 @@ private:
                                                    };
 
     // **************************************************************************************
-    // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_WriteSubVolume.cpp
+    // NOTE: This is the set of derived variables that WriteSubvolume knows how to fill; it
+    //       is an unordered allow-list, since setSubVolVariables walks "derived_names" and
+    //       keeps the entries found here.  That means the names are selected in
+    //       "derived_names" order, which is the order WriteSubvolume must compute them in.
     // **************************************************************************************
-    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar"};
+    const amrex::Vector<std::string> derived_subvol_names {"soundspeed", "temp", "theta", "KE", "scalar",
+                                                           "precipitable", "mucape"};
 
     // algorithm choices
     static SolverChoice solverChoice;
@@ -1461,6 +1600,13 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
+
+    // The six parameters defining the WRF analytic reference profile, plus the layer
+    // interfaces derived from them.  These are read from the LEVEL 0 wrfinput file only
+    // and then shared by every level: the levels of an AMR hierarchy must be built from
+    // one reference profile, or their base states cannot agree across the coarse/fine
+    // interface.  (A nested wrfinput file that disagrees produces a warning.)
+    BaseStateParams wrf_bsp;
 
     std::unique_ptr<amrex::MultiFab> wrf_C1H;
     std::unique_ptr<amrex::MultiFab> wrf_C2H;
@@ -1855,8 +2001,16 @@ private:
         return *eb[lev];
     }
 
+    //
+    // NOTE: this dereferences the cell-centered EB factory, which is only built when
+    //       we are using EB or immersed forcing -- see ERF::MakeNewLevelFromScratch.
+    //       Calling this in any other case is undefined behavior, so we assert here
+    //       rather than relying on the (build-dependent) libstdc++ hardening check.
+    //
     [[nodiscard]] amrex::EBFArrayBoxFactory const&
     EBFactory (int lev) const noexcept {
+        AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
+        AMREX_ASSERT(eb[lev]->get_const_factory() != nullptr);
         return *(eb[lev]->get_const_factory());
     }
 

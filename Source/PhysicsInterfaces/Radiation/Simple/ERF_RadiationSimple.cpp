@@ -5,9 +5,9 @@
 
 using namespace amrex;
 
-void RadiationSimple::Init(const amrex::Geometry& geom,
-                           const amrex::BoxArray &ba,
-                           amrex::MultiFab* cons_in)
+void RadiationSimple::Init (const amrex::Geometry& geom,
+                            const amrex::BoxArray &ba,
+                            amrex::MultiFab* cons_in)
 {
     m_geom = geom;
     m_ba = ba;
@@ -18,29 +18,29 @@ void RadiationSimple::Init(const amrex::Geometry& geom,
     radlwdn = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
     radqrlw = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
 
-    deltaq.setVal(0.0);
-    flux.setVal(0.0);
-    radlwdn->setVal(0.0);
-    radqrlw->setVal(0.0);
+    deltaq.setVal(zero);
+    flux.setVal(zero);
+    radlwdn->setVal(zero);
+    radqrlw->setVal(zero);
 }
 
-void RadiationSimple::Run(int& /*level*/,
-                          int& /*step*/,
-                          double& /*time*/,
-                          const double& /*dt*/,
-                          const amrex::BoxArray& /*ba*/,
-                          amrex::Geometry& geom,
-                          amrex::MultiFab* cons_in,
-                          amrex::iMultiFab* /*lmask*/,
-                          amrex::MultiFab* /*t_surf*/,
-                          amrex::Vector<amrex::MultiFab*>& /*lsm_input_ptrs*/,
-                          amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
-                          amrex::MultiFab* qheating_rates,
-                          amrex::MultiFab* rad_fluxes,
-                          amrex::MultiFab* z_phys,
-                          amrex::MultiFab* /*lat*/,
-                          amrex::MultiFab* /*lon*/,
-                          const bool /*updated_lsm*/)
+void RadiationSimple::Run (int& /*level*/,
+                           int& /*step*/,
+                           double& /*time*/,
+                           const double& /*dt*/,
+                           const amrex::BoxArray& /*ba*/,
+                           amrex::Geometry& geom,
+                           amrex::MultiFab* cons_in,
+                           amrex::iMultiFab* /*lmask*/,
+                           amrex::MultiFab* /*t_surf*/,
+                           amrex::Vector<amrex::MultiFab*>& /*lsm_input_ptrs*/,
+                           amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
+                           amrex::MultiFab* qheating_rates,
+                           amrex::MultiFab* rad_fluxes,
+                           amrex::MultiFab* z_phys,
+                           amrex::MultiFab* /*lat*/,
+                           amrex::MultiFab* /*lon*/,
+                           const bool /*updated_lsm*/)
 {
 
     constexpr amrex::Real cp_spec = 1015.0;
@@ -52,11 +52,15 @@ void RadiationSimple::Run(int& /*level*/,
     const Real fixed_dz = geom.CellSize(2);
     const int nz = geom.Domain().length(2);
 
-    flux.setVal(0.0);
-    deltaq.setVal(0.0);
+    flux.setVal(zero);
+    deltaq.setVal(zero);
 
-    auto moist = m_moist;
-    auto ice = m_ice;
+    const bool have_qv = m_have_qv;
+    const bool have_qc = m_have_qc;
+    const bool ice     = m_ice;
+    const int  qv_comp = m_qv_comp;
+    const int  qc_comp = m_qc_comp;
+    const int  qi_comp = m_qi_comp;
 
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
@@ -82,9 +86,9 @@ void RadiationSimple::Run(int& /*level*/,
             for (int k = 0; k < nz; k++)
             {
                 Real rho = cons_arr(i, j, k, Rho_comp);
-                Real qv = (moist) ? cons_arr(i, j, k, RhoQ1_comp) / rho : Real(0);
-                Real qc = (moist) ? cons_arr(i, j, k, RhoQ2_comp) / rho : Real(0);
-                Real qi = (ice)   ? cons_arr(i, j, k, RhoQ3_comp) / rho : Real(0);
+                Real qv = (have_qv) ? cons_arr(i, j, k, qv_comp) / rho : zero;
+                Real qc = (have_qc) ? cons_arr(i, j, k, qc_comp) / rho : zero;
+                Real qi = (ice)     ? cons_arr(i, j, k, qi_comp) / rho : zero;
 
                 Real dz = (z_nd_arr) ? Real(0.25) * ( (z_nd_arr(i  ,j  ,k+1) - z_nd_arr(i  ,j  ,k))
                                             + (z_nd_arr(i+1,j  ,k+1) - z_nd_arr(i+1,j  ,k))
@@ -168,7 +172,7 @@ void RadiationSimple::Run(int& /*level*/,
     }
 }
 
-void RadiationSimple::WriteDataLog(const double &time)
+void RadiationSimple::WriteDataLog (const double &time)
 {
     constexpr int datwidth = 14;
     constexpr int datprecision = 9;

@@ -350,15 +350,16 @@ private:
     bool m_extra_clnclrsky_diag = false;
 
     // The orbital year, used for zenith angle calculations:
-    // If > 0, use constant orbital year for duration of simulation
-    // If < 0, use year from timestamp for orbital parameters
+    // If >= 0, use constant orbital year for duration of simulation
+    // If <  0, use year from timestamp for orbital parameters
     int m_orbital_year = -9999;
     int m_orbital_mon  = -9999;
     int m_orbital_day  = -9999;
     int m_orbital_sec  = -9999;
 
-    // Orbital parameters, used for zenith angle calculations.
-    // If >= 0, bypass computation based on orbital year and use fixed parameters
+    // Orbital parameters, used for zenith angle calculations.  Each is honored
+    // independently of the others:
+    // If >= 0, bypass computation based on orbital year and use the given value
     // If <  0, compute based on orbital year, specified above
     bool m_fixed_orbital_year   = false;
     amrex::Real m_orbital_eccen = -amrex::Real(9999.);  // Eccentricity

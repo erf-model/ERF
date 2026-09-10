@@ -29,7 +29,7 @@ class SuperDropletPC : public ERFPC
                           const std::vector<Species::Name>& a_aerosol_mat,
                           const double a_dt,
                           const std::string& a_name = "super_droplets" )
-                      : ERFPC (a_gdb, a_name)
+                      : ERFPC (a_gdb, a_name, ERFPCOptions{ /*read_particle_init=*/false, /*advect_with_gravity=*/true })
         {
             define( a_species_mat,
                     a_aerosol_mat,
@@ -46,7 +46,7 @@ class SuperDropletPC : public ERFPC
                           const std::vector<Species::Name>& a_aerosol_mat,
                           const double a_dt,
                           const std::string& a_name = "super_droplets" )
-                      : ERFPC (a_geom, a_dmap, a_ba, a_name)
+                      : ERFPC (a_geom, a_dmap, a_ba, a_name, ERFPCOptions{ /*read_particle_init=*/false, /*advect_with_gravity=*/true })
         {
             define(a_species_mat, a_aerosol_mat, a_ba, a_dmap, a_dt);
         }

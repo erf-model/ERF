@@ -1,6 +1,7 @@
 #ifndef ERF_INPUT_SOUNDING_DATA_H_
 #define ERF_INPUT_SOUNDING_DATA_H_
 
+#include <limits>
 #include <string>
 #include <iostream>
 
@@ -27,7 +28,7 @@ public:
     InputSoundingData ()
     {
         amrex::ParmParse pp("erf");
-        pp.query("tau_nudging", tau_nudging);
+        pp.queryAdd("tau_nudging", tau_nudging);
 
         // Read in input_sounding filename
         n_sounding_files = pp.countval("input_sounding_file");
@@ -140,8 +141,14 @@ public:
             // *************************************************************************************************
             amrex::ParmParse pp_erf("erf");
 
-            amrex::Real surf_temp;
-            bool surf_temp_specified = pp_erf.query("most.surf_temp", surf_temp);
+            // Negative sentinel rather than the queryAdd return value: an absolute
+            // temperature is never negative, and the return value only reports whether
+            // the key existed before this call.  ERF_SurfaceLayer.H parses the same key,
+            // so testing the return would report "specified" here whenever that site ran
+            // first.  This was also an uninitialized read before.
+            amrex::Real surf_temp = amrex::Real(-1.0);
+            pp_erf.queryAdd("most.surf_temp", surf_temp);
+            bool surf_temp_specified = (surf_temp > amrex::Real(0.0));
             if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
@@ -152,8 +159,11 @@ public:
             // Make sure that if we specify surface values for qv in the inputs file and in the input sounding file,
             //      those values must match
             // *************************************************************************************************
-            amrex::Real surf_moist;
-            bool surf_moist_specified = pp_erf.query("most.surf_moist", surf_moist);
+            // Negative sentinel, as for most.surf_temp above: a mixing ratio is never
+            // negative, and ERF_SurfaceLayer.H parses this same key.
+            amrex::Real surf_moist = amrex::Real(-1.0);
+            pp_erf.queryAdd("most.surf_moist", surf_moist);
+            bool surf_moist_specified = (surf_moist >= amrex::Real(0.0));
             if ( surf_moist_specified && (surf_moist != qv_inp_sound_tmp[0]) ) {
                 amrex::Print() << "Input sounding qv does not match most.surf_moist" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
@@ -226,7 +236,6 @@ public:
          * from the surface up through the air column to get the dry density
          * and moist pressure.
          */
-        const amrex::Real tol = amrex::Real(1.0e-12);
         const int Ninp = size(itime);
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
@@ -269,6 +278,23 @@ public:
         {
             // Vertical grid spacing
             dz = z_inp_sound[itime][k] - z_inp_sound[itime][k-1];
+
+            // The Newton residual F below is a pressure, so the tolerance it is
+            // tested against has to be scaled to the pressure being solved for.
+            // The iterate cannot do better than settle into a one-ulp limit
+            // cycle about the true root, which puts a hard floor of roughly
+            // ulp(p) on |F| -- 3.6e-12 for a 1.6e4 Pa pressure in double, and
+            // ~1e-2 Pa at 1e5 Pa in single.  The fixed 1e-12 Pa tolerance used
+            // here previously sat below that floor, so the iteration burned all
+            // of its allowed passes and reported a spurious non-convergence
+            // warning for a column that had in fact converged to roundoff.
+#ifdef AMREX_USE_FLOAT
+            const amrex::Real tol = amrex::Real(4)
+                                  * std::numeric_limits<amrex::Real>::epsilon()
+                                  * pm_integ[k-1];
+#else
+            const amrex::Real tol = amrex::Real(1.0e-12);
+#endif
 
             // Establish known constant
             rho_tot_lo = rhod_integ[k-1] * (one + qv_inp_sound[itime][k-1]);

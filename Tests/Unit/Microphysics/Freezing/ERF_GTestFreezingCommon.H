@@ -40,7 +40,7 @@ amrex::Real nonneg (const amrex::Real x) noexcept { return amrex::max(amrex::Rea
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real freezing_metric (const int i) noexcept
 {
-    const INAS_Niemand2012 inas;
+    const INAS_Niemand2012 inas{};
     const amrex::Real A = amrex::Real(1.0e-9);   // typical INP surface area [m^2]
 
     switch (i) {

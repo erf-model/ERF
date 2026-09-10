@@ -57,26 +57,26 @@ SHOCInterface::SHOCInterface (const int& lev,
     ParmParse pp("erf.shoc");
 
     // Parse runtime inputs at start up
-    pp.query("lambda_low"      , runtime_options.lambda_low    );
-    pp.query("lambda_high"     , runtime_options.lambda_high   );
-    pp.query("lambda_slope"    , runtime_options.lambda_slope  );
-    pp.query("lambda_thresh"   , runtime_options.lambda_thresh );
-    pp.query("thl2tune"        , runtime_options.thl2tune      );
-    pp.query("qw2tune"         , runtime_options.qw2tune       );
-    pp.query("qwthl2tune"      , runtime_options.qwthl2tune    );
-    pp.query("w2tune"          , runtime_options.w2tune        );
-    pp.query("length_fac"      , runtime_options.length_fac    );
-    pp.query("c_diag_3rd_mom"  , runtime_options.c_diag_3rd_mom);
-    pp.query("coeff_kh"        , runtime_options.Ckh           );
-    pp.query("coeff_km"        , runtime_options.Ckm           );
-    pp.query("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
-    pp.query("extra_shoc_diags", runtime_options.extra_diags   );
+    pp.queryAdd("lambda_low"      , runtime_options.lambda_low    );
+    pp.queryAdd("lambda_high"     , runtime_options.lambda_high   );
+    pp.queryAdd("lambda_slope"    , runtime_options.lambda_slope  );
+    pp.queryAdd("lambda_thresh"   , runtime_options.lambda_thresh );
+    pp.queryAdd("thl2tune"        , runtime_options.thl2tune      );
+    pp.queryAdd("qw2tune"         , runtime_options.qw2tune       );
+    pp.queryAdd("qwthl2tune"      , runtime_options.qwthl2tune    );
+    pp.queryAdd("w2tune"          , runtime_options.w2tune        );
+    pp.queryAdd("length_fac"      , runtime_options.length_fac    );
+    pp.queryAdd("c_diag_3rd_mom"  , runtime_options.c_diag_3rd_mom);
+    pp.queryAdd("coeff_kh"        , runtime_options.Ckh           );
+    pp.queryAdd("coeff_km"        , runtime_options.Ckm           );
+    pp.queryAdd("shoc_1p5tke"     , runtime_options.shoc_1p5tke   );
+    pp.queryAdd("extra_shoc_diags", runtime_options.extra_diags   );
 
     // Set to default but allow us to change it through the inputs file
-    pp.query("apply_tms", apply_tms);
-    pp.query("check_flux_state", check_flux_state);
-    pp.query("extra_shoc_diags", extra_shoc_diags);
-    pp.query("column_conservation_check", column_conservation_check);
+    pp.queryAdd("apply_tms", apply_tms);
+    pp.queryAdd("check_flux_state", check_flux_state);
+    pp.queryAdd("extra_shoc_diags", extra_shoc_diags);
+    pp.queryAdd("column_conservation_check", column_conservation_check);
 }
 
 

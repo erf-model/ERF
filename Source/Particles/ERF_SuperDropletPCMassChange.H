@@ -2,6 +2,7 @@
 #define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
+#include <AMReX_GpuPrint.H>
 #include "ERF_Constants.H"
 
 #ifdef ERF_USE_PARTICLES
@@ -1070,8 +1071,8 @@ namespace SDMassChangeUtils_SV
                 cur_time += m_dt;
 
                 if (m_verbose) {
-                    printf( "Time %1.2e, m_dt = %1.2e, mass = %1.4e, snorm = %1.1e\n",
-                            cur_time, m_dt, a_u, snorm);
+                    AMREX_DEVICE_PRINTF( "Time %1.2e, m_dt = %1.2e, mass = %1.4e, snorm = %1.1e\n",
+                                         cur_time, m_dt, a_u, snorm);
                 }
 
                 n_step++;

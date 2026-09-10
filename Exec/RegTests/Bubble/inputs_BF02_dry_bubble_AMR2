@@ -63,7 +63,6 @@ erf.dryscal_vert_adv_type    = "Upwind_5th"
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
-erf.buoyancy_type   = 1
 erf.init_type       = Isentropic
 
 erf.molec_diff_type   = "ConstantAlpha"

@@ -106,9 +106,9 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     {
         const Real ux = u(i, j, k);
         const Real uy = fourth * ( v(i, j  , k  ) + v(i-1, j  , k  )
-                               + v(i, j  , k+1) + v(i-1, j+1, k  ) );
+                                 + v(i, j+1, k  ) + v(i-1, j+1, k  ) );
         const Real uz = fourth * ( w(i, j  , k  ) + w(i-1, j  , k  )
-                               + w(i, j  , k+1) + w(i-1, j  , k+1) );
+                                 + w(i, j  , k+1) + w(i-1, j  , k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
         Real t_blank_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
@@ -426,40 +426,50 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         Real u_target         = zero;
 
         // roof forcing
-        u1_cellaway         = u(i, j, k+1) ;
-        u2_cellaway         = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
-                                       + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
-        rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
-        theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
+        if (roof_mask == one) {
+            u1_cellaway         = u(i, j, k+1) ;
+            u2_cellaway         = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
+                                           + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
+            rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
+            theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
+        }
 
         // south wall forcing
-        u1_cellaway         = u(i, j-1, k  );
-        u2_cellaway         = fourth * ( w(i, j-1, k  ) + w(i-1, j-1, k  )
-                                       + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
-        rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
+        if (south_mask == one) {
+            u1_cellaway         = u(i, j-1, k  );
+            u2_cellaway         = fourth * ( w(i, j-1, k  ) + w(i-1, j-1, k  )
+                                           + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
+            rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
+        }
 
         // north wall forcing
-        u1_cellaway         = u(i, j+1, k  ) ;
-        u2_cellaway         = fourth * ( w(i, j+1, k  ) + w(i-1, j+1, k  )
-                                       + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
-        rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
+        if (north_mask == one) {
+            u1_cellaway         = u(i, j+1, k  ) ;
+            u2_cellaway         = fourth * ( w(i, j+1, k  ) + w(i-1, j+1, k  )
+                                           + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
+            rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
+        }
 
         // wall forcing (if not using most) or east/west walls when using MOST
-        drag               += (wall_mask + east_west_mask) * t_blank * rho_xface * CdM * ux * windspeed;
+        if (wall_mask == one || east_west_mask == one) {
+            drag               += (wall_mask + east_west_mask) * t_blank * rho_xface * CdM * ux * windspeed;
+        }
 
         // interior cell forcing
-        drag               += interior_mask * rho_xface * CdM * ux * windspeed;
+        if (interior_mask == one) {
+            drag               += interior_mask * rho_xface * CdM * ux * windspeed;
+        }
 
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
@@ -579,40 +589,50 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         Real u_target         = zero;
 
         // roof forcing
-        u1_cellaway         = fourth * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
-                                       + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
-        u2_cellaway         = v(i, j, k+1);
-        rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
+        if (roof_mask == one) {
+            u1_cellaway         = fourth * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
+                                           + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
+            u2_cellaway         = v(i, j, k+1);
+            rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
+        }
 
         // west wall forcing
-        u1_cellaway         = v(i-1, j , k  );
-        u2_cellaway         = fourth * ( w(i-1, j  , k  ) + w(i-1, j-1, k  )
-                                       + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
-        rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
+        if (west_mask == one) {
+            u1_cellaway         = v(i-1, j , k  );
+            u2_cellaway         = fourth * ( w(i-1, j  , k  ) + w(i-1, j-1, k  )
+                                           + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
+            rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
+        }
 
         // east wall forcing
-        u1_cellaway         = v(i+1, j , k  );
-        u2_cellaway         = fourth * ( w(i+1, j  , k  ) + w(i+1, j-1, k  )
-                                       + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
-        rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
+        if (east_mask == one) {
+            u1_cellaway         = v(i+1, j , k  );
+            u2_cellaway         = fourth * ( w(i+1, j  , k  ) + w(i+1, j-1, k  )
+                                           + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
+            rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
+        }
 
         // wall forcing (if not using most) or north/south walls when using MOST
-        drag               += (wall_mask + north_south_mask) * t_blank * rho_yface * CdM * uy * windspeed;
+        if (wall_mask == one || north_south_mask == one) {
+            drag               += (wall_mask + north_south_mask) * t_blank * rho_yface * CdM * uy * windspeed;
+        }
 
         // interior cell forcing
-        drag               += interior_mask * rho_yface * CdM * uy * windspeed;
+        if (interior_mask == one) {
+            drag               += interior_mask * rho_yface * CdM * uy * windspeed;
+        }
 
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
@@ -695,10 +715,6 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                  myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k-1));
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k-1) :
-                                 myhalf * (t_blank_arr(i  ,j  , k-1) + t_blank_arr(i  , j  , k-2));
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
         Real t_blank_above_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i  ,j  , k+1) :
                                  myhalf * (t_blank_arr(i  ,j  , k)   + t_blank_arr(i  , j  , k+1));
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
@@ -728,7 +744,6 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
         const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
         const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = south_mask + north_mask + west_mask + east_mask; // cells getting MOST treatment
         const Real roof_mask     = (t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
         const Real interior_mask = (t_blank == 1.0) ? one : zero; // interior cell
 
@@ -741,50 +756,62 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         Real u_target         = zero;
 
         // south wall forcing
-        u1_cellaway         = fourth * ( u(i  , j-1, k  ) + u(i+1, j-1, k  )
-                                       + u(i  , j-1, k-1) + u(i+1, j-1, k-1) );
-        u2_cellaway         = w(i, j-1, k);
-        rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
+        if (south_mask == one) {
+            u1_cellaway         = fourth * ( u(i  , j-1, k  ) + u(i+1, j-1, k  )
+                                           + u(i  , j-1, k-1) + u(i+1, j-1, k-1) );
+            u2_cellaway         = w(i, j-1, k);
+            rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
+        }
 
         // north wall forcing
-        u1_cellaway         = fourth * ( u(i  , j+1, k  ) + u(i+1, j+1, k  )
-                                       + u(i  , j+1, k-1) + u(i+1, j+1, k-1) );
-        u2_cellaway         = w(i, j+1, k);
-        rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
+        if (north_mask == one) {
+            u1_cellaway         = fourth * ( u(i  , j+1, k  ) + u(i+1, j+1, k  )
+                                           + u(i  , j+1, k-1) + u(i+1, j+1, k-1) );
+            u2_cellaway         = w(i, j+1, k);
+            rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
+        }
 
         // west wall forcing
-        u1_cellaway         = fourth * ( v(i-1, j  , k  ) + v(i-1, j+1, k  )
-                                       + v(i-1, j  , k-1) + v(i-1, j+1, k-1) );
-        u2_cellaway         = w(i-1, j, k);
-        rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
+        if (west_mask == one) {
+            u1_cellaway         = fourth * ( v(i-1, j  , k  ) + v(i-1, j+1, k  )
+                                           + v(i-1, j  , k-1) + v(i-1, j+1, k-1) );
+            u2_cellaway         = w(i-1, j, k);
+            rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
+        }
 
         // east wall forcing
-        u1_cellaway         = fourth * ( v(i+1, j  , k  ) + v(i+1, j+1, k  )
-                                       + v(i+1, j  , k-1) + v(i+1, j+1, k-1) );
-        u2_cellaway         = w(i+1, j, k);
-        rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
-        theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-        u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
-        bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
-        drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
+        if (east_mask == one) {
+            u1_cellaway         = fourth * ( v(i+1, j  , k  ) + v(i+1, j+1, k  )
+                                           + v(i+1, j  , k-1) + v(i+1, j+1, k-1) );
+            u2_cellaway         = w(i+1, j, k);
+            rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
+            theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
+            drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
+        }
 
         // wall forcing (if not using most) or roof when using MOST
-        drag               += (wall_mask + roof_mask) * t_blank * rho_zface * CdM * uz * windspeed;
+        if (wall_mask == one || roof_mask == one) {
+            drag               += (wall_mask + roof_mask) * t_blank * rho_zface * CdM * uz * windspeed;
+        }
 
         // interior cell forcing
-        drag               += interior_mask * rho_zface * CdM * uz * windspeed;
+        if (interior_mask == one) {
+            drag               += interior_mask * rho_zface * CdM * uz * windspeed;
+        }
 
         if (l_implicit_drag) {
             // point-implicit rescale of the aggregated drag
@@ -930,7 +957,6 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
-            const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
             const Real bc_forcing_r = -(rho_avg - rho_cell);
             const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
 
@@ -1169,11 +1195,10 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         }
 
         // Force fully immersed cells to planar average rho and theta
-        if (t_blank == 1.0) {
+        if (t_blank == 1.0 && r_avg && t_avg) {
             const Real rho_avg = r_avg(k);
             const Real theta_avg = t_avg(k) / rho_avg;  // Convert from RhoTheta to Theta
             const Real rho_cell = cell_data(i,j,k,Rho_comp);
-            const Real theta_cell = cell_data(i,j,k,RhoTheta_comp) / rho_cell;
             const Real bc_forcing_r = -(rho_avg - rho_cell);
             const Real bc_forcing_rt = -(rho_avg * theta_avg - cell_data(i,j,k,RhoTheta_comp));
 
