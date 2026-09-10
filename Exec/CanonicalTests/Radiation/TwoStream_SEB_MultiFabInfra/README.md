@@ -4,7 +4,7 @@
 
 Validate the SEB infrastructure implementation:
 - **SEB MultiFabs allocated and populated** from either Noah-MP/LSM passthrough or scalar fallback defaults
-- **No prognostic physics yet** — allocation and passthrough only; phase 18 adds diagnostic residual computation
+- **No prognostic physics yet** — allocation and passthrough only; the diagnostic residual computation is added separately
 - **Backward compatibility maintained** when `seb_enable=false` (default)
 
 ## Test Design

@@ -60,7 +60,7 @@ def check_ysunew_radiation_coupling():
     diag_file = "radiation_ysu_coupling_diag.dat"
 
     print("=" * 70)
-    print("PHASE 13 VALIDATION: YSUNew Radiation Coupling")
+    print("VALIDATION: YSUNew Radiation Coupling")
     print("=" * 70)
 
     data = read_radiation_diag(diag_file)
@@ -117,7 +117,7 @@ def check_ysunew_radiation_coupling():
     print(f"✓ heating_rate_max is nonzero: range [{min_h:.2e}, {max_h:.2e}] K/s")
 
     print("\n" + "=" * 70)
-    print("PHASE 13 VALIDATION: PASS")
+    print("VALIDATION: PASS")
     print("=" * 70)
     return True
 

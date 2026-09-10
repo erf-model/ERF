@@ -809,7 +809,9 @@ void diagnose_layer_optics(
  *
  * @param[in] i, j Column indices
  * @param[in] bx Computational box (cell-centered, full vertical extent)
- * @param[in] geom Geometry for this AMR level
+ * @param[in] dz_uniform Uniform vertical cell size [m], used when z_phys_cc
+ *            is unavailable. Passed in rather than taken from a Geometry
+ *            because Geometry::CellSize() is host-only and this runs on device.
  * @param[in] state_arr Array proxy to state data (read-only)
  * @param[in] rad_choice Column-kernel parameters (TwoStreamParams, built from RadChoice)
  * @param[in] cloudy If true and tau_profile_type == CloudLayer, apply the
@@ -836,7 +838,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
     int i, int j,
     const amrex::Box& bx,
-    const amrex::Geometry& geom,
+    amrex::Real dz_uniform,
     const amrex::Array4<const amrex::Real>& state_arr,
     const TwoStreamParams& rad_choice,
     bool cloudy,
@@ -875,7 +877,6 @@ void vertical_two_stream_sweep(
     // from the uniform spacing otherwise. z_level locates the cloud band
     // and evaluates the exponential aerosol profile.
     // ------------------------------------------------------------------
-    const amrex::Real dz_uniform = geom.CellSize(2);
     amrex::Real dz_level[MAX_RAD_LEVELS];
     amrex::Real z_level[MAX_RAD_LEVELS];
 

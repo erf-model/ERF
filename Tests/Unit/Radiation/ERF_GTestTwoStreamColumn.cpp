@@ -99,6 +99,9 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     const auto qheating_arr = qheating.array();
     const amrex::Array4<const amrex::Real> no_z_phys{};
 
+    // Geometry::CellSize() is host-only, so read it before the device lambda.
+    const amrex::Real dz_uniform = geom.CellSize(2);
+
     const amrex::Box xy_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
     {
@@ -107,7 +110,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
         amrex::Real sw_up = 0.0;
         amrex::Real lw_net = 0.0;
         amrex::Real lw_up = 0.0;
-        vertical_two_stream_sweep(i, j, bx, geom, state_arr, rad_choice, /*cloudy=*/false,
+        vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
                                   qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up,
                                   no_z_phys);
         scalar_ptr[0] = max_heating;

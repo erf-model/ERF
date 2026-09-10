@@ -236,7 +236,9 @@ void ERF::compute_twostream_radiation_diagnostics(
                 "TwoStream radiation requires grids that span the domain in z; "
                 "set amr.max_grid_size_z to at least amr.n_cell in z");
             const auto& state_arr = state_cons.const_array(mfi);
-            const Geometry& geom_lev = geom[lev];
+            // Geometry::CellSize() is host-only; read it here and hand the
+            // value to the device sweep.
+            const amrex::Real dz_uniform_lev = geom[lev].CellSize(2);
 
             // Get z_phys_cc for nonuniform dz support if available
             Array4<const amrex::Real> z_phys_cc_arr;
@@ -364,7 +366,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                     amrex::Real lw_net_clear = 0.0;
                     amrex::Real lw_up_clear = 0.0;
                     vertical_two_stream_sweep(
-                        i, j, bx, geom_lev, state_arr, ts_params, /*cloudy=*/false,
+                        i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, sw_up_clear, lw_net_clear, lw_up_clear,
                         z_phys_cc_arr,
@@ -389,7 +391,7 @@ void ERF::compute_twostream_radiation_diagnostics(
                          amrex::Real lw_net_cloudy = 0.0;
                          amrex::Real lw_up_cloudy = 0.0;
                          vertical_two_stream_sweep(
-                            i, j, bx, geom_lev, state_arr, ts_params, /*cloudy=*/true,
+                            i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, sw_up_cloudy, lw_net_cloudy, lw_up_cloudy,
                              z_phys_cc_arr,
@@ -592,16 +594,16 @@ void ERF::compute_twostream_radiation_diagnostics(
                             amrex::Real hfx = hfx_arr(i, j, 0);
                             amrex::Real lh = lh_arr(i, j, 0);
                             amrex::Real grdflx = grdflx_arr(i, j, 0);
-                            amrex::Real t_deep = t_deep_arr(i, j, 0);
-                            amrex::Real q_deep = q_deep_arr(i, j, 0);
+                            amrex::Real t_deep_val = t_deep_arr(i, j, 0);
+                            amrex::Real q_deep_val = q_deep_arr(i, j, 0);
 
                             // Compute SEB residual
                             amrex::Real seb_res = diagnose_seb_residual(sw_net, lw_net, hfx, lh, grdflx);
 
                             // Compute tendencies
-                            amrex::Real dT_s_dt = prognostic_dTs_dt(seb_res, t_s_old, t_deep,
+                            amrex::Real dT_s_dt = prognostic_dTs_dt(seb_res, t_s_old, t_deep_val,
                                                                      C_s, tau);
-                            amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep,
+                            amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep_val,
                                                                      d_s, tau_q);
 
                             // Perform Euler update

@@ -90,7 +90,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 erf.input_sounding_file = "input_sounding_timing"
 
 # RADIATION - Two-Stream SW + LW, both enabled, non-isothermal
-# PHASE 8: Modified case with diag_callsite_mode = pre_only
+# Modified case with diag_callsite_mode = pre_only
 # This tests single call-site mode filtering (expect 1 row/step, not 2)
 erf.radiation_type = "TwoStream"
 erf.radiation.sw_enabled = true

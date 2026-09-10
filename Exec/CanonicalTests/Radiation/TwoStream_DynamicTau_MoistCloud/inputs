@@ -135,7 +135,7 @@ erf.radiation.asymmetry_factor = 0.0
 erf.radiation.cloud_single_scattering_albedo = 0.0
 erf.radiation.cloud_asymmetry_factor = 0.0
 
-# PHASE 12 DYNAMIC TAU PARAMETERS
+# DYNAMIC TAU PARAMETERS
 # Default: disabled (backward compatibility with the feature-off baseline)
 # When disabled, reduces to static tau behavior (the baseline output)
 erf.radiation.tau_sw_dynamic_enable = false

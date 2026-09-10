@@ -201,7 +201,7 @@ def get_all_cases() -> Dict[str, BenchmarkCase]:
 def print_case_matrix():
     """Print a summary table of all benchmark cases."""
     print("\n" + "=" * 100)
-    print("PHASE 8 BENCHMARK SUITE: CASE MATRIX")
+    print("BENCHMARK SUITE: CASE MATRIX")
     print("=" * 100)
     print(f"{'Case':<20} {'Physics':<30} {'Steps':<8} {'Mode':<12} {'Expected Rows':<15}")
     print("-" * 100)

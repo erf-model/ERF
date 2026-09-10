@@ -521,10 +521,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.radChoice.rad_type == RadType::TwoStream)
     {
        // Use 2D box array (ba2d) for surface property arrays with 1 ghost cell in x/y
-       amrex::IntVect ng{1,1,0};
-       twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-       twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-       twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+       amrex::IntVect ng_sfc{1,1,0};
+       twostream_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+       twostream_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+       twostream_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
 
        // Initialize from RadChoice scalar defaults (constant-filled)
        twostream_alb_sw[lev]->setVal(solverChoice.radChoice.surface_albedo_sw);
@@ -533,14 +533,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
        if (solverChoice.radChoice.seb_enable)
        {
-           sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           lw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           hfx_sfc[lev]     = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           lh_sfc[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           grdflx_sfc[lev]  = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           q_sfc[lev]       = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           t_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
-           q_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng);
+           sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           lw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           hfx_sfc[lev]     = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           lh_sfc[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           grdflx_sfc[lev]  = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           q_sfc[lev]       = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           t_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
+           q_deep[lev]      = std::make_unique<MultiFab>(ba2d[lev], dm, 1, ng_sfc);
 
            sw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_sw_flux_default);
            lw_flux_sfc[lev]->setVal(solverChoice.radChoice.seb_lw_flux_default);

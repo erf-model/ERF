@@ -135,11 +135,11 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
  * @brief Compute prognostic surface moisture tendency using force-restore formulation.
  *
  * Computes dq_s/dt from latent heat flux and restoring term toward deep soil moisture:
- *   dq_s/dt = -(LE / (L_v * rho_w * d_s)) - (1/tau_q) * (q_s - q_deep)
+ *   dq_s/dt = -(LE / (L_v * rhor * d_s)) - (1/tau_q) * (q_s - q_deep)
  *
  * Constants:
  * - L_v = 2.5e6 J/kg (latent heat of vaporization)
- * - rho_w = 1000.0 kg/m^3 (water density)
+ * - rhor = 1000.0 kg/m^3 (water density, from ERF_Constants.H)
  *
  * All inputs are guarded with std::isfinite() to safely handle NaN/Inf; if any input
  * is non-finite, any parameter is non-positive (d_s <= 0, tau_q <= 0), returns 0.0 (safe no-op).
@@ -177,12 +177,11 @@ amrex::Real prognostic_dqs_dt(amrex::Real le,
         return 0.0;  // Safe no-op for invalid parameters
     }
 
-    // Physical constants
-    const amrex::Real L_v = 2.5e6;    // Latent heat of vaporization [J/kg]
-    const amrex::Real rho_w = 1000.0; // Water density [kg/m^3]
+    // L_v and rhor both come from ERF_Constants.H. A local L_v here shadowed
+    // the global one, and a local water density duplicated rhor.
 
-    // Compute tendency: -(LE / (L_v * rho_w * d_s)) - (1/tau_q) * (q_s - q_deep)
-    amrex::Real le_term = -(le / (L_v * rho_w * d_s));
+    // Compute tendency: -(LE / (L_v * rhor * d_s)) - (1/tau_q) * (q_s - q_deep)
+    amrex::Real le_term = -(le / (L_v * rhor * d_s));
     amrex::Real restore_term = (1.0 / tau_q) * (q_s - q_deep);
     amrex::Real dq_s_dt = le_term - restore_term;
 

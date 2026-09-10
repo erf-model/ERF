@@ -349,7 +349,7 @@ def write_reports(results: List[CaseResult]) -> Tuple[Path, Path]:
 
 def main() -> int:
     print("=" * 80)
-    print("PHASE 8: VALIDATION & BENCHMARKING SUITE FOR TWOSTREAM RADIATION")
+    print("VALIDATION & BENCHMARKING SUITE FOR TWOSTREAM RADIATION")
     print("=" * 80)
     print(f"Timestamp: {datetime.now().isoformat()}")
     print(f"Base directory: {BASE_DIR}")
