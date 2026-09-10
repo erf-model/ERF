@@ -692,6 +692,9 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Stability functions (AL01, Eqns. 31 and 32), using the smoothed Rt
                 Real cmu       = AL01::cmu(Rt, Cmu0);
                 Real cmu_prime = AL01::cmu_prime(Rt, Cmu0);
+                mu_turb(i, j, k, EddyDiff::RANS_Rt)        = Rt;
+                mu_turb(i, j, k, EddyDiff::RANS_cmu)       = cmu;
+                mu_turb(i, j, k, EddyDiff::RANS_cmu_prime) = cmu_prime;
 
                 // Calculate eddy diffusivities
                 // K = rho * nu_t = rho * c_mu * tke^(1/2) * length

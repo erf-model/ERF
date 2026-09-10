@@ -261,6 +261,19 @@ issue; it did not, so the hill decks stay periodic at unit aspect ratio.
 
 Exit: docs build; every input key documented.
 
+Status (2026-09-09): done. `Docs/sphinx_doc/theory/RANS.rst` (in the
+THEORY toctree after DNSvsLES) covers Eqs. 11-32 of AL01 as implemented,
+the bounded unstable length, the cancellation-free smoothing, the wall
+condition, both wall distances, the limitations and an input table;
+`RegressionTests.rst` gains a Canonical RANS section; every new key is in
+`Inputs.rst`; a top-level `Canonical_RANS/README.md` states the rules.
+Plot variables `Rt`, `cmu`, `cmu_prime` (three new EddyDiff components
+written by the closure) let the stability functions be inspected; the
+neutral smoke check verifies them against Eqs. 31-32 to 1e-16 and
+Kmv = rho cmu sqrt(k) L. `sphinx-build` (7.4, without the math-dollar
+extension) reports no error on the touched pages after two table rows
+were realigned. Nine CTest entries and seven gtests pass.
+
 ## Phase 8: sweep and PR
 
 - Run all Canonical_RANS decks and `ctest -L rans`; single-precision build;

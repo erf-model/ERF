@@ -24,7 +24,7 @@ CMU0 = 0.5562
 Z0 = 0.1
 L_G_MAX = 30.0
 FIELDS = ["x_velocity", "y_velocity", "theta", "KE", "Kmv", "Khv",
-          "Lturb", "walldist", "diss", "density"]
+          "Lturb", "walldist", "diss", "density", "Rt", "cmu", "cmu_prime"]
 
 
 class Report:
@@ -89,6 +89,20 @@ def main(argv):
     for k in (0, 1, 2):
         rep.check("Lturb(k=%d) vs capped kappa(z+z0)" % k, p["Lturb"][k], l_geom(z[k]), 1e-3, "rel")
     rep.check("max Lturb <= max_geom_lscale", max(p["Lturb"]), L_G_MAX, 1e-9, "max")
+
+    # stability functions written by the closure must be AL01 Eqs. 31-32 of
+    # the written (smoothed) Rt, and Rt must sit above Rt_min
+    def cmu_of(Rt):
+        return (CMU0 + 0.108 * Rt) / (1.0 + 0.308 * Rt + 0.00837 * Rt * Rt)
+    def cmu_prime_of(Rt):
+        return CMU0 / (1.0 + 0.277 * Rt)
+    e1 = max(abs(p["cmu"][k] - cmu_of(p["Rt"][k])) for k in range(nz))
+    e2 = max(abs(p["cmu_prime"][k] - cmu_prime_of(p["Rt"][k])) for k in range(nz))
+    rep.check("max |cmu - Eq.31(Rt)|", e1, 0.0, 1e-6)
+    rep.check("max |cmu_prime - Eq.32(Rt)|", e2, 0.0, 1e-6)
+    rep.check("min Rt >= Rt_min", min(p["Rt"]), -3.0, 1e-12, "min")
+    # Kmv must be rho cmu sqrt(k) Lturb (mean of the planar averages, so a loose check)
+    rep.check("Kmv(k=1) vs rho cmu sqrt(KE) Lturb", p["Kmv"][1], p["density"][1] * p["cmu"][1] * math.sqrt(p["KE"][1]) * p["Lturb"][1], 0.05, "rel")
 
     # Dissipation follows Cmu0^3 rho k^1.5 / L (AL01 Eq. 19). The plotfile
     # holds diss from the start of the last step and KE from its end, so the

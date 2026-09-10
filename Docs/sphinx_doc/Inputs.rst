@@ -1627,7 +1627,7 @@ List of Parameters
 |                                  | from ``erf.tke_min``, the initial value (per-level)      |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.implicit_tke_dissipation** | Deardorff or k-equation RANS: treat the TKE dissipation  | Boolean            | false            |
-|                                  | implicitly, eps = (C k_old^1/2 / L) k_new folded into   |                    |                  |
+|                                  | implicitly, eps = (C k_old^1/2 / L) k_new folded into    |                    |                  |
 |                                  | the update, which removes the dissipation time-step      |                    |                  |
 |                                  | limit near the wall (per-level)                          |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+

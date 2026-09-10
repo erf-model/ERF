@@ -57,7 +57,7 @@ erf.check_int  = 4320
 # PLOTFILES
 erf.plot_file_1 = plt
 erf.plot_int_1  = 4320
-erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss Rt cmu cmu_prime
 
 # SOLVER CHOICE
 erf.dycore_horiz_adv_type  = "Upwind_5th"
