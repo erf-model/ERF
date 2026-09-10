@@ -287,6 +287,17 @@ were realigned. Nine CTest entries and seven gtests pass.
 
 Exit: PR open; memory note updated.
 
+Status (2026-09-09): done. All five physics decks rerun on the final code
+and pass; `ctest -R RANS_` (9 entries) passes; the closure gtests pass in
+double and single precision (one tolerance made precision-aware);
+Release build with all warnings on is clean in the changed files;
+codespell clean with the repo config; the docs build; upstream
+development (two commits, MOST fixes and RemakeLevel) merged without
+conflict. PR opened against erf-model/ERF development from
+hgopalan:claude-RANS. CI runs `ctest -L regression` in a Debug build, so
+the nine entries run there. Phases 9 and 10 (implicit vertical diffusion
+under anelastic) and the dycore defects of phase 6 stay open.
+
 ## Phase 9: implicit vertical diffusion of scalars under anelastic
 
 Added 2026-09-09 after phase 3 showed that the anelastic integrator, the
