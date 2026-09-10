@@ -87,6 +87,15 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
                        rU_new[lev], rV_new[lev], rW_new[lev],
                        Geom(lev).Domain(), domain_bcs_type, c_vfrac);
 
+    // The conversion above fills only the valid faces; the ghost faces still hold
+    // bogus_large_value from allocation. project_momenta converts (rho0 w) to Omega with
+    // OmegaFromW, which averages (rho0 u) and (rho0 v) across each w-face and so reads one
+    // ghost cell in z at the top and bottom faces of every box. Fill those from the
+    // neighbouring boxes so that a box face inside the domain sees real momenta.
+    rU_new[lev].FillBoundary(geom[lev].periodicity());
+    rV_new[lev].FillBoundary(geom[lev].periodicity());
+    rW_new[lev].FillBoundary(geom[lev].periodicity());
+
     Vector<MultiFab> tmp_mom;
 
     tmp_mom.push_back(MultiFab(vars_new[lev][Vars::cons],make_alias,0,1));
@@ -235,6 +244,38 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
+        // OmegaFromW below averages (rho0 u) and (rho0 v) across each w-face, so at the top
+        // and bottom face of every box it reads one ghost face in z. At a box face inside
+        // the domain that ghost face must have been filled from the neighbouring box;
+        // abort rather than project with the allocation placeholder still in it.
+        {
+            const Box& dom = geom[lev].Domain();
+            ReduceOps<ReduceOpMax> reduce_op;
+            ReduceData<Real> reduce_data(reduce_op);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            {
+                const Box& vbx = mfi.validbox();
+                const Array4<Real const>& ru = mom_mf[IntVars::xmom].const_array(mfi);
+                const Array4<Real const>& rv = mom_mf[IntVars::ymom].const_array(mfi);
+                for (int side = 0; side < 2; ++side) {
+                    const int kg = (side == 0) ? vbx.smallEnd(2)-1 : vbx.bigEnd(2)+1;
+                    if (kg < dom.smallEnd(2) || kg > dom.bigEnd(2)) { continue; }
+                    Box xslab = surroundingNodes(vbx,0); xslab.setRange(2,kg);
+                    Box yslab = surroundingNodes(vbx,1); yslab.setRange(2,kg);
+                    reduce_op.eval(xslab, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                                   { return std::abs(ru(i,j,k)); });
+                    reduce_op.eval(yslab, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                                   { return std::abs(rv(i,j,k)); });
+                }
+            }
+            Real max_ghost_mom = amrex::get<0>(reduce_data.value(reduce_op));
+            ParallelDescriptor::ReduceRealMax(max_ghost_mom);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_ghost_mom < bogus_large_value,
+                "project_momenta: the momenta ghost faces at a box face inside the domain still hold "
+                "bogus_large_value; they must be filled (FillBoundary) before the projection");
+        }
+
         for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);

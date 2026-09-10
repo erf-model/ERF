@@ -429,6 +429,9 @@ public:
      * @param[in] iavg    average component index
      * @param[in] ng_fill number of ghost cells that hold computed data
      */
+    // Fill the ghost cells of one planar average (see FillPlanarBoundary)
+    void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
     void extrap_ghost_cells (const int& lev,
                              const int& iavg,
                              const amrex::IntVect& ng_fill);
@@ -459,6 +462,9 @@ protected:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<amrex::BoxArray>            m_ba_sfc;                // Surface copies of the planar boxes (maxlev)
+    amrex::Vector<amrex::DistributionMapping> m_dm_sfc;                // Ranks owning them (maxlev)
+    amrex::Vector<amrex::Vector<int>>         m_src_sfc;               // Their index in the planar BoxArray (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_rot_fields; // Rotated field data
 
     // Vars for planar average policy

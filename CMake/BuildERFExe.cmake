@@ -558,6 +558,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
+       ${SRC_DIR}/Utils/ERF_PlanarBoundary.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_Utils.cpp

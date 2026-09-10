@@ -15,6 +15,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_MOSTStress.H"
 #include "ERF_MOSTUtils.H"
 #include "ERF_EBMOSTStress.H"
@@ -404,6 +405,9 @@ public:
           surface_diagnostic_source.resize(nlevs);
           olen.resize(nlevs);
           pblh.resize(nlevs);
+          m_ba_sfc.resize(nlevs);
+          m_dm_sfc.resize(nlevs);
+          m_src_sfc.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -554,6 +558,11 @@ public:
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
 
+      // Surface copies of the planar boxes (see fill_planar_boundary)
+      if (m_terrain_type != TerrainType::EB) {
+          MakeSurfaceBoxes(ba, dm, m_geom[lev].Domain().smallEnd(2), m_ba_sfc[lev], m_dm_sfc[lev], m_src_sfc[lev]);
+      }
+
       // Z0 heights FAB
       //--------------------------------------------------------
       z_0[lev].define(ba_flux, dm, ncomp, ng);
@@ -700,6 +709,14 @@ public:
    * @param[in,out] zqv_flux   z-face moisture flux field
    * @param[in]     z_phys     physical-height field
    */
+  /**
+   * Fill the ghost cells of a planar surface-layer MultiFab (see FillPlanarBoundary).
+   *
+   * @param[in]     lev level index
+   * @param[in,out] mf  planar MultiFab to fill
+   */
+  void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
@@ -1317,6 +1334,11 @@ private:
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_surf;
+  // Surface copies of the planar boxes: the planar BoxArray is the z-collapse of the 3D
+  // BoxArray, so a 3D BoxArray split in z gives duplicate planar boxes (see FillPlanarBoundary)
+  amrex::Vector<amrex::BoxArray>            m_ba_sfc;
+  amrex::Vector<amrex::DistributionMapping> m_dm_sfc;
+  amrex::Vector<amrex::Vector<int>>         m_src_sfc;
   // Diagnostic-only provenance mask. This records the cell-centered source
   // path used by the SurfaceLayer scalar diagnostic path. It must not feed
   // back into flux calculations, boundary conditions, or model state.

@@ -57,7 +57,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     if (m_has_lsm_tsurf) { get_lsm_tsurf(lev); }
 
     // Fill interior ghost cells
-    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *t_surf[lev]);
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
@@ -297,10 +297,31 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    u_star[lev]->FillBoundary(m_geom[lev].periodicity());
-    t_star[lev]->FillBoundary(m_geom[lev].periodicity());
-    q_star[lev]->FillBoundary(m_geom[lev].periodicity());
-      olen[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *u_star[lev]);
+    fill_planar_boundary(lev, *t_star[lev]);
+    fill_planar_boundary(lev, *q_star[lev]);
+    fill_planar_boundary(lev,   *olen[lev]);
+}
+
+/**
+ * Fill the ghost cells of a planar surface-layer MultiFab.
+ *
+ * The planar MultiFabs hold one box per 3D box, so a 3D BoxArray split in z gives
+ * duplicate planar boxes of which only the surface copy is computed; a FillBoundary
+ * could then fill a ghost cell from an uncomputed copy (see FillPlanarBoundary).
+ * With EB terrain the fields are 3D and FillBoundary is well defined.
+ *
+ * @param[in]     lev Current level
+ * @param[in,out] mf  Planar MultiFab to fill
+ */
+void
+SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
+{
+    if (m_terrain_type == TerrainType::EB) {
+        mf.FillBoundary(m_geom[lev].periodicity());
+    } else {
+        FillPlanarBoundary(mf, m_ba_sfc[lev], m_dm_sfc[lev], m_src_sfc[lev], m_geom[lev].periodicity());
+    }
 }
 
 void
@@ -912,7 +933,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
 
     } // mfiter
 
-    surface_diagnostic_source[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *surface_diagnostic_source[lev]);
 }
 
 /**
@@ -1306,7 +1327,7 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
             });
         }
     }
-    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *t_surf[lev]);
 }
 
 void
@@ -1336,7 +1357,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         });
     }
 
-    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *t_surf[lev]);
 }
 
 /**
@@ -1386,7 +1407,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             }
         });
     }
-    q_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *q_surf[lev]);
 }
 
 /**
@@ -1524,7 +1545,7 @@ SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
 {
     AMREX_ASSERT(pblh[lev]);
     amrex::MultiFab::Copy(*pblh[lev], pblh_in, 0, 0, 1, 0);
-    pblh[lev]->FillBoundary(m_geom[lev].periodicity());
+    fill_planar_boundary(lev, *pblh[lev]);
 }
 
 /**
