@@ -6,81 +6,99 @@
 using namespace amrex;
 
 /**
- * Select the surface copies of the planar boxes.
+ * Record the surface copies of a planar BoxArray (see ERF_PlanarBoundary.H).
  *
- * @param[in]  ba3d      3D BoxArray the planar BoxArray was collapsed from
- * @param[in]  dm3d      DistributionMapping of the 3D BoxArray (shared by the planar MultiFabs)
- * @param[in]  klo       k index of the surface
- * @param[out] ba_sfc    2D boxes of the 3D boxes that touch the surface, without duplicates
- * @param[out] dm_sfc    ranks owning those boxes
- * @param[out] src_index index of each of those boxes in the planar BoxArray
+ * @param[in] ba3d 3D BoxArray the planar BoxArray was collapsed from
+ * @param[in] ba2d planar BoxArray, one box per box of ba3d and in the same order
+ * @param[in] dm   DistributionMapping shared by ba3d and ba2d
+ * @param[in] klo  k index of the lowest cell in the domain
  */
-void MakeSurfaceBoxes (const BoxArray& ba3d,
-                       const DistributionMapping& dm3d,
-                       int klo,
-                       BoxArray& ba_sfc,
-                       DistributionMapping& dm_sfc,
-                       Vector<int>& src_index)
+void
+PlanarBoundary::define (const BoxArray& ba3d,
+                        const BoxArray& ba2d,
+                        const DistributionMapping& dm,
+                        int klo)
 {
-    BoxList bl_sfc(ba3d.ixType());
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.size() == ba3d.size(),
+        "PlanarBoundary::define: the planar BoxArray must hold one box per 3D box");
+
+    m_nplanar = static_cast<int>(ba2d.size());
+    m_src_index.clear();
+    m_buffers.clear();
+
+    // The planar boxes are taken as they are, whatever k they were collapsed to
+    BoxList bl_sfc(IndexType::TheCellType());
     Vector<int> pmap;
-    src_index.clear();
-    for (int ib = 0; ib < static_cast<int>(ba3d.size()); ++ib) {
+    for (int ib = 0; ib < m_nplanar; ++ib) {
         if (ba3d[ib].smallEnd(2) == klo) {
-            Box b = ba3d[ib]; b.setRange(2,0);
-            bl_sfc.push_back(b);
-            pmap.push_back(dm3d[ib]);
-            src_index.push_back(ib);
+            bl_sfc.push_back(enclosedCells(ba2d[ib]));
+            pmap.push_back(dm[ib]);
+            m_src_index.push_back(ib);
         }
     }
-    ba_sfc = BoxArray(std::move(bl_sfc));
-    dm_sfc = DistributionMapping(std::move(pmap));
+    m_ba_sfc = BoxArray(std::move(bl_sfc));
+    m_dm_sfc = DistributionMapping(std::move(pmap));
 
     // Exactly one computed copy per column: the surface boxes must not overlap
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba_sfc.isDisjoint(),
-        "MakeSurfaceBoxes: the boxes touching the surface overlap in the plane, so a planar "
-        "field would have more than one computed copy per column");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ba_sfc.isDisjoint(),
+        "PlanarBoundary::define: the boxes touching the surface overlap in the plane, so a "
+        "planar field would have more than one computed copy per column");
 }
 
 /**
- * FillBoundary for a planar MultiFab built on the z-collapse of a 3D BoxArray.
+ * Fill every copy of a planar MultiFab, valid region and ghost cells, from the surface
+ * copies (see ERF_PlanarBoundary.H).
  *
- * @param[in,out] mf        planar MultiFab whose ghost cells are to be filled
- * @param[in]     ba_sfc    surface boxes from MakeSurfaceBoxes
- * @param[in]     dm_sfc    ranks owning the surface boxes
- * @param[in]     src_index index of each surface box in the planar BoxArray
- * @param[in]     period    periodicity of the level
+ * @param[in,out] mf     planar MultiFab on the planar BoxArray given to define
+ * @param[in]     period periodicity of the level
  */
-void FillPlanarBoundary (MultiFab& mf,
-                         const BoxArray& ba_sfc,
-                         const DistributionMapping& dm_sfc,
-                         const Vector<int>& src_index,
-                         const Periodicity& period)
+void
+PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 {
-    const int nsfc = static_cast<int>(src_index.size());
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(mf.size()) == m_nplanar,
+        "PlanarBoundary::fill: the MultiFab is not on the planar BoxArray given to define");
+
+    const int nsfc = static_cast<int>(m_src_index.size());
 
     // Every planar box is a surface box: no duplicates, FillBoundary is well defined
-    if (nsfc == static_cast<int>(mf.size())) {
+    if (nsfc == m_nplanar) {
         mf.FillBoundary(period);
         return;
     }
 
-    // No box on this level touches the surface: nothing to fill from
+    // No box on this level reaches the surface, so no copy holds computed data to fill
+    // from; leave the MultiFab as it is
     if (nsfc == 0) { return; }
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nsfc < static_cast<int>(mf.size()),
-        "FillPlanarBoundary: more surface boxes than planar boxes");
-
     const int ncomp = mf.nComp();
-    MultiFab sfc(ba_sfc, dm_sfc, ncomp, 0);
-    for (MFIter mfi(sfc); mfi.isValid(); ++mfi) {
+    MultiFab& buf = buffer(mf.ixType(), ncomp);
+    for (MFIter mfi(buf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
-        // The surface copy must be the planar box with the same footprint
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src_index[mfi.index()]],
-            "FillPlanarBoundary: surface box does not match its planar box");
-        sfc[mfi].template copy<RunOn::Device>(mf[src_index[mfi.index()]], bx, 0, bx, 0, ncomp);
+        const int src = m_src_index[mfi.index()];
+        // The surface copy must be the planar box with the same footprint, on this rank
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src] &&
+                                         mf.DistributionMap()[src] == ParallelDescriptor::MyProc(),
+            "PlanarBoundary::fill: surface box does not match its planar box");
+        buf[mfi].copy<RunOn::Device>(mf[src], bx, 0, bx, 0, ncomp);
     }
 
-    // Fill every copy, valid and ghost, from the computed surface copies
-    mf.ParallelCopy(sfc, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), period);
+    // Fill every copy, valid region and ghost cells, from the computed surface copies
+    mf.ParallelCopy(buf, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), period);
+}
+
+/**
+ * Gather buffer for one index type and number of components, allocated on first use.
+ *
+ * @param[in] ixtype index type of the planar MultiFab
+ * @param[in] ncomp  number of components of the planar MultiFab
+ */
+MultiFab&
+PlanarBoundary::buffer (IndexType ixtype, int ncomp)
+{
+    for (auto& b : m_buffers) {
+        if (b.ixtype == ixtype && b.ncomp == ncomp) { return *b.mf; }
+    }
+    m_buffers.push_back(Buffer{ixtype, ncomp,
+                               std::make_unique<MultiFab>(convert(m_ba_sfc, ixtype), m_dm_sfc, ncomp, 0)});
+    return *m_buffers.back().mf;
 }

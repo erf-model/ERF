@@ -1,11 +1,12 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 # Anelastic neutral flow over a radial Witch of Agnesi hill on a terrain-fitted
 # mesh under a MOST surface layer, with more cells in z than amr.max_grid_size so
-# that every column is two boxes. That box split used to break (1) the initial
-# projection, which read the momenta one ghost face beyond the box face inside
+# that every column is several boxes. That box split used to break (1) the initial
+# projection, which read the momenta one ghost face beyond each box face inside
 # the domain before those faces were filled, and (2) the planar surface-layer
 # arrays (u*, t*, ...), which hold one 2D box per 3D box and were FillBoundary'ed
-# across the uncomputed duplicate copies.
+# across the uncomputed duplicate copies. The domain is also split into several
+# columns, so the fill of the surface copies crosses box boundaries in the plane.
 erf.prob_name = "ABL"
 
 max_step = 10
@@ -20,7 +21,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     = -1280. -1280.   0.
 geometry.prob_hi     =  1280.  1280. 800.
 amr.n_cell           =    32     32   40     # dx = dy = 80 m, dz = 20 m
-amr.max_grid_size    = 32                    # 40 cells in z: boxes split at k = 32
+amr.max_grid_size    = 16                    # 4 columns of 3 boxes, split in z at k = 16 and 32
 amr.blocking_factor  = 8
 
 geometry.is_periodic = 1 1 0

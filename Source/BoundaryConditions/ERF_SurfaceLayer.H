@@ -405,9 +405,7 @@ public:
           surface_diagnostic_source.resize(nlevs);
           olen.resize(nlevs);
           pblh.resize(nlevs);
-          m_ba_sfc.resize(nlevs);
-          m_dm_sfc.resize(nlevs);
-          m_src_sfc.resize(nlevs);
+          m_planar_bndry.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -560,7 +558,7 @@ public:
 
       // Surface copies of the planar boxes (see fill_planar_boundary)
       if (m_terrain_type != TerrainType::EB) {
-          MakeSurfaceBoxes(ba, dm, m_geom[lev].Domain().smallEnd(2), m_ba_sfc[lev], m_dm_sfc[lev], m_src_sfc[lev]);
+          m_planar_bndry[lev].define(ba, ba_flux, dm, m_geom[lev].Domain().smallEnd(2));
       }
 
       // Z0 heights FAB
@@ -696,6 +694,15 @@ public:
                             const amrex::Real zscale = amrex::Real(700.0));
 
   /**
+   * Fill the ghost cells of a planar surface-layer MultiFab, and the valid region of
+   * its uncomputed copies when the 3D BoxArray is split in z (see PlanarBoundary).
+   *
+   * @param[in]     lev level index
+   * @param[in,out] mf  planar MultiFab to fill
+   */
+  void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
+  /**
    * Impose surface-layer boundary conditions for planar terrain.
    *
    * @param[in]     lev        level index
@@ -709,14 +716,6 @@ public:
    * @param[in,out] zqv_flux   z-face moisture flux field
    * @param[in]     z_phys     physical-height field
    */
-  /**
-   * Fill the ghost cells of a planar surface-layer MultiFab (see FillPlanarBoundary).
-   *
-   * @param[in]     lev level index
-   * @param[in,out] mf  planar MultiFab to fill
-   */
-  void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
-
   void impose_SurfaceLayer_bcs (const int& lev,
                                 amrex::Vector<const amrex::MultiFab*> mfs,
                                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
@@ -1334,11 +1333,11 @@ private:
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_surf;
-  // Surface copies of the planar boxes: the planar BoxArray is the z-collapse of the 3D
-  // BoxArray, so a 3D BoxArray split in z gives duplicate planar boxes (see FillPlanarBoundary)
-  amrex::Vector<amrex::BoxArray>            m_ba_sfc;
-  amrex::Vector<amrex::DistributionMapping> m_dm_sfc;
-  amrex::Vector<amrex::Vector<int>>         m_src_sfc;
+  // The planar BoxArray is the z-collapse of the 3D BoxArray, so a 3D BoxArray split in z
+  // gives duplicate planar boxes (see PlanarBoundary). fill_planar_boundary goes through
+  // this for u*, w* (only when it is computed), t*, q*, L, t_surf, q_surf, pblh and the
+  // diagnostic source, after each is computed on the surface copies.
+  amrex::Vector<PlanarBoundary> m_planar_bndry;
   // Diagnostic-only provenance mask. This records the cell-centered source
   // path used by the SurfaceLayer scalar diagnostic path. It must not feed
   // back into flux calculations, boundary conditions, or model state.

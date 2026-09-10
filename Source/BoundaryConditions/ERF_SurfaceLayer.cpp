@@ -298,6 +298,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     fill_planar_boundary(lev, *u_star[lev]);
+    if (m_include_wstar) { fill_planar_boundary(lev, *w_star[lev]); }
     fill_planar_boundary(lev, *t_star[lev]);
     fill_planar_boundary(lev, *q_star[lev]);
     fill_planar_boundary(lev,   *olen[lev]);
@@ -308,8 +309,9 @@ SurfaceLayer::update_fluxes (const int& lev,
  *
  * The planar MultiFabs hold one box per 3D box, so a 3D BoxArray split in z gives
  * duplicate planar boxes of which only the surface copy is computed; a FillBoundary
- * could then fill a ghost cell from an uncomputed copy (see FillPlanarBoundary).
- * With EB terrain the fields are 3D and FillBoundary is well defined.
+ * could then fill a ghost cell from an uncomputed copy (see PlanarBoundary).  With
+ * the split, the valid region of the uncomputed copies is filled as well.  With EB
+ * terrain the fields are 3D and FillBoundary is well defined.
  *
  * @param[in]     lev Current level
  * @param[in,out] mf  Planar MultiFab to fill
@@ -320,7 +322,7 @@ SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
     if (m_terrain_type == TerrainType::EB) {
         mf.FillBoundary(m_geom[lev].periodicity());
     } else {
-        FillPlanarBoundary(mf, m_ba_sfc[lev], m_dm_sfc[lev], m_src_sfc[lev], m_geom[lev].periodicity());
+        m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
     }
 }
 

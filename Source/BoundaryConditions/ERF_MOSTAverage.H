@@ -11,6 +11,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_DataStruct.H"
 #include "ERF_EB.H"
+#include "ERF_PlanarBoundary.H"
 
 class MOSTAverage {
 public:
@@ -417,6 +418,15 @@ public:
     [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
 
     /**
+     * Fill the ghost cells of one planar average, and the valid region of its
+     * uncomputed copies when the 3D BoxArray is split in z (see PlanarBoundary).
+     *
+     * @param[in]     lev level index
+     * @param[in,out] mf  planar average to fill
+     */
+    void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
+    /**
      * Fill the ghost cells of one average that cannot be computed from the field
      * data with a zeroth-order extrapolation of the nearest computed value.
      *
@@ -429,9 +439,6 @@ public:
      * @param[in] iavg    average component index
      * @param[in] ng_fill number of ghost cells that hold computed data
      */
-    // Fill the ghost cells of one planar average (see FillPlanarBoundary)
-    void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
-
     void extrap_ghost_cells (const int& lev,
                              const int& iavg,
                              const amrex::IntVect& ng_fill);
@@ -462,9 +469,7 @@ protected:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
-    amrex::Vector<amrex::BoxArray>            m_ba_sfc;                // Surface copies of the planar boxes (maxlev)
-    amrex::Vector<amrex::DistributionMapping> m_dm_sfc;                // Ranks owning them (maxlev)
-    amrex::Vector<amrex::Vector<int>>         m_src_sfc;               // Their index in the planar BoxArray (maxlev)
+    amrex::Vector<PlanarBoundary> m_planar_bndry;                    // Fills the planar averages on a z-split BoxArray (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_rot_fields; // Rotated field data
 
     // Vars for planar average policy
