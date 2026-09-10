@@ -1,9 +1,12 @@
 # SEB Diagnostic Mode - Baseline (Disabled)
 # Verifies default seb_diagnostic_enable=false produces bitwise-identical output.
+# stop_time must match inputs_seb_diagnostic_enabled, or the two diagnostic
+# files cover different intervals and check_seb_diagnostic.py can only compare
+# the overlap.
 
 erf.prob_name = "ABL"
 
-stop_time = 3600.0
+stop_time = 36.0
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
