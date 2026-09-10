@@ -14,8 +14,11 @@
     [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
     // used by ERF_AddTKESources.H
+    // The divisor is never zero: an optimised build evaluates both arms of the
+    //   select, and 1/theta_ref with the default theta_ref = 0 trips fpe_trap_zero
     [[maybe_unused]] const bool use_ref_theta = (turbChoice.theta_ref > 0);
-    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+    [[maybe_unused]] const Real inv_theta_ref = one / (std::abs(turbChoice.theta_ref) + Real(1e-30));
+    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? inv_theta_ref : one;
 
     // vertical diffusivities are defined in ERF_SetupVertDiff.H
     // The number of quantities following Scalar_h must be equal to the number

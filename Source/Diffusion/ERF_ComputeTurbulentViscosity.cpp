@@ -170,8 +170,10 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real Ce_lcoeff    = amrex::max(zero, l_C_e - Real(1.9)*l_C_k);
         const Real l_abs_g      = const_grav;
 
+        // Nonzero divisor: both arms of the select are evaluated (fpe_trap_zero)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real l_inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+        const Real inv_theta_ref = one / (std::abs(turbChoice.theta_ref) + Real(1e-30));
+        const Real l_inv_theta0  = (use_ref_theta) ? inv_theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -610,8 +612,10 @@ void ComputeTurbulentViscosityRANS (Vector<std::unique_ptr<MultiFab>>& /*Tau_lev
         const Real l_g_max    = turbChoice.l_g_max;
         const Real abs_g      = const_grav;
 
+        // Nonzero divisor: both arms of the select are evaluated (fpe_trap_zero)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+        const Real inv_theta_ref = one / (std::abs(turbChoice.theta_ref) + Real(1e-30));
+        const Real inv_theta0  = (use_ref_theta) ? inv_theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
