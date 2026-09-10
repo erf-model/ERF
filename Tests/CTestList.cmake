@@ -268,6 +268,50 @@ function(add_test_cloud_chamber_legacy_config TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
 endfunction(add_test_cloud_chamber_legacy_config)
 
+# Negative startup tests for the Native SHOC transport modes removed from the
+# production input contract.  The shared fixture supplies a complete Native
+# SHOC run, while the runtime option exercises the real ParmParse reader path.
+function(add_test_shoc_removed_transport TEST_NAME RUNTIME_OPTION EXPECTED_MESSAGE
+        EXPECTED_GUIDANCE_1 EXPECTED_GUIDANCE_2)
+    set(TEST_FILES_DIR "SHOC_Stable_Clear")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/SHOC_Stable_Clear.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DRUNTIME_OPTIONS=${RUNTIME_OPTION}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        -DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}
+        -DEXPECTED_GUIDANCE_1=${EXPECTED_GUIDANCE_1}
+        -DEXPECTED_GUIDANCE_2=${EXPECTED_GUIDANCE_2}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRemovedTransportConfig.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;shoc;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_shoc_removed_transport)
+
+add_test_shoc_removed_transport(SHOC_Removed_Scalar_Host_Diffusion
+    "erf.shoc.transport_mode=host_diffusion"
+    "erf.shoc.transport_mode = host_diffusion has been removed for native SHOC"
+    "Use erf.shoc.transport_mode = state_update"
+    "")
+add_test_shoc_removed_transport(SHOC_Removed_Momentum_Host_Diffusion
+    "erf.shoc.momentum_transport=host_diffusion"
+    "erf.shoc.momentum_transport = host_diffusion has been removed for native SHOC"
+    "state_update"
+    "none")
+
 function(add_test_cloud_chamber_openmp TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     setup_test()

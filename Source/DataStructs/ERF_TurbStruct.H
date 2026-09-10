@@ -233,6 +233,33 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -253,6 +280,17 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
         // Scale-aware PBL-LES blending parameters.
         query_one_or_per_level(
           pp, "pbl_blend_length", pbl_blend_length, lev, max_level);
@@ -262,6 +300,22 @@ public:
           pp, "pbl_blend_c_max", pbl_blend_c_max, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_blend_use_smag", pbl_blend_use_smag, lev, max_level);
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -524,8 +578,26 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction       : "
+                     << enable_vh96_shear_correction << std::endl;
+      amrex::Print() << "    vh96_shear_const_b                 : "
+                     << vh96_shear_const_b << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing              : "
+                     << enable_pblh_smoothing << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes              : "
+                     << pblh_smoothing_passes << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight              : "
+                     << pblh_smoothing_weight << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert         : "
                      << enable_mrf_unbounded_vpert << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
                      << std::endl;
@@ -555,6 +627,24 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_blend_use_smag : " << pbl_blend_use_smag
                      << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction : " << enable_vh96_shear_correction
+                     << std::endl;
+      amrex::Print() << "    vh96_shear_const_b           : " << vh96_shear_const_b
+                     << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing        : " << enable_pblh_smoothing
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes        : " << pblh_smoothing_passes
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight        : " << pblh_smoothing_weight
+                     << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     }
   }
 
@@ -711,6 +801,12 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
+  // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
+  bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
+  amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b
+  bool enable_pblh_smoothing = false; // if true, apply spatial smoothing to diagnosed PBLH
+  int pblh_smoothing_passes = 1; // number of smoothing iterations
+  amrex::Real pblh_smoothing_weight = amrex::Real(0.5); // center-cell weight in smoothing stencil
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
@@ -729,6 +825,17 @@ public:
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  // QNSE (Quasi-Normal Scale Elimination) spectral stable stability functions
+  // Sukoriansky, S., B. Galperin, and V. Perov, 2005: Application of a New Spectral
+  // Theory of Stably Stratified Turbulence to the Atmospheric Boundary Layer over
+  // Sea Ice. Boundary-Layer Meteorology, 117, 231–257.
+  // https://doi.org/10.1007/s10546-004-6848-4
+  bool enable_qnse_stable_functions = false; // if true, use QNSE spectral stability functions
+                                              // instead of linear Businger-Dyer form for stable conditions
+  amrex::Real qnse_am = amrex::Real(2.5);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_bm = amrex::Real(0.2);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_ah = amrex::Real(2.5);    // QNSE heat stability function coefficient (dimensionless)
+  amrex::Real qnse_bh = amrex::Real(0.2);    // QNSE heat stability function coefficient (dimensionless)
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
@@ -831,6 +938,16 @@ public:
  * @brief Whether YSU applies turbulence to moisture variables.
  * @var TurbChoice::pbl_ysunew_highres_bounds
  * @brief Whether YSUNew applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::enable_vh96_shear_correction
+ * @brief Whether Vogelezang & Holtslag (1996) shear-correction term is enabled.
+ * @var TurbChoice::vh96_shear_const_b
+ * @brief Vogelezang & Holtslag (1996) shear-correction constant b.
+ * @var TurbChoice::enable_pblh_smoothing
+ * @brief Whether spatial smoothing of diagnosed PBLH is enabled.
+ * @var TurbChoice::pblh_smoothing_passes
+ * @brief Number of PBLH smoothing iterations to apply.
+ * @var TurbChoice::pblh_smoothing_weight
+ * @brief Center-cell weight in PBLH smoothing stencil (must be in [0,1]).
  * @var TurbChoice::pbl_mrf_coriolis_freq
  * @brief Coriolis frequency used by the MRF PBL scheme.
  * @var TurbChoice::pbl_mrf_Ribcr

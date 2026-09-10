@@ -2866,9 +2866,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | Parameter                             | Definition                                               | Acceptable Values   | Default          |
 +=======================================+==========================================================+=====================+==================+
-| **erf.surface_layer.flux_type**       | how the surface fluxes are computed                      | moeng, donelan,     | moeng            |
-|                                       |                                                          | rico, bulk_coeff,   |                  |
-|                                       |                                                          | custom              |                  |
+| **erf.surface_layer.flux_type**       | how the surface fluxes are computed                      | moeng, rico,        | moeng            |
+|                                       |                                                          | bulk_coeff, custom  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.z0**                       | constant surface roughness length [m]                    | Real > 0            | 0.1              |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
@@ -2931,16 +2930,18 @@ the ones marked **Required** abort the run if they are not given.
 |                                       |                                                          | wave_coupled,       |                  |
 |                                       |                                                          | constant            |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.smooth_flow_viscosity**    | include the viscous term in the variable roughness       | Boolean             | true             |
+|                                       | models used over sea?                                    |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.charnock_constant**        | Charnock constant *a*; a non-positive value selects the  | Real                | 0.0185           |
 |                                       | variable COARE3.0 parameter.  Read only when             |                     |                  |
 |                                       | ``roughness_type_sea`` = ``charnock``                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.charnock_viscosity**       | include the viscous term in the Charnock relation.  Read | Boolean             | false            |
-|                                       | only when ``roughness_type_sea`` = ``charnock``          |                     |                  |
-+---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real > 0            | 30.0             |
+| **erf.most.modified_charnock_depth**  | depth *d* [m] used by the modified Charnock relation.    | Real in [10, 100]   | 30.0             |
 |                                       | Read only when ``roughness_type_sea`` =                  |                     |                  |
-|                                       | ``modified_charnock``                                    |                     |                  |
+|                                       | ``modified_charnock``.  Values outside the range are     |                     |                  |
+|                                       | clamped to the bounds, which follow the fit range of     |                     |                  |
+|                                       | Jiménez & Dudhia (2018).                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.roughness_file_name**      | text file of (x, y, z0) giving a spatially varying       | String, or list of  | None             |
 |                                       | roughness length; may be given once or once per level.   | Strings             |                  |
@@ -3319,7 +3320,7 @@ bit-for-bit identical calculations.
      - Real > 0
      - 0.5
    * - **erf.shoc.c_diag_3rd_mom**
-     - Diagnostic third-moment closure coefficient
+     - Diagnostic third-moment vertical-velocity damping coefficient; the default 7.0 is the tested baseline
      - Real
      - 7.0
    * - **erf.shoc.coeff_kh**
@@ -3339,6 +3340,14 @@ bit-for-bit identical calculations.
      - true / false
      - false
 
+.. warning::
+
+   For Native SHOC, do not set ``erf.shoc.c_diag_3rd_mom`` to zero. The Native
+   third-moment closure contains factors proportional to the inverse of this
+   coefficient. The default value ``7.0`` is the tested baseline. Changes to
+   this closure coefficient should be treated as sensitivity experiments rather
+   than routine configuration.
+
 Native SHOC inputs
 ------------------
 
@@ -3354,12 +3363,12 @@ The following controls apply to ``erf.pbl_type = NATIVE_SHOC``.
      - Default
    * - **erf.shoc.transport_mode**
      - Selects how native SHOC transports thermodynamic variables, moisture/cloud state, and TKE
-     - ``state_update``, ``host_diffusion``
+     - ``state_update``
      - ``state_update``
    * - **erf.shoc.momentum_transport**
      - Selects how native SHOC applies horizontal-momentum transport
-     - ``none``, ``state_update``, ``host_diffusion``
-     - ``host_diffusion``
+     - ``none``, ``state_update``
+     - ``state_update``
    * - **erf.shoc.top_taper_depth**
      - Depth below the model top over which native SHOC smoothly tapers TKE/diffusivity and higher-order turbulence quantities [m]; zero disables the taper
      - Real >= 0
@@ -3377,11 +3386,11 @@ The following controls apply to ``erf.pbl_type = NATIVE_SHOC``.
      - true / false
      - false
 
-For moist native SHOC runs, use ``erf.shoc.transport_mode = state_update``.
-The full ``host_diffusion`` transport mode is currently supported only when
-``erf.moisture_model = None`` because native SHOC does not own cloud
-macrophysics in this mode while SHOC-family microphysics condensation is
-suppressed. It also requires ``erf.shoc.momentum_transport = host_diffusion``.
+Native SHOC uses ``state_update`` for scalar/cloud/TKE transport. Use
+``erf.shoc.momentum_transport = state_update`` for the normal/default momentum
+path, or ``none`` to disable Native SHOC horizontal-momentum transport.
+The former ``host_diffusion`` values for either selector are removed and fail
+at startup with migration guidance.
 Native ``state_update`` rejects moisture layouts containing cloud-water or
 cloud-ice number concentrations because a number closure has not yet been
 implemented.
@@ -3394,11 +3403,14 @@ Use ``state_update`` instead.
 Native SHOC debugging controls
 ------------------------------
 
-These controls also apply to ``erf.pbl_type = NATIVE_SHOC``.  They exist for
-debugging and for regression testing rather than for production runs; the
-``debug_disable_*`` switches in particular deliberately break the scheme, and
-are what the ``SHOC_Mutation_*`` tests in ``Tests/CTestList.cmake`` use to
-confirm that each state update actually changes the answer.
+The following controls are intended for diagnosis and regression testing rather
+than routine production runs.  The ``debug_disable_*`` switches deliberately
+disable pieces of the coupled state update and are used by the SHOC mutation
+tests to verify that those updates affect the solution.
+
+Only controls listed here are part of the supported Native-SHOC debugging
+interface. Some historical or development ``erf.shoc`` keys may still be
+parsed internally but do not currently alter Native SHOC.
 
 .. list-table::
    :header-rows: 1
@@ -3408,14 +3420,6 @@ confirm that each state update actually changes the answer.
      - Definition
      - Acceptable Values
      - Default
-   * - **erf.shoc.column_conservation_check**
-     - Check column-integrated conservation after each native SHOC advance
-     - true / false
-     - false
-   * - **erf.shoc.allow_tendency_microphysics_overlap**
-     - Permit native SHOC tendencies to be applied in the same step as the microphysics update
-     - true / false
-     - false
    * - **erf.shoc.debug_bad_column**
      - Detect and report columns whose tendencies or stratification exceed the thresholds below
      - true / false
@@ -3437,7 +3441,7 @@ confirm that each state update actually changes the answer.
      - Real > 0
      - 1.0e-2
    * - **erf.shoc.debug_bad_column_brunt_threshold**
-     - Brunt-Vaisala frequency above which a column is flagged; must be positive
+     - Magnitude of the squared Brunt--Väisälä frequency, :math:`|N^2|` [s\ :sup:`-2`], above which a column is flagged; must be positive
      - Real > 0
      - 1.0
    * - **erf.shoc.debug_bad_column_min_dz**
@@ -3510,7 +3514,7 @@ The native transport defaults are:
 .. code-block:: text
 
    erf.shoc.transport_mode = state_update
-   erf.shoc.momentum_transport = host_diffusion
+   erf.shoc.momentum_transport = state_update
 
 These two transport lines may be omitted when the defaults are desired.
 
