@@ -100,6 +100,8 @@ public:
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
+    using NullMoist::Update_Micro_Vars;
+
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {

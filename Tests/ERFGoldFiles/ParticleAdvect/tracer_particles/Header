@@ -1,4 +1,4 @@
-Version_Two_Dot_One_double
+Version_Two_Dot_Zero_double
 3
 5
 xvel
@@ -6,14 +6,11 @@ yvel
 zvel
 mass
 temperature
-1
-int_comp0
+0
 1
 512
 513
 0
-4
-0 0 0
-1 512 0
-2 0 0
-3 0 0
+2
+0 512 0
+1 0 0

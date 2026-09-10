@@ -28,8 +28,6 @@ erf.most.zref   = 50.0
 zhi.type = "SlipWall"
 
 # Expect these to be set in two-way coupled runs in the driver input file
-# Route imported REMORA SST through ERF's OceanSurf surface model.
-#erf.land_surface_model = OceanSurf
 #erf.is_land = 0
 
 # TIME STEP CONTROL

@@ -1,0 +1,120 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+erf.prob_name = "WPS"
+
+max_step = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+erf.check_for_nans = 2
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 3750000. 	3750000. 	16500.
+amr.n_cell           = 200   		200   		176
+#amr.blocking_factor  = 1
+
+geometry.is_periodic = 0 0 0
+
+zhi.type = "SlipWall"
+
+zlo.type = "surface_layer"
+erf.most.average_policy = 1
+erf.most.radius     = 0
+erf.most.zref       = 10.0
+erf.most.z0         = 0.1
+erf.most.surf_temp  = 300.0
+erf.most.surf_moist = 0.0
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
+erf.fixed_mri_dt_ratio = 6
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+
+# REFINEMENT / REGRIDDING
+amr.max_level      = 1       # maximum level number allowed
+amr.ref_ratio_vect = 3 3 1
+erf.regrid_int     = 1
+
+# Buffer to grow tagged region in each direction
+amr.n_error_buf_x = 2
+amr.n_error_buf_y = 2
+amr.n_error_buf_z = 180
+
+# Every box must be an integer multiple of the blocking factor
+#amr.blocking_factor_x = 8
+#amr.blocking_factor_y = 8
+#amr.blocking_factor_z = 68
+
+# Upper bound on box length in any direction
+#amr.max_grid_size_x = 64
+#amr.max_grid_size_y = 64
+
+#amr.refine_grid_layout_z = 0
+
+erf.refinement_indicators = hi_maxref
+
+erf.hi_maxref.max_level     = 1
+erf.hi_maxref.field_name    = qc
+erf.hi_maxref.value_greater = 2.0e-5
+
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = -1      # number of timesteps between checkpoints
+
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 1       # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoQ1 x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys qt qp qv qc
+
+
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type    = Upwind_3rd
+erf.dycore_vert_adv_type     = Upwind_3rd
+erf.dryscal_horiz_adv_type   = Upwind_3rd_SL
+erf.dryscal_vert_adv_type    = Upwind_3rd_SL
+erf.moistscal_horiz_adv_type = Upwind_3rd_SL
+erf.moistscal_vert_adv_type  = Upwind_3rd_SL
+
+erf.use_gravity = true
+
+erf.terrain_type = StaticFittedMesh
+
+erf.moisture_model = "Kessler"
+
+erf.molec_diff_type = "None"
+erf.pbl_type        = "MRF"
+erf.les_type        = "Smagorinsky2D"
+erf.Cs              = 0.1
+    
+erf.use_coriolis      = true
+erf.variable_coriolis = true
+erf.coriolis_3d       = true
+
+erf.rayleigh_damping_type = FastImplicit
+erf.rayleigh_damp_W   = true
+erf.rayleigh_zdamp    = 5000.0
+erf.rayleigh_dampcoef = 0.2
+
+
+# PROBLEM PARAMETERS (optional)
+prob.KE_0            = 0.4
+prob.KE_decay_height = 500.
+prob.KE_decay_order  = 3
+
+
+# INITIALIZATION WITH ATM DATA
+erf.avg_grid_faces_to_nodes  = false
+erf.terrain_smoothing    = 1
+erf.use_wrf_bdy_density  = true
+erf.bdy_moist_nudge_type = 1
+
+erf.real_width     = 1
+erf.init_type      = "WRFInput"
+erf.nc_init_file_0 = "wrfinput_chisholmview_d01"
+erf.nc_bdy_file    = "wrfbdy_chisholmview_d01_width1"

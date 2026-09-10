@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolveWithFFT.cpp
+ */
 #include "ERF.H"
 #include "ERF_SolverUtils.H"
 
@@ -6,6 +9,8 @@ using namespace amrex;
 #ifdef ERF_USE_FFT
 /**
  * Build the FFT solver(s) -- one per subdomain in each level
+ *
+ * @param lev Level index for which FFT solvers are built
  */
 void ERF::build_fft_solvers (int lev)
 {
@@ -113,6 +118,13 @@ void ERF::build_fft_solvers (int lev)
 /**
  * Solve the Poisson equation using FFT
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the solve
+ * @param isub Subdomain index selecting the FFT solver
+ * @param subdomain Box over which the FFT solve is performed
+ * @param rhs Right-hand side field for the Poisson solve
+ * @param p Solution field to fill
+ * @param fluxes Face-centered gradient fluxes to fill
  */
 void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
                           MultiFab& rhs, MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes)
@@ -178,6 +190,10 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
     // ****************************************************************************
     auto dxInv = geom[lev].InvCellSizeArray();
     const Real dx_inv = dxInv[0]; const Real dy_inv = dxInv[1];
+    auto const dom_hi = ubound(geom[lev].Domain());
+    auto const bc_type_zhi = domain_bc_type[Orientation(2,Orientation::high)];
+    const bool top_is_dirichlet = (sub_hi.z == dom_hi.z)
+        && (bc_type_zhi == "Outflow" || bc_type_zhi == "Open");
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -206,7 +222,7 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
             Real* stretched_dz_d_ptr = stretched_dz_d[lev].data();
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (k == sub_lo.z || k == sub_hi.z+1) {
+                if (k == sub_lo.z || (k == sub_hi.z+1 && !top_is_dirichlet)) {
                     fz_arr(i,j,k) = zero;
                 } else {
                     Real dz = myhalf * (stretched_dz_d_ptr[k] + stretched_dz_d_ptr[k-1]);
@@ -217,7 +233,7 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
             const Real dz_inv = dxInv[2];
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (k == sub_lo.z || k == sub_hi.z+1) {
+                if (k == sub_lo.z || (k == sub_hi.z+1 && !top_is_dirichlet)) {
                     fz_arr(i,j,k) = zero;
                 } else {
                     fz_arr(i,j,k) = -(p_arr(i,j,k) - p_arr(i,j,k-1)) * dz_inv;

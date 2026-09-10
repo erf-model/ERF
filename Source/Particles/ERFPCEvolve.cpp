@@ -273,7 +273,7 @@ void ERFPC::AdvectWithGravity (int                              a_lev,
                 const Real y0 = static_cast<Real>(p.pos(1));
                 const Real z_phys0 = static_cast<Real>(ERF::ParticlePos::z_from_zeta(
                     x0, y0, static_cast<Real>(p.pos(AMREX_SPACEDIM-1)), plo, dxi, zheight));
-                const Real z_phys_n = z_phys0 + static_cast<Real>(Real(0.5) * a_dt * vz_ptr[i]);
+                const Real z_phys_n = z_phys0 + static_cast<Real>(a_dt * vz_ptr[i]);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
                     ERF::ParticlePos::zeta_from_z(x0, y0, z_phys_n, plo, dxi, zheight, k_max));
             }
@@ -327,6 +327,7 @@ void ERFPC::ComputeTemperature (const MultiFab&                  a_ucons,
                                                   states_array(i,j,k,RhoTheta_comp));
         });
     }
+    T_mf.FillBoundary(geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())

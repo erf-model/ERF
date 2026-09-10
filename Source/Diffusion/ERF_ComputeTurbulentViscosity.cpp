@@ -96,7 +96,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // =====================================================================
-                // one STRAIN RATE MAGNITUDE CALCULATION
+                // 1. STRAIN RATE MAGNITUDE CALCULATION
                 // =====================================================================
                 Real SmnSmn;
                 if (smag2d) {
@@ -107,7 +107,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real strain_rate_magnitude = std::sqrt(two * SmnSmn);
 
                 // =====================================================================
-                // two GRID SCALE CALCULATION (filter width Δ)
+                // 2. GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
                 Real dxInv = cellSizeInv[0];
                 Real dyInv = cellSizeInv[1];
@@ -315,7 +315,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                        int indx   = n;
                        int indx_v = indx + offset;
                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,EddyDiff::Mom_v) * fac_ptr[indx-1];
                    });
                 }
                 break;
@@ -328,7 +328,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     // NOTE: Theta_h, Theta_v have already been set for Deardorff
                     if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
                         mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,EddyDiff::Mom_v) * fac_ptr[indx-1];
                     }
                 });
                 break;
@@ -534,7 +534,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                        int indx   = n;
                        int indx_v = indx + offset;
                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,EddyDiff::Mom_v) * fac_ptr[indx-1];
                    });
                 }
                 break;
@@ -547,7 +547,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     // NOTE: Theta_h, Theta_v have already been set for Deardorff
                     if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
                         mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,EddyDiff::Mom_v) * fac_ptr[indx-1];
                     }
                 });
                 break;
@@ -1025,8 +1025,6 @@ void ComputeTurbulentViscosity (double dt,
             {
                 if ((mask_arr(i,j,k) == is_notcovered && mask_arr(i,j,k_lo) != is_notcovered) ||
                     (mask_arr(i,j,k) == is_physbnd    && k < domlo.z && impose_phys_bcs)) {
-                    if (mask_arr(i,j,k) == is_physbnd) {
-                    }
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_lo,n);
                     }

@@ -29,19 +29,19 @@ void getRhoAlpha (int i, int j, int k,
     if (l_consA && l_turb) {
         rhoAlpha_lo = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                     + myhalf * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
-                            + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_scal_index]) );
+                               + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_scal_index]) );
         rhoAlpha_hi = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k+1,Rho_comp) ) * d_alpha_eff[prim_scal_index]
                     + myhalf * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_scal_index])
-                            + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_scal_index]) );
+                               + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_scal_index]) );
     }
     else if (l_turb) // with MolecDiffType::Constant or None
     {
         rhoAlpha_lo = d_alpha_eff[prim_index]
                     + myhalf * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
-                            + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_index]) );
+                               + mu_turb(i,j,k-1, d_eddy_diff_idz[prim_index]) );
         rhoAlpha_hi =  d_alpha_eff[prim_index]
                     + myhalf * ( mu_turb(i,j,k  , d_eddy_diff_idz[prim_index])
-                            + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_index]) );
+                               + mu_turb(i,j,k+1, d_eddy_diff_idz[prim_index]) );
     }
     else if (l_consA) // without an LES/PBL model
     {

@@ -9,18 +9,15 @@ pp_prob.query("axis", axis);
 pp_prob.query("theta_lo", theta_lo);
 pp_prob.query("theta_hi", theta_hi);
 
-const auto prob_lo = geomdata.ProbLo();
-const auto prob_hi = geomdata.ProbHi();
-const auto dx = geomdata.CellSize();
-const Real length = prob_hi[axis] - prob_lo[axis];
+const Real problo_axis = geomdata.ProbLo(axis);
+const Real dx_axis     = geomdata.CellSize(axis);
+const Real length      = geomdata.ProbHi(axis) - geomdata.ProbLo(axis);
 
 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
 {
     const int index = (axis == 0) ? i : ((axis == 1) ? j : k);
-    const Real coordinate = prob_lo[axis] + (index + Real(0.5)) * dx[axis];
-    const Real theta = theta_lo + (theta_hi - theta_lo) *
-                       (coordinate - prob_lo[axis]) / length;
+    const Real coordinate = problo_axis + (static_cast<Real>(index) + Real(0.5)) * dx_axis;
+    const Real theta = theta_lo + (theta_hi - theta_lo) * (coordinate - problo_axis) / length;
     const Real rho = state(i,j,k,Rho_comp);
-    state_pert(i,j,k,RhoTheta_comp) = rho * theta -
-                                       state(i,j,k,RhoTheta_comp);
+    state_pert(i,j,k,RhoTheta_comp) = rho * theta - state(i,j,k,RhoTheta_comp);
 });

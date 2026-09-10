@@ -29,6 +29,14 @@ calc_wstar (const amrex::Real& ust,
     return std::cbrt(CONST_GRAV / thv * pblh * hfx);
 }
 
+/**
+ * Calculate the convective velocity scale from buoyancy flux.
+ *
+ * @param[in] hfx Buoyancy flux.
+ * @param[in] pblh PBL height.
+ * @param[in] thv Virtual potential temperature.
+ * @return Convective velocity scale.
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

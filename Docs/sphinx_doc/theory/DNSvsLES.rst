@@ -99,7 +99,7 @@ Smagorinsky Model
 .. math::
    \mu_{t} = (C_s \Delta)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \overline{\rho}
 
-:math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative mesh spacing.
+:math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative grid spacing.
 
 .. math::
    \tau_{ij} = -2\mu_{t} \tilde{\sigma}_{ij} = -K \tilde{\sigma}_{ij}

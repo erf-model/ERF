@@ -1,6 +1,7 @@
 #include <AMReX_Array.H>
 #include <AMReX_BoxArray.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_Reduce.H>
 
 #include <cmath>
 
@@ -13,6 +14,46 @@ using amrex::GpuArray;
 using amrex::Real;
 
 namespace {
+
+Real
+single_value (const amrex::MultiFab& mf, const amrex::Box& box, int comp = 0)
+{
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<Real> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const amrex::Box overlap = box & mfi.validbox();
+        if (overlap.isEmpty()) { continue; }
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<Real> {
+                return { array(i,j,k,comp) };
+            });
+    }
+    return amrex::get<0>(reduce_data.value());
+}
+
+int
+sentinel_mismatches (const amrex::MultiFab& flux_mf, const amrex::Box& domain,
+                     int dir, Real sentinel)
+{
+    const int lo = domain.smallEnd(dir);
+    const int hi = domain.bigEnd(dir) + 1;
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(flux_mf); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        const auto flux = flux_mf.const_array(mfi);
+        reduce_op.eval(box, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<int> {
+                const int coordinate = (dir == 0) ? i : ((dir == 1) ? j : k);
+                const bool physical_face = coordinate == lo || coordinate == hi;
+                const bool mismatch = physical_face ? (flux(i,j,k,0) == sentinel)
+                                                    : (flux(i,j,k,0) != sentinel);
+                return { mismatch ? 1 : 0 };
+            });
+    }
+    return amrex::get<0>(reduce_data.value());
+}
 
 // Motivation: the chamber must use a decomposition-independent analytic
 // initializer; these tests catch coordinate normalization and endpoint
@@ -87,6 +128,90 @@ TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
     EXPECT_GT(qv, Real(0.0));
 }
 
+TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        false,
+        true,
+        false,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: prob.initial_relative_humidity is only used with erf.moisture_model = SatAdj");
+}
+
+TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        true,
+        false,
+        false,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: physical SatAdj initialization requires prob.initial_relative_humidity");
+}
+
+TEST(CloudChamberConfig, RejectsLegacyKeysInPhysicalMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        false,
+        false,
+        true,
+        false};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: physical_temperature_rh cannot be combined with legacy theta/qv profile keys");
+}
+
+TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::LegacyThetaQv,
+        false,
+        false,
+        false,
+        true};
+
+    const auto error = erf_cloud_chamber::initialization_contract_error(contract);
+
+    EXPECT_EQ(error,
+              "Cloud Chamber: legacy_theta_qv cannot be combined with physical temperature/RH profile keys");
+}
+
+TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
+        true,
+        true,
+        false,
+        false};
+
+    EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
+}
+
+TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
+{
+    const erf_cloud_chamber::InitializationContract contract {
+        erf_cloud_chamber::InitializationMode::LegacyThetaQv,
+        false,
+        false,
+        false,
+        false};
+
+    EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
+}
+
 // Motivation: the physical wall override must replace the ordinary boundary
 // flux with the signed half-cell molecular flux; dry faces must contribute
 // exactly zero rather than imposing qv=0 as a Dirichlet state.
@@ -135,22 +260,29 @@ TEST(CloudChamberWallFlux, WetLowFaceAndDryHighFaceHaveExactSigns)
 
     const amrex::GpuArray<Real, AMREX_SPACEDIM> dx_inv =
         {Real(1.0), Real(1.0), Real(1.0)};
-    amrex::MFIter mfi(state);
-    ASSERT_TRUE(mfi.isValid());
-    erf_resolved_wall_flux::apply(
-        domain, domain, RhoQ1_comp, 0, state.const_array(mfi), prim.const_array(mfi),
-        base.const_array(mfi), rhs.array(mfi), xflux.array(mfi), yflux.array(mfi),
-        zflux.array(mfi), dx_inv, config.wall_boundary(), Real(0.0), Real(0.1), R_d/Cp_d);
+    {
+        amrex::MFIter mfi(state);
+        ASSERT_TRUE(mfi.isValid());
+        erf_resolved_wall_flux::apply(
+            domain, domain, RhoQ1_comp, 0, state.const_array(mfi), prim.const_array(mfi),
+            base.const_array(mfi), rhs.array(mfi), xflux.array(mfi), yflux.array(mfi),
+            zflux.array(mfi), dx_inv, config.wall_boundary(), Real(0.0), Real(0.1), R_d/Cp_d);
+    }
     amrex::Gpu::streamSynchronize();
 
     Real qsat = Real(0.0);
     erf_qsatw(Real(300.0), Real(1000.0), qsat);
     const Real expected_flux = Real(0.1) * (qsat - Real(0.01)) * Real(2.0);
-    const auto x = xflux.const_array(mfi);
-    const auto result = rhs.const_array(mfi);
-    EXPECT_NEAR(x(0,0,0,0), expected_flux, Real(1.0e-14));
-    EXPECT_DOUBLE_EQ(x(1,0,0,0), Real(0.0));
-    EXPECT_NEAR(result(0,0,0,RhoQ1_comp), expected_flux, Real(1.0e-14));
+    const amrex::Box xflux_box = xflux.boxArray()[0];
+    amrex::Box low_face = xflux_box;
+    low_face.setSmall(amrex::IntVect(0, 0, 0));
+    low_face.setBig(amrex::IntVect(0, 0, 0));
+    amrex::Box high_face = xflux_box;
+    high_face.setSmall(amrex::IntVect(1, 0, 0));
+    high_face.setBig(amrex::IntVect(1, 0, 0));
+    EXPECT_NEAR(single_value(xflux, low_face), expected_flux, Real(1.0e-14));
+    EXPECT_DOUBLE_EQ(single_value(xflux, high_face), Real(0.0));
+    EXPECT_NEAR(single_value(rhs, domain, RhoQ1_comp), expected_flux, Real(1.0e-14));
 }
 
 // Motivation: resolved wall kernels receive one local tile at a time; an
@@ -212,31 +344,9 @@ TEST(CloudChamberWallFlux, MultiBoxOwnershipAcrossAllFaces)
     }
     amrex::Gpu::streamSynchronize();
 
-    const auto check_faces = [&](const MultiFab& flux_mf, const int dir) {
-        for (MFIter mfi(flux_mf); mfi.isValid(); ++mfi) {
-            const Box box = mfi.validbox();
-            const auto flux = flux_mf.const_array(mfi);
-            for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-                for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-                    for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                        const int coordinate = (dir == 0) ? i : ((dir == 1) ? j : k);
-                        const bool physical_face =
-                            coordinate == domain.smallEnd(dir) ||
-                            coordinate == domain.bigEnd(dir) + 1;
-                        if (physical_face) {
-                            EXPECT_NE(flux(i,j,k,0), sentinel);
-                        } else {
-                            EXPECT_DOUBLE_EQ(flux(i,j,k,0), sentinel);
-                        }
-                    }
-                }
-            }
-        }
-    };
-
-    check_faces(xflux, 0);
-    check_faces(yflux, 1);
-    check_faces(zflux, 2);
+    EXPECT_EQ(sentinel_mismatches(xflux, domain, 0, sentinel), 0);
+    EXPECT_EQ(sentinel_mismatches(yflux, domain, 1, sentinel), 0);
+    EXPECT_EQ(sentinel_mismatches(zflux, domain, 2, sentinel), 0);
 }
 
 } // namespace

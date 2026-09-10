@@ -4,6 +4,18 @@
 #include <ERF_EOS.H>
 #include <ERF_Constants.H>
 
+/**
+ * Compute dry anelastic buoyancy.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] cell_data State data FAB
+ * @return Dry anelastic buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -24,6 +36,19 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
     return (-rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface);
 }
 
+/**
+ * Compute dry anelastic buoyancy with embedded boundary handling.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] cell_data State data FAB
+ * @param[in] flag EB cell flags
+ * @return Dry anelastic buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -69,6 +94,20 @@ buoyancy_dry_anelastic_eb (int& i, int& j, int& k,
     return buoyancy;
 }
 
+/**
+ * Compute moist anelastic buoyancy.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] qv0_arr Reference water vapor mixing ratio field
+ * @param[in] cell_data State data FAB
+ * @param[in] qt_arr Total water mixing ratio field
+ * @return Moist anelastic buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -110,6 +149,19 @@ buoyancy_moist_anelastic (int& i, int& j, int& k,
     return (-r0avg * grav_gpu * qavg);
 }
 
+/**
+ * Compute buoyancy based on density perturbations.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] qv0_arr Reference water vapor mixing ratio field
+ * @param[in] cell_data State data FAB
+ * @param[in] qt_arr Total water mixing ratio field
+ * @return Buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -127,6 +179,20 @@ buoyancy_rhopert (int& i, int& j, int& k,
     return( grav_gpu * myhalf * ( rhop_hi + rhop_lo ) );
 }
 
+/**
+ * Compute buoyancy based on density perturbations with embedded boundary handling.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] qv0_arr Reference water vapor mixing ratio field
+ * @param[in] cell_data State data FAB
+ * @param[in] qt_arr Total water mixing ratio field
+ * @param[in] flag EB cell flags
+ * @return Buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -171,6 +237,20 @@ buoyancy_rhopert_eb (int& i, int& j, int& k,
     return buoyancy;
 }
 
+/**
+ * Compute dry buoyancy based on temperature perturbations.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] lRdoCp Gas constant ratio (unused)
+ * @param[in] r0_arr Reference density field
+ * @param[in] p0_arr Reference pressure field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] cell_data State data FAB
+ * @return Dry buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -197,6 +277,18 @@ buoyancy_dry_Tpert (int& i, int& j, int& k,
     return ( -r0_avg * grav_gpu * tp_avg);
 }
 
+/**
+ * Compute dry buoyancy based on potential temperature perturbations.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] cell_prim Primitive variable FAB
+ * @return Dry buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -215,6 +307,24 @@ buoyancy_dry_Thpert (int& i, int& j, int& k,
     return ( -r0_avg * grav_gpu * thp_avg);
 }
 
+/**
+ * Compute moist buoyancy based on temperature perturbations.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] n_qstate Number of moisture species
+ * @param[in] grav_gpu Gravity
+ * @param[in] lRdoCp Gas constant ratio (unused)
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] qv0_arr Reference water vapor mixing ratio field
+ * @param[in] p0_arr Reference pressure field
+ * @param[in] cell_prim Primitive variable FAB
+ * @param[in] cell_data State data FAB
+ * @param[in] qt_arr Total water mixing ratio field
+ * @return Moist buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -252,6 +362,21 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
     return ( -r0avg * grav_gpu * qavg);
 }
 
+/**
+ * Compute moist buoyancy based on potential temperature perturbations.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] n_qstate Number of moisture species
+ * @param[in] grav_gpu Gravity
+ * @param[in] r0_arr Reference density field
+ * @param[in] th0_arr Reference potential temperature field
+ * @param[in] qv0_arr Reference water vapor mixing ratio field
+ * @param[in] cell_prim Primitive variable FAB
+ * @param[in] qt_arr Total water mixing ratio field
+ * @return Moist buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -290,6 +415,19 @@ buoyancy_moist_Thpert (int& i, int& j, int& k,
 // Routines below this line are not currently used
 // **************************************************************************************
 
+/**
+ * Compute dry anelastic buoyancy using temperature.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] grav_gpu Gravity
+ * @param[in] RdoCp Gas constant ratio (unused)
+ * @param[in] r0_arr Reference density field
+ * @param[in] p0_arr Reference pressure field
+ * @param[in] cell_data State data FAB
+ * @return Dry anelastic buoyancy value
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

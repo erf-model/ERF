@@ -1,3 +1,6 @@
+/**
+ * \file ERF_NCColumnFile.cpp
+ */
 #include "ERF.H"
 #include "ERF_NCInterface.H"
 #include "ERF_IndexDefines.H"
@@ -59,7 +62,7 @@ ERF::createNCColumnFile (int lev,
  * @param colfile_name Name of the NetCDF file containing column data
  * @param xloc Location of the column in the x-dimension
  * @param yloc Location of the column in the y-dimension
- * @param cumtime Current time
+ * @param time Current time
  */
 void
 ERF::writeToNCColumnFile (const int lev,

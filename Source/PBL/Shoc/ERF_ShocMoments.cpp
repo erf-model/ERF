@@ -12,7 +12,6 @@ namespace
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_min_tke () noexcept { return 4.0e-4_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_large_neg () noexcept { return -99999999.99_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_w3clip () noexcept { return 1.2_rt; }
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_w3clipdef () noexcept { return 0.02_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_base_temp () noexcept { return 300.0_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_ufmin () noexcept { return 0.01_rt; }
 #ifdef AMREX_USE_FLOAT
@@ -144,6 +143,7 @@ namespace
         const auto lflux = col.surf_lat_flux.const_array();
         const auto tauu = col.surf_tau_u.const_array();
         const auto tauv = col.surf_tau_v.const_array();
+        const auto pblh = col.pblh.const_array();
 
         const auto layout = col.layout;
         const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
@@ -154,8 +154,9 @@ namespace
             const Real uw_sfc = tauu(ic,0,0);
             const Real vw_sfc = tauv(ic,0,0);
             const Real ustar2 = std::sqrt(uw_sfc * uw_sfc + vw_sfc * vw_sfc);
-            const Real wstar = (wthl_sfc >= 0.0_rt)
-                ? std::cbrt((CONST_GRAV / shoc_base_temp()) * wthl_sfc)
+            const Real convective_depth = amrex::max(0.0_rt, pblh(ic,0,0));
+            const Real wstar = (wthl_sfc > 0.0_rt)
+                ? std::cbrt((CONST_GRAV / shoc_base_temp()) * wthl_sfc * convective_depth)
                 : 0.0_rt;
             const Real uf = amrex::max(shoc_ufmin(),
                                        std::sqrt(ustar2 + 0.3_rt * wstar * wstar));
@@ -367,8 +368,15 @@ ShocMoments::clip_third_moments (const ShocColumnData& col,
         for (int k = 0; k <= layout.nlev; ++k) {
             const Real wsec3 = wsec(ic,k,0) * wsec(ic,k,0) * wsec(ic,k,0);
             const Real clip_cond = shoc_w3clip() * std::sqrt(amrex::max(0.0_rt, 2.0_rt * wsec3));
+            // E3SM/EAMxx replaces an out-of-range w3 with a fixed positive
+            // constant (0.02). That discards the sign of the third moment,
+            // so a strongly negatively skewed column is handed back a
+            // positively skewed w3, and it can also move |w3| further away
+            // from the bound it is supposed to enforce when clip_cond is
+            // small. Limit the magnitude to clip_cond instead and keep the
+            // sign, which is continuous in w3 and respects the bound.
             if (amrex::Math::abs(w3(ic,k,0)) > clip_cond) {
-                w3(ic,k,0) = shoc_w3clipdef();
+                w3(ic,k,0) = std::copysign(clip_cond, w3(ic,k,0));
             }
         }
     });

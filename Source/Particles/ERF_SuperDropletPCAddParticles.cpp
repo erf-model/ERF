@@ -94,6 +94,58 @@ void SuperDropletPC::setNumSDBoxDistribution (int a_lev,
     return;
 }
 
+/*! Scatters a box-level count of super-droplets over the injection box for
+ *  per-box high-multiplicity injection. The positions are drawn on the host with
+ *  a deterministic seed (identical on every rank) so the global scatter is
+ *  independent of the rank count, then binned to their cells. The z-binning is
+ *  index-based, i.e. per-box injection assumes a non-terrain (uniform-dz) mesh. */
+void SuperDropletPC::setNumSDPerBox (int a_lev,
+                                     iMultiFab& a_num_sd,
+                                     const int a_n_total,
+                                     const RealBox& a_box,
+                                     const unsigned int a_seed)
+{
+    BL_PROFILE("SuperDropletPC::setNumSDPerBox()");
+    a_num_sd.setVal(0);
+    if (a_n_total <= 0) { return; }
+
+    const auto dxi = Geom(a_lev).InvCellSizeArray();
+    const auto plo = Geom(a_lev).ProbLoArray();
+
+    Gpu::DeviceVector<IntVect> cells_d(a_n_total);
+    {
+        Vector<IntVect> cells_h(a_n_total);
+        std::mt19937 gen(a_seed);
+        std::uniform_real_distribution<Real> u(Real(0.0), Real(1.0));
+        for (int n = 0; n < a_n_total; ++n) {
+            const Real x = a_box.lo(0) + u(gen)*(a_box.hi(0) - a_box.lo(0));
+            const Real y = a_box.lo(1) + u(gen)*(a_box.hi(1) - a_box.lo(1));
+            const Real z = a_box.lo(2) + u(gen)*(a_box.hi(2) - a_box.lo(2));
+            cells_h[n] = IntVect(AMREX_D_DECL(
+                static_cast<int>(std::floor((x-plo[0])*dxi[0])),
+                static_cast<int>(std::floor((y-plo[1])*dxi[1])),
+                static_cast<int>(std::floor((z-plo[2])*dxi[2])) ));
+        }
+        Gpu::copy(Gpu::hostToDevice, cells_h.begin(), cells_h.end(), cells_d.begin());
+    }
+    const IntVect* cells_ptr = cells_d.data();
+    const int n_total = a_n_total;
+
+    for (MFIter mfi = MakeMFIter(a_lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box = mfi.tilebox();
+        auto num_superdroplets_arr = a_num_sd[mfi].array();
+        ParallelFor(n_total, [=] AMREX_GPU_DEVICE (int n) noexcept
+        {
+            const IntVect iv = cells_ptr[n];
+            if (tile_box.contains(iv)) {
+                Gpu::Atomic::AddNoRet(&num_superdroplets_arr(iv[0],iv[1],iv[2]), 1);
+            }
+        });
+    }
+
+    return;
+}
+
 /*! Sets the initial number of the super-droplets per cell as a bubble with a uniform distribution */
 void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
                                                   iMultiFab& a_num_sd, /*!< integer Multifab with number of superdroplets in each grid cell */
@@ -204,17 +256,30 @@ void SuperDropletPC::addParticles ( int a_lev,
     const bool subgrid = (init_volume < cell_volume);
     const auto itype = a_init.m_type;
 
-    // number of super-droplets per cell
-    int num_sd_per_cell = a_init.numSDPerCell(cell_volume);
-
-    // number of physical particles per cell
-    Real num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
-
-    Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
-            << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
-
-    if (num_par_per_cell == 0) { return; }
-    if (num_sd_per_cell == 0) { return; }
+    // Per-box high-multiplicity injection scatters a box-level count of
+    // super-droplets at a fixed multiplicity; the legacy path injects a fixed
+    // count per cell.
+    const bool perbox = a_init.perBoxInjection();
+    int num_sd_per_cell;
+    Real num_par_per_cell;
+    Real inject_mult = one;
+    int inject_count = 0;
+    if (perbox) {
+        inject_count = a_init.injectBoxCount();
+        inject_mult  = a_init.injectMultiplicity();
+        if (inject_count == 0) { return; }
+        num_sd_per_cell  = 1;            // unused in per-box mode
+        num_par_per_cell = inject_mult;  // unused in per-box mode
+        Print() << "    Per-box injection: " << inject_count
+                << " super-droplets at multiplicity " << inject_mult << "\n";
+    } else {
+        num_sd_per_cell  = a_init.numSDPerCell(cell_volume);
+        num_par_per_cell = a_init.numParticlesPerCell(cell_volume);
+        Print() << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
+                << "    Number of super droplets per cell: " << num_sd_per_cell << "\n";
+        if (num_par_per_cell == 0) { return; }
+        if (num_sd_per_cell == 0) { return; }
+    }
 
     const int num_sp  = m_num_species;
     const int num_ae = m_num_aerosols;
@@ -229,13 +294,23 @@ void SuperDropletPC::addParticles ( int a_lev,
                                  1, 0 );
 
     if (a_init.m_type == SDInitShape::uniform) {
-        Print() << "    Adding particles in box with volume " << a_init.volume() << ".\n";
-        setNumSDBoxDistribution( a_lev, num_superdroplets,
-                                 num_sd_per_cell,
-                                 a_height_ptr,
-                                 a_init.m_particle_domain,
-                                 subgrid );
+        if (perbox) {
+            Print() << "    Scattering super-droplets in box with volume " << a_init.volume() << ".\n";
+            setNumSDPerBox( a_lev, num_superdroplets,
+                            inject_count,
+                            a_init.m_particle_domain,
+                            a_init.injectSeed() );
+        } else {
+            Print() << "    Adding particles in box with volume " << a_init.volume() << ".\n";
+            setNumSDBoxDistribution( a_lev, num_superdroplets,
+                                     num_sd_per_cell,
+                                     a_height_ptr,
+                                     a_init.m_particle_domain,
+                                     subgrid );
+        }
     } else if (a_init.m_type == SDInitShape::bubble) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE( !perbox,
+            "Per-box injection is not supported for bubble shape; set particles_per_cell." );
         Print() << "    Adding particles in bubble with volume: " << a_init.volume() << ".\n";
         setNumSDBubbleDistribution( a_lev, num_superdroplets,
                                     num_sd_per_cell,
@@ -372,6 +447,8 @@ void SuperDropletPC::addParticles ( int a_lev,
         const int* sp_sol_arr = m_sp_solubility.data();
         const ParticleReal* ae_rho_arr = m_ae_density.data();
         const int* ae_sol_arr = m_ae_solubility.data();
+        const int* sp_INP_arr = m_sp_is_INP.data();
+        const int* ae_INP_arr = m_ae_is_INP.data();
 
         auto mult_arr = multiplicity_d.data();
 
@@ -449,19 +526,24 @@ void SuperDropletPC::addParticles ( int a_lev,
                 active_ptr[n] = 1;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
-                Real mult_this_sd = 0;
-                if (sampled_multiplicity) {
-                    mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
+                if (perbox) {
+                    // Each scattered super-droplet carries the fixed per-box multiplicity.
+                    mult_ptr[n] = inject_mult;
                 } else {
-                    mult_this_sd = n_par_per_supdrop;
+                    Real mult_this_sd = 0;
+                    if (sampled_multiplicity) {
+                        mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
+                    } else {
+                        mult_this_sd = n_par_per_supdrop;
+                    }
+                    if (mult_this_sd < num_to_add) {
+                        mult_ptr[n] = mult_this_sd;
+                    } else {
+                        mult_ptr[n] = num_to_add;
+                    }
+                    num_to_add -= static_cast<Real>(mult_ptr[n]);
+                    if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
                 }
-                if (mult_this_sd < num_to_add) {
-                    mult_ptr[n] = mult_this_sd;
-                } else {
-                    mult_ptr[n] = num_to_add;
-                }
-                num_to_add -= static_cast<Real>(mult_ptr[n]);
-                if (mult_ptr[n] == 0) { mult_ptr[n] = 1; }
 
                 // Species and aerosol masses already sampled directly into particle SoA
 
@@ -481,39 +563,59 @@ void SuperDropletPC::addParticles ( int a_lev,
             }
         });
 
-        const auto height_arr = (*a_height_ptr)[mfi].array();
-        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            int num_sd_this_cell = num_superdroplets_arr(i,j,k);
-            int start = offset_arr(i,j,k);
-            for (int n = start; n < start+num_sd_this_cell; n++) {
-                auto& p = aos[n+size_old];
-                Real x = static_cast<Real>(p.pos(0));
-                Real y = static_cast<Real>(p.pos(1));
-                Real z = static_cast<Real>(p.pos(2));
-                Real r[3] = { (x-plo[0])/dx[0] - i,
-                              (y-plo[1])/dx[1] - j,
-                              (z-plo[2])/dx[2] - k };
-
-                Real sx[] = { one - r[0], r[0]};
-                Real sy[] = { one - r[1], r[1]};
-
-                Real height_at_pxy_lo = zero;
-                Real height_at_pxy_hi = zero;
-                for (int ii = 0; ii < 2; ++ii) {
-                    for (int jj = 0; jj < 2; ++jj) {
-                        height_at_pxy_lo += sx[ii] * sy[jj]
-                                            * height_arr(i+ii,j+jj,k);
-                        height_at_pxy_hi += sx[ii] * sy[jj]
-                                            * height_arr(i+ii,j+jj,k+1);
-                    }
-                }
-
-                p.pos(2) = height_at_pxy_lo
-                           + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
-           }
-        });
         Gpu::synchronize();
+
+        /* Initialize ice attributes
+         *
+         * Freezing temperature (Tfz) is assigned using the INAS (Ice Nucleation
+         * Active Site) density parameterization of Niemand et al. (2012).
+         *
+         * The following code is adapted from SCALE-SDM:
+         * https://github.com/Shima-Lab/SCALE-SDM_mixed-phase_Shima2019
+         * Copyright (c) 2012-2015, Team SCALE
+         * All rights reserved.
+         * BSD 2-Clause License
+         */
+        if (m_idx_i >= 0) {
+            auto* Tfz_ptr = soa.GetRealData(idx_ice_Tfz(num_ae,num_sp)).data() + size_old;
+            auto* a_ptr = soa.GetRealData(idx_ice_a(num_ae,num_sp)).data() + size_old;
+            auto* c_ptr = soa.GetRealData(idx_ice_c(num_ae,num_sp)).data() + size_old;
+            auto* mrime_ptr = soa.GetRealData(idx_ice_mrime(num_ae,num_sp)).data() + size_old;
+            auto* nmono_ptr = soa.GetRealData(idx_ice_nmono(num_ae,num_sp)).data() + size_old;
+            const auto idx_i = m_idx_i;
+            // Apparent density of the seeded ice particle: a prescribed bulk
+            // density (e.g. a low-density snowflake) when set, else solid ice.
+            const Real rho_i = (a_init.m_ice_app_density > Real(0.0)
+                                ? a_init.m_ice_app_density
+                                : m_species_mat[m_idx_i]->m_density);
+
+            // INAS parameterization for sampling freezing temperature
+            INAS_Niemand2012 inas_params;
+
+            ParallelForRNG(np, [=] AMREX_GPU_DEVICE(int i, const RandomEngine& rnd_engine)
+            {
+                // Compute INP surface area for this particle
+                auto A_INP = SD_INP_surface_area(i, num_sp, num_ae,
+                                                  sp_INP_arr, ae_INP_arr,
+                                                  sp_mass_ptrs, ae_mass_ptrs,
+                                                  sp_rho_arr, ae_rho_arr);
+
+                // Sample freezing temperature using INAS parameterization
+                // Skip random values to decorrelate from earlier ParallelForRNG calls
+                // (mass sampling also uses GPU random engines in separate kernels)
+                (void)Random(rnd_engine);  // skip first value to decorrelate
+                (void)Random(rnd_engine);  // skip second value
+                auto u = Random(rnd_engine);  // use third value for Tfz sampling
+                Tfz_ptr[i] = inas_params.sample_Tfz(u, A_INP);
+
+                // Initialize ice shape attributes
+                auto mass = sp_mass_ptrs[idx_i][i];
+                a_ptr[i] = c_ptr[i] = std::cbrt(mass/(four_thirds_pi*rho_i));
+                mrime_ptr[i] = 0.0;
+                nmono_ptr[i] = (mass > 0 ? 1.0 : 0.0);
+            });
+            Gpu::synchronize();
+        }
     }
 
     return;

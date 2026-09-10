@@ -119,7 +119,7 @@ with
 .. math::
     \sigma_e = \frac{\overline{u}_0}{3KL}\left[\left(\frac{2KL}{\overline{u}_0} + \sigma_0^2\right)^{\frac{3}{2}} - \sigma_0^3\right]
 
-where :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`c_t` is the thrust coefficient, :math:`r_0` is the rotor radius, :math:`\overline{u}_0` is the mean advection velocity at hub height, :math:`h` is the hub height, :math:`\sigma_0 \approx 1.7 r_0` [`Volker et al. 2017`_] is a length scale that accounts for near-wake expansion, :math:`L` is the downstream distance that the wake travels within the cell approximated as a fraction of the cell size, :math:`K` is the turbulence eddy diffusivity (:math:`m^2/s`), :math:`\Delta x` and :math:`\Delta y` are the mesh sizes in the horizontal directions, and :math:`\phi(k)` is the wind direction with respect to the x-axis. :math:`\overline{u}_{i,h}` and :math:`\overline{u'}_{i,h}` are the mean and the fluctuating values of the velocity components (subscript :math:`i` is the direction index) at the hub height :math:`h`, :math:`A_r = \pi r^2` is the swept area of the rotor and :math:`\rho` is the density of air.
+where :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`c_t` is the thrust coefficient, :math:`r_0` is the rotor radius, :math:`\overline{u}_0` is the mean advection velocity at hub height, :math:`h` is the hub height, :math:`\sigma_0 \approx 1.7 r_0` [`Volker et al. 2017`_] is a length scale that accounts for near-wake expansion, :math:`L` is the downstream distance that the wake travels within the cell approximated as a fraction of the cell size, :math:`K` is the turbulence eddy diffusivity (:math:`m^2/s`), :math:`\Delta x` and :math:`\Delta y` are the cell sizes in the horizontal directions, and :math:`\phi(k)` is the wind direction with respect to the x-axis. :math:`\overline{u}_{i,h}` and :math:`\overline{u'}_{i,h}` are the mean and the fluctuating values of the velocity components (subscript :math:`i` is the direction index) at the hub height :math:`h`, :math:`A_r = \pi r^2` is the swept area of the rotor and :math:`\rho` is the density of air.
 
 The EWP model does not have a concept of intersected area by the turbine rotor like the Fitch model (see :ref:`Fitch model`). The exponential factor in the source terms for the velocities models the effect of the rotor for the momentum sinks (see Fig. :numref:`fig:WindTurbine_EWP`), and the turbulent kinetic energy source term only depends on the density, hub-height mean velocities and fluctuations, and the total swept area of the rotor :math:`A_r`.
 
@@ -173,6 +173,20 @@ where :math:`dA` is the area of the actuator disk in the mesh cell (see Fig. :nu
 
     \frac{\partial v}{\partial t} = -2(\mathbf{U}_\infty \cdot \mathbf{n})^2 a (1 - a)\frac{\Delta A}{\Delta x\Delta y\Delta z} \sin{\phi}.
 
+The cells that the actuator disk passes through are marked as the staircase of cells cut by the
+plane of the disk, so that the disk crosses each marked cell once. The area :math:`\Delta A`
+assigned to a marked cell is therefore :math:`\Delta z` times the mean chord of a line with
+in-plane normal :math:`\mathbf{n} = (n_x, n_y)` across a :math:`\Delta x` by :math:`\Delta y`
+cell,
+
+.. math::
+
+    \Delta A = \frac{\Delta x \Delta y \Delta z}{|n_x| \Delta x + |n_y| \Delta y}.
+
+This reduces to :math:`\Delta y \Delta z` for a disk facing the `x` direction and to
+:math:`\Delta x \Delta z` for a disk facing the `y` direction, and summing it over the marked
+cells recovers the swept area :math:`\pi R^2` of the disk at any angle in between.
+
 .. _fig:ActuatorDisk_Schematic:
 
 .. figure:: ../figures/ActuatorDisk_Schematic.png
@@ -208,7 +222,7 @@ The generalized actuator model (GAD) based on blade element theory (`Mirocha et.
    \frac{\partial v}{\partial t} &= -\frac{F_y}{\rho \Delta x\Delta y\Delta z} \\
    \frac{\partial w}{\partial t} &= -\frac{F_z}{\rho \Delta x\Delta y\Delta z},
 
-where :math:`\rho` is the density of air in the cell, and :math:`\Delta x, \Delta y, \Delta z` are the mesh spacing in the x, y, and z directions. The forces on the GAD are given by:
+where :math:`\rho` is the density of air in the cell, and :math:`\Delta x, \Delta y, \Delta z` are the grid spacing in the x, y, and z directions. The forces on the GAD are given by:
 
 .. math::
    :label: GAD_forces

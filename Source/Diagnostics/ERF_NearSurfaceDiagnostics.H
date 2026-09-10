@@ -128,7 +128,7 @@ bool evaluate_most_factor (const MostState& state,
         state.obukhov_length == amrex::Real(0.0)) {
         return false;
     }
-    const similarity_funs sfuns;
+    const similarity_funs sfuns{};
     factor = std::log(height / state.roughness_height) -
              sfuns.calc_psi_h(height / state.obukhov_length);
     return valid_real(factor);

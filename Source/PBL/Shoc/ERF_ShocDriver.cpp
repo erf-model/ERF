@@ -307,17 +307,14 @@ namespace
 
 ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
     : m_lev(lev),
-      m_moisture_type(solver_choice.moisture_type),
       m_moisture_indices(solver_choice.moisture_indices)
 {
+    m_opts.transport_mode     = solver_choice.shoc_transport_mode;
+    m_opts.momentum_transport = solver_choice.shoc_momentum_transport;
+
     read_shoc_runtime_options(m_opts);
     validate_shoc_runtime_options(m_opts);
     warn_if_shoc_debug_overrides_active_once(m_opts);
-
-    std::string error_message;
-    if (!shoc_driver_host_diffusion_moisture_supported(m_opts, m_moisture_type, error_message)) {
-        amrex::Abort(error_message.c_str());
-    }
 }
 
 void
@@ -326,7 +323,23 @@ ShocDriver::ensure_storage (const MultiFab& cons,
                             const MultiFab& yvel,
                             const MultiFab& eddy_diffs)
 {
-    if (!m_theta_tend_cc.isDefined()) {
+    const bool storage_changed =
+        !m_theta_tend_cc.isDefined() ||
+        !m_u_tend_fc.isDefined() ||
+        !m_v_tend_fc.isDefined() ||
+        !m_eddy_coeffs_cc.isDefined() ||
+        m_theta_tend_cc.boxArray() != cons.boxArray() ||
+        m_theta_tend_cc.DistributionMap() != cons.DistributionMap() ||
+        m_u_tend_fc.boxArray() != xvel.boxArray() ||
+        m_u_tend_fc.DistributionMap() != xvel.DistributionMap() ||
+        m_v_tend_fc.boxArray() != yvel.boxArray() ||
+        m_v_tend_fc.DistributionMap() != yvel.DistributionMap() ||
+        m_eddy_coeffs_cc.boxArray() != eddy_diffs.boxArray() ||
+        m_eddy_coeffs_cc.DistributionMap() != eddy_diffs.DistributionMap();
+
+    if (storage_changed) {
+        m_column_workspaces.clear();
+        m_prev_turb_valid = false;
         m_theta_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qv_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
         m_qc_tend_cc.define(cons.boxArray(), cons.DistributionMap(), 1, 0);
@@ -501,7 +514,7 @@ ShocDriver::advance (MultiFab& cons,
     }
 
     std::string error_message;
-    if (!shoc_driver_state_update_layout_supported(m_opts, m_moisture_indices, cons.nComp(),
+    if (!shoc_driver_state_update_layout_supported(m_moisture_indices, cons.nComp(),
                                                     error_message)) {
         amrex::Abort(error_message.c_str());
     }
@@ -549,22 +562,16 @@ ShocDriver::advance (MultiFab& cons,
             seed_carried_turbulence(col, mfi, cons, *eddy_diffs);
         }
         const auto dx = geom.CellSizeArray();
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::cache_baseline_state");
-            ShocImplicit::cache_baseline_state(col);
-        }
+        BL_PROFILE("SHOC::advance::cache_baseline_state");
+        ShocImplicit::cache_baseline_state(col);
         ShocDiagnostics::diagnose_pre_implicit(col, m_opts, dx[0], dx[1], dt);
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::implicit");
-            ShocImplicit::advance_implicit_state(col, m_opts, dt);
-        }
+        BL_PROFILE("SHOC::advance::implicit");
+        ShocImplicit::advance_implicit_state(col, m_opts, dt);
         ShocDiagnostics::diagnose_post_implicit(col, m_opts, dt);
-        if (uses_state_update()) {
-            BL_PROFILE("SHOC::advance::finalize");
-            ShocImplicit::finalize_from_pdf(col, m_opts, dt);
-            BL_PROFILE("SHOC::advance::debug_bad_column");
-            debug_check_bad_column(col, mfi, z_phys_nd, hfx3, qfx3, tau13, tau23, geom, dt);
-        }
+        BL_PROFILE("SHOC::advance::finalize");
+        ShocImplicit::finalize_from_pdf(col, m_opts, dt);
+        BL_PROFILE("SHOC::advance::debug_bad_column");
+        debug_check_bad_column(col, mfi, z_phys_nd, hfx3, qfx3, tau13, tau23, geom, dt);
         {
             BL_PROFILE("SHOC::advance::store_carried_buoyancy_flux");
             store_carried_buoyancy_flux(col, mfi);
@@ -671,6 +678,25 @@ ShocDriver::advance (MultiFab& cons,
                     tke_tend(i,j,k) = col_tke_tend(ic,kk,0);
                     u_tend_cc(i,j,k) = col_u_tend(ic,kk,0);
                     v_tend_cc(i,j,k) = col_v_tend(ic,kk,0);
+                }
+                // Motivation: Native SHOC state_update consumes SurfaceLayer
+                // fluxes before the host diffusion path clears the overlapping
+                // SFS arrays. Preserve the consumed conservative fluxes here
+                // so 2D diagnostics report the surface forcing SHOC actually
+                // used, not the cleared host arrays.
+                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
+                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
+                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
+                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
+            });
+
+            // Keep diagnostic writeback in a separate launch so the kernel
+            // argument block fits CUDA's 4 KiB limit on pre-Volta devices.
+            ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                const int ic = shoc_column_index(layout, i, j);
+                for (int kk = 0; kk < layout.nlev; ++kk) {
+                    const int k = layout.kmin + kk;
                     // Native SHOC pblh is diagnosed as meters AGL and is
                     // copied directly into the plotfile diagnostic field.
                     pblh_arr(i,j,k) = pblh(ic,0,0);
@@ -705,16 +731,7 @@ ShocDriver::advance (MultiFab& cons,
                     buoy_prod_arr(i,j,k) = buoy_prod(ic,kk,0);
                     diss_tke_arr(i,j,k) = diss_tke(ic,kk,0);
                 }
-                // Motivation: Native SHOC state_update consumes SurfaceLayer
-                // fluxes before the host diffusion path clears the overlapping
-                // SFS arrays. Preserve the consumed conservative fluxes here
-                // so 2D diagnostics report the surface forcing SHOC actually
-                // used, not the cleared host arrays.
-                consumed_sens_flux_arr(i,j,k0) = rho_sfc * surf_sens_flux(ic,0,0);
-                consumed_laten_flux_arr(i,j,k0) = rho_sfc * surf_lat_flux(ic,0,0);
-                shoc_ustar_arr(i,j,k0) = ustar(ic,0,0);
-                shoc_olen_arr(i,j,k0) = obklen(ic,0,0);
-                });
+            });
         }
 
     }
@@ -757,15 +774,11 @@ ShocDriver::advance (MultiFab& cons,
         }
     }
 
-    if (uses_state_update()) {
-        sync_face_multifab_impl(m_u_tend_fc, geom);
-        sync_face_multifab_impl(m_v_tend_fc, geom);
-    }
+    sync_face_multifab_impl(m_u_tend_fc, geom);
+    sync_face_multifab_impl(m_v_tend_fc, geom);
 
-    if (uses_state_update()) {
-        BL_PROFILE("SHOC::advance::state_update");
-        apply_state_update(cons, xvel, yvel, dt);
-    }
+    BL_PROFILE("SHOC::advance::state_update");
+    apply_state_update(cons, xvel, yvel, dt);
 
     if (uses_momentum_state_update()) {
         sync_face_multifab_impl(xvel, geom);
@@ -790,27 +803,12 @@ ShocDriver::set_eddy_diffs () const
                              m_eddy_diffs_ptr->nGrow());
     MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
                    EddyDiff::Turb_lengthscale, EddyDiff::Turb_lengthscale, 1, 0);
-
-    if (uses_host_diffusion()) {
-        MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
-                       k_shoc_vertical_diff_comp, k_shoc_vertical_diff_comp,
-                       k_shoc_vertical_diff_count, 0);
-    } else if (uses_momentum_host_diffusion()) {
-        MultiFab::Copy(*m_eddy_diffs_ptr, m_eddy_coeffs_cc,
-                       EddyDiff::Mom_v, EddyDiff::Mom_v, 1, 0);
-    }
 }
 
 void
 ShocDriver::set_diff_stresses () const
 {
     BL_PROFILE("SHOC::set_diff_stresses");
-
-    if (uses_host_diffusion()) {
-        // Full host-diffusion mode preserves the existing host-owned lower
-        // boundary fluxes and stresses.
-        return;
-    }
 
     if (!m_hfx3_ptr || !m_qfx3_ptr) {
         return;
@@ -828,8 +826,7 @@ ShocDriver::set_diff_stresses () const
             qfx(i,j,k) = 0.0;
         });
 
-        if ((owns_momentum_surface_stresses() || disables_momentum_transport()) &&
-            m_tau13_ptr && m_tau23_ptr) {
+        if (m_tau13_ptr && m_tau23_ptr) {
             auto tau13 = m_tau13_ptr->array(mfi);
             auto tau23 = m_tau23_ptr->array(mfi);
             ParallelFor(vbx_xz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -860,27 +857,9 @@ ShocDriver::add_slow_tend (const MFIter& mfi,
 }
 
 bool
-ShocDriver::uses_host_diffusion () const
-{
-    return shoc_uses_host_diffusion(m_opts.transport_mode);
-}
-
-bool
-ShocDriver::uses_state_update () const
-{
-    return shoc_uses_state_update(m_opts.transport_mode);
-}
-
-bool
 ShocDriver::uses_momentum_state_update () const
 {
     return shoc_uses_momentum_state_update(m_opts.momentum_transport);
-}
-
-bool
-ShocDriver::uses_momentum_host_diffusion () const
-{
-    return shoc_uses_momentum_host_diffusion(m_opts.momentum_transport);
 }
 
 bool
@@ -892,25 +871,7 @@ ShocDriver::disables_momentum_transport () const
 bool
 ShocDriver::owns_scalar_surface_fluxes () const
 {
-    return uses_state_update();
-}
-
-bool
-ShocDriver::owns_momentum_surface_stresses () const
-{
-    return uses_momentum_state_update();
-}
-
-bool
-ShocDriver::needs_host_surface_momentum_stresses () const
-{
-    return uses_momentum_host_diffusion();
-}
-
-bool
-ShocDriver::owns_surface_fluxes () const
-{
-    return owns_scalar_surface_fluxes();
+    return true;
 }
 
 void
@@ -1490,7 +1451,7 @@ ShocDriver::print_debug_summary (double dt) const
                    << " dt=" << dt
                    << " transport_mode=" << shoc_transport_mode_name(m_opts.transport_mode)
                    << " momentum_transport=" << shoc_momentum_transport_name(m_opts.momentum_transport)
-                   << " state_update=" << (uses_state_update() ? "on" : "off")
+                   << " state_update=on"
                    << "\n";
     print_shoc_debug_settings_once(m_opts);
 

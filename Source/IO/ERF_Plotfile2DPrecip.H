@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DPrecip.H
+ */
 #ifndef ERF_PLOTFILE2DPRECIP_H_
 #define ERF_PLOTFILE2DPRECIP_H_
 

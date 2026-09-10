@@ -27,7 +27,7 @@
     std::vector<std::string> m_species;
     int m_num_species = 0;
     const int m_ncomp_per_species = 2; // rho*qc, rho*qc
-    const int m_nstart_sp = RhoQ3_comp+1;
+    const int m_nstart_sp = RhoQ6_comp+1;  // Start after all 6 SuperDroplets components
 
     // check for SDM species
     m_species.clear();

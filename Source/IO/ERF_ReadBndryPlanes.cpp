@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadBndryPlanes.cpp
+ */
 #include "AMReX_Gpu.H"
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
@@ -80,7 +83,7 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
 ReadBndryPlanes::interp_in_time (const double& time_in)
@@ -145,7 +148,7 @@ ReadBndryPlanes::interp_in_time (const double& time_in)
  * Function in ReadBndryPlanes class for interpolating boundary
  * data in time.
  *
- * @param time Constant specifying the time for interpolation
+ * @param time_in Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
 ReadBndryPlanes::get_tendency (const double& time_in)
@@ -218,10 +221,10 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
     ParmParse pp("erf");
 
     // Get the radius inside the domain
-    pp.query("in_rad",m_in_rad);
+    pp.queryAdd("in_rad",m_in_rad);
 
     // Are we using real bcs?
-    pp.query("use_real_bcs", m_use_real_bcs);
+    pp.queryAdd("use_real_bcs", m_use_real_bcs);
 
     last_file_read = -1;
 

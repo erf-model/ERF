@@ -38,9 +38,9 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
         // We need velocity in the interior ghost cells (init == real)
         Box bx = mfi.tilebox();
 
-        Box tbx = surroundingNodes(bx,0);
-        Box tby = surroundingNodes(bx,1);
-        Box tbz = surroundingNodes(bx,2);
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
 
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              ( (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ||

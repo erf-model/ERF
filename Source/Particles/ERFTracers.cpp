@@ -13,7 +13,7 @@ void ERF::readTracersParams ()
 
     m_use_tracer_particles = 0;
 
-    pp.query(std::string("use_"+ERFParticleNames::tracers).c_str(), m_use_tracer_particles);
+    pp.queryAdd(std::string("use_"+ERFParticleNames::tracers).c_str(), m_use_tracer_particles);
 
     if (m_use_tracer_particles) {
         particleData.addName(ERFParticleNames::tracers);
@@ -39,8 +39,8 @@ void ERF::initializeTracers ( ParGDBBase* a_gdb,
             pc->InitializeParticles(time,a_z_phys_nd[0]);
             if (pc->TotalNumberOfParticles() > 0) {
                 amrex::Print() << "Initialized " << pc->TotalNumberOfParticles() << " tracer particles.\n";
-                particleData.pushBack(ERFParticleNames::tracers, pc);
             }
+            particleData.pushBack(ERFParticleNames::tracers, pc);
         }
     }
 

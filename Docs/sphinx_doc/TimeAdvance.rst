@@ -112,10 +112,10 @@ Then the acoustic substepping evolves the equations in the form
   W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} = \delta \tau \biggl(
           &-\gamma R_d \pi^t \frac{\partial (\beta_1 \Theta^{\prime \prime, \tau} +
                                               \beta_2 \Theta^{\prime \prime, \tau  + \delta \tau} ) }{\partial z} \\
-          & - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
-             \frac{ (\beta_1 \Theta^{\prime \prime, \tau}  +
-                     \beta_2 \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t} \\
-          & + g (\beta_1 \rho^{\prime \prime, \tau} + \beta_2 \rho^{\prime \prime, \tau + \delta \tau } ) \\
+          & - \frac{\gamma R_d^2}{c_v} \frac{\pi^t}{\Theta^t_m} \frac{\partial \Theta^t_m}{\partial z}
+             (\beta_1 \Theta^{\prime \prime, \tau}  +
+              \beta_2 \Theta^{\prime \prime, \tau + \delta \tau} ) \\
+          & - g (\beta_1 \rho^{\prime \prime, \tau} + \beta_2 \rho^{\prime \prime, \tau + \delta \tau } ) \\
           & + R^t_W \biggr)
 
 .. math::
@@ -134,7 +134,19 @@ Then the acoustic substepping evolves the equations in the form
           - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho}
             \right)
 
-where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)`.
+where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)`, and
+:math:`\Theta_m = \Theta (1 + \frac{R_v}{R_d} q_v)` is the moist analogue of :math:`\Theta`
+which accounts for the contribution of water vapor to the pressure.
+
+The second term in the :math:`W^{\prime \prime}` equation above arises from differentiating
+:math:`p = R_d \pi \Theta_m` with respect to :math:`z`, retaining the variation of
+:math:`\pi` as well as that of :math:`\Theta_m`.  Note that it is expressed entirely in terms of
+quantities at the most recent large time step or Runge-Kutta stage; unlike the formulation in
+equation (14) of `Klemp, Skamarock and Dudhia (2007)`_, it makes no reference to the
+hydrostatically stratified base state :math:`(\overline{\rho}, \overline{\pi})`.  This is the
+same choice made in the MPAS-A technical note, and yields coefficients for the double-prime
+terms that are exactly those obtained from the acoustic equations written in terms of the full
+variables rather than as perturbations from a specified reference sounding.
 
 :math:`\beta_s` is the acoustic step off-centering coefficient.  When we do implicit substepping, we use
 the typical WRF value of 0.1. This off-centering is intended to provide damping of both horizontally

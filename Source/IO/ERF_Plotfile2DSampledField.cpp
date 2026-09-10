@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DSampledField.cpp
+ */
 #include "ERF_Plotfile2DSampledField.H"
 
 #include <unordered_set>

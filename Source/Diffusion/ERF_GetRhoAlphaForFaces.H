@@ -10,7 +10,10 @@
  * @param[out] rhoAlpha_hi rhoAlpha averaged to the upper z-edge
  * @param[in] cell_data conserved cell-centered state
  * @param[in] mu_turb turbulent viscosity
- * @param[in] mu_eff effective molecular viscosity
+ * @param[in] mu_eff effective molecular viscosity. NOTE: unlike the mu_eff in
+ *            ERF_MakeTauTerms.cpp and ComputeStress*, this includes the factor
+ *            of 2 only for the w (diagonal) correction stress, because the u/v
+ *            (off-diagonal) correction strains already carry a factor of 1/2.
  * @param[in] l_consA flag for conservative constant-alpha diffusion
  * @param[in] l_turb flag for turbulent diffusion
  */
@@ -25,29 +28,29 @@ void getRhoAlphaForFaces (int i, int j, int k, int ioff, int joff,
 {
     if (l_consA && l_turb) {
         rhoAlpha_lo = fourth * ( cell_data(i,j,k  ,Rho_comp       ) + cell_data(i-ioff,j-joff,k  ,Rho_comp       )
-                             + cell_data(i,j,k-1,Rho_comp       ) + cell_data(i-ioff,j-joff,k-1,Rho_comp       ) ) * mu_eff
+                               + cell_data(i,j,k-1,Rho_comp       ) + cell_data(i-ioff,j-joff,k-1,Rho_comp       ) ) * mu_eff
                     + fourth * (   mu_turb(i,j,k  ,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k  ,EddyDiff::Mom_v)
-                             +   mu_turb(i,j,k-1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k-1,EddyDiff::Mom_v) );
+                               +   mu_turb(i,j,k-1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k-1,EddyDiff::Mom_v) );
         rhoAlpha_hi = fourth * ( cell_data(i,j,k  ,Rho_comp       ) + cell_data(i-ioff,j-joff,k  ,Rho_comp       )
-                             + cell_data(i,j,k+1,Rho_comp       ) + cell_data(i-ioff,j-joff,k+1,Rho_comp       ) ) * mu_eff
+                               + cell_data(i,j,k+1,Rho_comp       ) + cell_data(i-ioff,j-joff,k+1,Rho_comp       ) ) * mu_eff
                     + fourth * (   mu_turb(i,j,k  ,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k  ,EddyDiff::Mom_v)
-                             +   mu_turb(i,j,k+1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k+1,EddyDiff::Mom_v) );
+                               +   mu_turb(i,j,k+1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k+1,EddyDiff::Mom_v) );
     }
     else if (l_turb) // with MolecDiffType::Constant or None
     {
         rhoAlpha_lo = mu_eff
                     + fourth * (   mu_turb(i,j,k  ,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k  ,EddyDiff::Mom_v)
-                             +   mu_turb(i,j,k-1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k-1,EddyDiff::Mom_v) );
+                               +   mu_turb(i,j,k-1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k-1,EddyDiff::Mom_v) );
         rhoAlpha_hi = mu_eff
                     + fourth * (   mu_turb(i,j,k  ,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k  ,EddyDiff::Mom_v)
-                             +   mu_turb(i,j,k+1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k+1,EddyDiff::Mom_v) );
+                               +   mu_turb(i,j,k+1,EddyDiff::Mom_v) +   mu_turb(i-ioff,j-joff,k+1,EddyDiff::Mom_v) );
     }
     else if (l_consA) // without an LES/PBL model
     {
         rhoAlpha_lo = fourth * ( cell_data(i,j,k  ,Rho_comp       ) + cell_data(i-ioff,j-joff,k  ,Rho_comp       )
-                             + cell_data(i,j,k-1,Rho_comp       ) + cell_data(i-ioff,j-joff,k-1,Rho_comp       ) ) * mu_eff;
+                               + cell_data(i,j,k-1,Rho_comp       ) + cell_data(i-ioff,j-joff,k-1,Rho_comp       ) ) * mu_eff;
         rhoAlpha_hi = fourth * ( cell_data(i,j,k  ,Rho_comp       ) + cell_data(i-ioff,j-joff,k  ,Rho_comp       )
-                             + cell_data(i,j,k+1,Rho_comp       ) + cell_data(i-ioff,j-joff,k+1,Rho_comp       ) ) * mu_eff;
+                               + cell_data(i,j,k+1,Rho_comp       ) + cell_data(i-ioff,j-joff,k+1,Rho_comp       ) ) * mu_eff;
     }
     else // with MolecDiffType::Constant or None - without an LES/PBL model
     {
@@ -66,7 +69,10 @@ void getRhoAlphaForFaces (int i, int j, int k, int ioff, int joff,
  * @param[out] rhoAlpha_hi rhoAlpha above the face
  * @param[in] cell_data conserved cell-centered state
  * @param[in] mu_turb turbulent viscosity
- * @param[in] mu_eff effective molecular viscosity
+ * @param[in] mu_eff effective molecular viscosity. NOTE: unlike the mu_eff in
+ *            ERF_MakeTauTerms.cpp and ComputeStress*, this includes the factor
+ *            of 2 only for the w (diagonal) correction stress, because the u/v
+ *            (off-diagonal) correction strains already carry a factor of 1/2.
  * @param[in] l_consA flag for conservative constant-alpha diffusion
  * @param[in] l_turb flag for turbulent diffusion
  */

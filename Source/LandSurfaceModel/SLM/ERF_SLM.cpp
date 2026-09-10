@@ -94,7 +94,7 @@ SLM::ComputeFluxes ()
     for ( MFIter mfi(*(lsm_fab_flux[LsmVar_SLM::theta])); mfi.isValid(); ++mfi) {
         auto box3d = mfi.tilebox();
 
-        // Do not overwrite the flux at the top (comes from MOST BC)
+        // The surface layer supplies the top-face flux through soil_t_flux.
         if (box3d.bigEnd(2) == khi+1) box3d.setBig(2,khi);
 
         auto theta_array = lsm_fab_vars[LsmVar_SLM::theta]->array(mfi);

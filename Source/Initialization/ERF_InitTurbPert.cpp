@@ -1,5 +1,5 @@
 /**
- * \ERF_InitTurbPert.cpp
+ * \file ERF_InitTurbPert.cpp
  */
 #include <ERF.H>
 #include <AMReX_MultiFabUtil.H>
@@ -8,6 +8,12 @@
 
 using namespace amrex;
 
+/**
+ * Update turbulent perturbation timing and amplitudes for one AMR level.
+ *
+ * @param lev Integer specifying the current level
+ * @param local_dt Local timestep used to update the perturbation state
+ */
 void
 ERF::turbPert_update (const int lev, const double local_dt)
 {
@@ -27,8 +33,11 @@ ERF::turbPert_update (const int lev, const double local_dt)
             << lev << " with type: " << turbPert.pt_type[lev] << "\n";
 }
 
-// Calculate the perturbation region amplitude.
-// This function heavily emmulates the ERF::init_custom ()
+/**
+ * Calculate the cell-centered turbulent perturbation amplitude.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::turbPert_amplitude (int lev)
 {
@@ -54,8 +63,11 @@ ERF::turbPert_amplitude (int lev)
     } // mfi
 }
 
-// Calculate the perturbation region amplitude. This function is for vertical velocity perturbations.
-// This function heavily emmulates the ERF::init_custom ()
+/**
+ * Calculate the turbulent perturbation amplitude for vertical velocity.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::turbPert_amplitude_w (int lev)
 {

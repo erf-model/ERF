@@ -7,6 +7,23 @@
 
 using namespace amrex;
 
+/**
+ * Compute eddy diffusivity using the YSU PBL scheme.
+ *
+ * @param[in] xvel x-velocity field
+ * @param[in] yvel y-velocity field
+ * @param[in] cons_in Conservative state
+ * @param[out] eddyViscosity Computed eddy viscosity coefficients
+ * @param[in] geom Geometry used for spacing and domain info
+ * @param[in] turbChoice Turbulence model options
+ * @param[in] SurfLayer Surface layer model data
+ * @param[in] use_terrain_fitted_coords Flag to use terrain-fitted coordinates
+ * @param[in] level AMR level
+ * @param[in] bc_ptr Boundary condition records
+ * @param[in] z_phys_nd Nodal physical heights
+ * @param[in] z_phys_cc Cell-centered physical heights
+ * @param[in] moisture_indices Indices for moisture components
+ */
 void
 ComputeDiffusivityYSU (const MultiFab& xvel,
                        const MultiFab& yvel,
@@ -77,8 +94,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // create flattened boxes to store PBL height
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-        FArrayBox pbl_height(xybx,1);
-        IArrayBox pbl_index(xybx,1);
+        FArrayBox pbl_height(xybx,1,The_Async_Arena());
+        IArrayBox pbl_index(xybx,1,The_Async_Arena());
         const auto& pblh_arr = pbl_height.array();
         const auto& pbli_arr = pbl_index.array();
 
@@ -91,7 +108,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Reconstruct a surface bulk Richardson number from the surface layer model
-            // In WRF, this value is supplied to YSU by the MM5 surface layer model
+            // In WRF, this value is supplied to YSU by the surface layer model
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);

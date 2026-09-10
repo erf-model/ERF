@@ -413,7 +413,7 @@ The selection contract and the value written after selection are separate:
      - Value: SurfaceLayer scalar values; ``-999`` when the source pointer is absent.
    * - ``pblh``
      - Selectable: fixed request name.
-     - Value: native SHOC PBL height when present, otherwise SurfaceLayer; ``-999`` if neither exists.
+     - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.

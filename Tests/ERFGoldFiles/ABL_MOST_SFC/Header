@@ -1,0 +1,31 @@
+HyperCLaw-V1.1
+9
+density
+rhotheta
+x_velocity
+y_velocity
+z_velocity
+temp
+theta
+pressure
+qv
+3
+10
+0
+0 0 0 
+3200 3200 4000 
+
+((0,0,0) (31,31,99) (0,0,0)) 
+10 
+100 100 40 
+0
+0
+0 2 10
+10
+0 3200
+0 1600
+0 4000
+0 3200
+1600 3200
+0 4000
+Level_0/Cell

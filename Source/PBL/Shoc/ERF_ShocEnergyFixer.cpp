@@ -7,7 +7,7 @@ ShocEnergyFixer::diagnose_active_top (const Vector<Real>& tke)
 {
     int shoc_top = -1;
     for (int k = static_cast<int>(tke.size()) - 1; k >= 0; --k) {
-        if (tke[k] > shoc::constants::min_tke()) {
+        if (tke[k] > shoc::constants::active_tke_threshold()) {
             shoc_top = k;
             break;
         }
@@ -35,7 +35,7 @@ ShocEnergyFixer::apply_column (const ShocColumnData& col,
                                const Vector<Real>& tke_new)
 {
     ShocColumnData tmp;
-    define_shoc_column_data(tmp, col.layout, amrex::The_Arena(), shoc::InitRunOn::Host);
+    define_shoc_column_data(tmp, col.layout, amrex::The_Cpu_Arena(), shoc::InitRunOn::Host);
 
     auto rho = tmp.rho.array();
     auto dz = tmp.dz.array();

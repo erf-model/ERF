@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteERFBdy.cpp
+ */
 #include "ERF_WriteERFBdy.H"
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>

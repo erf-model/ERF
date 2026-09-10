@@ -64,6 +64,7 @@ erf.input_sounding_file = "input_sounding_CBL"
 erf.terrain_type      = ImmersedForcing
 erf.terrain_file_name = WoA_dx5m_h100m_128x128.txt
 erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
 erf.if_use_most = true
 
 #erf.if_init_surf_temp = 292.0

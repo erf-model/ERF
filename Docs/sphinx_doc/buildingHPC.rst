@@ -241,6 +241,15 @@ The test procedure is documented in :download:`notes_test.sh <figures/notes_test
      - —
      - Untested
 
+   * - ``Perlmutter/cmake_with_RRTMGP_NOAHMP.sh``
+     - `4d7cf58 <https://github.com/erf-model/ERF/commit/4d7cf58>`_
+     - Untested
+     - Untested
+     - Untested
+     - Untested
+     - —
+     - Untested
+
 .. note::
    **Reading the table:**
 
@@ -262,6 +271,7 @@ The test procedure is documented in :download:`notes_test.sh <figures/notes_test
 * ``build_erf_with_shoc.sh`` - Automated SHOC workflow (CPU)
 * ``build_erf_with_shoc_{cuda,hip,sycl}.sh`` - Automated SHOC workflow with GPU backend
 * ``Perlmutter/build_erf_with_shoc_cuda_Perlmutter.sh`` - SHOC with CUDA on Perlmutter
+* ``Perlmutter/cmake_with_RRTMGP_NOAHMP.sh`` - radiation (RRTMGP) with land-surface model (NOAHMP) with CUDA on Perlmutter
 
 .. note::
    The GPU SHOC scripts can be auto-generated. Set ``BACKEND=CUDA`` (or ``HIP``/``SYCL``), then:

@@ -106,20 +106,10 @@ check_finite (PlotFileData& plotfile,
 Real
 maximum_difference (const MultiFab& first, const MultiFab& second)
 {
-    Real result = 0.0;
-    for (amrex::MFIter mfi(first); mfi.isValid(); ++mfi) {
-        const auto& a = first.const_array(mfi);
-        const auto& b = second.const_array(mfi);
-        const auto& box = mfi.validbox();
-        for (int k = box.smallEnd(2); k <= box.bigEnd(2); ++k) {
-            for (int j = box.smallEnd(1); j <= box.bigEnd(1); ++j) {
-                for (int i = box.smallEnd(0); i <= box.bigEnd(0); ++i) {
-                    result = std::max(result, std::abs(a(i,j,k) - b(i,j,k)));
-                }
-            }
-        }
-    }
-    return result;
+    MultiFab difference(first.boxArray(), first.DistributionMap(), 1, 0);
+    MultiFab::Copy(difference, first, 0, 0, 1, 0);
+    MultiFab::Subtract(difference, second, 0, 0, 1, 0);
+    return difference.norm0();
 }
 
 // Enforce non-negativity for mass, energy, and diffusivity diagnostics while

@@ -1,9 +1,13 @@
+/**
+ * \file ERF_NCWpsFile.H
+ */
 #ifndef ERF_NCWPSFILE_H_
 #define ERF_NCWPSFILE_H_
 
 #include <sstream>
 #include <string>
 #include <atomic>
+#include <cfenv>
 
 #include "AMReX_FArrayBox.H"
 #include "AMReX_IArrayBox.H"
@@ -156,6 +160,8 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
+        auto prev_fpe_except = amrex::disableFPExcept(amrex::FPExcept::all);
+
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
         /*
@@ -220,6 +226,9 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
             } // has_var
         }
         ncf.close();
+
+        std::feclearexcept(FE_ALL_EXCEPT);
+        amrex::setFPExcept(prev_fpe_except);
     }
 }
 
@@ -228,6 +237,7 @@ void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
  * provided FAB.
  *
  * @param iv Index for which variable we are going to fill
+ * @param domain Box specifying the horizontal and vertical extent to read
  * @param nc_arrays Arrays of data from NetCDF file
  * @param var_name Variable name
  * @param NC_dim_type Dimension type for the variable as stored in the NetCDF file
@@ -329,10 +339,12 @@ fill_fab_from_arrays (int iv,
 /**
  * Function to read NetCDF variables and fill the corresponding Array4's
  *
+ * @param domain Box specifying the domain covered by the NetCDF fields
  * @param fname Name of the NetCDF file to be read
  * @param nc_var_names Variable names in the NetCDF file
  * @param NC_dim_types NetCDF data dimension types
  * @param fab_vars Fab data we are to fill
+ * @param success Success flags for each requested variable
  */
 template<class FAB,typename DType>
 void

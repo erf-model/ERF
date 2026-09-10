@@ -1,0 +1,39 @@
+HyperCLaw-V1.1
+11
+density
+temp
+theta
+pressure
+qv
+qi
+qrain
+rel_humidity
+super_droplets_moisture_number_density
+super_droplets_moisture_species_mass_density_H2O
+super_droplets_moisture_species_mass_density_ice
+3
+150
+0
+0 0 0 
+160 160 800 
+
+((0,0,0) (7,7,79) (0,0,0)) 
+300 
+20 20 10 
+0
+0
+0 4 150
+300
+0 80
+0 80
+0 800
+80 160
+0 80
+0 800
+0 80
+80 160
+0 800
+80 160
+80 160
+0 800
+Level_0/Cell

@@ -71,7 +71,7 @@ diagnose_active_top (const amrex::Array4<const amrex::Real>& tke,
 {
     int shoc_top = -1;
     for (int k = nlev - 1; k >= 0; --k) {
-        if (tke(ic,k,0) > constants::min_tke()) {
+        if (tke(ic,k,0) > constants::active_tke_threshold()) {
             shoc_top = k;
             break;
         }
@@ -151,6 +151,8 @@ public:
         return shoc::diagnose_active_top(tke, ic, nlev);
     }
 
+    // Host-only wrapper: col's FArrayBoxes and all vectors must be host-accessible.
+    // Device-owned column data must be staged before calling this routine.
     static void apply_column (const ShocColumnData& col,
                               int ic,
                               double dt,

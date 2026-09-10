@@ -37,7 +37,7 @@ using namespace amrex;
  * @param[in] az   Area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain_fitted_coords is false)
  * @param[in] stretched_dz_d device vector of vertical cell spacing
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor at cell centers
  * @param[in] mf_ux x map factor at x-faces
  * @param[in] mf_vx x map factor at y-faces
@@ -48,7 +48,7 @@ using namespace amrex;
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
  * @param[in] horiz_upw_frac horizontal upwind blending fraction
  * @param[in] vert_upw_frac vertical upwind blending fraction
- * @param[in] mesh_type mesh spacing type
+ * @param[in] mesh_type grid spacing type
  * @param[in] terrain_type terrain representation type
  * @param[in] ebfact EB factories for cell- and face-centered variables
  * @param[in,out] flx_u_arr container of fluxes for x-momentum

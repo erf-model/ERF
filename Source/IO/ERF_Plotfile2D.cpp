@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2D.cpp
+ */
 #include "ERF.H"
 #include "ERF_Plotfile2DCatalog.H"
 #include "ERF_Plotfile2DFill.H"
@@ -233,7 +236,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // pblh should follow the active PBL diagnostic provider. Native SHOC
         // diagnoses its own PBL height in state_update mode; SurfaceLayer
         // remains the fallback for non-SHOC configurations.
-        if (!pblh_source && m_SurfaceLayer) {
+        //
+        // NOTE: the SurfaceLayer pblh holds only the bogus value it was initialized
+        //       with unless erf.most.pblh_calc was set (the default is "none"), so we
+        //       leave the source null in that case and emit the missing value.
+        if (!pblh_source && m_SurfaceLayer && m_SurfaceLayer->computes_pblh()) {
             pblh_source = m_SurfaceLayer->get_pblh(lev);
         }
 
@@ -338,9 +345,13 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // u_star
 
         if (containerHasElement(plot_var_names, "w_star")) {
+            // NOTE: w_star holds only the bogus value it was initialized with unless
+            //       erf.most.include_wstar is on (it is off by default), so we must
+            //       pass a null source in that case and emit the missing value
+            const MultiFab* w_star_source = (m_SurfaceLayer && m_SurfaceLayer->computes_w_star())
+                                          ? m_SurfaceLayer->get_w_star(lev) : nullptr;
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_w_star(lev) : nullptr,
-                0, -999);
+                mf[lev], mf_comp, w_star_source, 0, -999);
             mf_comp++;
         } // w_star
 
@@ -608,6 +619,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
 
         const int static_output_count = static_cast<int>(plot_var_names.size());
+        // If this level is anelastic then the base state pressure -- not the compressible
+        //    EOS -- defines the pressure, both for the sampled "pressure" field and for
+        //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
+        MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
+        const MultiFab* p_hse_ptr = (solverChoice.anelastic[lev] == 1) ? &p_hse : nullptr;
         for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
             const auto& descriptor = output_descriptors[out_idx];
             // Sampled-level descriptors are dynamic. The interpolator owns
@@ -625,7 +641,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 z_phys_cc[lev] != nullptr,
                 solverChoice.moisture_indices,
                 klo, khi,
-                wind_sources);
+                wind_sources,
+                p_hse_ptr);
             mf_comp++;
         }
 

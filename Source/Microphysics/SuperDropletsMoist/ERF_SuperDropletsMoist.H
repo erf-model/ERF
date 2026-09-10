@@ -20,11 +20,17 @@ namespace MicVar_SD {
         pressure,    /*!< Pressure */
         q_t,         /*!< Total (vapour + cloud) */
         q_v,         /*!< Water vapour */
-        q_c,         /*!< Cloud condensate */
-        dqcdt,       /*!< Condensation rate */
+        q_c,         /*!< Liquid water */
+        q_i,         /*!< Ice */
         q_r,         /*!< Rain */
-        rh,          /*!< relative humidity */
+        q_s,         /*!< Snow */
+        q_g,         /*!< Graupel */
+        dqcdt,       /*!< Condensation rate */
+        rh_w,        /*!< relative humidity (water) */
+        rh_i,        /*!< relative humidity (ice) */
         rain_accum,  /*!< rain accumulation (mm) */
+        graup_accum,  /*!< graupel accumulation (mm) */
+        snow_accum,  /*!< snow accumulation (mm) */
         NumVars
     };
 }
@@ -48,58 +54,63 @@ namespace MicVar_SD_Aerosols {
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qt_idx (const int a_i /*!< species index */ )
+static int s_qt_idx (const int a_i, /*!< species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_t;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qv_idx (const int a_i /*!< species index */ )
+static int s_qv_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_v;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_qc_idx (const int a_i /*!< species index */ )
+static int s_qc_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::q_c;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_sr_idx (const int a_i /*!< species index */ )
+static int s_sr_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::sr;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int s_accum_idx (const int a_i /*!< species index */ )
+static int s_accum_idx (const int a_i, /*!< Species index */
+                     const int a_is /*!< Index of first non-water/ice species */ )
 {
-    AMREX_ALWAYS_ASSERT(a_i > 0);
+    AMREX_ALWAYS_ASSERT(a_i >= a_is);
     return      MicVar_SD::NumVars
-            +   (a_i-1)*MicVar_SD_Species::NumVars
+            +   (a_i-a_is)*MicVar_SD_Species::NumVars
             +   MicVar_SD_Species::accum;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static int a_accum_idx (const int a_ns, /*!< number of species */
+static int a_accum_idx (const int a_ns, /*!< number of nonmoist species */
                         const int a_i /*!< aerosol index */ )
 {
     AMREX_ALWAYS_ASSERT(a_i >= 0);
     return      MicVar_SD::NumVars
-            +   (a_ns-1)*MicVar_SD_Species::NumVars
-            +   a_i*MicVar_SD_Aerosols::NumVars
+            +   a_ns * MicVar_SD_Species::NumVars
+            +   a_i * MicVar_SD_Aerosols::NumVars
             +   MicVar_SD_Aerosols::accum;
 }
 
@@ -124,8 +135,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Constructor */
         SuperDropletsMoist()
         {
-            m_qmoist_size = 7;
-            m_qstate_moist_size = 3; // qv, qc, qr
+            m_qmoist_size = 11;
+            m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
             m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";
             m_idx_w = -1;
@@ -194,6 +205,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               const amrex::Vector<MFPtr>& mf_array,
                               const BCTypeArr& bc_arr) override;
 
+        using NullMoist::Update_Micro_Vars;
+
         /*! \brief Update microphysics variables
          * \param[in] a_cons_vars Conservative variables multifab
          */
@@ -237,6 +250,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qmoist_size;
         }
 
+        /*! \brief returns the surface rain accumulation (mm, i.e. kg/m^2 of liquid water) */
+        SurfacePrecipAccumulationSources
+        Get_Surface_Precip_Accumulation_Ptrs (const int& a_lev) const override
+        {
+            SurfacePrecipAccumulationSources sources;
+            if (a_lev >= 0 && a_lev < static_cast<int>(m_mic_fab_vars.size())) {
+                sources.rain = { m_mic_fab_vars[a_lev][MicVar_SD::rain_accum].get(),
+                                 amrex::Real(1.0) };
+            }
+            return sources;
+        }
+
         /*! \brief returns number of moist conserved variables */
         inline virtual int Qstate_Moist_Size () override
         {
@@ -267,13 +292,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_name;
         }
 
-        /*! \brief compute cloud/rain mixing ratio */
+        /*! \brief compute cloud/rain mixing ratios */
         virtual void computeQcQrWater (const amrex::MultiFab& a_z_phys_nd);
+
+        /*! \brief compute ice/graupel/snow mixing ratios */
+        virtual void computeQiQgQsWater (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief compute condensate for all non-water species */
         virtual void computeQcSpecies (const amrex::MultiFab& a_z_phys_nd)
         {
-            for (int is = 1; is < m_num_species; is++) { computeQcSpecies(is, a_z_phys_nd); }
+            for (int is = m_istart_sp; is < m_num_species; is++) { computeQcSpecies(is, a_z_phys_nd); }
         }
 
         /*! \brief compute condensate mixing ratio for a non-water species */
@@ -282,8 +310,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute condensate mixing ratio for a species */
         virtual void computeQc (const int a_i, const amrex::MultiFab& a_z_phys_nd)
         {
-            if (a_i == m_idx_w) { computeQcQrWater(a_z_phys_nd); }
-            else                { computeQcSpecies(a_i, a_z_phys_nd); }
+            if      (a_i == m_idx_w) { computeQcQrWater(a_z_phys_nd); }
+            else if (a_i == m_idx_i) { computeQiQgQsWater(a_z_phys_nd); }
+            else                     { computeQcSpecies(a_i, a_z_phys_nd); }
         }
 
         /*! \brief compute total water mixing ratio */
@@ -292,21 +321,17 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute qt (total) for all non-water species */
         virtual void computeQtSpecies ()
         {
-            for (int is = 1; is < m_num_species; is++) { computeQtSpecies(is); }
+            for (int is = m_istart_sp; is < m_num_species; is++) { computeQtSpecies(is); }
         }
 
         /*! \brief compute qt (total) for a non-water species */
         virtual void computeQtSpecies (const  int a_i);
 
-        /*! \brief compute qt (total) for a species */
-        virtual void computeQt (const  int a_i)
-        {
-            if (a_i == m_idx_w) { computeQtWater(); }
-            else                { computeQtSpecies(a_i); }
-        }
-
         /*! \brief Compute rain accumulation */
         virtual void rainAccumulation (const amrex::MultiFab& a_z_phys_nd);
+
+        /*! \brief Compute rain accumulation */
+        virtual void snowAccumulation (const amrex::MultiFab& a_z_phys_nd);
 
         /*! \brief Compute non-water species accumulation */
         virtual void speciesAccumulation (const amrex::MultiFab& a_z_phys_nd);
@@ -319,7 +344,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
         void ratioToDensity ( amrex::MultiFab&, const int a_comp = 0 );
 
-        /*! \brief Compute phase changes (vapour <--> cloud water)
+        /*! \brief Compute phase changes
          * \param[in] a_dt Timestep for phase change calculation
          * \param[in] a_z Array of terrain heights
          * \param[in] a_lev AMR level
@@ -328,9 +353,25 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                     const amrex::Vector<MFPtr>& a_z,
                                     const int a_lev);
 
+        /*! \brief Evaporation/condensation for water */
+        virtual void phaseChange_LV_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
+
+        /*! \brief Evaporation/condensation for other species */
+        virtual void phaseChange_LV_s (const int, const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
+
+        /*! \brief Freezing/melting for water */
+        virtual void phaseChange_SL_w (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
+
+        /*! \brief Deposition/sublimation for ice */
+        virtual void phaseChange_SV_i (const amrex::Real&, const amrex::Vector<MFPtr>&, const int,
+                                       const amrex::iMultiFab&);
+
         virtual void GetPlotVarNames (amrex::Vector<std::string>& a_names) const override
         {
-            for (int v = 1; v < m_num_species; v++) {
+            for (int v = m_istart_sp; v < m_num_species; v++) {
                 a_names.push_back("qv_"+amrex::getEnumNameString(m_species[v]));
                 a_names.push_back("qc_"+amrex::getEnumNameString(m_species[v]));
                 a_names.push_back("qt_"+amrex::getEnumNameString(m_species[v]));
@@ -378,13 +419,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             };
 
             // Species variables
-            for (int v = 1; v < m_num_species; v++) {
+            for (int v = m_istart_sp; v < m_num_species; v++) {
                 std::string sp_name = amrex::getEnumNameString(m_species[v]);
-                if (try_copy("qv_" + sp_name, s_qv_idx(v)) ||
-                    try_copy("qc_" + sp_name, s_qc_idx(v)) ||
-                    try_copy("qt_" + sp_name, s_qt_idx(v)) ||
-                    try_copy("sat_ratio_" + sp_name, s_sr_idx(v)) ||
-                    try_copy("accum_" + sp_name, s_accum_idx(v))) {
+                if (try_copy("qv_" + sp_name, s_qv_idx(v, m_istart_sp)) ||
+                    try_copy("qc_" + sp_name, s_qc_idx(v, m_istart_sp)) ||
+                    try_copy("qt_" + sp_name, s_qt_idx(v, m_istart_sp)) ||
+                    try_copy("sat_ratio_" + sp_name, s_sr_idx(v, m_istart_sp)) ||
+                    try_copy("accum_" + sp_name, s_accum_idx(v, m_istart_sp))) {
                     return;
                 }
             }
@@ -392,35 +433,37 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             // Aerosol variables
             for (int v = 0; v < m_num_aerosols; v++) {
                 std::string ae_name = amrex::getEnumNameString(m_aerosols[v]);
-                if (try_copy("accum_" + ae_name, a_accum_idx(m_num_species, v))) { return; }
+                if (try_copy("accum_" + ae_name, a_accum_idx(m_num_nonmoist_sp, v))) { return; }
             }
 
             amrex::Abort("SuperDropletsMoist::GetPlotVar() called with invalid name");
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        int q_qv_idx (const int a_i /*!< species index */ )
+        int q_qv_idx (const int a_i, /*!< species index */
+                      const int a_is /*!< index of first non-water/ice species */ )
         {
-            AMREX_ALWAYS_ASSERT(a_i > 0);
-            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 0;
+            AMREX_ALWAYS_ASSERT(a_i >= a_is);
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 0;
         }
 
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        int q_qc_idx (const int a_i /*!< species index */ )
+        int q_qc_idx (const int a_i, /*!< species index */
+                      const int a_is /*!< index of first non-water/ice species */ )
         {
-            AMREX_ALWAYS_ASSERT(a_i > 0);
-            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-1) + 1;
+            AMREX_ALWAYS_ASSERT(a_i >= a_is);
+            return RhoQ1_comp + m_qstate_moist_size + 2*(a_i-a_is) + 1;
         }
 
     protected:
 
-        bool m_flag_phase_change;   /*!< Enable/disable phase change */
+        bool m_flag_phase_change;   /*!< Enable/disable phase changes */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
-
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
+        amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
@@ -478,6 +521,18 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! species index of water */
         int m_idx_w;
+
+        /*! species index of ice */
+        int m_idx_i;
+
+        /*! starting index of non-moisture species */
+        int m_istart_sp;
+
+        /*! number of non-moisture species */
+        int m_num_nonmoist_sp;
+
+        /*! include cold processes? */
+        bool m_with_ice;
 
         /*! particle container for super-droplets
          *  Owned by ERF::particleData which deletes it during teardown;

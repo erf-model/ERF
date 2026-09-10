@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Provenance.H
+ */
 #ifndef ERF_PROVENANCE_H_
 #define ERF_PROVENANCE_H_
 

@@ -27,7 +27,7 @@ public:
     /**
      * \brief Construct a terrain implicit function from height and geometry data.
      * \param a_z_terrain Terrain elevation values on the horizontal mesh.
-     * \param a_geom Geometry used for mesh spacing and problem bounds.
+     * \param a_geom Geometry used for grid spacing and problem bounds.
      * \param a_dz_stretched Device vector of stretched vertical cell sizes.
      */
     TerrainIF (amrex::FArrayBox const& a_z_terrain, amrex::Geometry const& a_geom,
@@ -43,7 +43,8 @@ public:
           prob_hi_x(a_geom.ProbHi(0)),
           prob_hi_y(a_geom.ProbHi(1)),
           i_hi(static_cast<int>(std::round((a_geom.ProbHi(0)-a_geom.ProbLo(0))/a_geom.CellSize(0)))),
-          j_hi(static_cast<int>(std::round((a_geom.ProbHi(1)-a_geom.ProbLo(1))/a_geom.CellSize(1))))
+          j_hi(static_cast<int>(std::round((a_geom.ProbHi(1)-a_geom.ProbLo(1))/a_geom.CellSize(1)))),
+          k_hi(static_cast<int>(std::round((a_geom.ProbHi(2)-a_geom.ProbLo(2))/a_geom.CellSize(2))))
         {}
 
     /**
@@ -72,7 +73,7 @@ public:
         amrex::Real terr_z{amrex::Real(0.0)};
 
         // z_stretched
-        const int k1 = static_cast<int>(std::floor((z-prob_lo_z) / dz));
+        const int k1 = amrex::Clamp(static_cast<int>(std::floor((z-prob_lo_z) / dz)), 0, k_hi - 1);
         const amrex::Real z1 = prob_lo_z + k1*dz;
         const amrex::Real remainder_z = (z - z1)/dz;
         amrex::Real z_stretched = prob_lo_z;
@@ -151,7 +152,7 @@ protected:
     amrex::Array4<amrex::Real const> terr_arr;
     //! Device pointer to stretched vertical cell sizes.
     amrex::Real const* dz_s;
-    //! Uniform computational mesh spacing in each direction.
+    //! Uniform computational grid spacing in each direction.
     amrex::Real dx, dy, dz;
     //! Low problem bounds used for interpolation.
     amrex::Real prob_lo_x, prob_lo_y, prob_lo_z;
@@ -159,13 +160,15 @@ protected:
     amrex::Real prob_hi_x, prob_hi_y;
     //! Highest terrain-array index in the x and y directions.
     int i_hi, j_hi;
+    //! Number of vertical cells (one past the highest valid dz_s index).
+    int k_hi;
     /**
      * \var TerrainIF::dy
-     * \brief Uniform computational mesh spacing in y.
+     * \brief Uniform computational grid spacing in y.
      */
     /**
      * \var TerrainIF::dz
-     * \brief Uniform computational mesh spacing in z.
+     * \brief Uniform computational grid spacing in z.
      */
     /**
      * \var TerrainIF::prob_lo_y

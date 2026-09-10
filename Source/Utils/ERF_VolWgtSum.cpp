@@ -78,6 +78,15 @@ ERF::volWgtSumMF (int lev,
     return sum;
 }
 
+/**
+ * Compute a volume-weighted column sum of MultiFab data.
+ *
+ * @param lev Current level.
+ * @param[in] mf_to_be_summed MultiFab to be summed.
+ * @param[in] comp Component index to be summed.
+ * @param[out] mf_2d MultiFab to store the resulting column sums.
+ * @param[in] dJ Volume weighting due to metric terms.
+ */
 void
 ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
                       MultiFab& mf_2d, const MultiFab& dJ)
@@ -130,7 +139,7 @@ ERF::build_fine_mask (int level, MultiFab& fine_mask_lev)
     BoxArray cba            = grids[level-1];
     DistributionMapping cdm = dmap[level-1];
 
-    BoxArray fba            = fine_mask_lev.boxArray();
+    BoxArray fba            = grids[level];
 
     iMultiFab ifine_mask_lev = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
 

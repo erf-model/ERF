@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfacePrecipitation.H"
@@ -107,6 +108,15 @@ public:
     virtual void Set_dzmin (const int lev,
                             const amrex::Real dz_min) const = 0;
 
+    /*! \brief Import ERF's land/water mask at this level.
+     *
+     *  The mask is held by pointer, not copied, so a mask that is retagged after
+     *  this call (e.g. buildings set to 2 in init_zphys) is picked up. Callers
+     *  must re-issue this after any rebuild of lmask_lev, since init_stuff
+     *  replaces the unique_ptr. */
+    virtual void Set_Lmask (const int lev,
+                            amrex::iMultiFab* lmask) const = 0;
+
     /*! \brief query if a specified moisture model is Eulerian or Lagrangian */
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
@@ -116,6 +126,7 @@ public:
              || (a_moisture_type == MoistureType::Morrison)
              || (a_moisture_type == MoistureType::Morrison_NoIce)
              || (a_moisture_type == MoistureType::WSM6)
+             || (a_moisture_type == MoistureType::WDM6)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::SatAdj)

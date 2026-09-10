@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DSampledLevel.H
+ */
 #ifndef ERF_PLOTFILE2DSAMPLED_LEVEL_H_
 #define ERF_PLOTFILE2DSAMPLED_LEVEL_H_
 

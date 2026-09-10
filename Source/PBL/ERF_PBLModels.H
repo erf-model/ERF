@@ -248,6 +248,29 @@ struct PBLDerivativeDzInv
     amrex::Real dirichlet_hi;
 };
 
+/**
+ * Compute vertical derivatives of potential temperature and velocity for PBL models.
+ *
+ * @param i x-index
+ * @param j y-index
+ * @param k z-index
+ * @param[in] uvel x-velocity
+ * @param[in] vvel y-velocity
+ * @param[in] cell_data conserved cell-center variables
+ * @param[in] izmin lower z-index limit
+ * @param[in] izmax upper z-index limit
+ * @param[in] dz_inv inverse physical distance spacings
+ * @param[in] c_ext_dir_on_zlo Dirichlet condition on z-low face for cell data
+ * @param[in] c_ext_dir_on_zhi Dirichlet condition on z-high face for cell data
+ * @param[in] u_ext_dir_on_zlo Dirichlet condition on z-low face for u-velocity
+ * @param[in] u_ext_dir_on_zhi Dirichlet condition on z-high face for u-velocity
+ * @param[in] v_ext_dir_on_zlo Dirichlet condition on z-low face for v-velocity
+ * @param[in] v_ext_dir_on_zhi Dirichlet condition on z-high face for v-velocity
+ * @param[out] dthetadz computed vertical derivative of potential temperature
+ * @param[out] dudz computed vertical derivative of x-velocity
+ * @param[out] dvdz computed vertical derivative of y-velocity
+ * @param[in] moisture_indices moisture variable component indices
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -383,10 +406,17 @@ ComputeQKESourceTerms (int i, int j, int k,
     return source_term;
 }
 
+/**
+ * @brief Functor for inverse vertical spacings with constant grid spacing.
+ */
 struct PBLDerivativeDzInv_N
 {
     amrex::Real value;
 
+    /**
+     * Return inverse vertical spacings for constant grid spacing.
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int, int, int) const noexcept
     {
@@ -394,12 +424,20 @@ struct PBLDerivativeDzInv_N
     }
 };
 
+/**
+ * @brief Functor for inverse vertical spacings for stretched grids using a spacing array.
+ */
 struct PBLDerivativeDzInv_S
 {
     const amrex::Real* dz;
     int klo;
     int khi;
 
+    /**
+     * Return inverse vertical spacings for stretched grids.
+     * @param k z-index
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int, int, int k) const noexcept
     {
@@ -412,10 +450,20 @@ struct PBLDerivativeDzInv_S
     }
 };
 
+/**
+ * @brief Functor for inverse vertical spacings for terrain-following grids using cell-center heights.
+ */
 struct PBLDerivativeDzInv_T
 {
     amrex::Array4<const amrex::Real> z_cc;
 
+    /**
+     * Return inverse vertical spacings for terrain-following grids.
+     * @param i x-index
+     * @param j y-index
+     * @param k z-index
+     * @return PBLDerivativeDzInv inverse spacing values
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     PBLDerivativeDzInv operator() (int i, int j, int k) const noexcept
     {
@@ -425,3 +473,64 @@ struct PBLDerivativeDzInv_T
     }
 };
 #endif
+
+/**
+ * @brief Apply spatial smoothing to PBLH field using 5-point stencil.
+ *
+ * Applies a simple 5-point spatial averaging to reduce grid-to-grid noise in
+ * the diagnosed PBLH field. This is standard post-processing practice for
+ * discrete Rib-crossing detection as described in Seibert et al. (2000):
+ * "Review and intercomparison of operational methods for the determination of
+ * the mixing height", Atmospheric Environment, 34, 1001–1027.
+ *
+ * Stencil: PBLH_smooth(i,j) = w * PBLH(i,j) + (1-w)/4 * [PBLH(i±1,j) + PBLH(i,j±1)]
+ *
+ * @param[in,out] pblh_fab FArrayBox containing 2D PBLH field (component 0)
+ * @param[in] xybx Valid box for smoothing (x,y indices only)
+ * @param[in] weight Center cell weight in stencil (must be in [0,1])
+ * @param[in] passes Number of smoothing iterations
+ * @param[in] domain Domain box for reflective boundary conditions
+ */
+inline void
+ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
+                    const amrex::Box& xybx,
+                    const amrex::Real weight,
+                    const int passes,
+                    const amrex::Box& domain)
+{
+    // Use a temporary to hold intermediate results
+    amrex::FArrayBox pblh_temp(xybx, 1, amrex::The_Async_Arena());
+    auto pblh = pblh_fab.array();
+    auto pblh_tmp = pblh_temp.array();
+
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
+
+    const amrex::Real wt_side = (one - weight) / four; // Weight for each of 4 neighbors
+
+    // Apply smoothing passes
+    for (int pass = 0; pass < passes; ++pass) {
+        amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            // Use reflective (Neumann) boundary conditions:
+            // At domain boundaries, reuse the current cell's own value
+            const int i_xlo = (i > dom_lo.x) ? (i - 1) : i;
+            const int i_xhi = (i < dom_hi.x) ? (i + 1) : i;
+            const int j_ylo = (j > dom_lo.y) ? (j - 1) : j;
+            const int j_yhi = (j < dom_hi.y) ? (j + 1) : j;
+
+            // 5-point stencil
+            pblh_tmp(i, j, 0) = weight * pblh(i, j, 0)
+                              + wt_side * (pblh(i_xlo, j, 0) + pblh(i_xhi, j, 0) +
+                                          pblh(i, j_ylo, 0) + pblh(i, j_yhi, 0));
+        });
+
+        // Swap arrays for next iteration (or final result)
+        if (pass < passes - 1) {
+            pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, 0, 0, 1);
+        } else {
+            // Copy final result back
+            pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, 0, 0, 1);
+        }
+    }
+}

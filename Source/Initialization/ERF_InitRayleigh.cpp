@@ -9,6 +9,8 @@ using namespace amrex;
  * Initialization function for host and device vectors
  * used to store averaged quantities when calculating
  * the effects of Rayleigh Damping.
+ *
+ * @param lev Integer specifying the current level
  */
 void
 ERF::initRayleigh_at_level (const int& lev)

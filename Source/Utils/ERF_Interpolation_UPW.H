@@ -730,6 +730,9 @@ struct UPWINDALL
         amrex::Real d3 = (sp2 - sm3);
 
         // Interpolated value
+        /**
+         * Interpolated value.
+         */
         amrex::Real iv(amrex::Real(0));
         if (adv_type == AdvType::Centered_2nd) {
             iv = myhalf * a1;

@@ -8,6 +8,20 @@ using namespace amrex;
 
 namespace {
 
+//
+// Does this box span the entire column?  The column-integral derived quantities
+//    (helicity, precipitable water, max reflectivity, mucape) can only be computed
+//    if it does, which requires both that the MFIter at the call site does not tile
+//    in z (see TileNoZ()) and that the grids themselves are not decomposed in z.
+//
+AMREX_FORCE_INLINE
+bool
+spans_full_column (const Box& bx, const Geometry& geomdata)
+{
+    const Box& domain = geomdata.Domain();
+    return ( (bx.smallEnd(2) == domain.smallEnd(2)) && (bx.bigEnd(2) == domain.bigEnd(2)) );
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 constexpr Real
 mucape_search_depth_pa ()
@@ -430,7 +444,7 @@ erf_dervortz ( const Box& bx,
     auto tfab      = derfab.array(); // cell-centered vorticity z-component
 
     const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(2);
+    const Real dy = geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -569,13 +583,16 @@ erf_dermaxreflectivity ( const Box& bx,
                          int /*ncomp*/,
                          const FArrayBox& datfab,
                          const FArrayBox& /*zcc_fab*/,
-                         const Geometry& /*geomdata*/,
+                         const Geometry& geomdata,
                          Real /*time*/,
                          const int* /*bcrec*/,
                          const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
-    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
+
+    // This takes the max over the whole column, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "max_reflectivity requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
 
     auto const dat = datfab.array(); // cell-centered state vector
     auto rfab      = derfab.array(); // cell-centered max reflectivity
@@ -656,7 +673,10 @@ erf_derhelicity ( const Box& bx,
                   const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
-    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
+
+    // This is a vertical integral, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "helicity requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
 
     auto const dat = datfab.array();  // cell-centered velocity
     auto dfab      = derfab.array();  // integral of local helicity
@@ -704,13 +724,16 @@ erf_derprecipitable ( const Box& bx,
                       int /*ncomp*/,
                       const FArrayBox& datfab,
                       const FArrayBox& zcc_fab,
-                      const Geometry& /*geomdata*/,
+                      const Geometry& geomdata,
                       Real /*time*/,
                       const int* /*bcrec*/,
                       const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
-    AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == 0);
+
+    // This is a vertical integral, so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "precipitable requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
 
     auto const dat = datfab.array(); // cell-centered state vector
     auto dfab      = derfab.array(); // integral of qv to define precipitable water
@@ -749,13 +772,23 @@ erf_dermucape ( const Box& bx,
                 int ncomp,
                 const FArrayBox& datfab,
                 const FArrayBox& zcc_fab,
-                const Geometry& /*geomdata*/,
+                const Geometry& geomdata,
                 Real /*time*/,
                 const int* /*bcrec*/,
                 const int /*level*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
+
+    // The parcel search and the buoyancy integration must run over the entire column,
+    //    so the incoming box must span the column
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(spans_full_column(bx,geomdata),
+        "mucape requires boxes spanning the full column: use TileNoZ() at the call site and do not decompose the grid in z");
+
+    // Take the vertical extent from the domain rather than from the incoming box so that
+    //    this is a whole-column calculation even if the box is ever tiled in z again
+    const int klo_col = geomdata.Domain().smallEnd(2);
+    const int khi_col = geomdata.Domain().bigEnd(2);
 
     auto const dat = datfab.array();
     auto dfab      = derfab.array();
@@ -770,8 +803,8 @@ erf_dermucape ( const Box& bx,
                 AMREX_GPU_DEVICE(int i, int j, int) noexcept
     {
         Real mucape = Real(0);
-        int klo = bx.smallEnd(2);
-        int khi = bx.bigEnd(2);
+        int klo = klo_col;
+        int khi = khi_col;
 
         if (ncons > RhoQ1_comp) {
             Real p_sfc = Real(0);

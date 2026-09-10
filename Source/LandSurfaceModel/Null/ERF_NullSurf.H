@@ -88,38 +88,23 @@ class NullSurf {
 
     virtual
     std::string
-    Lsm_DataName (const int& /*varIdx*/)
-    {
-        return dataname;
-    }
+    Lsm_DataName (const int& /*varIdx*/) { return dataname; }
 
     virtual
     std::string
-    Lsm_FluxName (const int& /*varIdx*/)
-    {
-        return fluxname;
-    }
+    Lsm_FluxName (const int& /*varIdx*/) { return fluxname; }
 
     virtual
     int
-    Lsm_DataIndex (std::string /*varname*/)
-    {
-        return (-1);
-    }
+    Lsm_DataIndex (std::string /*varname*/) { return (-1); }
 
     virtual
     int
-    Lsm_FluxIndex (std::string /*varname*/)
-    {
-        return (-1);
-    }
+    Lsm_FluxIndex (std::string /*varname*/) { return (-1); }
 
     virtual
     std::unordered_map<std::string, std::string>&
-    Lsm_WRFInputNames()
-    {
-        return wrfinput_map;
-    }
+    Lsm_WRFInputNames() { return wrfinput_map; }
 
     virtual
     void

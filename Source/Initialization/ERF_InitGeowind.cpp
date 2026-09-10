@@ -7,6 +7,17 @@
 
 using namespace amrex;
 
+/**
+ * Read and interpolate a geostrophic wind profile onto ERF vertical levels.
+ *
+ * @param input_file Path to the geostrophic wind profile
+ * @param u_geos Host vector storing interpolated geostrophic x-wind
+ * @param u_geos_d Device vector storing interpolated geostrophic x-wind
+ * @param v_geos Host vector storing interpolated geostrophic y-wind
+ * @param v_geos_d Device vector storing interpolated geostrophic y-wind
+ * @param lgeom Geometry defining the vertical domain
+ * @param zlev_stag Optional stretched-grid staggered height levels
+ */
 void ERF::init_geo_wind_profile(const std::string input_file,
                                 Vector<Real>& u_geos,
                                 Gpu::DeviceVector<Real>& u_geos_d,

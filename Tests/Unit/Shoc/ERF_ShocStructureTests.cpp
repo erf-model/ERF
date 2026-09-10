@@ -3,6 +3,8 @@
 #include "ERF_ShocTestUtils.H"
 #include "ERF_ShocTypes.H"
 
+#include <AMReX_ParmParse.H>
+
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -17,27 +19,74 @@ TEST(ShocRuntimeOptions, DefaultsValidate)
     EXPECT_GE(opts.coeff_kh, 0.0);
     EXPECT_FALSE(opts.debug_summary);
     EXPECT_EQ(opts.transport_mode, ShocTransportMode::StateUpdate);
-    EXPECT_EQ(opts.momentum_transport, ShocMomentumTransport::HostDiffusion);
+    EXPECT_EQ(opts.momentum_transport, ShocMomentumTransport::StateUpdate);
 }
 
 TEST(ShocRuntimeOptions, TransportModeHelpersMatchIntent)
 {
-    EXPECT_TRUE(shoc_uses_state_update(ShocTransportMode::StateUpdate));
-    EXPECT_FALSE(shoc_uses_host_diffusion(ShocTransportMode::StateUpdate));
-
-    EXPECT_FALSE(shoc_uses_state_update(ShocTransportMode::HostDiffusion));
-    EXPECT_TRUE(shoc_uses_host_diffusion(ShocTransportMode::HostDiffusion));
-
     EXPECT_TRUE(shoc_uses_momentum_state_update(ShocMomentumTransport::StateUpdate));
     EXPECT_FALSE(shoc_uses_momentum_state_update(ShocMomentumTransport::None));
-    EXPECT_TRUE(shoc_uses_momentum_host_diffusion(ShocMomentumTransport::HostDiffusion));
-    EXPECT_FALSE(shoc_uses_momentum_host_diffusion(ShocMomentumTransport::None));
     EXPECT_TRUE(shoc_disables_momentum_transport(ShocMomentumTransport::None));
+    EXPECT_FALSE(shoc_disables_momentum_transport(ShocMomentumTransport::StateUpdate));
+    EXPECT_EQ(std::string(shoc_transport_mode_name(ShocTransportMode::StateUpdate)), "state_update");
+    EXPECT_EQ(std::string(shoc_momentum_transport_name(ShocMomentumTransport::StateUpdate)), "state_update");
     EXPECT_EQ(std::string(shoc_momentum_transport_name(ShocMomentumTransport::None)), "none");
 }
 
 namespace
 {
+class ScopedParmParseString
+{
+public:
+    ScopedParmParseString (const char* name, const std::string& value)
+        : m_pp("erf.shoc"),
+          m_name(name)
+    {
+        m_had_previous = m_pp.query(m_name, m_previous);
+        m_pp.remove(m_name);
+        m_pp.add(m_name, value);
+    }
+
+    ~ScopedParmParseString ()
+    {
+        m_pp.remove(m_name);
+        if (m_had_previous) {
+            m_pp.add(m_name, m_previous);
+        }
+    }
+
+private:
+    amrex::ParmParse m_pp;
+    std::string m_name;
+    std::string m_previous;
+    bool m_had_previous = false;
+};
+
+class ScopedParmParseRemoval
+{
+public:
+    explicit ScopedParmParseRemoval (const char* name)
+        : m_pp("erf.shoc"),
+          m_name(name)
+    {
+        m_had_previous = m_pp.query(m_name, m_previous);
+        m_pp.remove(m_name);
+    }
+
+    ~ScopedParmParseRemoval ()
+    {
+        if (m_had_previous) {
+            m_pp.add(m_name, m_previous);
+        }
+    }
+
+private:
+    amrex::ParmParse m_pp;
+    std::string m_name;
+    std::string m_previous;
+    bool m_had_previous = false;
+};
+
 void
 shift_column_heights (ShocColumnData& col, amrex::Real offset)
 {
@@ -61,25 +110,109 @@ TEST(ShocRuntimeOptions, LegacyTendenciesTransportModeIsRejected)
     EXPECT_NE(error_message.find("removed for native SHOC"), std::string::npos);
 }
 
+TEST(ShocRuntimeOptions, RemovedScalarHostDiffusionModeIsRejected)
+{
+    ShocRuntimeOptions opts;
+    std::string error_message;
+    EXPECT_FALSE(parse_shoc_transport_mode_string("HOST_DIFFUSION", opts.transport_mode,
+                                                  error_message));
+    EXPECT_NE(error_message.find("has been removed for native SHOC"), std::string::npos);
+    EXPECT_NE(error_message.find("Use erf.shoc.transport_mode = state_update"),
+              std::string::npos);
+}
+
+TEST(ShocRuntimeOptions, RemovedMomentumHostDiffusionModeIsRejected)
+{
+    ShocMomentumTransport transport = ShocMomentumTransport::StateUpdate;
+    std::string error_message;
+    EXPECT_FALSE(parse_shoc_momentum_transport_string("HoSt_DiFfUsIoN", transport,
+                                                      error_message));
+    EXPECT_NE(error_message.find("has been removed for native SHOC"), std::string::npos);
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_NE(error_message.find("'none'"), std::string::npos);
+}
+
 TEST(ShocRuntimeOptions, InvalidMomentumTransportIsRejected)
 {
     ShocMomentumTransport transport = ShocMomentumTransport::None;
     std::string error_message;
     EXPECT_FALSE(parse_shoc_momentum_transport_string("tendons", transport, error_message));
     EXPECT_NE(error_message.find("erf.shoc.momentum_transport"), std::string::npos);
+    EXPECT_NE(error_message.find("'none'"), std::string::npos);
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_EQ(error_message.find("host_diffusion"), std::string::npos);
 }
 
-TEST(ShocRuntimeOptions, HostDiffusionTransportRequiresHostMomentumTransport)
+TEST(ShocRuntimeOptions, InvalidScalarTransportAdvertisesOnlyStateUpdate)
 {
     ShocRuntimeOptions opts;
-    opts.transport_mode = ShocTransportMode::HostDiffusion;
-    opts.momentum_transport = ShocMomentumTransport::StateUpdate;
-
     std::string error_message;
-    EXPECT_FALSE(validate_shoc_runtime_options_message(opts, error_message));
-    EXPECT_NE(error_message.find(
-                  "host_diffusion requires erf.shoc.momentum_transport = host_diffusion"),
-              std::string::npos);
+    EXPECT_FALSE(parse_shoc_transport_mode_string("unknown", opts.transport_mode, error_message));
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_EQ(error_message.find("host_diffusion"), std::string::npos);
+}
+
+TEST(ShocRuntimeOptions, SharedReaderUsesDefaultsAndAcceptsSupportedModes)
+{
+    ScopedParmParseRemoval remove_transport("transport_mode");
+    ScopedParmParseRemoval remove_momentum("momentum_transport");
+
+    ShocRuntimeOptions defaults;
+    read_shoc_transport_modes(defaults.transport_mode, defaults.momentum_transport);
+    EXPECT_EQ(defaults.transport_mode, ShocTransportMode::StateUpdate);
+    EXPECT_EQ(defaults.momentum_transport, ShocMomentumTransport::StateUpdate);
+
+    ScopedParmParseString transport("transport_mode", "state_update");
+    ScopedParmParseString momentum("momentum_transport", "none");
+    ShocTransportMode transport_mode = ShocTransportMode::StateUpdate;
+    ShocMomentumTransport momentum_mode = ShocMomentumTransport::StateUpdate;
+    read_shoc_transport_modes(transport_mode, momentum_mode);
+    EXPECT_EQ(transport_mode, ShocTransportMode::StateUpdate);
+    EXPECT_EQ(momentum_mode, ShocMomentumTransport::None);
+}
+
+TEST(SolverChoice, NativeStateUpdateOwnsNoVerticalDiffusion)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = true;
+    choice.use_eamxx_shoc = false;
+    choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
+    choice.shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_FALSE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, NativeMomentumNoneLeavesHostMomentumOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = true;
+    choice.use_eamxx_shoc = false;
+    choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
+    choice.shoc_momentum_transport = ShocMomentumTransport::None;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_TRUE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, NonNativeShocRetainsGenericHostOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = false;
+    choice.use_eamxx_shoc = false;
+
+    EXPECT_TRUE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_TRUE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, EamxxShocRetainsExistingOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = false;
+    choice.use_eamxx_shoc = true;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_FALSE(choice.host_owns_vertical_momentum_diffusion());
 }
 
 TEST(ShocStructure, SurfaceLayerUsesUstarFloorAndFiniteObukhov)

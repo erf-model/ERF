@@ -13,70 +13,6 @@
 #include <cctype>
 #include <string>
 
-enum class ShocTransportMode
-{
-    StateUpdate,
-    HostDiffusion
-};
-
-enum class ShocMomentumTransport
-{
-    None,
-    StateUpdate,
-    HostDiffusion
-};
-
-inline const char*
-shoc_transport_mode_name (ShocTransportMode mode)
-{
-    switch (mode) {
-    case ShocTransportMode::StateUpdate:   return "state_update";
-    case ShocTransportMode::HostDiffusion:return "host_diffusion";
-    }
-    return "unknown";
-}
-
-inline const char*
-shoc_momentum_transport_name (ShocMomentumTransport mode)
-{
-    switch (mode) {
-    case ShocMomentumTransport::None:         return "none";
-    case ShocMomentumTransport::StateUpdate:   return "state_update";
-    case ShocMomentumTransport::HostDiffusion: return "host_diffusion";
-    }
-    return "unknown";
-}
-
-inline bool
-shoc_uses_state_update (ShocTransportMode mode)
-{
-    return mode == ShocTransportMode::StateUpdate;
-}
-
-inline bool
-shoc_uses_host_diffusion (ShocTransportMode mode)
-{
-    return mode == ShocTransportMode::HostDiffusion;
-}
-
-inline bool
-shoc_uses_momentum_state_update (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::StateUpdate;
-}
-
-inline bool
-shoc_uses_momentum_host_diffusion (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::HostDiffusion;
-}
-
-inline bool
-shoc_disables_momentum_transport (ShocMomentumTransport mode)
-{
-    return mode == ShocMomentumTransport::None;
-}
-
 struct ShocRuntimeOptions
 {
     amrex::Real lambda_low    = amrex::Real(0.001);
@@ -105,7 +41,7 @@ struct ShocRuntimeOptions
     bool allow_tendency_microphysics_overlap = false;
     bool signed_tke_production = false;
     ShocTransportMode transport_mode = ShocTransportMode::StateUpdate;
-    ShocMomentumTransport momentum_transport = ShocMomentumTransport::HostDiffusion;
+    ShocMomentumTransport momentum_transport = ShocMomentumTransport::StateUpdate;
     bool debug_bad_column = false;
     bool debug_bad_column_abort = true;
     int debug_bad_column_max_reports = 8;
@@ -119,74 +55,6 @@ struct ShocRuntimeOptions
     bool debug_disable_moisture_state_update = false;
     bool debug_disable_tke_state_update = false;
 };
-
-inline std::string
-shoc_lower_copy (std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [] (unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return value;
-}
-
-inline bool
-parse_shoc_transport_mode_string (std::string value,
-                                 ShocTransportMode& mode,
-                                 std::string& error_message)
-{
-    value = shoc_lower_copy(value);
-    if (value == "state_update") {
-        mode = ShocTransportMode::StateUpdate;
-        return true;
-    }
-    if (value == "host_diffusion") {
-        mode = ShocTransportMode::HostDiffusion;
-        return true;
-    }
-    if (value == "tendencies") {
-        error_message =
-            "erf.shoc.transport_mode = tendencies has been removed for native SHOC. Use erf.shoc.transport_mode = state_update. Native SHOC now applies its coupled column increment before the dycore to avoid splitting theta and momentum from moisture.";
-        return false;
-    }
-
-    error_message = "erf.shoc.transport_mode must be 'state_update' or 'host_diffusion'";
-    return false;
-}
-
-inline bool
-parse_shoc_momentum_transport_string (std::string value,
-                                      ShocMomentumTransport& mode,
-                                      std::string& error_message)
-{
-    value = shoc_lower_copy(value);
-    if (value == "none") {
-        mode = ShocMomentumTransport::None;
-        return true;
-    }
-    if (value == "state_update") {
-        mode = ShocMomentumTransport::StateUpdate;
-        return true;
-    }
-    if (value == "host_diffusion") {
-        mode = ShocMomentumTransport::HostDiffusion;
-        return true;
-    }
-
-    error_message = "erf.shoc.momentum_transport must be 'none', 'state_update', or 'host_diffusion'";
-    return false;
-}
-
-inline bool
-validate_shoc_runtime_options_message (const ShocRuntimeOptions& opts,
-                                      std::string& error_message)
-{
-    if (shoc_uses_host_diffusion(opts.transport_mode) &&
-        !shoc_uses_momentum_host_diffusion(opts.momentum_transport)) {
-        error_message =
-            "erf.shoc.transport_mode = host_diffusion requires erf.shoc.momentum_transport = host_diffusion";
-        return false;
-    }
-    return true;
-}
 
 struct ShocColumnLayout
 {
@@ -319,23 +187,10 @@ read_shoc_runtime_options (ShocRuntimeOptions& opts)
     pp.query("debug_disable_moisture_state_update", opts.debug_disable_moisture_state_update);
     pp.query("debug_disable_tke_state_update", opts.debug_disable_tke_state_update);
 
-    std::string transport_mode = shoc_transport_mode_name(opts.transport_mode);
-    if (pp.query("transport_mode", transport_mode)) {
-        std::string error_message;
-        if (!parse_shoc_transport_mode_string(transport_mode, opts.transport_mode, error_message)) {
-            amrex::Abort(error_message.c_str());
-        }
-    }
-
-    std::string momentum_transport = shoc_momentum_transport_name(opts.momentum_transport);
-    if (pp.query("momentum_transport", momentum_transport)) {
-        std::string error_message;
-        if (!parse_shoc_momentum_transport_string(momentum_transport,
-                                                  opts.momentum_transport,
-                                                  error_message)) {
-            amrex::Abort(error_message.c_str());
-        }
-    }
+    // SolverChoice parses these too, since the dycore must know which component
+    // owns vertical diffusion before any SHOC driver exists. Both go through the
+    // same reader so the two views of the inputs cannot diverge.
+    read_shoc_transport_modes(opts.transport_mode, opts.momentum_transport);
 }
 
 inline void
@@ -364,9 +219,6 @@ validate_shoc_runtime_options (const ShocRuntimeOptions& opts)
                                      "erf.shoc.debug_bad_column_min_dz must be positive");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(opts.debug_bad_column_scalar_moment_threshold > 0.0,
                                      "erf.shoc.debug_bad_column_scalar_moment_threshold must be positive");
-    std::string error_message;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(validate_shoc_runtime_options_message(opts, error_message),
-                                     error_message.c_str());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

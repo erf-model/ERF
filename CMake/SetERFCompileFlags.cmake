@@ -32,7 +32,9 @@ function(set_erf_compile_flags target)
     endif()
     separate_arguments(ERF_CUDA_FLAGS)
     target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
-    set_cuda_architectures(AMReX_CUDA_ARCH)
+    if(DEFINED AMReX_CUDA_ARCH)
+      set_cuda_architectures(AMReX_CUDA_ARCH)
+    endif()
     set_target_properties(${target} PROPERTIES
       CUDA_ARCHITECTURES "${AMREX_CUDA_ARCHS}"
       LANGUAGE CUDA

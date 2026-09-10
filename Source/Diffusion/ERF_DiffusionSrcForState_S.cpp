@@ -19,7 +19,7 @@ using namespace amrex;
  * @param[in]  xflux flux in x-dir
  * @param[in]  yflux flux in y-dir
  * @param[in]  zflux flux in z-dir
- * @param[in]  stretched_dz_d array of vertical mesh spacings
+ * @param[in]  stretched_dz_d array of vertical grid spacings
  * @param[in]  cellSizeInv inverse cell size array
  * @param[in]  SmnSmn_a strain rate magnitude
  * @param[in]  mf_mx x map factor at cell centers

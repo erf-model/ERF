@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromWRFInput.H
+ */
 #ifdef ERF_USE_NETCDF
 void
 read_from_wrfinput (int lev,

@@ -11,6 +11,9 @@ and Fritsch (2002).
 - Bryan, G.H. and Fritsch, J.M. (2002), *A Benchmark Simulation for Moist Nonhydrostatic
   Numerical Models*, Mon. Wea. Rev., **130**, 2917-2928.
   <https://doi.org/10.1175/1520-0493(2002)130%3C2917:ABSFMN%3E2.0.CO;2>
+- Brdar, S. and Seifert, A. (2018), *McSnow: A Monte-Carlo particle model for riming and
+  aggregation of ice particles in a multidimensional microphysical phase space*, J. Adv.
+  Model. Earth Syst., **10**, 187-206. <https://doi.org/10.1002/2017MS001167>
 
 ## Dry bubble (Bryan-Fritsch 2002)
 
@@ -32,6 +35,13 @@ and Fritsch (2002).
 - `inputs_BF02_moist_bubble_SDM_multi_injections_unimodal_NaCl` - moist SDM bubble with
   three particle-injection sources (two moving box regions with opposing velocities and one
   time-limited bubble injection); a demonstration of injection and moving source regions.
+
+## Ice microphysics
+
+- `inputs_SDM_ice_aggregation` - 0D ice-aggregation box (Brdar and Seifert 2018, Sec 2.4.1):
+  ice super-droplets seeded in a 1e6 m^3 box (4 x 4 x 4) with an exponential mass distribution
+  aggregate via the SDM ice-ice collection kernel, with no flow and deposition/melting off
+  (pure aggregation). Uses the `Bubble` source with a uniform, bubble-free initialization.
 
 ## Other cases
 

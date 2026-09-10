@@ -26,12 +26,52 @@ namespace fs = std::filesystem;
 #define M_PI Real(3.14159265358979323846)
 #endif
 
-struct {
-    Real value;
-    int rank;
-    } in, out;
+namespace {
+
+/**
+ * Linearize a 2D (i,j) index relative to the domain so that an arg-min can be
+ * carried out with a single atomic. Using one packed index rather than storing
+ * i and j separately keeps the recorded location consistent with the recorded
+ * minimum, and makes the choice among tied cells deterministic.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Long pack_ij (const int i, const int j, const int nx, const Dim3& dlo) noexcept
+{
+    return static_cast<Long>(j - dlo.y) * static_cast<Long>(nx)
+         + static_cast<Long>(i - dlo.x);
+}
+
+/**
+ * Invert pack_ij. A packed index that was never set (still the initial
+ * sentinel) decodes to the (-1,-1) "no local candidate" marker.
+ */
+void unpack_ij (const Long idx, const int nx, const Dim3& dlo, int& i, int& j) noexcept
+{
+    if (idx == std::numeric_limits<Long>::max()) {
+        i = -1;
+        j = -1;
+    } else {
+        i = static_cast<int>(idx % static_cast<Long>(nx)) + dlo.x;
+        j = static_cast<int>(idx / static_cast<Long>(nx)) + dlo.y;
+    }
+}
+
+} // anonymous namespace
 
 
+/**
+ * Compute the global minimum and its location across all ranks.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] d_val_min_ptr Device pointer to local minimum value
+ * @param[in] d_i_min_ptr Device pointer to local minimum i-index
+ * @param[in] d_j_min_ptr Device pointer to local minimum j-index
+ * @param[out] global_val_min Global minimum value
+ * @param[out] global_i_min Global minimum i-index
+ * @param[out] global_j_min Global minimum j-index
+ */
 void
 ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
                                const Geometry& lev_geom,
@@ -57,17 +97,18 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
 
     int rank = ParallelDescriptor::MyProc();
 
-    in.value = local_val_min;
-    in.rank  = rank;
+    // NOTE: reduce through the amrex wrappers rather than a hard-coded
+    //       MPI_DOUBLE_INT MINLOC. The latter is a type mismatch whenever
+    //       amrex::Real is float (ERF_PRECISION=SINGLE), in which case MPI
+    //       reads and writes 8 bytes of a 4-byte member. Reducing the value
+    //       and then taking the smallest rank that attains it reproduces
+    //       MPI_MINLOC's lowest-rank tie-break without naming an MPI type.
+    global_val_min = local_val_min;
+    ParallelDescriptor::ReduceRealMin(global_val_min);
 
-    #ifdef AMREX_USE_MPI
-        MPI_Allreduce(&in, &out, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
-    #else
-        out = in;
-    #endif
-
-    global_val_min = out.value;
-    int owner_rank = out.rank;
+    int owner_rank = (local_val_min == global_val_min) ? rank : ParallelDescriptor::NProcs();
+    ParallelDescriptor::ReduceIntMin(owner_rank);
+    AMREX_ALWAYS_ASSERT(owner_rank < ParallelDescriptor::NProcs());
 
     // Broadcast the indices from the rank that owns the minimum
     global_i_min = local_i_min;
@@ -145,6 +186,9 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
     hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
 }
 
+/**
+ * Generate a circular set of points around the last known eye position.
+ */
 void
 ERF::HurricaneTrackerCircle ()
 {
@@ -171,6 +215,15 @@ ERF::HurricaneTrackerCircle ()
     }
 }
 
+/**
+ * Initialize the hurricane eye tracker using a given latitude and longitude.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] hurricane_eye_latitude Target latitude for the eye
+ * @param[in] hurricane_eye_longitude Target longitude for the eye
+ */
 void
 ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                  const Geometry& lev_geom,
@@ -186,6 +239,19 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
     int* d_i_min_ptr = d_i_min.dataPtr();
     int* d_j_min_ptr = d_j_min.dataPtr();
 
+    // NOTE: the arg-min is done in two passes. A single pass that takes an
+    //       atomic min of the distance and then plainly stores i and j is
+    //       racy: a thread with a worse distance can still win the store and
+    //       leave an eye location that does not belong to the recorded
+    //       minimum. The first pass reduces the distance only; the second
+    //       records the location of the cells that attain it, through one
+    //       atomic on a packed index so value and location stay consistent.
+    const Dim3 dlo = lbound(lev_geom.Domain());
+    const int nx = lev_geom.Domain().length(0);
+
+    Gpu::DeviceScalar<Long> d_idx_min(std::numeric_limits<Long>::max());
+    Long* d_idx_min_ptr = d_idx_min.dataPtr();
+
     if(sc.init_type == InitType::WRFInput){
         for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
             const Box& box = mfi.validbox();
@@ -200,13 +266,30 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                     Real dlat = lat_arr(i,j,0) - hurricane_eye_latitude;
                     Real dlon = lon_arr(i,j,0) - hurricane_eye_longitude;
                     Real dist = std::sqrt(dlat*dlat + dlon*dlon);
-                    // Atomic min using device pointer from DeviceVector
-                    Real old = Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                    //Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                    if (dist < old) {
-                        // We are the new minimum; record indices
-                        d_i_min_ptr[0] = i;
-                        d_j_min_ptr[0] = j;
+                    Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                }
+            });
+        }
+
+        // The minimum over every box on this rank must be known before the
+        // locating pass below can test against it.
+        Gpu::synchronize();
+
+        for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+            const Box& box = mfi.validbox();
+            FArrayBox& fab_lat = (*(lat_m[levc]))[mfi];
+            FArrayBox& fab_lon = (*(lon_m[levc]))[mfi];
+            const Array4<Real>& lat_arr = fab_lat.array();
+            const Array4<Real>& lon_arr = fab_lon.array();
+
+            ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                if (k==0) {
+
+                    Real dlat = lat_arr(i,j,0) - hurricane_eye_latitude;
+                    Real dlon = lon_arr(i,j,0) - hurricane_eye_longitude;
+                    Real dist = std::sqrt(dlat*dlat + dlon*dlon);
+                    if (dist == d_val_min_ptr[0]) {
+                        Gpu::Atomic::Min(d_idx_min_ptr, pack_ij(i,j,nx,dlo));
                     }
                 }
             });
@@ -225,17 +308,43 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                     amrex::Real dlat = latlon_arr(i,j,k,0) - hurricane_eye_latitude;
                     amrex::Real dlon = latlon_arr(i,j,k,1) - hurricane_eye_longitude;
                     amrex::Real dist = std::sqrt(dlat*dlat + dlon*dlon);
-                    // Atomic min using device pointer from DeviceVector
-                    amrex::Real old = amrex::Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                    //amrex::Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                    if (dist < old) {
-                        // We are the new minimum; record indices
-                        d_i_min_ptr[0] = i;
-                        d_j_min_ptr[0] = j;
+                    amrex::Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
+                }
+            });
+        }
+
+        // The minimum over every box on this rank must be known before the
+        // locating pass below can test against it.
+        Gpu::synchronize();
+
+        for (amrex::MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+            const amrex::Box& box = mfi.validbox();
+            const auto& mf_latlon = forecast_state_interp[levc][4];
+            const auto latlon_arr = mf_latlon.array(mfi);
+
+            amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                if (k==0) {
+
+                    amrex::Real dlat = latlon_arr(i,j,k,0) - hurricane_eye_latitude;
+                    amrex::Real dlon = latlon_arr(i,j,k,1) - hurricane_eye_longitude;
+                    amrex::Real dist = std::sqrt(dlat*dlat + dlon*dlon);
+                    if (dist == d_val_min_ptr[0]) {
+                        amrex::Gpu::Atomic::Min(d_idx_min_ptr, pack_ij(i,j,nx,dlo));
                     }
                 }
             });
         }
+    }
+
+    Gpu::synchronize();
+
+    // Unpack the located index back into the (i,j) device scalars that
+    // ComputeGlobalMinLocation reads.
+    {
+        int h_i_min, h_j_min;
+        unpack_ij(d_idx_min.dataValue(), nx, dlo, h_i_min, h_j_min);
+        Gpu::copy(Gpu::hostToDevice, &h_i_min, &h_i_min + 1, d_i_min_ptr);
+        Gpu::copy(Gpu::hostToDevice, &h_j_min, &h_j_min + 1, d_j_min_ptr);
     }
 
     Real global_val_min;
@@ -246,6 +355,14 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                              global_val_min, global_i_min, global_j_min);
 }
 
+/**
+ * Track the hurricane eye by searching for minimum pressure near the previous position.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] S_data Conservative state data
+ * @param[in] moisture_type Moisture model type
+ */
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
@@ -278,6 +395,15 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
 
+    // NOTE: see HurricaneEyeTrackerInitial -- the arg-min is split into a
+    //       reducing pass and a locating pass so that the recorded (i,j)
+    //       always belongs to the cell holding the recorded minimum.
+    const Dim3 dlo = lbound(lev_geom.Domain());
+    const int nx = lev_geom.Domain().length(0);
+
+    Gpu::DeviceScalar<Long> d_idx_min(std::numeric_limits<Long>::max());
+    Long* d_idx_min_ptr = d_idx_min.dataPtr();
+
     for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
         const Array4<Real const>& S_arr = S_data[IntVars::cons].const_array(mfi);
@@ -291,16 +417,46 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                     Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     Real pressure = getPgivenRTh(rhotheta,qv_for_p);
-                    Real old = Gpu::Atomic::Min(&d_val_min_ptr[0], pressure);
-                    //Gpu::Atomic::Min(&d_val_min_ptr[0], dist);
-                    if (old > pressure) {
-                        // We are the new minimum; record indices
-                        d_i_min_ptr[0] = i;
-                        d_j_min_ptr[0] = j;
+                    Gpu::Atomic::Min(&d_val_min_ptr[0], pressure);
+                }
+            }
+        });
+    }
+
+    // The minimum over every box on this rank must be known before the
+    // locating pass below can test against it.
+    Gpu::synchronize();
+
+    for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+        const Box& box = mfi.validbox();
+        const Array4<Real const>& S_arr = S_data[IntVars::cons].const_array(mfi);
+
+        ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
+            if(k==0) {
+                Real x =  prob_lo[0] + (i+myhalf)*dx[0];
+                Real y =  prob_lo[1] + (j+myhalf)*dx[1];
+                Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
+                if(dist < 200e3) {
+                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                    const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
+                    Real pressure = getPgivenRTh(rhotheta,qv_for_p);
+                    if (pressure == d_val_min_ptr[0]) {
+                        Gpu::Atomic::Min(d_idx_min_ptr, pack_ij(i,j,nx,dlo));
                     }
                 }
             }
         });
+    }
+
+    Gpu::synchronize();
+
+    // Unpack the located index back into the (i,j) device scalars that
+    // ComputeGlobalMinLocation reads.
+    {
+        int h_i_min, h_j_min;
+        unpack_ij(d_idx_min.dataValue(), nx, dlo, h_i_min, h_j_min);
+        Gpu::copy(Gpu::hostToDevice, &h_i_min, &h_i_min + 1, d_i_min_ptr);
+        Gpu::copy(Gpu::hostToDevice, &h_j_min, &h_j_min + 1, d_j_min_ptr);
     }
 
     Real global_val_min;
@@ -311,6 +467,9 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                              global_val_min, global_i_min, global_j_min);
 }
 
+/**
+ * Read hurricane tracking history from restart files.
+ */
 void
 ERF::ReadStormTrackerRestart ()
 {
@@ -471,6 +630,11 @@ ERF::ReadStormTrackerRestart ()
     }
 }
 
+/**
+ * Wrapper to track the hurricane eye position over time.
+ *
+ * @param[in] sc Solver choices
+ */
 void
 ERF::HurricaneEyeTracker (const SolverChoice& sc)
 {
@@ -497,6 +661,13 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc)
     HurricaneTrackerCircle();
 }
 
+/**
+ * Compute and track the maximum wind velocity near the hurricane eye.
+ *
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] mf_cc_vel MultiFab containing cell-centered velocity
+ * @param[in] time Current simulation time
+ */
 void
 ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
                             const MultiFab& mf_cc_vel,
@@ -542,8 +713,9 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     Gpu::copy(Gpu::deviceToHost, d_val_max.begin(), d_val_max.end(), &h_val_max_local);
 
     Real h_val_max_global = -bogus_large_value;
-     #ifdef AMREX_USE_MPI
-        MPI_Allreduce(&h_val_max_local, &h_val_max_global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    #ifdef AMREX_USE_MPI
+        h_val_max_global = h_val_max_local;
+        amrex::ParallelDescriptor::ReduceRealMax(h_val_max_global);
     #else
         h_val_max_global = h_val_max_local;
     #endif
@@ -552,6 +724,14 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     hurricane_maxvel_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_max_global});
 }
 
+/**
+ * Compute and track the minimum pressure near the hurricane eye.
+ *
+ * @param[in] moisture_type Moisture model type
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] mf_cons_var MultiFab containing conservative variables
+ * @param[in] time Current simulation time
+ */
 void
 ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
                                   const Geometry& lev_geom,
@@ -595,12 +775,10 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
     Real h_val_min_local = bogus_large_value;
     Gpu::copy(Gpu::deviceToHost, d_val_min.begin(), d_val_min.end(), &h_val_min_local);
 
-    Real h_val_min_global = bogus_large_value;
-     #ifdef AMREX_USE_MPI
-        MPI_Allreduce(&h_val_min_local, &h_val_min_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    #else
-        h_val_min_global = h_val_min_local;
-    #endif
+    // NOTE: use the amrex wrapper rather than a hard-coded MPI_DOUBLE, which is
+    //       a type mismatch when amrex::Real is float (ERF_PRECISION=SINGLE).
+    Real h_val_min_global = h_val_min_local;
+    ParallelDescriptor::ReduceRealMin(h_val_min_global);
 
     double time_in_hrs = time / 3600.0;
     hurricane_minpressure_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_min_global});

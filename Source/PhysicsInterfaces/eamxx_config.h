@@ -2,6 +2,16 @@
 #define SCREAM_CONFIG_H
 
 // If defined, Real is double; if not, Real is float.
+//
+// NOTE: this file is a frozen copy of an EAMxx configure output, so scream::Real is fixed
+//       here and the EAMxx ETI files that ERF compiles only instantiate the SHOC templates
+//       for that type.  ERF instantiates them with amrex::Real, so the two must agree: a
+//       single-precision ERF build would ask for Functions<float,...> and fail to link with
+//       undefined references to shoc_main and friends.  ERF's CMake therefore refuses
+//       ERF_PRECISION=SINGLE together with ERF_ENABLE_EAMXX_SHOC, and ERF_ShocInterface.H
+//       static_asserts the same thing for build paths that do not go through CMake.  If
+//       EAMxx SHOC is ever validated in single precision, this define should be driven from
+//       the build's precision setting rather than hard-wired.
 #define SCREAM_DOUBLE_PRECISION
 
 // If defined, enable floating point exceptions.

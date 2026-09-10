@@ -22,7 +22,7 @@ using namespace amrex;
  * @param[in] ay_arr area fraction of y-faces
  * @param[in] az_arr area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor at cell centers
  * @param[in] mf_my y map factor at cell centers
  * @param[in] mf_uy y map factor at x-faces
@@ -113,7 +113,7 @@ AdvectionSrcForRho (const Box& bx,
  * @param[in] cell_prim primitive form of scalar variables, here only potential temperature theta
  * @param[out] advectionSrc tendency for the scalar update equation
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor at cell centers
  * @param[in] mf_my y map factor at cell centers
  * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars

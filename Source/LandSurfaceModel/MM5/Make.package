@@ -1,2 +1,0 @@
-CEXE_sources += ERF_MM5.cpp
-CEXE_headers += ERF_MM5.H

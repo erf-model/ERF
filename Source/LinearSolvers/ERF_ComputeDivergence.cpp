@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ComputeDivergence.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 
@@ -6,8 +9,19 @@ using namespace amrex;
 /**
  * Project the single-level velocity field to enforce incompressibility
  * Note that the level may or may not be level zero
+ *
+ * @param lev Level index for the projection data
+ * @param rhs Cell-centered divergence field to be filled
+ * @param rho0_u_const Face-centered momentum components to differentiate
+ * @param geom_at_lev Geometry for the level being projected
  */
-void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMREX_SPACEDIM> rho0_u_const, Geometry const& geom_at_lev)
+void ERF::compute_divergence (int lev, MultiFab& rhs,
+                              Array<MultiFab const*,AMREX_SPACEDIM> rho0_u_const,
+                              MultiFab const& mf_mx, MultiFab const& mf_my,
+                              MultiFab const& mf_vx, MultiFab const& mf_uy,
+                              MultiFab const& ax_in, MultiFab const& ay_in,
+                              MultiFab const& dJ_in,
+                              Geometry const& geom_at_lev)
 {
     BL_PROFILE("ERF::compute_divergence()");
 
@@ -36,10 +50,10 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
             const Array4<Real const>& rho0w_arr = rho0_u_const[2]->const_array(mfi);
             const Array4<Real      >&   rhs_arr = rhs.array(mfi);
 
-            const Array4<Real const>&      mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-            const Array4<Real const>&      mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-            const Array4<Real const>&      mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-            const Array4<Real const>&      mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
+            const Array4<Real const>&      mf_mx_arr = mf_mx.const_array(mfi);
+            const Array4<Real const>&      mf_my_arr = mf_my.const_array(mfi);
+            const Array4<Real const>&      mf_vx_arr = mf_vx.const_array(mfi);
+            const Array4<Real const>&      mf_uy_arr = mf_uy.const_array(mfi);
 
             if (SolverChoice::mesh_type == MeshType::StretchedDz)
             {
@@ -47,9 +61,9 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real inv_dz = one/stretched_dz_d_ptr[k];
-                    Real mfsq   = mf_mx(i,j,0) * mf_my(i,j,0);
-                    rhs_arr(i,j,k) = (  (rho0u_arr(i+1,j  ,k  )/mf_uy(i+1,j,0) - rho0u_arr(i,j,k)/mf_uy(i,j,0)) * dxInv[0]
-                                       +(rho0v_arr(i  ,j+1,k  )/mf_vx(i,j+1,0) - rho0v_arr(i,j,k)/mf_vx(i,j,0)) * dxInv[1]
+                    Real mfsq   = mf_mx_arr(i,j,0) * mf_my_arr(i,j,0);
+                    rhs_arr(i,j,k) = (  (rho0u_arr(i+1,j  ,k  )/mf_uy_arr(i+1,j,0) - rho0u_arr(i,j,k)/mf_uy_arr(i,j,0)) * dxInv[0]
+                                       +(rho0v_arr(i  ,j+1,k  )/mf_vx_arr(i,j+1,0) - rho0v_arr(i,j,k)/mf_vx_arr(i,j,0)) * dxInv[1]
                                        +(rho0w_arr(i  ,j  ,k+1)/mfsq           - rho0w_arr(i,j,k)/mfsq        ) * inv_dz  ) * mfsq;
                 });
             }
@@ -58,17 +72,17 @@ void ERF::compute_divergence (int lev, MultiFab& rhs, Array<MultiFab const*,AMRE
                 //
                 // Note we compute the divergence using "rho0w" == Omega
                 //
-                const Array4<Real const>& ax_arr = ax[lev]->const_array(mfi);
-                const Array4<Real const>& ay_arr = ay[lev]->const_array(mfi);
-                const Array4<Real const>& dJ_arr = detJ_cc[lev]->const_array(mfi);
+                const Array4<Real const>& ax_arr = ax_in.const_array(mfi);
+                const Array4<Real const>& ay_arr = ay_in.const_array(mfi);
+                const Array4<Real const>& dJ_arr = dJ_in.const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
-                    rhs_arr(i,j,k) = ( ( ax_arr(i+1,j,k)*rho0u_arr(i+1,j,k)/mf_uy(i+1,j,0)
-                                        -ax_arr(i  ,j,k)*rho0u_arr(i  ,j,k)/mf_uy(i  ,j,0)  ) * dxInv[0]
-                                     + ( ay_arr(i,j+1,k)*rho0v_arr(i,j+1,k)/mf_vx(i,j+1,0)
-                                        -ay_arr(i,j  ,k)*rho0v_arr(i,j  ,k)/mf_vx(i,j  ,0)  ) * dxInv[1]
+                    Real mfsq = mf_mx_arr(i,j,0) * mf_my_arr(i,j,0);
+                    rhs_arr(i,j,k) = ( ( ax_arr(i+1,j,k)*rho0u_arr(i+1,j,k)/mf_uy_arr(i+1,j,0)
+                                        -ax_arr(i  ,j,k)*rho0u_arr(i  ,j,k)/mf_uy_arr(i  ,j,0)  ) * dxInv[0]
+                                     + ( ay_arr(i,j+1,k)*rho0v_arr(i,j+1,k)/mf_vx_arr(i,j+1,0)
+                                        -ay_arr(i,j  ,k)*rho0v_arr(i,j  ,k)/mf_vx_arr(i,j  ,0)  ) * dxInv[1]
                                       +(                 rho0w_arr(i,j,k+1)/mfsq
                                         -                rho0w_arr(i,j,k  )/mfsq            ) * dxInv[2] ) * mfsq / dJ_arr(i,j,k);
                 });

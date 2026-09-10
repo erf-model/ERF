@@ -20,7 +20,7 @@
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] interp_u_h horizontal interpolator for x-component velocity
  * @param[in] interp_u_v vertical interpolator for x-component velocity
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_ux_inv inverse x map factor on x-faces
  * @param[in] mf_uy_inv inverse y map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces
@@ -125,7 +125,7 @@ AdvectionSrcForXMom (int i, int j, int k,
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] interp_v_h horizontal interpolator for y-component velocity
  * @param[in] interp_v_v vertical interpolator for y-component velocity
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_uy_inv inverse y map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces
  * @param[in] mf_vy_inv inverse y map factor on y-faces
@@ -232,7 +232,7 @@ AdvectionSrcForYMom (int i, int j, int k,
  * @param[in] interp_omega_h horizontal interpolator for z-coordinate-normal momentum
  * @param[in] interp_omega_v vertical interpolator for z-coordinate-normal momentum
  * @param[in] interp_omega_wall wall-aware vertical interpolator for z-coordinate-normal momentum
- * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] cellSizeInv inverse of the grid spacing
  * @param[in] mf_mx x map factor on cell centers
  * @param[in] mf_my y map factor on cell centers
  * @param[in] mf_uy_inv inverse y map factor on x-faces
@@ -396,7 +396,7 @@ AdvectionSrcForZMom (int i, int j, int k,
  * @param[in] ay area fractions on y-faces
  * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] mf_mx x map factor on cell centers
  * @param[in] mf_ux_inv inverse x map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces
@@ -491,7 +491,7 @@ AdvectionSrcForMomWrapper (const amrex::Box& bxx, const amrex::Box& bxy, const a
  * @param[in] ay area fractions on y-faces
  * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation
- * @param[in] cellSizeInv inverse mesh spacing
+ * @param[in] cellSizeInv inverse grid spacing
  * @param[in] mf_mx x map factor on cell centers
  * @param[in] mf_ux_inv inverse x map factor on x-faces
  * @param[in] mf_vx_inv inverse x map factor on y-faces

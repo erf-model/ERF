@@ -31,19 +31,26 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     // Get basic info
     //--------------------------------------------------------
     ParmParse pp(m_pp_prefix);
-    pp.query("most.radius",m_radius);
-    pp.query("most.time_average",m_t_avg);
-    pp.query("most.terrain_rotate",m_rotate);
-    pp.query("most.use_interpolation",m_interp);
-    pp.query("most.use_normal_vector",m_norm_vec);
+    pp.queryAdd("most.radius",m_radius);
+    pp.queryAdd("most.time_average",m_t_avg);
+    pp.queryAdd("most.terrain_rotate",m_rotate);
+    pp.queryAdd("most.use_interpolation",m_interp);
+    pp.queryAdd("most.use_normal_vector",m_norm_vec);
 
     // m_time_window is normalized by the time-step "dt"
-    pp.query("most.time_window", m_time_window);
+    pp.queryAdd("most.time_window", m_time_window);
 
     // Corrections to the mean surface velocity
-    pp.query("most.include_subgrid_vel", include_subgrid_vel);
+    pp.queryAdd("most.include_subgrid_vel", include_subgrid_vel);
 
-    auto specified_policy = pp.query("most.average_policy",m_policy);
+    // Probe with a negative sentinel rather than testing the queryAdd return value:
+    // the return value only reports "did this key exist before this call", which is
+    // the same as "did the user set it" only on the first parse of the key.  0 is a
+    // legal policy (plane average), so the natural default cannot double as a sentinel.
+    m_policy = -1;
+    pp.queryAdd("most.average_policy",m_policy);
+    const bool specified_policy = (m_policy >= 0);
+    if (!specified_policy) { m_policy = 0; }
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
         if (specified_policy) {
             Warning("MOST Planar averaging requested with variable dz -- proceed with caution");
@@ -59,6 +66,25 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     if ((m_terrain_type == TerrainType::EB) && (m_policy == 0)) {
         m_policy = 2;
     }
+
+    // With more than one level only the local average is well posed: a plane
+    // average taken over a fine patch does not span the domain, so the surface
+    // layer would see a different mean on either side of the level boundary.
+    // NOTE: This is the number of levels allowed (amr.max_level + 1) and not the
+    //       number currently in use, since the policy cannot change once the
+    //       averages (and the state of their time filter) have been built.
+    const int nlev = static_cast<int>(m_geom.size());
+    if ((nlev > 1) && (m_policy != 1)) {
+        if (m_terrain_type == TerrainType::EB) {
+            Warning("MOST EB averaging requested with amr.max_level > 0 -- proceed with caution");
+        } else {
+            Print() << "Note: amr.max_level > 0 -- switching MOST to local averaging"
+                    << " (erf.most.average_policy = 1) since a plane average over a"
+                    << " fine patch does not span the domain" << std::endl;
+            m_policy = 1;
+        }
+    }
+
     // For SYCL
     amrex::ignore_unused(has_zphys);
 
@@ -264,6 +290,14 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
 
         // None of the averages are initialized
         m_t_init.resize(m_maxlev,0);
+
+        // We have just (re)built the average containers at this level, so whatever
+        // filter history this level held is gone: m_averages holds bogus_large_value
+        // and set_plane_normalization has zeroed m_plane_average.  Note that resize
+        // above does not touch existing entries, so this must be set explicitly or a
+        // regrid would blend the bogus values into the filtered average.  On restart
+        // ReadCheckpointFileSurfaceLayer restores the state and sets this back to 1.
+        m_t_init[lev] = 0;
     }
 
     // Correction to the mean surface velocity at this level
@@ -305,6 +339,45 @@ MOSTAverage::update_field_ptrs (const int& lev,
 }
 
 /**
+ * Function to return the number of ghost cells of the 2D data (averages,
+ * indices and positions) that can be filled from the field data.
+ *
+ * With more than one level we must explicitly fill the ghost cells of the 2D
+ * data: an isolated fine patch has no neighboring box for a FillBoundary to
+ * communicate with, while the fields themselves do carry valid ghost data
+ * (filled from the coarse level).  The 2D data are allocated with as many ghost
+ * cells as the fields they are built from, but an average reads the fields over
+ * m_radius cells in each direction and the tangential velocity magnitude (like
+ * the interpolation stencil) reaches one cell beyond that.  So a ghost cell of
+ * the 2D data can only be computed where the fields carry m_radius+1 ghost
+ * cells past it.
+ *
+ * @param[in] lev Current level
+ */
+IntVect
+MOSTAverage::get_ng_fill (const int& lev) const
+{
+    // The averages can hold no more than they were allocated with
+    int ng_min = m_averages[lev][0]->nGrowVect()[0];
+    for (int iavg(0); iavg < m_navg; ++iavg) {
+        const IntVect ng = m_averages[lev][iavg]->nGrowVect();
+        ng_min = min(ng_min, min(ng[0],ng[1]));
+    }
+
+    // The velocities carry one fewer ghost cell than the CC fields, so they
+    // are what limits us in practice
+    for (int imf(0); imf < m_nvar; ++imf) {
+        if (!m_fields[lev][imf]) { continue; }
+        const IntVect ng = m_fields[lev][imf]->nGrowVect();
+        ng_min = min(ng_min, min(ng[0],ng[1]));
+    }
+
+    // No ghost cells in the vertical: all the 2D data are slabs at klo
+    const int ng_fill = max(0, ng_min - (m_radius + 1));
+    return IntVect(ng_fill,ng_fill,0);
+}
+
+/**
  * Function to set the rotated velocities.
  *
  * @param[in] lev Current level
@@ -323,13 +396,23 @@ MOSTAverage::set_rotated_fields (const int& lev)
     // Single MFIter over CC data
     int imf_cc = 2;
 
+    // NOTE: The region average reads the rotated velocities out into the ghost
+    //       region (see get_ng_fill) and a FillBoundary here would not help an
+    //       isolated fine patch, so we rotate the ghost cells as well.  We stop
+    //       one cell shy of the full ghost region since the rotation reaches one
+    //       cell ahead in w (and one node ahead in z_phys).
+    IntVect ngu = rot_fields[0]->nGrowVect(); ngu[2] = 0;
+    IntVect ngv = rot_fields[1]->nGrowVect(); ngv[2] = 0;
+    ngu = max(ngu - IntVect(1,1,0), IntVect(0));
+    ngv = max(ngv - IntVect(1,1,0), IntVect(0));
+
     // Populate rotated U & V for terrain
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box ubx = mfi.tilebox(IntVect(1,0,0));
-        Box vbx = mfi.tilebox(IntVect(0,1,0));
+        Box ubx = mfi.tilebox(IntVect(1,0,0),ngu);
+        Box vbx = mfi.tilebox(IntVect(0,1,0),ngv);
 
         const Array4<const Real>& z_phys_arr = z_phys_nd->const_array(mfi);
 
@@ -520,8 +603,13 @@ void
 MOSTAverage::set_k_indices_N (const int& lev)
 {
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_z = pp.query("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
+    if (!read_z) { zref_tmp = zref_default; }
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Default behavior is to use the first cell center
@@ -576,9 +664,14 @@ MOSTAverage::set_k_indices_N (const int& lev)
 void
 MOSTAverage::set_z_positions_EB (const int& lev)
 {
-    Real zref_tmp = zref_default;
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
     ParmParse pp(m_pp_prefix);
-    auto read_z = pp.query("most.zref",zref_tmp);
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
+    if (!read_z) { zref_tmp = zref_default; }
 
     if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
@@ -606,13 +699,18 @@ MOSTAverage::set_k_indices_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_z = pp.query("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_z = (zref_tmp > Real(0));
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
     int klo     = m_geom[lev].Domain().smallEnd(2);
 
     // Allow default zref
     if (!read_z) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
         read_z = true;
     }
@@ -627,11 +725,16 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real d_radius = static_cast<Real>(m_radius);
     amrex::ignore_unused(d_radius);
 
+    // The k indices are needed everywhere an average is computed, ghost cells
+    // included; the box is made nodal so that we also cover the U & V averages,
+    // which are face centered
+    const IntVect ng_indx = max(get_ng_fill(lev), IntVect(1,1,0));
+
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
         int kmax = m_geom[lev].Domain().bigEnd(2);
         for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+            Box npbx = mfi.tilebox(IntVect(1,1,0),ng_indx);
 
             if (npbx.smallEnd(2) != klo) { continue; }
 
@@ -687,9 +790,14 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
     int klo = m_geom[lev].Domain().smallEnd(2);
@@ -699,9 +807,14 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     Real d_radius = static_cast<Real>(m_radius);
 
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
-    IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
+
+    // The indices are needed everywhere an average is computed, ghost cells
+    // included; the box is made nodal so that we also cover the U & V averages,
+    // which are face centered
+    const IntVect ng_indx = max(get_ng_fill(lev), IntVect(1,1,0));
+
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),ng_indx);
 
         if (npbx.smallEnd(2) != klo) { continue; }
 
@@ -776,9 +889,14 @@ MOSTAverage::set_z_positions_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     } else {
         m_zref[lev]->setVal(zref_tmp);
@@ -793,8 +911,15 @@ MOSTAverage::set_z_positions_T (const int& lev)
     const auto dx = m_geom[lev].CellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
     const int position_ng = (m_radius > 1) ? m_radius : 1;
+
+    // The positions are read over the averaging stencil at every cell where an
+    // average is computed, ghost cells included; the box is made nodal so that
+    // we also cover the U & V averages, which are face centered
+    const IntVect ng_pos = max(get_ng_fill(lev) + IntVect(m_radius,m_radius,0),
+                               IntVect(position_ng,position_ng,0));
+
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),ng_pos);
         Box gtbx  = mfi.growntilebox(ng);
 
         if (npbx.smallEnd(2) != klo) { continue; }
@@ -841,9 +966,14 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     int imf_cc = 2;
 
     ParmParse pp(m_pp_prefix);
-    Real zref_tmp = zref_default;
-    auto read_zref = pp.query("most.zref",zref_tmp);
+    // See zref_sentinel in ERF_MOSTAverage.H: probe with the sentinel and test the
+    // value, since queryAdd's return value stops meaning "user specified" after the
+    // first parse of the key and this routine runs once per level.
+    Real zref_tmp = zref_sentinel;
+    pp.queryAdd("most.zref",zref_tmp);
+    bool read_zref = (zref_tmp > Real(0));
     if (!read_zref) {
+        zref_tmp = zref_default;
         Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
     }
     int klo = m_geom[lev].Domain().smallEnd(2);
@@ -857,8 +987,15 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
     IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
     const int position_ng = (m_radius > 1) ? m_radius : 1;
+
+    // The positions are read over the averaging stencil at every cell where an
+    // average is computed, ghost cells included; the box is made nodal so that
+    // we also cover the U & V averages, which are face centered
+    const IntVect ng_pos = max(get_ng_fill(lev) + IntVect(m_radius,m_radius,0),
+                               IntVect(position_ng,position_ng,0));
+
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(position_ng,position_ng,0));
+        Box npbx  = mfi.tilebox(IntVect(1,1,0),ng_pos);
         Box gtbx  = mfi.growntilebox(ng);
         RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
@@ -1245,6 +1382,74 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
 
 /**
+ * Function to fill the ghost cells of one average that cannot be computed from
+ * the field data with a zeroth-order extrapolation of the nearest computed
+ * value.
+ *
+ * The averages hold as many ghost cells as the fields, which is more than can be
+ * computed from them (see get_ng_fill), so the outermost layers are filled here
+ * to leave no average undefined.  This is done before the FillBoundary, which
+ * then overwrites whatever is shared with a neighboring box.
+ *
+ * @param[in] lev     Current level
+ * @param[in] iavg    Average component
+ * @param[in] ng_fill Number of ghost cells holding computed data
+ */
+void
+MOSTAverage::extrap_ghost_cells (const int& lev,
+                                 const int& iavg,
+                                 const IntVect& ng_fill)
+{
+    // Peel back the level
+    auto& fields   = m_fields[lev];
+    auto& averages = m_averages[lev];
+
+    int klo = m_geom[lev].Domain().smallEnd(2);
+
+    // NOTE: The fields and averages have different indexing.
+    //       The averages are: U/V/T/Qv/Tv/Umag
+    //       The fields   are: U/V/T/Qv/Qr/W
+    //       We clip iavg at 2 since all the remaining data is CC
+    const int imf = min(iavg,2);
+
+    IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
+
+    // Everything we hold was computed above
+    if (ng.allLE(ng_fill)) { return; }
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+        Box gpbx = mfi.growntilebox(ng);
+
+        if (gpbx.smallEnd(2) != klo) { continue; }
+
+        gpbx.makeSlab(2,klo);
+
+        // Region of this box that holds computed averages
+        Box cbx = mfi.validbox(); cbx.grow(ng_fill);
+
+        if (cbx.contains(gpbx)) { continue; }
+
+        auto ma_arr = averages[iavg]->array(mfi);
+
+        int i_lo = cbx.smallEnd(0); int i_hi = cbx.bigEnd(0);
+        int j_lo = cbx.smallEnd(1); int j_hi = cbx.bigEnd(1);
+        ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
+        {
+            int li, lj;
+            li = i  < i_lo ? i_lo : i;
+            li = li > i_hi ? i_hi : li;
+            lj = j  < j_lo ? j_lo : j;
+            lj = lj > j_hi ? j_hi : lj;
+
+            ma_arr(i,j,0) = ma_arr(li,lj,0);
+        });
+    } // MFiter
+}
+
+/**
  * Function to compute average over local region.
  *
  * @param[in] lev Current level
@@ -1285,6 +1490,14 @@ MOSTAverage::compute_region_averages (const int& lev)
     // Capture radius for device
     int d_radius = m_radius;
 
+    // NOTE: With more than one level we must explicitly fill the ghost cells of
+    //       the averages.  An isolated fine patch has no neighboring box for the
+    //       FillBoundary below to communicate with, while the fields do carry
+    //       valid ghost data (filled from the coarse level), so we compute the
+    //       averages there as well.  Where fine boxes do abut, the FillBoundary
+    //       overwrites what we compute with the neighbor's valid data.
+    const IntVect ng_fill = get_ng_fill(lev);
+
     //
     //----------------------------------------------------------
     // Averages for U,V,T,Qv
@@ -1299,7 +1512,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox();
+            Box pbx = mfi.growntilebox(ng_fill);
 
             if (pbx.smallEnd(2) != klo) { continue; }
 
@@ -1360,6 +1573,10 @@ MOSTAverage::compute_region_averages (const int& lev)
             }
         } // MFiter
 
+        // Fill the ghost cells we could not compute above
+        //***********************************************************************************
+        extrap_ghost_cells(lev,imf,ng_fill);
+
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
         averages[imf]->FillBoundary(geom.periodicity());
@@ -1379,7 +1596,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox();
+            Box pbx = mfi.growntilebox(ng_fill);
 
             if (pbx.smallEnd(2) != klo) { continue; }
 
@@ -1462,6 +1679,10 @@ MOSTAverage::compute_region_averages (const int& lev)
             }
         } // MFiter
 
+        // Fill the ghost cells we could not compute above
+        //***********************************************************************************
+        extrap_ghost_cells(lev,iavg,ng_fill);
+
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
         averages[iavg]->FillBoundary(geom.periodicity());
@@ -1490,7 +1711,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box pbx = mfi.tilebox();
+            Box pbx = mfi.growntilebox(ng_fill);
 
             if (pbx.smallEnd(2) != klo) { continue; }
 
@@ -1558,38 +1779,40 @@ MOSTAverage::compute_region_averages (const int& lev)
             }
         } // MFiter
 
+        // Fill the ghost cells we could not compute above
+        //***********************************************************************************
+        extrap_ghost_cells(lev,iavg,ng_fill);
+
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
         averages[iavg]->FillBoundary(geom.periodicity());
 
     }
 
-    // NOTE: Checking periodicity with the geom structure is not
-    //       sufficient at higher levels. The BA may be contained
-    //       within the domain and it's exterior ghost cells filled
-    //       from interpolation; yet the domain BCs are periodic.
-
-    // Need to fill ghost cells outside the domain if not periodic
-    bool not_per_x = !(geom.periodicity().isPeriodic(0));
-    bool not_per_y = !(geom.periodicity().isPeriodic(1));
-    Box cc_bnd_bx  = (m_fields[lev][2]->boxArray()).minimalBox();
-    Box domain     = geom.Domain();
-    if (domain.contains(cc_bnd_bx) || (not_per_x || not_per_y)) {
+    // NOTE: Ghost cells of a patch that lies inside the domain -- an isolated
+    //       fine patch, for instance -- were computed above from the ghost data
+    //       of the fields and communicated by the FillBoundary, so they are left
+    //       alone here.  Ghost cells outside a non-periodic domain boundary are
+    //       instead filled with the nearest average inside the domain.
+    Box domain = geom.Domain();
+    Array<int,AMREX_SPACEDIM> not_per = {0,0,0};
+    for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+        if (!geom.isPeriodic(idim)) { not_per[idim] = 1; }
+    }
+    if (not_per[0] || not_per[1]) {
+        const int d_not_per_x = not_per[0];
+        const int d_not_per_y = not_per[1];
         for (int iavg(0); iavg < m_navg; ++iavg) {
             IntVect ng = averages[iavg]->nGrowVect(); ng[2]=0;
 
-            // NOTE:  Level 0 spans the whole domain, but finer
-            //        levels do not have such a restriction.
-            //        For now, use the bounding box of the boxArray.
-
-            // NOTE2: The fields and averages have different indexing.
-            //        The averages are: U/V/T/Qv/Tv/Umag
-            //        The fields   are: U/V/T/Qv/Qr/W
-            //        We clip iavg at 2 since all the remaining data is CC
-
-            // Bounded box of CC data used for normalization
+            // NOTE: The fields and averages have different indexing.
+            //       The averages are: U/V/T/Qv/Tv/Umag
+            //       The fields   are: U/V/T/Qv/Qr/W
+            //       We clip iavg at 2 since all the remaining data is CC
             int imf = min(iavg,2);
-            Box bnd_bx = (fields[imf]->boxArray()).minimalBox();
+
+            // The domain with the index type of this average
+            Box dom_bx = convert(domain, fields[imf]->boxArray().ixType());
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -1600,19 +1823,23 @@ MOSTAverage::compute_region_averages (const int& lev)
 
                 gpbx.makeSlab(2,klo);
 
-                if (bnd_bx.contains(gpbx)) continue;
+                if (dom_bx.contains(gpbx)) continue;
 
                 auto ma_arr = averages[iavg]->array(mfi);
 
-                int i_lo = bnd_bx.smallEnd(0); int i_hi = bnd_bx.bigEnd(0);
-                int j_lo = bnd_bx.smallEnd(1); int j_hi = bnd_bx.bigEnd(1);
+                int i_lo = dom_bx.smallEnd(0); int i_hi = dom_bx.bigEnd(0);
+                int j_lo = dom_bx.smallEnd(1); int j_hi = dom_bx.bigEnd(1);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int ) noexcept
                 {
-                    int li, lj;
-                    li = i  < i_lo ? i_lo : i;
-                    li = li > i_hi ? i_hi : li;
-                    lj = j  < j_lo ? j_lo : j;
-                    lj = lj > j_hi ? j_hi : lj;
+                    int li = i; int lj = j;
+                    if (d_not_per_x) {
+                        li = i  < i_lo ? i_lo : i;
+                        li = li > i_hi ? i_hi : li;
+                    }
+                    if (d_not_per_y) {
+                        lj = j  < j_lo ? j_lo : j;
+                        lj = lj > j_hi ? j_hi : lj;
+                    }
 
                     ma_arr(i,j,0) = ma_arr(li,lj,0);
                 });

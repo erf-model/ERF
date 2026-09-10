@@ -12,6 +12,7 @@ namespace Species
 {
     AMREX_ENUM(Name,
         H2O,
+        ice,
         NaCl,
         NH42SO4,
         NH4HSO4,
@@ -31,19 +32,31 @@ namespace saturation_funcs
     /*! \brief Compute saturation pressure for moist air */
     AMREX_GPU_HOST
     void compute_saturation_pressure_H2O  (  amrex::MultiFab&, const amrex::MultiFab& );
+    /*! \brief Compute saturation pressure for icy air */
+    AMREX_GPU_HOST
+    void compute_saturation_pressure_ice  (  amrex::MultiFab&, const amrex::MultiFab& );
 
     /*! \brief Null function for saturation vapour fraction */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_null ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
+
     /*! \brief Compute saturation vapour fraction for moist air */
     AMREX_GPU_HOST
     void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
                                            const amrex::MultiFab&,
                                            const amrex::MultiFab& );
+    /*! \brief Compute saturation vapour fraction for icy air */
+    AMREX_GPU_HOST
+    void compute_saturation_vapfrac_ice  ( amrex::MultiFab&,
+                                           const amrex::MultiFab&,
+                                           const amrex::MultiFab& );
 }
 
+/**
+ * @brief Base structure containing material property constants and methods for GPU usage.
+ */
 struct MaterialPropertiesCore { // For GPU
 
     static constexpr amrex::Real s_N_av = amrex::Real(6.02214076e23); /*!< Avogadro's number */
@@ -61,6 +74,7 @@ struct MaterialPropertiesCore { // For GPU
     amrex::Real m_ionization = std::numeric_limits<float>::max(); /*!< ionization */
     amrex::Real m_mol_weight = std::numeric_limits<float>::max(); /*!< molecular weight (condensate) */
     amrex::Real m_lat_vap = std::numeric_limits<float>::max(); /*!< latent heat of vaporization */
+    amrex::Real m_lat_fus = std::numeric_limits<float>::max(); /*!< latent heat of fusion */
     amrex::Real m_Rv = std::numeric_limits<float>::max(); /*!< gas constant for vapour of this material */
     amrex::Real m_Tc = std::numeric_limits<float>::max(); /*!< critical temperature for surface tension */
     amrex::Real m_Tb = std::numeric_limits<float>::max(); /*!< boiling temperature */
@@ -70,21 +84,23 @@ struct MaterialPropertiesCore { // For GPU
     amrex::Real m_ionization = std::numeric_limits<double>::max(); /*!< ionization */
     amrex::Real m_mol_weight = std::numeric_limits<double>::max(); /*!< molecular weight (condensate) */
     amrex::Real m_lat_vap = std::numeric_limits<double>::max(); /*!< latent heat of vaporization */
+    amrex::Real m_lat_fus = std::numeric_limits<double>::max(); /*!< latent heat of fusion */
     amrex::Real m_Rv = std::numeric_limits<double>::max(); /*!< gas constant for vapour of this material */
     amrex::Real m_Tc = std::numeric_limits<double>::max(); /*!< critical temperature for surface tension */
     amrex::Real m_Tb = std::numeric_limits<double>::max(); /*!< boiling temperature */
     amrex::Real m_Nav_by_molweight = std::numeric_limits<float>::max(); /*!< Avogadro number by vapour mol. weight */
 #endif
     /*! vector of molar heat capacity polynomial coeffs */
-    amrex::Real m_mol_Cp_coeffs[7] = {  amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX),
-                                        amrex::Real(DBL_MAX) };
+    amrex::Real m_mol_Cp_coeffs[7] = {  std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max(),
+                                        std::numeric_limits<amrex::Real>::max() };
     bool m_is_soluble = false; /*!< is soluble in water? */
     bool m_is_water = false; /*!< is this water? */
+    bool m_is_INP = false; /*!< can act as ice nucleating particle? */
 
     /*! \brief Return the molar heat capacity */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -174,6 +190,7 @@ struct MaterialProperties : public MaterialPropertiesCore {
 
     /*! pointer to function to compute saturation pressure */
     decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func = nullptr;
+
     /*! pointer to function to compute vapour fraction */
     decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func = nullptr;
 
@@ -197,6 +214,7 @@ struct MaterialProperties : public MaterialPropertiesCore {
         amrex::Print() << "    ionization: " << m_ionization << "\n";
         amrex::Print() << "    mol. weight: " << m_mol_weight << "\n";
         amrex::Print() << "    latent heat (vap.): " << m_lat_vap << "\n";
+        amrex::Print() << "    latent heat (fus.): " << m_lat_fus << "\n";
         amrex::Print() << "    Rv: " << m_Rv << "\n";
         amrex::Print() << "    Tc: " << m_Tc << "\n";
         amrex::Print() << "    Tb: " << m_Tb << "\n";
@@ -209,6 +227,9 @@ struct MaterialProperties : public MaterialPropertiesCore {
     /*! \brief Set this material to H20 */
     AMREX_GPU_HOST_DEVICE
     void setProperties_H2O();
+    /*! \brief Set this material to ice */
+    AMREX_GPU_HOST_DEVICE
+    void setProperties_ice();
     /*! \brief Set this material to water */
     AMREX_GPU_HOST_DEVICE
     void setProperties_water();

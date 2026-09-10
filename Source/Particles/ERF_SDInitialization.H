@@ -16,6 +16,9 @@
 #include "ERF_Constants.H"
 #include "ERF_MaterialProperties.H"
 
+/**
+ * @brief Initial distribution shape for super-droplets.
+ */
 AMREX_ENUM(SDInitShape,
     uniform,
     bubble,
@@ -40,11 +43,78 @@ namespace SupDropInit
     const int num_aerosols_max = 8;
 }
 
+/**
+ * @brief Multiplicity type for super-droplet initialization.
+ */
 AMREX_ENUM(SDMultiplicityType,
     constant, sampled
 );
 
 /*! \brief GPU-compatible structure holding distribution parameters */
+/*! \brief Resolves a super-droplet input across the two input tiers.
+ *
+ *  A property may be set once for every block under "<name>.<key>", or overridden
+ *  for a single block under "<name>.<idx>.<key>". The common tier is what lets a
+ *  property be shared, and is also what keeps input files written before multiple
+ *  initializations were supported working unchanged.
+ *
+ *  Precedence is per-block over common. a_val enters holding the default and leaves
+ *  holding the resolved value. The return value reports whether the value came from
+ *  the input file, so a caller can tell "the user set this" from "this is the
+ *  default" without asking ParmParse whether a name is present.
+ *
+ *  The resolved value is recorded under the per-block prefix so that it appears in
+ *  job_info. That prefix is unique to this block, so the record cannot be read back
+ *  by a later block as though the user had set it -- which is precisely what
+ *  recording under the common prefix would do.
+ */
+struct SDInputs
+{
+    SDInputs (const std::string& a_common, const std::string& a_block)
+        : m_common(a_common), m_block(a_block),
+          m_common_name(a_common), m_block_name(a_block) {}
+
+    template <typename T>
+    bool query (const std::string& a_key, T& a_val, const bool a_record = true)
+    {
+        bool from_inputs = m_block.query(a_key.c_str(), a_val);
+        if (!from_inputs) { from_inputs = m_common.query(a_key.c_str(), a_val); }
+        if (!from_inputs && a_record) { m_block.add(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    /*! Array-valued form, length taken from the input. */
+    template <typename T>
+    bool queryarr (const std::string& a_key, std::vector<T>& a_val)
+    {
+        bool from_inputs = m_block.queryarr(a_key.c_str(), a_val);
+        if (!from_inputs) { from_inputs = m_common.queryarr(a_key.c_str(), a_val); }
+        if (!from_inputs) { m_block.addarr(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    /*! Record a resolved value under the per-block prefix, for provenance only.
+     *  Use where one of several alternative spellings of an input is in effect and
+     *  only the effective one should be reported. */
+    template <typename T>
+    void record (const std::string& a_key, T& a_val) { m_block.add(a_key.c_str(), a_val); }
+
+    /*! Array-valued form; a_num is the expected number of components. */
+    template <typename T>
+    bool queryarr (const std::string& a_key, std::vector<T>& a_val, const int a_num)
+    {
+        bool from_inputs = m_block.queryarr(a_key.c_str(), a_val, 0, a_num);
+        if (!from_inputs) { from_inputs = m_common.queryarr(a_key.c_str(), a_val, 0, a_num); }
+        if (!from_inputs) { m_block.addarr(a_key.c_str(), a_val); }
+        return from_inputs;
+    }
+
+    amrex::ParmParse m_common;    /*!< common tier: "<name>" */
+    amrex::ParmParse m_block;     /*!< per-block tier: "<name>.<idx>" */
+    std::string      m_common_name;
+    std::string      m_block_name;
+};
+
 struct SDDistributionParams {
     SDDistributionType dist_type;  /*!< Type of distribution */
     amrex::Real mass_min;          /*!< Minimum mass */
@@ -156,6 +226,10 @@ class SDInitProperties
 
         /*!< Initial number of super-droplets per cell */
         int m_ppc = 1;
+        /*!< Whether particles_per_cell came from the input file. Published by
+             readInputs so callers do not have to read the key a second time --
+             a second read would find the default this one recorded. */
+        bool m_ppc_from_inputs = false;
 
         /*! Initial distribution type */
         SDInitShape m_type = SDInitShape::uniform;
@@ -164,6 +238,9 @@ class SDInitProperties
         amrex::Real m_numdens = -1;
         /*!< Maximum multiplicity */
         amrex::Real m_max_multiplicity = 1000000;
+        /*!< Apparent (bulk) density of initialized ice particles [kg m^-3];
+             <= 0 means use the solid-ice material density (a solid sphere) */
+        amrex::Real m_ice_app_density = -1;
 
         /*! Minimum species mass */
         std::vector<amrex::Real> m_mass_species_min;
@@ -225,13 +302,13 @@ class SDInitProperties
                                    const MatVec& a_aerosol_mat );
 
         /*! \brief Read super-droplets initialization parameters from input file
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_key Key identifier for initialization parameters
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          */
-        virtual void readInputs ( const std::string& a_prefix,
+        virtual void readInputs ( SDInputs& a_in,
                                   const std::string& a_key,
                                   const amrex::Geometry& a_geom,
                                   const MatVec& a_species_mat,
@@ -532,6 +609,16 @@ class SDInitProperties
 
         virtual int numSDPerCell (const amrex::Real) const = 0;
         virtual amrex::Real numParticlesPerCell (const amrex::Real) const = 0;
+
+        /*! \brief Per-box high-multiplicity injection (false for initialization
+         *  and legacy per-cell injection). */
+        [[nodiscard]] virtual bool perBoxInjection () const { return false; }
+        /*! \brief Number of super-droplets to inject in the whole box this step. */
+        [[nodiscard]] virtual int injectBoxCount () const { return 0; }
+        /*! \brief Multiplicity of each super-droplet injected this step. */
+        [[nodiscard]] virtual amrex::Real injectMultiplicity () const { return zero; }
+        /*! \brief Reproducible seed for scattering this step's super-droplets. */
+        [[nodiscard]] virtual unsigned int injectSeed () const { return 0; }
 };
 
 /*! \brief Super-droplets initialization structure */
@@ -558,19 +645,128 @@ class SDInjection : public SDInitProperties
         /*!< Stop time for injection */
         amrex::Real m_tstop = amrex::Real(1.0e17);
 
+        /*!< Accumulated physical-particle number density [m^-3]. When the per-cell
+             injection rate is sub-unity, the fractional part is carried here until
+             it amounts to at least one super-droplet of unit multiplicity. */
+        amrex::Real m_numdens_accum = zero;
+        /*!< Injection-level cell volume [m^3], set from geometry at read time */
+        amrex::Real m_cell_volume = -1;
+        /*!< Number of super-droplets to inject this step (0 = none). Per cell in
+             legacy mode; per box in per-box high-multiplicity mode. */
+        int m_inject_num_sd = 0;
+        /*!< Integer multiplicity of each super-droplet injected this step */
+        amrex::Real m_inject_mult = zero;
+        /*!< Tolerance below 1 at which an accumulated injection fires */
+        amrex::Real m_frac_tol = amrex::Real(1.0e-3);
+
+        /*!< Minimum multiplicity for per-box injection (default 100) */
+        amrex::Real m_min_multiplicity = 100;
+        /*!< Per-box high-multiplicity injection mode (set when particles_per_cell
+             is not specified) */
+        bool m_perbox = false;
+        /*!< True when both sd_rate and min_multiplicity are explicitly specified */
+        bool m_both_specified = false;
+        /*!< Whether each knob was specified in any readInputs call (the
+             resolver reports this exactly, in a single pass). */
+        bool m_ppc_specified = false;
+        bool m_sd_specified  = false;
+        bool m_mm_specified  = false;
+        /*!< Effective SD injection rate [# m^-3 s^-1] used in per-box mode */
+        amrex::Real m_eff_sd_rate = -1;
+        /*!< Injection-box volume [m^3], set from the box at read time */
+        amrex::Real m_box_volume = -1;
+        /*!< Accumulated super-droplet count owed to the box (per-box mode) */
+        amrex::Real m_sd_accum = zero;
+        /*!< Count of injection events so far, used as a reproducible scatter seed */
+        unsigned int m_inject_count = 0;
+        /*!< Reproducible seed for scattering this step's super-droplets */
+        unsigned int m_inject_seed = 0;
+        /*!< Input prefix (e.g. injection.0) for diagnostic messages */
+        std::string m_prefix;
+
         /*! \brief Update time-dependent quantities for particle injection
          *
          * This function updates:
-         * 1. Number density based on injection rate and timestep
-         * 2. Super-droplet number density based on SD injection rate
-         * 3. Position of the injection domain based on domain velocity
+         * 1. The accumulated physical-particle count, and the integer number of
+         *    super-droplets and their integer multiplicity to inject this step
+         * 2. Position of the injection domain based on domain velocity
+         *
+         * The number of super-droplets per cell is the specified count (m_ppc, or
+         * derived from the SD rate). The physical-particle count accumulates from
+         * the injection rate; a step injects only once each of those super-droplets
+         * would carry at least unit multiplicity, with integer multiplicity
+         * max(round(num_par/num_sd), 1). This lets sub-unity per-step injection
+         * rates be honored automatically, with no separate opt-in.
          *
          * \param[in] a_dt Timestep size in seconds
+         * \param[in] a_active True while the injection time window is open
          */
-        inline void updateDt (const double a_dt)
+        inline void updateDt (const double a_dt, const bool a_active)
         {
-            this->m_numdens = m_inj_rate * a_dt;
-            m_numdens_sd = (m_sd_inj_rate>0 ? std::max(m_sd_inj_rate*a_dt, 1.) : -1);
+            using amrex::Real;
+
+            if (m_perbox) {
+                // Per-box high-multiplicity injection: accumulate the box-level
+                // super-droplet and physical-particle counts. Inject floor(SD
+                // count) super-droplets at the implied multiplicity (= rate /
+                // eff_sd_rate) once at least one super-droplet is owed. This
+                // decouples the super-droplet count from the grid and bounds the
+                // population at physical/multiplicity.
+                if (a_active) {
+                    m_sd_accum      += m_eff_sd_rate * a_dt * m_box_volume;
+                    m_numdens_accum += m_inj_rate    * a_dt * m_box_volume;  // physical count in box
+                }
+                if (a_active && m_sd_accum >= one - m_frac_tol) {
+                    const int N = std::max(static_cast<int>(std::floor(m_sd_accum + m_frac_tol)), 1);
+                    m_inject_mult   = std::max(std::round(m_numdens_accum / N), one);
+                    m_inject_num_sd = N;
+                    m_sd_accum      -= N;
+                    m_numdens_accum -= N * m_inject_mult;
+                    m_inject_seed   = m_inject_count++;
+                } else {
+                    m_inject_num_sd = 0;
+                    m_inject_mult   = zero;
+                }
+            } else {
+
+            // Specified number of super-droplets per cell (m_ppc) or from the SD rate.
+            Real num_sd;
+            if (m_sd_inj_rate > 0) {
+                num_sd = std::max(Real(std::round(m_sd_inj_rate * a_dt * m_cell_volume)), one);
+            } else {
+                num_sd = std::max(Real(m_ppc), one);
+            }
+
+            // Physical particles this step (per cell) and the resulting multiplicity.
+            const Real par_step  = m_inj_rate * a_dt * m_cell_volume;
+            const Real mult_step = par_step / num_sd;
+
+            if (!a_active) {
+                m_inject_num_sd = 0;
+                m_inject_mult   = zero;
+            } else if (mult_step >= one) {
+                // Each super-droplet already carries at least unit multiplicity:
+                // inject the specified count every step (no accumulation).
+                m_inject_num_sd = static_cast<int>(num_sd);
+                m_inject_mult   = std::max(std::round(mult_step), one);
+                m_numdens_accum = zero;
+            } else {
+                // Sub-unity per-step multiplicity: accumulate the physical-particle
+                // count and inject only once it amounts to >= 1 multiplicity.
+                m_numdens_accum += m_inj_rate * a_dt;
+                const Real num_par = m_numdens_accum * m_cell_volume;
+                const Real mult    = num_par / num_sd;
+                if (mult >= one - m_frac_tol) {
+                    m_inject_mult   = std::max(std::round(mult), one);   // integer multiplicity
+                    m_inject_num_sd = static_cast<int>(num_sd);
+                    m_numdens_accum -= (num_sd * m_inject_mult) / m_cell_volume;  // carry remainder
+                } else {
+                    m_inject_num_sd = 0;
+                    m_inject_mult   = zero;
+                }
+            }
+
+            }
 
             if (this->m_type == SDInitShape::uniform) {
                 amrex::Vector<amrex::Real> lo = {zero, zero, zero};
@@ -591,7 +787,7 @@ class SDInjection : public SDInitProperties
         }
 
         /*! read super-droplets injection parameters */
-        void readInputs ( const std::string&,
+        void readInputs ( SDInputs&,
                           const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
@@ -605,13 +801,13 @@ class SDInjection : public SDInitProperties
          * This function reads injection-specific parameters like injection rate,
          * timing parameters, and domain velocity.
          *
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          * \param[in] a_dt Current timestep size
          */
-        void readInputs ( const std::string& a_prefix,
+        void readInputs ( SDInputs& a_in,
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat,
@@ -620,37 +816,24 @@ class SDInjection : public SDInitProperties
         /*! print super-droplets injection parameters to screen */
         void printParameters ( const MatVec&, const MatVec& ) const override;
 
-        /*! \brief Compute number of super-droplets to inject per grid cell
-         *
-         * Determines the number of super-droplets to inject based on either:
-         * 1. The super-droplet number density and cell volume, or
-         * 2. A constant number per cell (m_ppc) if number density is not set
-         *
-         * \param[in] a_dv Volume of the grid cell
-         * \return Number of super-droplets to inject in this cell
-         */
-        [[nodiscard]] inline int numSDPerCell (const amrex::Real a_dv) const override
+        /*! \brief Number of super-droplets to inject per cell this step.
+         *  Decided in updateDt() from the accumulated count (0 = inject nothing). */
+        [[nodiscard]] inline int numSDPerCell (const amrex::Real /*a_dv*/) const override
         {
-            int num_sd_per_cell = 0;
-            if (m_numdens_sd >= 0) {
-                num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd*a_dv));
-            } else {
-                num_sd_per_cell = this->m_ppc;
-            }
-            return num_sd_per_cell;
+            return m_inject_num_sd;
         }
 
-        /*! Compute number of physical particles per grid cell */
-        [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real a_dv) const override
+        /*! \brief Number of physical particles to inject per cell this step.
+         *  Equals num_sd * integer-multiplicity, decided in updateDt(). */
+        [[nodiscard]] inline amrex::Real numParticlesPerCell (const amrex::Real /*a_dv*/) const override
         {
-            amrex::Real num_par_per_cell = zero;
-            if (this->m_numdens >= 0) {
-                num_par_per_cell = std::ceil(this->m_numdens*a_dv);
-            } else {
-                num_par_per_cell = 1;
-            }
-            return num_par_per_cell;
+            return amrex::Real(m_inject_num_sd) * m_inject_mult;
         }
+
+        [[nodiscard]] inline bool perBoxInjection () const override { return m_perbox; }
+        [[nodiscard]] inline int injectBoxCount () const override { return m_inject_num_sd; }
+        [[nodiscard]] inline amrex::Real injectMultiplicity () const override { return m_inject_mult; }
+        [[nodiscard]] inline unsigned int injectSeed () const override { return m_inject_seed; }
 
 };
 
@@ -665,7 +848,7 @@ class SDInitialization : public SDInitProperties
         amrex::Real m_numdens_sd_init = -1;
 
         /*! read super-droplets initialization parameters */
-        void readInputs ( const std::string&,
+        void readInputs ( SDInputs&,
                           const std::string&,
                           const amrex::Geometry&,
                           const MatVec&,
@@ -679,12 +862,12 @@ class SDInitialization : public SDInitProperties
          * This function reads initialization-specific parameters including
          * distribution types, particle counts, and sizing parameters.
          *
-         * \param[in] a_prefix Prefix for parameter parser
+         * \param[in] a_in Two-tier input resolver
          * \param[in] a_geom Simulation geometry information
          * \param[in] a_species_mat Vector of species material properties
          * \param[in] a_aerosol_mat Vector of aerosol material properties
          */
-        void readInputs ( const std::string& a_prefix,
+        void readInputs ( SDInputs& a_in,
                           const amrex::Geometry& a_geom,
                           const MatVec& a_species_mat,
                           const MatVec& a_aerosol_mat );

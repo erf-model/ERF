@@ -1,3 +1,6 @@
+/**
+ * \file ERF_NCPlotFile.H
+ */
 #ifndef ERF_NCPLOTFILE_H_
 #define ERF_NCPLOTFILE_H_
 

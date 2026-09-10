@@ -1,3 +1,6 @@
+/**
+ * \file ERF_NCPlotFile.cpp
+ */
 #include <iomanip>
 #include <iostream>
 #include <string>
@@ -179,13 +182,16 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
         for (int i = 0; i < ba.size(); ++i) {
             auto bx = ba[i];
             if (subdomain.contains(bx)) {
+                // The loop indices below are box-local, so they must be offset by the
+                // low corner of the box to give the global location of each cell
+                const auto bx_lo = bx.smallEnd();
                 x_grid.clear(); y_grid.clear(); z_grid.clear();
                 for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                     for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                         for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
-                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
-                            z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(k3)+myhalf));
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(bx_lo[0]+k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(bx_lo[1]+k2)+myhalf));
+                            z_grid.push_back(prob_lo[2]+dx[2]*(static_cast<Real>(bx_lo[2]+k3)+myhalf));
                          }
                     }
                 }
@@ -212,13 +218,17 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
         for (int i = 0; i < ba.size(); ++i) {
             auto bx = ba[i];
             if (subdomain.contains(bx)) {
+                // The loop indices below are box-local, so they must be offset by the
+                // low corner of the box to give the global location of each cell;
+                // zlevels_stag is indexed globally as well
+                const auto bx_lo = bx.smallEnd();
                 x_grid.clear(); y_grid.clear(); z_grid.clear();
                 for (auto k3 = 0; k3 < bx.length(2); ++k3) {
                     for (auto k2 = 0; k2 < bx.length(1); ++k2) {
                         for (auto k1 = 0; k1 < bx.length(0); ++k1) {
-                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(k1)+myhalf));
-                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(k2)+myhalf));
-                            z_grid.push_back(myhalf * (zlevels_stag[k3] + zlevels_stag[k3+1]));
+                            x_grid.push_back(prob_lo[0]+dx[0]*(static_cast<Real>(bx_lo[0]+k1)+myhalf));
+                            y_grid.push_back(prob_lo[1]+dx[1]*(static_cast<Real>(bx_lo[1]+k2)+myhalf));
+                            z_grid.push_back(myhalf * (zlevels_stag[bx_lo[2]+k3] + zlevels_stag[bx_lo[2]+k3+1]));
                          }
                     }
                 }
@@ -242,6 +252,20 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
    }
 
    const int ncomp = plotMF[lev]->nComp();
+
+   // *******************************************************************************
+   // The data below is written from inside an MFIter loop, so each rank makes one
+   // put call per box that it owns.  Ranks can own different numbers of boxes when
+   // the domain does not decompose evenly, so the sequence of put calls does not
+   // match across ranks -- we must therefore use independent rather than collective
+   // access, otherwise the write hangs waiting for ranks that have no box left.
+   //
+   // Note also that the access mode is a property of the variable, so it only needs
+   // to be set once per variable rather than once per box per component.
+   // *******************************************************************************
+   for (int k(0); k < ncomp; ++k) {
+       ncf.var(plot_var_names[k]).par_access(NC_INDEPENDENT);
+   }
 
    for (MFIter mfi(*plotMF[lev]); mfi.isValid(); ++mfi)
    {
@@ -268,7 +292,6 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                Gpu::streamSynchronize();
 
                auto nc_plot_var = ncf.var(plot_var_names[k]);
-               nc_plot_var.par_access(NC_COLLECTIVE);
                nc_plot_var.put(tmp.dataPtr(), {local_start_z,local_start_y,local_start_x},
                                               {local_nz, local_ny, local_nx});
            }

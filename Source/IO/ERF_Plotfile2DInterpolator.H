@@ -1,3 +1,6 @@
+/**
+ * \file ERF_Plotfile2DInterpolator.H
+ */
 #ifndef ERF_PLOTFILE2DINTERPOLATOR_H_
 #define ERF_PLOTFILE2DINTERPOLATOR_H_
 
@@ -64,7 +67,11 @@ void fill_sampled_level_component (amrex::MultiFab& dst,
                                    const MoistureComponentIndices& moisture_indices,
                                    int klo,
                                    int khi,
-                                   const SampledWindSources& wind_sources = {});
+                                   const SampledWindSources& wind_sources = {},
+                                   // Base state pressure -- pass this only for an anelastic
+                                   //    run, in which case it is used in place of the
+                                   //    compressible EOS for the pressure field
+                                   const amrex::MultiFab* p_hse = nullptr);
 
 } // namespace plotfile2d
 

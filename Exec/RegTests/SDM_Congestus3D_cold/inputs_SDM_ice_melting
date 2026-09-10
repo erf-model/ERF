@@ -1,0 +1,73 @@
+# 1D melting layer: low-density ice flakes (D = 10 mm, rho_app = 20 kg/m^3) injected at
+# the 0 C top of a warming-downward column fall and melt (Seifert-Beheng), with the
+# mixed-phase terminal velocity blending from ice to water (Frick 2013). kinematic
+# environment; coalescence off.
+
+erf.prob_name                = "SDM_Congestus3D_cold"
+
+max_step  = 1000000
+stop_time = 600.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY -- thin 1D column; 0 C level at the top (z=800 m)
+geometry.prob_lo     =  0.0   0.0   0.0
+geometry.prob_hi     =  80.0  80.0  800.0
+amr.n_cell           =  4     4     80      # dx=dy=20 m, dz=10 m
+geometry.is_periodic =  1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt       = 0.5
+erf.init_type      = input_sounding
+erf.input_sounding_file = input_sounding_melting
+
+erf.use_gravity    = true
+erf.buoyancy_type  = 2
+erf.moisture_model = "SuperDroplets"
+erf.les_type       = "None"
+erf.pbl_type       = "None"
+
+amr.max_level    = 0
+erf.sum_interval = -1
+erf.v            = 1
+amr.v            = 1
+erf.check_int    = -1
+erf.plot_file_1  = plt
+erf.plot_int_1   = 200
+erf.plot_vars_1  = density temp theta pressure qv qi qsnow qgraup qrain rel_humidity \
+                   super_droplets_moisture_number_density \
+                   super_droplets_moisture_species_mass_density_H2O \
+                   super_droplets_moisture_species_mass_density_ice
+particles.disable_plt = false           # write particle plotfiles (per-flake ice/water mass)
+
+# ---- Super-droplet method: prescribed, no feedback -----------------------------
+super_droplets_moisture.kinematic_mode        = true
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.diagnostics_interval  = -1
+super_droplets_moisture.include_coalescence   = false
+super_droplets_moisture.advect_with_flow      = true
+super_droplets_moisture.advect_with_gravity   = true
+super_droplets_moisture.prescribed_advection  = false
+super_droplets_moisture.density_scaling       = false
+super_droplets_moisture.aerosols              = NaCl
+
+# No initial particles -- the column is populated by injection only.
+super_droplets_moisture.num_initializations   = 0
+
+# ---- Steady ice flux from the top (the 0 C level) ------------------------------
+super_droplets_moisture.num_injections = 1
+super_droplets_moisture.injection.distribution_type = "uniform"
+super_droplets_moisture.injection.multiplicity_type = "constant"
+super_droplets_moisture.injection.domain_velocity   = 0.0 0.0 0.0
+super_droplets_moisture.injection.particle_box_lo   = 0.0  0.0  790.0
+super_droplets_moisture.injection.particle_box_hi   = 80.0 80.0 800.0
+super_droplets_moisture.injection.ice_apparent_density = 20.0     # low-density flake
+super_droplets_moisture.injection.species_distribution_type_ice = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_ice         = 1.047e-05
+super_droplets_moisture.injection.species_distribution_type_H2O = "mass_constant"
+super_droplets_moisture.injection.species_mean_mass_H2O         = 0.0
+super_droplets_moisture.injection.aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.injection.aerosol_mean_mass_NaCl         = 1.0e-19
+super_droplets_moisture.injection.rate              = 5.0e1   # physical # m^-3 s^-1
+super_droplets_moisture.injection.particles_per_cell = 1

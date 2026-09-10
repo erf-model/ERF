@@ -4,6 +4,7 @@
 #include "ERF_ShocColumnData.H"
 
 #include <algorithm>
+#include <cstring>
 #include <cctype>
 #include <fstream>
 #include <map>
@@ -38,6 +39,28 @@ run_and_sync (F&& f)
 {
     std::forward<F>(f)();
     sync();
+}
+
+template <typename Fab>
+inline amrex::FArrayBox
+copy_fab_to_host (const Fab& src)
+{
+#ifdef AMREX_USE_GPU
+    amrex::FArrayBox dst(src.box(), src.nComp(), amrex::The_Pinned_Arena());
+    const std::size_t nbytes = static_cast<std::size_t>(dst.size()) * sizeof(amrex::Real);
+    if (src.arena()->isManaged() || src.arena()->isDevice()) {
+        amrex::Gpu::dtoh_memcpy_async(dst.dataPtr(), src.dataPtr(), nbytes);
+        amrex::Gpu::streamSynchronize();
+    } else {
+        std::memcpy(dst.dataPtr(), src.dataPtr(), nbytes);
+    }
+    return dst;
+#else
+    amrex::FArrayBox dst(src.box(), src.nComp());
+    std::memcpy(dst.dataPtr(), src.dataPtr(),
+                static_cast<std::size_t>(dst.size()) * sizeof(amrex::Real));
+    return dst;
+#endif
 }
 
 inline std::string

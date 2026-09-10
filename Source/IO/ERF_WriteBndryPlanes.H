@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteBndryPlanes.H
+ */
 #ifndef ERF_WRITEBNDRYPLANES_H
 #define ERF_WRITEBNDRYPLANES_H
 

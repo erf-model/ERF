@@ -1,3 +1,6 @@
+/**
+ * \file ERF_SolveWithGMRES.cpp
+ */
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson.H"
@@ -8,6 +11,19 @@ using namespace amrex;
 
 /**
  * Solve the Poisson equation using FFT-preconditioned GMRES
+ *
+ * @param lev Level index for the solve
+ * @param subdomain Box over which the solve is performed
+ * @param rhs Right-hand side field for the Poisson solve
+ * @param p Solution field to fill
+ * @param fluxes Face-centered gradient fluxes to fill
+ * @param ax_sub Terrain metric coefficient on x-faces
+ * @param ay_sub Terrain metric coefficient on y-faces
+ * @param az_sub Terrain metric coefficient on z-faces
+ * @param znd_sub Node-centered physical height field
+ *
+ * The unnamed metric argument in the class declaration is the cell-centered
+ * Jacobian determinant.
  */
 void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiFab& phi,
                             Array<MultiFab,AMREX_SPACEDIM>& fluxes,
@@ -52,7 +68,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
 
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
-    TerrainPoisson tp(my_geom, rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
+    TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
                       stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
                       solverChoice.use_real_bcs);
 

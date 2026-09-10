@@ -5,6 +5,8 @@
 #ifndef ERF_EB_AUX_H_
 #define ERF_EB_AUX_H_
 
+#include <memory>
+
 #include <AMReX_Geometry.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_BoxArray.H>
@@ -24,11 +26,16 @@ class eb_aux_
 
     //! Construct an undefined auxiliary EB factory.
     eb_aux_ ();
-    //! Destroy the auxiliary EB factory.
-    ~eb_aux_ ();
+    //! Destroy the auxiliary EB factory; the owned geometry is released by its unique_ptrs.
+    ~eb_aux_ () = default;
 
     /**
      * \brief Define face-centered EB geometry for one staggered direction.
+     *
+     * May be called more than once on the same object -- ERF::RemakeLevel and
+     * MakeNewLevelFromCoarse both redefine the factories of an existing level.
+     * Each call replaces the previously owned geometry, which is freed on
+     * reassignment of the owning unique_ptr.
      * \param a_level AMR level index.
      * \param a_idim Staggered direction for the target velocity grid.
      * \param a_geom Cell-centered level geometry.
@@ -72,16 +79,19 @@ class eb_aux_
 
     // int m_defined;
 
-    amrex::FabArray<amrex::EBCellFlagFab>* m_cellflags = nullptr;
-    amrex::MultiFab* m_volfrac = nullptr;
-    amrex::MultiFab* m_volcent = nullptr;
-    amrex::MultiFab* m_bndryarea = nullptr;
-    amrex::MultiFab* m_bndrycent = nullptr;
-    amrex::MultiFab* m_bndrynorm = nullptr;
+    // These own the geometry they point at.  define() may be called repeatedly on the
+    // same object, so ownership has to be explicit: assigning a new unique_ptr frees
+    // whatever the previous define() allocated.
+    std::unique_ptr<amrex::FabArray<amrex::EBCellFlagFab>> m_cellflags;
+    std::unique_ptr<amrex::MultiFab> m_volfrac;
+    std::unique_ptr<amrex::MultiFab> m_volcent;
+    std::unique_ptr<amrex::MultiFab> m_bndryarea;
+    std::unique_ptr<amrex::MultiFab> m_bndrycent;
+    std::unique_ptr<amrex::MultiFab> m_bndrynorm;
 
-    amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> m_areafrac {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
-    amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> m_facecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
-    // amrex::Array<amrex::MultiCutFab*,AMREX_SPACEDIM> m_edgecent {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM> m_areafrac;
+    amrex::Array<std::unique_ptr<amrex::MultiFab>,AMREX_SPACEDIM> m_facecent;
+    // amrex::Array<std::unique_ptr<amrex::MultiCutFab>,AMREX_SPACEDIM> m_edgecent;
 
 };
 

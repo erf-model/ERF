@@ -3,10 +3,29 @@
 
 using namespace amrex;
 
+/**
+ * Tag cells based on distance from the hurricane eye.
+ *
+ * @param cgeom Geometry used for coordinates.
+ * @param[out] tags TagBoxArray to be filled.
+ * @param eye_x x-coordinate of the eye.
+ * @param eye_y y-coordinate of the eye.
+ * @param rad_tag Radius within which to tag.
+ */
 void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
+/**
+ * Locate the initial position of the hurricane eye.
+ *
+ * @param levc Current level.
+ * @param mf_cc_vel MultiFab containing cell-centered velocity.
+ * @param velmag_threshold Velocity magnitude threshold for eye identification.
+ * @param[out] eye_x Found x-coordinate of the eye.
+ * @param[out] eye_y Found y-coordinate of the eye.
+ * @return True if the eye was found, false otherwise.
+ */
 bool
 ERF::FindInitialEye(int levc,
                     const MultiFab& mf_cc_vel,
@@ -78,6 +97,15 @@ ERF::FindInitialEye(int levc,
     return (h_found[0] > 0);
 }
 
+/**
+ * Tag cells based on distance from the hurricane eye.
+ *
+ * @param cgeom Geometry used for coordinates.
+ * @param[out] tags TagBoxArray to be filled.
+ * @param eye_x x-coordinate of the eye.
+ * @param eye_y y-coordinate of the eye.
+ * @param rad_tag Radius within which to tag.
+ */
 void
 tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag)
@@ -105,6 +133,15 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
     }
 }
 
+/**
+ * Track the hurricane eye and tag cells for refinement.
+ *
+ * @param levc Current level.
+ * @param time Current simulation time.
+ * @param mf_cc_vel MultiFab containing cell-centered velocity.
+ * @param velmag_threshold Velocity magnitude threshold for eye identification.
+ * @param[out] tags TagBoxArray to be filled for refinement.
+ */
 void
 ERF::HurricaneTracker(int levc,
                       double time,

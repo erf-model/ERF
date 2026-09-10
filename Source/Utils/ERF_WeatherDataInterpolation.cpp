@@ -60,6 +60,14 @@ void PlotMultiFab(const MultiFab& mf,
     }
 }
 
+/**
+ * Fill forecast state MultiFabs by interpolating from binary forecast files.
+ *
+ * @param[in] lev Level index.
+ * @param[in] filename Path to the binary forecast data file.
+ * @param[in] a_z_phys_nd Nodal physical height field.
+ * @param[out] forecast_state MultiFabs to be filled with interpolated forecast data.
+ */
 void
 ERF::FillForecastStateMultiFabs(const int lev,
                                 const std::string& filename,
@@ -156,6 +164,17 @@ ERF::FillForecastStateMultiFabs(const int lev,
     erf_mf_yvel.setVal(0.0);
     erf_mf_zvel.setVal(0.0);
     erf_mf_latlon.setVal(0.0);
+
+    // a_z_phys_nd must live on the SAME BoxArray/DistributionMap as the forecast state:
+    // fabPtr(mfi) resolves by local index, so a stale (pre-regrid) z_phys_nd silently
+    // returns the wrong FAB rather than failing.
+    if (a_z_phys_nd) {
+        AMREX_ALWAYS_ASSERT(amrex::BoxArray(a_z_phys_nd->boxArray()).convert(amrex::IndexType::TheCellType())
+                            == erf_mf_cons.boxArray());
+
+        AMREX_ALWAYS_ASSERT(a_z_phys_nd->DistributionMap() ==
+                            erf_mf_cons.DistributionMap());
+    }
 
     // Interpolate the data on to the ERF mesh
 
@@ -343,6 +362,14 @@ ERF::FillForecastStateMultiFabs(const int lev,
         );*/
 }
 
+/**
+ * Interpolate weather forecast data onto the simulation mesh.
+ *
+ * @param[in] lev Level index.
+ * @param[in] time Current simulation time.
+ * @param[in] a_z_phys_nd Nodal physical height fields across all levels.
+ * @param[in] regrid_forces_file_read Flag to force reading of forecast files during regridding.
+ */
 void
 ERF::WeatherDataInterpolation(const int lev,
                               const double time,
