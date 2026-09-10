@@ -865,6 +865,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
+        // WFromOmega reads the same z-ghost faces of (rho0 u) and (rho0 v) as OmegaFromW above,
+        // but the fluxes were added to the valid faces only. Fill the ghost faces again, or the
+        // lowest and highest w-face of a box inside the domain (a BoxArray split in z) would be
+        // converted back with the horizontal momenta from before the projection.
+        mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+        mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+
         for (MFIter mfi(mom_mf[Vars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
              Box tbz = mfi.nodaltilebox(2);
