@@ -101,38 +101,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
-        //
-        // A level with no land file of its own takes its LSM state from level 0 rather
-        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
-        // just below), so this must be the ratio between level 0 and this level -- the
-        // product across every interface beneath it, not just the ratio across the last
-        // one.
-        //
-        IntVect RefRatio(1);
-        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-    if (lev>0) {
-        lsm.Set_Lev0_Data_Ptr(lev);
-        lsm.Set_Lev0_Flux_Ptr(lev);
-    }
+    make_lsm_at_level(lev);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -340,6 +309,17 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // 2) no boxes in a subdomain touch any boxes in any other subdomain
     //
     make_subdomains(ba.simplified_list(), subdomains[lev]);
+
+    // ****************************************************************************************
+    // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *before* usage.
+    //
+    // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
+    // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
+    // Any subsequent calls that utilize grids[lev]/dmap[lev] will then fail (e.g. anelastic
+    // velocity projection below).
+    // ****************************************************************************************
+    SetBoxArray(lev, ba);
+    SetDistributionMap(lev, dm);
 
     if (lev == 0) init_bcs();
 
@@ -557,25 +537,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     if (solverChoice.anelastic[lev]) {
         double dummy_dt = 1.0;
-
-        // ****************************************************************************************
-        // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *before* projecting.
-        //
-        // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
-        // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
-        // project_momenta builds its per-subdomain RHS from grids[lev]/dmap[lev]; with those
-        // empty the subdomain box array is empty and the singular-solvability mean-subtraction
-        // divides by a zero-cell volume (0/0 -> NaN). That NaN traps with fpe_trap_invalid=1;
-        // with it off the projection is silently a no-op on the new level (empty RHS, early
-        // return) so the divergence-free constraint is never enforced. Setting them now
-        // (mirroring MakeNewLevelFromScratch) makes grids[lev] match the momentum MultiFabs
-        // built in init_stuff on the same ba/dm. This is idempotent with the
-        // SetBoxArray/SetDistributionMap that AmrCore performs with the identical ba/dm after
-        // this function returns.
-        // ****************************************************************************************
-        SetBoxArray(lev, ba);
-        SetDistributionMap(lev, dm);
-
         project_initial_velocity(lev, time, dummy_dt);
         pp_inc[lev].setVal(0.0);
     }
@@ -583,38 +544,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
-    int lsm_data_size  = lsm.Get_Data_Size();
-    int lsm_flux_size  = lsm.Get_Flux_Size();
-    lsm_data[lev].resize(lsm_data_size);
-    lsm_data_name.resize(lsm_data_size);
-    lsm_flux[lev].resize(lsm_flux_size);
-    lsm_flux_name.resize(lsm_flux_size);
-    lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
-        //
-        // A level with no land file of its own takes its LSM state from level 0 rather
-        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
-        // just below), so this must be the ratio between level 0 and this level -- the
-        // product across every interface beneath it, not just the ratio across the last
-        // one.
-        //
-        IntVect RefRatio(1);
-        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
-        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
-    }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-    if (lev>0) {
-        lsm.Set_Lev0_Data_Ptr(lev);
-        lsm.Set_Lev0_Flux_Ptr(lev);
-    }
+    make_lsm_at_level(lev);
 
     // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
@@ -671,6 +601,18 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //
     subdomains[lev].clear();
     make_subdomains(ba.simplified_list(), subdomains[lev]);
+
+    // ********************************************************************************************
+    // Define grids[lev]/dmap[lev] to be the passed-in ba/dm *now*, not on the way out.
+    //
+    // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this level until this
+    // function returns, so for the whole body below grids[lev]/dmap[lev] otherwise still
+    // describe the PRE-regrid decomposition.  Anything that reads them instead of the ba/dm
+    // passed in silently builds itself on the old grids. This is idempotent with the calls
+    // AmrCore makes after we return, and is the only place it happens for lev == 0.
+    // ********************************************************************************************
+    SetBoxArray(lev, ba);
+    SetDistributionMap(lev, dm);
 
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
@@ -810,6 +752,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
+    }
+
+    //
+    // Keep the vertical-spacing minimum in step with the new grids, as MakeNewLevelFromCoarse
+    // does.  Without this the dt constraint keeps its pre-regrid value on a stretched or
+    // terrain-fitted mesh, where the fine detJ minimum moves with the grids.
+    //
+    if (static_cast<int>(dz_min.size()) <= lev) { dz_min.resize(lev+1); }
+    dz_min[lev] = geom[lev].CellSize(2);
+    if ( (SolverChoice::mesh_type != MeshType::ConstantDz) && detJ_cc[lev] ) {
+        dz_min[lev] *= (*detJ_cc[lev]).min(0);
     }
 
     // ********************************************************************************************
@@ -962,23 +915,38 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
 
-    // We need to re-define the FillPatcher if the grids have changed
-    if (lev > 0 && cf_width >= 0) {
-        bool ba_changed = (ba != ba_old);
-        bool dm_changed = (dm != dm_old);
-        if (ba_changed || dm_changed) {
-          Define_ERFFillPatchers(lev);
+    // ********************************************************************************************
+    // Re-define every FillPatcher that references this level's grids.
+    //
+    // FPr_*[lev-1] caches this level as the FINE side; FPr_*[lev] caches it as the COARSE side
+    // (see Construct_ERFFillPatchers).  A regrid that moves this level invalidates both, but
+    // only the first was being redefined -- so a finer level whose own grids happened not to
+    // change kept a coarse-fine fill built against this level's pre-regrid layout, which then
+    // faults on its first step.
+    //
+    // AmrCore::regrid walks coarse to fine and does not clear removed levels until its loop
+    // finishes, so vars_new[lev+1] is still valid here.  If level lev+1 is itself remade
+    // afterwards it just redefines its own patcher again; Define is idempotent.
+    // ********************************************************************************************
+    if ( (cf_width >= 0) && ((ba != ba_old) || (dm != dm_old)) ) {
+        if (lev > 0) { Define_ERFFillPatchers(lev); }
+        if ( (lev+1 <= finest_level) && (lev < static_cast<int>(FPr_c.size())) ) {
+            Define_ERFFillPatchers(lev+1);
         }
     }
 
-    // These calls are done in AmrCore::regrid if this is a regrid at lev > 0
-    // For a level 0 regrid we must explicitly do them here
-    if (lev == 0) {
-        // Define grids[lev] to be ba
-        SetBoxArray(lev, ba);
-
-        // Define dmap[lev] to be dm
-        SetDistributionMap(lev, dm);
+    // ********************************************************************************************
+    // Re-establish the pressure gradient on an anelastic level.
+    //
+    // init_stuff has just re-defined gradp[lev] on the new grids and zeroed it.
+    // MakeNewLevelFromCoarse recovers it with a projection; without the same call here every
+    // regrid silently discards the pressure gradient.  Must follow the FillPatcher definition
+    // above, which the projection's coarse-fine fill depends on.
+    // ********************************************************************************************
+    if (solverChoice.anelastic[lev]) {
+        Real dummy_dt = Real(1.0);
+        project_initial_velocity(lev, time, dummy_dt);
+        pp_inc[lev].setVal(0.0);
     }
 
     // ********************************************************************************************
@@ -1015,6 +983,39 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // ********************************************************************************************
+    // Land Surface Model
+    //
+    // Must precede the SurfaceLayer update below, which caches lsm_data[lev]/lsm_flux[lev] as
+    // raw MultiFab*.  Left out, those pointers survive the regrid on the OLD (ba,dm) and are
+    // then indexed with an MFIter over the new grids -- an out-of-bounds device read on the
+    // level's first step after the regrid.
+    //
+    // At lev > 0 this is cheap and lossless: NOAHMP::Advance calls interp_from_lev0 every
+    // step, so a fine level carries no prognostic state of its own.  At level 0 the state
+    // lives in the per-box Fortran NoahmpIO_type objects, which Init() rebuilds from the land
+    // file and for which no redistribution onto a new decomposition exists -- so refuse
+    // rather than silently cold-start the soil column.  (Level 0 is only ever remade from
+    // ERF::restart, not from regrid, which starts at lbase+1.)
+    // ********************************************************************************************
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !((lev == 0) && (solverChoice.lsm_type == LandSurfaceType::NOAHMP)),
+        "RemakeLevel at level 0 would cold-start the Noah-MP soil state: "
+        "NoahmpIO_type redistribution onto a new DistributionMapping is not implemented");
+
+    make_lsm_at_level(lev);
+
+    //
+    // A level-0 remake replaces the MultiFabs that every finer level's model caches for
+    // interp_from_lev0, so re-issue those pointers all the way up.
+    //
+    if (lev == 0) {
+        for (int k = 1; k <= finest_level; ++k) {
+            lsm.Set_Lev0_Data_Ptr(k);
+            lsm.Set_Lev0_Flux_Ptr(k);
+        }
+    }
 
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level
@@ -1133,6 +1134,48 @@ ERF::ClearLevel (int lev)
         }
     }
 #endif
+}
+
+//
+// (Re)build the land surface model at this level on the level's *current* grids.
+//
+// This must be called after vars_new[lev][Vars::cons] has been (re)defined on the new grids.
+//
+void
+ERF::make_lsm_at_level (int lev)
+{
+    int lsm_data_size  = lsm.Get_Data_Size();
+    int lsm_flux_size  = lsm.Get_Flux_Size();
+    lsm_data[lev].resize(lsm_data_size);
+    lsm_data_name.resize(lsm_data_size);
+    lsm_flux[lev].resize(lsm_flux_size);
+    lsm_flux_name.resize(lsm_flux_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        //
+        // A level with no land file of its own takes its LSM state from level 0 rather
+        // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
+        // just below), so this must be the ratio between level 0 and this level -- the
+        // product across every interface beneath it, not just the ratio across the last
+        // one.
+        //
+        IntVect RefRatio(1);
+        for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
+                 domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+    }
+    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+    }
+    if (lev>0) {
+        lsm.Set_Lev0_Data_Ptr(lev);
+        lsm.Set_Lev0_Flux_Ptr(lev);
+    }
 }
 
 void
