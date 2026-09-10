@@ -605,7 +605,7 @@ pblh_mf.setVal(0.0);
                             ? (enable_qnse_d > Real(0.5)
                                ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
                                : (1 + 5 * HOL_bounded))
-                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                            : std::pow(1 + 16 * HOL_abs, -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // Absolute bounds [0.01, 5.0] m/s
@@ -825,12 +825,12 @@ pblh_mf.setVal(0.0);
                                 ? (enable_qnse_d > Real(0.5)
                                    ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
                                    : (1 + 5 * HOL_bounded))
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                                : std::pow(1 + 16 * HOL_abs, -one_quarter);
                 const Real phit = (obuk_val > 0)
                                 ? (enable_qnse_d > Real(0.5)
                                    ? (1 + qnse_ah_d * HOL_bounded) / (1 + qnse_bh_d * HOL_bounded)
                                    : (1 + 5 * HOL_bounded))
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -Real(0.5));
+                                : std::pow(1 + 16 * HOL_abs, -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
