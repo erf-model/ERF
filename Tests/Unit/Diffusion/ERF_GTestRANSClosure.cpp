@@ -147,5 +147,7 @@ TEST(RANSClosure, DissipationAndRichardsonAreConsistent)
     const Real rho = Real(1.1), tke = Real(0.4), length = Real(7), N2 = Real(2e-4);
     Real eps_v = AL01::dissipation(rho, Cmu0_pow3, tke, length) / rho;   // per unit mass
     Real Rt_direct = tke * tke * N2 / (eps_v * eps_v);
-    EXPECT_NEAR(AL01::richardson(length, N2, tke, Cmu0_pow3), Rt_direct, Real(1e-12) * std::abs(Rt_direct));
+    // relative tolerance aware of the build precision (1e-12 double, 1e-5 float)
+    const Real rtol = (sizeof(Real) == 8) ? Real(1e-12) : Real(1e-5);
+    EXPECT_NEAR(AL01::richardson(length, N2, tke, Cmu0_pow3), Rt_direct, rtol * std::abs(Rt_direct));
 }
