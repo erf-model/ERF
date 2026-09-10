@@ -20,9 +20,11 @@ CEXE_headers += ERF_SatMethods.H
 CEXE_headers += ERF_DirectionSelector.H
 CEXE_headers += ERF_StormDiagnostics.H
 CEXE_headers += ERF_NodalReconstruction.H
+CEXE_headers += ERF_ColumnBands.H
 
 CEXE_sources += ERF_AverageDown.cpp
 CEXE_sources += ERF_ChopGrids.cpp
+CEXE_sources += ERF_ColumnBands.cpp
 CEXE_sources += ERF_ConvertForProjection.cpp
 CEXE_sources += ERF_EnforceConstraintOnBdy.cpp
 CEXE_sources += ERF_InitZLevels.cpp
