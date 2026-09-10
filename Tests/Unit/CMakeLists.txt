@@ -299,6 +299,10 @@ if(ERF_ENABLE_MPI)
       # duplicate 2D boxes, and every copy must be filled from the computed
       # surface copy, across ranks and periodic boundaries.
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestPlanarBoundaryParallel.cpp
+      # Motivation: rebalance_columns integrated each box of a BoxArray split in
+      # z from its own lowest cell, so the hydrostatic base state depended on
+      # where the columns were split.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestRebalanceColumnsParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
   if(ERF_ENABLE_NETCDF)
