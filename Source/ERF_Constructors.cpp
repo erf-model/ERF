@@ -445,7 +445,6 @@ ERF::ERF_shared ()
     //
     // Construct the EB data structures and store in a separate class
     //
-    // This is needed before initializing level MultiFabs
     std::string geometry ="terrain";
     ParmParse pp_eb2("eb2");
     pp_eb2.queryAdd("geometry", geometry);
@@ -463,38 +462,45 @@ ERF::ERF_shared ()
 
         // Define GeometryShop using the implicit function
         if (geometry == "terrain") {
-            // Check for buildings STL file (optional 3D building geometry for TerrainType::EB)
+            // Query building STL parameters upfront
             std::string buildings_stl_file;
             bool has_buildings_stl = pp_eb2.query("buildings_stl_file", buildings_stl_file);
 
-            // Check if terrain file is specified
+            Real stl_scale = 1.0;
+            Array<Real,3> stl_center = {zero, zero, zero};
+            int stl_reverse_normal = 0;
+
+            if (has_buildings_stl) {
+                pp_eb2.query("buildings_stl_scale", stl_scale);
+                pp_eb2.query("buildings_stl_center", stl_center);
+                pp_eb2.query("buildings_stl_reverse_normal", stl_reverse_normal);
+            }
+
+            // Check if terrain file is explicitly specified
             ParmParse pp_erf("erf");
             std::string terrain_fname;
             bool has_terrain_file = pp_erf.query("terrain_file_name", terrain_fname);
 
-            // Buildings-only mode: STL provided but no terrain file
+            // Determine geometry mode and log configuration
+            std::string mode_description;
             if (has_buildings_stl && !has_terrain_file) {
-                // Buildings-only mode (no terrain)
-                Real stl_scale = 1.0;
-                Array<Real,3> stl_center = {zero, zero, zero};
-                int stl_reverse_normal = 0;
+                mode_description = "Buildings-only mode (no terrain)";
+            } else if (has_buildings_stl) {
+                mode_description = "Terrain + 3D buildings";
+            } else {
+                mode_description = "Terrain-only mode (no buildings)";
+            }
 
-                pp_eb2.query("buildings_stl_scale", stl_scale);
-                pp_eb2.query("buildings_stl_center", stl_center);
-                pp_eb2.query("buildings_stl_reverse_normal", stl_reverse_normal);
-
-                Print() << "Building EB geometry: Buildings-only mode (no terrain)\n";
+            Print() << "Building EB geometry: " << mode_description << "\n";
+            if (has_buildings_stl) {
                 Print() << "  STL file: " << buildings_stl_file << "\n";
                 Print() << "  STL scale: " << stl_scale << "\n";
                 Print() << "  STL center: " << stl_center[0] << " " << stl_center[1] << " " << stl_center[2] << "\n";
                 Print() << "  Reverse normals: " << stl_reverse_normal << "\n";
+            }
 
-                BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
-                                        stl_reverse_normal, geom[max_level]);
-
-                // Use buildings-only implicit function (no makeUnion)
-                auto gshop = EB2::makeShop(buildings_if);
-
+            // Lambda to build EB geometry from shop
+            auto build_eb = [&](auto const& gshop) {
                 if (build_eb_for_multigrid) {
                     EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
                                 ngrow_for_eb, build_coarse_level_by_coarsening);
@@ -504,70 +510,40 @@ ERF::ERF_shared ()
                     EB2::BuildFC();
 #endif
                 }
+            };
 
-                Print() << "EB geometry built successfully: Buildings-only.\n";
+            // Build the appropriate implicit function and geometry
+            if (has_buildings_stl && !has_terrain_file) {
+                // Buildings-only
+                BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
+                                        stl_reverse_normal, geom[max_level]);
+                auto gshop = EB2::makeShop(buildings_if);
+                build_eb(gshop);
 
             } else {
-                // Load ground terrain (2D height field)
-                Box terrain_bx(surroundingNodes(geom[max_level].Domain())); terrain_bx.grow(3);
+                // Load terrain (from file or custom init_my_custom_terrain)
+                Box terrain_bx(surroundingNodes(geom[max_level].Domain()));
+                terrain_bx.grow(3);
                 FArrayBox terrain_fab(makeSlab(terrain_bx,2,0),1);
                 double dummy_time = 0.0;
                 prob->init_terrain_surface(geom[max_level], terrain_fab, dummy_time);
                 TerrainIF terrain_if(terrain_fab, geom[max_level], stretched_dz_d[max_level]);
 
                 if (has_buildings_stl) {
-                    // Terrain + Buildings mode (CSG Union)
-                    Real stl_scale = 1.0;
-                    Array<Real,3> stl_center = {zero, zero, zero};
-                    int stl_reverse_normal = 0;
-
-                    pp_eb2.query("buildings_stl_scale", stl_scale);
-                    pp_eb2.query("buildings_stl_center", stl_center);
-                    pp_eb2.query("buildings_stl_reverse_normal", stl_reverse_normal);
-
-                    Print() << "Building EB geometry: Terrain + 3D buildings\n";
-                    Print() << "  STL file: " << buildings_stl_file << "\n";
-                    Print() << "  STL scale: " << stl_scale << "\n";
-                    Print() << "  STL center: " << stl_center[0] << " " << stl_center[1] << " " << stl_center[2] << "\n";
-                    Print() << "  Reverse normals: " << stl_reverse_normal << "\n";
-
+                    // Terrain + Buildings
                     BuildingsIF buildings_if(buildings_stl_file, stl_scale, stl_center,
                                             stl_reverse_normal, geom[max_level]);
-
-                    // CSG Union: terrain OR buildings
                     auto combined_if = EB2::makeUnion(terrain_if, buildings_if);
                     auto gshop = EB2::makeShop(combined_if);
-
-                    if (build_eb_for_multigrid) {
-                        EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
-                                    ngrow_for_eb, build_coarse_level_by_coarsening);
-                    } else {
-                        EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                        EB2::BuildFC();
-#endif
-                    }
-
-                    Print() << "EB geometry built successfully: Terrain + buildings.\n";
-
+                    build_eb(gshop);
                 } else {
-                    // Terrain-only mode (no buildings)
-                    Print() << "Building EB geometry: Terrain-only mode (no buildings)\n";
+                    // Terrain-only
                     auto gshop = EB2::makeShop(terrain_if);
-
-                    if (build_eb_for_multigrid) {
-                        EB2::Build(gshop, geom[max_level], max_level, max_coarsening_level,
-                                    ngrow_for_eb, build_coarse_level_by_coarsening);
-                    } else {
-                        EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                        EB2::BuildFC();
-#endif
-                    }
-
-                    Print() << "EB geometry built successfully: Terrain-only.\n";
+                    build_eb(gshop);
                 }
             }
+
+            Print() << "EB geometry built successfully: " << mode_description << ".\n";
         } else if (geometry == "plane") {
             RealArray plane_point{zero, zero, zero};
             RealArray plane_normal{zero, zero, -one}; // pointing into the solid region
