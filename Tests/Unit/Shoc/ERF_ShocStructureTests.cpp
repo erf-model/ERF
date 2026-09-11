@@ -466,6 +466,9 @@ TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
     EXPECT_NEAR(pblh_consistent_qw, pblh_inconsistent_qw, 1.0e-10);
 }
 
+// Motivation: A bulk Richardson number that first exceeds the critical value
+// above the reference level must locate the crossing between the two levels;
+// this prevents the first crossing from being rounded up to the upper height.
 TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
 {
     auto col = make_first_level_ri_crossing_column(0.0);
@@ -489,6 +492,9 @@ TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
     EXPECT_NEAR(pblh, expected, tolerance);
 }
 
+// Motivation: Positive surface buoyancy runs a second Richardson search for
+// the convective correction; this protects that duplicated first-level branch
+// from retaining the old upper-level shortcut after the stable search is fixed.
 TEST(ShocStructure, PblHeightInterpolatesFirstConvectiveRichardsonCrossing)
 {
     auto col = make_first_level_ri_crossing_column(1.0e-8);
