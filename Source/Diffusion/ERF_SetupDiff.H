@@ -21,8 +21,14 @@
     [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
     // used by ERF_AddTKESources.H
+    // Clamp the divisor to the smallest normal Real before the select: an optimised
+    //   build if-converts the select into an unconditional 1/theta_ref (also when
+    //   the select is on the divisor), which trips fpe_trap_zero with the default
+    //   theta_ref = 0. The clamp is exact for any normal theta_ref > 0 and its
+    //   reciprocal is finite in single and double precision.
     [[maybe_unused]] const bool use_ref_theta = (turbChoice.theta_ref > 0);
-    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+    [[maybe_unused]] const Real inv_theta_ref = one / amrex::max(turbChoice.theta_ref, std::numeric_limits<Real>::min());
+    [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? inv_theta_ref : one;
 
     // vertical diffusivities are defined in ERF_SetupVertDiff.H
     // The number of quantities following Scalar_h must be equal to the number

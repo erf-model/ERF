@@ -34,7 +34,44 @@ namespace MicVar_Kess {
       // derived vars
       rain_accum,
       NumVars
-  };
+   };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void kessler_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    const amrex::Real qv_value = states(i,j,k,RhoQ1_comp) / rho_value;
+
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = qv_value;
+    qc(i,j,k) = states(i,j,k,RhoQ2_comp) / rho_value;
+    qp(i,j,k) = states(i,j,k,RhoQ3_comp) / rho_value;
+    qt(i,j,k) = qv(i,j,k) + qc(i,j,k);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho_value, rho_theta, qv_value, rdOcp,
+        use_anelastic_reference_pressure, p0);
+    tabs(i,j,k) = thermo.temperature;
+    // Kessler's saturation helpers use mbar / hPa.
+    pres(i,j,k) = amrex::Real(0.01) * thermo.pressure_pa;
 }
 
 class Kessler : public NullMoist {
@@ -59,7 +96,9 @@ public:
         // Use one latent-over-cp factor for both the saturation solve and theta
         // update. L_v comes from ERF_Constants.H; c_p comes from SolverChoice.
         m_fac_cond = L_v / sc.c_p;
+        m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
+        set_anelastic_reference_pressure_mode(sc);
     }
 
     // init
@@ -82,11 +121,17 @@ public:
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
+
     // Copy state into micro vars
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
-
-    using NullMoist::Update_Micro_Vars;
 
     // update micro vars
     void
@@ -183,6 +228,7 @@ private:
 
     // constants
     amrex::Real m_fac_cond;
+    amrex::Real m_rdOcp{RdoCp};
     bool m_do_cond;
     MoistureType m_moisture_type = MoistureType::None;
 
