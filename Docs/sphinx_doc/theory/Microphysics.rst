@@ -60,6 +60,64 @@ Model overview and transported quantities in ERF
    number concentration fields: :math:`n_n` (CCN number concentration), :math:`n_c` (cloud droplet number
    concentration), and :math:`n_r` (rain drop number concentration).
 
+.. _anelastic-microphysics-thermodynamics:
+
+Anelastic microphysics thermodynamics
+-------------------------------------
+
+ERF supplies the thermodynamic pressure needed by supported Eulerian
+microphysics schemes. No additional pressure field or scheme-specific pressure
+unit conversion is required in the input file.
+
+On each anelastic AMR level (``erf.anelastic = 1``), pressure-dependent
+microphysics uses the hydrostatic base-state pressure at each cell. Let
+:math:`p_{\mathrm{base}}` denote this pressure and :math:`p_{\mathrm{ref}}`
+denote ERF's fixed reference pressure used in the definition of potential
+temperature. ERF diagnoses
+
+.. math::
+
+   \theta = \frac{\rho\theta}{\rho}, \qquad
+   p_{\mathrm{micro}} = p_{\mathrm{base}},
+
+and
+
+.. math::
+
+   T = \theta
+       \left(\frac{p_{\mathrm{base}}}{p_{\mathrm{ref}}}\right)^{R_d/c_p}.
+
+The ratio :math:`R_d/c_p` uses ``erf.c_p`` for this anelastic
+pressure--temperature conversion. Pressure-dependent thermodynamic
+calculations use the same hydrostatic base-state pressure consistently through
+the microphysics source step. Schemes that convert between temperature and
+potential temperature use that same pressure.
+
+On a compressible AMR level, the existing behavior is unchanged: ERF diagnoses
+local pressure and temperature from the prognostic state with the compressible
+equation of state. In a mixed hierarchy, this choice is made independently on
+each AMR level.
+
+The reference-pressure treatment applies to the Kessler family
+(``Kessler`` and ``Kessler_NoRain``), the SAM family (``SAM``, ``SAM_NoIce``,
+and ``SAM_NoPrecip_NoIce``), the Morrison family (``Morrison`` and
+``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` already uses the
+anelastic base-state pressure. ``MoistNoCondensation`` does not have a
+pressure-dependent condensation source that requires this treatment.
+
+ERF performs scheme-specific pressure-unit conversion internally: Kessler and
+SAM use hPa internally, while Morrison, WSM6, and WDM6 use Pa. Users should
+specify only the usual model and dynamics options. For example:
+
+.. code-block:: text
+
+   erf.anelastic = 1
+   erf.moisture_model = WSM6
+
+``erf.anelastic`` may also be specified per AMR level. ``SuperDroplets`` is not
+supported when any AMR level is anelastic; see
+:ref:`superdroplets-anelastic-compatibility`.
+
 Surface precipitation accumulations
 -----------------------------------
 
