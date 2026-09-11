@@ -238,6 +238,31 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
 
+# Parity test: the deck with whole-height fine grids and with the fine grids split in z
+# must give identical plotfiles
+function(add_test_terrain_zsplit_parity TEST_NAME PLTFILE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DPLTFILE=${PLTFILE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainZSplitParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/full_columns/simulation.log;${CURRENT_TEST_BINARY_DIR}/split_in_z/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_terrain_zsplit_parity)
+
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
 function(add_test_cloud_chamber_legacy_config TEST_NAME)
@@ -478,6 +503,10 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     PROCESSORS 1
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
     LABELS "regression;shoc;microphysics")
+# execute_process needs mpiexec, and does not expand the executable globs used on Windows
+if(NOT WIN32)
+add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
+endif()
 endif()
 
 # Debug regression test with lower tolerance
@@ -835,6 +864,53 @@ if(ERF_ENABLE_PARTICLES)
     # multispecies setup with dummy water species
     add_test_sdm(SDM_MultiSpecies_Bubble2D       "" "erf_exec"  "plt00001" 5e-12 1e-12 RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
+
+#=============================================================================
+# MOST reference height on flat stretched meshes
+#
+# run_most_zref.py runs one flat stretched column through the terrain-fitted,
+# interpolated and no-terrain MOST lookups plus a uniform 10 m column, and
+# checks u* against the log law at the reported reference height and the
+# stretched column against the uniform one.  Its exit code is the verdict.
+#=============================================================================
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    set(ERF_MOST_ZREF_PYTHON "${Python3_EXECUTABLE}")
+else()
+    set(ERF_MOST_ZREF_PYTHON "python3")
+endif()
+
+function(add_test_most_zref TEST_NAME)
+    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    # 4x4 columns: one rank
+    if(ERF_ENABLE_MPI)
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+    else()
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_MOST_ZREF_PYTHON} ${CURRENT_TEST_BINARY_DIR}/run_most_zref.py --exe ${TEST_EXE} --mpi-cmd \"${MPI_COMMANDS}\" --workdir ${CURRENT_TEST_BINARY_DIR}/runs > ${test_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${test_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_most_zref)
+
+add_test_most_zref(MOST_Zref_Stretched)
 
 #=============================================================================
 # Performance tests
