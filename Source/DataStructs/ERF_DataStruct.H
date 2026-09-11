@@ -111,6 +111,19 @@ AMREX_ENUM(MoistureType,
 );
 
 /**
+ * @brief Whether an anelastic SuperDroplets configuration is unsupported.
+ *
+ * The current SuperDroplets implementation diagnoses thermodynamics through
+ * the compressible equation of state and has no BaseState pressure input.
+ */
+inline bool anelastic_superdroplets_configuration_invalid (
+    const MoistureType moisture_type,
+    const bool any_anelastic) noexcept
+{
+    return any_anelastic && moisture_type == MoistureType::SuperDroplets;
+}
+
+/**
  * @brief Wind-farm model.
  */
 AMREX_ENUM(WindFarmType,
@@ -904,6 +917,13 @@ struct SolverChoice {
             } else {
                 any_compress                = true;
             }
+        }
+
+        if (anelastic_superdroplets_configuration_invalid(moisture_type, any_anelastic)) {
+            amrex::Error("erf.moisture_model = SuperDroplets is not supported with "
+                         "erf.anelastic = 1: the Super-Droplet path currently uses "
+                         "the compressible equation of state. Use compressible "
+                         "dynamics or a supported Eulerian moisture model.");
         }
 
         // Want to have different immersed forcing defaults depending on anelastic or fully compressible.

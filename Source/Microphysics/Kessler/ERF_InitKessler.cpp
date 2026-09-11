@@ -62,6 +62,16 @@ void Kessler::Init (const MultiFab& cons_in,
  */
 void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 {
+    Copy_State_to_Micro(cons_in, nullptr);
+}
+
+void Kessler::Copy_State_to_Micro (const MultiFab& cons_in,
+                                   const MultiFab* base_state)
+{
+    assert_base_state_available(base_state);
+    const bool use_anelastic_reference_pressure =
+        m_use_anelastic_reference_pressure;
+
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.growntilebox();
@@ -78,23 +88,21 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
+        const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
+        const Real rdOcp = m_rdOcp;
 
-        // getPgivenRTh returns Pa. Kessler stores pressure in mbar / hPa for the
-        // qsat helper path, so convert here after forming temperature and density.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
-            theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-            qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
-            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
-            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
-            qt_array(i,j,k)    = qv_array(i,j,k) + qc_array(i,j,k);
-
-            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
-                                                  states_array(i,j,k,RhoTheta_comp),
-                                                  qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * Real(0.01);
+            kessler_copy_state_to_micro_cell(
+                states_array, base_array, rho_array, theta_array, qv_array,
+                qc_array, qp_array, qt_array, tabs_array, pres_array, rdOcp,
+                use_anelastic_reference_pressure, i, j, k);
         });
     }
 }
 
+void Kessler::Update_Micro_Vars (MultiFab& cons_in,
+                                 const MultiFab* base_state)
+{
+    Copy_State_to_Micro(cons_in, base_state);
+}
