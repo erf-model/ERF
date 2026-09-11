@@ -171,8 +171,11 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real Ce_lcoeff    = amrex::max(zero, l_C_e - Real(1.9)*l_C_k);
         const Real l_abs_g      = const_grav;
 
+        // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
+        //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real l_inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+        const Real inv_theta_ref = one / amrex::max(turbChoice.theta_ref, std::numeric_limits<Real>::min());
+        const Real l_inv_theta0  = (use_ref_theta) ? inv_theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -621,8 +624,11 @@ void ComputeTurbulentViscosityRANS (int level,
         // floor on k: erf.tke_floor if set, otherwise machine epsilon
         const Real tke_floor  = amrex::max(turbChoice.tke_floor, std::numeric_limits<Real>::epsilon());
 
+        // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
+        //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
-        const Real inv_theta0  = (use_ref_theta) ? one / turbChoice.theta_ref : one;
+        const Real inv_theta_ref = one / amrex::max(turbChoice.theta_ref, std::numeric_limits<Real>::min());
+        const Real inv_theta0    = (use_ref_theta) ? inv_theta_ref : one;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
