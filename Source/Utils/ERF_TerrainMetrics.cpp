@@ -169,6 +169,7 @@ struct ColumnGrids
     bool stacked = false;       // whether any two of those grids are stacked in z
     BoxArray ba_col_nd;         // the nodal column boxes (only if stacked)
     DistributionMapping dm_col;
+    MultiFab hold_bd;           // holds no data; see column_grids
 };
 
 /**
@@ -177,7 +178,12 @@ struct ColumnGrids
  * With a moving mesh make_terrain_fitted_coords runs several times per substep, but the
  * columns only change when the level is regridded.  Reusing the same BoxArray and
  * DistributionMapping also lets every ParallelCopy to and from the columns reuse its
- * communication metadata instead of rebuilding it.
+ * communication metadata instead of rebuilding it -- but only as long as some FabArray
+ * on those grids stays alive: AMReX erases the copy descriptors of a BoxArray and
+ * DistributionMapping pair as soon as the last FabArray built on it is destroyed.  The
+ * MultiFab that make_terrain_fitted_coords builds on the columns is a temporary, so
+ * without hold_bd, which is defined with no data of its own, every call would take the
+ * metadata of all three of its ParallelCopy calls with it.
  */
 ColumnGrids const&
 column_grids (int lev, const Geometry& geom, const BoxArray& ba_cc)
@@ -205,9 +211,11 @@ column_grids (int lev, const Geometry& geom, const BoxArray& ba_cc)
             cg.dm_col = DistributionMapping(ba_col);
             ba_col.surroundingNodes();
             cg.ba_col_nd = ba_col;
+            cg.hold_bd.define(cg.ba_col_nd, cg.dm_col, 1, 0, MFInfo().SetAlloc(false));
         } else {
             cg.ba_col_nd = BoxArray();
             cg.dm_col    = DistributionMapping();
+            cg.hold_bd.clear();
         }
     }
     return cg;
