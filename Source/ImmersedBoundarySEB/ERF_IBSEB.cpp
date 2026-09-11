@@ -34,9 +34,15 @@ void
 ERF::init_ibseb ()
 {
     if (!ibseb_params.enable) { return; }
-    if (solverChoice.buildings_type != BuildingsType::ImmersedForcing &&
-        solverChoice.terrain_type   != TerrainType::ImmersedForcing) {
-        Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing (or erf.terrain_type = ImmersedForcing)");
+    if (solverChoice.buildings_type != BuildingsType::ImmersedForcing) {
+        Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing");
+    }
+    // The face detection takes every solid column of the blanking for a
+    // building, so terrain by immersed forcing would be put under the
+    // balance as well; it is not supported.
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        Abort("erf.ibseb.enable does not support erf.terrain_type = ImmersedForcing: "
+              "the balance runs on building faces only");
     }
     // The face areas, the face heights, the wall-function distance and the
     // ray cast all take the level's constant cell sizes.

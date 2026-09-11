@@ -2878,10 +2878,11 @@ Surface energy balance on immersed-boundary faces
 
 These inputs configure the surface energy balance on the faces of resolved
 buildings; see :ref:`sec:IBSEB` for the formulation. They need
-``erf.buildings_type = ImmersedForcing`` (or ``erf.terrain_type =
-ImmersedForcing``), a uniform vertical grid (no ``erf.terrain_z_levels`` or
-stretched mesh) and no regridding (``erf.regrid_int`` unset); they are off
-by default.
+``erf.buildings_type = ImmersedForcing`` without terrain by immersed
+forcing (``erf.terrain_type = ImmersedForcing`` is not supported: every solid
+column would be taken for a building), a uniform vertical grid (no
+``erf.terrain_z_levels`` or stretched mesh) and no regridding
+(``erf.regrid_int`` unset); they are off by default.
 
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | Parameter                         | Definition                                               | Acceptable         | Default                |
