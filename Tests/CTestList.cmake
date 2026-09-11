@@ -503,6 +503,10 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     PROCESSORS 1
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
     LABELS "regression;shoc;microphysics")
+# execute_process needs mpiexec, and does not expand the executable globs used on Windows
+if(NOT WIN32)
+add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
+endif()
 endif()
 
 # Debug regression test with lower tolerance
@@ -711,7 +715,6 @@ add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020" RUNTIME_O
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
 add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ScalarAdvectionUniformU           ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ScalarAdvectionShearedU           ""  "erf_exec" "plt00080" RUNTIME_OPTIONS "erf.vert_implicit=false ")

@@ -27,6 +27,25 @@ foreach(RUN IN ITEMS "full_columns|1024 1024" "split_in_z|1024 16")
     endif()
 endforeach()
 
+# The comparison only means something if the split run really has more level-1 boxes: an
+# override that stopped taking effect would give two identical plotfiles, which agree.
+foreach(RUN_NAME IN ITEMS full_columns split_in_z)
+    set(CELL_H "${WORKING_DIRECTORY}/${RUN_NAME}/${PLTFILE}/Level_1/Cell_H")
+    if(NOT EXISTS "${CELL_H}")
+        message(FATAL_ERROR "${RUN_NAME} wrote no level-1 data (${CELL_H})")
+    endif()
+    file(READ "${CELL_H}" CELL_H_TEXT)
+    # The BoxArray is written as "(<number of boxes> 0" followed by one line per box
+    if(NOT CELL_H_TEXT MATCHES "\n\\(([0-9]+) 0\n")
+        message(FATAL_ERROR "Cannot read the level-1 BoxArray from ${CELL_H}")
+    endif()
+    set(NBOXES_${RUN_NAME} "${CMAKE_MATCH_1}")
+endforeach()
+if(NOT NBOXES_split_in_z GREATER NBOXES_full_columns)
+    message(FATAL_ERROR "The split run has ${NBOXES_split_in_z} level-1 boxes and the "
+                        "whole-column run ${NBOXES_full_columns}: the fine grids were not split in z")
+endif()
+
 # The BoxArrays differ, so allow different grids; any difference at all fails
 execute_process(
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}

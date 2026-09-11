@@ -159,6 +159,60 @@ join_boxes_stacked_in_z (const BoxArray& ba)
     return BoxArray(std::move(bl_joined));
 }
 
+/**
+ * The boxes on which a fine BTF level is built: whole columns, with their DistributionMapping.
+ */
+struct ColumnGrids
+{
+    Box domain;                 // the level's domain and ...
+    BoxArray ba_cc;             // ... its (cell-centered) grids, which the columns were made for
+    bool stacked = false;       // whether any two of those grids are stacked in z
+    BoxArray ba_col_nd;         // the nodal column boxes (only if stacked)
+    DistributionMapping dm_col;
+};
+
+/**
+ * The column boxes for a level's grids, made once per set of grids.
+ *
+ * With a moving mesh make_terrain_fitted_coords runs several times per substep, but the
+ * columns only change when the level is regridded.  Reusing the same BoxArray and
+ * DistributionMapping also lets every ParallelCopy to and from the columns reuse its
+ * communication metadata instead of rebuilding it.
+ */
+ColumnGrids const&
+column_grids (int lev, const Geometry& geom, const BoxArray& ba_cc)
+{
+    static std::map<int, ColumnGrids> cache;
+    static bool clear_on_finalize = false;
+    if (!clear_on_finalize) {
+        ExecOnFinalize([] () { cache.clear(); clear_on_finalize = false; });
+        clear_on_finalize = true;
+    }
+
+    ColumnGrids& cg = cache[lev];
+    if (cg.ba_cc.empty() || cg.domain != geom.Domain() || cg.ba_cc != ba_cc)
+    {
+        cg.domain = geom.Domain();
+        cg.ba_cc  = ba_cc;
+
+        BoxArray ba_col = join_boxes_stacked_in_z(ba_cc);
+        cg.stacked = (ba_col != ba_cc);
+
+        if (cg.stacked) {
+            // Joining divides the number of boxes by the number of splits in z, so chop the
+            // columns laterally, as level 0 does, until there are at least as many as ranks
+            ChopGrids2D(ba_col, cg.domain, ParallelDescriptor::NProcs());
+            cg.dm_col = DistributionMapping(ba_col);
+            ba_col.surroundingNodes();
+            cg.ba_col_nd = ba_col;
+        } else {
+            cg.ba_col_nd = BoxArray();
+            cg.dm_col    = DistributionMapping();
+        }
+    }
+    return cg;
+}
+
 } // namespace
 
 /**
@@ -225,17 +279,15 @@ make_terrain_fitted_coords (int lev,
         int terrain_smoothing = 0;
         pp.query("terrain_smoothing", terrain_smoothing);
 
-        const BoxArray ba_cc = amrex::convert(z_phys_nd.boxArray(), IntVect::TheCellVector());
-        BoxArray ba_col = (terrain_smoothing == 0) ? join_boxes_stacked_in_z(ba_cc) : ba_cc;
+        const ColumnGrids* cg = (terrain_smoothing == 0)
+            ? &column_grids(lev, geom, amrex::convert(z_phys_nd.boxArray(), IntVect::TheCellVector()))
+            : nullptr;
 
-        if (ba_col == ba_cc) {
+        if (cg == nullptr || !cg->stacked) {
             init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
         } else {
-            DistributionMapping dm_col(ba_col);
-            ba_col.surroundingNodes();
-
             const IntVect& ng = z_phys_nd.nGrowVect();
-            MultiFab z_phys_nd_col(ba_col, dm_col, 1, ng);
+            MultiFab z_phys_nd_col(cg->ba_col_nd, cg->dm_col, 1, ng);
 
             z_phys_nd_col.ParallelCopy(z_phys_nd,0,0,1,ng,ng);
 
