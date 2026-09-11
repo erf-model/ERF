@@ -72,7 +72,7 @@ void unpack_ij (const Long idx, const int nx, const Dim3& dlo, int& i, int& j) n
  * @param[out] station_loc_i Global minimum i-index
  * @param[out] station_loc_j Global minimum j-index
  */
-std::pair<int, int> 
+std::pair<int, int>
 ComputeLocation (const SolverChoice& sc,
                  const Geometry& lev_geom,
                  const Vector<MultiFab>& S_data,
@@ -253,11 +253,11 @@ ERF::ComputeStationLocationIJ (const SolverChoice& sc,
         Gpu::copy(Gpu::hostToDevice, &h_j_min, &h_j_min + 1, d_j_min_ptr);
     }
 
-    std::pair<int, int> station_loc = ComputeLocation (sc, 
-                                                       lev_geom, 
+    std::pair<int, int> station_loc = ComputeLocation (sc,
+                                                       lev_geom,
                                                        S_data,
-                                                       d_val_min_ptr, 
-                                                       d_i_min_ptr, 
+                                                       d_val_min_ptr,
+                                                       d_i_min_ptr,
                                                        d_j_min_ptr);
     return station_loc;
 }
@@ -271,8 +271,8 @@ ERF::ComputeStationLocationIJ (const SolverChoice& sc,
  */
 void
 ERF::TrackerAtStation_RainAccumulation(const SolverChoice& sc,
-                                       const int levc, 
-                                       const std::pair<int,int>& station_loc, 
+                                       const int levc,
+                                       const std::pair<int,int>& station_loc,
                                        const Real& time)
 {
     const MoistureComponentIndices& mi = sc.moisture_indices;
@@ -342,7 +342,7 @@ ERF::WeatherDiagnosticsTracker (const SolverChoice& sc)
     std::pair<int, int> station_loc;
 
     if(is_start) {
-        station_loc = ComputeStationLocationIJ(sc, 
+        station_loc = ComputeStationLocationIJ(sc,
                                                geom[levc],
                                                vars_new[levc],
                                                station_latitude,
@@ -350,8 +350,8 @@ ERF::WeatherDiagnosticsTracker (const SolverChoice& sc)
     }
 
     TrackerAtStation_RainAccumulation(sc,
-                                      levc, 
+                                      levc,
                                       station_loc,
-                                      t_new[0]); 
+                                      t_new[0]);
 }
 #endif

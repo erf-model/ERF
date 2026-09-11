@@ -356,6 +356,11 @@ public:
                                                   const amrex::Real& station_latitude,
                                                   const amrex::Real& station_longitude);
 
+    void MakeStationTrackerDirectory(const std::string& station_tracker_dir);
+
+    std::string MakeStationTrackerFilename(const std::string& basename,
+                                           const int nstep);
+
     amrex::Vector<std::array<amrex::Real, 2>> station_rain_accum_vs_time;
 
     // Initialize multilevel data
