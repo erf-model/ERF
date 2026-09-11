@@ -156,9 +156,12 @@ ERF::init_custom (int lev)
     //    add the perturbations to the background state and then populate the "pert variables
 
     if(solverChoice.is_init_for_ensemble) {
+        Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
         MultiFab mf_cc_pert;
         create_random_perturbations(lev, mf_cc_pert);
+        WriteSingleLevelPlotfile("plt_pert_correlated_gaussian", mf_cc_pert, varnames, geom[lev], zero, 0);
         apply_gaussian_smoothing_to_perturbations(lev, mf_cc_pert);
+        //WriteSingleLevelPlotfile("plt_pert_correlated_gaussian", mf_cc_pert, varnames, geom[lev], zero, 0);
         create_background_state_for_ensemble(lev, mf_cc_pert, lev_new[Vars::cons], lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::zvel]);
     }
 }
