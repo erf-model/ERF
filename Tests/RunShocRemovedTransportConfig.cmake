@@ -9,9 +9,13 @@ if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
     message(FATAL_ERROR "RunShocRemovedTransportConfig.cmake missing required argument")
 endif()
 
-if(NOT EXISTS "${TEST_EXE}")
-    message(FATAL_ERROR "Native SHOC startup test executable is missing: ${TEST_EXE}")
+file(GLOB test_exe_candidates "${TEST_EXE}")
+list(LENGTH test_exe_candidates test_exe_count)
+if(NOT test_exe_count EQUAL 1)
+    message(FATAL_ERROR
+        "Native SHOC startup test executable pattern must resolve to exactly one file: ${TEST_EXE}")
 endif()
+list(GET test_exe_candidates 0 TEST_EXE)
 if(NOT EXISTS "${INPUT}")
     message(FATAL_ERROR "Native SHOC startup test input is missing: ${INPUT}")
 endif()
