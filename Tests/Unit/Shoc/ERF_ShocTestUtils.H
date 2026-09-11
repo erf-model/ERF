@@ -4,9 +4,11 @@
 #include "ERF_ShocColumnData.H"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <cctype>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <random>
 #include <sstream>
@@ -16,6 +18,39 @@
 
 namespace shoc_test
 {
+// Keep DOUBLE oracle strength unchanged while expressing SINGLE tolerances in
+// units of the represented output scale.  The single-precision branch uses a
+// small, test-specific multiple of one machine epsilon; callers document the
+// scale and the observed numerical envelope at each assertion.
+inline amrex::Real
+precision_scaled_tolerance (amrex::Real double_tolerance,
+                            amrex::Real scale,
+                            int single_precision_ulps)
+{
+#ifdef AMREX_USE_FLOAT
+    return amrex::Real(single_precision_ulps) *
+           std::numeric_limits<amrex::Real>::epsilon() * std::abs(scale);
+#else
+    amrex::ignore_unused(scale, single_precision_ulps);
+    return double_tolerance;
+#endif
+}
+
+// Use this for bounded quantities whose expected value is itself the
+// representable contract value (for example, a minimum TKE floor).
+inline amrex::Real
+precision_aware_tolerance (amrex::Real double_tolerance,
+                           amrex::Real single_tolerance)
+{
+#ifdef AMREX_USE_FLOAT
+    amrex::ignore_unused(double_tolerance);
+    return single_tolerance;
+#else
+    amrex::ignore_unused(single_tolerance);
+    return double_tolerance;
+#endif
+}
+
 inline amrex::Arena*
 test_arena ()
 {
