@@ -753,10 +753,16 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
 add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
-add_test_tiling_parity(ABL_MRF_Tiling        ABL_MRF_Tiling "00010" "00010")
-add_test_tiling_parity(ABL_YSUNew_Tiling     ABL_MRF_Tiling "00010" "00010" RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU")
-# Legacy YSU aborts in unstable conditions, so cool the surface
-add_test_tiling_parity(ABL_YSU_Tiling        ABL_MRF_Tiling "00010" "00010" RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.05")
+# RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
+# which neither drops an empty MPIEXEC nor expands the Windows exe globs.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010")
+  add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010" RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU")
+  # Legacy YSU aborts in unstable conditions, so cool the surface. It covers the
+  # full-column assert only: legacy YSU never calls set_pblh, so the 2D pblh is
+  # the SurfaceLayer's initial value in both runs and its comparison is vacuous.
+  add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010" RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.05")
+endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

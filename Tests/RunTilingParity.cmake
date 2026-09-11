@@ -8,9 +8,11 @@ cmake_minimum_required(VERSION 3.24)
 # size in y are the case that exposes this, and the untiled run is the
 # reference, so no gold file is needed.
 
+# add_test_tiling_parity always passes every -D, so an unset CMake variable
+# arrives here defined but empty; reject both.
 foreach(_required MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE INPUT
                   WORKING_DIRECTORY FCOMPARE RTOL ATOL PLTFILE PLT2DFILE)
-  if(NOT DEFINED ${_required})
+  if(NOT DEFINED ${_required} OR "${${_required}}" STREQUAL "")
     message(FATAL_ERROR "RunTilingParity.cmake requires ${_required}")
   endif()
 endforeach()
@@ -35,7 +37,13 @@ set(_untiled_size "1024000 1024000 1024000")
 
 foreach(_run IN ITEMS tiled untiled)
   set(_tile_size "${_${_run}_size}")
-  file(REMOVE_RECURSE "${WORKING_DIRECTORY}/${_run}_plt" "${WORKING_DIRECTORY}/${_run}_plt2d")
+  # Plotfiles carry the step suffix (tiled_plt00010, tiled_plt2d00010, ...).
+  # Remove them all so a stale step-PLTFILE pair from an earlier run cannot be
+  # compared if this run no longer writes that step.
+  file(GLOB _stale "${WORKING_DIRECTORY}/${_run}_plt*")
+  if(_stale)
+    file(REMOVE_RECURSE ${_stale})
+  endif()
   execute_process(
     COMMAND ${_mpi_run} "${TEST_EXE}" "${INPUT}" ${_runtime_options}
             "fabarray.mfiter_tile_size=${_tile_size}"
