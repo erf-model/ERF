@@ -123,6 +123,14 @@ public:
         // Store bounds for interpolation
         m_data_box = sampled_box;
 
+        // Cache geometry data for GPU-compatible access
+        const Real* problo_ptr = geom.ProbLo();
+        const Real* dx_ptr = geom.CellSize();
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            m_problo[d] = problo_ptr[d];
+            m_dx[d] = dx_ptr[d];
+        }
+
         // Set up local array view for operator() access
         // Each rank iterates its own local box (which contains the full domain)
         for (MFIter mfi(*m_levelset_mf); mfi.isValid(); ++mfi) {
@@ -153,14 +161,10 @@ public:
     {
         using namespace amrex;
 
-        // Get domain bounds and cell size
-        const Real* problo = m_geom.ProbLo();
-        const Real* dx_arr = m_geom.CellSize();
-
         // Convert physical coordinates to cell indices (floating point)
-        Real i_real = (x - problo[0]) / dx_arr[0];
-        Real j_real = (y - problo[1]) / dx_arr[1];
-        Real k_real = (z - problo[2]) / dx_arr[2];
+        Real i_real = (x - m_problo[0]) / m_dx[0];
+        Real j_real = (y - m_problo[1]) / m_dx[1];
+        Real k_real = (z - m_problo[2]) / m_dx[2];
 
         // Get integer cell indices
         int i = static_cast<int>(std::floor(i_real));
@@ -229,6 +233,10 @@ protected:
 
     //! Bounding box of sampled data
     amrex::Box m_data_box;
+
+    //! Cached geometry data for GPU-compatible access
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> m_problo;
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> m_dx;
 
     //! Local array view for GPU-compatible operator() access
     mutable amrex::Array4<const amrex::Real> m_local_array;
