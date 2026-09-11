@@ -26,6 +26,9 @@ erf.most.z0             = 0.1
 erf.most.surf_temp_flux = 0.24
 # Keep the MRF PBL height in the surface layer so the 2D plotfile shows it
 erf.most.pblh_calc      = "MRF"
+# Local (per-column) averaging, so u_star, t_star and Olen vary with the
+# perturbations instead of being one plane-averaged number in every column
+erf.most.average_policy = 1
 
 zhi.type       = "SlipWall"
 zhi.theta_grad = 0.003
@@ -36,7 +39,12 @@ erf.sounding_type       = Ideal
 erf.input_sounding_file = "mrf_sounding_unstable"
 
 # Deterministic (position-only) perturbations so the columns differ and the
-# initial state does not depend on the decomposition
+# initial state does not depend on the decomposition.  The sounding puts a 6 K
+# inversion at 150-250 m and the wind is 5 m/s, so the bulk-Richardson crossing
+# that sets the PBL height lies inside the perturbed layer (z <= 200 m) and
+# pblh differs from column to column.  With a 15 m/s wind and the inversion
+# above the domain top, every column sat at the 16 m floor (0.5 dz) and the
+# parity check on pblh compared one constant with itself.
 prob.pert_ref_height = 200.0
 prob.pert_deltaU     = 1.0
 prob.pert_deltaV     = 1.0
@@ -45,8 +53,8 @@ prob.pert_periods_V  = 2.0
 prob.pert_deltaT     = 0.5
 prob.pert_periods_T  = 2.0
 
-# TIME STEP CONTROL (dx = 200 m: at dx = 100 m with ratio 4 the acoustic
-# substep is unstable and the run goes to NaN by step 5)
+# TIME STEP CONTROL (dx = dy = 200 m, dz = 32 m: at dx = 100 m with ratio 4
+# the acoustic substep is unstable and the run goes to NaN by step 5)
 erf.fixed_dt           = 1.0
 erf.fixed_mri_dt_ratio = 6
 
@@ -78,7 +86,7 @@ erf.latitude               = 45.0
 erf.rotational_time_period = 86455.2516813368
 
 erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind    = 15.0 0.0 0.0
+erf.abl_geo_wind    = 5.0 0.0 0.0
 
 # TURBULENCE CLOSURE
 erf.les_type = "None"

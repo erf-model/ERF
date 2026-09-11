@@ -7,6 +7,11 @@ cmake_minimum_required(VERSION 3.24)
 # valid box instead of the tile reads outside them.  Boxes wider than the tile
 # size in y are the case that exposes this, and the untiled run is the
 # reference, so no gold file is needed.
+#
+# Two plotfiles that agree prove nothing if the field compared is one constant
+# in every column (a PBL height pinned at its floor, or one that the scheme
+# never writes), so VARYING_3D and VARYING_2D name fields that must take more
+# than one value in the untiled plotfile, checked with fextrema.
 
 # add_test_tiling_parity always passes every -D, so an unset CMake variable
 # arrives here defined but empty; reject both.
@@ -16,6 +21,19 @@ foreach(_required MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE INPUT
     message(FATAL_ERROR "RunTilingParity.cmake requires ${_required}")
   endif()
 endforeach()
+
+set(_varying_plt)
+set(_varying_plt2d)
+if(DEFINED VARYING_3D AND NOT "${VARYING_3D}" STREQUAL "")
+  separate_arguments(_varying_plt UNIX_COMMAND "${VARYING_3D}")
+endif()
+if(DEFINED VARYING_2D AND NOT "${VARYING_2D}" STREQUAL "")
+  separate_arguments(_varying_plt2d UNIX_COMMAND "${VARYING_2D}")
+endif()
+if((_varying_plt OR _varying_plt2d) AND
+   (NOT DEFINED FEXTREMA OR "${FEXTREMA}" STREQUAL ""))
+  message(FATAL_ERROR "RunTilingParity.cmake requires FEXTREMA when VARYING_3D or VARYING_2D is set")
+endif()
 
 set(_mpi_run "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${NRANKS}")
 set(_mpi_one "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
@@ -78,4 +96,30 @@ foreach(_kind IN ITEMS plt plt2d)
     message(FATAL_ERROR "tiled and untiled ${_kind}${_step} differ; "
                         "see ${WORKING_DIRECTORY}/fcompare_${_kind}.log")
   endif()
+
+  # The agreement above is only evidence if the fields vary: require min < max
+  # in the untiled reference for every field the test claims to cover.
+  foreach(_var IN LISTS _varying_${_kind})
+    execute_process(
+      COMMAND ${_mpi_one} "${FEXTREMA}" -v "${_var}"
+              "${WORKING_DIRECTORY}/untiled_${_kind}${_step}"
+      WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+      OUTPUT_VARIABLE _extrema
+      ERROR_VARIABLE _extrema_err
+      RESULT_VARIABLE _result)
+    file(APPEND "${WORKING_DIRECTORY}/fextrema_${_kind}.log" "${_extrema}${_extrema_err}")
+    # fextrema prints one line per variable: " name   min   max"
+    if(NOT _result EQUAL 0 OR
+       NOT "${_extrema}" MATCHES "\n ${_var}[ \t]+([^ \t\n]+)[ \t]+([^ \t\n]+)[ \t]*\n")
+      message(FATAL_ERROR "fextrema could not read ${_var} from untiled_${_kind}${_step}; "
+                          "see ${WORKING_DIRECTORY}/fextrema_${_kind}.log")
+    endif()
+    set(_min "${CMAKE_MATCH_1}")
+    set(_max "${CMAKE_MATCH_2}")
+    if(NOT _min LESS _max)
+      message(FATAL_ERROR "${_var} is uniform (${_min}) in untiled_${_kind}${_step}, so its "
+                          "tiled/untiled agreement is vacuous; change the deck so it varies")
+    endif()
+    message(STATUS "${_kind}${_step} ${_var} ranges ${_min} .. ${_max}")
+  endforeach()
 endforeach()
