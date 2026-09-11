@@ -50,7 +50,7 @@ public:
 
     void initialize_for_level(int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
     {
-        if (lev > m_nlevs) {
+        if (lev >= m_nlevs) {
             m_nlevs = lev+1;
 
             u_star.resize(m_nlevs);

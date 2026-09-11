@@ -12,7 +12,7 @@ void SurfaceModel::apply_weight_average(int lev, amrex::MultiFab *lsm_data, amre
     bool valid_land = (lsm_data != nullptr);
     bool valid_urban = (urban_data != nullptr);
 
-    AMREX_ASSERT_WITH_MESSAGE(!valid_land && !valid_urban, "Need at least one pointer to apply weights");
+    AMREX_ASSERT_WITH_MESSAGE(valid_land || valid_urban, "Need at least one pointer to apply weights");
 
     // make sure the weights have been calculated before applying them
     AMREX_ALWAYS_ASSERT(m_weights_updated);
@@ -175,20 +175,38 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
 void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urban_frac)
 {
+    // If no urban fraction is available, use the only enabled model as the
+    // complete surface.  A missing fraction is ambiguous when both models
+    // are enabled, so fail explicitly rather than silently choosing a model.
+    if (urban_frac == nullptr) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(m_use_land && m_use_urban),
+            "Urban fraction is required when both land and urban models are enabled");
+    }
+
+    const bool use_land = m_use_land;
+    const bool use_urban = m_use_urban;
+
     for (MFIter mfi(*wavg[lev], TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box tbx = mfi.tilebox();
         // weights are defined only on k = 0
         tbx = tbx.makeSlab(2, 0);
 
-        auto urban_frac_arr = urban_frac->const_array(mfi);
+        auto urban_frac_arr = (urban_frac != nullptr) ? urban_frac->const_array(mfi) : Array4<const Real>{};
         auto weights_arr = wavg[lev]->array(mfi);
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // weights are proportional to urban fraction coverage in the current cell
-            weights_arr(i, j, 0, SurfaceModelType::URBAN) = urban_frac_arr(i, j, 0);
-            weights_arr(i, j, 0, SurfaceModelType::LAND) = 1.0 - urban_frac_arr(i, j, 0);
+            if (urban_frac_arr) {
+                // Weights are proportional to urban fraction coverage in the current cell.
+                weights_arr(i, j, 0, SurfaceModelType::URBAN) = urban_frac_arr(i, j, 0);
+                weights_arr(i, j, 0, SurfaceModelType::LAND) = 1.0 - urban_frac_arr(i, j, 0);
+            } else {
+                // With one model disabled, the enabled model covers the whole cell.
+                weights_arr(i, j, 0, SurfaceModelType::URBAN) = use_urban ? 1.0 : 0.0;
+                weights_arr(i, j, 0, SurfaceModelType::LAND) = use_land ? 1.0 : 0.0;
+            }
         });
     }
 
