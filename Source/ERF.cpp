@@ -596,6 +596,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
+    WeatherDiagnosticsTracker(solverChoice); 
+
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart

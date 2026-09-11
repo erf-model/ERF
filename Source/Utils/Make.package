@@ -40,3 +40,4 @@ CEXE_sources += ERF_ThinBodyWallDist.cpp
 CEXE_sources += ERF_WeatherDataInterpolation.cpp
 CEXE_sources += ERF_SurfaceDataInterpolation.cpp
 CEXE_sources += ERF_HurricaneDiagnostics.cpp
+CEXE_sources += ERF_WeatherDiagnostics.cpp

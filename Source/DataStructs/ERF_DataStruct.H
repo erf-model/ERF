@@ -1456,6 +1456,10 @@ struct SolverChoice {
             }
         }
 
+        pp.queryAdd("station_latitude", station_latitude);
+        pp.queryAdd("station_longitude", station_longitude);
+        
+
         pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
             amrex::ParmParse pp_ens("ensemble");
@@ -2196,6 +2200,8 @@ struct SolverChoice {
 
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
+
+    amrex::Real station_latitude= -1.0, station_longitude = -1.0;
 
     bool is_init_for_ensemble = false;
     int n_ensemble = -1;
