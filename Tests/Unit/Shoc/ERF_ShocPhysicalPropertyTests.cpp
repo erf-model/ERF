@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 
 namespace
 {
@@ -183,6 +184,56 @@ set_uniform_implicit_column (ShocColumnData& col,
         shoc_ql(0,k,0) = ql_total;
     }
 }
+
+void
+set_momentum_energy_column (ShocColumnData& col)
+{
+    const auto zt = col.zt.const_array();
+    const amrex::Real rho_val = col.rho.const_array()(0,0,0);
+    auto rho = col.rho.array();
+    auto thetal = col.thetal.array();
+    auto theta = col.theta.array();
+    auto exner = col.exner.array();
+    auto qv = col.qv.array();
+    auto qc = col.qc.array();
+    auto qi = col.qi.array();
+    auto qw = col.qw.array();
+    auto tabs = col.tabs.array();
+    auto theta_v = col.theta_v.array();
+    auto host_dse = col.host_dse.array();
+    auto tk = col.tk.array();
+    auto tkh = col.tkh.array();
+    auto tke = col.tke.array();
+    auto u = col.u.array();
+    auto v = col.v.array();
+    auto shoc_ql = col.shoc_ql.array();
+
+    for (int k = 0; k < col.layout.nlev; ++k) {
+        rho(0,k,0) = rho_val;
+        thetal(0,k,0) = 300.0_rt;
+        theta(0,k,0) = 300.0_rt;
+        exner(0,k,0) = 1.0_rt;
+        qv(0,k,0) = 0.0_rt;
+        qc(0,k,0) = 0.0_rt;
+        qi(0,k,0) = 0.0_rt;
+        qw(0,k,0) = 0.0_rt;
+        tabs(0,k,0) = 300.0_rt;
+        theta_v(0,k,0) = 300.0_rt;
+        host_dse(0,k,0) = Cp_d * tabs(0,k,0) + CONST_GRAV * zt(0,k,0);
+        tk(0,k,0) = 1.0_rt;
+        tkh(0,k,0) = 0.0_rt;
+        tke(0,k,0) = 1.0_rt;
+        u(0,k,0) = 20.0_rt + 7.5_rt * k;
+        v(0,k,0) = 10.0_rt - 2.5_rt * k;
+        shoc_ql(0,k,0) = 0.0_rt;
+    }
+
+    shoc::set_fab_val(col.surf_sens_flux, 0.0_rt, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_lat_flux, 0.0_rt, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_u, 0.0_rt, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_v, 0.0_rt, shoc::InitRunOn::Host);
+    shoc_test::sync();
+}
 }
 
 TEST(ShocPhysical, ColumnHeatBudgetTracksSurfaceFlux)
@@ -231,6 +282,86 @@ TEST(ShocPhysical, ColumnHeatBudgetTracksSurfaceFlux)
     const amrex::Real after = column_moist_energy(col);
     const amrex::Real expected = dt * rho_sfc * Cp_d * 0.02;
     EXPECT_NEAR(after - before, expected, 5.0e-9 * amrex::max(amrex::Real(1.0), amrex::Math::abs(expected)));
+}
+
+// Motivation: With momentum transport disabled, the driver discards the
+// internally solved horizontal-momentum tendencies. This verifies that the
+// discarded kinetic-energy change does not create a thermal correction, while
+// preserving the correction when momentum state update is enabled.
+TEST(ShocPhysical, MomentumTransportNoneExcludesDiscardedMomentumEnergy)
+{
+    auto state_update = shoc_test::make_column(6);
+    auto none = shoc_test::make_column(6);
+    set_momentum_energy_column(state_update);
+    set_momentum_energy_column(none);
+
+    ShocRuntimeOptions state_update_opts;
+    state_update_opts.momentum_transport = ShocMomentumTransport::StateUpdate;
+    ShocRuntimeOptions none_opts;
+    none_opts.momentum_transport = ShocMomentumTransport::None;
+
+    const int nlev = state_update.layout.nlev;
+    amrex::Vector<amrex::Real> u_before(nlev);
+    amrex::Vector<amrex::Real> v_before(nlev);
+    amrex::Vector<amrex::Real> thetal_before(nlev);
+    const auto u_initial = state_update.u.const_array();
+    const auto v_initial = state_update.v.const_array();
+    const auto thetal_initial = state_update.thetal.const_array();
+    for (int k = 0; k < nlev; ++k) {
+        u_before[k] = u_initial(0,k,0);
+        v_before[k] = v_initial(0,k,0);
+        thetal_before[k] = thetal_initial(0,k,0);
+    }
+
+    constexpr amrex::Real dt = 100.0_rt;
+    shoc_test::run_and_sync([&] {
+        ShocImplicit::update_prognostics(state_update, state_update_opts, dt);
+        ShocImplicit::update_prognostics(none, none_opts, dt);
+    });
+
+    const auto rho = state_update.rho.const_array();
+    const auto dz = state_update.dz.const_array();
+    const auto u_state_update = state_update.u.const_array();
+    const auto v_state_update = state_update.v.const_array();
+    const auto u_none = none.u.const_array();
+    const auto v_none = none.v.const_array();
+    const auto thetal_state_update = state_update.thetal.const_array();
+    const auto thetal_none = none.thetal.const_array();
+
+    amrex::Real air_mass = 0.0_rt;
+    amrex::Real expected_state_update_delta = 0.0_rt;
+    amrex::Real max_internal_wind_change = 0.0_rt;
+    for (int k = 0; k < nlev; ++k) {
+        const amrex::Real mass = rho(0,k,0) * dz(0,k,0);
+        air_mass += mass;
+        expected_state_update_delta += mass * 0.5_rt *
+            (u_before[k] * u_before[k] + v_before[k] * v_before[k]
+             - u_state_update(0,k,0) * u_state_update(0,k,0)
+             - v_state_update(0,k,0) * v_state_update(0,k,0));
+        max_internal_wind_change = amrex::max(
+            max_internal_wind_change,
+            amrex::max(amrex::Math::abs(u_state_update(0,k,0) - u_before[k]),
+                       amrex::Math::abs(v_state_update(0,k,0) - v_before[k])));
+        EXPECT_NEAR(u_none(0,k,0), u_state_update(0,k,0),
+                    amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon());
+        EXPECT_NEAR(v_none(0,k,0), v_state_update(0,k,0),
+                    amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon());
+    }
+
+    ASSERT_GT(max_internal_wind_change,
+              amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon());
+    expected_state_update_delta /= (Cp_d * air_mass);
+    const amrex::Real correction_tolerance =
+        amrex::Real(128.0) * std::numeric_limits<amrex::Real>::epsilon() *
+        amrex::max(amrex::Real(1.0), amrex::Math::abs(expected_state_update_delta));
+    ASSERT_GT(amrex::Math::abs(expected_state_update_delta), correction_tolerance);
+
+    for (int k = 0; k < nlev; ++k) {
+        EXPECT_NEAR(thetal_none(0,k,0), thetal_before[k], correction_tolerance);
+        EXPECT_NEAR(thetal_state_update(0,k,0),
+                    thetal_before[k] + expected_state_update_delta,
+                    correction_tolerance);
+    }
 }
 
 TEST(ShocPhysical, StrongerSurfaceHeatingRaisesMeanThetaMore)
