@@ -588,6 +588,10 @@ pblh_mf.setVal(0.0);
             // HOL now uses corrected PBLH for full internal consistency
             const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
+            // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
+            // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
+            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             // Enable QNSE stable functions if requested, otherwise use default linear form
             const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
