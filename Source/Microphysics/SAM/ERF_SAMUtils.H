@@ -179,6 +179,108 @@ amrex::Real sam_theta_from_stored_mbar_converted_to_pa (const amrex::Real& tabs,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_cons_to_primitive_with_thermo (
+    const amrex::Real& rho,
+    const amrex::Real& rho_theta,
+    const amrex::Real& rho_qv,
+    const amrex::Real& rho_qcl,
+    const amrex::Real& rho_qci,
+    const amrex::Real& rho_qpr,
+    const amrex::Real& rho_qps,
+    const amrex::Real& rho_qpg,
+    const MicrophysicsThermoState& thermo) noexcept
+{
+    // The pressure and temperature are supplied by ERF's shared thermodynamic
+    // contract. SAM converts pressure to its established mbar storage here.
+    SAMPrimitiveCell result{};
+    result.rho = rho;
+    result.theta = rho_theta / rho;
+    result.qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
+    result.qcl = amrex::max(amrex::Real(0.0), rho_qcl / rho);
+    result.qci = amrex::max(amrex::Real(0.0), rho_qci / rho);
+    result.qn = result.qcl + result.qci;
+    result.qt = result.qv + result.qn;
+    result.qpr = amrex::max(amrex::Real(0.0), rho_qpr / rho);
+    result.qps = amrex::max(amrex::Real(0.0), rho_qps / rho);
+    result.qpg = amrex::max(amrex::Real(0.0), rho_qpg / rho);
+    result.qp = result.qpr + result.qps + result.qpg;
+    result.tabs = thermo.temperature;
+    result.pres_mbar = sam_pa_to_mbar(thermo.pressure_pa);
+    return result;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_cons_to_primitive_with_base_state (
+    const amrex::Real& rho,
+    const amrex::Real& rho_theta,
+    const amrex::Real& rho_qv,
+    const amrex::Real& rho_qcl,
+    const amrex::Real& rho_qci,
+    const amrex::Real& rho_qpr,
+    const amrex::Real& rho_qps,
+    const amrex::Real& rho_qpg,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0) noexcept
+{
+    const amrex::Real qv = amrex::max(amrex::Real(0.0), rho_qv / rho);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho, rho_theta, qv, rdOcp,
+        use_anelastic_reference_pressure, p0);
+    return sam_cons_to_primitive_with_thermo(
+        rho, rho_theta, rho_qv, rho_qcl, rho_qci, rho_qpr, rho_qps, rho_qpg,
+        thermo);
+}
+
+// Array-level copy-in used by production and by the wiring test. This keeps
+// state-component selection and SAM's primitive working arrays together.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+SAMPrimitiveCell sam_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qn,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& qpr,
+    const amrex::Array4<amrex::Real>& qps,
+    const amrex::Array4<amrex::Real>& qpg,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const SAMPrimitiveCell primitive = sam_cons_to_primitive_with_base_state(
+        rho_value, states(i,j,k,RhoTheta_comp),
+        states(i,j,k,RhoQ1_comp), states(i,j,k,RhoQ2_comp),
+        states(i,j,k,RhoQ3_comp), states(i,j,k,RhoQ4_comp),
+        states(i,j,k,RhoQ5_comp), states(i,j,k,RhoQ6_comp), rdOcp,
+        use_anelastic_reference_pressure, p0);
+    rho(i,j,k) = primitive.rho;
+    theta(i,j,k) = primitive.theta;
+    qv(i,j,k) = primitive.qv;
+    qc(i,j,k) = primitive.qcl;
+    qi(i,j,k) = primitive.qci;
+    qn(i,j,k) = primitive.qn;
+    qt(i,j,k) = primitive.qt;
+    qpr(i,j,k) = primitive.qpr;
+    qps(i,j,k) = primitive.qps;
+    qpg(i,j,k) = primitive.qpg;
+    qp(i,j,k) = primitive.qp;
+    tabs(i,j,k) = primitive.tabs;
+    pres(i,j,k) = primitive.pres_mbar;
+    return primitive;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_theta,
                                         const amrex::Real& rho_qv,
@@ -188,10 +290,8 @@ SAMPrimitiveCell sam_cons_to_primitive (const amrex::Real& rho,
                                         const amrex::Real& rho_qps,
                                         const amrex::Real& rho_qpg) noexcept
 {
-    // Copy-in reconstructs the SAM primitive cell state from the conserved ERF
-    // state, clips negative moisture defensively, and diagnoses tabs and
-    // pres_mbar from the incoming rho*theta/rho*q state. That diagnosed mbar
-    // pressure is the held pressure for the following source updates.
+    // Keep the established compressible copy-in formula as its own entry
+    // point so the compressible path retains its original evaluation order.
     SAMPrimitiveCell result{};
     result.rho = rho;
     result.theta = rho_theta / rho;
