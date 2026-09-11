@@ -1458,7 +1458,6 @@ struct SolverChoice {
 
         pp.queryAdd("station_latitude", station_latitude);
         pp.queryAdd("station_longitude", station_longitude);
-        
 
         pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
