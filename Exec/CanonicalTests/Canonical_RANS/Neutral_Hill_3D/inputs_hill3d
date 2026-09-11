@@ -17,9 +17,10 @@ amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-# Unit aspect ratio: on a 3D fitted mesh both the projection and the
-# wall-distance Poisson solves (MLMG) fail at dx = 2 dz (the 2D ridge and
-# Askervein, dx = dz, are fine), so dz = dx here.
+# Unit aspect ratio: the Poisson wall-distance solve (the _Poisson CTest
+# variant) diverges at dx = 2 dz; the terrain_height default has no such
+# limit. (The projection failure once seen at dz != dx on this deck was a
+# BoxArray split in z, fixed in erf-model/ERF#3970, not the aspect ratio.)
 geometry.prob_lo     = -2560. -2560.   0.
 geometry.prob_hi     =  2560.  2560. 800.
 amr.n_cell           =    64     64   20     # dx = dy = dz = 40 m

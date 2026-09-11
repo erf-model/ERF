@@ -229,26 +229,26 @@ hill decks use it; the Poisson path keeps three `_Poisson` CTest
 variants. The Poisson solve is posed positive definite now (same
 iterates as before).
 
-Finding, outside this plan: on a 3D terrain-fitted mesh with dz different
-from dx (20 or 80 m at dx = 40 m, flat or hill, periodic or inflow,
-custom or file terrain, stretched or not, any box layout) the divergence
-of the initial field is of order 1e139 before the first projection, the
-wall-distance MLMG then diverges (residual 18x after one cycle, 1e10 by
-iteration 100, unchanged by the sign convention or by semi-coarsening),
-and the run aborts within a step. Askervein is unaffected at dx/dz of
-0.5, 1 and 2, so the aspect ratio is not the cause; the RANS code is not
-involved (same with Smagorinsky). Two separate defects: (1) the
-initialisation one is deterministic, since under `amrex.init_snan = 1`
-with the invalid-operation trap armed initialisation completes with no
-trap and the bit-identical 1.788e139 divergence, so it is an arithmetic
-error that depends on dz relative to dx, not a memory read; (2) the trap
-then fires in `ERFPhysBCFunct_w` during the first advance, an
-uninitialised read in the w boundary fill that the unit-aspect mesh does
-not trigger. Reproducer for (1): `inputs_hill3d amr.n_cell="64 64 40"
-prob.hmax=1e-6 max_step=0 erf.mg_v=2 erf.v=1` and read the divergence
-before the solve. Harish's rule for the decks: mass inflow and
-pressure outflow instead of periodic if periodic turns out to be the
-issue; it did not, so the hill decks stay periodic at unit aspect ratio.
+Finding, outside this plan (root cause found after this phase): with
+`amr.n_cell = 64 64 40` at `amr.max_grid_size = 32` the initial field's
+divergence was 1.788e139 before the first projection and the first
+advance tripped the invalid-operation trap in `ERFPhysBCFunct_w`. It
+was never the aspect ratio: that mesh splits the BoxArray in z, and (1)
+`project_initial_velocity` converted velocities to momenta on the valid
+faces only while `OmegaFromW` read one z-ghost face at every box face,
+which held the 1e150 allocation placeholder at the internal faces, and
+(2) the planar surface-layer and MOST arrays hold one 2D box per 3D box,
+so the split duplicated them and `FillBoundary` copied the uncomputed
+duplicate into the surface copy. Both are fixed in erf-model/ERF#3970
+(momenta ghost fill in `project_momenta`, `FillPlanarBoundary`). A third
+instance was in this branch: the `terrain_height` wall distance read the
+surface nodes `z_nd(:,:,klo)` from boxes above the split, which do not
+hold them (220 m error); it now gathers the surface slab onto every box.
+What does depend on dz relative to dx is the wall-distance MLMG solve
+(residual 18x after one cycle, 1e10 by iteration 100, unchanged by the
+sign convention or semi-coarsening, with or without the split), so the
+`_Poisson` variants keep dz = dx and `terrain_height` is the default
+for the hill decks.
 
 ## Phase 7: documentation and diagnostics
 

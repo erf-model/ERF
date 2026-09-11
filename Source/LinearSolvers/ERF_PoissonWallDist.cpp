@@ -90,11 +90,36 @@ void ERF::poisson_wall_dist (int lev)
         // terrain height used by the amr-wind immersed terrain and Kynema).
         Print() << "Calculating wall distance from the terrain height (normal-projected)" << std::endl;
         const int klo = geomdata.Domain().smallEnd(2);
+
+        // The surface nodes z_nd(:,:,klo) live only in the boxes that touch the surface;
+        // when the BoxArray is split in z the boxes above hold nodes from their own k
+        // range, so gather the surface slab onto every box (the same 2D footprint, at klo).
+        BoxList bl_surf = z_phys_nd[lev]->boxArray().boxList();
+        for (auto& b : bl_surf) { b.setRange(2,klo); }
+        BoxArray ba_surf(std::move(bl_surf));
+        IntVect ng_surf = z_phys_nd[lev]->nGrowVect(); ng_surf[2] = 0;
+        MultiFab znd_surf(ba_surf, z_phys_nd[lev]->DistributionMap(), 1, ng_surf);
+        znd_surf.setVal(bogus_large_value);
+        znd_surf.ParallelCopy(*z_phys_nd[lev], 0, 0, 1, ng_surf, ng_surf, geom[lev].periodicity());
+        // Every node the stencil below reads (valid plus the x/y ghosts) must
+        // have been gathered; the slab has no z ghosts, so reduce over ng_surf
+        // rather than a scalar ghost count.
+        Real znd_max = ReduceMax(znd_surf, ng_surf,
+            [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& a) -> Real
+            {
+                Real m = std::numeric_limits<Real>::lowest();
+                amrex::Loop(bx, [&] (int i, int j, int k) { m = amrex::max(m, a(i,j,k)); });
+                return m;
+            });
+        ParallelAllReduce::Max(znd_max, ParallelContext::CommunicatorSub());
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < bogus_large_value,
+            "poisson_wall_dist: the surface nodes were not gathered onto every box");
+
         for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto dist_arr = walldist[lev]->array(mfi);
             const auto zcc_arr = z_phys_cc[lev]->const_array(mfi);
-            const auto znd_arr = z_phys_nd[lev]->const_array(mfi);
+            const auto znd_arr = znd_surf.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
                 Real z_surf = fourth * ( znd_arr(i,j,klo) + znd_arr(i+1,j,klo)
                                        + znd_arr(i,j+1,klo) + znd_arr(i+1,j+1,klo) );
@@ -300,9 +325,9 @@ void ERF::poisson_wall_dist (int lev)
     // definite form MLABecLaplacian documents (B = -1 with f = -h_zeta is
     // the same equation and gave the same iterates). Note: on a 3D fitted
     // mesh with dx != dz this multigrid diverges (residual 18x after the
-    // first cycle, 1e10 by iteration 100) with or without semi-coarsening;
-    // the anelastic projection on such a mesh fails the same way. Use
-    // erf.wall_dist_type = terrain_height there.
+    // first cycle, 1e10 by iteration 100) with or without semi-coarsening
+    // and independent of the box layout. Use erf.wall_dist_type =
+    // terrain_height there.
     // ****************************************************************************
     constexpr Real constA = zero;
     constexpr Real constB = one;

@@ -174,10 +174,11 @@ every field identical to 1e-14.
 Askervein (20 steps, 4 ranks, 26 s): walldist 7.9 to 707 m, KE up to
 6.9 m2/s2, Kmv up to 9.4 kg/m/s, all finite.
 
-Mesh finding (not a RANS matter, see PLAN phase 6): any 3D fitted mesh
-here with dz != dx yields a deterministic pre-projection divergence of
-1.788e139 and aborts, independent of the closure and not a memory read
-(no trap under `amrex.init_snan` at initialisation); a separate
-uninitialised read in the w boundary fill trips the trap in the first
-advance.
+Mesh finding (not a RANS matter, see PLAN phase 6): the 1.788e139
+pre-projection divergence first seen at dz != dx was a BoxArray split in
+z (unfilled momenta ghost faces in the initial projection and duplicated
+planar surface-layer arrays), fixed in erf-model/ERF#3970; the
+`terrain_height` wall distance had the same class of read and now
+gathers the surface nodes onto every box. The Poisson wall-distance
+multigrid does diverge at dx = 2 dz, with or without the split.
 

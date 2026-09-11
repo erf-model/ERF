@@ -18,24 +18,20 @@ the crest speed-up against the axisymmetric estimate of about 1.6 h/L
 | physics run | 4 h (9600 steps), about 10 min on 2 ranks |
 | smoke run | 40 steps (`ctest -R RANS_Neutral_Hill_3D`) |
 
-The mesh has unit aspect ratio on purpose. With dz different from dx
-(20 or 80 m at dx = 40 m) this deck, and the same mesh flattened, produce
-a divergence of order 1e139 before the very first projection, the wall
-distance Poisson solve then diverges, and the run aborts. The failure is
-not the aspect ratio as such (the Askervein deck runs at dx/dz of 0.5, 1
-and 2), not the lateral boundaries, the terrain source, grid stretching
-or the box layout, and not the RANS code (it appears in the initial
-projection, before any turbulence call, and with the closure switched to
-Smagorinsky). It is deterministic: under `amrex.init_snan = 1` with the
-invalid-operation trap armed, initialisation completes without a trap
-and the same 1.788e139 divergence, so it is an arithmetic error tied to
-dz relative to dx, not a memory read; a second, separate uninitialised
-read in the w boundary fill (`ERFPhysBCFunct_w`) then trips the trap in
-the first advance. Reproducer: `inputs_hill3d amr.n_cell="64 64 40"
-prob.hmax=1e-6 max_step=0 erf.mg_v=2 erf.v=1`. The
-wall distance is `erf.wall_dist_type = terrain_height` (exact to 1e-10 on
-a flat mesh, 0.01 % mean error on this hill); the Poisson distance is
-exercised by the `_Poisson` CTest variant.
+The mesh has unit aspect ratio. The 1.788e139 divergence before the
+first projection that this deck showed with dz different from dx
+(`amr.n_cell = 64 64 40` at `amr.max_grid_size = 32`) was not the aspect
+ratio: that mesh splits the BoxArray in z, and the initial projection
+read the unfilled momenta ghost faces at the internal box faces while
+the planar surface-layer arrays were duplicated across the stacked boxes
+(fixed in erf-model/ERF#3970). What does depend on dz relative to dx is
+the Poisson wall-distance solve, whose multigrid diverges at dx = 2 dz
+with or without the split, so the `_Poisson` CTest variant needs dz = dx;
+the `terrain_height` distance the deck uses has no such limit and is
+gathered from the surface boxes, so a z-split layout is fine with it.
+The wall distance is `erf.wall_dist_type = terrain_height` (exact to
+1e-10 on a flat mesh, 0.01 % mean error on this hill); the Poisson
+distance is exercised by the `_Poisson` CTest variant.
 
 ## Running
 
