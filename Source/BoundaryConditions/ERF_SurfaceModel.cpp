@@ -123,6 +123,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     if (use_land) {
         for (int field = nfields; field < lsm_fields.size(); field++) {
             if (lsm_fields[field] == -1) continue;
+            if (is_field_mapped(lev, SurfaceModelType::LAND, lsm_fields[field],
+                                lsm_data_lev[lev][lsm_fields[field]])) continue;
             for (MFIter mfi(*lsm_data_lev[lev][lsm_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
@@ -146,6 +148,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     if (use_urban) {
         for (int field = nfields; field < urban_fields.size(); field++) {
             if (urban_fields[field] == -1) continue;
+            if (is_field_mapped(lev, SurfaceModelType::URBAN, urban_fields[field],
+                                urban_data_lev[lev][urban_fields[field]])) continue;
             for (MFIter mfi(*urban_data_lev[lev][urban_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
@@ -171,6 +175,32 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     }
 
     weight_average_fields(lev, urban_frac);
+}
+
+bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx,
+                                   const amrex::MultiFab* mf) const
+{
+    for (const auto& entry : fieldmap) {
+        const Field& field = entry.second;
+
+        const int mapped_idx = (type == SurfaceModelType::LAND)
+            ? field.map.first : field.map.second;
+        if (mapped_idx == field_idx) {
+            return true;
+        }
+
+        // Pointer-based mappings have no model-field index.  Match the
+        // registered pointer for the current level instead.
+        if (field.map.first == -1 && field.map.second == -1 && mf != nullptr) {
+            const auto& ptrs = (type == SurfaceModelType::LAND)
+                ? field.lsm_ptr : field.urb_ptr;
+            if (lev < static_cast<int>(ptrs.size()) && ptrs[lev] == mf) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urban_frac)

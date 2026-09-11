@@ -348,6 +348,9 @@ private:
 
     void weight_average_fields(int lev, amrex::MultiFab* const urban_frac);
 
+    bool is_field_mapped(int lev, SurfaceModelType type, int field_idx,
+                         const amrex::MultiFab* mf) const;
+
     int m_nlevs;
 
     bool m_use_urban = false; // whether we have an urban model
