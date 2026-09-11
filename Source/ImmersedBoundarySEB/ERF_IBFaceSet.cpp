@@ -1,8 +1,8 @@
 /**
  * \file ERF_IBFaceSet.cpp
  * \brief Detection, storage, output and reporting of the wall faces of
- *        resolved buildings (phase 1 of the immersed-boundary surface energy
- *        balance). The conventions are documented in ERF_IBFaceSet.H.
+ *        resolved buildings for the immersed-boundary surface energy
+ *        balance. The conventions are documented in ERF_IBFaceSet.H.
  */
 #include "ERF_IBFaceSet.H"
 #include "ERF_IBSEBSolar.H"
@@ -220,8 +220,8 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     }
 
     // Static totals: per direction, per building, and the summed area.
-    std::vector<long> nd(3, 0);
-    std::vector<long> bn(m_nbld + 1, 0);
+    std::vector<Long> nd(3, 0);
+    std::vector<Long> bn(m_nbld + 1, 0);
     std::vector<Real> ba(m_nbld + 1, 0.0);
     Real area = 0.0;
     for (int n = 0; n < m_nface; ++n) {
@@ -239,9 +239,10 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_bld_area  = ba;
     m_area_total = area;
 
-    // Device arrays. The state starts uniform at T_skin_init (the slab too:
-    // phase 5 sets the interior boundary); the view fractions and fluxes start
-    // at zero and are filled by the later phases.
+    // Device arrays. The state starts uniform at T_skin_init (the slab too;
+    // the interior boundary is applied when the slab is advanced); the view
+    // fractions and fluxes start at zero and are filled by
+    // compute_view_fractions() and the per-step routines.
     const size_t nf = static_cast<size_t>(m_nface);
     upload(d_i, h_i); upload(d_j, h_j); upload(d_k, h_k);
     upload(d_dir, h_dir); upload(d_side, h_side); upload(d_bid, h_bid);
@@ -298,7 +299,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
  * each looping over its rays; the count of rays ending on the sky, the
  * ground and a building over the total gives the three fractions. Roofs
  * point up and never see the ground; a wall on flat open ground sees half
- * sky and half ground, which the regtest checks.
+ * sky and half ground, which the regression test checks.
  */
 void
 IBFaceSet::compute_view_fractions ()
@@ -515,7 +516,7 @@ IBFaceSet::solve_balance (Real dt)
         Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
         Gpu::copy(Gpu::deviceToHost, d_niter.begin(), d_niter.end(), h_n.begin());
         Gpu::streamSynchronize();
-        Real rmax = 0.0; int nmax = 0; long nclamp = 0;
+        Real rmax = 0.0; int nmax = 0; Long nclamp = 0;
         for (int n = 0; n < m_nface; ++n) {
             rmax = std::max(rmax, h_r[n]); nmax = std::max(nmax, h_n[n]);
             if (h_T[n] <= Tmin || h_T[n] >= Tmax) { ++nclamp; }
@@ -532,7 +533,7 @@ IBFaceSet::solve_balance (Real dt)
  * Wall function on every face. One kernel per fab over that fab's faces:
  * the cell-centred velocity of the fluid cell from its face values, its
  * tangential part with respect to the wall, the neutral log law for u*
- * and theta*, and on request the additions of phase 8: a convective
+ * and theta*, and on request two additions: a convective
  * velocity scale in the wind (Beljaars' gustiness form with Deardorff's
  * w* from the previous step's flux) and, on roofs, the surface layer's
  * similarity functions iterated on the face's own Obukhov length. The
@@ -705,7 +706,8 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
  * Diffuse on a face: ``f_sky * diffuse_h + f_ground * albedo_ground *
  * (direct_h + diffuse_h)``, the second term being the ground-reflected part,
  * with the direct on a horizontal surface ``direct_h = dni * cos z``. The
- * view fractions are the placeholders of build() until phase 3.
+ * view fractions are the placeholders of build() until
+ * compute_view_fractions() has run.
  */
 void
 IBFaceSet::compute_shortwave (Real time)
@@ -713,8 +715,8 @@ IBFaceSet::compute_shortwave (Real time)
     // ---- Sun and irradiances (host scalars) ----
     SunState s;
     if (m_params.sun_mode == "fixed") {
-        s.zenith  = m_params.sun_zenith_deg  * M_PI / 180.0;
-        s.azimuth = m_params.sun_azimuth_deg * M_PI / 180.0;
+        s.zenith  = m_params.sun_zenith_deg  * PI / 180.0;
+        s.azimuth = m_params.sun_azimuth_deg * PI / 180.0;
         const Real cz = std::cos(s.zenith);
         s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
         s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
@@ -770,8 +772,8 @@ IBFaceSet::compute_shortwave (Real time)
     Gpu::streamSynchronize();
 
     if (m_params.debug) {
-        Print() << "[IBSEB DEBUG] lev=" << m_lev << " sun: zenith=" << s.zenith * 180.0 / M_PI
-                << " deg azimuth=" << s.azimuth * 180.0 / M_PI << " deg s=(" << s.sx << "," << s.sy << "," << s.sz
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " sun: zenith=" << s.zenith * 180.0 / PI
+                << " deg azimuth=" << s.azimuth * 180.0 / PI << " deg s=(" << s.sx << "," << s.sy << "," << s.sz
                 << ") DNI=" << s.dni << " W/m2 diffuse_h=" << s.diffuse_h << " W/m2\n";
     }
 }
@@ -1078,7 +1080,7 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     const Real lw_mean  = (m_area_total > 0.0) ? lw_sum / m_area_total : 0.0;
     const Real H_mean   = (m_area_total > 0.0) ? H_sum / m_area_total : 0.0;
 
-    const long nf_all = m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2];
+    const Long nf_all = m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2];
     Print() << "[IBSEB] lev=" << m_lev << " step=" << step << " t=" << time
             << " faces=" << nf_all
             << " (x=" << m_nface_dir[0] << " y=" << m_nface_dir[1] << " z=" << m_nface_dir[2] << ")"
@@ -1155,6 +1157,6 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
         csv << std::setprecision(10) << time << "," << step << "," << m_lev << "," << b << ","
             << m_bld_nface[b] << "," << m_bld_area[b] << "," << tmean << "," << swm << "," << shf << "," << lwm << "," << Hm << ","
             << Gm << "," << Qm << "," << btmin[b] << "," << btmax[b] << "," << bres[b] << ","
-            << m_sun.zenith * 180.0 / M_PI << "," << m_sun.azimuth * 180.0 / M_PI << "," << m_sun.dni << "," << m_sun.diffuse_h << "\n";
+            << m_sun.zenith * 180.0 / PI << "," << m_sun.azimuth * 180.0 / PI << "," << m_sun.dni << "," << m_sun.diffuse_h << "\n";
     }
 }

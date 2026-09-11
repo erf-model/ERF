@@ -3,6 +3,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include <ERF_Constants.H>
 #include <cmath>
 
 /**
@@ -41,7 +42,7 @@ amrex::Real clamp_day_of_year (amrex::Real doy)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_declination (amrex::Real day_of_year)
 {
-    const amrex::Real g = 2.0 * M_PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
+    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
     return 0.006918
         - 0.399912 * std::cos(g)       + 0.070257 * std::sin(g)
         - 0.006758 * std::cos(2.0 * g) + 0.000907 * std::sin(2.0 * g)
@@ -52,7 +53,7 @@ amrex::Real solar_declination (amrex::Real day_of_year)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real equation_of_time_min (amrex::Real day_of_year)
 {
-    const amrex::Real g = 2.0 * M_PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
+    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
     return 229.18 * (0.000075 + 0.001868 * std::cos(g) - 0.032077 * std::sin(g)
                      - 0.014615 * std::cos(2.0 * g) - 0.040849 * std::sin(2.0 * g));
 }
@@ -74,14 +75,14 @@ amrex::Real solar_hour_angle (amrex::Real time_utc_s, amrex::Real longitude_deg,
     const amrex::Real std_meridian = 15.0 * tz_offset_h;
     const amrex::Real t_solar_h = t_utc_h + tz_offset_h + (longitude_deg - std_meridian) / 15.0
                                 + equation_of_time_min(day_of_year) / 60.0;
-    return 15.0 * (t_solar_h - 12.0) * M_PI / 180.0;
+    return 15.0 * (t_solar_h - 12.0) * PI / 180.0;
 }
 
 /** Solar zenith angle [rad] from latitude, declination and hour angle. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_zenith (amrex::Real latitude_deg, amrex::Real decl, amrex::Real hour_angle)
 {
-    const amrex::Real lat = latitude_deg * M_PI / 180.0;
+    const amrex::Real lat = latitude_deg * PI / 180.0;
     amrex::Real cz = std::sin(lat) * std::sin(decl) + std::cos(lat) * std::cos(decl) * std::cos(hour_angle);
     cz = amrex::max(amrex::Real(-1.0), amrex::min(amrex::Real(1.0), cz));
     return std::acos(cz);
@@ -91,20 +92,20 @@ amrex::Real solar_zenith (amrex::Real latitude_deg, amrex::Real decl, amrex::Rea
  * Solar azimuth [rad], clockwise from north, in [0, 2 pi): east of south
  * (below pi) in the morning, when the hour angle is negative, west of south
  * in the afternoon. The sign of the sine term is what puts the morning sun
- * in the east; the noon check of phase 2 cannot tell the two apart, the
- * sunrise deck of phase 6 can.
+ * in the east; a check at solar noon cannot tell the two apart, a sunrise
+ * case can.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_azimuth (amrex::Real latitude_deg, amrex::Real decl,
                            amrex::Real hour_angle, amrex::Real zenith)
 {
-    const amrex::Real lat = latitude_deg * M_PI / 180.0;
+    const amrex::Real lat = latitude_deg * PI / 180.0;
     const amrex::Real sz = std::sin(zenith), cz = std::cos(zenith);
     if (sz < 1.0e-6) return 0.0;
     const amrex::Real sin_az = -std::sin(hour_angle) * std::cos(decl) / sz;
     const amrex::Real cos_az = (std::sin(decl) - cz * std::sin(lat)) / (sz * std::cos(lat));
     amrex::Real az = std::atan2(sin_az, cos_az);
-    if (az < 0.0) az += 2.0 * M_PI;
+    if (az < 0.0) az += 2.0 * PI;
     return az;
 }
 
@@ -112,7 +113,7 @@ amrex::Real solar_azimuth (amrex::Real latitude_deg, amrex::Real decl,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real earth_sun_distance_factor (amrex::Real day_of_year)
 {
-    const amrex::Real g = 2.0 * M_PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.0;
+    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.0;
     return 1.000110 + 0.034221 * std::cos(g) + 0.001280 * std::sin(g)
          + 0.000719 * std::cos(2.0 * g) + 0.000077 * std::sin(2.0 * g);
 }
@@ -228,7 +229,7 @@ enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
 
 /**
  * Where a ray from a face ends: sky, ground or a building, for any
- * direction (phase 3 hemisphere sampling). The same column walk as
+ * direction (the hemisphere sampling of the view fractions). The same column walk as
  * ray_blocked(), with the height test made direction-aware:
  *
  * - rising or level rays (``sz >= 0``) are blocked by a column whose top is
@@ -317,7 +318,7 @@ void hemisphere_direction (int dir, int nsign, int ia, int ie, int n_az, int n_e
 {
     const amrex::Real u     = (ie + 0.5) / n_el;
     const amrex::Real theta = std::asin(std::sqrt(u));
-    const amrex::Real phi   = 2.0 * M_PI * (ia + 0.5) / n_az;
+    const amrex::Real phi   = 2.0 * PI * (ia + 0.5) / n_az;
     const amrex::Real cn = std::cos(theta), ct = std::sin(theta) * std::cos(phi), st = std::sin(theta) * std::sin(phi);
     // Normal and two tangents for each axis.
     amrex::Real n[3] = {0.0, 0.0, 0.0}, t1[3] = {0.0, 0.0, 0.0}, t2[3] = {0.0, 0.0, 0.0};

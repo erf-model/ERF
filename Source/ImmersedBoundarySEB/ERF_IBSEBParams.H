@@ -17,9 +17,9 @@
  * in which case ERF::init_ibseb() builds one IBFaceSet per level.
  *
  * The parameters are parsed once, in ERF::ReadParameters(), and copied into
- * each IBFaceSet, so a face set never reads ParmParse itself. New inputs of
- * later phases go here, with their defaults, so that the whole input surface
- * of the balance is in one place. The phases and their inputs are listed in
+ * each IBFaceSet, so a face set never reads ParmParse itself. Every input of
+ * the balance lives here with its default, so that the whole input surface
+ * is in one place; the design notes are in
  * Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md.
  */
 struct IBSEBParams
@@ -34,8 +34,8 @@ struct IBSEBParams
     std::string dump_faces_file;                       ///< Per-rank face dump at report time (empty = off)
     bool        dump_faces_tag_step = false;           ///< Name each dump by its step (keeps every one) instead of overwriting
 
-    // ---- Radiation provider (phase 2) --------------------------------------
-    // Where the downwelling shortwave (and, in phase 3, longwave) comes from.
+    // ---- Radiation provider ------------------------------------------------
+    // Where the downwelling shortwave and longwave come from.
     // "prescribed" is built in: clear-sky formulas with a fixed or computed
     // sun. "two_stream" is reserved for the ERF-Radiation column fluxes.
     std::string radiation     = "prescribed";
@@ -56,13 +56,13 @@ struct IBSEBParams
     amrex::Real solar_constant    = 1361.0; ///< solar: [W/m2]
     amrex::Real sw_transmission   = 0.7;    ///< solar: bulk clear-sky transmission (Bird)
     amrex::Real sw_diffuse_coeff  = 0.5;    ///< solar: share of the attenuated beam that arrives as diffuse light
-    // Optical properties, uniform until the material library of phase 5.
+    // Optical properties, uniform unless the material library below overrides them.
     amrex::Real albedo            = 0.3;    ///< Face shortwave albedo
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
     amrex::Real emissivity        = 0.9;    ///< Face longwave emissivity
     amrex::Real emissivity_ground = 0.95;   ///< Ground emissivity for the ground term
 
-    // ---- View fractions and longwave (phase 3) ------------------------------
+    // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
     // initialisation: n_az azimuths x n_el elevations.
     int         view_n_az         = 16;
@@ -75,7 +75,7 @@ struct IBSEBParams
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
     amrex::Real T_ground          = 300.0;  ///< Ground temperature for the ground term [K]
 
-    // ---- Sensible and latent heat (phase 4) ---------------------------------
+    // ---- Sensible and latent heat -------------------------------------------
     // Wall function between the face skin temperature and the adjacent fluid
     // cell: u* from the tangential wind at half a cell from the wall with the
     // roughness length z0_wall, theta* from the skin-to-air difference with
@@ -88,7 +88,7 @@ struct IBSEBParams
     bool        stability_correction = false;
     bool        couple_heat       = true;   ///< Add the face flux to the temperature equation
 
-    // ---- Ground heat flux and materials (phase 5) ---------------------------
+    // ---- Ground heat flux and materials -------------------------------------
     // Every face carries a slab of n_slab_layers layers between the skin and
     // the building interior at T_interior; the conduction into it is G. The
     // slab's conductivity, heat capacity and thickness, and the face's albedo
@@ -103,14 +103,14 @@ struct IBSEBParams
     amrex::Real rho_cp             = 1.6e6;  ///< Uniform volumetric heat capacity [J/m3/K]
     amrex::Real thickness          = 0.3;    ///< Uniform slab thickness [m]
 
-    // ---- Prognostic balance (phase 6) ---------------------------------------
+    // ---- Prognostic balance -------------------------------------------------
     // With prognostic on, every step solves the massless-skin balance
     // SW_abs + eps Q_ext + LW_net - H - LE - G = 0 for the skin temperature
     // of every face by Newton's method (ERF_IBSEBBalance.H), consistent with
     // the implicit slab step, and stores the fluxes at the solution. Off, the
     // skin stays at T_skin_init (or the restart value) and the terms are
-    // diagnosed around it, which is what the regtests of phases 2-5 use to
-    // check each term on its own.
+    // diagnosed around it, which is what the term-by-term regression tests
+    // use to check each term on its own.
     bool        prognostic         = true;
     amrex::Real T_skin_min         = 260.0;  ///< Lower bound of the skin temperature [K]
     amrex::Real T_skin_max         = 380.0;  ///< Upper bound [K]; raise it for faces under a fire
@@ -119,7 +119,7 @@ struct IBSEBParams
     amrex::Real newton_max_step_K  = 20.0;   ///< Largest Newton step [K]
     amrex::Real Q_ext_uniform      = 0.0;    ///< Uniform external incident flux on every face [W/m2] (test hook)
 
-    // ---- Wall function beyond neutral (phase 8) ------------------------------
+    // ---- Wall function beyond neutral ----------------------------------------
     // stability_correction (above) applies the surface layer's similarity
     // functions on roofs with the face's own Obukhov length, seeded from the
     // ground surface layer's 2D Obukhov field at the face's column when

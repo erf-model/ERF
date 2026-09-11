@@ -51,17 +51,16 @@
  * rebuilt from the blanking and refilled from that field, so a restart does
  * not depend on the rank count or on the order the faces were found in.
  *
- * **Phases and the per-step order.** Phase 1 stores; phase 3 fills
- * ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg`` once; every step then runs
- * compute_shortwave() (phase 2), compute_longwave() (phase 3),
- * compute_sensible() (phase 4) and, with ``erf.ibseb.prognostic``,
- * solve_balance() (phase 6), which finds the skin temperature closing the
- * balance, advances the slab (phase 5) with it and rewrites the fluxes at the
- * solution; without it compute_ground() advances the slab under the fixed
- * skin. ``d_Q_ext`` is the hook through which an external incident flux (a
- * fire's radiation) enters without the balance knowing its source: whoever
- * owns it writes the array before solve_balance() runs. See
- * IBSEB_DEVELOPMENT.md.
+ * **Per-step order.** build() detects and stores the faces and
+ * compute_view_fractions() fills ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg``
+ * once at initialisation; every step then runs compute_shortwave(),
+ * compute_longwave(), compute_sensible() and, with ``erf.ibseb.prognostic``,
+ * solve_balance(), which finds the skin temperature closing the balance,
+ * advances the slab with it and rewrites the fluxes at the solution; without
+ * it compute_ground() advances the slab under the fixed skin. ``d_Q_ext`` is
+ * the hook through which an external incident flux (a fire's radiation)
+ * enters without the balance knowing its source: whoever owns it writes the
+ * array before solve_balance() runs. See IBSEB_DEVELOPMENT.md.
  */
 class IBFaceSet
 {
@@ -108,7 +107,7 @@ public:
     int state_ncomp () const { return 6 * (1 + n_layers()); }
 
     /**
-     * View fractions (phase 3): sample a cosine-weighted hemisphere around
+     * View fractions: sample a cosine-weighted hemisphere around
      * every face's outward normal with ``view_n_az x view_n_el`` rays through
      * the column walk and count where they end: sky, ground or a building.
      * The three fractions sum to one and are view factors. Called once at
@@ -117,7 +116,7 @@ public:
     void compute_view_fractions ();
 
     /**
-     * Longwave of the current step (phase 3). Incoming on a face:
+     * Longwave of the current step. Incoming on a face:
      * ``f_sky LW_sky + f_ground eps_g sigma T_g^4 + f_bldg sigma T_skin^4``,
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
      * air temperature of the face's fluid cell), the building term the
@@ -128,7 +127,7 @@ public:
     void compute_longwave (const amrex::MultiFab& cons);
 
     /**
-     * Assign every face its material properties (phase 5): from the material
+     * Assign every face its material properties: from the material
      * library by building id, or the uniform inputs. Called once after
      * build(); fills d_mat, d_albedo, d_emis, d_k, d_rhocp, d_thick and
      * initialises the slab layers to the skin temperature.
@@ -136,7 +135,7 @@ public:
     void assign_materials ();
 
     /**
-     * Ground heat flux of the current step (phase 5): advance every face's
+     * Ground heat flux of the current step: advance every face's
      * slab by dt with the skin temperature at the top and the interior
      * temperature at the bottom (implicit, ERF_IBSEBSlab.H) and store the
      * conduction into the slab, G, positive into the wall.
@@ -144,7 +143,7 @@ public:
     void compute_ground (amrex::Real dt);
 
     /**
-     * Prognostic balance of the current step (phase 6). Per face: the
+     * Prognostic balance of the current step. Per face: the
      * slab's linear response to the skin temperature for this step, the
      * Newton solve of ERF_IBSEBBalance.H with the shortwave, the external
      * flux, the sky and ground longwave, the frozen wall-function
@@ -158,15 +157,15 @@ public:
     void solve_balance (amrex::Real dt);
 
     /**
-     * Sensible heat of the current step (phase 4) through a wall function on
+     * Sensible heat of the current step through a wall function on
      * every face: the tangential wind of the fluid cell at half a cell from
      * the wall gives u* with the roughness z0_wall, the skin-to-air
      * potential-temperature difference gives theta* with z0h_wall, and
      * H = rho c_p u* theta*, positive out of the face. Neutral, or with the
      * surface layer's stability functions on roofs when asked. The latent
-     * flux stays zero in this phase.
+     * flux is not modelled and stays zero.
      *
-     * Beyond neutral (phase 8): with ``convective_velocity = deardorff`` the
+     * Beyond neutral: with ``convective_velocity = deardorff`` the
      * wind is ``sqrt(U_tan^2 + (beta w*)^2)`` with w* from the previous
      * step's H (zero when H is into the face) and a depth that is the mixed
      * layer above a roof or the building height for a wall; with
@@ -205,7 +204,7 @@ public:
                                   const amrex::Geometry& geom, amrex::Real c_p, amrex::Real rdOcp) const;
 
     /**
-     * Shortwave of the current step (phase 2): sun position and irradiances
+     * Shortwave of the current step: sun position and irradiances
      * from the prescribed provider, then per face the direct beam on the
      * face (zero when the ray toward the sun hits a building), the diffuse
      * light through the view fractions, and the absorbed sum.
@@ -226,7 +225,7 @@ public:
     /**
      * Write every face of this rank to ``<prefix>.rank<N>.csv`` with its
      * geometry, view fractions, shadow flag, shortwave terms and skin
-     * temperature, for the regtests and for users who want the raw list.
+     * temperature, for the regression tests and for users who want the raw list.
      */
     void dump_faces (const std::string& prefix) const;
 
@@ -292,34 +291,34 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_kth, d_rhocp, d_thick; ///< Slab conductivity [W/m/K], heat capacity [J/m3/K], thickness [m]
     amrex::Gpu::DeviceVector<amrex::Real> d_area;          ///< Face area [m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_xf, d_yf, d_zf;///< Face centre [m]
-    // State, advanced by the balance (phase 6) and checkpointed:
+    // State, advanced by the balance and checkpointed:
     amrex::Gpu::DeviceVector<amrex::Real> d_T_skin;        ///< Skin temperature [K]
     amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
-    // Static radiative geometry (phase 3):
+    // Static radiative geometry:
     amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;  ///< View fractions, sum to 1
     // Fluxes of the current step [W/m2], positive as in IBSEB_DEVELOPMENT.md
     // (SW_abs and LW_net into the face, H, LE, G out of it):
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
     amrex::Gpu::DeviceVector<amrex::Real> d_Q_ext;         ///< External incident flux [W/m2], e.g. fire radiation
-    // Shortwave detail (phase 2), all [W/m2] except the flag:
+    // Shortwave detail, all [W/m2] except the flag:
     amrex::Gpu::DeviceVector<amrex::Real> d_shadow;        ///< 1 when the ray to the sun hits a building, else 0
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_direct_in;  ///< Direct beam incident on the face
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_diffuse_in; ///< Sky and ground-reflected diffuse incident
-    // Longwave detail (phase 3) [W/m2] and the air temperature read [K]:
+    // Longwave detail [W/m2] and the air temperature read [K]:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_down_in;   ///< Incoming longwave on the face (sky, ground and walls)
     amrex::Gpu::DeviceVector<amrex::Real> d_T_air;        ///< Air temperature of the fluid cell
-    // Sensible heat detail (phase 4):
+    // Sensible heat detail:
     amrex::Gpu::DeviceVector<amrex::Real> d_theta_air;    ///< Potential temperature of the fluid cell [K]
     amrex::Gpu::DeviceVector<amrex::Real> d_rho;          ///< Density of the fluid cell [kg/m3]
     amrex::Gpu::DeviceVector<amrex::Real> d_U_tan;        ///< Tangential wind speed at the fluid cell [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_ustar;        ///< Friction velocity of the wall function [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_H_coeff;      ///< H = H_coeff (theta_skin - theta_air) [W/m2/K]
-    // Wall function beyond neutral (phase 8):
+    // Wall function beyond neutral:
     amrex::Gpu::DeviceVector<amrex::Real> d_hbld;         ///< Height of the face's building column [m]
     amrex::Gpu::DeviceVector<amrex::Real> d_w_star;       ///< Convective velocity scale of the step [m/s]
     amrex::Gpu::DeviceVector<amrex::Real> d_olen;         ///< Obukhov length used [m] (1e30 when neutral)
     amrex::Gpu::DeviceVector<amrex::Real> d_z_i;          ///< Depth in w* [m]: mixed layer above a roof, building height for a wall
-    // Prognostic balance detail (phase 6):
+    // Prognostic balance detail:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
     amrex::Gpu::DeviceVector<int>         d_niter;        ///< Newton iterations of the last solve
@@ -364,12 +363,12 @@ private:
     std::vector<int> m_fab_start;  ///< See fab_start()
 
     // Static totals over all ranks, computed once in build(); building index 0 unused.
-    std::vector<long>        m_bld_nface;      ///< Faces per building
+    std::vector<amrex::Long> m_bld_nface;      ///< Faces per building
     std::vector<amrex::Real> m_bld_area;       ///< Face area per building [m2]
-    long m_nface_dir[3] = {0, 0, 0};           ///< Faces per direction
+    amrex::Long m_nface_dir[3] = {0, 0, 0};    ///< Faces per direction
     amrex::Real m_area_total = 0.0;            ///< Total face area [m2]
     // Footprint of each building (global): columns, and bounding box in cell indices.
-    std::vector<long> m_bld_ncol;
+    std::vector<amrex::Long> m_bld_ncol;
     std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
 
     // Geometry kept for the ray cast and the reports.
@@ -382,7 +381,7 @@ private:
     amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
     SunState m_sun;
     double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank
-    long   m_cost_n = 0;          ///< Number of per-step updates timed
+    amrex::Long m_cost_n = 0;     ///< Number of per-step updates timed
     double m_init_cost_s = 0.0;   ///< Wall-clock seconds of build() and compute_view_fractions()
 };
 

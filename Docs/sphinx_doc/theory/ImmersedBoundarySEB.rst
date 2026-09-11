@@ -13,9 +13,9 @@ energy balance gives each such face its own skin temperature from
    C \frac{dT_s}{dt} = SW_{abs} + LW_{net} - H - LE - G ,
 
 with the absorbed shortwave, the net longwave, the sensible and latent heat
-to the air, and the conduction into the wall. It is built in phases; the
-sections below grow with them, and ``Source/ImmersedBoundarySEB/
-IBSEB_DEVELOPMENT.md`` carries the plan and the phase log.
+to the air, and the conduction into the wall. The sections below describe
+each term; ``Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md`` carries the
+design notes and the record of the verification cases.
 
 Face storage
 ------------
@@ -233,7 +233,7 @@ a land-surface model.
 
 Setting :cpp:`erf.ibseb.prognostic = false` keeps the skin at its initial
 or restart value and diagnoses the terms around it, which is how the
-regtests of the earlier phases check each term on its own.
+term-by-term regression tests check each term on its own.
 
 ``Exec/CanonicalTests/SEB/Phase6_Prognostic`` runs a cube under a fixed sun
 with every step dumped and checks the residual on every face, the

@@ -21,22 +21,22 @@
  *
  * where every term keeps the sign convention of the module (radiation into
  * the face positive, H, LE and G out of it positive):
- *  - ``SW_abs`` is the absorbed shortwave of the step (phase 2);
+ *  - ``SW_abs`` is the absorbed shortwave of the step;
  *  - ``Q_ext`` is an external incident flux (a fire's radiation), absorbed
  *    with the face's longwave emissivity by Kirchhoff's law since such
  *    sources are thermal; zero unless something sets it;
- *  - ``LW_ext`` is the incoming longwave from the sky and the ground
- *    (phase 3); the part reflected back by the surrounding walls is
+ *  - ``LW_ext`` is the incoming longwave from the sky and the ground;
+ *    the part reflected back by the surrounding walls is
  *    ``f_b sigma T_s^4`` (isothermal surroundings) and folds into the
  *    emission term as the factor ``(1 - f_b)``;
  *  - ``C_H (T_s / Pi - theta_a)`` is the wall function's sensible flux
- *    (phase 4) with the coefficient ``C_H = rho c_p kappa u* / ln(delta/z0h)``
+ *    with the coefficient ``C_H = rho c_p kappa u* / ln(delta/z0h)``
  *    frozen at its value from the wind of the step, ``Pi`` the Exner
  *    function of the fluid cell so the skin temperature enters as a
  *    potential temperature;
- *  - ``LE`` is the latent flux, held at its stored value (zero so far);
+ *  - ``LE`` is the latent flux, held at its stored value (zero, not modelled);
  *  - ``a T_s - b`` is the conduction into the slab that the implicit slab
- *    step of phase 5 will produce for a skin temperature ``T_s``
+ *    step (ERF_IBSEBSlab.H) will produce for a skin temperature ``T_s``
  *    (ibseb::slab_skin_response()), so the balance and the slab agree
  *    exactly instead of lagging the slab's top layer by one step.
  *

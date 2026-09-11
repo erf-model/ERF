@@ -38,6 +38,17 @@ ERF::init_ibseb ()
         solverChoice.terrain_type   != TerrainType::ImmersedForcing) {
         Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing (or erf.terrain_type = ImmersedForcing)");
     }
+    // The face areas, the face heights, the wall-function distance and the
+    // ray cast all take the level's constant cell sizes.
+    if (solverChoice.mesh_type != MeshType::ConstantDz) {
+        Abort("erf.ibseb.enable needs a uniform vertical grid (no erf.terrain_z_levels or stretched mesh): "
+              "the face geometry and the ray cast assume constant dz");
+    }
+    // The face list is built once here from the blanking; a regrid would
+    // leave it indexing the old boxes.
+    if (regrid_int > 0) {
+        Abort("erf.ibseb.enable does not support regridding (erf.regrid_int > 0): the face list is built once at initialisation");
+    }
     // The immersed forcing's own surface-temperature conditions would fight
     // the face balance for the same cells.
     if (solverChoice.if_init_surf_temp > 0.0 ||
@@ -93,7 +104,7 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     const double t_wall0 = ParallelDescriptor::second();
     m_ibseb[lev]->compute_shortwave(time);
     m_ibseb[lev]->compute_longwave(cons);
-    // Phase 8: the ground surface layer's fields and the mixed-layer depth
+    // The ground surface layer's fields and the mixed-layer depth
     // for the wall function beyond neutral (all null / zero unless asked).
     const MultiFab* olen2d = nullptr;
     const MultiFab* pblh2d = nullptr;
@@ -146,7 +157,7 @@ ERF::ibseb_report (int nstep, Real time)
     // does; the CSV rows keep their interval.
     const bool csv_now = (ibseb_params.csv_int > 0) && (nstep % ibseb_params.csv_int == 0);
     if (!csv_now && !ibseb_params.debug) { return; }
-    for (int lev = 0; lev <= finest_level; ++lev) {
+    for (int lev = 0; lev <= finest_level && lev < static_cast<int>(m_ibseb.size()); ++lev) {
         if (m_ibseb[lev]) { m_ibseb[lev]->report(time, nstep, csv_now); }
     }
 }
