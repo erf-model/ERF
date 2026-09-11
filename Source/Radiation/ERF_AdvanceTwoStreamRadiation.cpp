@@ -85,7 +85,8 @@ void fill_or_copy_seb_field(
 void ERF::compute_twostream_radiation_diagnostics(
     int lev,
     int nstep,
-    amrex::Real time_step,
+    amrex::Real time,
+    amrex::Real dt,
     std::string const& call_site
     )
 {
@@ -96,6 +97,12 @@ void ERF::compute_twostream_radiation_diagnostics(
     if (rad_choice.rad_type != RadType::TwoStream) {
         return;
     }
+
+    // The column sweep runs once per step, at the pre-dycore call. The
+    // post-dycore call would sweep the same old state (vars_old is not
+    // swapped until the next step), so it reuses the cached flux diagnostics
+    // and only advances the surface-energy-balance state.
+    const bool do_sweep = (call_site != "post_dycore");
 
     // Create RadiationDiagnostics instance for this level with controls
     RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file,
@@ -221,6 +228,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         // so this loop is deliberately untiled and works on valid boxes; the
         // horizontal ParallelFor below still provides the parallelism.
         const Box& rad_domain = geom[lev].Domain();
+        if (do_sweep) {
         for (MFIter mfi(state_cons, false); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.validbox();
@@ -448,6 +456,7 @@ void ERF::compute_twostream_radiation_diagnostics(
             lw_net_sum += lw_sum_box;
             lw_up_toa_sum += lw_up_sum_box;
         }
+        } // do_sweep
 
          // Warn if diagnostic is requested but SEB infrastructure isn't enabled
         if (rad_choice.seb_diagnostic_enable && !rad_choice.seb_enable) {
@@ -606,9 +615,9 @@ void ERF::compute_twostream_radiation_diagnostics(
                             amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep_val,
                                                                      d_s, tau_q);
 
-                            // Perform Euler update
-                            amrex::Real t_s_new = t_s_old + time_step * dT_s_dt;
-                            amrex::Real q_s_new = q_s_old + time_step * dq_s_dt;
+                            // Explicit Euler update over the step size dt
+                            amrex::Real t_s_new = t_s_old + dt * dT_s_dt;
+                            amrex::Real q_s_new = q_s_old + dt * dq_s_dt;
 
                             // Clamp to valid ranges
                             t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
@@ -666,14 +675,27 @@ void ERF::compute_twostream_radiation_diagnostics(
         // domain-averaged value still equals the true single-column flux there.
         // True horizontal heterogeneity (e.g., patchy clouds varying by column)
         // remains deferred to future work; see RAD_DEVELOPMENT.md.
-        if (n_columns_total > 0) {
-            const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);
-            SW_surface     = sw_surface_sum * inv_n;
-            SW_up_TOA      = sw_up_toa_sum * inv_n;
-            LW_net_surface = lw_net_sum * inv_n;
-            LW_up_TOA      = lw_up_toa_sum * inv_n;
+        if (do_sweep) {
+            if (n_columns_total > 0) {
+                const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);
+                SW_surface     = sw_surface_sum * inv_n;
+                SW_up_TOA      = sw_up_toa_sum * inv_n;
+                LW_net_surface = lw_net_sum * inv_n;
+                LW_up_TOA      = lw_up_toa_sum * inv_n;
+            }
+            heating_rate_max = max_heating_global;
+            twostream_flux_diag[lev] = TwoStreamFluxDiag{SW_surface, SW_TOA, SW_up_TOA,
+                                                         LW_net_surface, LW_up_TOA,
+                                                         heating_rate_max};
+        } else {
+            const TwoStreamFluxDiag& cached = twostream_flux_diag[lev];
+            SW_surface       = cached.SW_surface;
+            SW_TOA           = cached.SW_TOA;
+            SW_up_TOA        = cached.SW_up_TOA;
+            LW_net_surface   = cached.LW_net_surface;
+            LW_up_TOA        = cached.LW_up_TOA;
+            heating_rate_max = cached.heating_rate_max;
         }
-        heating_rate_max = max_heating_global;
 
         // Compute SEB residual mean from sum
         if (rad_choice.seb_diagnostic_enable && rad_choice.seb_enable && n_seb_columns > 0) {
@@ -707,7 +729,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
     }
 
-    rad_diag.append(nstep, time_step, call_site, SW_surface, SW_TOA,
+    rad_diag.append(nstep, time, call_site, SW_surface, SW_TOA,
                     SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max,
                     seb_residual_mean, seb_residual_max,
                     t_s_mean, t_s_max, q_s_mean, q_s_max);

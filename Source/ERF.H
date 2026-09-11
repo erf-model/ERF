@@ -597,9 +597,14 @@ public:
                             amrex::MultiFab& cons_in,
                             const double& dt_advance);
 
+    // Two-stream radiation driver. call_site "pre_dycore" runs the column
+    // sweep on the old state and caches the flux diagnostics; "post_dycore"
+    // reuses that cache (the state it would sweep is the same one) and runs
+    // the surface-energy-balance update with the step size dt.
     void compute_twostream_radiation_diagnostics (int lev,
                                                    int nstep,
-                                                   amrex::Real time_step,
+                                                   amrex::Real time,
+                                                   amrex::Real dt,
                                                    std::string const& call_site);
 
 #ifdef ERF_USE_EAMXX_SHOC
@@ -1213,6 +1218,18 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_sfc;                 // SEB surface moisture (2D: i,j)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_deep;                // SEB deep soil temperature (2D: i,j)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_deep;                // SEB deep soil moisture (2D: i,j)
+
+    // Domain-mean flux diagnostics of the last two-stream column sweep, per
+    // level, so the post-dycore call can report them without sweeping again.
+    struct TwoStreamFluxDiag {
+        amrex::Real SW_surface = 0.0;
+        amrex::Real SW_TOA = 0.0;
+        amrex::Real SW_up_TOA = 0.0;
+        amrex::Real LW_net_surface = 0.0;
+        amrex::Real LW_up_TOA = 0.0;
+        amrex::Real heating_rate_max = 0.0;
+    };
+    amrex::Vector<TwoStreamFluxDiag> twostream_flux_diag;
 
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level

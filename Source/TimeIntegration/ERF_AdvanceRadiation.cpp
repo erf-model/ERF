@@ -107,10 +107,10 @@ void ERF::advance_radiation (int lev,
     // - The heating rates computed here are old-state based (t^n).
     // - They are injected into the RhoTheta source only on is_slow_step
     //   (see ERF_MakeSources.cpp), so there is no duplicate forcing.
-    // - istep[lev] serves as both the current step number and the CSV
-    //   diagnostics row index; dt_advance supplies the time_step value
-    //   logged to the CSV and console output.
+    // - istep[lev] is the CSV row index, t_old[lev] the time logged with it,
+    //   and dt_advance the step size (used by the surface-energy-balance
+    //   update, which runs at the post-dycore call).
     else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
-        compute_twostream_radiation_diagnostics(lev, istep[lev], t_old[lev], "pre_dycore");
+        compute_twostream_radiation_diagnostics(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore");
     }
 }

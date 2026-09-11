@@ -438,9 +438,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 
     // ***********************************************************************************************
-    // Compute and write radiation diagnostics (TwoStream only)
+    // Two-stream radiation, post-dycore call: reports the cached flux
+    // diagnostics and advances the force-restore surface state by dt_lev.
+    // No column sweep runs here; that happened in advance_radiation above.
     // ***********************************************************************************************
-    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev,"post_dycore");
+    compute_twostream_radiation_diagnostics(lev, iteration, time + dt_lev, dt_lev, "post_dycore");
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before
         // accumulating the first sample whose step starts at or beyond the

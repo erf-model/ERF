@@ -114,6 +114,7 @@ ERF::ERF_shared ()
     q_sfc.resize(nlevs_max);
     t_deep.resize(nlevs_max);
     q_deep.resize(nlevs_max);
+    twostream_flux_diag.resize(nlevs_max);
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);

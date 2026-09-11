@@ -87,7 +87,11 @@ See README for full sounding documentation.
    - With very small timescale (e.g., 100 s), T_s should approach T_deep asymptotically
    - Restoring term sign/magnitude correct (approaching deep value from above/below)
 5. **Finite diagnostics** — All T_s and q_s values finite (no NaN/Inf)
-6. **No impact on radiation** — SW/LW/heating diagnostics identical to baseline
+6. **Time integration uses the step size** — every post_dycore row advances
+   T_s by `dt * dT_s/dt(T_s_old)` with dt the time between rows (2% tolerance)
+7. **Restart continuity** — restarting from the mid-run checkpoint reproduces
+   the fresh run's T_s and q_s (see Restart Mode below)
+8. **No impact on radiation** — SW/LW/heating diagnostics identical to baseline
    (prognostic update occurs after radiation calculation; no feedback)
 
 ## Surface Energy Balance Prognostic Equations
@@ -147,7 +151,21 @@ python check_seb_prognostic.py baseline
 erf inputs_seb_prognostic_enabled
 python check_seb_prognostic.py feature_on
 # Verify: 16 columns, T_s/q_s columns finite, temperatures evolve in correct direction,
-#         all values within configured bounds, no NaN/Inf
+#         all values within configured bounds, no NaN/Inf, and each step changes T_s by
+#         dt * dT_s/dt (the deck's dt is 0.5 s; the run is 72 steps)
+```
+
+### Restart Mode
+The enabled run writes `chk_seb_prog_enabled00036` at step 36 (t = 18 s).
+`inputs_seb_prognostic_restart` restarts from it and logs to
+`radiation_seb_prog_restart.dat`; the checker compares the post_dycore rows the
+two CSVs share. The prognostic surface state is part of the checkpoint
+(`Level_0/TwoStream_TSfc`, `Level_0/TwoStream_QSfc`), so the restarted T_s and
+q_s continue the fresh run instead of resetting to the scalar defaults.
+```bash
+erf inputs_seb_prognostic_restart
+python check_seb_prognostic.py restart
+# Verify: T_s_mean/T_s_max/q_s_mean/q_s_max agree with the fresh run to 1e-6 from step 36 on
 ```
 
 ## Implementation Summary
