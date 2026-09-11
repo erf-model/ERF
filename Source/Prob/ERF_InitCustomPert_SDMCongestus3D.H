@@ -8,7 +8,7 @@
 
     // random initial perturbations (legacy code)
     Real T_0_Pert_Mag = zero; pp_prob.query("T_0_Pert_Mag", T_0_Pert_Mag);
-    Real Q_0_Pert_Mag = zero; pp_prob.query("Q_0_Pert_Mag", T_0_Pert_Mag);
+    Real Q_0_Pert_Mag = zero; pp_prob.query("Q_0_Pert_Mag", Q_0_Pert_Mag);
 
     // divergence-free initial perturbations
     Real pert_ref_height = amrex::Real(100.0); pp_prob.query("pert_ref_height", pert_ref_height);

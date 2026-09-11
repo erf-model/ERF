@@ -1,0 +1,10 @@
+# Motivation: These fields are all valid for the production water-only
+# SuperDroplets state and must remain in canonical ERF output order.
+density
+theta
+qv
+qc
+qrain
+qt
+qn
+qp

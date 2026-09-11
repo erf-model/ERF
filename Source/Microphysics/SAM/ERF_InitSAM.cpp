@@ -129,19 +129,19 @@ SAM::Copy_State_to_Micro (const MultiFab& cons_in)
                                       states_array(i,j,k,RhoQ4_comp),
                                       states_array(i,j,k,RhoQ5_comp),
                                       states_array(i,j,k,RhoQ6_comp));
-            rho_array(i,j,k) = primitive.rho;
+            rho_array(i,j,k)   = primitive.rho;
             theta_array(i,j,k) = primitive.theta;
-            qv_array(i,j,k) = primitive.qv;
-            qc_array(i,j,k) = primitive.qcl;
-            qi_array(i,j,k) = primitive.qci;
-            qn_array(i,j,k) = primitive.qn;
-            qt_array(i,j,k) = primitive.qt;
-            qpr_array(i,j,k) = primitive.qpr;
-            qps_array(i,j,k) = primitive.qps;
-            qpg_array(i,j,k) = primitive.qpg;
-            qp_array(i,j,k) = primitive.qp;
-            tabs_array(i,j,k) = primitive.tabs;
-            pres_array(i,j,k) = primitive.pres_mbar;
+            qv_array(i,j,k)    = primitive.qv;
+            qc_array(i,j,k)    = primitive.qcl;
+            qi_array(i,j,k)    = primitive.qci;
+            qn_array(i,j,k)    = primitive.qn;
+            qt_array(i,j,k)    = primitive.qt;
+            qpr_array(i,j,k)   = primitive.qpr;
+            qps_array(i,j,k)   = primitive.qps;
+            qpg_array(i,j,k)   = primitive.qpg;
+            qp_array(i,j,k)    = primitive.qp;
+            tabs_array(i,j,k)  = primitive.tabs;
+            pres_array(i,j,k)  = primitive.pres_mbar;
         });
     }
 }

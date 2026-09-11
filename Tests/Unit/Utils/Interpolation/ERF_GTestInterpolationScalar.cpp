@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "../../ERF_GTestAssertions.H"
 #include "ERF_GTestInterpolationCommon.H"
 
 using namespace interpolation_test;
@@ -15,6 +16,23 @@ struct ReferenceCase {
     AdvType adv_type;
     int sigma;
 };
+
+class InterpolationReferenceCaseTest : public ::testing::TestWithParam<ReferenceCase> {};
+
+void PrintTo (const ReferenceCase& test_case, std::ostream* os)
+{
+    *os << "ReferenceCase{adv_type=" << scheme_name(test_case.adv_type)
+        << ", sigma=" << test_case.sigma << "}";
+}
+
+std::string reference_case_name (const ReferenceCase& test_case)
+{
+    if (test_case.adv_type == AdvType::Centered_2nd) return "Centered2";
+    if (test_case.adv_type == AdvType::Centered_4th) return "Centered4";
+    if (test_case.adv_type == AdvType::Centered_6th) return "Centered6";
+    return scheme_name(test_case.adv_type) +
+           (test_case.sigma < 0 ? "Negative" : "Positive");
+}
 
 inline void expect_near_relative (const amrex::Real actual,
                                   const amrex::Real expected,
@@ -50,29 +68,35 @@ std::string trace_label (const AdvType adv_type,
 
 // Motivation: The reference stencils must satisfy the independently derived
 // finite-volume exactness orders before they are used in device-path comparisons.
-TEST(InterpolationScalar, ReferencePolynomialExactnessFiniteVolume)
+TEST_P(InterpolationReferenceCaseTest, PolynomialExactnessFiniteVolume)
 {
-    const std::array<ReferenceCase, 7> cases = {{
-        {AdvType::Centered_2nd, 0},
-        {AdvType::Upwind_3rd, -1},
-        {AdvType::Upwind_3rd, 1},
-        {AdvType::Centered_4th, 0},
-        {AdvType::Upwind_5th, -1},
-        {AdvType::Upwind_5th, 1},
-        {AdvType::Centered_6th, 0}}};
+    const ReferenceCase test_case = GetParam();
 
-    for (const ReferenceCase& test_case : cases) {
-        for (int degree = 0; degree <= exactness_degree(test_case.adv_type); ++degree) {
-            const StencilValues stencil = make_monomial_stencil(degree);
-            const amrex::Real actual = reference_reconstruction(stencil, test_case.adv_type, test_case.sigma);
-            const amrex::Real expected = (degree == 0) ? amrex::Real(1.0) : amrex::Real(0.0);
+    for (int degree = 0; degree <= exactness_degree(test_case.adv_type); ++degree) {
+        const StencilValues stencil = make_monomial_stencil(degree);
+        const amrex::Real actual = reference_reconstruction(stencil, test_case.adv_type, test_case.sigma);
+        const amrex::Real expected = (degree == 0) ? amrex::Real(1.0) : amrex::Real(0.0);
 
-            SCOPED_TRACE(trace_label(test_case.adv_type, test_case.sigma, degree,
-                                     actual, expected, kPolynomialRelTol));
-            expect_near_relative(actual, expected, kPolynomialRelTol);
-        }
+        SCOPED_TRACE(trace_label(test_case.adv_type, test_case.sigma, degree,
+                                 actual, expected, kPolynomialRelTol));
+        ERF_EXPECT_NEAR(actual, expected, scaled_tol(actual, expected, kPolynomialRelTol));
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    SchemeAndDirection,
+    InterpolationReferenceCaseTest,
+    ::testing::Values(
+        ReferenceCase{AdvType::Centered_2nd, 0},
+        ReferenceCase{AdvType::Upwind_3rd, -1},
+        ReferenceCase{AdvType::Upwind_3rd, 1},
+        ReferenceCase{AdvType::Centered_4th, 0},
+        ReferenceCase{AdvType::Upwind_5th, -1},
+        ReferenceCase{AdvType::Upwind_5th, 1},
+        ReferenceCase{AdvType::Centered_6th, 0}),
+    [](const ::testing::TestParamInfo<ReferenceCase>& info) {
+        return reference_case_name(info.param);
+    });
 
 // Motivation: Leading-error constants lock stencil orientation and distinguish
 // 2nd/3rd/4th/5th/6th order behavior.

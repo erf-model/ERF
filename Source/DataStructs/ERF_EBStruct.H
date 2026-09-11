@@ -8,14 +8,23 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * @brief Boundary condition model applied on embedded-boundary surfaces.
+ */
 enum struct EBBoundaryType {
     SlipWall, NoSlipWall, SurfaceLayer
 };
 
+/**
+ * @brief Embedded-boundary stress component indices.
+ */
 enum EBTauType {
     tau_eb13, tau_eb23
 };
 
+/**
+ * @brief Grid centering used for embedded-boundary data.
+ */
 enum EBGridType {
     xface, yface, zface
 };
@@ -26,12 +35,16 @@ enum EBGridType {
 
 struct EBChoice {
   public:
+    /**
+     * @brief Read embedded-boundary options from the input parameter database.
+     * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     */
     void init_params(std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
         static std::string eb_boundary_type_string = "NoSlipWall";
-        pp.query("eb_boundary_type",eb_boundary_type_string);
+        pp.queryAdd("eb_boundary_type",eb_boundary_type_string);
 
         if (!eb_boundary_type_string.compare("SlipWall")) {
             eb_boundary_type = EBBoundaryType::SlipWall;
@@ -44,6 +57,9 @@ struct EBChoice {
         }
     }
 
+    /**
+     * @brief Print the configured embedded-boundary options.
+     */
     void display()
     {
         amrex::Print() << "EB choices: " << std::endl;
@@ -58,4 +74,9 @@ struct EBChoice {
 
     EBBoundaryType eb_boundary_type = EBBoundaryType::SlipWall;
 };
+
+/**
+ * @var EBChoice::eb_boundary_type
+ * @brief Boundary condition model applied on embedded-boundary surfaces.
+ */
 #endif

@@ -1,3 +1,6 @@
+/**
+ * \file ERF_WriteScalarProfiles.cpp
+ */
 #include <iomanip>
 
 #include "ERF.H"
@@ -62,7 +65,7 @@ ERF::sum_integrated_quantities (double time)
         if (solverChoice.moisture_type != MoistureType::None) {
             int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
             for (int qoff(0); qoff<n_qstate_into_total; ++qoff) {
-                mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,false);
+                mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
     }
@@ -91,6 +94,7 @@ ERF::sum_integrated_quantities (double time)
 
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -136,7 +140,7 @@ ERF::sum_integrated_quantities (double time)
             int n_d = 0;
             std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
-                if (time == zero) {
+                if (time == zero_d) {
                     data_log1 << std::setw(datwidth) << "          time";
                     data_log1 << std::setw(datwidth) << "          u_star";
                     data_log1 << std::setw(datwidth) << "          t_star";
@@ -219,10 +223,12 @@ ERF::sum_derived_quantities (double time)
 
         auto& dest1_fab = unwted_magvelsq[mfi];
         // NOTE: we send in src_fab where we should
-        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
+        derived::erf_dermagvelsq(bx, dest1_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev),
+                                 static_cast<Real>(t_new[0]), nullptr, lev);
 
         auto& dest2_fab = enstrophysq[mfi];
-        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev), t_new[0], nullptr, lev);
+        derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev),
+                                    static_cast<Real>(t_new[0]), nullptr, lev);
     }
 
     // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
@@ -273,6 +279,7 @@ ERF::sum_derived_quantities (double time)
 
     const int nfoo = 4;
     Real foo[nfoo] = {unwted_avg,r_wted_avg,enstrsq_avg,theta_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -288,7 +295,7 @@ ERF::sum_derived_quantities (double time)
 
         std::ostream& data_log_der = DerDataLog(0);
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_der << std::setw(datwidth) << "          time";
             data_log_der << std::setw(datwidth) << "        ke_den";
             data_log_der << std::setw(datwidth) << "         velsq";
@@ -305,7 +312,7 @@ ERF::sum_derived_quantities (double time)
 
       } // if IOProcessor
 #ifdef AMREX_LAZY
-    }
+    });
 #endif
 }
 
@@ -418,6 +425,7 @@ ERF::sum_energy_quantities (double time)
 
     const int nfoo = 2;
     Real foo[nfoo] = {tot_mass_avg,tot_energy_avg};
+    Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
 #endif
@@ -431,7 +439,7 @@ ERF::sum_energy_quantities (double time)
 
         std::ostream& data_log_energy = *tot_e_datalog[0];
 
-        if (time == zero) {
+        if (time == zero_d) {
             data_log_energy << std::setw(datwidth) << "          time";
             data_log_energy << std::setw(datwidth) << "      tot_mass";
             data_log_energy << std::setw(datwidth) << "    tot_energy";
@@ -444,7 +452,7 @@ ERF::sum_energy_quantities (double time)
 
       } // if IOProcessor
 #ifdef AMREX_LAZY
-    }
+    });
 #endif
 }
 
@@ -488,6 +496,9 @@ ERF::cloud_fraction (double /*time*/)
         Gpu::streamSynchronize();
         ParallelDescriptor::ReduceIntMax(hv.data(),static_cast<int>(numpts));
         Gpu::copyAsync(Gpu::hostToDevice, hv.data(), hv.data()+numpts, p);
+        // We must synchronize before hv goes out of scope and its pinned memory
+        //    is returned to the arena, since the copy above may still be reading it
+        Gpu::streamSynchronize();
     }
 
     // Sum over component 0
@@ -525,7 +536,7 @@ ERF::cloud_fraction (double /*time*/)
  * @param mf MultiFab from which we wish to sample data
  */
 void
-ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_points (int /*lev*/, double time, IntVect cell, MultiFab& mf)
 {
     int ifile = 0;
 
@@ -561,7 +572,7 @@ ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
  * @param mf MultiFab from which we sample the data
  */
 void
-ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_lines (int lev, double time, IntVect cell, MultiFab& mf)
 {
     int ifile = 0;
 
@@ -651,7 +662,7 @@ ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action (int nstep, double time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, double time, double dtlev, int action_interval, double action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 

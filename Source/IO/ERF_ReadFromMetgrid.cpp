@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ReadFromMetgrid.cpp
+ */
 #include <ERF_NCWpsFile.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_IArrayBox.H>
@@ -43,7 +46,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, i
 void
 read_from_metgrid (int lev, int itime,
                    const Box& domain, const std::string& fname,
-                   std::string& NC_dateTime, Real& NC_epochTime,
+                   std::string& NC_dateTime, double& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
                    int& flag_sst,  int& flag_tsk, int& flag_lmask,
                    int& NC_nx,     int& NC_ny,
@@ -94,7 +97,7 @@ read_from_metgrid (int lev, int itime,
         Print() << "parsed metgrid datetime " << date << " " << epochTime << std::endl;
 
         NC_dateTime = date;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         // Verify the inputs geometry matches what the NETCDF file has
         if (lev == 0) {
@@ -158,11 +161,29 @@ read_from_metgrid (int lev, int itime,
 
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
+
+    // Default values
+    flag_psfc = 0;
+    flag_sst  = 0;
+    flag_tsk  = 0;
+    flag_msf  = 0;
+
+    // HGT_M is not optional: it is the only source of terrain on this path.
+    // Without this check a missing HGT_M leaves NC_hgt_fab default-constructed
+    // with an empty box, and init_terrain_from_metgrid goes on to build terrain
+    // out of it instead of reporting what is actually wrong.
+    int flag_hgt = 0;
+
     for (int i = 0; i < success.size(); i++) {
-        flag_psfc = (NC_fnames[i] == "PSFC"     && success[i] == 1) ? 1 : 0;
-        flag_sst  = (NC_fnames[i] == "SST"      && success[i] == 1) ? 1 : 0;
-        flag_tsk  = (NC_fnames[i] == "SKINTEMP" && success[i] == 1) ? 1 : 0;
-        flag_msf  = (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) ? 1 : 0;
+        if (NC_fnames[i] == "PSFC"     && success[i] == 1) { flag_psfc = 1; }
+        if (NC_fnames[i] == "SST"      && success[i] == 1) { flag_sst  = 1; }
+        if (NC_fnames[i] == "SKINTEMP" && success[i] == 1) { flag_tsk  = 1; }
+        if (NC_fnames[i] == "MAPFAC_M" && success[i] == 1) { flag_msf  = 1; }
+        if (NC_fnames[i] == "HGT_M"    && success[i] == 1) { flag_hgt  = 1; }
+    }
+
+    if (!flag_hgt) {
+        Abort("HGT_M was not found in " + fname + "; it is required to build the terrain.");
     }
 
     // Read the netcdf file and fill these IABs

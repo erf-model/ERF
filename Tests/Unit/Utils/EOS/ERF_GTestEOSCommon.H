@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <ostream>
 #include <string>
 
 #include <AMReX_Array.H>
@@ -11,6 +12,8 @@
 
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+
+#include "../../ERF_GTestPrinters.H"
 
 namespace eos_test {
 
@@ -59,6 +62,15 @@ struct EOSState {
     amrex::Real pressure;
     amrex::Real qv;
 };
+
+inline void PrintTo (const EOSState& state, std::ostream* os)
+{
+    *os << "EOSState{";
+    erf_gtest::print_field(os, "temperature", state.temperature, true);
+    erf_gtest::print_field(os, "pressure", state.pressure);
+    erf_gtest::print_field(os, "qv", state.qv);
+    *os << "}";
+}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 EOSState get_test_state (const int index)

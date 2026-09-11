@@ -1,0 +1,8 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_compute_shoc_vapor_tests.cpp
+# Exact qv = qw - ql property-case outputs.
+0.010000000000000
+0.012000000000000
+0.014850000000000
+0.015000000000000
+0.020000000000000

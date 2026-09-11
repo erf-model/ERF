@@ -221,7 +221,7 @@ Problem::init_custom_pert_vels (
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const Real& /*time*/,
+Problem::update_w_subsidence (const double& /*time*/,
                               Vector<Real>& wbar,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& /*state*/,

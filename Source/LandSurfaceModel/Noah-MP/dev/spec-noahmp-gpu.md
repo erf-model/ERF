@@ -3,7 +3,9 @@
 > Status: living document · Owns: the per-step movement of data across the
 > ERF (GPU) ↔ Noah-MP (host) boundary inside `Advance_With_State`. · Companion:
 > [`spec-noahmp-api.md`](spec-noahmp-api.md) (the field enums & lifecycle),
-> [`spec-noahmp-io.md`](spec-noahmp-io.md). · File: `ERF_NOAHMP.cpp`.
+> [`spec-noahmp-io.md`](spec-noahmp-io.md). · Files: `ERF_NOAHMP_Advance.cpp`
+> (`stage_forcing` = steps 1-3, `read_results` = steps 5-6), `ERF_NOAHMP_Init.cpp`
+> (buffer allocation).
 
 ## 1. The problem
 
@@ -23,15 +25,17 @@ CPU can read it; a single such buffer therefore bridges the two worlds.
 Allocated once per box in `Init()` and reused every step:
 
 ```cpp
-noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps , The_Pinned_Arena());
-noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps, The_Pinned_Arena());
+noahmp_input_tmp[idb]  = std::make_unique<FArrayBox>(bx, NoahmpInputComp::NumComps          , The_Pinned_Arena());
+noahmp_output_tmp[idb] = std::make_unique<FArrayBox>(bx, NoahmpOutputComp::NumComps + 3*m_nsoil, The_Pinned_Arena());
 ```
 
 Each is a single multi-component `FArrayBox` over the surface slab `bx`: one
 coupled field per component, indexed by `NoahmpInputComp` / `NoahmpOutputComp`
 (see [`spec-noahmp-api.md`](spec-noahmp-api.md) §2b). There is deliberately **no
 per-variable `FArrayBox`** — adding a field means adding a component, not an
-allocation, and the buffers size themselves off `NumComps`.
+allocation. The input buffer sizes off `NumComps`; the output buffer adds room
+for the per-layer soil profile (`SMOIS`/`SH2O`/`TSLB`) appended after
+`NumComps`, hence the `+ 3*m_nsoil`.
 
 ## 3. The six-step dataflow (per box, per firing)
 
@@ -104,7 +108,7 @@ silently corrupts the column.
   not process (sea-ice / open-water points that still carry `LANDMASK=1`).
   Applying that as a flux (`-9999/(rho*Cp)`) would crash the lowest cell to
   ~200 K. So stage (6) tests `hfx_lsm > -9990` before dividing; failing cells get
-  the `lsm_flux_undefined` sentinel, and the surface layer falls back to its MOST
+  the `lsm_undefined` sentinel, and the surface layer falls back to its MOST
   flux there (see `ERF_SurfaceLayer.cpp`). The four fluxes
   (`t_flux`/`q_flux`/`tau13`/`tau23`) are written together under this guard.
 
@@ -116,8 +120,11 @@ silently corrupts the column.
 2. **One component per field, one-to-one with `NumComps`.** Every field has an
    enum entry *and* a read/write in each relevant copy block. A gap desyncs all
    higher component indices.
-3. **Buffers sized off `NumComps`, never hand-sized.** Adding a field is an enum
-   line plus copy-block lines; never edit the `make_unique<FArrayBox>` extent.
+3. **Buffers sized off `NumComps` (plus the runtime soil append).** Adding a
+   mechanical field is an enum line plus copy-block lines — do not otherwise
+   hand-tune the `make_unique<FArrayBox>` extent. The one intentional addend is
+   the output buffer's `+ 3*m_nsoil` for the per-layer soil profile (§2), which
+   scales with `m_nsoil` rather than with an enum.
 4. **Transpose respected.** 3-D Noah-MP access is `(i,1,j)`, not `(i,j,1)`.
 5. **Pinned arena.** Staging buffers come from `The_Pinned_Arena()`; ordinary
    device or managed memory breaks the host read in stage (3)/(5).

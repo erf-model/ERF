@@ -65,9 +65,11 @@
 /**
  * Check if grid cell is saturated based on cloud liquid water content.
  *
- * @param[in] i,j,k  cell indices
+ * @param[in] i cell i-index
+ * @param[in] j cell j-index
+ * @param[in] k cell k-index
  * @param[in] cell_data  conserved state (ρ, ρθ, ρq_v, ρq_c, etc.)
- * @param[in] moisture_indices  indices for moisture species
+ * @param[in] qc_index conserved cloud-water component index
  * @return true if saturated (q_c > 1e-8 kg/kg), false otherwise
  *
  * PHYSICAL JUSTIFICATION: Threshold of 1e-8 kg/kg (0.01 g/kg) is typical
@@ -92,7 +94,9 @@ IsSaturated(int i, int j, int k,
 /**
  * Compute moist Brunt-Väisälä frequency squared (N²_moist).
  *
- * @param[in] i,j,k  cell indices
+ * @param[in] i cell i-index
+ * @param[in] j cell j-index
+ * @param[in] k cell k-index
  * @param[in] dzInv  inverse vertical grid spacing (1/Δz) [1/m]
  * @param[in] const_grav  gravitational acceleration g [m/s²]
  * @param[in] cell_data  conserved state
@@ -169,6 +173,19 @@ ComputeN2(int i, int j, int k,
     return const_grav * inv_theta * dtheta_dz;
 }
 
+/**
+ * Compute moist Brunt-Vaisala frequency squared with embedded-boundary one-sided differences.
+ *
+ * @param[in] i cell i-index
+ * @param[in] j cell j-index
+ * @param[in] k cell k-index
+ * @param[in] c_cflag cell-centered EB flags
+ * @param[in] dzInv inverse vertical grid spacing
+ * @param[in] const_grav gravitational acceleration
+ * @param[in] cell_data conserved state
+ * @param[in] moisture_indices moisture species indices
+ * @return moist Brunt-Vaisala frequency squared
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -252,7 +269,9 @@ ComputeN2_EB(int i, int j, int k,
 /**
  * Compute vertical shear squared (S²_vert).
  *
- * @param[in] i,j,k cell indices
+ * @param[in] i cell i-index
+ * @param[in] j cell j-index
+ * @param[in] k cell k-index
  * @param[in] dzInv inverse vertical grid spacing (1/Δz) [1/m]
  * @param[in] u face-centered x-velocity (u) array with ngrow≥1 in z
  * @param[in] v face-centered y-velocity (v) array with ngrow≥1 in z
@@ -297,6 +316,20 @@ ComputeVerticalShear2(int i, int j, int k,
     return S2_vert;
 }
 
+/**
+ * Compute vertical shear squared with embedded-boundary one-sided differences.
+ *
+ * @param[in] i cell i-index
+ * @param[in] j cell j-index
+ * @param[in] k cell k-index
+ * @param[in] c_cflag cell-centered EB flags
+ * @param[in] u_vfrac x-face volume fractions
+ * @param[in] v_vfrac y-face volume fractions
+ * @param[in] dzInv inverse vertical grid spacing
+ * @param[in] u face-centered x-velocity
+ * @param[in] v face-centered y-velocity
+ * @return vertical shear squared
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

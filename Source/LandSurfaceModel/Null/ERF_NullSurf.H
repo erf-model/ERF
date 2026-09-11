@@ -1,11 +1,11 @@
 #ifndef ERF_NULLSURF_H
 #define ERF_NULLSURF_H
 
-#include <AMReX_MultiFabUtil.H>
-#include <AMReX_Geometry.H>
-#include <ERF_DataStruct.H>
-
-#include <ERF_LSM_Types.H>
+#include "AMReX_BCRec.H"
+#include "AMReX_MultiFabUtil.H"
+#include "AMReX_Geometry.H"
+#include "ERF_DataStruct.H"
+#include "ERF_SurfacePrecipitation.H"
 
 class NullSurf {
 
@@ -18,21 +18,37 @@ class NullSurf {
     void
     Define (SolverChoice& /*sc*/) { }
 
-    // u_in and v_in might not be needed in all LSM models (e.g MM5), maybe refactor?
     virtual
     void Init (const int& /*lev*/,
                const amrex::MultiFab& /*cons_in*/,
-               const amrex::MultiFab& /*u_in*/,
-               const amrex::MultiFab& /*v_in*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/, 
-               std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/) { }
+               const amrex::Geometry& /*geom0*/,
+               amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+               amrex::IntVect& /*refRatio*/,
+               const amrex::Real& /*dt_advance*/,
+               amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/) { }
+
+    virtual void Init (const int&, const amrex::MultiFab&, const amrex::MultiFab&,
+                       const amrex::MultiFab&, const amrex::Geometry&, const amrex::Real&,
+                       std::unique_ptr<amrex::MultiFab>&) { }
+
+    virtual void Init (const int& lev, const amrex::MultiFab& cons_in,
+                       const amrex::MultiFab& u_in, const amrex::MultiFab& v_in,
+                       const amrex::Geometry& geom, const amrex::Geometry& geom0,
+                       amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                       amrex::IntVect& refRatio, const amrex::Real& dt_advance,
+                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       amrex::Vector<amrex::Vector<std::string>>& nc_init_file)
+    {
+        Init(lev, cons_in, geom, geom0, domain_bcs_type, refRatio,
+             dt_advance, nc_init_file);
+    }
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/,
-             const amrex::Real& /*time*/,
-             const amrex::Real& /*start_time*/) { }
+    Advance (const double& /*dt_advance*/) { }
+
+    virtual void Advance (const amrex::Real&, const amrex::Real&, const amrex::Real&) { }
 
     virtual
     void
@@ -42,9 +58,11 @@ class NullSurf {
                         amrex::MultiFab& /*yvel_in*/,
                         amrex::MultiFab* /*hfx3_out*/,
                         amrex::MultiFab* /*qfx3_out*/,
+                        const SurfacePrecipAccumulationSources& /*precip_sources*/,
                         const amrex::Real& /*elapsed_time*/,
                         const amrex::Real& /*dt_advance*/,
-                        const int& /*nstep*/) { }
+                        const int& /*nstep*/,
+                        const bool /*updated_lev0*/) { }
 
     virtual
     void
@@ -52,23 +70,28 @@ class NullSurf {
 
     virtual
     void
-    Update_Lsm_Vars (amrex::MultiFab& /*cons_in*/,
-                     amrex::MultiFab& /*u_in*/,
-                     amrex::MultiFab& /*v_in*/) { }
+    Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
+    virtual void Update_Lsm_Vars (amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&) { }
+    virtual void Copy_State_to_Lsm (const amrex::MultiFab&, const amrex::MultiFab&, const amrex::MultiFab&) { }
+    virtual void Copy_Lsm_to_State (amrex::MultiFab&) { }
 
     virtual
     void
     Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
+    virtual void set_precip_input (const amrex::MultiFab*) { }
+    virtual void set_terrain_inputs (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
+                                     const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>&) { }
+    virtual int Lsm_Type () { return 0; }
+    virtual void WriteCheckpoint (const int&, const std::string&) const { }
+    virtual void ReadCheckpoint (const int&, const std::string&) { }
 
     virtual
     void
-    Copy_State_to_Lsm (const amrex::MultiFab& /*cons_in*/,
-                       const amrex::MultiFab& /*u_in*/,
-                       const amrex::MultiFab& /*v_in*/) { }
+    Copy_State_to_Micro (const amrex::MultiFab& /*cons_in*/) { }
 
     virtual
     void
-    Copy_Lsm_to_State (amrex::MultiFab& /*cons_in*/) { }
+    Copy_Micro_to_State (amrex::MultiFab& /*cons_in*/) { }
 
     virtual
     amrex::MultiFab*
@@ -92,63 +115,39 @@ class NullSurf {
 
     virtual
     std::string
-    Lsm_DataName (const int& /*varIdx*/)
-    {
-        return dataname;
-    }
+    Lsm_DataName (const int& /*varIdx*/) { return dataname; }
 
     virtual
     std::string
-    Lsm_FluxName (const int& /*varIdx*/)
-    {
-        return fluxname;
-    }
-
-    virtual
-    void
-    set_precip_input(const amrex::MultiFab* precip_in) { }
-
-    virtual
-    void
-    set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
-                       const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) { }
-
-    virtual int Lsm_Type()
-    {
-        return LSM_Type::None;
-    }
+    Lsm_FluxName (const int& /*varIdx*/) { return fluxname; }
 
     virtual
     int
-    Lsm_DataIndex (const std::string& /*varname*/)
-    {
-        return (-1);
-    }
+    Lsm_DataIndex (const std::string& /*varname*/) { return (-1); }
 
     virtual
     int
-    Lsm_FluxIndex (const std::string& /*varname*/)
-    {
-        return (-1);
-    }
+    Lsm_FluxIndex (const std::string& /*varname*/) { return (-1); }
 
     virtual
     std::unordered_map<std::string, std::string>&
-    Lsm_WRFInputNames() {
-        return wrfinput_map;
-    }
+    Lsm_WRFInputNames() { return wrfinput_map; }
 
     virtual
-    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
-    {
-        return;
-    }
+    void
+    Lsm_Set_Lev0_Data_Ptr (const int& /*varIdx*/,
+                           amrex::MultiFab* /*lev0_data_ptr*/)
+    {}
 
     virtual
-    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
-    {
-        return;
-    }
+    void
+    Lsm_Set_Lev0_Flux_Ptr (const int& /*varIdx*/,
+                           amrex::MultiFab* /*lev0_flux_ptr*/)
+    {}
+
+    virtual
+    bool
+    Get_Update_Status () { return false; }
 
     // Scalar LSM step counter (NoahMP itimestep). Persisted in checkpoint so
     // the LSM substepping schedule survives restart. 0 means "uninitialized".

@@ -10,6 +10,7 @@ on:
 
   pull_request:
     branches: [development]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.ref }}-${{ github.head_ref }}-cuda-ci
@@ -17,6 +18,8 @@ concurrency:
 
 jobs:
   cuda-build:
+    # The closed event exists only to cancel in-progress runs via concurrency.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
@@ -35,10 +38,6 @@ jobs:
             cuda_pkg: 12-2
             cuda_arch: "8.0"
     steps:
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.13.1
-        with:
-          access_token: ${{github.token}}
       - uses: actions/checkout@v7
         with:
           submodules: true
@@ -91,7 +90,7 @@ jobs:
 
       - name: Report
         run: |
-          grep -Ei "warning:|error:" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
+          grep -Ei "warning:|warning #|error:|error #" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
             | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
             | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
           cat ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt

@@ -10,6 +10,7 @@
 #include "ERF_Kessler.H"
 #include "ERF_Morrison.H"
 #include "ERF_WSM6.H"
+#include "ERF_WDM6.H"
 #include "ERF_SatAdj.H"
 #include "ERF_MoistNoCondensation.H"
 #include "ERF_Microphysics.H"
@@ -43,6 +44,8 @@ public:
             SetModel<Morrison>();
         } else if (a_model_type == MoistureType::WSM6) {
             SetModel<WSM6>();
+        } else if (a_model_type == MoistureType::WDM6) {
+            SetModel<WDM6>();
         } else if (a_model_type == MoistureType::SatAdj) {
             SetModel<SatAdj>();
         } else if (a_model_type == MoistureType::MoistNoCondensation) {
@@ -94,9 +97,10 @@ public:
 
     /*! \brief update microphysics variables from ERF state variables */
     void Update_Micro_Vars_Lev (const int& lev, /*! AMR level */
-                                amrex::MultiFab& cons_in /*!< Conserved state variables */) override
+                                amrex::MultiFab& cons_in, /*!< Conserved state variables */
+                                const amrex::MultiFab* base_state = nullptr) override
     {
-        m_moist_model[lev]->Update_Micro_Vars(cons_in);
+        m_moist_model[lev]->Update_Micro_Vars(cons_in, base_state);
     }
 
     /*! \brief update ERF state variables from microphysics variables */
@@ -167,6 +171,19 @@ public:
                             const amrex::Real dz_min) const override
     {
         m_moist_model[a_lev]->Set_dzmin(dz_min);
+    }
+
+    /*! \brief Populates ERF's land/water mask in the micro model */
+    virtual void Set_Lmask (const int a_lev,
+                            amrex::iMultiFab* lmask) const override
+    {
+        m_moist_model[a_lev]->Set_Lmask(lmask);
+    }
+
+    SurfacePrecipAccumulationSources
+    Get_Surface_Precip_Accumulation_Ptrs (const int& lev) const override
+    {
+        return m_moist_model[lev]->Get_Surface_Precip_Accumulation_Ptrs(lev);
     }
 
 protected:

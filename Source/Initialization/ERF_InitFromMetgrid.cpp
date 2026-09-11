@@ -1,8 +1,13 @@
 /**
  * \file ERF_InitFromMetgrid.cpp
  */
-#include <ERF_Constants.H>
-#include <ERF_MetgridUtils.H>
+#include "ERF_Constants.H"
+#include "ERF_MetgridUtils.H"
+#include "ERF_WriteERFBdy.H"
+#include "ERF_ReadFromERFBdy.H"
+#include "ERF_NodalReconstruction.H"
+
+#include <AMReX_Reduce.H>
 
 using namespace amrex;
 
@@ -13,11 +18,14 @@ using namespace amrex;
 /**
  * Reads start_time from the first metgrid file
  *
-*/
-Real
+ * @param lev Integer specifying the current level
+ * @param fname Path to the metgrid file
+ * @return Epoch time read from the first metgrid file
+ */
+double
 read_start_time_from_metgrid(int lev, const std::string& fname)
 {
-    Real NC_epochTime;
+    double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor()) {
@@ -34,7 +42,7 @@ read_start_time_from_metgrid(int lev, const std::string& fname)
 
         auto epochTime = getEpochTime(date, dateTimeFormat);
         Print() << "  metgrid datetime 0 : " << date << " " << epochTime << std::endl;
-        NC_epochTime = static_cast<Real>(epochTime);
+        NC_epochTime = static_cast<double>(epochTime);
 
         amrex::Print() << "Have read start_time string at level "<< lev << " is " << date << std::endl;
         amrex::Print() << "Have read start_time number at level "<< lev << " is " << NC_epochTime << std::endl;
@@ -60,6 +68,18 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
+    // Check for an erfbdy file.
+    if (lev == 0 && !write_erfbdy) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        use_erfbdy = FileSystem::Exists(erfbdy_header);
+    }
+    // Set nvars_erfbdy based on whether moisture is enabled
+    if (use_erfbdy || write_erfbdy) {
+        nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
+    }
+
+    use_erfbdy = true;
+
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;
 
@@ -82,6 +102,10 @@ ERF::init_from_metgrid (int lev)
     // Odd behavior can occur if not using the surface and also omitting some near-surface levels.
     if (metgrid_force_sfc_k > 0)
         AMREX_ALWAYS_ASSERT(metgrid_use_sfc);
+
+    // Base state parameters from WRF and the layer interfaces derived from them.
+    BaseStateParams bsp;
+    bsp.set_layer_interfaces();
 
     // Size the SST and LANDMASK
       sst_lev[lev].resize(ntimes);
@@ -119,7 +143,7 @@ ERF::init_from_metgrid (int lev)
     Real NC_dx;
     Real NC_dy;
     Vector<std::string> NC_dateTime; NC_dateTime.resize( ntimes);
-    Vector<Real> NC_epochTime;       NC_epochTime.resize(ntimes);
+    Vector<double> NC_epochTime;     NC_epochTime.resize(ntimes);
 
     // Define the arena to be used for data allocation
     Arena* Arena_Used = The_Arena();
@@ -220,7 +244,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_xhi[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_ylo[itime][nvar].template setVal<RunOn::Device>(0);
                 bdy_data_yhi[itime][nvar].template setVal<RunOn::Device>(0);
-            }
+            } // nvar
         } // itime
     } // lev==0
 
@@ -229,6 +253,21 @@ ERF::init_from_metgrid (int lev)
     MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
+
+    Vector<double> bdy_times(ntimes);
+
+    // Read times from met_em files (necessary for erfbdy header initialization).
+    if (lev == 0 && write_erfbdy) {
+        Print() << "Reading times from " << ntimes << " met_em files for erfbdy initialization" << std::endl;
+        for (int itime(0); itime < ntimes; itime++) {
+            bdy_times[itime] = read_start_time_from_metgrid(lev, nc_init_file[lev][itime]);
+        }
+
+        // Initialize erfbdy file header.
+        InitERFBdyFile(erfbdy_file, ntimes, bdy_times,
+                       geom[lev].Domain(), nvars_erfbdy, real_width);
+        Print() << "Initialized erfbdy file: " << erfbdy_file << std::endl;
+    }
 
     for (int itime(0); itime < ntimes; itime++) {
         Print() << " init_from_metgrid: reading nc_init_file[" << lev << "][" << itime << "]\t" << nc_init_file[lev][itime] << std::endl;
@@ -246,6 +285,8 @@ ERF::init_from_metgrid (int lev)
                           NC_lmask_iab, geom[lev]);
 
         if (lev == 0) {
+            bdy_times[itime] = NC_epochTime[itime];
+
             if (itime == 0) {
                 // Start at the earliest time in nc_init_file[lev].
                 start_bdy_time = NC_epochTime[itime];
@@ -265,7 +306,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
 
                 // Verify that met_em files have even spacing in time.
-                Real NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
+                double NC_dt = NC_epochTime[itime]-NC_epochTime[itime-1];
                 Print() << " " << nc_init_file[lev][itime-1] << " / " << nc_init_file[lev][itime] << " are " << NC_dt << " seconds apart" << std::endl;
                 if (NC_dt != bdy_time_interval) Error("Time interval between consecutive met_em files must be consistent.");
             } // itime==0
@@ -289,14 +330,67 @@ ERF::init_from_metgrid (int lev)
 
         if (itime == 0) {
 
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-                // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
-                FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
-                init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
-            } // mf
+            // Initialize the terrain
+            init_terrain_from_metgrid(solverChoice.avg_grid_faces_to_nodes, geom[lev],
+                                      z_phys_nd[lev].get(), NC_hgt_fab);
 
             // This defines all the z(i,j,k) values given z(i,j,0) from above.
-            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev],
+                                       zlevels_stag[lev], phys_bc_type);
+
+            // Verify the mesh before it is handed to make_J.
+            //
+            // The nodal surface is either an average of HGT_M or a regularized
+            // reconstruction of it.  The reconstruction only guarantees that the
+            // nodal heights stay within a slack of the range of HGT_M -- it
+            // explicitly permits over/undershoot where the terrain is under
+            // resolved -- so steep, grid-scale metgrid terrain can pass that
+            // check and still yield a degenerate or inverted first layer.  Since
+            // reconstruction is the default here, check now rather than letting a
+            // bad Jacobian propagate.  This mirrors the check that
+            // init_terrain_from_wrfinput does on its reconstructed levels.
+            {
+                Print() << "Verifying grid integrity" << std::endl;
+
+                const int klo_nd = convert(geom[lev].Domain(), IntVect(1,1,1)).smallEnd(2);
+
+                ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+                ReduceData<Real, Real> reduce_data(reduce_op);
+                using ReduceTuple = typename decltype(reduce_data)::Type;
+
+                for ( MFIter mfi(*z_phys_nd[lev]); mfi.isValid(); ++mfi ) {
+                    Box vbx = mfi.validbox();
+                    if (klo_nd < vbx.smallEnd(2) || klo_nd >= vbx.bigEnd(2)) { continue; }
+
+                    const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+                    reduce_op.eval(makeSlab(vbx,2,klo_nd), reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                    {
+                        return {z_arr(i,j,k+1) - z_arr(i,j,k), std::fabs(z_arr(i,j,k))};
+                    });
+                } // mfi
+
+                ReduceTuple hv  = reduce_data.value(reduce_op);
+                Real min_dz     = amrex::get<0>(hv);
+                Real max_abs_z  = amrex::get<1>(hv);
+                ParallelAllReduce::Min(min_dz   , ParallelContext::CommunicatorAll());
+                ParallelAllReduce::Max(max_abs_z, ParallelContext::CommunicatorAll());
+
+                Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+                if (!std::isfinite(min_dz) || !std::isfinite(max_abs_z)) {
+                    Error("Non-finite nodal heights produced from the metgrid terrain");
+                }
+                if (min_dz <= zero) {
+                    std::string msg("The metgrid terrain gives a non-positive first layer "
+                                    "thickness; the terrain is too rough to represent on the "
+                                    "ERF nodal mesh.");
+                    if (!solverChoice.avg_grid_faces_to_nodes) {
+                        msg += "  Consider running with erf.avg_grid_faces_to_nodes = true.";
+                    }
+                    Error(msg);
+                }
+            }
 
             // This makes the Jacobian.
             make_J(geom[lev], *z_phys_nd[lev], *detJ_cc[lev]);
@@ -444,6 +538,7 @@ ERF::init_from_metgrid (int lev)
             Box tbxc = mfi.tilebox();
             Box tbxu = mfi.tilebox(IntVect(1,0,0));
             Box tbxv = mfi.tilebox(IntVect(0,1,0));
+            Box tbxw = mfi.tilebox(IntVect(0,0,1));
 
             // Define FABs for holding some of the initial data
             FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
@@ -473,7 +568,7 @@ ERF::init_from_metgrid (int lev)
                                     metgrid_use_below_sfc, metgrid_use_sfc,
                                     metgrid_retain_sfc, metgrid_proximity,
                                     metgrid_order, metgrid_force_sfc_k, l_rdOcp,
-                                    tbxc, tbxu, tbxv,
+                                    tbxc, tbxu, tbxv, tbxw,
                                     cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                     z_phys_nd_fab,
                                     NC_ght_fab, NC_xvel_fab,
@@ -483,11 +578,7 @@ ERF::init_from_metgrid (int lev)
                                     bdy_data_xlo, bdy_data_xhi,
                                     bdy_data_ylo, bdy_data_yhi,
                                     mask_c_arr, mask_u_arr, mask_v_arr);
-        } // mf
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
+        } // mfi
 
         if (itime == 0) {
 
@@ -505,7 +596,11 @@ ERF::init_from_metgrid (int lev)
             } // mf
 
             Print() << "[init_base_state_from_metgrid] lev = " << lev << ", itime = " << itime << std::endl;
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+
+            //
+            // NOTE: The code inside this MFIter is not tile-safe so we must set false for the tiling option
+            //
+            for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi ) {
                 FArrayBox&     p_hse_fab = p_hse[mfi];
                 FArrayBox&    pi_hse_fab = pi_hse[mfi];
                 FArrayBox&    th_hse_fab = th_hse[mfi];
@@ -522,31 +617,22 @@ ERF::init_from_metgrid (int lev)
                 //     th_hse    calculate potential temperature
                 //     qv_hse    calculate qv
                 const Box valid_bx = mfi.validbox();
-                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc,
-                                             l_rdOcp, valid_bx, flag_psfc, cons_fab,
+                init_base_state_from_metgrid(use_moisture, metgrid_debug_psfc, l_rdOcp,
+                                             geom[lev].Domain(), valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
-                                             qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab);
+                                             qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab,
+                                             bsp);
             } // mf
 
         } // itime==0
 
-    } // itime
-
-    // FillBoundary to populate the internal halo cells
-     r_hse.FillBoundary(geom[lev].periodicity());
-     p_hse.FillBoundary(geom[lev].periodicity());
-    pi_hse.FillBoundary(geom[lev].periodicity());
-    th_hse.FillBoundary(geom[lev].periodicity());
-    qv_hse.FillBoundary(geom[lev].periodicity());
-
-    // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
-    //       However, the operations needed to define the data on the ERF
-    //       grid are done over MultiFab boxes that are local to the rank.
-    //       So when we save the data in fabs_for_bc, only regions owned
-    //       by the rank are populated. Use an allreduce sum to make the
-    //       complete data set; initialized to 0 above.
-    if (lev == 0) {
-        for (int itime(0); itime < ntimes; itime++) {
+        if (lev == 0) {
+            // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
+            //       However, the operations needed to define the data on the ERF
+            //       grid are done over MultiFab boxes that are local to the rank.
+            //       So when we save the data in fabs_for_bc, only regions owned
+            //       by the rank are populated. Use an allreduce sum to make the
+            //       complete data set; initialized to 0 above.
             for (int nvar(0); nvar<MetGridBdyEnd; ++nvar) {
                 ParallelAllReduce::Sum(bdy_data_xlo[itime][nvar].dataPtr(),
                                        bdy_data_xlo[itime][nvar].size(),
@@ -561,8 +647,75 @@ ERF::init_from_metgrid (int lev)
                                        bdy_data_yhi[itime][nvar].size(),
                                        ParallelContext::CommunicatorAll());
             } // nvar
-        } // itime
-    } // lev==0
+
+            if (write_erfbdy) {
+                WriteERFBdyTimeSlice(erfbdy_file, itime,
+                                     bdy_data_xlo[itime], bdy_data_xhi[itime],
+                                     bdy_data_ylo[itime], bdy_data_yhi[itime],
+                                     nvars_erfbdy);
+                Print() << "Wrote erfbdy time slice " << itime << " of " << ntimes-1 << std::endl;
+
+                // Clear this time from memory after writing unless it's one
+                // of the first two times, which are needed at initialization.
+                if (itime > 1) {
+                    bdy_data_xlo[itime].clear();
+                    bdy_data_xhi[itime].clear();
+                    bdy_data_ylo[itime].clear();
+                    bdy_data_yhi[itime].clear();
+                }
+            }
+        } // lev==0
+
+    } // itime
+
+    // FillBoundary to populate the internal halo cells
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
+    th_hse.FillBoundary(geom[lev].periodicity());
+    qv_hse.FillBoundary(geom[lev].periodicity());
+
+    // If a preexisting erfbdy file is available, use it for boundary data only
+    // after the metgrid path has initialized the interior state and metrics.
+    if (lev == 0 && !write_erfbdy) {
+        std::string erfbdy_header = erfbdy_file + "/Header";
+        if (FileSystem::Exists(erfbdy_header)) {
+            Print() << "Loading boundary data from erfbdy file: " << erfbdy_file << std::endl;
+
+            int ntimes_erfbdy;
+            Vector<double> bdy_times_erfbdy;
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+                                                       ntimes_erfbdy, nvars_erfbdy, real_width,
+                                                       bdy_times_erfbdy, start_bdy_time, final_bdy_time);
+
+            AMREX_ALWAYS_ASSERT(ntimes_erfbdy >= 2);
+
+            Print() << "erfbdy file has " << ntimes_erfbdy << " times" << std::endl;
+            Print() << "start_bdy_time = " << start_bdy_time << std::endl;
+            Print() << "final_bdy_time = " << final_bdy_time << std::endl;
+            Print() << "bdy_time_interval = " << bdy_time_interval << std::endl;
+
+            bdy_data_xlo.clear();
+            bdy_data_xhi.clear();
+            bdy_data_ylo.clear();
+            bdy_data_yhi.clear();
+            bdy_data_xlo.resize(ntimes_erfbdy);
+            bdy_data_xhi.resize(ntimes_erfbdy);
+            bdy_data_ylo.resize(ntimes_erfbdy);
+            bdy_data_yhi.resize(ntimes_erfbdy);
+
+            // Load the first 2 times for initialization; more are loaded as needed later.
+            for (int itime = 0; itime < 2; ++itime) {
+                read_from_erfbdy(itime, erfbdy_file,
+                                 bdy_data_xlo, bdy_data_xhi,
+                                 bdy_data_ylo, bdy_data_yhi,
+                                 nvars_erfbdy, real_width);
+                Print() << "Loaded erfbdy time slice " << itime << std::endl;
+            }
+
+            Print() << "Loaded boundaries from erfbdy after metgrid state initialization" << std::endl;
+        }
+    }
 
     Print() << "Running with relaxation width: " << real_width << std::endl;
 }
@@ -570,37 +723,82 @@ ERF::init_from_metgrid (int lev)
 /**
  * Helper function to initialize terrain nodal z coordinates given metgrid data.
  *
- * @param z_phys_nd_fab FArrayBox (Fab) holding the nodal z coordinates for terrain data we want to fill
+ * @param avg_grid_faces_to_nodes Average the metgrid surface heights onto the nodes rather
+ *                                than reconstructing nodal heights that reproduce them
+ * @param geom Geometry at this level
+ * @param z_phys_nd MultiFab holding the nodal z coordinates for terrain data we want to fill
  * @param NC_hgt_fab FArrayBox (Fab) holding height data read from the first NetCDF file of metgrid data
  */
 void
-init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
+init_terrain_from_metgrid (const bool& avg_grid_faces_to_nodes,
+                           Geometry& geom,
+                           MultiFab* z_phys_nd,
                            FArrayBox& NC_hgt_fab)
 {
-   // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-   const Array4<Real      >&      z_arr = z_phys_nd_fab.array();
-   const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
+    Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
 
-   const Box z_hgt_box = NC_hgt_fab.box();
+    // HGT_M is a single level of surface heights on the (cell-centered) mass grid.
+    // BuildFABsFromNetCDFFile shifts the fab to the low corner of the level's
+    // domain, so this is the k index at which the heights actually live.
+    const Box nc_box = NC_hgt_fab.box();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nc_box.ok() && nc_box.length(2) == 1,
+                                     "HGT_M must be a single, non-empty k level");
+    const int k_src = nc_box.smallEnd(2);
 
-   int ilo = z_hgt_box.smallEnd()[0];
-   int ihi = z_hgt_box.bigEnd()[0];
-   int jlo = z_hgt_box.smallEnd()[1];
-   int jhi = z_hgt_box.bigEnd()[1];
+    // Nodal index of the surface, taken from the level domain rather than from
+    // the input fab.  The reconstruction requires its input slab to be indexed
+    // at k = 0, so the two must agree; assert that rather than leaving the
+    // coupling implicit.
+    const int klo = convert(geom.Domain(), IntVect(1,1,1)).smallEnd(2);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(k_src == klo && klo == 0,
+                                     "init_terrain_from_metgrid assumes the domain and the "
+                                     "metgrid heights both start at k = 0");
 
-   Box z_phys_box = z_phys_nd_fab.box();
-   Box from_box = surroundingNodes(NC_hgt_fab.box());
-   from_box.growHi(2,-1);
+    // Slab pinned to k = 0, which is how the reconstruction indexes all of its fabs
+    const Box hgt_box = makeSlab(nc_box, 2, 0);
 
-   Box bx = z_phys_box & from_box;
+    // NC height array
+    const Array4<Real const>& nc_hgt_arr = NC_hgt_fab.const_array();
 
-   ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-   {
-       int ii = std::max(std::min(i,ihi-1),ilo+1);
-       int jj = std::max(std::min(j,jhi-1),jlo+1);
-       z_arr(i,j,k) =  fourth * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
-                                nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
-   });
+    if (avg_grid_faces_to_nodes) {
+        // Average the mass-grid cells that touch each node onto the node,
+        // clamping at the domain edges so that a boundary node takes the
+        // average of only the cells that exist
+        const int ilo = hgt_box.smallEnd(0); const int ihi = hgt_box.bigEnd(0);
+        const int jlo = hgt_box.smallEnd(1); const int jhi = hgt_box.bigEnd(1);
+
+        for ( MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi ) {
+            Box gbx = mfi.growntilebox();
+            if (klo < gbx.smallEnd(2) || klo > gbx.bigEnd(2)) { continue; }
+            const Array4<Real>& z_arr = z_phys_nd->array(mfi);
+            ParallelFor(makeSlab(gbx,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(std::min(i  ,ihi),ilo);
+                int im = std::max(std::min(i-1,ihi),ilo);
+                int jj = std::max(std::min(j  ,jhi),jlo);
+                int jm = std::max(std::min(j-1,jhi),jlo);
+                z_arr(i,j,k) = fourth * ( nc_hgt_arr(ii,jj,k_src) + nc_hgt_arr(im,jj,k_src) +
+                                          nc_hgt_arr(ii,jm,k_src) + nc_hgt_arr(im,jm,k_src) );
+            });
+        } // mfi
+    } else {
+        // The reconstruction runs on the host, so stage the (already global)
+        // metgrid heights into managed memory for it, mapping the source k index
+        // onto the k = 0 slab the solver expects
+        FArrayBox z_slice_hgt(hgt_box, 1, The_Managed_Arena());
+        const Array4<Real>& z_slice_hgt_arr = z_slice_hgt.array();
+        ParallelFor(hgt_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+        {
+            z_slice_hgt_arr(i,j,0) = nc_hgt_arr(i,j,k_src);
+        });
+
+        // Solve for the nodal heights of the surface
+        FArrayBox z_slice_erf = reconstruct_nodal_height_slice(hgt_box, geom, z_slice_hgt,
+                                                              klo, "MetGrid heights");
+
+        // Copy back to z_phys, filling the lateral ghost nodes
+        fill_nodal_level_from_slice(*z_phys_nd, klo, z_slice_erf);
+    } // avg_grid_faces_to_nodes
 }
 
 /**
@@ -621,6 +819,10 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param metgrid_order int interpolation order
  * @param metgrid_force_sfc_k int lower levels pruned by quality control
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param tbxc Cell-centered box to initialize
+ * @param tbxu x-face box to initialize
+ * @param tbxv y-face box to initialize
+ * @param tbxw z-face box to initialize
  * @param state_fab FArrayBox holding the state data to initialize
  * @param x_vel_fab FArrayBox holding the x-velocity data to initialize
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
@@ -629,18 +831,18 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param NC_ght_fab  FArrayBox object holding metgrid data for height of cell centers
  * @param NC_xvel_fab FArrayBox object holding metgrid data for x-velocity
  * @param NC_yvel_fab FArrayBox object holding metgrid data for y-velocity
- * @param NC_zvel_fab FArrayBox object holding metgrid data for z-velocity
  * @param NC_temp_fab FArrayBox object holding metgrid data for temperature
  * @param NC_rhum_fab FArrayBox object holding metgrid data for relative humidity
  * @param NC_pres_fab FArrayBox object holding metgrid data for pressure
- * @param p_interp_fab FArrayBox object
- * @param t_interp_fab FArrayBox object
- * @param theta_fab FArrayBox object holding potential temperature calculated from temperature and pressure
- * @param mxrat_fab FArrayBox object holding vapor mixing ratio calculated from relative humidity
- * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
- * @param mask_c_arr
- * @param mask_u_arr
- * @param mask_v_arr
+ * @param tmp_src_fab Scratch FArrayBox holding source metgrid variables
+ * @param tmp_dst_fab Scratch FArrayBox holding interpolated destination variables
+ * @param fabs_for_bcs_xlo Boundary-data FABs for the low-x face
+ * @param fabs_for_bcs_xhi Boundary-data FABs for the high-x face
+ * @param fabs_for_bcs_ylo Boundary-data FABs for the low-y face
+ * @param fabs_for_bcs_yhi Boundary-data FABs for the high-y face
+ * @param mask_c_arr Cell-centered land mask data
+ * @param mask_u_arr x-face land mask data
+ * @param mask_v_arr y-face land mask data
  */
 void
 init_state_from_metgrid (const int  lev,
@@ -661,6 +863,7 @@ init_state_from_metgrid (const int  lev,
                          Box& tbxc,
                          Box& tbxu,
                          Box& tbxv,
+                         Box& tbxw,
                          FArrayBox& state_fab,
                          FArrayBox& x_vel_fab,
                          FArrayBox& y_vel_fab,
@@ -789,7 +992,7 @@ init_state_from_metgrid (const int  lev,
     // W
     // ********************************************************
     if (itime == 0) { // update at initialization
-        z_vel_fab.template setVal<RunOn::Device>(0);
+        z_vel_fab.template setVal<RunOn::Device>(0, tbxw, 0, z_vel_fab.nComp());
     }
 
 
@@ -797,7 +1000,7 @@ init_state_from_metgrid (const int  lev,
     // Initialize all state_fab variables to zero
     // ********************************************************
     if (itime == 0) { // update at initialization
-        state_fab.template setVal<RunOn::Device>(0);
+        state_fab.template setVal<RunOn::Device>(0, tbxc, 0, state_fab.nComp());
     }
 
 
@@ -1126,7 +1329,6 @@ init_state_from_metgrid (const int  lev,
         } // use_moisture
 
     } // lev==0
-
 }
 
 
@@ -1136,6 +1338,7 @@ init_state_from_metgrid (const int  lev,
  * @param use_moisture bool True if solverChoice.moisture_type != MoistureType::None
  * @param metgrid_debug_psfc bool use 10**5 Pa as surface pressure when True
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param domain Box specifying the index space of the entire domain at this level
  * @param valid_bx Box specifying the index space we are to initialize
  * @param flag_psfc Int 1 if surface pressure is in metgrid data, 0 otherwise
  * @param state_fab FArrayBox object holding the state data to initialize
@@ -1144,13 +1347,16 @@ init_state_from_metgrid (const int  lev,
  * @param pi_hse_fab FArrayBox object holding the hydrostatic base Exner pressure we are initializing
  * @param th_hse_fab FArrayBox object holding the base state potential temperature we are initializing
  * @param qv_hse_fab FArrayBox object holding the base state qv we are initializing
+ * @param z_phys_nd_fab FArrayBox object holding node-centered z heights for terrain
  * @param z_phys_cc_fab FArrayBox object holding cell center z heights for terrain
  * @param NC_psfc_fab FArrayBox object holding metgrid data for surface pressure
+ * @param bsp WRF base state parameters and the layer interfaces derived from them
  */
 void
 init_base_state_from_metgrid (const bool use_moisture,
                               const bool metgrid_debug_psfc,
                               const Real l_rdOcp,
+                              const Box& domain,
                               const Box& valid_bx,
                               const int& flag_psfc,
                               FArrayBox& state_fab,
@@ -1161,8 +1367,71 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& qv_hse_fab,
                               FArrayBox& z_phys_nd_fab,
                               FArrayBox& z_phys_cc_fab,
-                              const FArrayBox& NC_psfc_fab)
+                              const FArrayBox& NC_psfc_fab,
+                              const BaseStateParams& bsp)
 {
+    // Base state parameters and the layer interfaces derived from them. These are
+    // set once by the caller; see BaseStateParams for the profile they define.
+    const Real T00       = bsp.T00;
+    const Real P00       = bsp.P00;
+    const Real TLP       = bsp.TLP;
+    const Real TISO      = bsp.TISO;
+    const Real TLP_STRAT = bsp.TLP_STRAT;
+    const Real P_STRAT   = bsp.P_STRAT;
+    const Real P_iso     = bsp.P_iso;
+    const Real z_iso     = bsp.z_iso;
+    const Real z_strat   = bsp.z_strat;
+    const bool use_strat = bsp.use_strat;
+
+    //***********************************************************************************
+    // Set the base state columns
+    //***********************************************************************************
+    {
+        const Array4<Real>& r_hse_arr  = r_hse_fab.array();
+        const Array4<Real>& p_hse_arr  = p_hse_fab.array();
+        const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
+        const Array4<Real>& th_hse_arr = th_hse_fab.array();
+        const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
+        auto const z_cc_arr = z_phys_cc_fab.const_array();
+
+        ParallelFor(valid_bx, [=,zero_d=zero,RdoCp_d=l_rdOcp]
+                    AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // Analytical inversion with true CC heights, branching on the layer
+            Real Pd, Td;
+            const Real z = z_cc_arr(i,j,k);
+            if (z <= z_iso) {
+                // Troposphere: z = -(R_d/g) * (T00*x + TLP*x^2/2), x = ln(p/P00)
+                const Real ToA  = T00 / TLP;
+                const Real disc = amrex::max(ToA*ToA - two*CONST_GRAV*z/(TLP*R_d), zero_d);
+                Pd = P00 * std::exp(-ToA + std::sqrt(disc));
+                Td = T00 + TLP * std::log(Pd/P00);
+            }
+            else if (!use_strat || z <= z_strat) {
+                // Isothermal layer: exponential decay with scale height R_d*TISO/g
+                Pd = P_iso * std::exp(-CONST_GRAV*(z - z_iso)/(R_d*TISO));
+                Td = TISO;
+            }
+            else {
+                // Upper stratosphere. Same quadratic as the troposphere with
+                // (TISO, TLP_STRAT, P_STRAT, z_strat) in place of (T00, TLP, P00, 0).
+                // NOTE: TLP_STRAT is negative, so the root must NOT be folded as
+                // sqrt(X)/TLP_STRAT -> sqrt(X/TLP_STRAT^2); that drops the sign.
+                const Real disc = amrex::max(TISO*TISO
+                                             - two*TLP_STRAT*CONST_GRAV*(z - z_strat)/R_d, zero_d);
+                Pd = P_STRAT * std::exp((-TISO + std::sqrt(disc))/TLP_STRAT);
+                Td = TISO + TLP_STRAT * std::log(Pd/P_STRAT);
+            }
+
+            // Fill HSE arrays for balancing
+             p_hse_arr(i,j,k) = Pd;
+            th_hse_arr(i,j,k) = getThgivenTandP(Td, Pd, RdoCp_d);
+            qv_hse_arr(i,j,k) = zero;
+             r_hse_arr(i,j,k) = getRhogivenThetaPress(th_hse_arr(i,j,k), Pd, RdoCp_d);
+            pi_hse_arr(i,j,k) = getExnergivenP(Pd, RdoCp_d);
+        });
+    }
+
     // NOTE: FOEXTRAP is utilized on the validbox but
     //       the FillBoundary call will populate the
     //       internal ghost cells and we are left with
@@ -1189,7 +1458,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 #endif
 
     //***********************************************************************************
-    // Set the HSE base state only
+    // Integrate to ensure HSE
     //***********************************************************************************
     {
         Box valid_bx2d = valid_bx;
@@ -1199,73 +1468,73 @@ init_base_state_from_metgrid (const bool use_moisture,
         int khi = ubound(valid_bx).z;
         int klo = lbound(valid_bx).z;
 
-        // ARW V4 Constants (5.2.2 Reference State)
-        const Real T00       = Real(290.0);
-        const Real TLP       = Real(50.0);
-        const Real TISO      = Real(200.0);
+        // Each column is seeded from the analytic profile at klo and integrated
+        // upward from there, which is only correct if klo is the bottom of the
+        // domain. Boxes that do not span the domain in z (erf.max_grid_size_z
+        // less than n_cell in z) would each re-seed and integrate independently.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == lbound(domain).z) && (khi == ubound(domain).z),
+                                         "init_base_state_from_metgrid requires boxes that span "
+                                         "the entire domain in the vertical direction");
 
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
         const Array4<Real>& th_hse_arr = th_hse_fab.array();
         const Array4<Real>& qv_hse_arr = qv_hse_fab.array();
-        auto const z_arr = z_phys_nd_fab.const_array();
+        auto const z_cc_arr = z_phys_cc_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=l_rdOcp]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
-            // Surface values and constants
-            Real dz, F, C;
-            Real z_hi, Pd_hi, Td_hi, Rd_hi;
-            Real z_lo  = Real(0.25)  * ( z_arr(i,j  ,klo  ) + z_arr(i+1,j  ,klo  )
-                                       + z_arr(i,j+1,klo  ) + z_arr(i+1,j+1,klo  ) );
-            Real Pd_lo = p_0 * std::exp( -T00/TLP + std::sqrt( (T00/TLP)*(T00/TLP) - two * grav * z_lo / (TLP * R_d) ) );
-            Real Td_lo = std::max(TISO, T00 + TLP * std::log(Pd_lo/p_0));
+            // Integrate from surface to domain top
+            Real T_hi;
+            Real z_lo, z_hi;
+            Real R_lo, R_hi;
+            Real Th_lo, Th_hi;
+            Real P_lo, P_hi;
+            Real rho_tot_hi, rho_tot_lo;
 
-            Real Rd_lo = getRhogivenTandPress(Td_lo, Pd_lo);
-            for (int k(klo); k<=khi; ++k) {
+            Real dz, F, C;
+
+            Real qv_lo = zero;
+            Real qv_hi = zero;
+
+            z_lo =  z_cc_arr(i,j,klo);
+            P_lo = p_hse_arr(i,j,klo);
+
+            for (int k(klo+1); k<=khi; ++k) {
                 // Vertical grid spacing
-                z_hi = Real(0.125) * ( z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                                     + z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
+                z_hi = z_cc_arr(i,j,k);
                 dz   = z_hi - z_lo;
 
                 // Establish known constant
-                C  = -Pd_lo + myhalf*Rd_lo*grav*dz;
+                Th_lo = th_hse_arr(i,j,k-1);
+                R_lo  = getRhogivenThetaPress(Th_lo, P_lo, RdoCp_d, qv_lo);
+                rho_tot_lo = R_lo;
+                C  = -P_lo + myhalf*rho_tot_lo*grav*dz;
 
                 // Initial guess and residual
-                Pd_hi = Pd_lo;
-                Td_hi = Td_lo;
-                Rd_hi = Rd_lo;
-                F = Pd_hi + myhalf*Rd_hi*grav*dz + C;
+                P_hi  =  p_hse_arr(i,j,k);
+                Th_hi = th_hse_arr(i,j,k);
+                T_hi  = getTgivenPandTh(P_hi, Th_hi, RdoCp_d);
+                R_hi  = getRhogivenThetaPress(Th_hi, P_hi, RdoCp_d, qv_hi);
+                rho_tot_hi = R_hi;
+                F = P_hi + myhalf*rho_tot_hi*grav*dz + C;
 
-                // Iterate to solution
-                int niter = 0;
-                while (std::fabs(F)>tol && niter<maxiter) {
-                    Real dP      = amrex::max(Real(1.0e-3),Real(1.0e-3)*Pd_hi);
-                    Real Pd_plus = Pd_hi + dP;
-                    Real Td_plus = std::max(TISO, T00 + TLP * std::log(Pd_plus/p_0));
-                    Real Rd_plus = getRhogivenTandPress(Td_plus, Pd_plus);
-                    Real F_plus  = Pd_plus + myhalf*Rd_plus*grav*dz + C;
-                    Real dFdP    = (F_plus - F) / dP;
-
-                    Pd_hi -= F / dFdP;
-                    Td_hi = std::max(TISO, T00 + TLP * std::log(Pd_hi/p_0));
-                    Rd_hi   = getRhogivenTandPress(Td_hi, Pd_hi);
-                    F       = Pd_hi + myhalf*Rd_hi*grav*dz + C;
-                    ++niter;
-                }
+                // Do iterations
+                bool maintain_Th = true;
+                HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                             grav, C, Th_hi, T_hi,
+                                             qv_hi, qv_hi,
+                                             P_hi, R_hi, F, maintain_Th);
 
                 // Assign data
-                r_hse_arr(i,j,k)  = Rd_hi;
-                th_hse_arr(i,j,k) = getThgivenTandP(Td_hi, Pd_hi, l_rdOcp);
-                qv_hse_arr(i,j,k) = Real(0.);
-                p_hse_arr(i,j,k)  = Pd_hi;
-                pi_hse_arr(i,j,k) = getExnergivenP(Pd_hi, l_rdOcp);
+                r_hse_arr(i,j,k) = R_hi;
+                p_hse_arr(i,j,k) = P_hi;
+                pi_hse_arr(i,j,k) = getExnergivenP(P_hi, RdoCp_d);
 
-                // Transfer solution
-                Pd_lo = Pd_hi;
-                Td_lo = Td_hi;
-                Rd_lo = Rd_hi;
-                z_lo  = z_hi;
+                P_lo = P_hi;
+                z_lo = z_hi;
             }
         });
 
@@ -1336,6 +1605,7 @@ init_base_state_from_metgrid (const bool use_moisture,
     {
         // Expose for GPU
         int RhoQ_comp = RhoQ1_comp;
+        int klo  = lbound(valid_bx).z;
         int kmax = ubound(valid_bx).z;
 
         Box valid_bx2d = valid_bx;
@@ -1343,8 +1613,10 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto const orig_psfc = NC_psfc_fab.const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_cc_fab.const_array();
+        auto const z_nd      = z_phys_nd_fab.const_array();
 
-        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=,RdoCp_d=l_rdOcp]
+                    AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             // Low and Hi column variables
             Real psurf;
@@ -1352,7 +1624,14 @@ init_base_state_from_metgrid (const bool use_moisture,
             Real p_lo,   p_hi;
             Real qv_lo, qv_hi;
             Real rd_lo, rd_hi;
-            Real thetad_lo, thetad_hi;
+            Real th_lo, th_hi;
+            Real t_hi;
+
+            // Height of the ground (z_phys is nodal). Note that psurf is the
+            // pressure at the ground, not at z = 0, so all heights used in the
+            // hydrostatic integration below must be relative to z_sfc.
+            Real z_sfc = Real(0.25) * ( z_nd(i,j  ,klo) + z_nd(i+1,j  ,klo)
+                                      + z_nd(i,j+1,klo) + z_nd(i+1,j+1,klo) );
 
             // Calculate or use pressure at the surface.
             if (metgrid_debug_psfc) {
@@ -1360,28 +1639,29 @@ init_base_state_from_metgrid (const bool use_moisture,
             } else if (flag_psfc == 1) {
                 psurf = orig_psfc(i,j,0);
             } else {
-                z_lo     = new_z(i,j,0);
-                Real t_0 = Real(290.0); // WRF's model_config_rec%base_temp
-                Real a   = Real(50.0);  // WRF's model_config_rec%base_lapse
-                psurf = p_0*std::exp(-t_0/a + std::sqrt(std::pow(t_0/a, two)-two*grav*z_lo/(a*R_d)));
+                // Same closed-form inversion as the troposphere branch of the base
+                // state above, evaluated at the height of the ground.
+                psurf = P00*std::exp(-T00/TLP + std::sqrt(std::pow(T00/TLP, two)-two*grav*z_sfc/(TLP*R_d)));
             }
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 
             // Iterations for the first CC point that is 1/2 dz off the surface
             {
-                z_lo      = new_z(i,j,0);
-                qv_lo     = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
-                rd_lo     = zero; // initial guess
-                thetad_lo = new_data(i,j,0,RhoTheta_comp);
-                // NOTE: The first iteration is from z=0 to z_cc(i,j,0) since the
-                //       reference pressure (psurf) is at the ground.
-                Real myhalf_dz = z_lo;
-                Real qvf     = one+(R_v/R_d)*qv_lo;
-                Real thetam  = thetad_lo*qvf;
+                z_lo  = new_z(i,j,0);
+                qv_lo = (use_moisture) ? new_data(i,j,0,RhoQ_comp) : zero;
+                rd_lo = zero; // initial guess
+                th_lo = new_data(i,j,0,RhoTheta_comp);
+                // NOTE: The first iteration is from the ground to z_cc(i,j,0) since
+                //       the reference pressure (psurf) is at the ground. Over terrain
+                //       z_cc is the height above mean sea level, so we must subtract
+                //       the height of the ground to get the height above it.
+                Real myhalf_dz = z_lo - z_sfc;
+                Real qvf       = one+(R_v/R_d)*qv_lo;
+                Real thetam    = th_lo*qvf;
                 for (int it(0); it<maxiter; it++) {
                     p_lo = psurf-myhalf_dz*rd_lo*(one+qv_lo)*grav;
-                    if (p_lo < zero) p_lo = zero;
+                    if (p_lo < zero) { p_lo = zero; }
                     rd_lo = (p_0/(R_d*thetam))*std::pow(p_lo/p_0, iGamma);
                 } // it
 
@@ -1401,14 +1681,12 @@ init_base_state_from_metgrid (const bool use_moisture,
                 // Known hi data
                 z_hi  = new_z(i,j,k);
                 qv_hi = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : zero;
-                thetad_hi = new_data(i,j,k,RhoTheta_comp);
+                th_hi = new_data(i,j,k,RhoTheta_comp);
 
                 // Initial guesses for hi data
                  p_hi = p_lo;
-                rd_hi = getRhogivenThetaPress(thetad_hi,
-                                              p_hi,
-                                              R_d/Cp_d,
-                                              qv_hi);
+                 t_hi = getTgivenPandTh(p_hi, th_hi, RdoCp_d);
+                rd_hi = getRhogivenThetaPress(th_hi, p_hi, RdoCp_d, qv_hi);
 
                 // Vertical grid spacing
                 Real dz = z_hi - z_lo;
@@ -1422,10 +1700,13 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Real F = p_hi + myhalf*rho_tot_hi*grav*dz + C;
 
                 // Do iterations
-                if (std::abs(F)>tol) HSEutils::Newton_Raphson_hse(tol, R_d/Cp_d, dz,
-                                                                  grav, C, thetad_hi,
-                                                                  qv_hi, qv_hi, p_hi,
-                                                                  rd_hi, F);
+                if (std::abs(F)>tol) {
+                    bool maintain_Th = true;
+                    HSEutils::Newton_Raphson_hse(tol, RdoCp_d, dz,
+                                                 grav, C, th_hi, t_hi,
+                                                 qv_hi, qv_hi, p_hi,
+                                                 rd_hi, F, maintain_Th);
+                }
 
                 // Copy solution to state
                 new_data(i,j,k,Rho_comp)       = rd_hi;
@@ -1442,7 +1723,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 p_lo  = p_hi;
                 qv_lo = qv_hi;
                 rd_lo = rd_hi;
-                thetad_lo = thetad_hi;
+                th_lo = th_hi;
             }
         });
     }
@@ -1452,6 +1733,7 @@ init_base_state_from_metgrid (const bool use_moisture,
 /**
  * Helper function to initialize map factors from metgrid data
  *
+ * @param metgrid_debug_msf Whether to ignore metgrid map factors and use unity factors
  * @param msfu_fab FArrayBox specifying x-velocity map factors
  * @param msfv_fab FArrayBox specifying y-velocity map factors
  * @param msfm_fab FArrayBox specifying z-velocity map factors

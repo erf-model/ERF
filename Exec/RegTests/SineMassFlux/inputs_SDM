@@ -54,7 +54,6 @@ erf.moistscal_horiz_adv_type = WENO5
 erf.moistscal_vert_adv_type  = WENO5
 
 erf.moisture_model  = "SuperDroplets"
-erf.buoyancy_type   = 1
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"

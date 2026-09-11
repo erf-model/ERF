@@ -1,0 +1,63 @@
+# 0D ice-aggregation box (Brdar & Seifert 2018, Sec 2.4.1): ice super-particles in a
+# 1e6 m^3 box aggregate via the SDM ice-ice collection kernel. No flow; deposition and
+# melting off (pure aggregation).
+
+max_step = 999999
+stop_time = 270.0
+
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY  -- 100 x 100 x 100 m = 1e6 m^3 box
+geometry.prob_lo     =  0.   0.   0.
+geometry.prob_hi     =  100. 100. 100.
+amr.n_cell           =  4    4    4
+geometry.is_periodic =  1 1 1
+
+erf.prob_name = "Bubble"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 1.0
+erf.substepping_type = "None"
+
+erf.init_type = "uniform"
+
+erf.sum_interval = 1
+erf.v            = 1
+amr.v            = 1
+amr.max_level    = 0
+
+erf.check_file = chk
+erf.check_int  = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = -1
+erf.plot_vars_1 = density
+
+erf.use_gravity = false
+
+# PHYSICS OPTIONS
+erf.moisture_model = "SuperDroplets"
+
+# Super Droplets Options -- pure ice aggregation
+super_droplets_moisture.initial_distribution_type = "uniform"
+super_droplets_moisture.diagnostics_interval = 90
+super_droplets_moisture.include_phase_change   = false
+super_droplets_moisture.advect_with_flow       = false
+super_droplets_moisture.advect_with_gravity    = false
+super_droplets_moisture.include_coalescence     = true
+super_droplets_moisture.include_brownian_coalescence = false
+super_droplets_moisture.coalescence_bin_size    = 4 4 4
+super_droplets_moisture.multiplicity_type       = "constant"
+
+# minimal aerosol carrier
+super_droplets_moisture.aerosols = NaCl
+super_droplets_moisture.initial_aerosol_distribution_type_NaCl = "mass_constant"
+super_droplets_moisture.initial_aerosol_mean_mass_NaCl = 1.0e-22 #kg
+
+# seed ice directly with an exponential mass distribution (Brdar-Seifert)
+super_droplets_moisture.initial_species_distribution_type_ice = "mass_exponential"
+super_droplets_moisture.initial_species_mean_mass_ice = 1.19047619e-9 # kg
+super_droplets_moisture.ice_apparent_density = 100.0 # kg m^-3 (snow-like)
+
+super_droplets_moisture.initial_number_density   = 8.4e5 #m^{-3}
+super_droplets_moisture.initial_particles_per_cell = 128

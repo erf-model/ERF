@@ -1,0 +1,7 @@
+# E3SM source provenance:
+#   components/eamxx/src/physics/shoc/tests/shoc_varorcovar_tests.cpp
+# Translated helper-kernel case for ERF bottom-up ordering.
+# Values correspond to k = 1..nlev-1 for the deterministic unit-test setup.
+0.000340000000000
+0.001020000000000
+0.000680000000000

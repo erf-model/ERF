@@ -267,9 +267,42 @@ Below is an example of the input tags necessary for a simulation with CPM:
 
           erf.perturbation_Ug = 10.0
 
+          erf.perturbation_klo = 1
+          erf.perturbation_khi = 40
+
 Best practices are to set :math:`{Nx}_{pb}=8`, :math:`{Ny}_{pb}=8`, and
 :math:`{Nz}_{pb}=3` regardless of the physical size of the boxes/cells and to set
-``erf.perturbation_layers = 3``.
+``erf.perturbation_layers = 3``. The user can also specify the vertical extent of
+the perturbation region using ``erf.perturbation_klo`` and ``erf.perturbation_khi``.
+For example, if the user would like to only perturb the atmospheric boundary layer up
+to a specified inversion height, they can use ``erf.perturbation_khi`` to limit how
+high the perturbations extend. Best practice is to specify ``erf.perturbation_klo = 1``
+to prevent any unphysical interactions with the bottom boundary conditions. If the user
+does not specify the perturbation extents, the perturbation region will extend the entire
+vertical column.
 
 An example using CPM with a stable atmospheric boundary layer inflow setup is
 available in ``Exec/RegTests/TurbulentInflow/``.
+
+A modified version of CPM is also available where the user can specify vertical velocity perturbations.
+This pathway can be specified using ``erf.perturbation_type = "CPM_W"``. The user can specify the range
+for the vertical velocity perturbations using ``erf.perturbation_w_amp``. For example, if the user
+specifies ``erf.perturbation_w_amp = 1.0``, the range of the vertical velocity perturbations will be
+[-1, 1].
+
+Below is an example of the input tags to utilize the vertical velocity perturbation modification of CPM
+with an example also in ``Exec/RegTests/TurbulentInflow/``:
+
+::
+
+          erf.perturbation_type = "CPM_W"
+
+          erf.perturbation_direction = 1 0 0 0 0 0
+          erf.perturbation_box_dims = 8 8 3
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 5
+
+          erf.perturbation_w_amp = 1.5
+
+          erf.perturbation_klo = 1
+          erf.perturbation_khi = 40

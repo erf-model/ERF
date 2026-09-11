@@ -1,3 +1,4 @@
+/** \cond */
     // include common definitions used in the implicit diffusion solve
 #include "ERF_SetupVertDiff.H"
 
@@ -44,3 +45,4 @@
     // Capture pointers for device code
     int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
     int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
+/** \endcond */

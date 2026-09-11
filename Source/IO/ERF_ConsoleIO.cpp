@@ -1,3 +1,6 @@
+/**
+ * \file ERF_ConsoleIO.cpp
+ */
 #include <chrono>
 #include <ctime>
 #include "ERF.H"

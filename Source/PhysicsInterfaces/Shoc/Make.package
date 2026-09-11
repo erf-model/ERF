@@ -1,4 +1,4 @@
-ifeq ($(USE_SHOC), TRUE)
+ifeq ($(USE_EAMXX_SHOC), TRUE)
     CEXE_sources += ERF_ShocInterface.cpp
 
     CEXE_headers += ERF_ShocInterface.H

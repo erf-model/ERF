@@ -21,6 +21,16 @@ namespace ParticlePos {
 
 // Bilinear interpolation of the height array at (x, y) for a given vertical
 // node index k_face.  Returns the physical z of node k_face at column (x, y).
+/**
+ * @brief Bilinear interpolation of the height array at (x, y) for a given vertical node index k_face.
+ * @param[in] x Physical x-coordinate.
+ * @param[in] y Physical y-coordinate.
+ * @param[in] k_face Vertical node index.
+ * @param[in] plo Lower bound of the box.
+ * @param[in] dxi Inverse grid spacing.
+ * @param[in] height_arr Array of node-centered heights.
+ * @return Physical height z at the specified coordinates.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 z_face_at_xy (amrex::Real x, amrex::Real y, int k_face,
@@ -46,6 +56,16 @@ z_face_at_xy (amrex::Real x, amrex::Real y, int k_face,
 //   k = floor((zeta - plo_z) * dxi_z) is the same as for a uniform-z grid;
 //   the sub-cell fraction is interpolated linearly between the two terrain
 //   nodes that bound the cell.
+/**
+ * @brief Convert computational vertical coordinate zeta to physical z at column (x, y).
+ * @param[in] x Physical x-coordinate.
+ * @param[in] y Physical y-coordinate.
+ * @param[in] zeta Computational vertical coordinate.
+ * @param[in] plo Lower bound of the box.
+ * @param[in] dxi Inverse grid spacing.
+ * @param[in] height_arr Array of node-centered heights.
+ * @return Physical height z.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 z_from_zeta (amrex::Real x, amrex::Real y, amrex::Real zeta,
@@ -70,6 +90,17 @@ z_from_zeta (amrex::Real x, amrex::Real y, amrex::Real zeta,
 //   fraction.  k_max is the largest valid cell index in the level; the walk
 //   is further clamped to the actual k extent of height_arr (which can be a
 //   smaller partial-z tile under AMR).
+/**
+ * @brief Convert physical z to computational vertical coordinate zeta at column (x, y).
+ * @param[in] x Physical x-coordinate.
+ * @param[in] y Physical y-coordinate.
+ * @param[in] z Physical z-coordinate.
+ * @param[in] plo Lower bound of the box.
+ * @param[in] dxi Inverse grid spacing.
+ * @param[in] height_arr Array of node-centered heights.
+ * @param[in] k_max Largest valid cell index in the level.
+ * @return Computational vertical coordinate zeta.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 zeta_from_z (amrex::Real x, amrex::Real y, amrex::Real z,

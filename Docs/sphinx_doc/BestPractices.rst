@@ -39,8 +39,7 @@ Large-Eddy Simulations
 
     .. code-block:: python
 
-       erf.use_NumDiff  = true
-       erf.NumDiffCoeff = 0.05
+       erf.num_diff_coeff = 0.05
 
 * Time Integration
 

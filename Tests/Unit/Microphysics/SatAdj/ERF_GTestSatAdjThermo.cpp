@@ -31,7 +31,7 @@ TEST(SatAdjThermo, SaturationDerivativeConsistency)
             const amrex::Real esat = erf_esatw(tabs);
             // From qsat = eps * esat / (p - esat):
             // d(qsat)/dT = eps * p * d(esat)/dT / (p - esat)^2.
-            const amrex::Real expected = Rd_on_Rv * erf_dtesatw(tabs) * pres_mbar /
+            const amrex::Real expected = RdoRv * erf_dtesatw(tabs) * pres_mbar /
                                          ((pres_mbar - esat) * (pres_mbar - esat));
 
             EXPECT_NEAR(dqsat_local, expected, scaled_tol(expected, kThermoTolFactor));
