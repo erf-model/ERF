@@ -1,5 +1,4 @@
-#include <set>
-
+#include "ERF_ColumnBands.H"
 #include "ERF_HSEUtils.H"
 #include "ERF_Utils.H"
 
@@ -59,10 +58,7 @@ rebalance_columns (MultiFab& rho,
     // not covered by this level (the bottom of the domain, or of a refined patch) starts from
     // its own lowest cell.  With a single band nothing is kept and nothing is filled.
     //
-    std::set<int> band_klo;
-    for (int ib = 0; ib < static_cast<int>(ba.size()); ++ib) {
-        band_klo.insert(ba[ib].smallEnd(2));
-    }
+    const Vector<int> band_klo = column_bands(ba);
     const bool multi_band = (band_klo.size() > 1);
 
     enum { P_below = 0, Th_below, qv_below, qt_below, z_below, done_below, n_below };
@@ -74,7 +70,7 @@ rebalance_columns (MultiFab& rho,
 
     for (const int klo_band : band_klo) {
 
-        if (klo_band != *band_klo.begin()) { below.FillBoundary(); }
+        if (klo_band != band_klo[0]) { below.FillBoundary(); }
 
         for (MFIter mfi(rho,TileNoZ()); mfi.isValid(); ++mfi) {
             Box bx  = mfi.tilebox();
