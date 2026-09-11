@@ -116,21 +116,21 @@ make_first_level_ri_crossing_column (amrex::Real surface_sensible_flux)
 
     // Nominally target a Richardson number well above the critical value;
     // the expected crossing below is derived from the represented state.
-    constexpr amrex::Real theta_increment = 0.002752293577981651;
+    constexpr amrex::Real theta_increment = amrex::Real(0.002752293577981651);
     for (int k = 0; k < col.layout.nlev; ++k) {
-        thetal(0,k,0) = 300.0 + theta_increment * k;
-        qv(0,k,0) = 0.0;
-        qc(0,k,0) = 0.0;
-        qi(0,k,0) = 0.0;
-        qw(0,k,0) = 0.0;
-        u(0,k,0) = 2.0;
-        v(0,k,0) = 1.0;
+        thetal(0,k,0) = amrex::Real(300.0) + theta_increment * k;
+        qv(0,k,0) = amrex::Real(0.0);
+        qc(0,k,0) = amrex::Real(0.0);
+        qi(0,k,0) = amrex::Real(0.0);
+        qw(0,k,0) = amrex::Real(0.0);
+        u(0,k,0) = amrex::Real(2.0);
+        v(0,k,0) = amrex::Real(1.0);
     }
 
     shoc::set_fab_val(col.surf_sens_flux, surface_sensible_flux, shoc::InitRunOn::Host);
-    shoc::set_fab_val(col.surf_lat_flux, 0.0, shoc::InitRunOn::Host);
-    shoc::set_fab_val(col.surf_tau_u, 0.0, shoc::InitRunOn::Host);
-    shoc::set_fab_val(col.surf_tau_v, 0.0, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_lat_flux, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_u, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_v, amrex::Real(0.0), shoc::InitRunOn::Host);
     shoc_test::sync();
 
     return col;
@@ -471,7 +471,7 @@ TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
 // this prevents the first crossing from being rounded up to the upper height.
 TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
 {
-    auto col = make_first_level_ri_crossing_column(0.0);
+    auto col = make_first_level_ri_crossing_column(amrex::Real(0.0));
 
     shoc_test::run_and_sync([&] {
         ShocStructure::diagnose_surface_layer(col);
@@ -513,7 +513,7 @@ TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
 // from retaining the old upper-level shortcut after the stable search is fixed.
 TEST(ShocStructure, PblHeightInterpolatesFirstConvectiveRichardsonCrossing)
 {
-    auto col = make_first_level_ri_crossing_column(1.0e-8);
+    auto col = make_first_level_ri_crossing_column(amrex::Real(1.0e-8));
 
     shoc_test::run_and_sync([&] {
         ShocStructure::diagnose_surface_layer(col);
