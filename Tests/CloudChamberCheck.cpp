@@ -107,13 +107,14 @@ bool close_to_zero (Real value, const BudgetRow& row)
 bool is_budget_mode (const std::string& mode)
 {
     return mode == "all_dry" || mode == "wet_budget" || mode == "bulk_wet" ||
-        mode == "neutral_wet";
+        mode == "neutral_wet" || mode == "most_wet";
 }
 
 bool is_checker_mode (const std::string& mode)
 {
     return mode == "dry" || mode == "cloudy" || mode == "parity" ||
         mode == "neutral_momentum" || mode == "fixed_momentum" ||
+        mode == "most_momentum" ||
         is_budget_mode(mode);
 }
 
@@ -143,9 +144,9 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
 {
     const bool all_dry = mode == "all_dry";
     const bool wet = mode == "wet_budget" || mode == "bulk_wet" ||
-        mode == "neutral_wet";
+        mode == "neutral_wet" || mode == "most_wet";
     const bool require_transfer_activation = mode == "bulk_wet" ||
-        mode == "neutral_wet";
+        mode == "neutral_wet" || mode == "most_wet";
     summary = {};
     summary.rows = static_cast<int>(rows.size());
     const auto row_is_finite = [](const BudgetRow& row) {
@@ -247,13 +248,13 @@ int main (int argc, char** argv)
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
     const bool activation_mode = mode == "neutral_momentum" ||
-        mode == "fixed_momentum";
+        mode == "fixed_momentum" || mode == "most_momentum";
     const int expected_argc = (budget_mode || activation_mode) ? 5 : 4;
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget|bulk_wet|neutral_wet initial_plotfile final_plotfile budget_file\n"
-                  << "       checker neutral_momentum|fixed_momentum initial_plotfile final_a final_b\n";
+                  << "       checker all_dry|wet_budget|bulk_wet|neutral_wet|most_wet initial_plotfile final_plotfile budget_file\n"
+                  << "       checker neutral_momentum|fixed_momentum|most_momentum initial_plotfile final_a final_b\n";
         return 2;
     }
 
@@ -304,11 +305,12 @@ int main (int argc, char** argv)
     }
     const bool cloudy = (mode == "cloudy" || mode == "all_dry" ||
                          mode == "wet_budget" || mode == "bulk_wet" ||
-                         mode == "neutral_wet");
+                         mode == "neutral_wet" || mode == "most_wet" ||
+                         mode == "most_momentum");
     if (!cloudy && mode != "dry" && mode != "neutral_momentum" &&
         mode != "fixed_momentum") {
         amrex::Finalize();
-        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, neutral_wet, neutral_momentum, or fixed_momentum");
+        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, neutral_wet, most_wet, neutral_momentum, fixed_momentum, or most_momentum");
     }
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",

@@ -18,14 +18,11 @@
 namespace erf_cloud_chamber {
 
 /**
- * Stage 1 wall metadata.  This is deliberately a small, trivially copyable
- * description: it can be captured by an AMReX device kernel without virtual
- * dispatch.  Resolved molecular transfer and fixed-coefficient scalar
- * bulk_aero are supported Stage 1 computational treatments; this feature does
- * not physically calibrate the user-supplied bulk coefficients.  A future
- * wall factory can
- * consume the face identity and add research-only momentum or law-of-the-wall
- * providers without changing the chamber initializer.
+ * Cloud Chamber wall metadata.  This is deliberately a small, trivially
+ * copyable description: it can be captured by an AMReX device kernel without
+ * virtual dispatch.  The per-channel contract supports resolved molecular,
+ * fixed bulk-aerodynamic, and neutral roughness-log transfer, with MOST
+ * coefficient generation on the supported horizontal faces.
  */
 enum class WallFace : unsigned char { XLo, XHi, YLo, YHi, ZLo, ZHi };
 
@@ -386,12 +383,12 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     if ((heat_neutral || (heat_bulk && most_provider)) &&
         !contract.z0_h_specified) {
         return "Cloud Chamber: " + face +
-            " requires z0_h when heat_transfer_model = neutral_roughness_log";
+            " requires z0_h for neutral roughness-log heat or MOST heat";
     }
     if ((vapor_neutral || (vapor_bulk && most_provider)) &&
         !contract.z0_q_specified) {
         return "Cloud Chamber: " + face +
-            " requires z0_q when vapor_transfer_model = neutral_roughness_log";
+            " requires z0_q for neutral roughness-log vapor or MOST vapor";
     }
     if (contract.z0_m_specified &&
         !(any_neutral || (bulk_active && most_provider))) {
@@ -415,7 +412,7 @@ wall_transfer_contract_error (const WallTransferContract& contract,
         (contract.z0_q_specified &&
          (!finite(contract.z0_q) || contract.z0_q <= amrex::Real(0.0)))) {
         return "Cloud Chamber: " + face +
-            " neutral roughness lengths z0_m, z0_h, and z0_q must be finite and positive";
+            " active roughness lengths z0_m, z0_h, and z0_q must be finite and positive";
     }
 
     if (bulk_active) {

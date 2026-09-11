@@ -566,9 +566,11 @@ TEST(CloudChamberWallFlux, MOSTUsesWetStateOrientationAndSeparateRoughness)
     wall.vapor.z0 = Real(0.04);
 
     const auto zlo = most_wall_coefficients(
-        wall, Real(290.0), Real(0.005), Real(100000.0), Real(5.0), Real(0.5), 1);
+        wall, Real(290.0), Real(0.005), Real(100000.0), R_d/Cp_d,
+        Real(5.0), Real(0.5), 1);
     const auto zhi = most_wall_coefficients(
-        wall, Real(290.0), Real(0.005), Real(100000.0), Real(5.0), Real(0.5), -1);
+        wall, Real(290.0), Real(0.005), Real(100000.0), R_d/Cp_d,
+        Real(5.0), Real(0.5), -1);
     EXPECT_EQ(zlo.valid, 1);
     EXPECT_EQ(zhi.valid, 1);
     EXPECT_GT(zlo.C_D, Real(0.0));
@@ -585,6 +587,7 @@ TEST(CloudChamberWallFlux, MOSTUsesWetStateOrientationAndSeparateRoughness)
     calm.theta_air = Real(290.0);
     calm.qv_air = Real(0.005);
     calm.p_hse = Real(100000.0);
+    calm.rdOcp = R_d/Cp_d;
     calm.wall_distance = Real(0.5);
     calm.gravity_sign = 1;
     const auto calm_traction = evaluate_momentum_traction(wall, calm);
@@ -592,6 +595,106 @@ TEST(CloudChamberWallFlux, MOSTUsesWetStateOrientationAndSeparateRoughness)
     EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[0], Real(0.0));
     EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[1], Real(0.0));
     EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[2], Real(0.0));
+}
+
+TEST(CloudChamberWallFlux, MOSTUsesConfiguredRdOcpForStabilityAndHeatFlux)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0);
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.01);
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = Real(0.02);
+    wall.vapor.model = ScalarModel::BulkAero;
+    wall.vapor.provider = CoefficientProvider::MOST;
+    wall.vapor.z0 = Real(0.02);
+
+    const Real theta_air = Real(285.0);
+    const Real qv_air = Real(0.005);
+    const Real p_hse = Real(85000.0);
+    const Real U_t = Real(5.0);
+    const Real wall_distance = Real(0.25);
+    const Real configured_rdOcp = R_d / Real(900.0);
+    const Real expected_theta_wall = wall.thermal.temperature_K *
+        std::pow(p_0 / p_hse, configured_rdOcp);
+    const auto default_runtime = most_wall_coefficients(
+        wall, theta_air, qv_air, p_hse, R_d/Cp_d, U_t, wall_distance, 1);
+    const auto configured_runtime = most_wall_coefficients(
+        wall, theta_air, qv_air, p_hse, configured_rdOcp, U_t,
+        wall_distance, 1);
+    EXPECT_EQ(configured_runtime.valid, 1);
+    EXPECT_NE(configured_runtime.zeta, default_runtime.zeta);
+    EXPECT_NE(configured_runtime.C_D, default_runtime.C_D);
+    EXPECT_NE(configured_runtime.C_H, default_runtime.C_H);
+
+    ScalarWallSample sample;
+    sample.rho = Real(1.2);
+    sample.scalar_air = theta_air;
+    sample.p_hse = p_hse;
+    sample.U_t = U_t;
+    sample.rdOcp = configured_rdOcp;
+    sample.wall_distance = wall_distance;
+    sample.theta_air = theta_air;
+    sample.qv_air = qv_air;
+    sample.gravity_sign = 1;
+    const auto heat = evaluate_scalar_flux_in(wall, ScalarChannel::Heat, sample);
+    const Real expected_heat = sample.rho * configured_runtime.C_H * U_t *
+        (expected_theta_wall - theta_air);
+    EXPECT_NEAR(heat.rhoTheta_in, expected_heat, scaled_tolerance(expected_heat));
+}
+
+TEST(CloudChamberNeutralLog, LegacyStressOverloadDoesNotRequireBaseState)
+{
+    using namespace erf_wall_thermodynamics;
+    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(0));
+    const amrex::BoxArray ba(domain);
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab state(ba, dm, Rho_comp + 1, 1);
+    amrex::BoxArray xba(ba); xba.surroundingNodes(0);
+    amrex::BoxArray yba(ba); yba.surroundingNodes(1);
+    amrex::BoxArray zba(ba); zba.surroundingNodes(2);
+    amrex::MultiFab u(xba, dm, 1, 1);
+    amrex::MultiFab v(yba, dm, 1, 1);
+    amrex::MultiFab w(zba, dm, 1, 1);
+    amrex::BoxArray ba12(ba); ba12.surroundingNodes(0); ba12.surroundingNodes(1);
+    amrex::BoxArray ba13(ba); ba13.surroundingNodes(0); ba13.surroundingNodes(2);
+    amrex::BoxArray ba23(ba); ba23.surroundingNodes(1); ba23.surroundingNodes(2);
+    amrex::MultiFab tau12(ba12, dm, 1, 1);
+    amrex::MultiFab tau13(ba13, dm, 1, 1);
+    amrex::MultiFab tau23(ba23, dm, 1, 1);
+    state.setVal(Real(1.2), Rho_comp, 1);
+    u.setVal(Real(1.0));
+    v.setVal(Real(2.0));
+    w.setVal(Real(3.0));
+    tau12.setVal(Real(0.0));
+    tau13.setVal(Real(0.0));
+    tau23.setVal(Real(0.0));
+
+    Boundary walls{};
+    walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
+    walls[0].momentum.z0_m = Real(0.01);
+    const GpuArray<Real, AMREX_SPACEDIM> dx_inv = {
+        Real(2.0), Real(2.0), Real(2.0)};
+    for (amrex::MFIter mfi(state); mfi.isValid(); ++mfi) {
+        erf_cloud_chamber_wall_stress::apply(
+            mfi.validbox(), domain, state.const_array(mfi), u.const_array(mfi),
+            v.const_array(mfi), w.const_array(mfi), tau12.array(mfi),
+            tau13.array(mfi), tau23.array(mfi), dx_inv, walls);
+    }
+    amrex::Gpu::streamSynchronize();
+
+    const Real U_t = std::sqrt(Real(13.0));
+    const Real cd = std::pow(KAPPA/std::log(Real(25.0)), Real(2.0));
+    EXPECT_NEAR(value_at(tau12, amrex::IntVect(0,0,0)),
+                -Real(1.2) * cd * U_t * Real(2.0),
+                scaled_tolerance(cd));
 }
 
 // Motivation: bulk transfer must depend only on velocity tangent to the

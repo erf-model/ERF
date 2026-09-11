@@ -81,6 +81,7 @@ struct MomentumWallSample {
     amrex::Real theta_air = amrex::Real(0.0);
     amrex::Real qv_air = amrex::Real(0.0);
     amrex::Real p_hse = amrex::Real(0.0);
+    amrex::Real rdOcp = amrex::Real(0.0);
     int gravity_sign = 0;
 };
 
@@ -101,6 +102,20 @@ static_assert(std::is_trivially_copyable_v<MomentumWallSample>);
 static_assert(std::is_standard_layout_v<MomentumWallSample>);
 static_assert(std::is_trivially_copyable_v<ScalarFluxReplacement>);
 static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+wall_uses_most (const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+    return (wall.momentum.model == MomentumModel::BulkAero &&
+            wall.momentum.provider == CoefficientProvider::MOST) ||
+        (wall.heat.model == ScalarModel::BulkAero &&
+         wall.heat.provider == CoefficientProvider::MOST) ||
+        (wall.vapor.model == ScalarModel::BulkAero &&
+         wall.vapor.provider == CoefficientProvider::MOST);
+}
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -212,6 +227,7 @@ most_wall_coefficients (
     amrex::Real theta_air,
     amrex::Real qv_air,
     amrex::Real p_hse,
+    amrex::Real rdOcp,
     amrex::Real U_t,
     amrex::Real wall_distance,
     int gravity_sign) noexcept
@@ -233,7 +249,7 @@ most_wall_coefficients (
     }
 
     const amrex::Real theta_wall = wall.thermal.temperature_K *
-        std::pow(p_0 / p_hse, R_d / Cp_d);
+        std::pow(p_0 / p_hse, rdOcp);
     amrex::Real qv_wall = qv_air;
     if (wall.moisture == MoistureMode::WetEquilibrium) {
         erf_qsatw(wall.thermal.temperature_K, p_hse * amrex::Real(0.01), qv_wall);
@@ -368,8 +384,12 @@ momentum_rate_for_face (
             C_D = neutral_log_momentum_state(
                 U_t, wall_distance, wall.momentum.z0_m).C_D;
         } else if (wall.momentum.model == MomentumModel::BulkAero) {
-            C_D = wall.momentum.provider == CoefficientProvider::MOST ?
-                runtime.C_D : wall.momentum.C_D;
+            if (wall.momentum.provider == CoefficientProvider::MOST) {
+                AMREX_ALWAYS_ASSERT(runtime.valid != 0);
+                C_D = runtime.C_D;
+            } else {
+                C_D = wall.momentum.C_D;
+            }
         }
     }
     return momentum_infinity_row_sum_factor() * C_D * U_t * dx_inv;
@@ -435,6 +455,9 @@ wall_rate_for_face (
     if (!wall_rate_requires_tangential_speed(wall)) {
         return amrex::Real(0.0);
     }
+    if (wall_uses_most(wall)) {
+        AMREX_ALWAYS_ASSERT(runtime.valid != 0);
+    }
     const amrex::Real wall_distance = amrex::Real(0.5) / dx_inv;
     amrex::Real rate = momentum_rate_for_face(wall, U_t, dx_inv, runtime);
 
@@ -484,12 +507,13 @@ wall_rate_for_face (
     amrex::Real theta_air,
     amrex::Real qv_air,
     amrex::Real p_hse,
+    amrex::Real rdOcp,
     amrex::Real U_t,
     amrex::Real dx_inv,
     int gravity_sign) noexcept
 {
     const FaceRuntimeCoefficients runtime = most_wall_coefficients(
-        wall, theta_air, qv_air, p_hse, U_t,
+        wall, theta_air, qv_air, p_hse, rdOcp, U_t,
         amrex::Real(0.5) / dx_inv, gravity_sign);
     return wall_rate_for_face(wall, U_t, dx_inv, runtime);
 }
@@ -690,7 +714,8 @@ evaluate_momentum_traction (
         if (wall.momentum.provider == CoefficientProvider::MOST) {
             const auto runtime = most_wall_coefficients(
                 wall, sample.theta_air, sample.qv_air, sample.p_hse,
-                sample.U_t, sample.wall_distance, sample.gravity_sign);
+                sample.rdOcp, sample.U_t, sample.wall_distance,
+                sample.gravity_sign);
             AMREX_ALWAYS_ASSERT(runtime.valid != 0);
             C_D = runtime.C_D;
         }
@@ -744,7 +769,8 @@ evaluate_scalar_flux_in (
             if (wall.heat.provider == CoefficientProvider::MOST) {
                 const auto runtime = most_wall_coefficients(
                     wall, sample.theta_air, sample.qv_air, sample.p_hse,
-                    sample.U_t, sample.wall_distance, sample.gravity_sign);
+                    sample.rdOcp, sample.U_t, sample.wall_distance,
+                    sample.gravity_sign);
                 AMREX_ALWAYS_ASSERT(runtime.valid != 0);
                 C_H = runtime.C_H;
             }
@@ -799,7 +825,8 @@ evaluate_scalar_flux_in (
             if (wall.vapor.provider == CoefficientProvider::MOST) {
                 const auto runtime = most_wall_coefficients(
                     wall, sample.theta_air, sample.qv_air, sample.p_hse,
-                    sample.U_t, sample.wall_distance, sample.gravity_sign);
+                    sample.rdOcp, sample.U_t, sample.wall_distance,
+                    sample.gravity_sign);
                 AMREX_ALWAYS_ASSERT(runtime.valid != 0);
                 C_E = runtime.C_E;
             }

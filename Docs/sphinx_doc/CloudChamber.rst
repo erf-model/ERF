@@ -20,7 +20,7 @@ Dry mode evolves thermal convection without moisture state variables.
 Moist mode uses SatAdj for instantaneous equilibrium partitioning between
 water vapor and cloud water.
 
-This Stage 1 configuration is not a quantitatively validated Pi-Chamber LES.
+This configuration is not a quantitatively validated Pi-Chamber LES.
 It is intended for code-path verification, qualitative buoyancy-driven flow,
 wall-flux testing, and conserved-scalar regression tests.  It does not provide
 finite-rate droplet microphysics, a calibrated engineering wall law,
@@ -29,7 +29,7 @@ grid-independent LES validation, or quantitative experimental calibration.
 Choose a mode
 -------------
 
-.. list-table:: Supported Stage 1 modes
+.. list-table:: Supported Cloud Chamber modes
    :header-rows: 1
    :widths: 23 25 20 32
 
@@ -88,7 +88,7 @@ Required configuration
 
 .. important::
 
-   Stage 1 uses one uniform Cartesian mesh level with no AMR refinement.
+   The Cloud Chamber uses one uniform Cartesian mesh level with no AMR refinement.
    ERF may still divide that level into multiple boxes for parallel
    execution.  The domain is closed in all three directions, gravity and
    fixed-density anelastic dynamics are enabled, and all six boundaries are
@@ -102,13 +102,13 @@ Required configuration
      ``erf.use_gravity = true`` select the fixed-density anelastic setup
      with gravity.
    * ``erf.vert_implicit = false`` selects the explicit vertical-diffusion
-     path supported by the Stage 1 wall treatment.
+     path supported by the Cloud Chamber wall treatment.
    * ``erf.terrain_type`` and ``erf.buildings_type`` must be omitted or set
      to ``None``; terrain, embedded boundaries, and immersed buildings are
-     outside Stage 1.
+     outside the Cloud Chamber configuration.
    * All six faces must be stationary ``NoSlipWall`` boundaries with an
      explicit temperature.
-   * The retained Stage 1 aggregate wall key
+   * The retained aggregate wall key
      ``wall_transfer_model = resolved_molecular`` remains supported.  The
      generalized contract may instead select ``bulk_aero`` independently for
      heat and vapor with fixed, nonnegative coefficients.
@@ -313,7 +313,7 @@ normal to the wall.  ERF potential temperature uses
    \theta_w = \frac{T_w}{\Pi}
    = T_w\left(\frac{p_\mathrm{ref}}{p_\mathrm{hse}\right)^{R_d/c_p}.
 
-For the stationary Stage 1 wall, the bulk model uses the local tangential
+For a stationary Cloud Chamber wall, the bulk model uses the local tangential
 relative velocity reconstructed from ERF's staggered velocity fields,
 
 .. math::
@@ -391,7 +391,7 @@ For ``moisture = dry``, vapor impermeability is exact,
    J_{\rho q_v,\mathrm{in}} = 0,
 
 and this is not a ``qv_wall = 0`` Dirichlet condition.  For every supported
-Stage 1 wall, cloud-water transfer is also exactly zero,
+Cloud Chamber wall, cloud-water transfer is also exactly zero,
 
 .. math::
 
@@ -568,6 +568,10 @@ nonperiodic Cloud Chamber physics; smooth-wall, natural/mixed-convection,
 terrain, embedded-boundary, AMR, stretched-``dz``, and moving-wall support are
 out of scope.
 
+The wall potential temperature uses the configured solver exponent
+``rdOcp = R_d/c_p``; the same sampled value is used when the resulting
+coefficient drives the scalar flux.
+
 Developer contract for Cloud Chamber wall closures
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -594,7 +598,7 @@ device-safe contracts:
   traction directly into ``ERF_SlowRhsPre.cpp`` without a new discrete
   derivation.
 
-To add a future wall model:
+To add another wall model:
 
 #. Extend validated host configuration.
 #. Preserve GPU-safe face metadata.
@@ -709,7 +713,7 @@ Chamber path.
      - array
      - m s\ :sup:`-1`
      - zero internally
-     - unsupported input in Stage 1
+     - unsupported input in the Cloud Chamber configuration
      - never
      - moving-wall metadata is rejected
    * - ``<face>.z0_m``
@@ -890,7 +894,7 @@ Run checklist
 9. Require dry thermal closure or total-water closure, as appropriate.
 10. Treat any ``FAIL`` or budget-dependent solution change as invalid.
 
-Stage 1 invariants
+Cloud Chamber invariants
 ------------------
 
 * One uniform Cartesian mesh level and no periodic direction; the level may
