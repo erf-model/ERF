@@ -114,8 +114,8 @@ make_first_level_ri_crossing_column (amrex::Real surface_sensible_flux)
     auto u = col.u.array();
     auto v = col.v.array();
 
-    // With ustar = 0.01 m/s, this increment gives Ri(zt(1)) = 0.9
-    // for the 50/150 m test-column levels.
+    // Nominally target a Richardson number well above the critical value;
+    // the expected crossing below is derived from the represented state.
     constexpr amrex::Real theta_increment = 0.002752293577981651;
     for (int k = 0; k < col.layout.nlev; ++k) {
         thetal(0,k,0) = 300.0 + theta_increment * k;
@@ -475,20 +475,36 @@ TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
 
     shoc_test::run_and_sync([&] {
         ShocStructure::diagnose_surface_layer(col);
-        ShocStructure::diagnose_pblh(col);
     });
 
-    const auto pblh = col.pblh.const_array()(0,0,0);
     const auto zt = col.zt.const_array();
     const auto zi = col.zi.const_array();
+    const auto thetal = col.thetal.const_array();
+    const amrex::Real ustar = col.ustar.const_array()(0,0,0);
     const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
     const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
-    const amrex::Real expected = z0_agl + (amrex::Real(0.3) / amrex::Real(0.9)) *
+    const amrex::Real theta0 = thetal(0,0,0);
+    const amrex::Real theta1 = thetal(0,1,0);
+    const amrex::Real ri1 = CONST_GRAV * (theta1 - theta0) * (z1_agl - z0_agl) /
+                            (theta0 * (amrex::Real(100.0) * ustar * ustar));
+    ASSERT_TRUE(std::isfinite(ri1));
+    ASSERT_GT(ri1, amrex::Real(0.3));
+
+    // The first-level reference Richardson number is zero, so interpolate the
+    // critical crossing from the represented Ri(1), not from its nominal input.
+    const amrex::Real expected = z0_agl + (amrex::Real(0.3) / ri1) *
                                            (z1_agl - z0_agl);
     const amrex::Real tolerance = amrex::max(
         amrex::Real(1.0e-8),
         amrex::Real(1000.0) * std::numeric_limits<amrex::Real>::epsilon() * expected);
 
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_pblh(col);
+    });
+    const auto pblh = col.pblh.const_array()(0,0,0);
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
     EXPECT_NEAR(pblh, expected, tolerance);
 }
 
