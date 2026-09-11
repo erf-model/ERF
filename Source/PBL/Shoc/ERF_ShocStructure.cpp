@@ -153,7 +153,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
             const Real rino = CONST_GRAV * (thvk - thv0) * (ztk_agl - zt0_agl) /
                               (amrex::max(thv0, 1.0e-12_rt) * vvk);
             if (rino >= shoc_pbl_ricr()) {
-                if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
+                if (amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
                     pblh_loc = ztk_agl;
                 } else {
                     const Real ztkm1_agl = shoc::height_agl(zt(ic,k-1,0), z_sfc);
@@ -191,7 +191,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
                 const Real rino = CONST_GRAV * (thvk - tlv) * (ztk_agl - zt0_agl) /
                                   (amrex::max(thv0, 1.0e-12_rt) * vvk);
                 if (rino >= shoc_pbl_ricr()) {
-                    if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
+                    if (amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
                         pblh_loc = ztk_agl;
                     } else {
                         const Real ztkm1_agl = shoc::height_agl(zt(ic,k-1,0), z_sfc);
