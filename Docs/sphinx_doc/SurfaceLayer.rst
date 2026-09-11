@@ -199,6 +199,8 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.radius            = INT    #SPECIFIED REGION RADIUS [grid cells]
    erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG [s]
 
+When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``).
+
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 
 ::
