@@ -742,11 +742,13 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations ();
+    void ComputeAndWriteEnsemblePerturbations (const int da_iter);
 
     void PerformDataAssimilation (int da_iter);
 
-    void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
+    void SetDirsForPlotfilesAndCheckpointsForDA (const int da_iter, const int ens_no);
+
+    void GetEnsembleCheckpointName (int da_iter, int ens_no);
 
     void init_custom (int lev);
 
@@ -926,6 +928,9 @@ private:
 
     // Create the physbcs objects
     void make_physbcs (int lev);
+
+    // (Re)build the land surface model on this level's current grids
+    void make_lsm_at_level (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);

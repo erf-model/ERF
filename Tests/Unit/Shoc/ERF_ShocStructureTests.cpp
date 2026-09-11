@@ -3,9 +3,12 @@
 #include "ERF_ShocTestUtils.H"
 #include "ERF_ShocTypes.H"
 
+#include <AMReX_ParmParse.H>
+
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <string>
 
 TEST(ShocRuntimeOptions, DefaultsValidate)
@@ -17,27 +20,74 @@ TEST(ShocRuntimeOptions, DefaultsValidate)
     EXPECT_GE(opts.coeff_kh, 0.0);
     EXPECT_FALSE(opts.debug_summary);
     EXPECT_EQ(opts.transport_mode, ShocTransportMode::StateUpdate);
-    EXPECT_EQ(opts.momentum_transport, ShocMomentumTransport::HostDiffusion);
+    EXPECT_EQ(opts.momentum_transport, ShocMomentumTransport::StateUpdate);
 }
 
 TEST(ShocRuntimeOptions, TransportModeHelpersMatchIntent)
 {
-    EXPECT_TRUE(shoc_uses_state_update(ShocTransportMode::StateUpdate));
-    EXPECT_FALSE(shoc_uses_host_diffusion(ShocTransportMode::StateUpdate));
-
-    EXPECT_FALSE(shoc_uses_state_update(ShocTransportMode::HostDiffusion));
-    EXPECT_TRUE(shoc_uses_host_diffusion(ShocTransportMode::HostDiffusion));
-
     EXPECT_TRUE(shoc_uses_momentum_state_update(ShocMomentumTransport::StateUpdate));
     EXPECT_FALSE(shoc_uses_momentum_state_update(ShocMomentumTransport::None));
-    EXPECT_TRUE(shoc_uses_momentum_host_diffusion(ShocMomentumTransport::HostDiffusion));
-    EXPECT_FALSE(shoc_uses_momentum_host_diffusion(ShocMomentumTransport::None));
     EXPECT_TRUE(shoc_disables_momentum_transport(ShocMomentumTransport::None));
+    EXPECT_FALSE(shoc_disables_momentum_transport(ShocMomentumTransport::StateUpdate));
+    EXPECT_EQ(std::string(shoc_transport_mode_name(ShocTransportMode::StateUpdate)), "state_update");
+    EXPECT_EQ(std::string(shoc_momentum_transport_name(ShocMomentumTransport::StateUpdate)), "state_update");
     EXPECT_EQ(std::string(shoc_momentum_transport_name(ShocMomentumTransport::None)), "none");
 }
 
 namespace
 {
+class ScopedParmParseString
+{
+public:
+    ScopedParmParseString (const char* name, const std::string& value)
+        : m_pp("erf.shoc"),
+          m_name(name)
+    {
+        m_had_previous = m_pp.query(m_name, m_previous);
+        m_pp.remove(m_name);
+        m_pp.add(m_name, value);
+    }
+
+    ~ScopedParmParseString ()
+    {
+        m_pp.remove(m_name);
+        if (m_had_previous) {
+            m_pp.add(m_name, m_previous);
+        }
+    }
+
+private:
+    amrex::ParmParse m_pp;
+    std::string m_name;
+    std::string m_previous;
+    bool m_had_previous = false;
+};
+
+class ScopedParmParseRemoval
+{
+public:
+    explicit ScopedParmParseRemoval (const char* name)
+        : m_pp("erf.shoc"),
+          m_name(name)
+    {
+        m_had_previous = m_pp.query(m_name, m_previous);
+        m_pp.remove(m_name);
+    }
+
+    ~ScopedParmParseRemoval ()
+    {
+        if (m_had_previous) {
+            m_pp.add(m_name, m_previous);
+        }
+    }
+
+private:
+    amrex::ParmParse m_pp;
+    std::string m_name;
+    std::string m_previous;
+    bool m_had_previous = false;
+};
+
 void
 shift_column_heights (ShocColumnData& col, amrex::Real offset)
 {
@@ -51,6 +101,40 @@ shift_column_heights (ShocColumnData& col, amrex::Real offset)
     }
     shoc_test::sync();
 }
+
+ShocColumnData
+make_first_level_ri_crossing_column (amrex::Real surface_sensible_flux)
+{
+    auto col = shoc_test::make_column(2);
+    auto thetal = col.thetal.array();
+    auto qv = col.qv.array();
+    auto qc = col.qc.array();
+    auto qi = col.qi.array();
+    auto qw = col.qw.array();
+    auto u = col.u.array();
+    auto v = col.v.array();
+
+    // Nominally target a Richardson number well above the critical value;
+    // the expected crossing below is derived from the represented state.
+    constexpr amrex::Real theta_increment = amrex::Real(0.002752293577981651);
+    for (int k = 0; k < col.layout.nlev; ++k) {
+        thetal(0,k,0) = amrex::Real(300.0) + theta_increment * k;
+        qv(0,k,0) = amrex::Real(0.0);
+        qc(0,k,0) = amrex::Real(0.0);
+        qi(0,k,0) = amrex::Real(0.0);
+        qw(0,k,0) = amrex::Real(0.0);
+        u(0,k,0) = amrex::Real(2.0);
+        v(0,k,0) = amrex::Real(1.0);
+    }
+
+    shoc::set_fab_val(col.surf_sens_flux, surface_sensible_flux, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_lat_flux, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_u, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_v, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc_test::sync();
+
+    return col;
+}
 }
 
 TEST(ShocRuntimeOptions, LegacyTendenciesTransportModeIsRejected)
@@ -61,25 +145,109 @@ TEST(ShocRuntimeOptions, LegacyTendenciesTransportModeIsRejected)
     EXPECT_NE(error_message.find("removed for native SHOC"), std::string::npos);
 }
 
+TEST(ShocRuntimeOptions, RemovedScalarHostDiffusionModeIsRejected)
+{
+    ShocRuntimeOptions opts;
+    std::string error_message;
+    EXPECT_FALSE(parse_shoc_transport_mode_string("HOST_DIFFUSION", opts.transport_mode,
+                                                  error_message));
+    EXPECT_NE(error_message.find("has been removed for native SHOC"), std::string::npos);
+    EXPECT_NE(error_message.find("Use erf.shoc.transport_mode = state_update"),
+              std::string::npos);
+}
+
+TEST(ShocRuntimeOptions, RemovedMomentumHostDiffusionModeIsRejected)
+{
+    ShocMomentumTransport transport = ShocMomentumTransport::StateUpdate;
+    std::string error_message;
+    EXPECT_FALSE(parse_shoc_momentum_transport_string("HoSt_DiFfUsIoN", transport,
+                                                      error_message));
+    EXPECT_NE(error_message.find("has been removed for native SHOC"), std::string::npos);
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_NE(error_message.find("'none'"), std::string::npos);
+}
+
 TEST(ShocRuntimeOptions, InvalidMomentumTransportIsRejected)
 {
     ShocMomentumTransport transport = ShocMomentumTransport::None;
     std::string error_message;
     EXPECT_FALSE(parse_shoc_momentum_transport_string("tendons", transport, error_message));
     EXPECT_NE(error_message.find("erf.shoc.momentum_transport"), std::string::npos);
+    EXPECT_NE(error_message.find("'none'"), std::string::npos);
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_EQ(error_message.find("host_diffusion"), std::string::npos);
 }
 
-TEST(ShocRuntimeOptions, HostDiffusionTransportRequiresHostMomentumTransport)
+TEST(ShocRuntimeOptions, InvalidScalarTransportAdvertisesOnlyStateUpdate)
 {
     ShocRuntimeOptions opts;
-    opts.transport_mode = ShocTransportMode::HostDiffusion;
-    opts.momentum_transport = ShocMomentumTransport::StateUpdate;
-
     std::string error_message;
-    EXPECT_FALSE(validate_shoc_runtime_options_message(opts, error_message));
-    EXPECT_NE(error_message.find(
-                  "host_diffusion requires erf.shoc.momentum_transport = host_diffusion"),
-              std::string::npos);
+    EXPECT_FALSE(parse_shoc_transport_mode_string("unknown", opts.transport_mode, error_message));
+    EXPECT_NE(error_message.find("'state_update'"), std::string::npos);
+    EXPECT_EQ(error_message.find("host_diffusion"), std::string::npos);
+}
+
+TEST(ShocRuntimeOptions, SharedReaderUsesDefaultsAndAcceptsSupportedModes)
+{
+    ScopedParmParseRemoval remove_transport("transport_mode");
+    ScopedParmParseRemoval remove_momentum("momentum_transport");
+
+    ShocRuntimeOptions defaults;
+    read_shoc_transport_modes(defaults.transport_mode, defaults.momentum_transport);
+    EXPECT_EQ(defaults.transport_mode, ShocTransportMode::StateUpdate);
+    EXPECT_EQ(defaults.momentum_transport, ShocMomentumTransport::StateUpdate);
+
+    ScopedParmParseString transport("transport_mode", "state_update");
+    ScopedParmParseString momentum("momentum_transport", "none");
+    ShocTransportMode transport_mode = ShocTransportMode::StateUpdate;
+    ShocMomentumTransport momentum_mode = ShocMomentumTransport::StateUpdate;
+    read_shoc_transport_modes(transport_mode, momentum_mode);
+    EXPECT_EQ(transport_mode, ShocTransportMode::StateUpdate);
+    EXPECT_EQ(momentum_mode, ShocMomentumTransport::None);
+}
+
+TEST(SolverChoice, NativeStateUpdateOwnsNoVerticalDiffusion)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = true;
+    choice.use_eamxx_shoc = false;
+    choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
+    choice.shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_FALSE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, NativeMomentumNoneLeavesHostMomentumOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = true;
+    choice.use_eamxx_shoc = false;
+    choice.shoc_transport_mode = ShocTransportMode::StateUpdate;
+    choice.shoc_momentum_transport = ShocMomentumTransport::None;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_TRUE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, NonNativeShocRetainsGenericHostOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = false;
+    choice.use_eamxx_shoc = false;
+
+    EXPECT_TRUE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_TRUE(choice.host_owns_vertical_momentum_diffusion());
+}
+
+TEST(SolverChoice, EamxxShocRetainsExistingOwnership)
+{
+    SolverChoice choice;
+    choice.use_native_shoc = false;
+    choice.use_eamxx_shoc = true;
+
+    EXPECT_FALSE(choice.host_owns_vertical_scalar_diffusion());
+    EXPECT_FALSE(choice.host_owns_vertical_momentum_diffusion());
 }
 
 TEST(ShocStructure, SurfaceLayerUsesUstarFloorAndFiniteObukhov)
@@ -296,6 +464,70 @@ TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
     const auto pblh_inconsistent_qw = col.pblh.const_array()(0,0,0);
 
     EXPECT_NEAR(pblh_consistent_qw, pblh_inconsistent_qw, 1.0e-10);
+}
+
+// Motivation: A bulk Richardson number that first exceeds the critical value
+// above the reference level must locate the crossing between the two levels;
+// this prevents the first crossing from being rounded up to the upper height.
+TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(0.0));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+    });
+
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const auto thetal = col.thetal.const_array();
+    const amrex::Real ustar = col.ustar.const_array()(0,0,0);
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+    const amrex::Real theta0 = thetal(0,0,0);
+    const amrex::Real theta1 = thetal(0,1,0);
+    const amrex::Real ri1 = CONST_GRAV * (theta1 - theta0) * (z1_agl - z0_agl) /
+                            (theta0 * (amrex::Real(100.0) * ustar * ustar));
+    ASSERT_TRUE(std::isfinite(ri1));
+    ASSERT_GT(ri1, amrex::Real(0.3));
+
+    // The first-level reference Richardson number is zero, so interpolate the
+    // critical crossing from the represented Ri(1), not from its nominal input.
+    const amrex::Real expected = z0_agl + (amrex::Real(0.3) / ri1) *
+                                           (z1_agl - z0_agl);
+    const amrex::Real tolerance = amrex::max(
+        amrex::Real(1.0e-8),
+        amrex::Real(1000.0) * std::numeric_limits<amrex::Real>::epsilon() * expected);
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_pblh(col);
+    });
+    const auto pblh = col.pblh.const_array()(0,0,0);
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
+    EXPECT_NEAR(pblh, expected, tolerance);
+}
+
+// Motivation: Positive surface buoyancy runs a second Richardson search for
+// the convective correction; this protects that duplicated first-level branch
+// from retaining the old upper-level shortcut after the stable search is fixed.
+TEST(ShocStructure, PblHeightInterpolatesFirstConvectiveRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(1.0e-8));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+        ShocStructure::diagnose_pblh(col);
+    });
+
+    const auto pblh = col.pblh.const_array()(0,0,0);
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
 }
 
 TEST(ShocStructure, PblHeightStaysInsideColumn)

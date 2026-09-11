@@ -167,8 +167,9 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
     pp.query("height", z_tr_1);
     pp.query("z_tr", z_tr_2);
 
-    // We only set them to zero to make sure they are initialized
-    amrex::Real T_tr = zero, theta_tr = zero, theta_0 = zero;
+    // Used only with T_from_theta_in_moist_init, but kept at physical values:
+    // zeros raise an FPE in the speculatively evaluated compute_theta arm.
+    amrex::Real T_tr = amrex::Real(300), theta_tr = amrex::Real(300), theta_0 = amrex::Real(300);
 
     bool T_from_theta = false;
     pp.query("T_from_theta_in_moist_init", T_from_theta);

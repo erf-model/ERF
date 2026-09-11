@@ -111,6 +111,19 @@ AMREX_ENUM(MoistureType,
 );
 
 /**
+ * @brief Whether an anelastic SuperDroplets configuration is unsupported.
+ *
+ * The current SuperDroplets implementation diagnoses thermodynamics through
+ * the compressible equation of state and has no BaseState pressure input.
+ */
+inline bool anelastic_superdroplets_configuration_invalid (
+    const MoistureType moisture_type,
+    const bool any_anelastic) noexcept
+{
+    return any_anelastic && moisture_type == MoistureType::SuperDroplets;
+}
+
+/**
  * @brief Wind-farm model.
  */
 AMREX_ENUM(WindFarmType,
@@ -904,6 +917,13 @@ struct SolverChoice {
             } else {
                 any_compress                = true;
             }
+        }
+
+        if (anelastic_superdroplets_configuration_invalid(moisture_type, any_anelastic)) {
+            amrex::Error("erf.moisture_model = SuperDroplets is not supported with "
+                         "erf.anelastic = 1: the Super-Droplet path currently uses "
+                         "the compressible equation of state. Use compressible "
+                         "dynamics or a supported Eulerian moisture model.");
         }
 
         // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
@@ -2006,7 +2026,7 @@ struct SolverChoice {
 
     // Native shoc transport mode
     ShocTransportMode     shoc_transport_mode     = ShocTransportMode::StateUpdate;
-    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::HostDiffusion;
+    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
 
     // Transport the passive scalar?
     bool transport_scalar = true;
@@ -2083,8 +2103,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return (shoc_uses_momentum_host_diffusion(shoc_momentum_transport) ||
-                shoc_disables_momentum_transport (shoc_momentum_transport));
+        return shoc_disables_momentum_transport(shoc_momentum_transport);
     }
 
     /**
@@ -2095,7 +2114,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return shoc_uses_host_diffusion(shoc_transport_mode);
+        return false;
     }
 
     /**

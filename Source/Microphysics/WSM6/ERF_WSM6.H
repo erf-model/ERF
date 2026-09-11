@@ -35,6 +35,88 @@ namespace MicVar_WSM6 {
    };
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qr,
+    const amrex::Array4<amrex::Real>& qs,
+    const amrex::Array4<amrex::Real>& qg,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ1_comp) / rho_value);
+    qc(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ2_comp) / rho_value);
+    qi(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ3_comp) / rho_value);
+    qr(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ4_comp) / rho_value);
+    qs(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ5_comp) / rho_value);
+    qg(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ6_comp) / rho_value);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho_value, rho_theta, qv(i,j,k), rdOcp,
+        use_anelastic_reference_pressure, p0);
+    tabs(i,j,k) = thermo.temperature;
+    pres(i,j,k) = thermo.pressure_pa;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real wsm6_theta_from_temperature_and_pressure (
+    const amrex::Real rho,
+    const amrex::Real temperature,
+    const amrex::Real pressure,
+    const amrex::Real qv,
+    const amrex::Real configured_rdOcp,
+    const bool use_anelastic_reference_pressure) noexcept
+{
+    return use_anelastic_reference_pressure
+        ? getThgivenTandP(temperature, pressure, configured_rdOcp)
+        : getThgivenRandT(rho, temperature, RdoCp, qv);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void wsm6_copy_micro_to_state_cell (
+    const amrex::Array4<amrex::Real>& states,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<const amrex::Real>& rho,
+    const amrex::Array4<const amrex::Real>& tabs,
+    const amrex::Array4<const amrex::Real>& pres,
+    const amrex::Array4<const amrex::Real>& qv,
+    const amrex::Array4<const amrex::Real>& qc,
+    const amrex::Array4<const amrex::Real>& qi,
+    const amrex::Array4<const amrex::Real>& qr,
+    const amrex::Array4<const amrex::Real>& qs,
+    const amrex::Array4<const amrex::Real>& qg,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real rdOcp,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real theta_value = wsm6_theta_from_temperature_and_pressure(
+        rho(i,j,k), tabs(i,j,k), pres(i,j,k), qv(i,j,k), rdOcp,
+        use_anelastic_reference_pressure);
+    theta(i,j,k) = theta_value;
+    states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta_value;
+    states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qv(i,j,k));
+    states(i,j,k,RhoQ2_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qc(i,j,k));
+    states(i,j,k,RhoQ3_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qi(i,j,k));
+    states(i,j,k,RhoQ4_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qr(i,j,k));
+    states(i,j,k,RhoQ5_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qs(i,j,k));
+    states(i,j,k,RhoQ6_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qg(i,j,k));
+}
+
 class WSM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
@@ -45,6 +127,8 @@ public:
     void Define(SolverChoice& sc) override
     {
         m_moisture_type = sc.moisture_type;
+        m_rdOcp = sc.rdOcp;
+        set_anelastic_reference_pressure_mode(sc);
         m_axis = sc.ave_plane;
         m_do_cond = (!sc.uses_shoc_family());
     }
@@ -84,9 +168,12 @@ public:
     void Set_dzmin(const amrex::Real dz_min) override { m_dzmin = dz_min; }
 
     void Copy_State_to_Micro(const amrex::MultiFab& cons_in) override;
+    void Copy_State_to_Micro(const amrex::MultiFab& cons_in,
+                             const amrex::MultiFab* base_state);
     void Copy_Micro_to_State(amrex::MultiFab& cons_in) override;
 
-    using NullMoist::Update_Micro_Vars;
+    void Update_Micro_Vars(amrex::MultiFab& cons_in,
+                           const amrex::MultiFab* base_state) override;
 
     void Update_Micro_Vars(amrex::MultiFab& cons_in) override
     {
@@ -143,6 +230,7 @@ private:
     int nlev{0}, zlo{0}, zhi{0};
     int m_axis{2};
     bool m_do_cond{true};
+    amrex::Real m_rdOcp{RdoCp};
     MoistureType m_moisture_type{MoistureType::None};
 
     amrex::MultiFab* m_z_phys_nd{nullptr};

@@ -363,7 +363,9 @@ ShocImplicit::finalize_from_pdf (ShocColumnData& col,
     const auto u_base = col.u_base.const_array();
     const auto v_base = col.v_base.const_array();
     const auto tke_base = col.tke_base_state.const_array();
-    const auto energy_view = shoc::make_energy_fixer_view(col);
+    const bool include_momentum_energy =
+        shoc_uses_momentum_state_update(opts.momentum_transport);
+    const auto energy_view = shoc::make_energy_fixer_view(col, include_momentum_energy);
     const Box col_box(IntVect(0,0,0), IntVect(col.layout.ncell - 1, 0, 0));
     const Box cell_box(IntVect(0,0,0), IntVect(col.layout.ncell - 1, nlev - 1, 0));
 

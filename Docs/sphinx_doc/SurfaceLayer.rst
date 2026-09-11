@@ -13,9 +13,9 @@ all the other variables and then allows a user to specify a method for calculati
 
 ::
 
-   erf.surface_layer.flux_type    = STRING    #flux types (donelan, moeng, custom)
+   erf.surface_layer.flux_type    = STRING    #flux types (moeng, custom, bulk_coeff)
 
-The ``donelan`` flux type employs bulk drag coefficients to compute the diffusive stresses while the ``moeng`` type
+The ``bulk_coeff`` flux type employs bulk drag coefficients to compute the diffusive stresses while the ``moeng`` type
 employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``custom`` allows the user to directly
 specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
 in ERF simulations and will be the focus in subsequent sections.
@@ -156,12 +156,12 @@ with the flux type. Therefore, the MOST implementation in ERF is a specific meth
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~
-To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports four methods for parameterizing the surface roughness: ``constant``, ``charnock``, ``modified_charnock``, and ``wave_coupled``. The latter three methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_ and `Warner et. al, Ocean Modelling, 2010 <https://doi.org/10.1016/j.ocemod.2010.07.010>`_. The rougness calculation method may be specified with
+To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports five methods for parameterizing the surface roughness: ``constant``, ``charnock``, ``modified_charnock``, ``donelan``, and ``wave_coupled``. The latter four methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_ and `Warner et. al, Ocean Modelling, 2010 <https://doi.org/10.1016/j.ocemod.2010.07.010>`_. The rougness calculation method may be specified with
 
 ::
 
-   erf.most.roughness_type_land = STRING  #Z_0 type over land (constant)
-   erf.most.roughness_type_sea  = STRING  #Z_0 type over water (charnock, coare3.0,
+   erf.most.roughness_type_land = STRING  # Z_0 type over land (constant)
+   erf.most.roughness_type_sea  = STRING  # Z_0 type over water (charnock, coare3.0,
                                           # donelan, modified_charnock, wave_coupled,
                                           # constant)
 
@@ -198,6 +198,8 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
    erf.most.radius            = INT    #SPECIFIED REGION RADIUS [grid cells]
    erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG [s]
+
+When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``).
 
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 
