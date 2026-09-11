@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <string>
 
 TEST(ShocRuntimeOptions, DefaultsValidate)
@@ -99,6 +100,40 @@ shift_column_heights (ShocColumnData& col, amrex::Real offset)
         zi(0,k,0) += offset;
     }
     shoc_test::sync();
+}
+
+ShocColumnData
+make_first_level_ri_crossing_column (amrex::Real surface_sensible_flux)
+{
+    auto col = shoc_test::make_column(2);
+    auto thetal = col.thetal.array();
+    auto qv = col.qv.array();
+    auto qc = col.qc.array();
+    auto qi = col.qi.array();
+    auto qw = col.qw.array();
+    auto u = col.u.array();
+    auto v = col.v.array();
+
+    // Nominally target a Richardson number well above the critical value;
+    // the expected crossing below is derived from the represented state.
+    constexpr amrex::Real theta_increment = amrex::Real(0.002752293577981651);
+    for (int k = 0; k < col.layout.nlev; ++k) {
+        thetal(0,k,0) = amrex::Real(300.0) + theta_increment * k;
+        qv(0,k,0) = amrex::Real(0.0);
+        qc(0,k,0) = amrex::Real(0.0);
+        qi(0,k,0) = amrex::Real(0.0);
+        qw(0,k,0) = amrex::Real(0.0);
+        u(0,k,0) = amrex::Real(2.0);
+        v(0,k,0) = amrex::Real(1.0);
+    }
+
+    shoc::set_fab_val(col.surf_sens_flux, surface_sensible_flux, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_lat_flux, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_u, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_v, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc_test::sync();
+
+    return col;
 }
 }
 
@@ -429,6 +464,70 @@ TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
     const auto pblh_inconsistent_qw = col.pblh.const_array()(0,0,0);
 
     EXPECT_NEAR(pblh_consistent_qw, pblh_inconsistent_qw, 1.0e-10);
+}
+
+// Motivation: A bulk Richardson number that first exceeds the critical value
+// above the reference level must locate the crossing between the two levels;
+// this prevents the first crossing from being rounded up to the upper height.
+TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(0.0));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+    });
+
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const auto thetal = col.thetal.const_array();
+    const amrex::Real ustar = col.ustar.const_array()(0,0,0);
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+    const amrex::Real theta0 = thetal(0,0,0);
+    const amrex::Real theta1 = thetal(0,1,0);
+    const amrex::Real ri1 = CONST_GRAV * (theta1 - theta0) * (z1_agl - z0_agl) /
+                            (theta0 * (amrex::Real(100.0) * ustar * ustar));
+    ASSERT_TRUE(std::isfinite(ri1));
+    ASSERT_GT(ri1, amrex::Real(0.3));
+
+    // The first-level reference Richardson number is zero, so interpolate the
+    // critical crossing from the represented Ri(1), not from its nominal input.
+    const amrex::Real expected = z0_agl + (amrex::Real(0.3) / ri1) *
+                                           (z1_agl - z0_agl);
+    const amrex::Real tolerance = amrex::max(
+        amrex::Real(1.0e-8),
+        amrex::Real(1000.0) * std::numeric_limits<amrex::Real>::epsilon() * expected);
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_pblh(col);
+    });
+    const auto pblh = col.pblh.const_array()(0,0,0);
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
+    EXPECT_NEAR(pblh, expected, tolerance);
+}
+
+// Motivation: Positive surface buoyancy runs a second Richardson search for
+// the convective correction; this protects that duplicated first-level branch
+// from retaining the old upper-level shortcut after the stable search is fixed.
+TEST(ShocStructure, PblHeightInterpolatesFirstConvectiveRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(1.0e-8));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+        ShocStructure::diagnose_pblh(col);
+    });
+
+    const auto pblh = col.pblh.const_array()(0,0,0);
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
 }
 
 TEST(ShocStructure, PblHeightStaysInsideColumn)

@@ -87,7 +87,7 @@ ShocEnergyFixer::apply_column (const ShocColumnData& col,
     surf_sens_flux(ic,0,0) = surf_sens_flux_in(ic,0,0);
     surf_lat_flux(ic,0,0) = surf_lat_flux_in(ic,0,0);
 
-    shoc::apply_energy_fix_column(shoc::make_energy_fixer_view(tmp), ic, dt);
+    shoc::apply_energy_fix_column(shoc::make_energy_fixer_view(tmp, true), ic, dt);
 
     const auto thetal_out = tmp.thetal.const_array();
     for (int k = 0; k < col.layout.nlev; ++k) {
