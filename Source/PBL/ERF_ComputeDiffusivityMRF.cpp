@@ -278,9 +278,9 @@ pblh_mf.setVal(0.0);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
                 // to better represent shear associated with surface-layer turbulence at low wind speeds.
                 // Reference: Vogelezang, D.H.P., and A.A.M. Holtslag, 1996: Evaluation and model impacts of
@@ -305,9 +305,9 @@ pblh_mf.setVal(0.0);
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
                 // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
                 // to better represent shear associated with surface-layer turbulence at low wind speeds.
                 const Real ws2 = (turbChoice.enable_vh96_shear_correction)
@@ -407,7 +407,7 @@ pblh_mf.setVal(0.0);
             // weighted by cube sum so either term can dominate smoothly
             Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
                                 wstar_conv*wstar_conv*wstar_conv);
-            
+
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
@@ -597,7 +597,7 @@ pblh_mf.setVal(0.0);
                             ? (enable_qnse_d > Real(0.5)
                                ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
                                : (1 + 5 * HOL_bounded))
-                            : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                            : std::pow(1 + 16 * HOL_abs, -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // Absolute bounds [0.01, 5.0] m/s
@@ -817,12 +817,12 @@ pblh_mf.setVal(0.0);
                                 ? (enable_qnse_d > Real(0.5)
                                    ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
                                    : (1 + 5 * HOL_bounded))
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -one_quarter);
+                                : std::pow(1 + 16 * HOL_abs, -one_quarter);
                 const Real phit = (obuk_val > 0)
                                 ? (enable_qnse_d > Real(0.5)
                                    ? (1 + qnse_ah_d * HOL_bounded) / (1 + qnse_bh_d * HOL_bounded)
                                    : (1 + 5 * HOL_bounded))
-                                : std::pow(amrex::max(1 - 16 * HOL_bounded, Real(0.01)), -Real(0.5));
+                                : std::pow(1 + 16 * HOL_abs, -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
@@ -1047,7 +1047,7 @@ pblh_mf.setVal(0.0);
             // dz_inv factor. `Fact` already carries the single grid-spacing
             // factor needed to convert the countergradient correction into a
             // flux-divergence contribution consistent with the K*d(phi)/dz terms
-            // it is being added alongside. Adding a second dz_inv 
+            // it is being added alongside. Adding a second dz_inv
             // double-counts the grid spacing and is
             // dimensionally incorrect — do NOT "fix" this by inserting dz_inv
             // into the RHS_a += Fact * gam_hi/lo terms in ERF_ImplicitDiff_T.cpp.

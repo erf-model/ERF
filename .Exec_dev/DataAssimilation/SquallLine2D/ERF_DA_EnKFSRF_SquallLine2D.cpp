@@ -96,6 +96,12 @@ void compute_R_diag_vals(Vector<Real>& R_diag)
     // Set the size to 2
     R_diag.resize(8,0.01);
 
-    R_diag[0] = 0.01;
-    R_diag[1] = 0.01;
+    R_diag[0] = 4e-4; //density
+    R_diag[1] = 1.0; // theta
+    R_diag[2] = 1.0; // x_velocity
+    R_diag[3] = 1.0; // y_velocity
+    R_diag[4] = 0.25; // z_velocity
+    R_diag[5] = 2.5e-7; // qv
+    R_diag[6] = 1e-8; // qc
+    R_diag[7] = 1e-8; // qrain
 }
