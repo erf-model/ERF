@@ -253,9 +253,10 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     if (m_update_k_rans) {
-        // Nonzero divisor: both arms of the select are evaluated (fpe_trap_zero)
+        // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
+        //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (theta_ref > 0);
-        const Real inv_theta_ref = one / (std::abs(theta_ref) + Real(1e-30));
+        const Real inv_theta_ref = one / amrex::max(theta_ref, std::numeric_limits<Real>::min());
         const Real l_inv_theta0  = (use_ref_theta) ? inv_theta_ref : one;
         const Real l_inv_Cmu2    = inv_Cmu2;
         const int klo = m_geom[lev].Domain().smallEnd(2);
