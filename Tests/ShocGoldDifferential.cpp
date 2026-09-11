@@ -29,9 +29,9 @@ struct FieldTolerance {
     Real relative;
 };
 
-// These are the existing DOUBLE tolerances for the shared cloudy SHOC golds.
-// They remain available for source review, but DOUBLE runs continue to use
-// the strict amrex_fcompare path in CTest.
+// These are the existing DOUBLE tolerances for field-aware cloudy SHOC
+// comparisons. Clear-sky DOUBLE regressions retain their historical strict
+// amrex_fcompare path in CTest.
 [[maybe_unused]] const std::map<std::string, FieldTolerance>& double_tolerance_profile ()
 {
     static const std::map<std::string, FieldTolerance> profile {
