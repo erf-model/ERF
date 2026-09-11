@@ -28,6 +28,7 @@ precision_scaled_tolerance (amrex::Real double_tolerance,
                             int single_precision_ulps)
 {
 #ifdef AMREX_USE_FLOAT
+    amrex::ignore_unused(double_tolerance);
     return amrex::Real(single_precision_ulps) *
            std::numeric_limits<amrex::Real>::epsilon() * std::abs(scale);
 #else
