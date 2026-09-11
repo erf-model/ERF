@@ -21,8 +21,10 @@ record is `PLAN.md` and the numbers per phase are in `RESULTS.md`.
   (`erf_plotfile.py`, standard library only) and prints one row per check:
   measured value, target, tolerance, pass. Its exit code is the verdict.
   `--smoke` runs the structural checks that must hold after a few steps
-  (the CTest entries, `ctest -L rans`); `--physics` adds the checks that
-  need the converged run in the table above.
+  (the CTest entries, `ctest -L rans`; the flat entries pass
+  `erf.use_fft=false` and the terrain entries exist only in FFT builds);
+  `--physics` adds the checks that need the converged run in the table
+  above.
 - Shared checks live in `rans_checks.py`; the terrain scripts use the full
   3D reader because ERF writes no planar averages on a fitted mesh.
 - Closure changes are cross-checked against the Kynema `KLAxell` and

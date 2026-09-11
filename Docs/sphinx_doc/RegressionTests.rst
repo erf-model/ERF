@@ -558,7 +558,10 @@ terrain cases with the Poisson wall distance instead of the terrain height.
 Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
 ``RANS_Convective_ABL_Flat``, ``RANS_Neutral_Hill_2D`` (and ``_Poisson``),
 ``RANS_Flat_Fitted_2D`` (and ``_Poisson``), ``RANS_Neutral_Hill_3D`` (and
-``_Poisson``); label ``rans``.
+``_Poisson``); label ``rans``. The flat cases run with the MLMG projection
+(``erf.use_fft=false``); the terrain-fitted cases need the FFT-preconditioned
+projection and are registered only when the build enables FFT
+(``ERF_ENABLE_FFT``).
 
 Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
 
