@@ -176,7 +176,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief Set the current AMR level being processed */
-        void SetCurrentLevel (const int& a_lev) override { m_current_lev = a_lev; }
+        void SetCurrentLevel (const int& a_lev) override
+        {
+            NullMoist::SetCurrentLevel(a_lev);
+            m_current_lev = a_lev;
+        }
 
         /*! \brief Get the diagnostics interval */
         int getDiagnosticsInterval () const override { return m_diagnostics_iter; }

@@ -897,15 +897,16 @@ void WDM6::Advance(const Real& dt_advance,
         // ERF stores theta (potential temperature), so we must convert back: theta = T / exner
         // This matches WRF's conversion: th(i,k,j) = t(i,k) / pii(i,k,j)
         auto const& theta_arr = mic_fab_vars[MicVar_WDM6::theta]->array(mfi);
-        constexpr Real p0 = 1.e5;       // Reference pressure (Pa)
-        constexpr Real rdOcp = R_d / Cp_d;  // R/cp = 0.286
-
+        const Real configured_rdOcp = m_rdOcp;
+        const bool use_anelastic_reference_pressure =
+            m_use_anelastic_reference_pressure;
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // Recompute theta from updated temperature
-            // exner = (p/p0)^(R/cp)
-            // theta = T / exner = T * (p0/p)^(R/cp)
-            Real exner = std::pow(p_arr(i,j,k) / p0, rdOcp);
-            theta_arr(i,j,k) = t_arr(i,j,k) / exner;
+            // Use the same held pressure that was passed to WDM6. In
+            // anelastic mode this is the BaseState p0; in compressible mode
+            // it is the pressure diagnosed from the incoming state.
+            theta_arr(i,j,k) = wdm6_theta_from_temperature_and_pressure(
+                t_arr(i,j,k), p_arr(i,j,k), configured_rdOcp,
+                use_anelastic_reference_pressure);
         });
 
         // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
@@ -3261,11 +3262,13 @@ void WDM6::Advance(const Real& dt_advance,
         // POST theta at 100/100 levels, and the resulting
         // divergence 6.625510053 at k=90 matched the step-1 theta error exactly.
         {
-            constexpr Real p0_nat = 1.e5;           // Reference pressure (Pa)
-            constexpr Real rdOcp_nat = R_d / Cp_d;  // R/cp = 0.286
+            const Real configured_rdOcp = m_rdOcp;
+            const bool use_anelastic_reference_pressure =
+                m_use_anelastic_reference_pressure;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real exner = std::pow(p_arr(i,j,k) / p0_nat, rdOcp_nat);
-                w1_theta(i,j,k) = t_arr(i,j,k) / exner;
+                w1_theta(i,j,k) = wdm6_theta_from_temperature_and_pressure(
+                    t_arr(i,j,k), p_arr(i,j,k), configured_rdOcp,
+                    use_anelastic_reference_pressure);
             });
         }
 
