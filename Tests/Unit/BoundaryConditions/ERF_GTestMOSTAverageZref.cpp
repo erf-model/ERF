@@ -82,60 +82,91 @@ TEST(MOSTAverageZref, UniformMatchesFloor)
     }
 }
 
-// A query exactly on a mesh face of a flat terrain-fitted column interpolates
-// between the two cells it separates instead of failing the height search
+namespace {
+
+// Flat column of nodal heights from zlev and a cell-centered field equal to the
+// cell-center height (mirrored about the bottom and top faces in the ghost
+// cells), so an interpolation that is linear in z returns the query height.
+struct FlatColumn
+{
+    FArrayBox z_fab;
+    FArrayBox f_fab;
+
+    explicit FlatColumn (const Vector<Real>& zlev)
+    {
+        const int nz = static_cast<int>(zlev.size()) - 1;
+        z_fab.resize(Box(IntVect(-1,-1,-1), IntVect(4,4,nz+1)), 1, The_Pinned_Arena());
+        f_fab.resize(Box(IntVect(-1,-1,-1), IntVect(3,3,nz  )), 1, The_Pinned_Arena());
+        auto z_arr = z_fab.array();
+        auto f_arr = f_fab.array();
+        const Box zbx = z_fab.box();
+        const Box fbx = f_fab.box();
+        for (int k = zbx.smallEnd(2); k <= zbx.bigEnd(2); ++k) {
+            const Real zk = (k < 0)  ? Real(2.0) * zlev[0]  - zlev[1]
+                          : (k > nz) ? Real(2.0) * zlev[nz] - zlev[nz-1] : zlev[k];
+            for (int j = zbx.smallEnd(1); j <= zbx.bigEnd(1); ++j) {
+                for (int i = zbx.smallEnd(0); i <= zbx.bigEnd(0); ++i) { z_arr(i,j,k) = zk; }
+            }
+        }
+        for (int k = fbx.smallEnd(2); k <= fbx.bigEnd(2); ++k) {
+            const Real c0 = Real(0.5) * (zlev[0] + zlev[1]);
+            const Real cn = Real(0.5) * (zlev[nz-1] + zlev[nz]);
+            const Real fk = (k < 0)   ? Real(2.0) * zlev[0]  - c0
+                          : (k >= nz) ? Real(2.0) * zlev[nz] - cn : Real(0.5) * (zlev[k] + zlev[k+1]);
+            for (int j = fbx.smallEnd(1); j <= fbx.bigEnd(1); ++j) {
+                for (int i = fbx.smallEnd(0); i <= fbx.bigEnd(0); ++i) { f_arr(i,j,k) = fk; }
+            }
+        }
+    }
+
+    // Interpolate at height zp above the center of horizontal cell (1,1)
+    Real interp (Real zp) const
+    {
+        const GpuArray<Real,AMREX_SPACEDIM> plo{Real(0.0), Real(0.0), Real(0.0)};
+        const GpuArray<Real,AMREX_SPACEDIM> dxi{Real(0.01), Real(0.01), Real(1.0)};
+        Real val = Real(0.0);
+        MOSTAverage::trilinear_interp_T(plo[0] + Real(1.5) / dxi[0], plo[1] + Real(1.5) / dxi[1], zp,
+                                        &val, f_fab.const_array(), z_fab.const_array(), plo, dxi, 1);
+        return val;
+    }
+};
+
+} // namespace
+
+// A query exactly on a mesh face of a flat stretched column is found, and the
+// interpolation is linear in the physical height: at the 10 m face between the
+// 5 m and 15.5 m cell centers it returns the value at 10 m, not the plain mean
+// of the two cells (which belongs to 10.25 m)
 TEST(MOSTAverageZref, InterpolationOnFace)
 {
-    const int nz = 8;
-    const auto zlev = stretched_levels(nz, Real(10.0), Real(1.1));
+    const auto zlev = stretched_levels(8, Real(10.0), Real(1.1));
+    const FlatColumn col(zlev);
+    const Real ztol = (sizeof(Real) == 8) ? Real(1.0e-12) : Real(1.0e-4);
 
-    const GpuArray<Real,AMREX_SPACEDIM> plo{Real(0.0), Real(0.0), Real(0.0)};
-    const GpuArray<Real,AMREX_SPACEDIM> dxi{Real(0.01), Real(0.01), Real(1.0)};
+    // On the faces between cells 0 and 1 (10 m) and cells 1 and 2 (21 m)
+    EXPECT_NEAR(col.interp(zlev[1]), zlev[1], ztol);
+    EXPECT_NEAR(col.interp(zlev[2]), zlev[2], ztol);
 
-    // Nodal heights (flat) and a cell-centered field that varies only in k
-    FArrayBox z_fab(Box(IntVect(-1,-1,-1), IntVect(4,4,nz+1)), 1, The_Pinned_Arena());
-    FArrayBox f_fab(Box(IntVect(-1,-1,-1), IntVect(3,3,nz  )), 1, The_Pinned_Arena());
-    auto z_arr = z_fab.array();
-    auto f_arr = f_fab.array();
-    const Box zbx = z_fab.box();
-    const Box fbx = f_fab.box();
-    for (int k = zbx.smallEnd(2); k <= zbx.bigEnd(2); ++k) {
-        const int kc = std::min(std::max(k, 0), nz);
-        for (int j = zbx.smallEnd(1); j <= zbx.bigEnd(1); ++j) {
-            for (int i = zbx.smallEnd(0); i <= zbx.bigEnd(0); ++i) {
-                z_arr(i,j,k) = (k < 0) ? -zlev[1] : ((k > nz) ? zlev[nz] + zlev[1] : zlev[kc]);
-            }
-        }
+    // At cell centers, inside cells, and below the first cell center
+    for (Real zq : {Real(2.0), Real(5.0), Real(7.5), Real(12.3), Real(15.5), Real(25.0), Real(40.0)}) {
+        EXPECT_NEAR(col.interp(zq), zq, ztol) << "zq = " << zq;
     }
-    for (int k = fbx.smallEnd(2); k <= fbx.bigEnd(2); ++k) {
-        for (int j = fbx.smallEnd(1); j <= fbx.bigEnd(1); ++j) {
-            for (int i = fbx.smallEnd(0); i <= fbx.bigEnd(0); ++i) {
-                f_arr(i,j,k) = Real(100.0) + Real(k);
-            }
-        }
-    }
-
-    // Center of cell (1,1) in the horizontal
-    const Real xp = plo[0] + Real(1.5) / dxi[0];
-    const Real yp = plo[1] + Real(1.5) / dxi[1];
-
-    auto interp = [&] (Real zp) {
-        Real val = Real(0.0);
-        MOSTAverage::trilinear_interp_T(xp, yp, zp, &val, f_fab.const_array(),
-                                        z_fab.const_array(), plo, dxi, 1);
-        return val;
-    };
-
-    // On the face between cells 0 and 1 (10 m) and between cells 1 and 2 (21 m)
-    EXPECT_NEAR(interp(zlev[1]), Real(100.5), tol);
-    EXPECT_NEAR(interp(zlev[2]), Real(101.5), tol);
-
-    // At the cell centers the field itself
-    EXPECT_NEAR(interp(Real(5.0)),  Real(100.0), tol);
-    EXPECT_NEAR(interp(Real(15.5)), Real(101.0), tol);
 
     // Continuous across the face
     const Real eps = Real(1.0e-3);
-    EXPECT_NEAR(interp(zlev[1] - eps), interp(zlev[1]), Real(1.0e-3));
-    EXPECT_NEAR(interp(zlev[1] + eps), interp(zlev[1]), Real(1.0e-3));
+    EXPECT_NEAR(col.interp(zlev[1] - eps), col.interp(zlev[1]), Real(2.0e-3));
+    EXPECT_NEAR(col.interp(zlev[1] + eps), col.interp(zlev[1]), Real(2.0e-3));
+}
+
+// On equal cell heights the physical-height weight is the index weight
+// (lk + fraction of the containing cell + 1/2) the interpolation used before
+TEST(MOSTAverageZref, InterpolationUniformUnchanged)
+{
+    const Real dz = Real(10.0);
+    const auto zlev = stretched_levels(8, dz, Real(1.0));
+    const FlatColumn col(zlev);
+    const Real ztol = (sizeof(Real) == 8) ? Real(1.0e-12) : Real(1.0e-4);
+    for (Real zq : {Real(1.0), Real(5.0), Real(10.0), Real(13.7), Real(20.0), Real(44.4)}) {
+        EXPECT_NEAR(col.interp(zq), zq, ztol) << "zq = " << zq;
+    }
 }

@@ -416,7 +416,32 @@ public:
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (in_cell_z(z_target, z_lo, z_hi)) {
                 found = true;
-                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
+                // Weight between the two cell centers that bracket z_target by
+                // their physical heights, so the interpolation is linear in z
+                // on a stretched or terrain-following column.  A weight taken
+                // from the fraction of the containing cell alone (as before)
+                // is exact only for equal cell heights: at the 10 m face of a
+                // 10 m / 11 m pair it returned the wind at 10.25 m.  A center
+                // beyond the nodes searched here is mirrored about the shared
+                // face, which gives the equal-height weight at those ends.
+                amrex::Real zc = myhalf * (z_lo + z_hi);
+                if (z_target >= zc) {
+                    amrex::Real zc_up = two * z_hi - zc;
+                    if (lk + 2 <= kmax) {
+                        amrex::Real z_up = fourth * ( z_arr(i_new,j_new  ,lk+2) + z_arr(i_new+1,j_new  ,lk+2)
+                                                  + z_arr(i_new,j_new+1,lk+2) + z_arr(i_new+1,j_new+1,lk+2) );
+                        zc_up = myhalf * (z_hi + z_up);
+                    }
+                    zval = (amrex::Real) (lk + 1) + (z_target - zc) / (zc_up - zc);
+                } else {
+                    amrex::Real zc_dn = two * z_lo - zc;
+                    if (lk >= 1) {
+                        amrex::Real z_dn = fourth * ( z_arr(i_new,j_new  ,lk-1) + z_arr(i_new+1,j_new  ,lk-1)
+                                                  + z_arr(i_new,j_new+1,lk-1) + z_arr(i_new+1,j_new+1,lk-1) );
+                        zc_dn = myhalf * (z_dn + z_lo);
+                    }
+                    zval = (amrex::Real) lk + (z_target - zc_dn) / (zc - zc_dn);
+                }
                 break;
             }
         }
@@ -424,7 +449,8 @@ public:
         amrex::ignore_unused(found);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
-        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
+        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1);
+        //       in z, floor(zval) is the upper of the two bracketing cells
         const amrex::RealVect lx(ireal + myhalf, jreal + myhalf, zval);
 
         const amrex::IntVect ijk = lx.floor();
