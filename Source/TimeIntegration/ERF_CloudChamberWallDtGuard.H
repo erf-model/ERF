@@ -21,13 +21,13 @@ enforce_fixed_dt_limit (int level, double fixed_dt, double wall_dt,
 {
     if (!fixed_dt_exceeds_limit(fixed_dt, wall_dt)) { return; }
 
-    amrex::Print() << "Cloud Chamber bulk wall timestep violation at level "
+    amrex::Print() << "Cloud Chamber wall-transfer timestep violation at level "
                    << level
                    << ": fixed_dt=" << fixed_dt
                    << ", wall_dt=" << wall_dt
                    << ", max_wall_rate=" << max_wall_rate << std::endl;
     amrex::Abort(
-        "Cloud Chamber bulk wall timestep exceeds dt_wall = 0.5 / max_wall_rate");
+        "Cloud Chamber wall-transfer timestep exceeds dt_wall = 0.5 / max_wall_rate");
 }
 
 } // namespace erf_cloud_chamber_wall_dt_guard

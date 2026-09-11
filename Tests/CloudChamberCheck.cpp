@@ -113,7 +113,8 @@ bool is_budget_mode (const std::string& mode)
 bool is_checker_mode (const std::string& mode)
 {
     return mode == "dry" || mode == "cloudy" || mode == "parity" ||
-        mode == "neutral_momentum" || is_budget_mode(mode);
+        mode == "neutral_momentum" || mode == "fixed_momentum" ||
+        is_budget_mode(mode);
 }
 
 struct BudgetSummary {
@@ -245,13 +246,14 @@ int main (int argc, char** argv)
 {
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
-    const bool activation_mode = mode == "neutral_momentum";
+    const bool activation_mode = mode == "neutral_momentum" ||
+        mode == "fixed_momentum";
     const int expected_argc = (budget_mode || activation_mode) ? 5 : 4;
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
                   << "       checker all_dry|wet_budget|bulk_wet|neutral_wet initial_plotfile final_plotfile budget_file\n"
-                  << "       checker neutral_momentum initial_plotfile final_a final_b\n";
+                  << "       checker neutral_momentum|fixed_momentum initial_plotfile final_a final_b\n";
         return 2;
     }
 
@@ -303,9 +305,10 @@ int main (int argc, char** argv)
     const bool cloudy = (mode == "cloudy" || mode == "all_dry" ||
                          mode == "wet_budget" || mode == "bulk_wet" ||
                          mode == "neutral_wet");
-    if (!cloudy && mode != "dry" && mode != "neutral_momentum") {
+    if (!cloudy && mode != "dry" && mode != "neutral_momentum" &&
+        mode != "fixed_momentum") {
         amrex::Finalize();
-        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, or neutral_wet");
+        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, neutral_wet, neutral_momentum, or fixed_momentum");
     }
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
@@ -555,7 +558,7 @@ int main (int argc, char** argv)
     amrex::Finalize();
     if (activation_mode &&
         activation_difference <= scaled_tolerance(Real(1.0), Real(16.0))) {
-        return fail("neutral momentum roughness change produced no production response");
+        return fail("momentum wall parameter change produced no production response");
     }
     // This is a nonzero-response guard, not a magnitude assertion. A few
     // ulps are sufficient because the short regression intentionally starts

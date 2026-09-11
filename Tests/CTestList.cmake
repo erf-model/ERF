@@ -340,6 +340,31 @@ function(add_test_cloud_chamber_neutral_momentum TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/z0_baseline/simulation.log;${CURRENT_TEST_BINARY_DIR}/z0_changed/simulation.log;${CURRENT_TEST_BINARY_DIR}/neutral_momentum_checker.log")
 endfunction(add_test_cloud_chamber_neutral_momentum)
 
+# Production wiring regression for fixed bulk aerodynamic momentum.  The
+# harness changes only C_D and requires a measurable velocity response.
+function(add_test_cloud_chamber_fixed_momentum TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_Dry_FixedMomentum")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_FixedMomentum.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberFixedMomentum.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;bulk-momentum"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/cd_baseline/simulation.log;${CURRENT_TEST_BINARY_DIR}/cd_changed/simulation.log;${CURRENT_TEST_BINARY_DIR}/fixed_momentum_checker.log")
+endfunction(add_test_cloud_chamber_fixed_momentum)
+
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
@@ -509,6 +534,7 @@ add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
+add_test_cloud_chamber_fixed_momentum(CloudChamber_Dry_FixedMomentumActivation)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)

@@ -273,19 +273,22 @@ The per-channel model selectors are:
 
 .. code-block:: none
 
-   <face>.momentum_transfer_model = resolved_noslip|neutral_roughness_log
+   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|neutral_roughness_log|law_of_wall_momentum
    <face>.heat_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
    <face>.vapor_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
 
-If at least one scalar channel uses ``bulk_aero``, also set:
+If at least one channel uses ``bulk_aero``, also set:
 
 .. code-block:: none
 
-   <face>.coefficient_source = fixed
+   <face>.coefficient_source = fixed|most
 
-Provide ``C_H`` only when heat uses ``bulk_aero`` and ``C_E`` only when
-vapor uses ``bulk_aero``.  For example, a face using bulk heat and resolved
-wet vapor requires:
+With ``coefficient_source = fixed``, provide ``C_D`` for bulk momentum,
+``C_H`` for bulk heat, and ``C_E`` for bulk wet vapor.  With
+``coefficient_source = most``, these coefficients are computed from the
+shared pointwise MOST state and must not be supplied.  MOST is valid only on
+``zlo`` and ``zhi``.  For example, a face using bulk heat and resolved wet
+vapor requires:
 
 .. code-block:: none
 
@@ -425,11 +428,11 @@ the budget; the budget does not recompute a separate wall model.
 Neutral roughness-log wall transfer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``neutral_roughness_log`` is an aerodynamic roughness/log-resistance model. It
-is not a hydraulically smooth wall function, Monin--Obukhov similarity theory
-(MOST), or a natural- or mixed-convection model. It is intended for a forced,
-shear-neutral wall-adjacent sample; no calibrated roughness defaults are
-provided.
+``neutral_roughness_log`` is the canonical aerodynamic roughness/log-resistance
+model.  ``law_of_wall_momentum`` is accepted as a compatibility alias for the
+momentum selector; it does not create a second production law.  These models
+are intended for a forced, shear-neutral wall-adjacent sample; no calibrated
+roughness defaults are provided.
 
 For outward unit normal :math:`\mathbf n`, the closure uses
 
@@ -531,14 +534,39 @@ Syntax-only examples (not calibration recommendations) are:
 
 Momentum, heat, and vapor selectors are independent. A face may mix neutral
 momentum with fixed bulk heat or resolved vapor; fixed bulk channels still
-require ``coefficient_source = fixed`` and their own ``C_H``/``C_E``. Neutral
-channels never consume user-supplied ``C_H`` or ``C_E``.
+require their own coefficient. Neutral channels never consume user-supplied
+bulk coefficients.
 
-Applicability is limited to the current single-level Cartesian ConstantDz,
-stationary-wall, nonperiodic Cloud Chamber path. There is no MOST stability
-function, buoyancy-flux coupling, natural or mixed convection, smooth-wall
-viscous-sublayer law, terrain, embedded-boundary, AMR, stretched-``dz``, or
-moving-wall support.
+MOST wall-transfer provider
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``coefficient_source = most`` selects one shared, device-safe pointwise
+Monin--Obukhov similarity state for all active bulk momentum, heat, and vapor
+channels on a face.  The implementation uses ERF's
+``similarity_funs::calc_psi_m2`` and ``calc_psi_h2`` functions, initializes the
+stability coordinate neutrally, clamps bulk Richardson number to ``[-4,4]``,
+uses relaxation ``0.5``, tolerance ``1e-3``, and a bounded iteration count.
+Failure to converge or a non-finite result is an error; there is no silent
+fallback.
+
+The wall state uses
+
+.. math::
+
+   \theta_v=\theta(1+\epsilon_v q_v),\qquad
+   q_{v,w}=\begin{cases}q_\mathrm{sat}(T_w,p_\mathrm{hse}),&\text{wet},\\
+   q_{v,a},&\text{dry},\end{cases}
+
+and ``gravity_sign = +1`` at ``zlo`` and ``-1`` at ``zhi``.  ``U_MOST`` is
+``max(U_t,0.01)`` only for conditioning the stability iteration; physical
+momentum and scalar fluxes still multiply the actual ``U_t`` and are exactly
+zero at rest.  Momentum, heat, and vapor use separate ``z0_m``, ``z0_h``, and
+``z0_q`` roughness lengths.  MOST is restricted to horizontal faces; neutral
+roughness and fixed bulk channels may still be used independently on side
+walls.  The scope remains single-level Cartesian ConstantDz, stationary-wall,
+nonperiodic Cloud Chamber physics; smooth-wall, natural/mixed-convection,
+terrain, embedded-boundary, AMR, stretched-``dz``, and moving-wall support are
+out of scope.
 
 Developer contract for Cloud Chamber wall closures
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -582,22 +610,6 @@ To add a future wall model:
 #. Add production-path activation and conservation coverage.
 #. Mutation-test the critical seam.
 #. Document equations, units, validity domain, and limitations.
-
-MOST handoff boundary
-~~~~~~~~~~~~~~~~~~~~~
-
-This phase establishes reusable per-face roughness metadata, explicit
-wall-distance sampling, wall-relative tangential vectors, pure physical
-traction and inward-flux results, scalar retained-flux application, the
-momentum stress adapter, and timestep plumbing with operator tests. It does
-not implement Monin--Obukhov length ``L``, stability functions, buoyancy-flux
-coupling, nonlinear iteration, shared coupled MOST state, or stability
-diagnostics. A future coupled MOST model must derive one consistent closure
-state (including ``u_*`` and ``L``) for momentum, heat, and vapor rather than
-evaluating unrelated channel-specific MOST variants. Atmospheric MOST must
-not simply be rotated onto vertical chamber sidewalls: gravity is tangential
-to those walls, so buoyancy-driven sidewall transfer is a different physical
-problem.
 
 Per-face input contract
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -648,9 +660,9 @@ Chamber path.
      - string
      - --
      - ``resolved_noslip``
-     - ``resolved_noslip`` or ``neutral_roughness_log``
+     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, or ``law_of_wall_momentum``
      - optional explicit declaration
-     - bulk momentum, law-wall, or other values are unsupported
+     - bulk momentum requires ``coefficient_source`` and ``C_D`` only for fixed coefficients; law-wall is a neutral-log alias
    * - ``<face>.heat_transfer_model``
      - string
      - --
@@ -669,9 +681,16 @@ Chamber path.
      - string
      - --
      - omitted
-     - ``fixed`` only
-     - at least one scalar channel on that face is ``bulk_aero``
-     - rejected when no bulk scalar channel is active; MOST is unsupported
+     - ``fixed`` or ``most``
+     - at least one bulk channel on that face
+     - ``most`` is restricted to ``zlo``/``zhi``; rejected when no bulk channel is active
+   * - ``<face>.C_D``
+     - real
+     - dimensionless
+     - no physical default
+     - finite and nonnegative
+     - momentum model is ``bulk_aero`` with ``coefficient_source = fixed``
+     - rejected for non-bulk momentum or with ``coefficient_source = most``
    * - ``<face>.C_H``
      - real
      - dimensionless
@@ -698,36 +717,22 @@ Chamber path.
      - m
      - none
      - finite and ``0 < z0_m < z_ref``
-     - any neutral channel
-     - rejected when no neutral channel is active
+     - any neutral channel or MOST bulk channel
+     - rejected when no active channel consumes it
    * - ``<face>.z0_h``
      - real
      - m
      - none
      - finite and ``0 < z0_h < z_ref``
-     - neutral heat
-     - rejected when heat is not neutral
+     - neutral heat or MOST bulk heat
+     - rejected when heat is neither neutral nor MOST bulk
    * - ``<face>.z0_q``
      - real
      - m
      - none
      - finite and ``0 < z0_q < z_ref``
-     - neutral vapor, even when dry
-     - rejected when vapor is not neutral
-   * - ``<face>.C_D``
-     - real
-     - dimensionless
-     - none
-     - unsupported
-     - never
-     - rejected
-   * - MOST-related Cloud Chamber face inputs
-     - various
-     - --
-     - none
-     - unsupported
-     - never
-     - rejected
+     - neutral vapor or MOST bulk vapor
+     - rejected when vapor is neither neutral nor MOST bulk
 
 Do not mix the legacy aggregate key with per-channel keys on the same face.
 For example, this is invalid:
@@ -739,15 +744,6 @@ For example, this is invalid:
 
 Choose either the retained aggregate resolved syntax or the per-channel
 syntax.
-
-A future Cloud Chamber-specific MOST coefficient provider is represented only
-by the internal ``CoefficientProvider::MOSTFuture`` metadata placeholder.  It
-is not parser-selectable, has no active Cloud Chamber runtime dispatch, and
-has not been validated by this feature.  This placeholder does not describe
-or alter ERF's existing atmospheric SurfaceLayer MOST implementation.
-Cloud Chamber MOST, smooth-wall, bulk-momentum, and law-of-the-wall inputs
-remain unsupported and are rejected.  ``neutral_roughness_log`` is the only
-roughness-log family activated by this phase.
 
 .. warning::
 
@@ -812,7 +808,7 @@ wall, so the conservative composed-operator bound is
    \qquad \lambda_m = \max_c \lambda_{m,c}.
 
 The implementation computes this bound with
-``neutral_momentum_infinity_row_sum_factor()`` and a finite-difference
+``momentum_infinity_row_sum_factor()`` and a finite-difference
 check exercises the actual wall-stress adapter followed by
 ``DiffusionSrcForMom`` at an oblique state.  Low/high storage signs do not
 change the absolute row sum; they only determine the physical drag sign.
@@ -882,9 +878,11 @@ Run checklist
 3. Define all six ``NoSlipWall`` faces and their temperatures.
 4. For SatAdj, provide RH as a fraction and choose dry or wet moisture walls.
 5. Set ``alpha_T`` and, when resolved vapor transfer is needed, ``alpha_C``.
-6. If using ``bulk_aero``, set ``coefficient_source = fixed`` and the required
-   ``C_H``/``C_E`` values; if using ``neutral_roughness_log``, provide the
-   required positive ``z0_*`` values; do not combine these keys with the
+6. If using ``bulk_aero``, set ``coefficient_source = fixed`` with the
+   required finite nonnegative ``C_D``/``C_H``/``C_E`` values, or
+   ``coefficient_source = most`` on ``zlo``/``zhi`` with the required positive
+   ``z0_*`` values.  If using ``neutral_roughness_log``, provide its required
+   positive ``z0_*`` values.  Do not combine per-channel keys with the
    aggregate wall key.
 7. Run a short case and inspect temperature, potential temperature, velocity,
    and, for SatAdj, ``qv``, ``qc``, saturation mixing ratio, and RH.
@@ -903,8 +901,9 @@ Stage 1 invariants
 * Wet walls are permitted only with SatAdj.
 * Bulk heat and vapor models are independently selectable; dry vapor and
   cloud-water wall fluxes remain exactly zero.
-* Resolved momentum remains generic no-slip; neutral momentum owns only
-  tangential cross-stress at physical chamber faces.
+* Momentum models may be resolved no-slip, fixed bulk aerodynamic, or
+  neutral-log; active rough/bulk momentum owns only tangential cross-stress at
+  physical chamber faces.
 * Neutral and bulk walls enforce ``fixed_dt <= dt_wall = 0.5 / max_wall_rate``.
 * Six dry walls conserve total nonprecipitating water.
 * Enabling budget output does not change the solution.
@@ -922,8 +921,11 @@ Troubleshooting
   always add water.
 * Interpret face signs using coordinate orientation before comparing wall
   gain or loss.
-* ``bulk_aero`` requires per-channel fixed coefficients and cannot be mixed
-  with ``wall_transfer_model`` on the same face.
+* ``bulk_aero`` requires a per-channel coefficient source and fixed
+  coefficients unless MOST is selected; it cannot be mixed with
+  ``wall_transfer_model`` on the same face.
+* ``coefficient_source = most`` is restricted to ``zlo``/``zhi`` and shares one
+  converged pointwise stability state across active bulk channels.
 * ``neutral_roughness_log`` requires explicit roughness lengths and the
   grid-relative inequality ``0 < z0_* < z_ref``; there are no calibrated
   defaults.

@@ -249,7 +249,7 @@ ERF::ERF_shared ()
             geom[0].ProbLo(), geom[0].ProbHi());
         const amrex::GpuArray<Real, AMREX_SPACEDIM> cloud_chamber_dx = {
             geom[0].CellSize(0), geom[0].CellSize(1), geom[0].CellSize(2)};
-        erf_cloud_chamber::validate_neutral_wall_geometry(
+        erf_cloud_chamber::validate_wall_roughness_geometry(
             cloud_chamber_config.wall_boundary(), cloud_chamber_dx);
     }
     {

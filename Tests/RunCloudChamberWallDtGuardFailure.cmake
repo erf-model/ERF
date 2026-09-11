@@ -17,7 +17,7 @@ if("${result}" STREQUAL "0")
 endif()
 
 foreach(expected IN ITEMS
-        "Cloud Chamber bulk wall timestep violation"
+        "Cloud Chamber wall-transfer timestep violation"
         "fixed_dt="
         "wall_dt="
         "max_wall_rate=")

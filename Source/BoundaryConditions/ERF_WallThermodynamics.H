@@ -24,7 +24,6 @@ enum class MoistureMode : unsigned char {
 enum class MomentumModel : unsigned char {
     ResolvedNoSlip,
     BulkAero,
-    LawOfWallMomentum,
     NeutralRoughnessLog
 };
 
@@ -37,7 +36,7 @@ enum class ScalarModel : unsigned char {
 enum class CoefficientProvider : unsigned char {
     None,
     Fixed,
-    MOSTFuture  // Reserved for future Cloud Chamber P3 work; not parser-selectable.
+    MOST
 };
 
 struct ThermalBoundary {

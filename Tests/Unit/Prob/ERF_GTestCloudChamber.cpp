@@ -511,6 +511,89 @@ TEST(CloudChamberWallFlux, CalmBulkWallIsExactlyZero)
     EXPECT_DOUBLE_EQ(calm.rhoTheta_in, Real(0.0));
 }
 
+// Fixed bulk momentum is a production wall model, not just parser metadata.
+// It must use the supplied C_D, act only on tangential velocity, and remain an
+// exact zero at rest.
+TEST(CloudChamberWallFlux, FixedBulkMomentumTractionAndCalmGate)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+
+    FaceWall wall;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::Fixed;
+    wall.momentum.C_D = Real(0.2);
+
+    MomentumWallSample sample;
+    sample.rho = Real(1.25);
+    sample.u_t = {Real(3.0), Real(4.0), Real(0.0)};
+    sample.U_t = Real(5.0);
+    const auto traction = evaluate_momentum_traction(wall, sample);
+    EXPECT_EQ(traction.owned_channels, OwnMomentum);
+    EXPECT_DOUBLE_EQ(traction.traction_on_fluid[0], -Real(1.25) * Real(0.2) * Real(5.0) * Real(3.0));
+    EXPECT_DOUBLE_EQ(traction.traction_on_fluid[1], -Real(1.25) * Real(0.2) * Real(5.0) * Real(4.0));
+    EXPECT_DOUBLE_EQ(traction.traction_on_fluid[2], Real(0.0));
+
+    sample.U_t = Real(0.0);
+    sample.u_t = {Real(0.0), Real(0.0), Real(0.0)};
+    const auto calm = evaluate_momentum_traction(wall, sample);
+    EXPECT_EQ(calm.owned_channels, OwnMomentum);
+    EXPECT_DOUBLE_EQ(calm.traction_on_fluid[0], Real(0.0));
+    EXPECT_DOUBLE_EQ(calm.traction_on_fluid[1], Real(0.0));
+    EXPECT_DOUBLE_EQ(calm.traction_on_fluid[2], Real(0.0));
+}
+
+// MOST is shared by the production flux and timestep paths.  This test keeps
+// the pointwise state contract visible: wet-wall thermodynamics, orientation,
+// and distinct scalar roughness lengths all affect the result.
+TEST(CloudChamberWallFlux, MOSTUsesWetStateOrientationAndSeparateRoughness)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0);
+    wall.moisture = MoistureMode::WetEquilibrium;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.01);
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = Real(0.02);
+    wall.vapor.model = ScalarModel::BulkAero;
+    wall.vapor.provider = CoefficientProvider::MOST;
+    wall.vapor.z0 = Real(0.04);
+
+    const auto zlo = most_wall_coefficients(
+        wall, Real(290.0), Real(0.005), Real(100000.0), Real(5.0), Real(0.5), 1);
+    const auto zhi = most_wall_coefficients(
+        wall, Real(290.0), Real(0.005), Real(100000.0), Real(5.0), Real(0.5), -1);
+    EXPECT_EQ(zlo.valid, 1);
+    EXPECT_EQ(zhi.valid, 1);
+    EXPECT_GT(zlo.C_D, Real(0.0));
+    EXPECT_GT(zlo.C_H, Real(0.0));
+    EXPECT_GT(zlo.C_E, Real(0.0));
+    EXPECT_NE(zlo.C_H, zlo.C_E);
+    EXPECT_NE(zlo.zeta, zhi.zeta);
+
+    // The conditioning floor is internal to MOST; the physical traction still
+    // multiplies the actual tangential speed and is exactly zero at rest.
+    MomentumWallSample calm;
+    calm.rho = Real(1.0);
+    calm.U_t = Real(0.0);
+    calm.theta_air = Real(290.0);
+    calm.qv_air = Real(0.005);
+    calm.p_hse = Real(100000.0);
+    calm.wall_distance = Real(0.5);
+    calm.gravity_sign = 1;
+    const auto calm_traction = evaluate_momentum_traction(wall, calm);
+    EXPECT_EQ(calm_traction.owned_channels, OwnMomentum);
+    EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[0], Real(0.0));
+    EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[1], Real(0.0));
+    EXPECT_DOUBLE_EQ(calm_traction.traction_on_fluid[2], Real(0.0));
+}
+
 // Motivation: bulk transfer must depend only on velocity tangent to the
 // wall. This uses the production staggered-array helper to catch normal
 // leakage and coordinate-rotation/indexing errors in all three directions.
@@ -1032,13 +1115,13 @@ TEST(CloudChamberNeutralLog, ComposedMomentumRowSumIncludesPerpendicularWalls)
     const GpuArray<Real, AMREX_SPACEDIM> low = {Real(1.0), Real(2.0), Real(3.0)};
     const GpuArray<Real, AMREX_SPACEDIM> high = {Real(4.0), Real(5.0), Real(6.0)};
     EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::neutral_momentum_row_sum_rate(0, low, high),
+        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(0, low, high),
         Real(16.0));
     EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::neutral_momentum_row_sum_rate(1, low, high),
+        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(1, low, high),
         Real(14.0));
     EXPECT_DOUBLE_EQ(
-        erf_cloud_chamber_wall_flux::neutral_momentum_row_sum_rate(2, low, high),
+        erf_cloud_chamber_wall_flux::momentum_row_sum_rate(2, low, high),
         Real(12.0));
 }
 
@@ -1167,9 +1250,9 @@ TEST(CloudChamberNeutralLog, ContractGeometryAndRateGates)
     walls[0].momentum.model = MomentumModel::NeutralRoughnessLog;
     walls[0].momentum.z0_m = Real(0.49);
     const amrex::GpuArray<Real, AMREX_SPACEDIM> dx = {Real(1.0), Real(2.0), Real(3.0)};
-    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx).empty());
+    EXPECT_TRUE(erf_cloud_chamber::wall_roughness_geometry_error(walls, dx).empty());
     walls[0].momentum.z0_m = Real(0.5);
-    const auto geometry_error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    const auto geometry_error = erf_cloud_chamber::wall_roughness_geometry_error(walls, dx);
     EXPECT_NE(geometry_error.find("xlo"), std::string::npos);
     EXPECT_NE(geometry_error.find("z0_m"), std::string::npos);
     EXPECT_NE(geometry_error.find("z_ref"), std::string::npos);
@@ -1183,7 +1266,7 @@ TEST(CloudChamberNeutralLog, ContractGeometryAndRateGates)
     const Real cd = neutral_log_momentum_state(U_t, Real(0.5)/dx_inv,
                                                 rate_wall.momentum.z0_m).C_D;
     EXPECT_NEAR(wall_rate_for_face(rate_wall, U_t, dx_inv),
-                neutral_momentum_infinity_row_sum_factor() * cd * U_t * dx_inv,
+                momentum_infinity_row_sum_factor() * cd * U_t * dx_inv,
                 scaled_tolerance(cd));
     EXPECT_DOUBLE_EQ(neutral_scalar_rate(Real(0.3), Real(0.0), dx_inv), Real(0.0));
     FaceWall dry_vapor;
@@ -1313,14 +1396,18 @@ TEST(CloudChamberNeutralLog, HostParserContractMatrix)
         neutral_provider, "xlo").find("coefficient_source"), std::string::npos);
 
     auto most = momentum_only();
-    most.momentum_model = "MOSTFuture";
+    most.momentum_model = "bulk_aero";
+    most.coefficient_source_specified = true;
+    most.coefficient_source = "most";
     EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
-        most, "xlo").find("supports only"), std::string::npos);
+        most, "xlo").find("coefficient_source = most"), std::string::npos);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        most, "zlo").empty());
 
     auto smooth = momentum_only();
     smooth.momentum_model = "law_of_wall_momentum";
-    EXPECT_NE(erf_cloud_chamber::wall_transfer_contract_error(
-        smooth, "xlo").find("supports only"), std::string::npos);
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        smooth, "xlo").empty());
 
     // Strict parsing still requires z0_q for a dry wall; the runtime dry
     // vapor gate is tested independently by MomentumAndScalarClosures.
@@ -1343,23 +1430,23 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
     walls[4].vapor.z0 = Real(1.49);
     const amrex::GpuArray<Real, AMREX_SPACEDIM> dx = {
         Real(1.0), Real(2.0), Real(3.0)};
-    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(
+    EXPECT_TRUE(erf_cloud_chamber::wall_roughness_geometry_error(
         walls, dx).empty());
 
     walls[0].momentum.z0_m = Real(0.5);
-    auto error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    auto error = erf_cloud_chamber::wall_roughness_geometry_error(walls, dx);
     EXPECT_NE(error.find("xlo"), std::string::npos);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
     walls[0].momentum.z0_m = Real(0.49);
 
     walls[2].heat.z0 = Real(1.0);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(walls, dx);
     EXPECT_NE(error.find("ylo"), std::string::npos);
     EXPECT_NE(error.find("z0_h"), std::string::npos);
     walls[2].heat.z0 = Real(0.99);
 
     walls[4].vapor.z0 = Real(1.5);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(walls, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(walls, dx);
     EXPECT_NE(error.find("zlo"), std::string::npos);
     EXPECT_NE(error.find("z0_q"), std::string::npos);
 
@@ -1368,17 +1455,17 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
     scalar_only[0].heat.model = ScalarModel::NeutralRoughnessLog;
     scalar_only[0].heat.z0 = Real(0.25);
     scalar_only[0].momentum.z0_m = Real(0.49);
-    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(
+    EXPECT_TRUE(erf_cloud_chamber::wall_roughness_geometry_error(
         scalar_only, dx).empty());
     scalar_only[0].momentum.z0_m = Real(0.0);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
     scalar_only[0].momentum.z0_m = Real(0.5);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("xlo"), std::string::npos);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
     scalar_only[0].momentum.z0_m = Real(0.51);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
 
     scalar_only = Boundary{};
@@ -1386,16 +1473,16 @@ TEST(CloudChamberNeutralLog, GeometryValidationUsesEveryActiveFace)
     scalar_only[0].vapor.model = ScalarModel::NeutralRoughnessLog;
     scalar_only[0].vapor.z0 = Real(0.25);
     scalar_only[0].momentum.z0_m = Real(0.49);
-    EXPECT_TRUE(erf_cloud_chamber::neutral_roughness_geometry_error(
+    EXPECT_TRUE(erf_cloud_chamber::wall_roughness_geometry_error(
         scalar_only, dx).empty());
     scalar_only[0].momentum.z0_m = Real(0.0);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
     scalar_only[0].momentum.z0_m = Real(0.5);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
     scalar_only[0].momentum.z0_m = Real(0.51);
-    error = erf_cloud_chamber::neutral_roughness_geometry_error(scalar_only, dx);
+    error = erf_cloud_chamber::wall_roughness_geometry_error(scalar_only, dx);
     EXPECT_NE(error.find("z0_m"), std::string::npos);
 }
 
@@ -1758,7 +1845,7 @@ TEST(CloudChamberNeutralLog, ComposedMomentumInfinityNormBound)
     const Real cd_z = std::pow(KAPPA / std::log(Real(0.5) / Real(0.02)),
                                Real(2.0));
     const Real bound =
-        erf_cloud_chamber_wall_flux::neutral_momentum_infinity_row_sum_factor() *
+        erf_cloud_chamber_wall_flux::momentum_infinity_row_sum_factor() *
         (cd_y * std::sqrt(u_base*u_base + w_base*w_base) +
          cd_z * std::sqrt(u_base*u_base + v_base*v_base));
     EXPECT_GT(row_sum, Real(0.0));

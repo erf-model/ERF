@@ -81,7 +81,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
-    MultiFab ccvel_N(grids[level],dmap[level],3,0);
+    // Keep the thermodynamic samples alongside the cell-centered velocity so
+    // the wall-rate reduction can call the same pointwise MOST evaluator as
+    // production wall transfer without allocating a second global temporary.
+    MultiFab ccvel_N(grids[level],dmap[level],6,0);
     MultiFab ccvel_T(grids[level],dmap[level],3,0);
 
     int klo = geom[level].Domain().smallEnd(2);
@@ -121,6 +124,24 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel],});
+
+    const bool chamber_cloudy = cloud_chamber_config.active &&
+        cloud_chamber_config.cloudy;
+    const MultiFab& chamber_base_state = base_state[level];
+    for (MFIter mfi(S_new); mfi.isValid(); ++mfi) {
+        const Array4<const Real> state = S_new.const_array(mfi);
+        const Array4<const Real> base = chamber_base_state.const_array(mfi);
+        const Array4<Real> velocity = ccvel_N.array(mfi);
+        const Box bx = mfi.validbox();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho = state(i,j,k,Rho_comp);
+            velocity(i,j,k,3) = state(i,j,k,RhoTheta_comp) / rho;
+            velocity(i,j,k,4) = chamber_cloudy ?
+                state(i,j,k,RhoQ1_comp) / rho : Real(0.0);
+            velocity(i,j,k,5) = base(i,j,k,BaseState::p0_comp);
+        });
+    }
 
     bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int  l_anelastic   = solverChoice.anelastic[level];
@@ -374,13 +395,21 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                      erf_cloud_chamber_wall_flux::
                                      tangential_speed_cell_centered(
                                          dir, i, j, k, velocity, wall);
+                                 const auto runtime =
+                                     erf_cloud_chamber_wall_flux::most_wall_coefficients(
+                                         wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                         velocity(i,j,k,5), U_t,
+                                         Real(0.5) / dxinv[dir],
+                                         dir == 2 ? 1 : 0);
                                  rate = amrex::max(rate,
                                      erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                         wall, U_t, dxinv[dir]));
+                                         wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                         velocity(i,j,k,5), U_t, dxinv[dir],
+                                         dir == 2 ? 1 : 0));
                                  low_momentum_rates[dir] =
                                      erf_cloud_chamber_wall_flux::
-                                     neutral_momentum_rate_for_face(
-                                         wall, U_t, dxinv[dir]);
+                                     momentum_rate_for_face(
+                                         wall, U_t, dxinv[dir], runtime);
                              }
                          }
                          if (high) {
@@ -390,18 +419,26 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                      erf_cloud_chamber_wall_flux::
                                      tangential_speed_cell_centered(
                                          dir, i, j, k, velocity, wall);
+                                 const auto runtime =
+                                     erf_cloud_chamber_wall_flux::most_wall_coefficients(
+                                         wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                         velocity(i,j,k,5), U_t,
+                                         Real(0.5) / dxinv[dir],
+                                         dir == 2 ? -1 : 0);
                                  rate = amrex::max(rate,
                                      erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                         wall, U_t, dxinv[dir]));
+                                         wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                         velocity(i,j,k,5), U_t, dxinv[dir],
+                                         dir == 2 ? -1 : 0));
                                  high_momentum_rates[dir] =
                                      erf_cloud_chamber_wall_flux::
-                                     neutral_momentum_rate_for_face(
-                                         wall, U_t, dxinv[dir]);
+                                     momentum_rate_for_face(
+                                         wall, U_t, dxinv[dir], runtime);
                              }
                          }
                      }
                      component_rate =
-                         erf_cloud_chamber_wall_flux::neutral_momentum_row_sum_rate(
+                         erf_cloud_chamber_wall_flux::momentum_row_sum_rate(
                              component, low_momentum_rates, high_momentum_rates);
                      momentum_rate = amrex::max(momentum_rate, component_rate);
                  }
