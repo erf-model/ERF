@@ -22,6 +22,7 @@ public:
      * @param[in] a_pp_prefix    ParmParse prefix
      * @param[in] m_mesh_type    mesh type
      * @param[in] m_terrain_type terrain representation
+     * @param[in] zlevels_stag   nominal staggered z levels for all AMR levels
      * @param[in] eb_vec         optional embedded-boundary geometry data
      */
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
@@ -29,6 +30,7 @@ public:
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
                           const TerrainType& m_terrain_type,
+                          const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
                           const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
@@ -320,6 +322,58 @@ public:
     [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
 
     /**
+     * Whether a height lies in the vertical extent [z_lo, z_hi) of a cell.
+     *
+     * The interval is closed below so that a query height landing exactly on a
+     * face (e.g. the default 10 m on a flat mesh with a 10 m first cell) belongs
+     * to the cell above it rather than to neither cell.
+     *
+     * @param[in] z    query height
+     * @param[in] z_lo height of the lower face
+     * @param[in] z_hi height of the upper face
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
+    static bool in_cell_z (const amrex::Real& z,
+                           const amrex::Real& z_lo,
+                           const amrex::Real& z_hi)
+    {
+        return ( (z >= z_lo) && (z < z_hi) );
+    }
+
+    /**
+     * Index of the highest cell whose center lies at or below a height above the
+     * bottom of the domain, on a column of staggered (face) heights.  This is the
+     * stretched-mesh counterpart of floor(zref/dz - 1/2) on a uniform mesh.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     * @param[in] zref    height above zlevels[0]
+     * @return the cell index, or -1 if zref lies below the first cell center
+     */
+    static int k_index_below (const amrex::Vector<amrex::Real>& zlevels,
+                              const amrex::Real& zref)
+    {
+        const int nz = static_cast<int>(zlevels.size()) - 1;
+        int lk = -1;
+        for (int k(0); k < nz; ++k) {
+            if (cell_center_height(zlevels, k) <= zref) { lk = k; } else { break; }
+        }
+        return lk;
+    }
+
+    /**
+     * Height of a cell center above the bottom of the domain, on a column of
+     * staggered (face) heights.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     * @param[in] k       cell index
+     */
+    static amrex::Real cell_center_height (const amrex::Vector<amrex::Real>& zlevels,
+                                           const int& k)
+    {
+        return myhalf * (zlevels[k] + zlevels[k+1]) - zlevels[0];
+    }
+
+    /**
      * Function to compute trilinear interpolation with terrain.
      *
      * @param[in] xp X-position
@@ -360,7 +414,7 @@ public:
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
             amrex::Real z_hi = fourth * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
-            if (z_target > z_lo && z_target < z_hi){
+            if (in_cell_z(z_target, z_lo, z_hi)) {
                 found = true;
                 zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
                 break;
@@ -443,6 +497,7 @@ protected:
     std::string m_pp_prefix;                                         // ParmParse prefix
     MeshType m_mesh_type;                                            // Mesh type
     TerrainType m_terrain_type;                                      // Terrain type
+    amrex::Vector<amrex::Vector<amrex::Real>> m_zlevels_stag;        // Nominal staggered z levels (maxlev)
 
     // General vars for multiple or all policies
     //--------------------------------------------

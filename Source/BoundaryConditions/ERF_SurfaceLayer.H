@@ -48,6 +48,7 @@ public:
    * @param[in]     a_pp_prefix         ParmParse prefix used by MOST averages
    * @param[in]     Qv_prim             primitive water-vapor fields by level
    * @param[in]     z_phys_nd           nodal physical-height fields by level
+   * @param[in]     zlevels_stag        nominal staggered z levels by level
    * @param[in]     a_mesh_type         mesh type
    * @param[in]     a_terrain_type      terrain representation
    * @param[in]     a_turb_choice       turbulence-model options
@@ -61,6 +62,7 @@ public:
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                         const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
@@ -75,7 +77,8 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb_vec)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
+         zlevels_stag, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
