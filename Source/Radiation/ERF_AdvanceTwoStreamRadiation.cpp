@@ -19,12 +19,26 @@ using namespace amrex;
 
 
 namespace {
+// Fill a 2D surface-energy-balance field from the LSM field of the given
+// name, scaled by `scale` (Noah-MP's fira is positive upward, the SEB wants
+// absorbed fluxes positive), plus an optional second field added on top
+// (Noah-MP splits absorbed shortwave into sav and sag). Falls back to the
+// scalar default when the LSM does not expose the field.
+bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
+{
+    std::string varname(field_name);
+    const int lsm_idx = lsm.Get_DataIdx(lev, varname);
+    return (lsm_idx >= 0) && (lsm.Get_Data_Ptr(lev, lsm_idx) != nullptr);
+}
+
 void fill_or_copy_seb_field(
     MultiFab* seb_mf,
     LandSurface& lsm,
     int lev,
     const char* field_name,
-    amrex::Real fallback_value)
+    amrex::Real fallback_value,
+    amrex::Real scale = 1.0,
+    const char* add_field_name = nullptr)
 {
     if (seb_mf == nullptr) return;
 
@@ -33,6 +47,16 @@ void fill_or_copy_seb_field(
     if (lsm_idx >= 0) {
         if (MultiFab* lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx)) {
             MultiFab::Copy(*seb_mf, *lsm_ptr, 0, 0, 1, 0);
+            if (scale != 1.0) seb_mf->mult(scale, 0, 1, 0);
+            if (add_field_name != nullptr) {
+                std::string addname(add_field_name);
+                int add_idx = lsm.Get_DataIdx(lev, addname);
+                if (add_idx >= 0) {
+                    if (MultiFab* add_ptr = lsm.Get_Data_Ptr(lev, add_idx)) {
+                        MultiFab::Add(*seb_mf, *add_ptr, 0, 0, 1, 0);
+                    }
+                }
+            }
             return;
         }
     }
@@ -197,6 +221,18 @@ void ERF::compute_twostream_radiation_diagnostics(
         // computes and logs CSV diagnostics but skips the per-level heating write.
         MultiFab* qheating_mf = qheating_rates[lev].get();
 
+        // Surface radiative fluxes for the SEB. Precedence: an LSM field when
+        // the LSM exposes one; otherwise, with seb_use_radiation_fluxes, the
+        // fluxes the column sweep below computes at the surface (written per
+        // column by the sweep and left in place for the post-dycore call);
+        // otherwise the scalar defaults.
+        const bool sw_flux_from_rad = rad_choice.seb_enable &&
+                                      rad_choice.seb_use_radiation_fluxes &&
+                                      !lsm_has_field(lsm, lev, "sav");
+        const bool lw_flux_from_rad = rad_choice.seb_enable &&
+                                      rad_choice.seb_use_radiation_fluxes &&
+                                      !lsm_has_field(lsm, lev, "fira");
+
         if (rad_choice.seb_enable) {
             fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
@@ -208,8 +244,21 @@ void ERF::compute_twostream_radiation_diagnostics(
                 fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
 
-            fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav", rad_choice.seb_sw_flux_default);
-            fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira", rad_choice.seb_lw_flux_default);
+            // Net absorbed shortwave: Noah-MP splits it into the canopy (sav)
+            // and ground (sag) parts. Net longwave: Noah-MP's fira is the
+            // net flux to the atmosphere (positive up); the SEB wants the
+            // absorbed flux, so the sign flips.
+            if (!sw_flux_from_rad) {
+                fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav",
+                                       rad_choice.seb_sw_flux_default, 1.0, "sag");
+            }
+            if (!lw_flux_from_rad) {
+                fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira",
+                                       rad_choice.seb_lw_flux_default, -1.0);
+            }
+            // The LSM data lists carry no sensible or latent heat flux under
+            // these names, so H and LE come from the scalar defaults unless a
+            // model exposes them; G is Noah-MP's grdflx when present.
             fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
             fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
             fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
@@ -218,8 +267,12 @@ void ERF::compute_twostream_radiation_diagnostics(
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
             }
-            fill_or_copy_seb_field(t_deep[lev].get(), lsm, lev, "smstav", rad_choice.seb_t_deep_default);
-            fill_or_copy_seb_field(q_deep[lev].get(), lsm, lev, "smstot", rad_choice.seb_q_deep_default);
+            // No LSM exposes a deep-soil temperature or moisture in kg/kg by
+            // name (Noah-MP's smstav / smstot are soil-moisture availability
+            // and total column water), so the reservoir values are the
+            // scalar defaults.
+            t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+            q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
         }
 
         // The column sweep integrates the whole atmospheric column in one
@@ -315,6 +368,12 @@ void ERF::compute_twostream_radiation_diagnostics(
                 }
             }
 
+
+            // Surface flux arrays the sweep fills for the SEB when asked to.
+            Array4<amrex::Real> sw_sfc_out;
+            Array4<amrex::Real> lw_sfc_out;
+            if (sw_flux_from_rad) sw_sfc_out = sw_flux_sfc[lev]->array(mfi);
+            if (lw_flux_from_rad) lw_sfc_out = lw_flux_sfc[lev]->array(mfi);
 
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
@@ -434,6 +493,11 @@ void ERF::compute_twostream_radiation_diagnostics(
                             }
                         }
                     }
+
+                    // Surface fluxes for the SEB: absorbed shortwave, and the
+                    // absorbed longwave, which is minus the net (up - down).
+                    if (sw_flux_from_rad) sw_sfc_out(i, j, 0) = sw_flux_col;
+                    if (lw_flux_from_rad) lw_sfc_out(i, j, 0) = -lw_net_col;
 
                     // Return tuple for reduction
                     return {max_heating_col, sw_flux_col, sw_up_col, lw_net_col, lw_up_col};
@@ -674,7 +738,8 @@ void ERF::compute_twostream_radiation_diagnostics(
         // cloud/tau/scattering parameters applied to every column), so the
         // domain-averaged value still equals the true single-column flux there.
         // True horizontal heterogeneity (e.g., patchy clouds varying by column)
-        // remains deferred to future work; see RAD_DEVELOPMENT.md.
+        // remains deferred to future work; see
+        // Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md.
         if (do_sweep) {
             if (n_columns_total > 0) {
                 const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);

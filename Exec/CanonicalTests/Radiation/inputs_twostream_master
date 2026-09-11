@@ -129,6 +129,7 @@ erf.radiation.time_zone_offset_hours        = 0.0     # Time zone offset from UT
 #            (MultiFab allocation + Noah-MP passthrough fallback defaults)
 # ==============================================================================
 erf.radiation.seb_enable            = false    # Master switch for SEB infrastructure (MultiFab allocation for sw/lw/hfx/lh/grdflx/t_sfc/q_sfc/t_deep/q_deep). Bool. Default: false
+erf.radiation.seb_use_radiation_fluxes = false  # Take the SEB net SW/LW surface fluxes from the sweep where the LSM has none. Default: false
 erf.radiation.seb_sw_flux_default   = 0.0      # Fallback net SW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
 erf.radiation.seb_lw_flux_default   = 0.0      # Fallback net LW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
 erf.radiation.seb_hfx_default       = 0.0      # Fallback sensible heat flux [W/m^2], used when no LSM field is available. Default: 0.0

@@ -30,7 +30,6 @@ Main configuration file. Key parameters:
 - `erf.enable_ysu_topdown = true` — Enable top-down mixing (LW radiation coupling)
 - `erf.enable_ysu_rad_tend_limiter = false` — Limiter disabled by default (baseline test)
 - `erf.ysu_rad_tend_limiter_magnitude = 1.0` — Bounds parameter [K/s]
-- `erf.ysu_rad_tend_smooth_strength = 0.0` — Smoothing parameter [0,1]
 
 ### `input_sounding_ysu`
 Initial sounding profile (pressure-theta-qv-u-v):

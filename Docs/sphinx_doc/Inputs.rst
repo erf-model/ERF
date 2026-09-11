@@ -1711,6 +1711,12 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_rad_tend_limiter**      | YSUNew only: replace a non-finite radiative tendency at  | Boolean            | false            |
+|                                          | cloud top by zero and bound it before the top-down       |                    |                  |
+|                                          | mixing velocity is formed from it                        |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_rad_tend_limiter_magnitude**   | Bound on that tendency [K/s]; must be positive           | Real               | 1.0              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_coriolis_freq**            | Coriolis frq. used for MRF PBL Scheme                    | Real               | 1.0e-4           |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_Ribcr**                    | Over land critical Richardson number for MRF PBL Scheme  | Real               | 0.5              |
@@ -3444,6 +3450,9 @@ Two-Stream Radiation Model Parameters
 | **Simplified Surface Energy Balance (SEB) Params** |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_enable**                       | Master switch for SEB infrastructure                       | Boolean            | false            |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_use_radiation_fluxes**         | Take the SEB net surface SW and LW fluxes from the         | Boolean            | false            |
+|                                                    | two-stream sweep where the LSM does not supply them        |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

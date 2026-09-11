@@ -1,6 +1,7 @@
 #ifndef ERF_TURB_STRUCT_H_
 #define ERF_TURB_STRUCT_H_
 
+#include <AMReX_ParallelDescriptor.H>
 #include <ERF_MYNNStruct.H>
 
 /**
@@ -233,17 +234,19 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
-        // Radiative tendency smoothing/limiter (YSUNew-only)
+        // Radiative tendency limiter (YSUNew-only)
         query_one_or_per_level(
           pp, "enable_ysu_rad_tend_limiter", enable_ysu_rad_tend_limiter, lev, max_level);
         query_one_or_per_level(
           pp, "ysu_rad_tend_limiter_magnitude", ysu_rad_tend_limiter_magnitude, lev, max_level);
-        query_one_or_per_level(
-          pp, "ysu_rad_tend_smooth_strength", ysu_rad_tend_smooth_strength, lev, max_level);
-        // Validation for smoothing parameter
-        if (ysu_rad_tend_smooth_strength < 0.0) ysu_rad_tend_smooth_strength = 0.0;
-        if (ysu_rad_tend_smooth_strength > 1.0) ysu_rad_tend_smooth_strength = 1.0;
-        if (ysu_rad_tend_limiter_magnitude < 0.0) ysu_rad_tend_limiter_magnitude = 1.0;
+        if (!(ysu_rad_tend_limiter_magnitude > 0.0)) {
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "WARNING: erf.ysu_rad_tend_limiter_magnitude = "
+                               << ysu_rad_tend_limiter_magnitude
+                               << " is not positive; using the default of 1.0 K/s\n";
+            }
+            ysu_rad_tend_limiter_magnitude = amrex::Real(1.0);
+        }
         // Vogelezang & Holtslag (1996) shear correction
         query_one_or_per_level(
           pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
@@ -594,8 +597,6 @@ public:
                      << enable_ysu_rad_tend_limiter << std::endl;
       amrex::Print() << "    ysu_rad_tend_limiter_magnitude     : "
                      << ysu_rad_tend_limiter_magnitude << std::endl;
-      amrex::Print() << "    ysu_rad_tend_smooth_strength       : "
-                     << ysu_rad_tend_smooth_strength << std::endl;
       amrex::Print() << "    enable_vh96_shear_correction       : "
                      << enable_vh96_shear_correction << std::endl;
       amrex::Print() << "    vh96_shear_const_b                 : "
@@ -819,10 +820,9 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
-  // Radiative tendency smoothing/limiter (YSUNew-only)
-  bool enable_ysu_rad_tend_limiter = false; // if true, apply limiter/guard to qheating_rates coupling
-  amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on limited radiative tendency (K/s)
-  amrex::Real ysu_rad_tend_smooth_strength = amrex::Real(0.0); // Smoothing strength parameter [0, 1]
+  // Radiative tendency limiter (YSUNew-only)
+  bool enable_ysu_rad_tend_limiter = false; // if true, guard and bound the qheating_rates top-down forcing
+  amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on the limited radiative tendency (K/s)
   // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
   bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
   amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b

@@ -343,6 +343,16 @@ public:
   bool seb_enable = false;
 
   /**
+   * @brief Take the SEB's net surface shortwave and longwave fluxes from the
+   * two-stream sweep itself (per column, absorbed fluxes positive) wherever
+   * the LSM does not expose them. When false (default) those fluxes are the
+   * LSM fields or, without an LSM, the seb_sw_flux_default and
+   * seb_lw_flux_default constants. Sensible, latent and ground heat fluxes
+   * are unaffected.
+   */
+  bool seb_use_radiation_fluxes = false;
+
+  /**
    * @brief Fallback SEB surface net shortwave flux [W/m^2].
    */
   amrex::Real seb_sw_flux_default = 0.0;
@@ -727,6 +737,15 @@ public:
                         "TwoStream.\n";
     }
 
+    // The column sweep needs every box to hold the whole atmospheric column
+    // of its level, which fine-level boxes never do; there is no coarse-fine
+    // treatment of the fluxes yet either. Stop here with the reason rather
+    // than at the first fine-level radiation call.
+    if (rad_type == RadType::TwoStream && max_level > 0) {
+      amrex::Abort("erf.radiation_type = TwoStream runs on a single level; "
+                   "set amr.max_level = 0 or select another radiation model.");
+    }
+
     // Only query sub-options if TwoStream radiation is selected
     if (rad_type == RadType::TwoStream) {
       pp.query("radiation.sw_enabled", sw_enabled);
@@ -971,6 +990,7 @@ public:
 
       // Simplified SEB infrastructure fallback parameters
       pp.query("radiation.seb_enable", seb_enable);
+      pp.query("radiation.seb_use_radiation_fluxes", seb_use_radiation_fluxes);
       pp.query("radiation.seb_sw_flux_default", seb_sw_flux_default);
       pp.query("radiation.seb_lw_flux_default", seb_lw_flux_default);
       pp.query("radiation.seb_hfx_default", seb_hfx_default);

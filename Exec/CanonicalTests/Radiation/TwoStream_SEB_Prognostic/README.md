@@ -168,6 +168,18 @@ python check_seb_prognostic.py restart
 # Verify: T_s_mean/T_s_max/q_s_mean/q_s_max agree with the fresh run to 1e-6 from step 36 on
 ```
 
+### Coupled Mode
+`inputs_seb_prognostic_coupled` sets `erf.radiation.seb_use_radiation_fluxes = true`,
+so the net surface shortwave and longwave fluxes of the SEB are the two-stream
+sweep's own per-column surface fluxes instead of `seb_sw_flux_default` and
+`seb_lw_flux_default` (H, LE and G stay at their defaults). The checker verifies
+that `SEB_residual_mean = SW_surface - LW_net_surface - (H + LE + G)` on every
+post_dycore row and that the fluxes differ from the defaults.
+```bash
+erf inputs_seb_prognostic_coupled
+python check_seb_prognostic.py coupled
+```
+
 ## Implementation Summary
 
 ### New Files

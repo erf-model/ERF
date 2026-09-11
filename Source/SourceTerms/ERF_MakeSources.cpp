@@ -255,22 +255,9 @@ void make_sources (int level,
                                                                Array4<const Real>{};
 
 
-        /*// *************************************************************************************
-        // two Add radiation source terms to (rho theta)
-        // *************************************************************************************
-        // 2. Add radiation source terms to (rho theta)
-        // *************************************************************************************
-        if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
-            auto const& qheating_arr = qheating_rates->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Short-wavelength and long-wavelength radiation source terms
-                cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
-            });
-        }*/
 
         // *************************************************************************************
-        // two Add radiation source terms to (rho theta)
+        // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
         // The gate covers both radiation solvers: RRTMGP, selected by
         // erf.radiation_model (SolverChoice::rad_type), and two-stream,

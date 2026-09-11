@@ -772,14 +772,23 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(ParticleAdvect_AMR2_pcount    ""  "erf_exec" "plt00050" 1e-7 5e-9 RUNTIME_OPTIONS "erf.vert_implicit=false ")
   endif()
 endif( )
-if(ERF_ENABLE_RRTMGP)
+# The option name used to be misspelled (ERF_ENABLE_RRGMTP), which kept this
+# test unregistered; Tests/test_files/Radiation has never existed, so it is
+# registered only once someone adds the inputs.
+if(ERF_ENABLE_RRTMGP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_files/Radiation")
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
 
 # TwoStream radiation needs no external library and no gold plotfiles: the
 # column-physics checker verifies the vertical structure of the heating
 # rates, and the header test verifies that qsrc_sw/qsrc_lw are written.
-add_test_two_stream_radiation(TwoStream_ColumnHeating "plt00002")
+# The column test runs through cmake -P and execute_process, which needs a
+# launcher and a resolved executable path; the Windows job builds without
+# MPI and resolves test executables through sh -c globs, so it is skipped
+# there like the other script-driven tests.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  add_test_two_stream_radiation(TwoStream_ColumnHeating "plt00002")
+endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")

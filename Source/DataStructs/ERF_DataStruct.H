@@ -9,16 +9,6 @@
 #include <AMReX_Gpu.H>
 #include <AMReX_Geometry.H>
 
-#include <ERF_Constants.H>
-#include <ERF_IndexDefines.H>
-#include <ERF_AdvStruct.H>
-#include <ERF_DampingStruct.H>
-#include <ERF_DiffStruct.H>
-#include <ERF_EBStruct.H>
-#include <ERF_SpongeStruct.H>
-#include <ERF_TurbStruct.H>
-#include <ERF_TurbPertStruct.H>
-#include <ERF_RadStruct.H>
 #include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_AdvStruct.H"
@@ -28,6 +18,7 @@
 #include "ERF_SpongeStruct.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
 
 /**

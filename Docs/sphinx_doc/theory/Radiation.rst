@@ -244,8 +244,29 @@ is enough to satisfy this. The model aborts with a message naming this input if 
 vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
 depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
 
+Limitations
+--------------------------------------
+
+- **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
+  never holds a whole column of its level, so ``erf.radiation_type = TwoStream`` requires
+  ``amr.max_level = 0``. The run stops at start-up with a message saying so.
+- **Solar time base.** With ``solar_geometry_dynamic_enable`` the hour angle is formed from the
+  simulation time modulo 86400 s, i.e. the run is taken to start at 00:00 UTC on
+  ``day_of_year``; ``start_datetime`` is not read by this model.
+- **Diagnostics file.** ``radiation_diag.dat`` (``erf.radiation.diag_file``) is appended to in
+  the run directory by default, with a ``pre_dycore`` and a ``post_dycore`` row per step; set
+  ``erf.radiation.diag_csv_enable = false`` to turn it off.
+
 Surface Energy Balance
 --------------------------------------
+
+The net surface shortwave and longwave fluxes come from the land-surface model when it exposes
+them (Noah-MP's absorbed shortwave ``sav + sag`` and, with the sign flipped to absorbed, its net
+longwave ``fira``); otherwise, with ``erf.radiation.seb_use_radiation_fluxes = true``, from the
+two-stream sweep's own surface fluxes in every column; otherwise from the scalar
+``seb_sw_flux_default`` and ``seb_lw_flux_default``. The sensible, latent and ground heat fluxes
+and the deep-soil reservoir values are the scalar defaults unless the land-surface model exposes
+them by name (``grdflx`` for the ground heat flux).
 
 The surface energy balance residual is defined as the net radiative flux minus the turbulent and
 ground heat fluxes:

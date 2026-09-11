@@ -11,6 +11,8 @@ Validates that:
 6. Each step changes T_s by dt * dT_s/dt (the Euler step uses the step size)
 7. (mode "restart") a run restarted from the mid-run checkpoint continues the
    fresh run's T_s and q_s
+8. (mode "coupled") with seb_use_radiation_fluxes the residual is built from the
+   sweep's own surface fluxes
 """
 
 import sys
@@ -326,6 +328,47 @@ def check_restart():
     print(f"PASS: {n} values agree to {worst:.1e} across the restart")
     return True
 
+def check_coupled():
+    """With seb_use_radiation_fluxes the SEB residual must be built from the
+    sweep's own surface fluxes: SW_surface (absorbed shortwave) minus
+    LW_net_surface (the CSV's net up - down longwave) minus the constant H, LE
+    and G of the deck. Without the coupling the residual is the constant
+    (50 - 25) - 10 - 20 - 5 = -10 W/m^2 of the scalar defaults."""
+    print("\n" + "=" * 80)
+    print("COUPLED CASE CHECK (seb_use_radiation_fluxes=true)")
+    print("=" * 80)
+    data = read_csv("radiation_seb_prog_coupled.dat")
+    if data is None:
+        return False
+    rows = [r for r in data['rows'] if r.get('call_site') == 'post_dycore']
+    if not rows:
+        print("FAIL: no post_dycore rows")
+        return False
+    h_le_g = 10.0 + 20.0 + 5.0
+    worst = 0.0
+    n_rad = 0
+    for r in rows:
+        sw = r.get('SW_surface'); lw = r.get('LW_net_surface'); res = r.get('SEB_residual_mean')
+        if not all(isinstance(v, float) and math.isfinite(v) for v in (sw, lw, res)):
+            print(f"FAIL: non-finite flux or residual at step {r.get('step')}")
+            return False
+        expected = sw - lw - h_le_g
+        worst = max(worst, abs(res - expected) / max(abs(expected), 1.0))
+        if abs(sw - 50.0) > 1.0 or abs(-lw - (-25.0)) > 1.0:
+            n_rad += 1
+    r0 = rows[0]
+    print(f"  step {int(r0['step'])}: SW_surface {float(r0['SW_surface']):.2f}, "
+          f"LW_net_surface {float(r0['LW_net_surface']):.2f}, "
+          f"SEB_residual_mean {float(r0['SEB_residual_mean']):.2f} W/m^2")
+    if worst > 1.0e-4:
+        print(f"FAIL: residual is not SW_surface - LW_net_surface - (H + LE + G); worst rel. error {worst:.3e}")
+        return False
+    if n_rad == 0:
+        print("FAIL: the surface fluxes equal the scalar defaults; the sweep did not supply them")
+        return False
+    print(f"PASS: {len(rows)} rows close the budget with the sweep's surface fluxes")
+    return True
+
 def main():
     if len(sys.argv) > 1:
         mode = sys.argv[1]
@@ -335,6 +378,8 @@ def main():
             return 0 if check_feature_on() else 1
         elif mode == "restart":
             return 0 if check_restart() else 1
+        elif mode == "coupled":
+            return 0 if check_coupled() else 1
         else:
             print(f"Unknown mode: {mode}")
             return 1

@@ -17,7 +17,7 @@ The TwoStream implementation provides shortwave and longwave column radiation, o
 | Time Integration and Diagnostics Cadence | Consistent repeated calling and call-site identity | diagnostic call-site and output controls | `TwoStream_TimeIntegration`, `TwoStream_Benchmark_Suite` |
 | Surface Heterogeneity | Column-varying albedo, emissivity, and skin temperature with fallback | surface scalar fallback controls and LSM/Noah-MP field ingestion | `TwoStream_SurfaceHeterogeneity` |
 | Dynamic Optical Depth | Moisture- and cloud-aware `tau(k)` diagnosis | dynamic optical-depth switches and fallback controls | `TwoStream_DynamicTau_MoistCloud`, `TwoStream_NonuniformDZ` |
-| PBL Coupling | YSUNew radiative tendency coupling, limiting, and smoothing hooks | `enable_ysu_topdown`, `enable_ysu_rad_tend_limiter`, `ysu_rad_tend_*` | `TwoStream_PBL_MRF_YSU_Coupling` |
+| PBL Coupling | YSUNew radiative tendency coupling and limiting | `enable_ysu_topdown`, `enable_ysu_rad_tend_limiter`, `ysu_rad_tend_*` | `TwoStream_PBL_MRF_YSU_Coupling` |
 | Prognostic Cloud Fraction | RH/`qc`-based cloud-fraction diagnosis | prognostic cloud-fraction controls | `TwoStream_ProgCloudFraction` |
 | Aerosol/Turbidity | Prescribed aerosol optical-depth contributions | aerosol/turbidity profile controls | `TwoStream_Aerosol_Turbidity` |
 | Solar Geometry | Time-varying zenith-angle computation | `solar_geometry_dynamic_enable`, `latitude_deg`, `longitude_deg`, `day_of_year`, `time_zone_offset_hours` | `TwoStream_DiurnalSolarGeometry` |
@@ -277,7 +277,6 @@ with optional smoothing strength reserved for controlled damping of extreme radi
 - `enable_ysu_topdown`
 - `enable_ysu_rad_tend_limiter`
 - `ysu_rad_tend_limiter_magnitude`
-- `ysu_rad_tend_smooth_strength`
 
 ### Backward-Compatibility Notes
 

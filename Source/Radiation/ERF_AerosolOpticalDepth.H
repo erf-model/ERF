@@ -26,7 +26,7 @@
  *
  * References:
  * -----------
- * - See Radiation Development notes (Source/Radiation/RAD_DEVELOPMENT.md) for implementation details.
+ * - See Radiation Development notes (Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md) for implementation details.
  */
 
 /**

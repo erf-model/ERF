@@ -89,7 +89,6 @@ erf.ysu_moistvars                  = false    # Turbulence on moisture variables
 # Disabled by default to preserve the feature-off baseline behavior
 erf.enable_ysu_rad_tend_limiter    = false    # if true, apply finite guards and bounds to qheating_rates
 erf.ysu_rad_tend_limiter_magnitude = 1.0      # Magnitude bound on radiative tendency (K/s)
-erf.ysu_rad_tend_smooth_strength   = 0.0      # Smoothing parameter [0, 1]; 0=off, 1=max
 
 # CORIOLIS EFFECT
 erf.latitude = 45.0  # mid-latitude (f = 1.0e-4 s^-1)
