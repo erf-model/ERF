@@ -13,6 +13,7 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
         auto rho = mic_fab_vars[MicVar_WSM6::rho]->array(mfi);
         auto theta = mic_fab_vars[MicVar_WSM6::theta]->array(mfi);
         auto tabs = mic_fab_vars[MicVar_WSM6::tabs]->array(mfi);
+        auto pres = mic_fab_vars[MicVar_WSM6::pres]->const_array(mfi);
 
         auto qv = mic_fab_vars[MicVar_WSM6::qv]->array(mfi);
         auto qc = mic_fab_vars[MicVar_WSM6::qc]->array(mfi);
@@ -20,17 +21,15 @@ WSM6::Copy_Micro_to_State(MultiFab& cons)
         auto qr = mic_fab_vars[MicVar_WSM6::qr]->array(mfi);
         auto qs = mic_fab_vars[MicVar_WSM6::qs]->array(mfi);
         auto qg = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
+        const Real rdOcp = m_rdOcp;
+        const bool use_anelastic_reference_pressure =
+            m_use_anelastic_reference_pressure;
 
         ParallelFor(box3d, [=]
                     AMREX_GPU_DEVICE(int i, int j, int k) {
-            theta(i,j,k) = getThgivenRandT(rho(i,j,k), tabs(i,j,k), RdoCp, qv(i,j,k));
-            states(i,j,k,RhoTheta_comp) = rho(i,j,k) * theta(i,j,k);
-            states(i,j,k,RhoQ1_comp) = rho(i,j,k) * amrex::max(Real(0), qv(i,j,k));
-            states(i,j,k,RhoQ2_comp) = rho(i,j,k) * amrex::max(Real(0), qc(i,j,k));
-            states(i,j,k,RhoQ3_comp) = rho(i,j,k) * amrex::max(Real(0), qi(i,j,k));
-            states(i,j,k,RhoQ4_comp) = rho(i,j,k) * amrex::max(Real(0), qr(i,j,k));
-            states(i,j,k,RhoQ5_comp) = rho(i,j,k) * amrex::max(Real(0), qs(i,j,k));
-            states(i,j,k,RhoQ6_comp) = rho(i,j,k) * amrex::max(Real(0), qg(i,j,k));
+            wsm6_copy_micro_to_state_cell(
+                states, theta, rho, tabs, pres, qv, qc, qi, qr, qs, qg,
+                use_anelastic_reference_pressure, rdOcp, i, j, k);
         });
     }
 

@@ -46,6 +46,17 @@ WSM6::Init(const MultiFab& cons_in,
 void
 WSM6::Copy_State_to_Micro(const MultiFab& cons_in)
 {
+    Copy_State_to_Micro(cons_in, nullptr);
+}
+
+void
+WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
+                          const MultiFab* base_state)
+{
+    assert_base_state_available(base_state);
+    const bool use_anelastic_reference_pressure =
+        m_use_anelastic_reference_pressure;
+
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         // Match Morrison behavior: refresh microphysics ghost zones from state.
         // WSM6 Fortran reads the full (ims:ime, jms:jme, kms:kme) slab.
@@ -56,31 +67,28 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in)
         auto theta = mic_fab_vars[MicVar_WSM6::theta]->array(mfi);
         auto tabs = mic_fab_vars[MicVar_WSM6::tabs]->array(mfi);
         auto pres = mic_fab_vars[MicVar_WSM6::pres]->array(mfi);
-
+        const auto base_array = base_state ? base_state->const_array(mfi) : Array4<Real const>{};
         auto qv = mic_fab_vars[MicVar_WSM6::qv]->array(mfi);
         auto qc = mic_fab_vars[MicVar_WSM6::qc]->array(mfi);
         auto qi = mic_fab_vars[MicVar_WSM6::qi]->array(mfi);
         auto qr = mic_fab_vars[MicVar_WSM6::qr]->array(mfi);
         auto qs = mic_fab_vars[MicVar_WSM6::qs]->array(mfi);
         auto qg = mic_fab_vars[MicVar_WSM6::qg]->array(mfi);
+        const Real rdOcp = m_rdOcp;
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            rho(i,j,k) = states(i,j,k,Rho_comp);
-            theta(i,j,k) = states(i,j,k,RhoTheta_comp) / states(i,j,k,Rho_comp);
-
-            qv(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ1_comp) / states(i,j,k,Rho_comp));
-            qc(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ2_comp) / states(i,j,k,Rho_comp));
-            qi(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ3_comp) / states(i,j,k,Rho_comp));
-            qr(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ4_comp) / states(i,j,k,Rho_comp));
-            qs(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ5_comp) / states(i,j,k,Rho_comp));
-            qg(i,j,k) = amrex::max(Real(0.0), states(i,j,k,RhoQ6_comp) / states(i,j,k,Rho_comp));
-
-            tabs(i,j,k) = getTgivenRandRTh(states(i,j,k,Rho_comp),
-                                           states(i,j,k,RhoTheta_comp),
-                                           qv(i,j,k));
-            pres(i,j,k) = getPgivenRTh(states(i,j,k,RhoTheta_comp), qv(i,j,k));
+            wsm6_copy_state_to_micro_cell(
+                states, base_array, rho, theta, tabs, pres, qv, qc, qi, qr,
+                qs, qg, rdOcp, use_anelastic_reference_pressure, i, j, k);
         });
     }
+}
+
+void
+WSM6::Update_Micro_Vars(MultiFab& cons_in,
+                        const MultiFab* base_state)
+{
+    Copy_State_to_Micro(cons_in, base_state);
 }
 
 void
