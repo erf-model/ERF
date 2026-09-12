@@ -1,0 +1,6 @@
+FILE = inputs_base
+
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83
+erf.ibseb.csv_file = "ibseb_gray.csv"
+erf.ibseb.dump_faces_file = "faces_gray"

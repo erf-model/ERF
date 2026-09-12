@@ -66,6 +66,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    SuperDroplets.rst
    ProblemInputs.rst
    theory/Forest.rst
+   theory/ImmersedBoundarySEB.rst
    theory/HindCast.rst
    theory/UnitsAndConstants.rst
 

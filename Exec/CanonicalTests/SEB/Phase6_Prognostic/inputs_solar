@@ -1,0 +1,20 @@
+FILE = inputs_base
+
+# The sun rising over the cube at Boulder on the June solstice: the run
+# starts at 05:00 solar time (12:00 UTC with the -7 h zone), 25 minutes
+# after sunrise with the sun 4 degrees up in the east-north-east, and runs
+# 90 minutes at 0.5 s. The east wall lights up first, then the roof; the
+# west wall waits for the afternoon. Dumped every 60 s for the plots and
+# the ordering check.
+erf.ibseb.sun_mode = "solar"
+erf.ibseb.latitude_deg = 40.0
+erf.ibseb.longitude_deg = -105.0
+erf.ibseb.day_of_year = 172
+erf.ibseb.utc_offset_hours = -7.0
+erf.ibseb.time_zero_utc_s = 43200.0
+erf.ibseb.csv_int = 120
+erf.ibseb.csv_file = "ibseb_solar.csv"
+erf.ibseb.dump_faces_file = "faces_solar"
+erf.ibseb.dump_faces_tag_step = true
+erf.plot_int_1 = 10800
+max_step = 10800

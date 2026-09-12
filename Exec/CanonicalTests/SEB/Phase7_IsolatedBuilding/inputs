@@ -1,0 +1,89 @@
+# Canonical case: the surface energy balance of an isolated building over a
+# day. A 40 m concrete cube (an exact box) at the centre of a 320 m periodic
+# domain on a 10 m grid in a 3 m/s westerly, neutral at 300 K, at Boulder on the June
+# solstice, from midnight solar time for 24 hours. Clear sky from the
+# prescribed provider (Bird direct beam, Liu-Jordan diffuse), gray sky
+# longwave, a ground at 300 K seen by the walls, a 295 K interior; the
+# faces and slabs start at the air temperature. The
+# skin of every face follows the prognostic balance; per-building means
+# and the sun go to ibseb_day.csv every minute, every face to faces/day
+# every minute, plotfiles every two hours.
+#
+#   mpirun -np 4 erf_exec inputs        # about two hours on a laptop
+#
+stop_time = 86400.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  320     320    160
+amr.n_cell           =  32      32     16
+amr.max_grid_size    =  16
+geometry.is_periodic = 1 1 0
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.surf_temp = 300.0
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = 86400
+erf.plot_file_1     = plt
+erf.plot_int_1      = 14400
+erf.plot_vars_1     = theta temp x_velocity z_velocity terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+# The cube is an exact box on cell faces (eb2.geometry = box), so every
+# cell is fluid or solid and the walls are plane: no partial cells, no
+# stepped rim. A nodal height map of the same cube (the phase 6 file) has
+# corner cells with 1-20 percent solid on which the immersed forcing goes
+# unstable after about two hours.
+eb2.geometry = box
+eb2.box_lo = 140.0 140.0 -10.0
+eb2.box_hi = 180.0 180.0 40.0
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.csv_int = 120
+erf.ibseb.csv_file = "ibseb_day.csv"
+erf.ibseb.dump_faces_file = "faces/day"
+erf.ibseb.dump_faces_tag_step = true
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 295.0
+# Concrete: 30 cm in 10 layers.
+erf.ibseb.n_slab_layers = 10
+erf.ibseb.k_therm = 1.5
+erf.ibseb.rho_cp = 2.0e6
+erf.ibseb.thickness = 0.3
+erf.ibseb.albedo = 0.25
+erf.ibseb.emissivity = 0.92
+erf.ibseb.albedo_ground = 0.2
+erf.ibseb.emissivity_ground = 0.95
+erf.ibseb.T_ground = 300.0
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+# Boulder, June solstice, midnight solar time at t = 0 (07:00 UTC in the -7 h zone).
+erf.ibseb.sun_mode = "solar"
+erf.ibseb.latitude_deg = 40.0
+erf.ibseb.longitude_deg = -105.0
+erf.ibseb.day_of_year = 172
+erf.ibseb.utc_offset_hours = -7.0
+erf.ibseb.time_zero_utc_s = 25200.0
+erf.ibseb.solar_constant = 1361.0
+erf.ibseb.sw_transmission = 0.7
+erf.ibseb.sw_diffuse_coeff = 0.5
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83

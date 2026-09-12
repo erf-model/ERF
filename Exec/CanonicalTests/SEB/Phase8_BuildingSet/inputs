@@ -1,0 +1,83 @@
+# Canonical case: a small building set through a morning. Four buildings
+# from a nodal height map (a 60 m concrete slab, a 40 m brick cube in its
+# morning shadow, two 20 m timber blocks) on a 480 m periodic domain at 10 m, three materials by
+# building, a 3 m/s westerly, Boulder on the June solstice from 05:00 solar
+# time for six hours, the prescribed clear-sky provider, a gray sky, the
+# convective velocity scale and the stability functions on. The immersed
+# forcing runs with the wall law snapped to half cells, which a height-map
+# set needs (see Exec/RegTests/ImmersedForcingTest/PartialCells). Every
+# building's means go to ibseb_set.csv every minute, every face to
+# faces/set every five minutes.
+#
+#   mpirun -np 4 erf_exec inputs        # about an hour on a laptop
+#
+stop_time = 21600.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  480     480    160
+amr.n_cell           =  48      48     16
+amr.max_grid_size    =  24
+geometry.is_periodic = 1 1 0
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.surf_temp = 300.0
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = 43200
+erf.plot_file_1     = plt
+erf.plot_int_1      = 7200
+erf.plot_vars_1     = theta temp x_velocity z_velocity terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_shadow ibseb_lw_net ibseb_f_sky ibseb_H ibseb_G
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = buildings_10m_48x48.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.if_snap_partial_cells = true
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.debug = true
+erf.ibseb.csv_int = 120
+erf.ibseb.csv_file = "ibseb_set.csv"
+erf.ibseb.dump_faces_file = "faces/set"
+erf.ibseb.dump_faces_tag_step = true
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 295.0
+erf.ibseb.n_slab_layers = 10
+erf.ibseb.material_file = "materials.csv"
+# Buildings are numbered in scan order over (i, j): 1 the slab, 2 the north
+# block, 3 the cube east of the slab, 4 the far block.
+erf.ibseb.material_by_building = 1 3 2 3
+erf.ibseb.albedo_ground = 0.2
+erf.ibseb.emissivity_ground = 0.95
+erf.ibseb.T_ground = 300.0
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.view_n_az = 16
+erf.ibseb.view_n_el = 8
+erf.ibseb.stability_correction = true
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "bulk_ri"
+erf.ibseb.sun_mode = "solar"
+erf.ibseb.latitude_deg = 40.0
+erf.ibseb.longitude_deg = -105.0
+erf.ibseb.day_of_year = 172
+erf.ibseb.utc_offset_hours = -7.0
+erf.ibseb.time_zero_utc_s = 43200.0
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83

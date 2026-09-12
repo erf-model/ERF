@@ -1,0 +1,54 @@
+# Immersed forcing on the partial cells of a height-map building.
+#
+# A 40 m cube from a nodal height map on a 10 m grid: the reader ramps every
+# edge over one cell, leaving corner cells with 1-20 percent solid. In a
+# neutral 3 m/s westerly with the MOST wall model, the original wall
+# selection puts the full-strength wall law on the top cell of such a
+# sliver column, over a nearly free cell below it, and a vertical two-cell
+# checkerboard in theta grows there until the floating-point trap fires
+# after 1.8-2.5 hours (with or without the surface energy balance, with a
+# no-slip or a MOST ground, at 0.25 or 0.5 s).
+#
+# erf.if_snap_partial_cells = true puts the wall law on cells at least half
+# solid whose normal neighbour is less than half solid and leaves the
+# slivers with the fraction-weighted drag only; the run then stays clean.
+# The regtest runs 2.64 h (19000 steps) with the switch on and checks the
+# fluid temperature and the wake; run_partial_cells.sh --reproduce runs the
+# same deck with the switch off, which must trap.
+stop_time = 100000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  320     320    160
+amr.n_cell           =  32      32     16
+amr.max_grid_size    =  16
+geometry.is_periodic = 1 1 0
+zlo.type = "surface_layer"
+erf.most.z0 = 0.1
+erf.most.surf_temp = 300.0
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = 19000
+erf.plot_vars_1     = theta x_velocity z_velocity terrain_IB_mask
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = cube_40m_10m_32x32.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.if_snap_partial_cells = true
+erf.use_coriolis = false
+max_step = 19000

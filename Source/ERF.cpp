@@ -368,6 +368,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
+    ibseb_report(nstep, time);
+
     if (cloud_chamber_budget) {
         cloud_chamber_budget->report(
             nstep + 1, time, vars_new[0][Vars::cons], geom[0],
@@ -655,6 +657,9 @@ ERF::InitData_post ()
     if (!restart_chkfile.empty()) {
         restart();
     }
+
+    // Faces of the resolved buildings, from the blanking both paths have built.
+    init_ibseb();
 
     // Select 2-D variables after the active LSM has initialized its runtime
     // field inventory, including provider-specific soil layers.
@@ -2493,6 +2498,7 @@ ERF::ReadParameters ()
     std::string prob_name = "Undefined";
     ParmParse pp_pn("erf");
     pp_pn.queryAdd("prob_name", prob_name);
+    ibseb_params.init_params();
     Print() << "Problem name (from inputs file) is: "
             << " \"" << prob_name << "\" " << std::endl;
 

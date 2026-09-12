@@ -183,7 +183,8 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        bool /*vert_only*/,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                       const MoistureComponentIndices& moisture_indices);
+                       const MoistureComponentIndices& moisture_indices,
+                       const amrex::MultiFab* terrain_blank = nullptr);
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -230,7 +231,8 @@ ComputeDiffusivityYSUNew (const amrex::MultiFab& xvel,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                           const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices,
-                          const amrex::MultiFab* qheating_rates = nullptr);
+                          const amrex::MultiFab* qheating_rates = nullptr,
+                          const amrex::MultiFab* terrain_blank = nullptr);
 
 /**
  * Function for computing vertical derivatives for use in PBL model

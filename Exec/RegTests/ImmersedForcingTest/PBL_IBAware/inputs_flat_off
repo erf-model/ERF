@@ -1,0 +1,9 @@
+FILE = inputs_base
+
+# No building: the switch must change nothing.
+erf.buildings_type = None
+erf.pbl_type = "MRF"
+erf.pbl_ib_aware = false
+erf.plot_file_1 = plt_flat_off
+# MRF has an invalid floating-point operation at its neutral start (pre-existing, sanitised later), so the trap is off.
+amrex.fpe_trap_invalid = 0

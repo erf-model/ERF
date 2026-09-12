@@ -1,0 +1,118 @@
+#ifndef ERF_IBSEB_SLAB_H
+#define ERF_IBSEB_SLAB_H
+
+#include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
+
+/**
+ * \file ERF_IBSEBSlab.H
+ * \brief One-dimensional heat conduction through a wall or roof slab.
+ *
+ * Adapted from the ERF-SLUCM branch's ERF_UCMSlabConduction.H (implicit
+ * Euler, Thomas algorithm, all-plus tridiagonal convention). The one change
+ * is the top boundary: the SLUCM solver takes a flux at the top, this one
+ * takes the skin temperature, which is what the face balance holds, and
+ * returns the conduction into the slab that results. The bottom boundary
+ * is the interior temperature of the building.
+ *
+ * Layers are uniform, ``dz = L / N``, with layer centres at
+ * ``(l + 1/2) dz`` below the skin; the skin sits half a layer above the
+ * first centre and the interior half a layer below the last, so both
+ * boundary fluxes use the half-layer spacing ``2 k / dz``.
+ */
+namespace ibseb {
+
+/// Largest number of layers the stack arrays allow.
+constexpr int SLAB_MAX_LAYERS = 256;
+
+/**
+ * Advance one slab column by one step and return the conduction into it.
+ *
+ * Solves, for layers ``l = 0 .. N-1`` with implicit Euler,
+ * ``rho_cp dz (T_l^{n+1} - T_l^n) / dt = flux_in - flux_out``, the fluxes
+ * between neighbouring centres being ``k (T_{l-1} - T_l) / dz``, the flux
+ * from the skin ``2 k (T_skin - T_0) / dz`` and the flux to the interior
+ * ``2 k (T_{N-1} - T_int) / dz``. Unconditionally stable.
+ *
+ * @param[in,out] T       Layer temperatures [K], ``N`` values, top first.
+ * @param[in]  T_skin     Skin temperature at the top [K] (Dirichlet).
+ * @param[in]  T_int      Interior temperature at the bottom [K] (Dirichlet).
+ * @param[in]  k          Thermal conductivity [W/m/K].
+ * @param[in]  rho_cp     Volumetric heat capacity [J/m3/K].
+ * @param[in]  dz         Layer thickness [m].
+ * @param[in]  dt         Time step [s].
+ * @param[in]  N          Number of layers, at most SLAB_MAX_LAYERS.
+ * @return Conduction into the slab through the skin at the new time,
+ *         ``2 k (T_skin - T_0^{n+1}) / dz`` [W/m2], positive into the slab.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real advance_slab_dirichlet (amrex::Real* T, amrex::Real T_skin, amrex::Real T_int,
+                                    amrex::Real k, amrex::Real rho_cp, amrex::Real dz,
+                                    amrex::Real dt, int N)
+{
+    if (N < 1 || N > SLAB_MAX_LAYERS) return 0.0;
+    const amrex::Real Fourier = k * dt / (rho_cp * dz * dz);   // interior Fourier number
+    // Coefficients of a l T_{l-1} + b_l T_l + c_l T_{l+1} = d_l (all-plus form).
+    amrex::Real alpha[SLAB_MAX_LAYERS], gamma[SLAB_MAX_LAYERS];
+    // Row 0: skin above at half spacing (coefficient 2 Fourier), layer 1 below.
+    {
+        const amrex::Real b0 = 1.0 + 2.0 * Fourier + ((N > 1) ? Fourier : 2.0 * Fourier);
+        const amrex::Real c0 = (N > 1) ? -Fourier : 0.0;
+        const amrex::Real d0 = T[0] + 2.0 * Fourier * T_skin + ((N > 1) ? 0.0 : 2.0 * Fourier * T_int);
+        alpha[0] = c0 / b0;
+        gamma[0] = d0 / b0;
+    }
+    // Interior rows.
+    for (int l = 1; l < N - 1; ++l) {
+        const amrex::Real a = -Fourier, b = 1.0 + 2.0 * Fourier, c = -Fourier;
+        const amrex::Real bm = b - a * alpha[l - 1];
+        gamma[l] = (T[l] - a * gamma[l - 1]) / bm;
+        alpha[l] = c / bm;
+    }
+    // Last row (N > 1): interior below at half spacing (coefficient 2 Fourier).
+    if (N > 1) {
+        const int l = N - 1;
+        const amrex::Real a = -Fourier, b = 1.0 + Fourier + 2.0 * Fourier;
+        const amrex::Real bm = b - a * alpha[l - 1];
+        gamma[l] = (T[l] + 2.0 * Fourier * T_int - a * gamma[l - 1]) / bm;
+        alpha[l] = 0.0;
+    }
+    // Back substitution.
+    T[N - 1] = gamma[N - 1];
+    for (int l = N - 2; l >= 0; --l) { T[l] = gamma[l] - alpha[l] * T[l + 1]; }
+    return 2.0 * k * (T_skin - T[0]) / dz;
+}
+
+/**
+ * Linear response of the implicit slab step to the skin temperature.
+ *
+ * The step of advance_slab_dirichlet() is linear in ``T_skin``, so the
+ * conduction it returns is ``G = a T_skin - b`` for the slab's current state,
+ * interior temperature and time step. The two coefficients come from two
+ * trial steps on copies of the column (``T_skin = 0`` and ``T_skin = 1``), the
+ * same arithmetic as the real step, so a balance solved with this response
+ * and then advanced with the resulting skin temperature closes to rounding.
+ * The column itself is not modified.
+ *
+ * @param[in]  T       Layer temperatures [K] at the start of the step.
+ * @param[out] a       Slope of G with respect to T_skin [W/m2/K], positive.
+ * @param[out] b       Offset: G at T_skin = 0 is -b [W/m2].
+ * Other arguments as in advance_slab_dirichlet().
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void slab_skin_response (const amrex::Real* T, amrex::Real T_int,
+                         amrex::Real k, amrex::Real rho_cp, amrex::Real dz,
+                         amrex::Real dt, int N, amrex::Real& a, amrex::Real& b)
+{
+    amrex::Real W[SLAB_MAX_LAYERS];
+    for (int l = 0; l < N; ++l) { W[l] = T[l]; }
+    const amrex::Real G0 = advance_slab_dirichlet(W, 0.0, T_int, k, rho_cp, dz, dt, N);
+    for (int l = 0; l < N; ++l) { W[l] = T[l]; }
+    const amrex::Real G1 = advance_slab_dirichlet(W, 1.0, T_int, k, rho_cp, dz, dt, N);
+    a = G1 - G0;
+    b = -G0;
+}
+
+} // namespace ibseb
+
+#endif

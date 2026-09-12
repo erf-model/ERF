@@ -1,0 +1,17 @@
+FILE = inputs_base
+
+# Night, no sun; an external incident flux of 3000 W/m2 on every face (the
+# hook a fire's radiation will use), absorbed with the emissivity, on a
+# light thin slab (a cladding panel) so the faces climb past the urban
+# canopy model's 380 K within the run; the upper bound is raised to let
+# them, and the closure checks apply unchanged.
+erf.ibseb.sun_zenith_deg = 120.0
+erf.ibseb.Q_ext_uniform = 3000.0
+erf.ibseb.T_skin_max = 700.0
+erf.ibseb.thickness = 0.05
+erf.ibseb.rho_cp = 1.0e4
+erf.ibseb.k_therm = 0.5
+erf.ibseb.csv_file = "ibseb_qext.csv"
+erf.ibseb.dump_faces_file = "faces_qext"
+erf.ibseb.dump_faces_tag_step = true
+max_step = 100

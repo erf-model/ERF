@@ -1,0 +1,6 @@
+FILE = inputs_base
+
+erf.ibseb.lw_mode = "fixed"
+erf.ibseb.lw_down = 300.0
+erf.ibseb.csv_file = "ibseb_fixed.csv"
+erf.ibseb.dump_faces_file = "faces_fixed"

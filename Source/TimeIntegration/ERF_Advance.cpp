@@ -24,6 +24,10 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // We must swap the pointers so the previous step's "new" is now this step's "old"
     std::swap(vars_old[lev], vars_new[lev]);
 
+    // Surface energy balance on the building faces, with the state at the start of the step
+    ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                  vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
 

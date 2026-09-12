@@ -1,0 +1,9 @@
+FILE = inputs_base
+
+erf.ibseb.sun_mode = "fixed"
+erf.ibseb.sun_zenith_deg = 60.0
+erf.ibseb.sun_azimuth_deg = 270.0   # sun in the west
+erf.ibseb.sw_direct_normal = 800.0
+erf.ibseb.sw_diffuse = 100.0
+erf.ibseb.csv_file = "ibseb_zen60.csv"
+erf.ibseb.dump_faces_file = "faces_zen60"

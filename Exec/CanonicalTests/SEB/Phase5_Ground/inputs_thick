@@ -1,0 +1,12 @@
+FILE = inputs_base
+
+# Semi-infinite slab: fine layers, thick, over 50 s the thermal wave travels
+# a few millimetres. Slab starts at 320 K = skin; the interior is 300 K.
+erf.ibseb.k_therm = 1.5
+erf.ibseb.rho_cp = 2.0e6
+erf.ibseb.thickness = 0.2
+erf.ibseb.n_slab_layers = 200
+erf.ibseb.T_skin_init = 320.0
+erf.ibseb.csv_file = "ibseb_thick.csv"
+erf.ibseb.dump_faces_file = "faces_thick"
+max_step = 200

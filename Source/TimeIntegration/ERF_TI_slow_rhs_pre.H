@@ -130,6 +130,14 @@
                      r_avg_to_pass, t_avg_to_pass,
                      true);
 
+        // Heat flux from the building faces (immersed-boundary surface energy
+        // balance), added to the freshly rebuilt source; no-op unless enabled.
+        if (ibseb_params.enable && ibseb_params.couple_heat &&
+            level < static_cast<int>(m_ibseb.size()) && m_ibseb[level]) {
+            m_ibseb[level]->add_heat_flux_to_source(cc_src, S_data[IntVars::cons], fine_geom,
+                                                    solverChoice.c_p, solverChoice.rdOcp);
+        }
+
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
         // *****************************************************************************
