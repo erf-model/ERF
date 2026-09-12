@@ -3,6 +3,8 @@
 #include <ERF_EOS.H>
 #include <ERF_TimestepUtils.H>
 #include <ERF.H>
+#include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
 
 using namespace amrex;
 
@@ -79,7 +81,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     MultiFab const& S_new = vars_new[level][Vars::cons];
 
-    MultiFab ccvel_N(grids[level],dmap[level],3,0);
+    // Keep the thermodynamic samples alongside the cell-centered velocity so
+    // the wall-rate reduction can call the same pointwise MOST evaluator as
+    // production wall transfer without allocating a second global temporary.
+    MultiFab ccvel_N(grids[level],dmap[level],7,0);
     MultiFab ccvel_T(grids[level],dmap[level],3,0);
 
     int klo = geom[level].Domain().smallEnd(2);
@@ -119,6 +124,26 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel],});
+
+    const bool chamber_cloudy = cloud_chamber_config.active &&
+        cloud_chamber_config.cloudy;
+    const Real rdOcp = solverChoice.rdOcp;
+    const MultiFab& chamber_base_state = base_state[level];
+    for (MFIter mfi(S_new); mfi.isValid(); ++mfi) {
+        const Array4<const Real> state = S_new.const_array(mfi);
+        const Array4<const Real> base = chamber_base_state.const_array(mfi);
+        const Array4<Real> velocity = ccvel_N.array(mfi);
+        const Box bx = mfi.validbox();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real rho = state(i,j,k,Rho_comp);
+            velocity(i,j,k,3) = state(i,j,k,RhoTheta_comp) / rho;
+            velocity(i,j,k,4) = chamber_cloudy ?
+                state(i,j,k,RhoQ1_comp) / rho : Real(0.0);
+            velocity(i,j,k,5) = base(i,j,k,BaseState::p0_comp);
+            velocity(i,j,k,6) = rdOcp;
+        });
+    }
 
     bool l_substepping = (solverChoice.substepping_type[level] == SubsteppingType::Implicit);
     int  l_anelastic   = solverChoice.anelastic[level];
@@ -331,6 +356,112 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     if (estdt_lowM_inv_T > zero) { estdt_lowM_T = cfl / estdt_lowM_inv_T; }
     if (estdt_lowM_inv_N > zero) { estdt_lowM_N = cfl / estdt_lowM_inv_N; }
+
+     Real max_wall_rate = Real(0.0);
+     Real estdt_wall = bogus_large_value;
+     if (cloud_chamber_config.active &&
+         cloud_chamber_config.physical_initialization &&
+         cloud_chamber_config.has_wall_rate_channel()) {
+         const auto walls = cloud_chamber_config.wall_boundary();
+         const Box domain = geom[level].Domain();
+         max_wall_rate = ReduceMax(ccvel_N, 0,
+         [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                    Array4<Real const> const& velocity) -> Real
+         {
+             Real rate = Real(0.0);
+             amrex::Loop(b, [=,&rate] (int i, int j, int k) noexcept
+             {
+                 // A free staggered component can receive tangential traction
+                 // from every active perpendicular wall at an edge/corner.
+                 // Fixed and neutral coefficients use the exact local
+                 // velocity-parallel Jacobian row-sum factor.  MOST evaluates
+                 // its current coefficients once per wall/cell and uses that
+                 // state as a frozen-coefficient local rate estimate; it is
+                 // not a nonlinear MOST Jacobian bound.
+                 Real momentum_rate = Real(0.0);
+                 amrex::GpuArray<Real, AMREX_SPACEDIM> low_momentum_rates{};
+                 amrex::GpuArray<Real, AMREX_SPACEDIM> high_momentum_rates{};
+                 // Evaluate each encountered wall/cell state once.  The
+                 // component row sums below only compose these retained
+                 // per-face rates; they must not repeat the MOST solve.
+                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                     const bool low = (dir == 0 ? i == domain.smallEnd(0) :
+                                       (dir == 1 ? j == domain.smallEnd(1) :
+                                                    k == domain.smallEnd(2)));
+                     const bool high = (dir == 0 ? i == domain.bigEnd(0) :
+                                        (dir == 1 ? j == domain.bigEnd(1) :
+                                                     k == domain.bigEnd(2)));
+                     if (low) {
+                         const auto& wall = walls[2*dir];
+                         if (erf_cloud_chamber_wall_flux::
+                             wall_rate_requires_tangential_speed(wall)) {
+                             const Real U_t =
+                                 erf_cloud_chamber_wall_flux::
+                                 tangential_speed_cell_centered(
+                                     dir, i, j, k, velocity, wall);
+                             const auto runtime =
+                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
+                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
+                                     Real(0.5) / dxinv[dir],
+                                     dir == 2 ? 1 : 0);
+                             rate = amrex::max(rate,
+                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                     wall, U_t, dxinv[dir], runtime));
+                             low_momentum_rates[dir] =
+                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
+                                     wall, U_t, dxinv[dir], runtime);
+                         }
+                     }
+                     if (high) {
+                         const auto& wall = walls[2*dir+1];
+                         if (erf_cloud_chamber_wall_flux::
+                             wall_rate_requires_tangential_speed(wall)) {
+                             const Real U_t =
+                                 erf_cloud_chamber_wall_flux::
+                                 tangential_speed_cell_centered(
+                                     dir, i, j, k, velocity, wall);
+                             const auto runtime =
+                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
+                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
+                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
+                                     Real(0.5) / dxinv[dir],
+                                     dir == 2 ? -1 : 0);
+                             rate = amrex::max(rate,
+                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
+                                     wall, U_t, dxinv[dir], runtime));
+                             high_momentum_rates[dir] =
+                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
+                                     wall, U_t, dxinv[dir], runtime);
+                         }
+                     }
+                 }
+                 for (int component = 0; component < AMREX_SPACEDIM; ++component) {
+                     const Real component_rate =
+                         erf_cloud_chamber_wall_flux::momentum_row_sum_rate(
+                             component, low_momentum_rates, high_momentum_rates);
+                     momentum_rate = amrex::max(momentum_rate, component_rate);
+                 }
+                 rate = amrex::max(rate, momentum_rate);
+             });
+             return rate;
+         });
+         ParallelDescriptor::ReduceRealMax(max_wall_rate);
+         if (max_wall_rate > Real(0.0)) {
+             estdt_wall = erf_cloud_chamber_wall_flux::wall_dt_from_max_rate(max_wall_rate);
+         }
+     }
+     // Wall-rate kernels and reductions use amrex::Real, while ERF's host
+     // timestep estimates are double even in ERF_PRECISION=SINGLE builds.
+     const double estdt_wall_host = static_cast<double>(estdt_wall);
+     estdt_comp_T = std::min(estdt_comp_T, estdt_wall_host);
+     estdt_comp_N = std::min(estdt_comp_N, estdt_wall_host);
+     estdt_lowM_T = std::min(estdt_lowM_T, estdt_wall_host);
+     estdt_lowM_N = std::min(estdt_lowM_N, estdt_wall_host);
+
+     const double fixed_dt_level = static_cast<double>(fixed_dt[level]);
+     erf_cloud_chamber_wall_dt_guard::enforce_fixed_dt_limit(
+         level, fixed_dt_level, estdt_wall_host, max_wall_rate);
 
      // Additional vertical diagnostics
      if (l_comp_substepping_diag) {

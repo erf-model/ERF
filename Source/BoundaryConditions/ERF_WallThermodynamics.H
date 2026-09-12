@@ -4,6 +4,8 @@
 #include <AMReX_Array.H>
 #include <AMReX_REAL.H>
 
+#include <type_traits>
+
 namespace erf_wall_thermodynamics {
 
 // These compact enums and the face record are copied into GPU kernels.  Keep
@@ -19,19 +21,62 @@ enum class MoistureMode : unsigned char {
     WetEquilibrium
 };
 
-enum class TransferModel : unsigned char {
+enum class MomentumModel : unsigned char {
+    ResolvedNoSlip,
+    BulkAero,
+    NeutralRoughnessLog
+};
+
+enum class ScalarModel : unsigned char {
+    ResolvedMolecular,
+    BulkAero,
+    NeutralRoughnessLog
+};
+
+enum class CoefficientProvider : unsigned char {
     None,
-    ResolvedMolecular
+    Fixed,
+    MOST
 };
 
-struct Face {
-    ThermalMode thermal_mode = ThermalMode::LegacyNumerical;
-    MoistureMode moisture_mode = MoistureMode::LegacyNumerical;
-    TransferModel transfer_model = TransferModel::None;
-    amrex::Real physical_temperature_K = amrex::Real(0.0);
+struct ThermalBoundary {
+    ThermalMode mode = ThermalMode::LegacyNumerical;
+    amrex::Real temperature_K = amrex::Real(0.0);
 };
 
-using Boundary = amrex::GpuArray<Face, 2 * AMREX_SPACEDIM>;
+struct MomentumTransfer {
+    MomentumModel model = MomentumModel::ResolvedNoSlip;
+    CoefficientProvider provider = CoefficientProvider::None;
+    amrex::Real C_D = amrex::Real(0.0);
+    amrex::Real z0_m = amrex::Real(0.0);
+};
+
+struct ScalarTransfer {
+    ScalarModel model = ScalarModel::ResolvedMolecular;
+    CoefficientProvider provider = CoefficientProvider::None;
+    amrex::Real coefficient = amrex::Real(0.0);
+    amrex::Real z0 = amrex::Real(0.0);
+};
+
+struct FaceWall {
+    ThermalBoundary thermal;
+    MoistureMode moisture = MoistureMode::LegacyNumerical;
+    MomentumTransfer momentum;
+    ScalarTransfer heat;
+    ScalarTransfer vapor;
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> wall_velocity{};
+};
+
+using Boundary = amrex::GpuArray<FaceWall, 2 * AMREX_SPACEDIM>;
+
+static_assert(std::is_trivially_copyable_v<ThermalBoundary>);
+static_assert(std::is_standard_layout_v<ThermalBoundary>);
+static_assert(std::is_trivially_copyable_v<MomentumTransfer>);
+static_assert(std::is_standard_layout_v<MomentumTransfer>);
+static_assert(std::is_trivially_copyable_v<ScalarTransfer>);
+static_assert(std::is_standard_layout_v<ScalarTransfer>);
+static_assert(std::is_trivially_copyable_v<FaceWall>);
+static_assert(std::is_standard_layout_v<FaceWall>);
 
 } // namespace erf_wall_thermodynamics
 

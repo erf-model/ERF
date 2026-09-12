@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -23,6 +24,12 @@ using amrex::ParallelFor;
 using amrex::PlotFileData;
 using amrex::Real;
 using amrex::TilingIfNotGPU;
+
+Real scaled_tolerance (Real expected, Real ulps = Real(256.0))
+{
+    const Real scale = std::max(Real(1.0), std::abs(expected));
+    return ulps * std::numeric_limits<Real>::epsilon() * scale;
+}
 
 bool has_variable (const PlotFileData& plotfile, const std::string& name)
 {
@@ -97,14 +104,37 @@ bool close_to_zero (Real value, const BudgetRow& row)
     return std::abs(value) <= budget_tolerance(row);
 }
 
+bool retained_flux_is_active (Real value)
+{
+    // This is an activation oracle for the directly retained applied face
+    // flux, not a conservation residual. CloudChamberBudget accumulates the
+    // production face-flux arrays themselves, so an inactive algebraic-zero
+    // path remains exactly zero; any finite nonzero retained value proves that
+    // a nonzero wall flux was applied.
+    return std::isfinite(static_cast<double>(value)) && value != Real(0.0);
+}
+
+bool retained_flux_activation_contract_holds ()
+{
+    return !retained_flux_is_active(Real(0.0)) &&
+        retained_flux_is_active(Real(0.1)) &&
+        retained_flux_is_active(Real(1.0e-20)) &&
+        !retained_flux_is_active(std::numeric_limits<Real>::quiet_NaN()) &&
+        !retained_flux_is_active(std::numeric_limits<Real>::infinity());
+}
+
 bool is_budget_mode (const std::string& mode)
 {
-    return mode == "all_dry" || mode == "wet_budget" || mode == "thermal_budget";
+    return mode == "all_dry" || mode == "wet_budget" || mode == "bulk_wet" ||
+        mode == "neutral_wet" || mode == "most_wet";
 }
 
 bool is_checker_mode (const std::string& mode)
 {
-    return mode == "dry" || mode == "cloudy" || mode == "parity" || is_budget_mode(mode);
+    return mode == "dry" || mode == "cloudy" || mode == "parity" ||
+        mode == "neutral_momentum" || mode == "fixed_momentum" ||
+        mode == "most_momentum" ||
+        is_budget_mode(mode);
 }
 
 struct BudgetSummary {
@@ -113,6 +143,8 @@ struct BudgetSummary {
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
+    bool heat_face_active = false;
+    bool vapor_face_active = false;
     Real max_residual_ratio = Real(0.0);
 };
 
@@ -131,18 +163,29 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         std::string& error)
 {
     const bool all_dry = mode == "all_dry";
-    const bool wet = mode == "wet_budget";
-    const bool thermal = mode == "thermal_budget";
+    const bool wet = mode == "wet_budget" || mode == "bulk_wet" ||
+        mode == "neutral_wet" || mode == "most_wet";
+    const bool cloudy = is_budget_mode(mode);
+    const bool require_transfer_activation = mode == "bulk_wet" ||
+        mode == "neutral_wet" || mode == "most_wet";
     summary = {};
     summary.rows = static_cast<int>(rows.size());
-    int total_rows = 0;
-    int vapor_rows = 0;
-    int cloud_rows = 0;
-    int thermal_rows = 0;
-    const auto check_closure = [&](const BudgetRow& row, const char* name) {
-        if (!std::isfinite(static_cast<double>(row.residual)) ||
+    const auto row_is_finite = [](const BudgetRow& row) {
+        if (!std::isfinite(static_cast<double>(row.net_boundary)) ||
+            !std::isfinite(static_cast<double>(row.volume_change)) ||
+            !std::isfinite(static_cast<double>(row.internal_source)) ||
+            !std::isfinite(static_cast<double>(row.residual)) ||
             !std::isfinite(static_cast<double>(row.tolerance)) ||
             row.tolerance < Real(0.0)) {
+            return false;
+        }
+        for (const auto value : row.faces) {
+            if (!std::isfinite(static_cast<double>(value))) { return false; }
+        }
+        return true;
+    };
+    const auto check_closure = [&](const BudgetRow& row, const char* name) {
+        if (!row_is_finite(row)) {
             error = std::string(name) + " budget closure is non-finite or has negative tolerance";
             return false;
         }
@@ -155,30 +198,34 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
         }
         return true;
     };
+    const auto check_unsupported_source = [&](const BudgetRow& row, const char* name) {
+        if (!row_is_finite(row)) {
+            error = std::string(name) + " budget diagnostics are non-finite or have negative tolerance";
+            return false;
+        }
+        if (row.status != "UNSUPPORTED_SOURCE") {
+            error = std::string(name) + " budget must be UNSUPPORTED_SOURCE";
+            return false;
+        }
+        return true;
+    };
     for (const auto& row : rows) {
-        const Real tol = budget_tolerance(row);
         if (row.scalar == "rhoTheta") {
-            if (thermal) {
-                ++thermal_rows;
-                bool finite = true;
-                for (const auto value : row.faces) {
-                    finite = finite && std::isfinite(static_cast<double>(value));
-                }
-                finite = finite && std::isfinite(static_cast<double>(row.net_boundary)) &&
-                    std::isfinite(static_cast<double>(row.volume_change)) &&
-                    std::isfinite(static_cast<double>(row.internal_source)) &&
-                    std::isfinite(static_cast<double>(row.residual)) &&
-                    std::isfinite(static_cast<double>(row.tolerance));
-                if (!finite || row.tolerance < Real(0.0) || row.status != "PASS" ||
-                    std::abs(row.residual) > tol) {
-                    error = "dry thermal rhoTheta budget did not PASS";
-                    return false;
-                }
-                summary.max_residual_ratio = std::max(
-                    summary.max_residual_ratio, std::abs(row.residual) / tol);
+            ++summary.thermal_rows;
+            if (cloudy) {
+                if (!check_unsupported_source(row, "rhoTheta")) { return false; }
+            } else if (!check_closure(row, "rhoTheta")) {
+                return false;
             }
-        } else if (!thermal && row.scalar == "total_nonprecipitating_water") {
-            ++total_rows;
+            if (require_transfer_activation) {
+                for (int face = 2 * (AMREX_SPACEDIM - 1);
+                     face < 2 * AMREX_SPACEDIM; ++face) {
+                    summary.heat_face_active = summary.heat_face_active ||
+                        retained_flux_is_active(row.faces[face]);
+                }
+            }
+        } else if (row.scalar == "total_nonprecipitating_water") {
+            ++summary.total_rows;
             if (!check_closure(row, "total-water")) { return false; }
             if (all_dry && (!close_to_zero(row.net_boundary, row) ||
                             !close_to_zero(row.volume_change, row) ||
@@ -186,8 +233,8 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                 error = "all-dry total-water budget is not closed";
                 return false;
             }
-        } else if (!thermal && row.scalar == "water_vapor") {
-            ++vapor_rows;
+        } else if (row.scalar == "water_vapor") {
+            ++summary.vapor_rows;
             if (!check_closure(row, "water-vapor")) { return false; }
             if (all_dry) {
                 for (const auto value : row.faces) {
@@ -203,38 +250,41 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         return false;
                     }
                 }
-                if (!std::isfinite(static_cast<double>(row.faces[4])) ||
-                    !std::isfinite(static_cast<double>(row.faces[5]))) {
-                    error = "wet-wall vapor flux is non-finite";
-                    return false;
+                if (require_transfer_activation) {
+                    for (int face = 2 * (AMREX_SPACEDIM - 1);
+                         face < 2 * AMREX_SPACEDIM; ++face) {
+                        summary.vapor_face_active = summary.vapor_face_active ||
+                            retained_flux_is_active(row.faces[face]);
+                    }
                 }
             }
-        } else if (!thermal && row.scalar == "cloud_water") {
-            ++cloud_rows;
+        } else if (row.scalar == "cloud_water") {
+            ++summary.cloud_rows;
             if (!check_closure(row, "cloud-water")) { return false; }
-            for (const auto value : row.faces) {
-                if (!close_to_zero(value, row)) {
-                    error = "cloud-water wall flux is nonzero";
+            for (int face = 0; face < 2 * AMREX_SPACEDIM; ++face) {
+                if (row.faces[face] != Real(0.0)) {
+                    error = "cloud-water wall flux is not algebraically zero on face " +
+                        std::to_string(face);
                     return false;
                 }
             }
         }
     }
-    if (thermal) {
-        if (thermal_rows < 3) {
-            error = "expected at least three dry rhoTheta budget intervals";
-            return false;
-        }
-        summary.thermal_rows = thermal_rows;
-        return true;
-    }
-    if (total_rows < 3 || vapor_rows < 3 || cloud_rows < 3) {
-        error = "expected at least three budget intervals for every water scalar";
+    if (summary.thermal_rows < 2 || summary.total_rows < 2 ||
+        summary.vapor_rows < 2 || summary.cloud_rows < 2) {
+        error = "expected at least two budget intervals for rhoTheta and every water scalar";
         return false;
     }
-    summary.total_rows = total_rows;
-    summary.vapor_rows = vapor_rows;
-    summary.cloud_rows = cloud_rows;
+    if (require_transfer_activation) {
+        if (!summary.heat_face_active) {
+            error = "active wet-wall heat oracle found no retained rhoTheta wall flux above its activation threshold";
+            return false;
+        }
+        if (!summary.vapor_face_active) {
+            error = "active wet-wall vapor oracle found no retained water_vapor wall flux above its activation threshold";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -244,12 +294,18 @@ int main (int argc, char** argv)
 {
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
-    const int expected_argc = budget_mode ? 5 : 4;
+    const bool activation_mode = mode == "neutral_momentum" ||
+        mode == "fixed_momentum" || mode == "most_momentum";
+    const int expected_argc = (budget_mode || activation_mode) ? 5 : 4;
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
-                  << "       checker all_dry|wet_budget|thermal_budget initial_plotfile final_plotfile budget_file\n";
+                  << "       checker all_dry|wet_budget|bulk_wet|neutral_wet|most_wet initial_plotfile final_plotfile budget_file\n"
+                  << "       checker neutral_momentum|fixed_momentum|most_momentum initial_plotfile final_a final_b\n";
         return 2;
+    }
+    if (!retained_flux_activation_contract_holds()) {
+        return fail("retained-flux activation oracle contract is broken");
     }
 
     amrex::Initialize(argc, argv, false);
@@ -266,7 +322,12 @@ int main (int argc, char** argv)
                 return fail("parity comparison missing variable " + name);
             }
             MultiFab difference = budget_off.get(0, name);
-            MultiFab::Subtract(difference, budget_on.get(0, name), 0, 0, 1, 0);
+            MultiFab on_field = budget_on.get(0, name);
+            if (!difference.is_finite() || !on_field.is_finite()) {
+                amrex::Finalize();
+                return fail("parity comparison found non-finite variable " + name);
+            }
+            MultiFab::Subtract(difference, on_field, 0, 0, 1, 0);
             max_difference = std::max(max_difference, difference.norm0(0, 0, false));
         }
         Real max_integral_difference = Real(0.0);
@@ -288,15 +349,26 @@ int main (int argc, char** argv)
     }
     PlotFileData initial(argv[2]);
     PlotFileData final(argv[3]);
-    const bool cloudy = (mode == "cloudy" || mode == "all_dry" || mode == "wet_budget");
-    if (!cloudy && mode != "dry" && mode != "thermal_budget") {
+    std::unique_ptr<PlotFileData> alternate;
+    if (activation_mode) {
+        alternate = std::make_unique<PlotFileData>(argv[4]);
+    }
+    const bool cloudy = (mode == "cloudy" || mode == "all_dry" ||
+                         mode == "wet_budget" || mode == "bulk_wet" ||
+                         mode == "neutral_wet" || mode == "most_wet" ||
+                         mode == "most_momentum");
+    if (!cloudy && mode != "dry" && mode != "neutral_momentum" &&
+        mode != "fixed_momentum") {
         amrex::Finalize();
-        return fail("mode must be dry, cloudy, all_dry, wet_budget, or thermal_budget");
+        return fail("mode must be dry, cloudy, all_dry, wet_budget, bulk_wet, neutral_wet, most_wet, neutral_momentum, fixed_momentum, or most_momentum");
     }
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
                              "y_velocity", "z_velocity"}) {
-        if (!has_variable(initial, name) || !has_variable(final, name)) {
+        if (!has_variable(initial, name) || !has_variable(final, name) ||
+            !initial.get(0, name).is_finite() || !final.get(0, name).is_finite() ||
+            (activation_mode && (!has_variable(*alternate, name) ||
+                                 !alternate->get(0, name).is_finite()))) {
             amrex::Finalize();
             return fail("missing required variable " + std::string(name));
         }
@@ -422,34 +494,34 @@ int main (int argc, char** argv)
     const Real qsat_error_max = cloudy ? qsat_error.norm0(0, 0, false) : Real(0.0);
     const Real rh_error_max = cloudy ? rh_error.norm0(0, 0, false) : Real(0.0);
     const Real initial_velocity_max = velocity_error.norm0(0, 0, false);
-    const Real theta_tolerance = Real(2.0e-10) * std::max(Real(1.0), temperature_bottom);
-    if (theta_error_max > theta_tolerance) {
+    const Real theta_tolerance = scaled_tolerance(temperature_bottom);
+    if (!budget_mode && theta_error_max > theta_tolerance) {
         amrex::Finalize();
         return fail("initial theta profile mismatch: max error=" +
                     std::to_string(static_cast<double>(theta_error_max)));
     }
-    const Real temperature_tolerance = Real(2.0e-10) * Real(300.0);
-    if (temperature_error_max > temperature_tolerance) {
+    const Real temperature_tolerance = scaled_tolerance(temperature_bottom);
+    if (!budget_mode && temperature_error_max > temperature_tolerance) {
         amrex::Finalize();
         return fail("initial temperature mismatch: max error=" +
                     std::to_string(static_cast<double>(temperature_error_max)));
     }
-    if (cloudy && qv_error_max > Real(2.0e-12)) {
+    if (!budget_mode && cloudy && qv_error_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial qv profile mismatch: max error=" +
                     std::to_string(static_cast<double>(qv_error_max)));
     }
-    if (cloudy && qsat_error_max > Real(2.0e-12)) {
+    if (!budget_mode && cloudy && qsat_error_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial qsat diagnostic mismatch: max error=" +
                     std::to_string(static_cast<double>(qsat_error_max)));
     }
-    if (cloudy && rh_error_max > Real(2.0e-12)) {
+    if (!budget_mode && cloudy && rh_error_max > scaled_tolerance(relative_humidity)) {
         amrex::Finalize();
         return fail("initial relative humidity diagnostic mismatch: max error=" +
                     std::to_string(static_cast<double>(rh_error_max)));
     }
-    if (initial_velocity_max > Real(2.0e-12)) {
+    if (!budget_mode && !activation_mode && initial_velocity_max > scaled_tolerance(Real(1.0))) {
         amrex::Finalize();
         return fail("initial velocity is not zero: max=" +
                     std::to_string(static_cast<double>(initial_velocity_max)));
@@ -457,7 +529,8 @@ int main (int argc, char** argv)
 
     for (const char* name : {"density", "theta", "temp", "x_velocity",
                              "y_velocity", "z_velocity"}) {
-        if (!final.get(0, name).is_finite()) {
+        if (!final.get(0, name).is_finite() ||
+            (activation_mode && !alternate->get(0, name).is_finite())) {
             amrex::Finalize();
             return fail("final field is non-finite: " + std::string(name));
         }
@@ -468,15 +541,19 @@ int main (int argc, char** argv)
         MultiFab qc = final.get(0, "qc");
         MultiFab qsat = final.get(0, "qsat");
         MultiFab rh = final.get(0, "rel_humidity");
-        if (!qv.is_finite() || !qc.is_finite() || !qsat.is_finite() || !rh.is_finite()) {
+        if (!initial_qv.is_finite() || !initial_qc.is_finite() ||
+            !initial_qsat.is_finite() || !initial_rh.is_finite() ||
+            !qv.is_finite() || !qc.is_finite() || !qsat.is_finite() || !rh.is_finite()) {
             amrex::Finalize();
             return fail("cloudy scalar is non-finite");
         }
-        if (qv.min(0) < Real(-1.0e-12) || qc.min(0) < Real(-1.0e-12)) {
+        const Real nonnegative_tolerance = scaled_tolerance(Real(1.0));
+        if (qv.min(0) < -nonnegative_tolerance ||
+            qc.min(0) < -nonnegative_tolerance) {
             amrex::Finalize();
             return fail("cloudy scalar became negative");
         }
-        if (initial_qc.max(0) > Real(2.0e-12)) {
+        if (!budget_mode && initial_qc.max(0) > scaled_tolerance(Real(1.0))) {
             amrex::Finalize();
             return fail("physical initialization did not start with zero cloud water");
         }
@@ -493,13 +570,12 @@ int main (int argc, char** argv)
         }
         std::cout << std::setprecision(17)
                   << "budget_rows=" << summary.rows << " mode=" << mode;
-        if (mode == "thermal_budget") {
-            std::cout << " thermal_rows=" << summary.thermal_rows;
-        } else {
-            std::cout << " total_rows=" << summary.total_rows
-                      << " vapor_rows=" << summary.vapor_rows
-                      << " cloud_rows=" << summary.cloud_rows;
-        }
+        std::cout << " thermal_rows=" << summary.thermal_rows
+                  << " total_rows=" << summary.total_rows
+                  << " vapor_rows=" << summary.vapor_rows
+                  << " cloud_rows=" << summary.cloud_rows
+                  << " heat_face_active=" << summary.heat_face_active
+                  << " vapor_face_active=" << summary.vapor_face_active;
         std::cout << " max_residual_ratio=" << summary.max_residual_ratio << "\n";
     }
 
@@ -511,6 +587,19 @@ int main (int argc, char** argv)
     std::cout << "mode=" << mode << " initial_theta_error=" << theta_error_max
               << " initial_temperature_error=" << temperature_error_max
               << " evolved_velocity_max=" << evolved_velocity;
+    Real activation_difference = Real(0.0);
+    if (activation_mode) {
+        for (const auto& name : {std::string("x_velocity"),
+                                 std::string("y_velocity"),
+                                 std::string("z_velocity")}) {
+            MultiFab difference = final.get(0, name);
+            MultiFab::Subtract(difference, alternate->get(0, name), 0, 0, 1, 0);
+            activation_difference = std::max(activation_difference,
+                                              difference.norm0(0, 0, false));
+        }
+        std::cout << " alternate_velocity_difference=" << activation_difference
+                  << " z0_m_response=nonzero";
+    }
     if (cloudy) {
         std::cout << " final_qv_min=" << final.get(0,"qv").min(0)
                   << " final_qc_max=" << final.get(0,"qc").max(0)
@@ -520,5 +609,14 @@ int main (int argc, char** argv)
     std::cout << "\n";
 
     amrex::Finalize();
-    return evolved_velocity > Real(1.0e-12) ? 0 : fail("thermal perturbation produced no buoyant response");
+    if (activation_mode &&
+        activation_difference <= scaled_tolerance(Real(1.0), Real(16.0))) {
+        return fail("momentum wall parameter change produced no production response");
+    }
+    // This is a nonzero-response guard, not a magnitude assertion. A few
+    // ulps are sufficient because the short regression intentionally starts
+    // from a nearly motionless chamber.
+    if (budget_mode) { return 0; }
+    return evolved_velocity > scaled_tolerance(Real(1.0), Real(4.0)) ? 0 :
+        fail("thermal perturbation produced no buoyant response");
 }

@@ -159,9 +159,9 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_anelastic_wall_diffusion)
 
-# Checker-driven Stage 1 Cloud Chamber tests.  The short run checks the exact
-# initial conserved-state correction and a bounded early buoyant response;
-# it intentionally avoids a fragile turbulent gold file.
+# Checker-driven Cloud Chamber tests.  The short run checks the exact initial
+# conserved-state correction and a bounded early buoyant response; it
+# intentionally avoids a fragile turbulent gold file.
 function(add_test_cloud_chamber TEST_NAME MODE)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -192,6 +192,9 @@ endfunction(add_test_cloud_chamber)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    if (ARGC GREATER 1)
+        set(TEST_FILES_DIR "${ARGV1}")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
@@ -200,7 +203,7 @@ function(add_test_cloud_chamber_parity TEST_NAME)
         -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         -DNRANKS=${NP}
         -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
         -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
         -DCHECKER=${CLOUD_CHAMBER_CHECKER}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParity.cmake)
@@ -292,7 +295,6 @@ function(add_test_cloud_chamber_legacy_config TEST_NAME)
         LABELS "regression;cloud-chamber;configuration"
         ATTACHED_FILES_ON_FAIL "${test_log};${output_artifact}")
 endfunction(add_test_cloud_chamber_legacy_config)
-
 # Negative startup tests for the Native SHOC transport modes removed from the
 # production input contract.  The shared fixture supplies a complete Native
 # SHOC run, while the runtime option exercises the real ParmParse reader path.
@@ -337,8 +339,11 @@ add_test_shoc_removed_transport(SHOC_Removed_Momentum_Host_Diffusion
     "state_update"
     "none")
 
-function(add_test_cloud_chamber_openmp TEST_NAME)
-    set(TEST_FILES_DIR "CloudChamber_SatAdj")
+# Production wiring regression: two dry runs differ only in xlo roughness;
+# the checker requires finite output and a resolvable z0_m response.
+
+function(add_test_cloud_chamber_neutral_momentum TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_Dry_NeutralMomentum")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
@@ -347,7 +352,99 @@ function(add_test_cloud_chamber_openmp TEST_NAME)
         -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         -DNRANKS=${NP}
         -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj.i
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_NeutralMomentum.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberNeutralMomentum.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;neutral-roughness"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/z0_baseline/simulation.log;${CURRENT_TEST_BINARY_DIR}/z0_changed/simulation.log;${CURRENT_TEST_BINARY_DIR}/neutral_momentum_checker.log")
+endfunction(add_test_cloud_chamber_neutral_momentum)
+
+# Production wiring regression for fixed bulk aerodynamic momentum.  The
+# harness changes only C_D and requires a measurable velocity response.
+function(add_test_cloud_chamber_fixed_momentum TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_Dry_FixedMomentum")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_FixedMomentum.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberFixedMomentum.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;bulk-momentum"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/cd_baseline/simulation.log;${CURRENT_TEST_BINARY_DIR}/cd_changed/simulation.log;${CURRENT_TEST_BINARY_DIR}/fixed_momentum_checker.log")
+endfunction(add_test_cloud_chamber_fixed_momentum)
+
+# Production wiring regression for all-channel horizontal MOST.  The harness
+# checks wet-wall budgets in both runs and changes only horizontal momentum
+# transfer to require an observable production-path momentum response.
+function(add_test_cloud_chamber_most TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_SatAdj_MOSTMixedWalls")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj_MOSTMixedWalls.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberMOST.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;most"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/most_baseline/simulation.log;${CURRENT_TEST_BINARY_DIR}/most_changed/simulation.log;${CURRENT_TEST_BINARY_DIR}/most_momentum_checker.log")
+endfunction(add_test_cloud_chamber_most)
+
+function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
+    set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
+        -DLOG=${test_log}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 120
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_cloud_chamber_fixed_dt_guard)
+
+function(add_test_cloud_chamber_openmp TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_SatAdj")
+    if (ARGC GREATER 1)
+        set(TEST_FILES_DIR "${ARGV1}")
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
         -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
         -DCHECKER=${CLOUD_CHAMBER_CHECKER}
         -DCMAKE_COMMAND=${CMAKE_COMMAND}
@@ -477,17 +574,26 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
         ATTACHED_FILES_ON_FAIL "${_baseline_log};${_mutant_log}")
 endfunction(add_test_shoc_mutation)
 
+# Negative-control regression: the true fixed_dt > dt_wall guard must fire
+# and expose stable diagnostic fields for automated CI forensics.
+add_test_cloud_chamber_fixed_dt_guard(CloudChamber_Bulk_FixedDtGuard)
+
 if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
-add_test_cloud_chamber_budget(CloudChamber_Dry_ThermalBudget thermal_budget CloudChamber_Dry)
+add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
+add_test_cloud_chamber_fixed_momentum(CloudChamber_Dry_FixedMomentumActivation)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_BulkMixedWet bulk_wet CloudChamber_SatAdj_BulkMixedWet)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_NeutralWetBudget neutral_wet CloudChamber_SatAdj_NeutralWet)
+add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudChamber_SatAdj_MOSTWetBudget)
+add_test_cloud_chamber_most(CloudChamber_SatAdj_MOSTMixedWalls)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()

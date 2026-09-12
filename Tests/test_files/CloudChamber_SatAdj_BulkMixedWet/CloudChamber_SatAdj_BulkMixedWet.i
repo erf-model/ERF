@@ -1,8 +1,9 @@
-# Cloud Chamber dry physical-temperature regression.
+# SatAdj mixed resolved/bulk wall regression.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
 erf.anelastic = 1
 erf.use_gravity = true
+erf.moisture_model = SatAdj
 erf.vert_implicit = false
 erf.molec_diff_type = ConstantAlpha
 erf.dynamic_viscosity = 0.0
@@ -16,13 +17,14 @@ erf.check_int = -1
 erf.cloud_chamber_budget_interval = 2
 erf.plot_file_1 = plt
 erf.plot_int_1 = 2
-erf.plot_vars_1 = density theta temp pressure x_velocity y_velocity z_velocity
+erf.plot_vars_1 = density theta temp pressure qv qc qsat rel_humidity x_velocity y_velocity z_velocity
 
-max_step = 6
+max_step = 4
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2.0 2.0 1.0
 geometry.is_periodic = 0 0 0
-amr.n_cell = 16 16 8
+amr.n_cell = 16 16 16
+amr.max_grid_size = 4
 amr.max_level = 0
 
 prob.p_inf = 100000.0
@@ -30,6 +32,7 @@ prob.T_0 = 292.0
 prob.thermodynamic_initialization = physical_temperature_rh
 prob.initial_temperature_bottom = 300.0
 prob.initial_temperature_top = 284.0
+prob.initial_relative_humidity = 0.95
 prob.temperature_perturbation_amplitude = 0.02
 prob.perturbation_mode = deterministic_sine
 
@@ -39,6 +42,7 @@ ylo.type = NoSlipWall
 yhi.type = NoSlipWall
 zlo.type = NoSlipWall
 zhi.type = NoSlipWall
+
 xlo.temperature = 292.0
 xlo.moisture = dry
 xlo.wall_transfer_model = resolved_molecular
@@ -51,9 +55,15 @@ ylo.wall_transfer_model = resolved_molecular
 yhi.temperature = 292.0
 yhi.moisture = dry
 yhi.wall_transfer_model = resolved_molecular
+
 zlo.temperature = 300.0
-zlo.moisture = dry
-zlo.wall_transfer_model = resolved_molecular
+zlo.moisture = wet
+zlo.heat_transfer_model = bulk_aero
+zlo.vapor_transfer_model = bulk_aero
+zlo.coefficient_source = fixed
+zlo.C_H = 0.1
+zlo.C_E = 0.1
 zhi.temperature = 284.0
-zhi.moisture = dry
-zhi.wall_transfer_model = resolved_molecular
+zhi.moisture = wet
+zhi.heat_transfer_model = resolved_molecular
+zhi.vapor_transfer_model = resolved_molecular
