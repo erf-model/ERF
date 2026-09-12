@@ -1,0 +1,95 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Neutral ABL on a flat, doubly periodic domain with the one-equation
+# k RANS closure (Axell & Liungman 2001) under a MOST surface layer.
+# The flow is horizontally homogeneous: this is a column (Ekman-layer)
+# problem, so the horizontal grid is coarse on purpose.
+erf.prob_name = "ABL"
+
+erf.anelastic = 1
+erf.use_fft   = true
+
+stop_time = 43200.0   # 12 h physics run; CTest overrides max_step
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 2560   2560   1000
+amr.n_cell           =    8      8     64     # dz = 15.625 m, first cell centre 7.8 m
+amr.max_grid_size    = 64
+amr.blocking_factor  = 4
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (adiabatic: neutral surface)
+zlo.type      = "surface_layer"
+erf.most.z0   = 0.1
+
+zhi.type       = "SlipWall"
+zhi.theta_grad = 0.03   # [K/m], matches the sounding above the inversion
+
+# INITIALIZATION
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.sounding_type       = "Ideal"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 5.0
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 10     # surf_hist.dat cadence (u*, t*, L)
+erf.v            = 1      # > 0 needed for surf_hist.dat (sum_integrated_quantities)
+amr.v            = 0
+
+# planar averages (flat mesh only)
+erf.data_log        = surf_hist.dat mean_profiles.dat flux_profiles.dat sfs_profiles.dat
+erf.profile_int     = 100
+erf.destag_profiles = false
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 0
+
+# CHECKPOINT FILES
+erf.check_file = chk
+erf.check_int  = 4320
+
+# PLOTFILES
+erf.plot_file_1 = plt
+erf.plot_int_1  = 4320
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss Rt cmu cmu_prime
+
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity  = true
+erf.use_coriolis = true
+erf.coriolis_3d  = false
+erf.latitude     = 90.0
+erf.rotational_time_period = 125663.7061435917   # f = 1e-4 1/s
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind    = 10.0 0.0 0.0
+
+erf.molec_diff_type = "None"
+
+# TURBULENCE MODELING: one-equation k RANS
+erf.les_type            = "None"
+erf.rans_type           = "kEqn"
+erf.dirichlet_k         = true    # wall k from u* (AL01 Eq. 16)
+erf.init_tke_from_ustar = true
+erf.theta_ref           = 300.0
+# closure constants left at the AL01 defaults:
+# erf.Cmu0 = 0.5562  erf.Cb = 0.35  erf.Rt_crit = -1  erf.Rt_min = -3
+# erf.max_geom_lscale = 30.0  erf.sigma_k = 1.0
+
+# PROBLEM PARAMETERS: no perturbations, RANS wants the mean state
+prob.pert_deltaU   = 0.0
+prob.pert_deltaV   = 0.0
+prob.T_0_Pert_Mag  = 0.0
+prob.U_0_Pert_Mag  = 0.0
+prob.V_0_Pert_Mag  = 0.0
+prob.W_0_Pert_Mag  = 0.0

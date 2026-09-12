@@ -877,6 +877,99 @@ if(ERF_ENABLE_PARTICLES)
 endif()
 
 #=============================================================================
+# Canonical RANS cases (Exec/CanonicalTests/Canonical_RANS)
+#
+# Each case runs a short smoke deck and then its Python check script, which
+# compares planar-averaged numbers against stated targets with tolerances.
+# A clean exit alone is never the pass criterion.
+#
+# The decks run the anelastic projection with the FFT solver (erf.use_fft),
+# which no CI configuration builds. The flat decks are therefore run here
+# with the MLMG projection (erf.use_fft=false), and the terrain-fitted decks,
+# whose general-terrain projection has no non-FFT path, are registered only
+# when the build enables FFT (ERF_ENABLE_FFT).
+#=============================================================================
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    set(ERF_RANS_PYTHON "${Python3_EXECUTABLE}")
+else()
+    set(ERF_RANS_PYTHON "python3")
+endif()
+
+function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
+    set(options )
+    set(oneValueArgs "RUNTIME_OPTIONS" "NRANKS")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_RANS "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    # shared plotfile reader and check helpers used by every check script
+    file(GLOB _rans_py "${_rans_root}/*.py")
+    file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        if("${ADD_TEST_RANS_NRANKS}" STREQUAL "")
+            set(NP ${ERF_TEST_NRANKS})
+        else()
+            set(NP ${ADD_TEST_RANS_NRANKS})
+        endif()
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+    set(PLTFILE "plt${_step}")
+
+    set(RUNTIME_OPTIONS "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1 ${ADD_TEST_RANS_RUNTIME_OPTIONS}")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(check_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.check.log")
+    # The check script's exit code is the verdict; its table is echoed into
+    # the ctest output so a failure shows the measured numbers, and the tail
+    # of the run log is echoed when the executable itself exits non-zero.
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} ${RUNTIME_OPTIONS} > ${test_log} 2>&1 || ( tail -n 60 ${test_log} && false ) && rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_RANS_PYTHON} ${CURRENT_TEST_BINARY_DIR}/${CHECK_SCRIPT} --smoke ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} > ${check_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${check_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${test_log};${check_log}"
+    )
+endfunction(add_test_rans)
+
+# flat meshes: MLMG projection so the tests run in every build
+add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
+add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
+add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+if(ERF_ENABLE_FFT)
+    # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
+    # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
+    # against the analytic height, each with the terrain_height and Poisson paths
+    add_test_rans(RANS_Neutral_Hill_2D        Neutral_Hill_2D      inputs_hill        40  check_hill.py)
+    add_test_rans(RANS_Neutral_Hill_2D_Poisson Neutral_Hill_2D     inputs_hill        40  check_hill.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
+    add_test_rans(RANS_Flat_Fitted_2D         Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6")
+    add_test_rans(RANS_Flat_Fitted_2D_Poisson Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6 erf.wall_dist_type=poisson")
+    add_test_rans(RANS_Neutral_Hill_3D        Neutral_Hill_3D      inputs_hill3d      40  check_hill3d.py)
+    add_test_rans(RANS_Neutral_Hill_3D_Poisson Neutral_Hill_3D     inputs_hill3d      40  check_hill3d.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
+endif()
+
+#=============================================================================
 # MOST reference height on flat stretched meshes
 #
 # run_most_zref.py runs one flat stretched column through the terrain-fitted,

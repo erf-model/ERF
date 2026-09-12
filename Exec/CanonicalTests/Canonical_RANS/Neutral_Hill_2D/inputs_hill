@@ -1,0 +1,104 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Neutral flow over a periodic two-dimensional ridge (Witch of Agnesi,
+# hmax = 100 m, L = 500 m at half height) on a terrain-fitted mesh with
+# the one-equation k RANS closure under a MOST surface layer. The wall
+# distance comes from the Poisson solve of Tucker (2003); the case checks
+# it against the exact distance to the ridge and measures the hill-top
+# speed-up against the Jackson-Hunt estimate 2 h/L.
+erf.prob_name = "ABL"
+
+erf.anelastic = 1
+erf.use_fft   = false    # terrain-fitted mesh: MLMG projection
+
+stop_time = 21600.0   # 6 h physics run (14400 steps); CTest overrides max_step
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -2560.   0.    0.
+geometry.prob_hi     =  2560.  40. 1000.
+amr.n_cell           =   128    1    64      # dx = 40 m, dz = 15.625 m
+amr.max_grid_size    = 64
+amr.blocking_factor  = 1        # ny = 1
+
+geometry.is_periodic = 1 1 0
+
+# TERRAIN: Witch of Agnesi ridge centred in x
+erf.terrain_type         = StaticFittedMesh
+erf.terrain_smoothing    = 0        # basic terrain following
+erf.wall_dist_type       = terrain_height   # height above the surface on its normal; "poisson" is the Tucker (2003) solve
+prob.custom_terrain_type = "WoA"
+prob.dir                 = 0
+prob.hmax                = 100.0    # ridge height [m]
+prob.L                   = 500.0    # half-width at half height [m]
+
+# MOST BOUNDARY (adiabatic: neutral surface)
+zlo.type      = "surface_layer"
+erf.most.z0   = 0.1
+
+zhi.type       = "SlipWall"
+zhi.theta_grad = 0.03
+
+# INITIALIZATION
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.sounding_type       = "Ideal"
+
+# TIME STEP CONTROL: dx = 40 m and 10 m/s give a Courant number of 0.375
+erf.fixed_dt = 1.5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 10
+erf.v            = 1
+amr.v            = 0
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 0
+
+# CHECKPOINT FILES
+erf.check_file = chk
+erf.check_int  = 14400
+
+# PLOTFILES
+erf.plot_file_1 = plt
+erf.plot_int_1  = 14400
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss z_phys
+
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity  = true
+erf.use_coriolis = true
+erf.coriolis_3d  = false
+erf.latitude     = 90.0
+erf.rotational_time_period = 125663.7061435917   # f = 1e-4 1/s
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind    = 10.0 0.0 0.0
+
+# gravity-wave damping in the top 300 m
+erf.rayleigh_damp_W   = true
+erf.rayleigh_dampcoef = 0.2
+erf.rayleigh_zdamp    = 300.
+
+erf.molec_diff_type = "None"
+
+# TURBULENCE MODELING: one-equation k RANS
+erf.les_type            = "None"
+erf.rans_type           = "kEqn"
+erf.dirichlet_k         = true
+erf.init_tke_from_ustar = true
+erf.theta_ref           = 300.0
+
+# PROBLEM PARAMETERS: no perturbations
+prob.pert_deltaU  = 0.0
+prob.pert_deltaV  = 0.0
+prob.T_0_Pert_Mag = 0.0
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
+prob.W_0_Pert_Mag = 0.0

@@ -1475,6 +1475,8 @@ private:
                                                     "Khv","Khh",
                                                     // turbulence lengthscale
                                                     "Lturb",
+                                                    // k-eqn RANS: smoothed turbulent Richardson number and stability functions
+                                                    "Rt", "cmu", "cmu_prime",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",

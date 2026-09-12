@@ -305,7 +305,8 @@ public:
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
       // If we're using the RANS k model, then we need to update the dirichlet
-      // BC based on the instantaneous u* and θ*; the turbulence modeling
+      // wall value of k (written into the first cell above the wall and held
+      // there through the step) based on the instantaneous u* and θ*; the turbulence modeling
       // choices can vary per level but for now, assume that if specified then
       // all levels are using the same RANS model.
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&

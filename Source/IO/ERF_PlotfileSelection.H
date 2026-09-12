@@ -231,6 +231,9 @@ plot3d_fixed_variable_available (const std::string& name,
         name == "Khv" || name == "Khh" || name == "Lturb") {
         return caps.eddy_diffusivity_storage;
     }
+    if (name == "Rt" || name == "cmu" || name == "cmu_prime") {
+        return caps.eddy_diffusivity_storage;
+    }
     if (name == "diss") return caps.dissipation_storage;
     if (name == "walldist") return caps.wall_distance_storage;
 

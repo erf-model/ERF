@@ -328,13 +328,32 @@ void ERF::init_bcs ()
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
-        // Need to change wall BC type, assume for now that all levels are RANS
+        // The wall value of k (AL01 Eq. 16) is written into the first cell by
+        // SurfaceLayer::update_fluxes and held there through every RK stage
+        // (erf_slow_rhs_post, ImplicitDiffForStateLU_*). The logical BC for
+        // RhoKE at the wall stays foextrap, so the ghost cell carries the same
+        // value and the surface-layer branch of the diffusion sets a zero flux
+        // through the wall face. Assume for now that all levels are RANS.
         for (int lev = 0; lev < max_level; ++lev) {
             if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
                 Error("If using one-eqn RANS, all levels must be RANS for now");
             }
         }
-        Print() << "Using dirichlet BC for k equation" << std::endl;
+        Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
+    }
+
+    // k-eqn RANS under a surface layer without the Dirichlet wall value: the
+    // first cell cannot resolve the near-wall shear production, so k there
+    // settles at about half the AL01 equilibrium u*^2/Cmu0^2 (the mean wind
+    // still follows the log law because MOST supplies the stress). Warn.
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn &&
+            !solverChoice.turbChoice[lev].dirichlet_k &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+            Warning("erf.rans_type = kEqn with zlo.type = surface_layer but erf.dirichlet_k = false: "
+                    "near-wall TKE will be about half the Axell & Liungman equilibrium value; "
+                    "set erf.dirichlet_k = true");
+        }
     }
 
     // *****************************************************************************
@@ -670,10 +689,8 @@ void ERF::init_bcs ()
                 for (int i = 0; i < NBCVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 }
-                if (keqn_dir) {
-                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
-                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                }
+                // NOTE: with erf.dirichlet_k the RhoKE wall value lives in the
+                //       first cell (see above); foextrap is the right logical BC.
             }
         }
     }
