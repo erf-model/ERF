@@ -305,7 +305,7 @@ public:
                     nsubsteps = 1;
                     dtau      = myhalf * timestep;
                 } else {
-                    nsubsteps = substep_ratio/2;
+                    nsubsteps = std::max(substep_ratio/2, 1);
                     dtau      = (myhalf * timestep) / static_cast<double>(nsubsteps);
                 }
                 time_stage = time + timestep / two;
