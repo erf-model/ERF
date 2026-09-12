@@ -2,6 +2,9 @@
 .. index:: SatAdj
 .. index:: ConstantAlpha
 .. index:: NoSlipWall
+.. index:: bulk_aero
+.. index:: neutral_roughness_log
+.. index:: Monin-Obukhov similarity theory
 .. index:: cloud_chamber_budget_interval
 .. index:: qv
 .. index:: qc
@@ -12,110 +15,67 @@
 Cloud Chamber
 =============
 
-The Cloud Chamber problem provides a single-level, Cartesian, anelastic
-proof-of-concept configuration for buoyancy-driven thermal and moist
-convection in a closed rectangular chamber.
+Overview
+--------
 
-Dry mode evolves thermal convection without moisture state variables.
-Moist mode uses SatAdj for instantaneous equilibrium partitioning between
-water vapor and cloud water.
+The Cloud Chamber problem is a single-level, Cartesian, fixed-density
+anelastic configuration for studying buoyancy-driven thermal and moist flow in
+a closed rectangular chamber.  It supports prescribed-temperature walls,
+dry or SatAdj thermodynamics, and several wall-transfer closures for momentum,
+heat, and water vapor.
 
-This configuration is not a quantitatively validated Pi-Chamber LES.
-It is intended for code-path verification, qualitative buoyancy-driven flow,
-wall-flux testing, and conserved-scalar regression tests.  It does not provide
-finite-rate droplet microphysics, a calibrated engineering wall law,
-grid-independent LES validation, or quantitative experimental calibration.
+The Cloud Chamber implementation is intended for code-path verification,
+qualitative chamber-flow studies, wall-flux experiments, and conservation
+regression tests.  It is **not** a quantitatively validated Pi-Chamber LES or
+a calibrated engineering wall-model package.  It does not provide finite-rate
+droplet microphysics, droplet deposition, precipitation, natural-convection
+wall correlations, or experimentally calibrated transfer coefficients.
 
-Choose a mode
--------------
+Most new inputs should use
+``prob.thermodynamic_initialization = physical_temperature_rh``.  The older
+``legacy_theta_qv`` mode is retained for existing numerical inputs but does
+not support the generalized per-channel wall-transfer models described below.
 
-.. list-table:: Supported Cloud Chamber modes
+Choose the thermodynamic mode
+-----------------------------
+
+.. list-table:: Supported Cloud Chamber thermodynamic modes
    :header-rows: 1
-   :widths: 23 25 20 32
+   :widths: 22 24 24 30
 
    * - Mode
-     - Moisture settings
+     - Moisture model
      - Wall moisture
-     - Intended use
-   * - Dry thermal chamber
-     - Omit ``erf.moisture_model`` and
-       ``prob.initial_relative_humidity``
-     - All faces ``dry``
-     - Thermal convection and strict ``rhoTheta`` closure
+     - Typical use
+   * - Dry physical chamber
+     - Omit ``erf.moisture_model``
+     - Every face is ``dry``
+     - Thermal convection and strict dry ``rhoTheta`` budget checks
    * - SatAdj with dry walls
-     - Set ``erf.moisture_model = SatAdj`` and provide RH
-     - All faces ``dry``
-     - Closed total-water conservation
+     - ``erf.moisture_model = SatAdj``
+     - Every face is ``dry``
+     - Moist thermodynamics in a water-impermeable chamber
    * - SatAdj with wet walls
-     - Set ``erf.moisture_model = SatAdj`` and provide RH
+     - ``erf.moisture_model = SatAdj``
      - One or more faces may be ``wet``
-     - Vapor exchange with total-water closure
+     - Equilibrium vapor exchange with total-water budget checks
+   * - Legacy theta/qv
+     - Omit moisture for dry legacy mode, or use ``SatAdj`` for cloudy legacy mode
+     - Legacy numerical ``theta``/``qv`` wall values
+     - Backward compatibility with existing Cloud Chamber inputs
 
-A wet wall is valid only with SatAdj.  A dry wall is impermeable to water,
-but it may still exchange heat through its prescribed temperature.
+A wall marked ``dry`` is impermeable to water but may still exchange heat.
+A ``wet`` wall is valid only when ``erf.moisture_model = SatAdj``.
 
-Terminology
------------
+Global ERF requirements
+-----------------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 28 72
+The Cloud Chamber parser enforces a deliberately narrow numerical scope.  A
+supported physical-temperature case uses one nonperiodic Cartesian level,
+fixed-density anelastic dynamics, gravity, ConstantDz geometry, explicit
+vertical diffusion, and ConstantAlpha scalar diffusion.
 
-   * - Term
-     - Meaning in this configuration
-   * - Fixed-density anelastic
-     - ERF evolves velocity and thermodynamic scalars against a prescribed
-       hydrostatic reference density rather than advancing compressible density.
-   * - SatAdj
-     - Instantaneous equilibrium partitioning between vapor and cloud water,
-       including ERF's existing latent-heating adjustment.
-   * - ``qv``
-     - Water-vapor mixing ratio relative to dry air.
-   * - ``qc``
-     - Cloud-water mixing ratio relative to dry air.
-   * - ``rhoTheta``
-     - Density-weighted potential temperature, the conserved thermal scalar
-       used by this ERF configuration.
-   * - ``ConstantAlpha``
-     - User-configured thermal and scalar diffusivities used by the resolved
-       wall-normal transfer.
-   * - Resolved molecular transfer
-     - Transfer computed from the adjacent-cell-to-wall half-cell gradient;
-       it is not an engineering wall-function model.
-
-Required configuration
-----------------------
-
-.. important::
-
-   The Cloud Chamber uses one uniform Cartesian mesh level with no AMR refinement.
-   ERF may still divide that level into multiple boxes for parallel
-   execution.  The domain is closed in all three directions, gravity and
-   fixed-density anelastic dynamics are enabled, and all six boundaries are
-   stationary ``NoSlipWall`` faces with prescribed temperatures.
-
-   * ``amr.max_level = 0`` disables AMR refinement.
-   * ``erf.mesh_type = ConstantDz`` selects the supported Cartesian mesh.
-   * ``geometry.is_periodic = 0 0 0`` closes every direction rather than
-     wrapping it periodically.
-   * ``erf.init_type = ConstantDensity``, ``erf.anelastic = 1``, and
-     ``erf.use_gravity = true`` select the fixed-density anelastic setup
-     with gravity.
-   * ``erf.vert_implicit = false`` selects the explicit vertical-diffusion
-     path supported by the Cloud Chamber wall treatment.
-   * ``erf.terrain_type`` and ``erf.buildings_type`` must be omitted or set
-     to ``None``; terrain, embedded boundaries, and immersed buildings are
-     outside the Cloud Chamber configuration.
-   * All six faces must be stationary ``NoSlipWall`` boundaries with an
-     explicit temperature.
-   * The retained aggregate wall key
-     ``wall_transfer_model = resolved_molecular`` remains supported.  The
-     generalized contract may instead select supported momentum, heat, and
-     vapor models independently.  Bulk channels use fixed, nonnegative
-     coefficients where selected, or MOST-provided coefficients on the
-     supported horizontal ``zlo``/``zhi`` walls.
-
-The common solver settings are:
+A typical common block is:
 
 .. code-block:: none
 
@@ -130,130 +90,200 @@ The common solver settings are:
    amr.max_level = 0
    geometry.is_periodic = 0 0 0
 
-   prob.thermodynamic_initialization = physical_temperature_rh
-   prob.initial_temperature_bottom = 300.0
-   prob.initial_temperature_top = 284.0
-   prob.temperature_perturbation_amplitude = 0.02
-   prob.perturbation_mode = deterministic_sine
+The following constraints are part of the implemented Cloud Chamber contract:
 
-Despite the input-mode name ``physical_temperature_rh``, dry mode does not
-use relative humidity.  For dry mode, omit both
-``erf.moisture_model`` and ``prob.initial_relative_humidity``.
+.. list-table:: Global Cloud Chamber requirements
+   :header-rows: 1
+   :widths: 28 26 46
 
-For SatAdj mode add:
+   * - Setting
+     - Required value
+     - Notes
+   * - ``erf.anelastic``
+     - ``1``
+     - Required in every Cloud Chamber mode.
+   * - ``erf.use_gravity``
+     - ``true``
+     - Required in every Cloud Chamber mode.
+   * - ``amr.max_level``
+     - ``0``
+     - AMR refinement is unsupported.  The single level may still contain multiple AMReX boxes.
+   * - ``geometry.is_periodic``
+     - ``0 0 0``
+     - All three directions are closed and nonperiodic.
+   * - ``erf.mesh_type``
+     - omitted or ``ConstantDz``
+     - Stretched vertical grids are outside the supported Cloud Chamber path.
+   * - ``erf.terrain_type``
+     - omitted or ``None``
+     - Terrain and embedded-boundary configurations are unsupported.
+   * - ``erf.buildings_type``
+     - omitted or ``None``
+     - Immersed buildings are unsupported.
+   * - ``erf.init_type``
+     - ``ConstantDensity``
+     - Required by ``physical_temperature_rh`` initialization.
+   * - ``erf.molec_diff_type``
+     - ``ConstantAlpha``
+     - Required by the physical wall-transfer path, including cases that also use bulk, neutral, or MOST wall closures.
+   * - ``erf.vert_implicit``
+     - ``false``
+     - Required by the physical wall-transfer path.
+
+If ``prob.p_inf`` is supplied, the Cloud Chamber requires it to agree with
+ERF's reference pressure ``p_0 = 100000 Pa`` within a relative tolerance of
+``1e-6``.  ``prob.p_inf`` does not redefine the reference pressure used by the
+Cloud Chamber potential-temperature conversion.
+
+Physical-temperature initialization
+-----------------------------------
+
+Set:
 
 .. code-block:: none
 
-   erf.moisture_model = SatAdj
-   prob.initial_relative_humidity = 0.95
+   prob.thermodynamic_initialization = physical_temperature_rh
 
-Relative humidity is a fraction from 0 to 1, not a percentage.
+The physical-temperature initializer constructs a linear vertical temperature
+profile and optionally adds a deterministic three-dimensional perturbation.
 
-Runnable examples
------------------
+.. list-table:: Physical initialization inputs
+   :header-rows: 1
+   :widths: 34 18 20 28
 
-The following tracked regression inputs are complete runnable examples.
+   * - Key
+     - Required
+     - Default
+     - Valid values / meaning
+   * - ``prob.initial_temperature_bottom``
+     - yes
+     - none
+     - finite and greater than zero, in K
+   * - ``prob.initial_temperature_top``
+     - yes
+     - none
+     - finite and greater than zero, in K
+   * - ``prob.temperature_perturbation_amplitude``
+     - no
+     - ``0``
+     - finite amplitude in K
+   * - ``prob.perturbation_mode``
+     - no
+     - ``deterministic_sine``
+     - the only currently supported perturbation mode
+   * - ``prob.initial_relative_humidity``
+     - SatAdj only
+     - none
+     - required with SatAdj; a fraction in ``[0,1]``
+   * - ``prob.U_0``
+     - no
+     - ``0``
+     - amplitude of the deterministic divergence-free initial horizontal velocity perturbation
 
-.. note::
+For a domain with lower corner :math:`(x_0,y_0,z_0)` and lengths
+:math:`(L_x,L_y,L_z)`, the temperature field is
 
-   These are complete regression inputs intended to exercise the supported
-   code paths in short tests.  Their grid, timestep, LES settings, and
-   transfer coefficients are not calibrated recommendations for a physical
-   chamber simulation.  Interior LES is optional and does not replace the
-   configured wall-normal ``alpha_T`` and ``alpha_C`` transfer.
+.. math::
 
-Dry thermal chamber
-~~~~~~~~~~~~~~~~~~~
+   T(x,y,z) = T_\mathrm{linear}(z)
+   + A_T
+     \sin\!\left(\frac{2\pi(x-x_0)}{L_x}\right)
+     \sin\!\left(\frac{2\pi(y-y_0)}{L_y}\right)
+     \sin\!\left(\frac{\pi(z-z_0)}{L_z}\right),
 
-.. literalinclude:: ../../Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i
-   :language: none
-   :caption: Dry thermal chamber with strict rhoTheta closure
+where :math:`A_T` is ``prob.temperature_perturbation_amplitude`` and
+:math:`T_\mathrm{linear}` interpolates between the prescribed bottom and top
+temperatures.
 
-Dry bulk-aerodynamic wall chamber
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Potential temperature is derived from the local hydrostatic base-state
+pressure,
 
-.. literalinclude:: ../../Tests/test_files/CloudChamber_Dry_BulkMixed/CloudChamber_Dry_BulkMixed.i
-   :language: none
-   :caption: Multi-box dry chamber exercising the bulk heat-wall path
+.. math::
 
-SatAdj wet-wall chamber
-~~~~~~~~~~~~~~~~~~~~~~~
+   \theta = T
+   \left(\frac{p_0}{p_\mathrm{hse}}\right)^{R_d/c_p},
 
-.. literalinclude:: ../../Tests/test_files/CloudChamber_SatAdj_WetBudget/CloudChamber_SatAdj_WetBudget.i
-   :language: none
-   :caption: SatAdj chamber with wet lower and upper walls
+using ERF's configured ``rdOcp = R_d/c_p``.  Here
+:math:`p_\mathrm{hse}` is the local hydrostatic pressure and
+:math:`p_0=100000\ \mathrm{Pa}` is ERF's reference pressure.
 
-The shipped fixtures use a 300 K lower wall, a 284 K upper wall, and four
-292 K sidewalls.  All six walls are temperature-controlled.  The warm-lower
-and cool-upper arrangement should produce an unstable thermal profile and a
-bounded buoyancy-driven overturning response.
+With SatAdj, the initial vapor mixing ratio is computed from the supplied
+relative humidity,
 
-Scientific scope
-----------------
+.. math::
 
-This configuration can support qualitative buoyancy-driven flow, equilibrium
-vapor--cloud-water thermodynamics, wall-flux verification, and conservation
-testing.
+   q_v = \frac{R_d}{R_v}
+   \frac{RH\,e_s(T)}{p_\mathrm{hse}-RH\,e_s(T)},
 
-It does not represent droplet activation, number or size distributions,
-rain, sedimentation, collision--coalescence, precipitation, or cloud-water
-deposition at a wall.  It must not be used by itself to claim quantitative
-Pi-Chamber agreement or grid-independent LES behavior.
+where ``RH`` is a fraction rather than a percentage.  The initializer sets
+``qc = 0`` and SatAdj subsequently establishes the equilibrium vapor--cloud
+water partition.  In dry mode there are no ``qv`` or ``qc`` state fields, and
+``prob.initial_relative_humidity`` must be omitted.
 
-Initial thermodynamic state
+Do not combine physical initialization with the legacy profile keys
+``theta_bottom``, ``theta_top``, ``theta_perturbation_amplitude``,
+``qv_bottom``, or ``qv_top``.
+
+Optional deterministic velocity perturbation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``prob.U_0`` initializes a divergence-free horizontal velocity perturbation
+that vanishes on every wall.  With amplitude :math:`U_0`, ERF uses
+
+.. math::
+
+   u = U_0
+   \sin^2\!\left(\frac{\pi(x-x_0)}{L_x}\right)
+   \sin\!\left(\frac{2\pi(y-y_0)}{L_y}\right)
+   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right),
+
+.. math::
+
+   v = -U_0
+   \sin\!\left(\frac{2\pi(x-x_0)}{L_x}\right)
+   \sin^2\!\left(\frac{\pi(y-y_0)}{L_y}\right)
+   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right),
+   \qquad w=0.
+
+Leave ``prob.U_0`` unset, or set it to zero, for no velocity perturbation.
+This is an initial-condition option; it does not represent wall motion.
+
+Legacy theta/qv initialization
+------------------------------
+
+Set:
+
+.. code-block:: none
+
+   prob.thermodynamic_initialization = legacy_theta_qv
+
+Legacy mode is provided for existing numerical inputs.  It uses potential
+temperature directly instead of physical temperature and does not support the
+generalized per-channel wall-transfer keys.
+
+Dry legacy mode requires:
+
+.. code-block:: none
+
+   prob.theta_bottom = <positive value>
+   prob.theta_top = <positive value>
+   prob.theta_perturbation_amplitude = <optional finite value>
+   prob.perturbation_mode = deterministic_sine
+
+For cloudy legacy mode also set ``erf.moisture_model = SatAdj`` and provide
+nonnegative ``prob.qv_bottom`` and ``prob.qv_top``.  Every face still requires
+``<face>.type = NoSlipWall``.  Legacy walls use ``<face>.theta``; cloudy
+legacy walls also require ``<face>.qv``.
+
+Do not combine ``legacy_theta_qv`` with physical profile keys such as
+``initial_temperature_bottom``, ``initial_temperature_top``,
+``initial_relative_humidity``, or ``temperature_perturbation_amplitude``.
+For new generalized wall-model studies, use ``physical_temperature_rh``.
+
+Physical wall configuration
 ---------------------------
 
-The initializer prescribes physical temperature and then derives potential
-temperature from the local hydrostatic base-state pressure:
-
-.. math::
-
-   \theta =
-   T\left(\frac{p_\mathrm{ref}}{p_\mathrm{hse}}\right)^{R_d/c_p}.
-
-Here:
-
-* :math:`T` is physical temperature in kelvin;
-* :math:`p_\mathrm{hse}` is the local hydrostatic base-state pressure;
-* :math:`p_\mathrm{ref}` is ERF's fixed reference pressure, currently
-  100000 Pa;
-* :math:`R_d` is the dry-air gas constant; and
-* :math:`c_p` is dry-air specific heat at constant pressure.
-
-For physical SatAdj initialization:
-
-.. math::
-
-   q_v =
-   \frac{R_d}{R_v}
-   \frac{RH\,e_s(T)}
-        {p_\mathrm{hse}-RH\,e_s(T)},
-
-where :math:`R_v` is the water-vapor gas constant and :math:`e_s(T)` is
-saturation vapor pressure.
-
-``qv`` is a mixing ratio relative to dry air, not specific humidity.
-Initialization sets ``qc = 0``; SatAdj then establishes the vapor--cloud-water
-partition during model evolution.  Dry mode has no ``qv`` or ``qc`` state
-fields.
-
-Reference density and pressure
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When ``prob.p_inf`` is supplied, it must agree with the 100000 Pa ERF
-reference pressure within the accepted tolerance.  If ``prob.rho_0`` is
-omitted and ``prob.p_inf`` is supplied, ERF computes the constant reference
-density from ``prob.p_inf`` and ``prob.T_0``.  These inputs do not redefine
-:math:`p_\mathrm{ref}` in the potential-temperature relationship.
-
-The legacy ``legacy_theta_qv`` initialization remains available for existing
-numerical inputs.  Do not combine legacy profile keys with physical-mode
-temperature or RH keys.
-
-Wall temperature and moisture
------------------------------
-
-Every physical face requires:
+In physical-temperature mode, every face requires three basic declarations:
 
 .. code-block:: none
 
@@ -261,17 +291,55 @@ Every physical face requires:
    <face>.temperature = <temperature in K>
    <face>.moisture = dry|wet
 
-The six face prefixes are ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``,
-and ``zhi``.
+The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
+``zhi``.  Wall temperature must be finite and positive.  A wet wall requires
+SatAdj.  Cloud Chamber walls are stationary; ``<face>.velocity`` is rejected.
 
-The aggregate key may be used for the retained resolved path:
+``NoSlipWall`` is the required ERF boundary type for all supported Cloud
+Chamber wall models.  Selecting an aerodynamic momentum model changes the
+Cloud Chamber tangential wall-stress closure; it does not change the required
+boundary type or create a moving wall.
+
+Channel defaults
+~~~~~~~~~~~~~~~~
+
+If no per-channel model is specified, the effective physical-wall defaults
+are:
+
+.. list-table:: Default wall-transfer models
+   :header-rows: 1
+   :widths: 20 34 46
+
+   * - Channel
+     - Default model
+     - Meaning
+   * - momentum
+     - ``resolved_noslip``
+     - retain ERF's resolved no-slip viscous momentum treatment
+   * - heat
+     - ``resolved_molecular``
+     - use the adjacent-cell-to-wall half-cell resolved scalar gradient
+   * - vapor
+     - ``resolved_molecular``
+     - use the resolved wet-wall gradient; dry walls remain exactly impermeable
+   * - cloud water
+     - no selector
+     - wall flux is always exactly zero
+
+The retained aggregate compatibility key
 
 .. code-block:: none
 
    <face>.wall_transfer_model = resolved_molecular
 
-For the generalized path, do not combine the aggregate key with channel keys.
-The per-channel model selectors are:
+selects the fully resolved/default behavior for that face.  Do not combine
+``wall_transfer_model`` with per-channel model, coefficient, or roughness
+keys on the same face.
+
+Choose a transfer model
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The three configurable channels are selected independently:
 
 .. code-block:: none
 
@@ -279,690 +347,738 @@ The per-channel model selectors are:
    <face>.heat_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
    <face>.vapor_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
 
-If at least one channel uses ``bulk_aero``, also set:
+``law_of_wall_momentum`` is a compatibility alias for
+``neutral_roughness_log``; it does not select a separate formulation.
 
-.. code-block:: none
+.. list-table:: Wall-model choices
+   :header-rows: 1
+   :widths: 20 23 29 28
 
-   <face>.coefficient_source = fixed|most
+   * - Choice
+     - Applicable channels
+     - Additional inputs
+     - Main behavior
+   * - resolved
+     - momentum, heat, vapor
+     - none beyond the basic wall settings and resolved diffusivities
+     - retains ERF resolved no-slip momentum or half-cell scalar transfer
+   * - fixed ``bulk_aero``
+     - momentum, heat, vapor
+     - ``coefficient_source = fixed`` plus the corresponding ``C_D``, ``C_H``, or ``C_E``
+     - user-supplied dimensionless transfer coefficient multiplied by actual tangential speed
+   * - ``neutral_roughness_log``
+     - momentum, heat, vapor
+     - ``z0_m`` and the required scalar roughness lengths
+     - neutral aerodynamic log-resistance closure
+   * - MOST-provided ``bulk_aero``
+     - momentum, heat, vapor
+     - ``coefficient_source = most`` plus the required ``z0_*`` values
+     - computes bulk coefficients from the current pointwise Monin--Obukhov stability state; ``zlo``/``zhi`` only
 
-With ``coefficient_source = fixed``, provide ``C_D`` for bulk momentum,
-``C_H`` for bulk heat, and ``C_E`` for bulk wet vapor.  With
-``coefficient_source = most``, these coefficients are computed from the
-shared pointwise MOST state and must not be supplied.  MOST is valid only on
-``zlo`` and ``zhi``.  For example, a face using bulk heat and resolved wet
-vapor requires:
+One coefficient provider per face
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: none
+``<face>.coefficient_source`` is a **face-level provider shared by every
+``bulk_aero`` channel on that face**.  It is required when at least one bulk
+channel is active and must be either ``fixed`` or ``most``.  Consequently, a
+single face cannot use fixed bulk momentum and MOST bulk heat at the same
+time.  Non-bulk channels on that face may still be resolved or neutral.
 
-   <face>.heat_transfer_model = bulk_aero
-   <face>.vapor_transfer_model = resolved_molecular
-   <face>.coefficient_source = fixed
-   <face>.C_H = 0.1
+With ``coefficient_source = fixed``, provide a coefficient for every selected
+bulk channel:
 
-Scalar wall-transfer equations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ``C_D`` for bulk momentum;
+* ``C_H`` for bulk heat; and
+* ``C_E`` for bulk vapor.
 
-The Cloud Chamber wall evaluator defines physical scalar fluxes as positive
-**into the chamber fluid**.  Let :math:`\rho` be the adjacent-cell density,
-:math:`T_w` the prescribed wall temperature, :math:`p_\mathrm{hse}` the
-adjacent hydrostatic base-state pressure, and :math:`\Delta n` the cell width
-normal to the wall.  ERF potential temperature uses
+The coefficients must be finite and nonnegative.  They are dimensionless.
+With ``coefficient_source = most``, do **not** provide ``C_D``, ``C_H``, or
+``C_E``; ERF computes them from the current wall-adjacent state.
+
+.. important::
+
+   The parser validates selected vapor-model metadata even on a dry wall.
+   Therefore a dry wall configured with fixed ``bulk_aero`` vapor still
+   requires ``C_E``; a dry wall configured with neutral or MOST vapor still
+   requires the corresponding roughness metadata.  The physical dry-wall
+   vapor flux nevertheless remains exactly zero.
+
+Roughness requirements
+~~~~~~~~~~~~~~~~~~~~~~
+
+For neutral and MOST closures, the wall-adjacent reference distance is
 
 .. math::
 
-   \Pi = \left(\frac{p_\mathrm{hse}}{p_\mathrm{ref}}\right)^{R_d/c_p},
-   \qquad
-   \theta_w = \frac{T_w}{\Pi}
-   = T_w\left(\frac{p_\mathrm{ref}}{p_\mathrm{hse}\right)^{R_d/c_p}.
+   z_\mathrm{ref}=\frac{\Delta n}{2},
 
-For a stationary Cloud Chamber wall, the bulk model uses the local tangential
-relative velocity reconstructed from ERF's staggered velocity fields,
+where :math:`\Delta n` is the cell width normal to the face.  Every required
+roughness length must satisfy
 
 .. math::
 
-   \mathbf{u}_t =
-   (\mathbf{I}-\mathbf{n}\mathbf{n}^T)(\mathbf{u}_c-\mathbf{u}_w),
-   \qquad
-   U_t = |\mathbf{u}_t|,
-   \qquad
-   \mathbf{u}_w = 0.
+   0 < z_0 < z_\mathrm{ref}.
+
+The parser does not clip invalid roughness values.
+
+.. list-table:: Roughness inputs
+   :header-rows: 1
+   :widths: 18 22 60
+
+   * - Key
+     - Units
+     - Required when
+   * - ``<face>.z0_m``
+     - m
+     - any neutral channel, or any ``bulk_aero`` channel using MOST
+   * - ``<face>.z0_h``
+     - m
+     - neutral heat, or MOST bulk heat
+   * - ``<face>.z0_q``
+     - m
+     - neutral vapor, or MOST bulk vapor, including a configured dry vapor channel
+
+When wet heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
+must be exactly equal because the implemented bulk-Richardson fixed point uses
+one scalar stability resistance.  This equality is not imposed by a dry vapor
+channel because dry vapor is not an active scalar-transfer channel.
+
+Per-face input reference
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following table summarizes the physical-temperature wall keys.
+
+.. list-table:: Cloud Chamber physical-wall input reference
+   :header-rows: 1
+   :widths: 27 17 21 35
+
+   * - Key
+     - Default
+     - Valid values
+     - Required / rejected when
+   * - ``<face>.type``
+     - none
+     - ``NoSlipWall``
+     - required on every face
+   * - ``<face>.temperature``
+     - none
+     - finite, positive K
+     - required on every physical wall
+   * - ``<face>.moisture``
+     - none
+     - ``dry`` or ``wet``
+     - required on every physical wall; ``wet`` requires SatAdj
+   * - ``<face>.wall_transfer_model``
+     - omitted
+     - ``resolved_molecular`` only
+     - compatibility aggregate; rejected when combined with any per-channel transfer key
+   * - ``<face>.momentum_transfer_model``
+     - ``resolved_noslip``
+     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, ``law_of_wall_momentum``
+     - optional; alias maps to neutral roughness-log
+   * - ``<face>.heat_transfer_model``
+     - ``resolved_molecular``
+     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - optional
+   * - ``<face>.vapor_transfer_model``
+     - ``resolved_molecular``
+     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - optional; dry physical vapor flux remains exactly zero
+   * - ``<face>.coefficient_source``
+     - omitted
+     - ``fixed`` or ``most``
+     - required if any channel is ``bulk_aero``; rejected if no bulk channel is active; ``most`` only on ``zlo``/``zhi``
+   * - ``<face>.C_D``
+     - none
+     - finite and nonnegative
+     - required only for fixed bulk momentum; rejected with MOST or non-bulk momentum
+   * - ``<face>.C_H``
+     - none
+     - finite and nonnegative
+     - required only for fixed bulk heat; rejected with MOST or non-bulk heat
+   * - ``<face>.C_E``
+     - none
+     - finite and nonnegative
+     - required only for fixed bulk vapor, including a configured dry vapor channel; rejected with MOST or non-bulk vapor
+   * - ``<face>.z0_m``
+     - none
+     - ``0 < z0_m < z_ref``
+     - required by any neutral channel or any MOST bulk channel; otherwise rejected
+   * - ``<face>.z0_h``
+     - none
+     - ``0 < z0_h < z_ref``
+     - required by neutral heat or MOST bulk heat; otherwise rejected
+   * - ``<face>.z0_q``
+     - none
+     - ``0 < z0_q < z_ref``
+     - required by neutral vapor or MOST bulk vapor; otherwise rejected
+   * - ``<face>.velocity``
+     - stationary internally
+     - unsupported
+     - always rejected; moving walls are not implemented
+
+Configuration examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+The snippets below illustrate syntax only.  Numeric coefficients and roughness
+lengths are examples, not calibration recommendations.
+
+Fully resolved physical wall:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.temperature = 300.0
+   zlo.moisture = dry
+   zlo.wall_transfer_model = resolved_molecular
+
+Fixed bulk momentum and heat with resolved wet vapor:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.temperature = 300.0
+   zlo.moisture = wet
+   zlo.momentum_transfer_model = bulk_aero
+   zlo.heat_transfer_model = bulk_aero
+   zlo.vapor_transfer_model = resolved_molecular
+   zlo.coefficient_source = fixed
+   zlo.C_D = 0.01
+   zlo.C_H = 0.01
+
+Neutral roughness-log momentum, heat, and vapor:
+
+.. code-block:: none
+
+   xlo.type = NoSlipWall
+   xlo.temperature = 292.0
+   xlo.moisture = wet
+   xlo.momentum_transfer_model = neutral_roughness_log
+   xlo.heat_transfer_model = neutral_roughness_log
+   xlo.vapor_transfer_model = neutral_roughness_log
+   xlo.z0_m = 1.0e-3
+   xlo.z0_h = 5.0e-4
+   xlo.z0_q = 5.0e-4
+
+MOST-provided bulk transfer on a horizontal wall:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.temperature = 300.0
+   zlo.moisture = wet
+   zlo.momentum_transfer_model = bulk_aero
+   zlo.heat_transfer_model = bulk_aero
+   zlo.vapor_transfer_model = bulk_aero
+   zlo.coefficient_source = most
+   zlo.z0_m = 2.0e-3
+   zlo.z0_h = 2.0e-3
+   zlo.z0_q = 2.0e-3
+
+A face may mix non-bulk and bulk models.  For example, neutral momentum may be
+combined with fixed bulk heat and resolved vapor:
+
+.. code-block:: none
+
+   ylo.momentum_transfer_model = neutral_roughness_log
+   ylo.heat_transfer_model = bulk_aero
+   ylo.vapor_transfer_model = resolved_molecular
+   ylo.z0_m = 1.0e-3
+   ylo.coefficient_source = fixed
+   ylo.C_H = 0.01
+
+Wall-transfer formulations
+--------------------------
+
+Common definitions and sign convention
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All Cloud Chamber wall closures use the adjacent wall cell and a reference
+distance :math:`z_\mathrm{ref}=\Delta n/2`.  For outward unit normal
+:math:`\mathbf n`, stationary wall velocity :math:`\mathbf u_w=0`, and
+adjacent fluid velocity :math:`\mathbf u_c`, the tangential relative velocity
+is
+
+.. math::
+
+   \mathbf u_t =
+   (\mathbf I-\mathbf n\mathbf n^T)(\mathbf u_c-\mathbf u_w),
+   \qquad U_t=|\mathbf u_t|.
 
 The normal velocity is removed before :math:`U_t` is formed.
 
-For ``heat_transfer_model = resolved_molecular``, the existing half-cell
-resolved transfer is
+Physical scalar fluxes in this section are defined as positive **into the
+chamber fluid** and are denoted :math:`J_\mathrm{in}`.  ERF stores a face flux
+in the positive coordinate direction, so
+
+.. math::
+
+   F_\mathrm{coord}=
+   \begin{cases}
+      +J_\mathrm{in}, & \text{low face},\\
+      -J_\mathrm{in}, & \text{high face}.
+   \end{cases}
+
+The wall potential temperature is
+
+.. math::
+
+   \Pi_w = \left(\frac{p_\mathrm{hse}}{p_0}\right)^{R_d/c_p},
+   \qquad
+   \theta_w = \frac{T_w}{\Pi_w}
+   = T_w\left(\frac{p_0}{p_\mathrm{hse}}\right)^{R_d/c_p}.
+
+Dry vapor and cloud water have exact zero physical wall flux for every
+supported transfer model:
+
+.. math::
+
+   J_{\rho q_v,\mathrm{in}}=0 \quad \text{for a dry wall},
+   \qquad
+   J_{\rho q_c,\mathrm{in}}=0 \quad \text{for every wall}.
+
+A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
+
+Resolved transfer
+~~~~~~~~~~~~~~~~~
+
+``momentum_transfer_model = resolved_noslip`` leaves momentum to ERF's
+existing resolved no-slip viscous treatment.
+
+For ``heat_transfer_model = resolved_molecular``, the physical-temperature
+wall replaces the scalar face flux with the half-cell resolved transfer
 
 .. math::
 
    J_{\rho\theta,\mathrm{in}}
    = \rho\,\alpha_T\,(\theta_w-\theta_a)\frac{2}{\Delta n}.
 
-For ``heat_transfer_model = bulk_aero`` with
-``coefficient_source = fixed``, ERF applies
-
-.. math::
-
-   J_{\rho\theta,\mathrm{in}}
-   = \rho\,C_H\,U_t\,(\theta_w-\theta_a).
-
-``C_H`` is dimensionless.  The equivalent inward sensible-heat flux is
-
-.. math::
-
-   H_\mathrm{in} = \rho c_p C_H U_t(T_w-T_a),
-
-and, because :math:`T=\Pi\theta`, the conserved potential-temperature flux
-satisfies
-
-.. math::
-
-   J_{\rho\theta,\mathrm{in}}
-   = \frac{H_\mathrm{in}}{c_p\Pi}.
-
-The bulk heat model therefore replaces the physical boundary flux of ERF's
-conserved ``rhoTheta`` scalar; it is not inserted as an independent energy
-source term.
-
-Cloud Chamber ``qv`` and ``qc`` are mixing ratios relative to dry air, not
-specific humidity.  For a wet wall with
-``vapor_transfer_model = resolved_molecular``,
+For a wet wall with ``vapor_transfer_model = resolved_molecular``,
 
 .. math::
 
    J_{\rho q_v,\mathrm{in}}
-   = \rho\,\alpha_C\,
-     [q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}]
+   = \rho\,\alpha_C
+     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
-For a wet wall with ``vapor_transfer_model = bulk_aero`` and
-``coefficient_source = fixed``,
+``alpha_T`` and ``alpha_C`` come from the ConstantAlpha diffusion
+configuration.  Treat them as prescribed resolved-transfer coefficients for
+this problem; the Cloud Chamber documentation does not assign calibrated
+physical values to them.
+
+Fixed bulk-aerodynamic transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``coefficient_source = fixed``, the user supplies the dimensionless bulk
+coefficients.  Momentum traction on the fluid is
+
+.. math::
+
+   \mathbf t_\mathrm{wall\to fluid}
+   = -\rho C_D U_t\mathbf u_t.
+
+The traction is tangent to the wall, opposes tangential relative motion, and
+is exactly zero when :math:`U_t=0`.
+
+Bulk heat transfer is
+
+.. math::
+
+   J_{\rho\theta,\mathrm{in}}
+   = \rho C_H U_t(\theta_w-\theta_a).
+
+For a wet wall, bulk vapor transfer is
 
 .. math::
 
    J_{\rho q_v,\mathrm{in}}
-   = \rho\,C_E\,U_t\,
-     [q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}].
+   = \rho C_E U_t
+     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right].
 
-``C_E`` is dimensionless.  Positive vapor flux adds vapor to the chamber;
-negative vapor flux removes vapor at the wall.
+The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
+speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
+transfer is therefore a forced/shear-dependent closure, not a complete
+natural- or mixed-convection wall correlation.
 
-For ``moisture = dry``, vapor impermeability is exact,
+Neutral roughness-log transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. math::
-
-   J_{\rho q_v,\mathrm{in}} = 0,
-
-and this is not a ``qv_wall = 0`` Dirichlet condition.  For every supported
-Cloud Chamber wall, cloud-water transfer is also exactly zero,
+For ``neutral_roughness_log``, let
 
 .. math::
 
-   J_{\rho q_c,\mathrm{in}} = 0.
+   D_m = \ln\left(\frac{z_\mathrm{ref}}{z_{0m}}\right),
+   \qquad
+   \kappa=0.41.
 
-The dry-qv and qc zero-flux gates are applied before saturation or bulk
-coefficient arithmetic.
-
-For fixed ``bulk_aero``, :math:`U_t=0` gives exactly zero bulk heat and vapor
-flux.  This implementation does not add a hidden minimum speed, gustiness
-velocity, or free-convection term.  The model is therefore a
-**forced/shear-dependent transfer closure**, not a complete natural- or
-mixed-convection wall correlation.  This feature does not calibrate ``C_H``
-or ``C_E`` for a Pi-Chamber or any other laboratory facility.  Numeric values
-in regression inputs are software test parameters, not physical
-recommendations.
-
-ERF stores face flux in the positive coordinate direction.  The single
-low/high storage adapter is
+The neutral momentum state is
 
 .. math::
 
-   F_\mathrm{coord} =
-   \begin{cases}
-      +J_\mathrm{in}, & \text{low face},\\
-      -J_\mathrm{in}, & \text{high face}.
+   u_* = \frac{\kappa U_t}{D_m},
+   \qquad
+   C_D=\left(\frac{\kappa}{D_m}\right)^2,
+
+and momentum uses the same physical drag form
+
+.. math::
+
+   \mathbf t_\mathrm{wall\to fluid}
+   = -\rho C_D U_t\mathbf u_t.
+
+Neutral heat and wet-vapor coefficients are
+
+.. math::
+
+   C_H = \frac{\kappa^2}
+              {D_m\ln(z_\mathrm{ref}/z_{0h})},
+   \qquad
+   C_E = \frac{\kappa^2}
+              {D_m\ln(z_\mathrm{ref}/z_{0q})},
+
+and the bulk scalar-flux formulas above are then used.  A scalar-only neutral
+heat or vapor channel still requires ``z0_m`` because its resistance contains
+:math:`D_m`.  Neutral channels do not use ``coefficient_source`` or
+user-supplied ``C_D``, ``C_H``, or ``C_E``.
+
+MOST-provided bulk coefficients
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``coefficient_source = most`` keeps the ``bulk_aero`` physical flux formulas
+but obtains their coefficients from one pointwise Monin--Obukhov stability
+state on the wall face.  It is supported only on ``zlo`` and ``zhi``.
+
+The wall virtual potential-temperature state is
+
+.. math::
+
+   \theta_v=\theta(1+\epsilon_v q_v),
+
+with
+
+.. math::
+
+   q_{v,w}=\begin{cases}
+      q_\mathrm{sat}(T_w,p_\mathrm{hse}), & \text{wet wall},\\
+      q_{v,a}, & \text{dry wall}.
    \end{cases}
 
-Thus a high-face chamber influx is stored as a negative coordinate flux.
-Cloud Chamber budgets use the matching low-minus-high convention.  The
-retained physical face flux is the same value used by the RHS correction and
-the budget; the budget does not recompute a separate wall model.
-
-Neutral roughness-log wall transfer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``neutral_roughness_log`` is the canonical aerodynamic roughness/log-resistance
-model.  ``law_of_wall_momentum`` is accepted as a compatibility alias for the
-momentum selector; it does not create a second production law.  These models
-are intended for a forced, shear-neutral wall-adjacent sample; no calibrated
-roughness defaults are provided.
-
-For outward unit normal :math:`\mathbf n`, the closure uses
+The stability calculation uses
 
 .. math::
 
-   \mathbf u_\mathrm{rel}=\mathbf u_\mathrm{fluid}-\mathbf u_\mathrm{wall},
-   \qquad \mathbf u_t=(\mathbf I-\mathbf n\mathbf n^T)\mathbf u_\mathrm{rel},
-   \qquad U_t=|\mathbf u_t|.
+   U_\mathrm{MOST}=\max(U_t,0.01),
 
-The normal velocity is removed before the magnitude is formed. With
-:math:`z_\mathrm{ref}=\Delta n/2=0.5/\mathrm{dx\_inv}[DIR]`,
+and the bulk Richardson number
+
+.. math::
+
+   Ri_b = s_g\,
+   \frac{g z_\mathrm{ref}}{\theta_a}
+   \frac{\theta_{v,a}-\theta_{v,w}}{U_\mathrm{MOST}^2},
+
+where :math:`s_g=+1` on ``zlo`` and :math:`s_g=-1` on ``zhi``.  ERF clamps
+
+.. math::
+
+   Ri=\mathrm{clamp}(Ri_b,-4,4).
+
+Define
 
 .. math::
 
    D_m=\ln(z_\mathrm{ref}/z_{0m}),\qquad
-   u_* = \frac{\kappa U_t}{D_m},\qquad
-   C_D=\left(\frac{\kappa}{D_m}\right)^2,
-   \qquad \kappa=KAPPA=0.41.
+   D_h=\ln(z_\mathrm{ref}/z_{0h}),\qquad
+   D_q=\ln(z_\mathrm{ref}/z_{0q}).
 
-The physical wall-on-fluid tangential traction is
+The scalar resistance used by the stability fixed point is ``z0_h`` when
+MOST heat is active, otherwise ``z0_q`` when active wet MOST vapor is present,
+and otherwise ``z0_m`` for momentum-only MOST.  If wet heat and wet vapor are
+both active, the parser requires ``z0_h == z0_q``.
 
-.. math::
-
-   \mathbf t_\mathrm{wall\to\mathrm{fluid}}
-   =-\rho C_D U_t\mathbf u_t.
-
-It is tangent, opposes wall-relative motion, and is exactly zero for a calm
-sample. This physical traction is distinct from the low/high sign used by
-ERF's stored ``tau12``, ``tau13``, and ``tau23`` arrays: a dedicated stress
-adapter maps it to the existing momentum divergence operator. Neutral momentum
-owns tangential cross-stress only and does not overwrite normal diagonal
-stress.
-
-Neutral heat and wet-vapor transfer use
+Starting from :math:`\zeta=0`, ERF evaluates its existing
+``calc_psi_m2`` and ``calc_psi_h2`` similarity functions and iterates
 
 .. math::
 
-   C_H=\frac{\kappa^2}{D_m\ln(z_\mathrm{ref}/z_{0h})},\qquad
-   C_E=\frac{\kappa^2}{D_m\ln(z_\mathrm{ref}/z_{0q})},
-
-   J_{\rho\theta,\mathrm{in}}=\rho C_H U_t(\theta_w-\theta_a),\qquad
-   J_{\rho q_v,\mathrm{in}}=\rho C_E U_t(q_{v,w}-q_{v,a}).
-
-The existing Exner convention is used,
-:math:`\Pi=(p_\mathrm{hse}/p_0)^{R_d/c_p}` and
-:math:`\theta_w=T_w/\Pi`; wet vapor uses ERF's existing ``erf_qsatw``
-routine and pressure conversion. Dry vapor and cloud-water wall fluxes remain
-owned exact zeros before unrelated saturation or velocity arithmetic.
-
-Every active neutral roughness length is host-validated. A scalar-only
-neutral heat or vapor channel still requires ``z0_m`` because its resistance
-contains ``ln(z_ref/z0_m)``:
+   A_m=\max(D_m-\psi_m,1),\qquad
+   A_s=\max(D_s-\psi_h,1),
 
 .. math::
 
-   0 < z_{0m},z_{0h},z_{0q} < z_\mathrm{ref},
-   \qquad z_\mathrm{ref}=0.5/\mathrm{dx\_inv}[DIR].
+   \zeta_\mathrm{new}
+   =0.5\,\zeta_\mathrm{old}
+   +0.5\,Ri\frac{A_m^2}{A_s}.
 
-Invalid values identify the face, key, supplied value, and reference distance;
-there is no clipping or epsilon floor. The exact keys are:
+The iteration stops when
+:math:`|\zeta_\mathrm{new}-\zeta_\mathrm{old}|\le 10^{-3}` and allows at
+most 100 iterations.  Nonconvergence or a non-finite result is an error; there
+is no silent neutral fallback.
 
-.. list-table:: Neutral roughness keys
-   :header-rows: 1
-   :widths: 22 18 40 20
+After convergence,
 
-   * - Key
-     - Units
-     - Required when
-     - Meaning
-   * - ``<face>.z0_m``
-     - m
-     - any neutral momentum, heat, or vapor channel
-     - aerodynamic momentum roughness
-   * - ``<face>.z0_h``
-     - m
-     - neutral heat
-     - scalar heat roughness
-   * - ``<face>.z0_q``
-     - m
-     - neutral vapor, including a dry neutral-vapor gate
-     - scalar moisture roughness
+.. math::
 
-Syntax-only examples (not calibration recommendations) are:
+   A_m=\max(D_m-\psi_m,1),\qquad
+   A_h=\max(D_h-\psi_h,1),\qquad
+   A_q=\max(D_q-\psi_h,1),
+
+and
+
+.. math::
+
+   C_D=\left(\frac{\kappa}{A_m}\right)^2,\qquad
+   C_H=\frac{\kappa^2}{A_mA_h},\qquad
+   C_E=\frac{\kappa^2}{A_mA_q}.
+
+The reported friction velocity is
+
+.. math::
+
+   u_* = \frac{\kappa U_\mathrm{MOST}}{A_m}.
+
+The ``0.01`` speed floor is used only to condition the stability calculation.
+Physical momentum, heat, and vapor transfer still multiply the actual
+:math:`U_t`, so all shear-dependent physical transfer is exactly zero at rest.
+
+A configured dry MOST vapor channel is metadata only: its ``z0_q`` is still
+required and validated, but dry vapor does not participate in the active
+scalar stability resistance and its physical wall flux remains exactly zero.
+When a moisture state is present, ambient ``qv`` still enters the virtual
+potential temperature used by any active MOST momentum or heat calculation.
+
+Momentum stress application
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Bulk and neutral momentum closures return physical wall-on-fluid tangential
+traction.  The Cloud Chamber stress adapter maps that traction onto ERF's
+retained cross-stress components and the existing ``DiffusionSrcForMom``
+operator applies the momentum divergence.  The wall closure does not replace
+normal diagonal stress.  This distinction matters when comparing analytic
+traction with stored stress-array signs.
+
+Wall-transfer timestep guard
+----------------------------
+
+Bulk and neutral transfer can impose a stronger explicit timestep restriction
+than the ordinary advective/diffusive CFL limits.  ERF therefore scans the
+wall-adjacent state and constructs a wall rate.
+
+For heat or active wet vapor,
+
+.. math::
+
+   \lambda_s = C_s U_t\,\Delta n^{-1}.
+
+Neutral scalars use their derived coefficient.  Dry vapor does not contribute
+because its wall flux is exactly zero.
+
+For a bulk or neutral tangential momentum face, the local conservative
+infinity-row-sum factor is
+
+.. math::
+
+   K_\infty=\frac{3+\sqrt{2}}{2},
+
+so the per-face momentum contribution is
+
+.. math::
+
+   \lambda_{m,f}
+   = K_\infty C_{D,f}U_{t,f}\Delta n_f^{-1}.
+
+At an edge or corner, contributions from perpendicular active walls are added
+for each free velocity component before taking the maximum.  MOST coefficients
+are evaluated once for the current wall/cell sample and then treated as frozen
+for this local rate estimate; this is not an exact Jacobian of the nonlinear
+MOST iteration.
+
+The wall limit is
+
+.. math::
+
+   dt_\mathrm{wall}=\frac{0.5}{\lambda_\mathrm{max}}.
+
+Adaptive stepping takes the minimum of this limit and the ordinary ERF
+constraints.  If a positive user-specified ``erf.fixed_dt`` exceeds the wall
+limit, ERF aborts and reports the requested fixed step, wall limit, and maximum
+wall rate; it does not silently clip the requested fixed step.
+
+Conserved-scalar budget diagnostics
+-----------------------------------
+
+Set
 
 .. code-block:: none
 
-   xlo.momentum_transfer_model = neutral_roughness_log
-   xlo.heat_transfer_model = neutral_roughness_log
-   xlo.vapor_transfer_model = resolved_molecular
-   xlo.z0_m = 1.0e-3
-   xlo.z0_h = 5.0e-4
+   erf.cloud_chamber_budget_interval = <positive number of steps>
 
-   zlo.momentum_transfer_model = neutral_roughness_log
-   zlo.heat_transfer_model = neutral_roughness_log
-   zlo.vapor_transfer_model = neutral_roughness_log
-   zlo.z0_m = 1.0e-3
-   zlo.z0_h = 5.0e-4
-   zlo.z0_q = 5.0e-4
+to write ``cloud_chamber_budget.dat``.  The diagnostic uses the same retained
+physical wall face flux that is applied to the scalar RHS; it does not
+re-evaluate a separate wall closure.
 
-Momentum, heat, and vapor selectors are independent. A face may mix neutral
-momentum with fixed bulk heat or resolved vapor; fixed bulk channels still
-require their own coefficient. Neutral channels never consume user-supplied
-bulk coefficients.
+Each output row contains the interval start/end step and time, scalar name and
+units, six face contributions, net boundary contribution, volume change,
+internal source, residual, tolerance, and status.  Face signs follow the
+coordinate-flux convention above, so the net inward boundary contribution is
+formed from low-minus-high stored coordinate fluxes.
 
-MOST wall-transfer provider
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``coefficient_source = most`` selects one shared, device-safe pointwise
-Monin--Obukhov similarity state for all active bulk momentum, heat, and vapor
-channels on a face.  The implementation uses ERF's
-``similarity_funs::calc_psi_m2`` and ``calc_psi_h2`` functions, initializes the
-stability coordinate neutrally, clamps bulk Richardson number to ``[-4,4]``,
-uses relaxation ``0.5``, tolerance ``1e-3``, and at most 100 iterations.
-Failure to converge or a non-finite result is an error; there is no silent
-fallback.
-
-The wall state uses
-
-.. math::
-
-   \theta_v=\theta(1+\epsilon_v q_v),\qquad
-   q_{v,w}=\begin{cases}q_\mathrm{sat}(T_w,p_\mathrm{hse}),&\text{wet},\\
-   q_{v,a},&\text{dry},\end{cases}
-
-and ``gravity_sign = +1`` at ``zlo`` and ``-1`` at ``zhi``.  ``U_MOST`` is
-``max(U_t,0.01)`` only for conditioning the stability iteration; physical
-momentum and scalar fluxes still multiply the actual ``U_t`` and are exactly
-zero at rest.  Momentum, heat, and vapor use separate ``z0_m``, ``z0_h``, and
-``z0_q`` roughness lengths.  When heat and vapor MOST are both active on one
-face, ``z0_h`` and ``z0_q`` must be exactly equal because the
-prescribed-temperature bulk-Richardson closure uses one scalar similarity
-resistance.  With only one MOST scalar channel active, its roughness supplies
-that stability resistance; momentum-only MOST falls back to ``z0_m``.  After
-convergence, active heat and vapor coefficients retain their respective scalar
-roughnesses.  MOST is restricted to horizontal faces; neutral roughness and
-fixed bulk channels may still be used independently on side walls.  The scope remains single-level Cartesian ConstantDz, stationary-wall,
-nonperiodic Cloud Chamber physics; smooth-wall, natural/mixed-convection,
-terrain, embedded-boundary, AMR, stretched-``dz``, and moving-wall support are
-out of scope.
-
-For an impermeable ``moisture = dry`` wall, a configured bulk/MOST vapor
-channel remains a strict metadata and roughness contract but is not an active
-scalar-transfer channel: ``z0_q`` does not select the shared MOST stability
-resistance or alter active ``C_D``, ``C_H``, or ``C_E``.  Dry stability still
-uses ``qv_air`` in ``theta_v`` and sets ``qv_wall = qv_air``.
-
-The wall potential temperature uses the configured solver exponent
-``rdOcp = R_d/c_p``; the same sampled value is used when the resulting
-coefficient drives the scalar flux.  Cloud Chamber stability follows ERF's
-existing prescribed-temperature MOST virtual-temperature convention and does
-not add cloud-water loading to bulk Richardson number.  Its denominator
-conditioning is also inherited from ERF:
-``A_m = max(D_m - psi_m, 1)`` and ``A_s = max(D_s - psi_h, 1)``.  Therefore,
-neutral-limit equivalence to the raw log-law expression applies when that
-conditioning floor is inactive; it is not an unconditional identity for every
-parser-valid roughness ratio.
-
-Developer contract for Cloud Chamber wall closures
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Cloud Chamber wall closures are organized as a sequence of small,
-device-safe contracts:
-
-* **Configuration layer:** host parsing validates the public input and produces
-  compact per-face metadata.
-* **Sampling layer:** the application adapter converts ERF staggered/grid
-  variables into the physical values required by a closure.
-* **Closure layer:** pure closure functions consume physical values and return
-  inward-positive ``WallFlux`` results with authoritative ownership.
-* **Ownership:** ``OwnNone`` means ERF retains its normal numerical treatment.
-  An owned zero means Cloud Chamber replaces the normal wall flux with exactly
-  zero.
-* **Scalar application:** the adapter converts inward-positive flux to ERF's
-  low/high coordinate sign, stores the retained physical flux, and applies
-  only the ``new - old`` correction to the already-computed scalar RHS.
-* **Budgets:** Cloud Chamber budgets consume the same retained diffusion face
-  flux; they do not recompute a second wall closure.
-* **Momentum:** a pure closure returns physical wall-on-fluid tangential
-  traction; a dedicated stress adapter maps it to retained ERF cross-stress,
-  and ``DiffusionSrcForMom`` applies the existing divergence. Do not inject
-  traction directly into ``ERF_SlowRhsPre.cpp`` without a new discrete
-  derivation.
-
-To add another wall model:
-
-#. Extend validated host configuration.
-#. Preserve GPU-safe face metadata.
-#. Identify the required sampled physical state.
-#. Implement a pure closure evaluator.
-#. Return inward-positive flux and authoritative ownership.
-#. Reuse the scalar application adapter for scalar fluxes.
-#. Do not put closure equations in ``ERF_SlowRhsPre.cpp`` or
-   ``ERF_SlowRhsPost.cpp``.
-#. Derive and validate a separate momentum stress adapter for traction.
-#. Add independent equation tests.
-#. Add orientation/application tests.
-#. Add production-path activation and conservation coverage.
-#. Mutation-test the critical seam.
-#. Document equations, units, validity domain, and limitations.
-
-Per-face input contract
-~~~~~~~~~~~~~~~~~~~~~~~
-
-The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
-``zhi``.  The following table describes the physical-temperature Cloud
-Chamber path.
-
-.. list-table:: Cloud Chamber physical-wall input contract
-   :header-rows: 1
-
-   * - Key
-     - Type
-     - Units
-     - Default if omitted
-     - Valid values/domain
-     - Required when
-     - Invalid/unsupported combinations
-   * - ``<face>.type``
-     - string
-     - --
-     - none
-     - ``NoSlipWall`` only
-     - every face
-     - any other wall type
-   * - ``<face>.temperature``
-     - real
-     - K
-     - none
-     - finite and greater than zero
-     - every physical face
-     - legacy ``theta``/``qv`` wall keys in physical mode
-   * - ``<face>.moisture``
-     - string
-     - --
-     - none
-     - ``dry`` or ``wet``
-     - every physical face
-     - ``wet`` without ``erf.moisture_model = SatAdj``
-   * - ``<face>.wall_transfer_model``
-     - string
-     - --
-     - omitted; resolved behavior remains the effective default
-     - ``resolved_molecular`` only
-     - legacy aggregate syntax only
-     - cannot coexist with any per-channel model/coefficient key on the same face
-   * - ``<face>.momentum_transfer_model``
-     - string
-     - --
-     - ``resolved_noslip``
-     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, or ``law_of_wall_momentum``
-     - optional explicit declaration
-     - bulk momentum requires ``coefficient_source`` and ``C_D`` only for fixed coefficients; law-wall is a neutral-log alias
-   * - ``<face>.heat_transfer_model``
-     - string
-     - --
-     - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
-     - optional
-     - ``heat_transfer_model = bulk_aero`` requires ``C_H`` only with ``coefficient_source = fixed``; ``C_H`` is not supplied with MOST; neutral requires ``z0_m`` and ``z0_h``
-   * - ``<face>.vapor_transfer_model``
-     - string
-     - --
-     - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
-     - optional
-     - ``vapor_transfer_model = bulk_aero`` requires ``C_E`` only with ``coefficient_source = fixed``; ``C_E`` is not supplied with MOST; neutral requires ``z0_m`` and ``z0_q``; dry vapor is still exact zero
-   * - ``<face>.coefficient_source``
-     - string
-     - --
-     - omitted
-     - ``fixed`` or ``most``
-     - at least one bulk channel on that face
-     - ``most`` is restricted to ``zlo``/``zhi``; rejected when no bulk channel is active
-   * - ``<face>.C_D``
-     - real
-     - dimensionless
-     - no physical default
-     - finite and nonnegative
-     - momentum model is ``bulk_aero`` with ``coefficient_source = fixed``
-     - rejected for non-bulk momentum or with ``coefficient_source = most``
-   * - ``<face>.C_H``
-     - real
-     - dimensionless
-     - no physical default
-     - finite and nonnegative
-     - heat model is ``bulk_aero``
-     - rejected if heat is not bulk
-   * - ``<face>.C_E``
-     - real
-     - dimensionless
-     - no physical default
-     - finite and nonnegative
-     - vapor model is ``bulk_aero``
-     - rejected if vapor is not bulk
-   * - ``<face>.velocity``
-     - array
-     - m s\ :sup:`-1`
-     - zero internally
-     - unsupported input in the Cloud Chamber configuration
-     - never
-     - moving-wall metadata is rejected
-   * - ``<face>.z0_m``
-     - real
-     - m
-     - none
-     - finite and ``0 < z0_m < z_ref``
-     - any neutral channel or MOST bulk channel
-     - rejected when no active channel consumes it
-   * - ``<face>.z0_h``
-     - real
-     - m
-     - none
-     - finite and ``0 < z0_h < z_ref``
-     - neutral heat or MOST bulk heat
-     - rejected when heat is neither neutral nor MOST bulk
-   * - ``<face>.z0_q``
-     - real
-     - m
-     - none
-     - finite and ``0 < z0_q < z_ref``
-     - neutral vapor or MOST bulk vapor
-     - rejected when vapor is neither neutral nor MOST bulk
-
-Do not mix the legacy aggregate key with per-channel keys on the same face.
-For example, this is invalid:
-
-.. code-block:: none
-
-   zlo.wall_transfer_model = resolved_molecular
-   zlo.heat_transfer_model = bulk_aero
-
-Choose either the retained aggregate resolved syntax or the per-channel
-syntax.
-
-.. warning::
-
-   Treat ``alpha_T`` and ``alpha_C`` as prescribed resolved-transfer
-   coefficients, not calibrated molecular-property values or engineering
-   wall-law coefficients.  ``C_H`` and ``C_E`` are user-supplied,
-   dimensionless bulk coefficients.  They must be finite and nonnegative,
-   but this feature does not provide calibrated or recommended physical
-   values.
-
-Neutral, bulk, and MOST wall-rate timestep guard
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-ERF scans the wall-adjacent tangential speed using the same half-cell sample
-as the closure. Active bulk scalar channels contribute
-
-.. math::
-
-   \lambda_s = C_s U_{t,s}\,\Delta n^{-1},
-
-where ``s`` is heat or wet vapor. Neutral scalar channels use their derived
-``C_H`` or ``C_E`` in the same expression. Dry vapor is excluded because its
-owned wall flux is exactly zero, even if neutral-vapor metadata is present.
-
-For fixed bulk and neutral/log-law momentum, the coefficient is fixed for the
-local rate calculation and the momentum expression below supplies the exact
-local infinity-row-sum Jacobian factor.  For MOST, the current wall state is
-solved once and its resulting ``C_D``, ``C_H``, and ``C_E`` are then frozen for
-this local rate estimate.  This is an intentional frozen-coefficient estimate,
-not an exact Jacobian of the nonlinear MOST closure and must not be read as
-one.
-
-For neutral momentum, the local tangential drag equation is
-
-.. math::
-
-   \frac{d\mathbf u_t}{dt}
-   =-C_D\,\Delta n^{-1}|\mathbf u_t|\mathbf u_t.
-
-The nonlinear tangential closure has Jacobian
-
-.. math::
-
-   J = C_D \left(U_t I + \frac{\mathbf u_t \mathbf u_t^T}{U_t}\right),
-
-whose two eigenvalues are ``C_D U_t Delta n^-1`` and ``2 C_D U_t
-Delta n^-1`` after the wall-normal divergence scaling.  The timestep guard
-uses the induced infinity norm (the maximum absolute row sum), not the
-spectral norm.  For a two-component tangential vector its exact local bound
-is
-
-.. math::
-
-   K_\infty C_D U_t = \frac{3+\sqrt{2}}{2} C_D U_t.
-
-Each staggered tangential reconstruction is a nonnegative average whose
-weights sum to one.  Each boundary stress-node reconstruction is also a
-nonnegative average with weights summing to one.  These maps are therefore
-non-expansive in the infinity norm.  In the Cartesian Cloud Chamber
-operator, the density multiplying the physical traction is the mass
-weight of the conserved momentum source, so the mass-weighted momentum
-Jacobian has no additional density ratio.  At an edge or corner, one free
-staggered component can receive contributions from every active perpendicular
-wall, so the conservative composed-operator bound is
-
-.. math::
-
-   \lambda_{m,c} = \sum_{f:\,n_f \ne c}
-      K_\infty C_{D,f} U_{t,f} \Delta n_f^{-1},
-   \qquad \lambda_m = \max_c \lambda_{m,c}.
-
-The implementation computes this bound with
-``momentum_infinity_row_sum_factor()`` and a finite-difference
-check exercises the actual wall-stress adapter followed by
-``DiffusionSrcForMom`` at an oblique state.  Low/high storage signs do not
-change the absolute row sum; they only determine the physical drag sign.
-The scan takes the maximum over cells, components, active scalar channels, and
-neutral-momentum row sums, then applies the existing explicit safety factor,
-
-.. math::
-
-   \lambda_\mathrm{max}=\max_f(\lambda_{m,f},\lambda_{s,f}),
-   \qquad dt_\mathrm{wall}=\frac{0.5}{\lambda_\mathrm{max}}.
-
-Adaptive stepping takes the minimum of ordinary ERF limits and
-``dt_wall``. A positive fixed ``erf.fixed_dt`` larger than the wall limit
-aborts with the measured ``fixed_dt``, ``wall_dt``, and ``max_wall_rate``. ERF
-does not silently clip roughness, coefficients, or a requested fixed step.
-
-Conserved-scalar budgets
-------------------------
-
-Set ``erf.cloud_chamber_budget_interval`` to a positive step interval to write
-``cloud_chamber_budget.dat``.  Each report is local to the interval since the
-previous report and contains:
-
-* six physical-face contributions;
-* net boundary contribution;
-* state change;
-* internal source;
-* residual;
-* tolerance; and
-* status.
-
-``rhoTheta`` is a conserved potential-temperature scalar, not heat energy or
-a heat rate.
-
-For total nonprecipitating water:
+For total nonprecipitating water,
 
 .. math::
 
    \Delta\int_\Omega \rho(q_v+q_c)\,dV
-   =
-   \int_{t_a}^{t_b}\sum_f J_{v,\mathrm{in}}\,dA\,dt.
+   = \int_{t_a}^{t_b}\sum_f J_{v,\mathrm{in}}\,dA\,dt.
 
-For six dry walls, the boundary contribution is zero.  SatAdj's internal
-exchange between ``qv`` and ``qc`` cancels in the total-water row.
+SatAdj exchange between ``qv`` and ``qc`` cancels in this total-water row.
+With six dry walls the total-water boundary contribution is exactly zero.
+
+Budget statuses are:
 
 ``PASS``
-   The supported row closes within its printed tolerance.
+   The supported conservation row closes within its printed tolerance.
 
 ``FAIL``
-   A supported closure contract is violated.
+   A supported conservation contract is outside its printed tolerance.
 
 ``UNSUPPORTED_SOURCE``
-   For cloudy ``rhoTheta``, the current report omits part of the moist
-   latent-heating source.  Do not interpret this status as closure.  Strict
-   integrated thermal closure is tested in dry mode; moist conservation is
-   assessed using total nonprecipitating water.
+   The cloudy ``rhoTheta`` budget currently omits part of the moist
+   latent-heating source.  Do not interpret this status as thermal closure.
+   Use dry ``rhoTheta`` for strict thermal closure and total nonprecipitating
+   water for moist conservation checks.
 
-Budget reporting must not change the simulated state.  The registered parity
-test compares budget-disabled and budget-enabled solutions.
+Enabling the budget diagnostic must not change the simulated state.
+
+Validated regression examples
+-----------------------------
+
+The repository contains tracked regression inputs for each major supported
+path.  They are useful syntax references, but their grid, timestep, LES
+settings, coefficients, and roughness lengths are software-test parameters,
+not calibrated physical recommendations.
+
+.. list-table:: Tracked Cloud Chamber examples
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Case
+     - Input file
+   * - Dry physical, resolved walls
+     - ``Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i``
+   * - SatAdj wet, resolved walls and budgets
+     - ``Tests/test_files/CloudChamber_SatAdj_WetBudget/CloudChamber_SatAdj_WetBudget.i``
+   * - SatAdj mixed fixed-bulk wall transfer
+     - ``Tests/test_files/CloudChamber_SatAdj_BulkMixedWet/CloudChamber_SatAdj_BulkMixedWet.i``
+   * - SatAdj neutral roughness-log transfer
+     - ``Tests/test_files/CloudChamber_SatAdj_NeutralWet/CloudChamber_SatAdj_NeutralWet.i``
+   * - SatAdj MOST wet-wall transfer and budgets
+     - ``Tests/test_files/CloudChamber_SatAdj_MOSTWetBudget/CloudChamber_SatAdj_MOSTWetBudget.i``
+   * - Mixed neutral sidewalls and MOST horizontal walls
+     - ``Tests/test_files/CloudChamber_SatAdj_MOSTMixedWalls/CloudChamber_SatAdj_MOSTMixedWalls.i``
+   * - Legacy theta/qv configuration
+     - ``Tests/test_files/CloudChamber_Legacy_Config/CloudChamber_Legacy_Config.i``
+
+A complete dry physical example is included below.
+
+.. literalinclude:: ../../Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i
+   :language: none
+   :caption: Dry physical Cloud Chamber with resolved wall transfer
 
 Run checklist
 -------------
 
-1. Choose dry or SatAdj mode.
-2. Configure one nonperiodic Cartesian mesh level; that level may contain
-   multiple AMReX boxes.
-3. Define all six ``NoSlipWall`` faces and their temperatures.
-4. For SatAdj, provide RH as a fraction and choose dry or wet moisture walls.
-5. Set ``alpha_T`` and, when resolved vapor transfer is needed, ``alpha_C``.
-6. If using ``bulk_aero``, set ``coefficient_source = fixed`` with the
-   required finite nonnegative ``C_D``/``C_H``/``C_E`` values, or
-   ``coefficient_source = most`` on ``zlo``/``zhi`` with the required positive
-   ``z0_*`` values.  If using ``neutral_roughness_log``, provide its required
-   positive ``z0_*`` values.  Do not combine per-channel keys with the
-   aggregate wall key.
-7. Run a short case and inspect temperature, potential temperature, velocity,
-   and, for SatAdj, ``qv``, ``qc``, saturation mixing ratio, and RH.
-8. Enable ``erf.cloud_chamber_budget_interval``.
-9. Require dry thermal closure or total-water closure, as appropriate.
-10. Treat any ``FAIL`` or budget-dependent solution change as invalid.
+#. Choose ``physical_temperature_rh`` for new work, or ``legacy_theta_qv`` only
+   for compatibility with an existing legacy input.
+#. Use one ConstantDz, nonperiodic Cartesian level with fixed-density anelastic
+   dynamics and gravity.
+#. In physical mode, define bottom/top initial temperature and add RH only when
+   SatAdj is enabled.
+#. Define all six stationary ``NoSlipWall`` faces with physical temperature and
+   ``dry`` or ``wet`` moisture state.
+#. Choose the momentum, heat, and vapor model on each face.  Remember that one
+   ``coefficient_source`` is shared by every bulk channel on that face.
+#. Supply every coefficient or roughness length required by the selected
+   models.  Check ``0 < z0_* < Delta_n/2`` on the actual grid.
+#. For wet heat+vapor MOST on the same face, use equal ``z0_h`` and ``z0_q``.
+#. Choose a timestep that satisfies the wall-rate guard, or use adaptive
+   stepping.
+#. Run a short case and inspect velocity, temperature/potential temperature,
+   and, for SatAdj, ``qv`` and ``qc``.
+#. Enable ``erf.cloud_chamber_budget_interval`` and check dry thermal or total
+   nonprecipitating-water conservation as appropriate.
 
-Cloud Chamber invariants
-------------------
+Supported scope and limitations
+-------------------------------
 
-* One uniform Cartesian mesh level and no periodic direction; the level may
-  be decomposed into multiple AMReX boxes.
-* Six stationary ``NoSlipWall`` faces.
-* Dry-wall vapor flux is exactly zero.
-* Cloud-water wall flux is exactly zero.
-* Wet walls are permitted only with SatAdj.
-* Bulk heat and vapor models are independently selectable; dry vapor and
-  cloud-water wall fluxes remain exactly zero.
-* Momentum models may be resolved no-slip, fixed bulk aerodynamic, or
-  neutral-log; active rough/bulk momentum owns only tangential cross-stress at
-  physical chamber faces.
-* Neutral and bulk walls enforce ``fixed_dt <= dt_wall = 0.5 / max_wall_rate``.
-* Six dry walls conserve total nonprecipitating water.
-* Enabling budget output does not change the solution.
-* A stable run alone is not quantitative Pi-Chamber validation.
+The implemented Cloud Chamber wall-model scope is intentionally limited to:
+
+* one Cartesian ConstantDz level with no AMR refinement;
+* six stationary ``NoSlipWall`` faces;
+* no periodic direction;
+* no terrain, embedded boundaries, or immersed buildings;
+* prescribed physical wall temperature in the generalized wall-model path;
+* resolved, fixed bulk, neutral roughness-log, and horizontal MOST transfer as
+  documented above; and
+* forced/shear-dependent bulk transfer with no gustiness or natural/mixed
+  convection augmentation.
+
+The implementation does not currently provide moving walls, smooth-wall
+``y+``/viscous-sublayer laws, stretched-dz wall sampling, terrain-aware wall
+models, EB/AMR wall models, natural-convection wall correlations, ocean/COARE
+closures, cloud-water deposition, precipitation, droplet activation, or
+facility-specific coefficient calibration.
+
+A numerically stable run is not by itself evidence of quantitative
+Pi-Chamber agreement or grid-independent LES behavior.
 
 Troubleshooting
 ---------------
 
-* Enter RH as ``0.95``, not ``95``.
-* Do not provide RH in dry mode.
-* Do not mix physical and legacy initialization keys.
-* A wall marked ``dry`` may still exchange heat; ``dry`` describes water
-  permeability.
-* A wet wall may evaporate or condense, so its signed vapor flux need not
-  always add water.
-* Interpret face signs using coordinate orientation before comparing wall
-  gain or loss.
-* ``bulk_aero`` requires a per-channel coefficient source and fixed
-  coefficients unless MOST is selected; it cannot be mixed with
-  ``wall_transfer_model`` on the same face.
-* ``coefficient_source = most`` is restricted to ``zlo``/``zhi`` and shares one
-  converged pointwise stability state across active bulk channels.
-* A dry bulk/MOST vapor channel remains a strict configuration/roughness
-  contract, but it is not an active scalar resistance; ``qv_air`` still enters
-  ``theta_v`` and ``qv_wall = qv_air`` preserves exact zero dry vapor flux.
-* ``neutral_roughness_log`` requires explicit roughness lengths and the
-  grid-relative inequality ``0 < z0_* < z_ref``; there are no calibrated
-  defaults.
-* Treat ``UNSUPPORTED_SOURCE`` as incomplete cloudy thermal accounting, not
-  as a successful budget result.
+``initial_relative_humidity`` is rejected in dry mode
+   Omit ``prob.initial_relative_humidity`` unless
+   ``erf.moisture_model = SatAdj``.  Enter RH as a fraction such as ``0.95``,
+   not ``95``.
+
+A wet wall is rejected
+   Wet walls require ``erf.moisture_model = SatAdj``.
+
+``coefficient_source`` is rejected
+   Use it only when at least one channel on that face is ``bulk_aero``.  The
+   same provider applies to every bulk channel on the face.
+
+``C_D``, ``C_H``, or ``C_E`` is missing
+   Fixed bulk transfer requires the coefficient corresponding to every bulk
+   channel.  A configured dry bulk-vapor channel still requires ``C_E`` even
+   though its physical vapor flux is exactly zero.
+
+A ``C_*`` coefficient is rejected with MOST
+   MOST computes the bulk coefficients.  Remove user-supplied ``C_D``,
+   ``C_H``, and ``C_E`` for the channels using the face-level MOST provider.
+
+MOST is rejected on a side wall
+   ``coefficient_source = most`` is implemented only on ``zlo`` and ``zhi``.
+   Use resolved, fixed bulk, or neutral roughness-log transfer on side walls.
+
+A roughness length is rejected
+   Check that the selected model actually consumes the key and that
+   ``0 < z0_* < Delta_n/2`` for the face-normal cell spacing.
+
+Wet heat+vapor MOST rejects unequal ``z0_h`` and ``z0_q``
+   The implemented prescribed-temperature bulk-Richardson fixed point uses one
+   scalar stability resistance, so coupled wet MOST heat and vapor require
+   equal scalar roughness lengths.
+
+Dry vapor appears to have no transfer
+   This is intentional.  ``moisture = dry`` enforces exact zero vapor wall
+   flux for resolved, fixed bulk, neutral, and MOST selections.  Configured
+   model metadata is still validated.
+
+A positive fixed timestep aborts
+   Compare the reported ``fixed_dt`` with ``wall_dt``.  Bulk, neutral, and
+   MOST wall transfer participate in an explicit wall-rate stability guard.
+
+The cloudy ``rhoTheta`` budget reports ``UNSUPPORTED_SOURCE``
+   The current diagnostic does not include the complete moist latent-heating
+   source.  Use total nonprecipitating water for the supported cloudy
+   conservation check.
