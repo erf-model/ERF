@@ -35,7 +35,7 @@ getARMFiles -u <username>:<token> -ds sgpmetE13.b1 -s 2025-04-02 -e 2025-04-07
 ```
 or for eg., for Gunisson CO (SAIL)
 ```
-getARMFiles -u <username>:<token> -ds gucwbpluvio2M1.b1  -s 2021-12-23 -e 2022-01-01
+getARMFiles -u <username>:<token> -ds gucwbpluvio2M1.a1  -s 2021-12-23 -e 2022-01-01
 ```
 
 ### 5. Plot the data
