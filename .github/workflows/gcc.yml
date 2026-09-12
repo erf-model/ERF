@@ -102,6 +102,16 @@ jobs:
         ctest -L unit --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # Keep the existing DOUBLE unit/regression coverage and add one focused
+    # SINGLE SHOC runtime job.  This avoids repeating the full SHOC suite for
+    # both particle-precision variants while exercising the precision-aware
+    # SHOC gold and unit oracles in CI.
+    - name: Run SINGLE SHOC Tests
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE'
+      run: |
+        ctest -L shoc --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
     - name: Run Parallel Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
