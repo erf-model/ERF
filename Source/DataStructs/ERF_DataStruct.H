@@ -1476,9 +1476,22 @@ struct SolverChoice {
             }
         }
 
+        pp.queryAdd("io_station_tracker", io_station_tracker);
         pp.queryAdd("station_latitude", station_latitude);
         pp.queryAdd("station_longitude", station_longitude);
         pp.queryAdd("station_plot_freq", station_plot_freq);
+
+        if(io_station_tracker)
+            if(station_latitude != -1.0 || station_longitude == -1.0){
+                Abort("You have turned on IO for station tracker by using erf.station_tracker=true."
+                      "This requires valid values for erf.station_latitude and erf.station_longitude in the inputs.");
+            }
+
+        if(io_station_tracker and station_plot_freq == -1) {
+            Abort("You have turned on IO for station tracker by using erf.station_tracker=true."
+                  "This requires valid value for the frequency at which the line plot files should be written"
+                  "using erf.station_plot_freq.");
+        }
 
         pp.queryAdd("is_init_for_ensemble", is_init_for_ensemble);
         if(is_init_for_ensemble) {
@@ -2221,6 +2234,7 @@ struct SolverChoice {
     bool io_hurricane_eye_tracker = false;
     amrex::Real hurricane_eye_latitude = -1e10, hurricane_eye_longitude = -1e10;
 
+    bool io_station_tracker = false;
     amrex::Real station_latitude= -1.0, station_longitude = -1.0;
     int station_plot_freq = -1;
 

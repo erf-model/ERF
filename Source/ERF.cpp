@@ -596,7 +596,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
-    if(nstep == 0 or nstep%solverChoice.station_plot_freq == 0) {
+    if(solverChoice.io_station_tracker &&
+       (nstep == 0 || nstep%solverChoice.station_plot_freq == 0)) {
         WeatherDiagnosticsTracker(solverChoice);
 
         if (ParallelDescriptor::IOProcessor()) {
