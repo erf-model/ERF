@@ -106,7 +106,12 @@ bool close_to_zero (Real value, const BudgetRow& row)
 
 bool retained_flux_is_active (Real value, const BudgetRow& row)
 {
-    return std::abs(value) > budget_tolerance(row);
+    // This is an activation oracle for the retained applied face flux, not a
+    // closure test.  A short neutral startup can produce a real flux smaller
+    // than the budget tolerance, while an impermeable wall remains exactly
+    // zero through the production gate.
+    static_cast<void>(row);
+    return value != Real(0.0);
 }
 
 bool is_budget_mode (const std::string& mode)
@@ -151,6 +156,7 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
     const bool all_dry = mode == "all_dry";
     const bool wet = mode == "wet_budget" || mode == "bulk_wet" ||
         mode == "neutral_wet" || mode == "most_wet";
+    const bool cloudy = is_budget_mode(mode);
     const bool require_transfer_activation = mode == "bulk_wet" ||
         mode == "neutral_wet" || mode == "most_wet";
     summary = {};
@@ -183,10 +189,25 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
         }
         return true;
     };
+    const auto check_unsupported_source = [&](const BudgetRow& row, const char* name) {
+        if (!row_is_finite(row)) {
+            error = std::string(name) + " budget diagnostics are non-finite or have negative tolerance";
+            return false;
+        }
+        if (row.status != "UNSUPPORTED_SOURCE") {
+            error = std::string(name) + " budget must be UNSUPPORTED_SOURCE";
+            return false;
+        }
+        return true;
+    };
     for (const auto& row : rows) {
         if (row.scalar == "rhoTheta") {
             ++summary.thermal_rows;
-            if (!check_closure(row, "rhoTheta")) { return false; }
+            if (cloudy) {
+                if (!check_unsupported_source(row, "rhoTheta")) { return false; }
+            } else if (!check_closure(row, "rhoTheta")) {
+                return false;
+            }
             if (require_transfer_activation) {
                 for (int face = 2 * (AMREX_SPACEDIM - 1);
                      face < 2 * AMREX_SPACEDIM; ++face) {

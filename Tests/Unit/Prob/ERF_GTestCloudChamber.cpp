@@ -3,6 +3,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Reduce.H>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <string>
@@ -14,6 +15,7 @@
 #include "../../../Source/Diffusion/ERF_CloudChamberWallStress.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/DataStructs/ERF_DataStruct.H"
+#include "../../../Source/Prob/ERF_CloudChamberBudget.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 #include "../../../Source/Prob/ERF_ProblemDispatch.H"
 
@@ -187,6 +189,109 @@ TEST(CloudChamberProfile, PerturbationIsBoundedAndZeroOnVerticalFaces)
     EXPECT_DOUBLE_EQ(low, Real(0.0));
     EXPECT_NEAR(high, Real(0.0), scaled_tolerance(Real(1.0)));
     EXPECT_LE(std::abs(interior), Real(0.2));
+}
+
+// Motivation: the velocity perturbation is stored on staggered faces, so its
+// finite-volume divergence must be checked with face differences rather than
+// with the continuous derivative of the analytic expression.
+TEST(CloudChamberProfile, StaggeredVelocityIsDiscreteDivergenceFreeOnRectangularGrid)
+{
+    const GpuArray<Real, AMREX_SPACEDIM> lo = {
+        Real(-1.0), Real(2.0), Real(4.0)};
+    const GpuArray<Real, AMREX_SPACEDIM> length = {
+        Real(3.0), Real(2.0), Real(1.5)};
+    const int nx = 5;
+    const int ny = 7;
+    const int nz = 4;
+    const GpuArray<Real, AMREX_SPACEDIM> dx = {
+        length[0] / Real(nx), length[1] / Real(ny), length[2] / Real(nz)};
+    const Real U_0 = Real(2.5);
+    const Real v_scale = erf_cloud_chamber::staggered_velocity_v_scale(
+        length[0], length[1], dx[0], dx[1], nx, ny);
+    EXPECT_NE(v_scale, Real(1.0));
+
+    Real max_divergence = Real(0.0);
+    for (int k = 0; k < nz; ++k) {
+        const Real z = lo[2] + (Real(k) + myhalf) * dx[2];
+        for (int j = 0; j < ny; ++j) {
+            const Real y = lo[1] + (Real(j) + myhalf) * dx[1];
+            for (int i = 0; i < nx; ++i) {
+                const Real x = lo[0] + (Real(i) + myhalf) * dx[0];
+                const Real u_lo = erf_cloud_chamber::initial_u_velocity_perturbation(
+                    lo[0] + Real(i) * dx[0], y, z, lo, length, U_0, nx, ny);
+                const Real u_hi = erf_cloud_chamber::initial_u_velocity_perturbation(
+                    lo[0] + Real(i + 1) * dx[0], y, z, lo, length, U_0, nx, ny);
+                const Real v_lo = erf_cloud_chamber::initial_v_velocity_perturbation(
+                    x, lo[1] + Real(j) * dx[1], z, lo, length,
+                    U_0, v_scale, nx, ny);
+                const Real v_hi = erf_cloud_chamber::initial_v_velocity_perturbation(
+                    x, lo[1] + Real(j + 1) * dx[1], z, lo, length,
+                    U_0, v_scale, nx, ny);
+                EXPECT_TRUE(std::isfinite(static_cast<double>(u_lo)));
+                EXPECT_TRUE(std::isfinite(static_cast<double>(u_hi)));
+                EXPECT_TRUE(std::isfinite(static_cast<double>(v_lo)));
+                EXPECT_TRUE(std::isfinite(static_cast<double>(v_hi)));
+                const Real divergence = (u_hi - u_lo) / dx[0] +
+                    (v_hi - v_lo) / dx[1];
+                max_divergence = std::max(max_divergence, std::abs(divergence));
+                EXPECT_DOUBLE_EQ(erf_cloud_chamber::initial_w_velocity_perturbation(),
+                                 Real(0.0));
+            }
+        }
+    }
+    EXPECT_LE(max_divergence,
+              scaled_tolerance(U_0 / std::min({dx[0], dx[1]})));
+
+    const Real zero_u = erf_cloud_chamber::initial_u_velocity_perturbation(
+        lo[0] + dx[0], lo[1] + myhalf * dx[1], lo[2] + myhalf * dx[2],
+        lo, length, Real(0.0), nx, ny);
+    const Real zero_v = erf_cloud_chamber::initial_v_velocity_perturbation(
+        lo[0] + myhalf * dx[0], lo[1] + dx[1], lo[2] + myhalf * dx[2],
+        lo, length, Real(0.0), v_scale, nx, ny);
+    EXPECT_DOUBLE_EQ(zero_u, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_v, Real(0.0));
+
+    const GpuArray<Real, AMREX_SPACEDIM> square_length = {
+        Real(2.0), Real(2.0), Real(1.0)};
+    const GpuArray<Real, AMREX_SPACEDIM> square_dx = {
+        Real(0.25), Real(0.25), Real(0.25)};
+    EXPECT_DOUBLE_EQ(erf_cloud_chamber::staggered_velocity_v_scale(
+        square_length[0], square_length[1], square_dx[0], square_dx[1],
+        8, 8), Real(1.0));
+
+    const GpuArray<Real, AMREX_SPACEDIM> degenerate_length = {
+        Real(1.0), Real(2.0), Real(1.0)};
+    const GpuArray<Real, AMREX_SPACEDIM> degenerate_dx = {
+        Real(1.0), Real(0.5), Real(0.25)};
+    EXPECT_DOUBLE_EQ(erf_cloud_chamber::staggered_velocity_v_scale(
+        degenerate_length[0], degenerate_length[1], degenerate_dx[0],
+        degenerate_dx[1], 1, 4), Real(0.0));
+    EXPECT_DOUBLE_EQ(erf_cloud_chamber::initial_u_velocity_perturbation(
+        lo[0], lo[1] + myhalf * degenerate_dx[1],
+        lo[2] + myhalf * degenerate_dx[2], lo, degenerate_length,
+        U_0, 1, 4), Real(0.0));
+    EXPECT_DOUBLE_EQ(erf_cloud_chamber::initial_v_velocity_perturbation(
+        lo[0] + myhalf * degenerate_dx[0], lo[1],
+        lo[2] + myhalf * degenerate_dx[2], lo, degenerate_length,
+        U_0, Real(0.0), 1, 4), Real(0.0));
+}
+
+TEST(CloudChamberBudget, CloudyRhoThetaStatusPrecedesClosureResult)
+{
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoTheta, true, true),
+                 "UNSUPPORTED_SOURCE");
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoTheta, true, false),
+                 "UNSUPPORTED_SOURCE");
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoTheta, false, true), "PASS");
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoTheta, false, false), "FAIL");
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoQv, true, true), "PASS");
+    EXPECT_STREQ(CloudChamberBudget::row_status(
+                     CloudChamberBudget::RhoQc, true, false), "FAIL");
 }
 
 // Motivation: physical chamber inputs are specified as temperature and RH;

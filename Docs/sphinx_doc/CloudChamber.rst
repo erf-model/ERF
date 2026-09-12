@@ -67,11 +67,36 @@ Choose the thermodynamic mode
 A wall marked ``dry`` is impermeable to water but may still exchange heat.
 A ``wet`` wall is valid only when ``erf.moisture_model = SatAdj``.
 
+Terminology
+-----------
+
+``rhoTheta``
+   Density-weighted potential temperature, the conserved thermal scalar used
+   by this Cloud Chamber configuration.
+
+``qv`` and ``qc``
+   Water-vapor and cloud-water mixing ratios relative to dry air.  In SatAdj
+   cases ERF partitions total nonprecipitating water between these two phases.
+
+SatAdj
+   ERF's instantaneous saturation-adjustment thermodynamics, including the
+   existing latent-heating adjustment associated with vapor--cloud-water
+   equilibrium.
+
+Resolved wall transfer
+   Transfer obtained from ERF's resolved no-slip momentum treatment or from
+   the adjacent-cell-to-wall half-cell scalar gradient.  It is not an
+   engineering wall-function correlation.
+
+Bulk coefficient
+   A dimensionless transfer coefficient multiplying the actual tangential
+   speed in the Cloud Chamber forced/shear-dependent wall-transfer formulas.
+
 Global ERF requirements
 -----------------------
 
-The Cloud Chamber parser enforces a deliberately narrow numerical scope.  A
-supported physical-temperature case uses one nonperiodic Cartesian level,
+The Cloud Chamber parser enforces a deliberately narrow numerical scope.
+Supported Cloud Chamber cases use one nonperiodic Cartesian level,
 fixed-density anelastic dynamics, gravity, ConstantDz geometry, explicit
 vertical diffusion, and ConstantAlpha scalar diffusion.
 
@@ -122,7 +147,8 @@ The following constraints are part of the implemented Cloud Chamber contract:
      - Immersed buildings are unsupported.
    * - ``erf.init_type``
      - ``ConstantDensity``
-     - Required by ``physical_temperature_rh`` initialization.
+     - The supported Cloud Chamber initializer requires a fixed-density
+       anelastic base state in both physical and legacy thermodynamic modes.
    * - ``erf.molec_diff_type``
      - ``ConstantAlpha``
      - Required by the physical wall-transfer path, including cases that also use bulk, neutral, or MOST wall closures.
@@ -175,10 +201,6 @@ profile and optionally adds a deterministic three-dimensional perturbation.
      - SatAdj only
      - none
      - required with SatAdj; a fraction in ``[0,1]``
-   * - ``prob.U_0``
-     - no
-     - ``0``
-     - amplitude of the deterministic divergence-free initial horizontal velocity perturbation
 
 For a domain with lower corner :math:`(x_0,y_0,z_0)` and lengths
 :math:`(L_x,L_y,L_z)`, the temperature field is
@@ -224,30 +246,6 @@ Do not combine physical initialization with the legacy profile keys
 ``theta_bottom``, ``theta_top``, ``theta_perturbation_amplitude``,
 ``qv_bottom``, or ``qv_top``.
 
-Optional deterministic velocity perturbation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``prob.U_0`` initializes a divergence-free horizontal velocity perturbation
-that vanishes on every wall.  With amplitude :math:`U_0`, ERF uses
-
-.. math::
-
-   u = U_0
-   \sin^2\!\left(\frac{\pi(x-x_0)}{L_x}\right)
-   \sin\!\left(\frac{2\pi(y-y_0)}{L_y}\right)
-   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right),
-
-.. math::
-
-   v = -U_0
-   \sin\!\left(\frac{2\pi(x-x_0)}{L_x}\right)
-   \sin^2\!\left(\frac{\pi(y-y_0)}{L_y}\right)
-   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right),
-   \qquad w=0.
-
-Leave ``prob.U_0`` unset, or set it to zero, for no velocity perturbation.
-This is an initial-condition option; it does not represent wall motion.
-
 Legacy theta/qv initialization
 ------------------------------
 
@@ -279,6 +277,45 @@ Do not combine ``legacy_theta_qv`` with physical profile keys such as
 ``initial_temperature_bottom``, ``initial_temperature_top``,
 ``initial_relative_humidity``, or ``temperature_perturbation_amplitude``.
 For new generalized wall-model studies, use ``physical_temperature_rh``.
+
+Optional deterministic initial velocity perturbation
+----------------------------------------------------
+
+``prob.U_0`` (m s\ :sup:`-1`) controls an optional deterministic horizontal
+velocity perturbation.  It is available with either thermodynamic
+initialization mode and is an initial-condition option only; it does not
+represent wall motion.
+
+ERF initializes the perturbation on the staggered velocity grid so that its
+cell-centered finite-volume horizontal divergence is zero to roundoff and
+sets
+
+.. math::
+
+   w = 0.
+
+The pattern is smooth, deterministic, and vanishes consistently with the
+stationary chamber-wall construction.  On a square horizontal domain with
+equal horizontal resolution it reduces to
+
+.. math::
+
+   u = U_0
+   \sin^2\!\left(\frac{\pi(x-x_0)}{L_x}\right)
+   \sin\!\left(\frac{2\pi(y-y_0)}{L_y}\right)
+   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right),
+
+.. math::
+
+   v = -U_0
+   \sin\!\left(\frac{2\pi(x-x_0)}{L_x}\right)
+   \sin^2\!\left(\frac{\pi(y-y_0)}{L_y}\right)
+   \sin^2\!\left(\frac{\pi(z-z_0)}{L_z}\right).
+
+For a general rectangular/discretized horizontal grid, ERF applies the
+corresponding grid-aspect scaling required for the staggered finite-volume
+divergence to cancel.  Leave ``prob.U_0`` unset, or set it to zero, for no
+initial velocity perturbation.
 
 Physical wall configuration
 ---------------------------
@@ -662,10 +699,15 @@ For a wet wall with ``vapor_transfer_model = resolved_molecular``,
      \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
-``alpha_T`` and ``alpha_C`` come from the ConstantAlpha diffusion
-configuration.  Treat them as prescribed resolved-transfer coefficients for
-this problem; the Cloud Chamber documentation does not assign calibrated
-physical values to them.
+The resolved scalar coefficients are configured through ``erf.alpha_T`` for
+heat and ``erf.alpha_C`` for moisture.  Both have units of m\ :sup:`2`
+s\ :sup:`-1`.  In this Cloud Chamber path they set the half-cell resolved
+wall-normal scalar transfer; they are not calibrated aerodynamic exchange
+coefficients.
+
+``momentum_transfer_model = resolved_noslip`` retains ERF's resolved viscous
+no-slip momentum-stress treatment and does not use a Cloud Chamber ``C_D`` or
+roughness length.
 
 Fixed bulk-aerodynamic transfer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -784,6 +826,9 @@ where :math:`s_g=+1` on ``zlo`` and :math:`s_g=-1` on ``zhi``.  ERF clamps
 
    Ri=\mathrm{clamp}(Ri_b,-4,4).
 
+Cloud-water loading is not included in the virtual-potential-temperature
+bulk Richardson number used by this Cloud Chamber MOST closure.
+
 Define
 
 .. math::
@@ -832,7 +877,7 @@ and
    C_H=\frac{\kappa^2}{A_mA_h},\qquad
    C_E=\frac{\kappa^2}{A_mA_q}.
 
-The reported friction velocity is
+The internal MOST closure also forms the friction velocity
 
 .. math::
 
@@ -937,16 +982,19 @@ With six dry walls the total-water boundary contribution is exactly zero.
 Budget statuses are:
 
 ``PASS``
-   The supported conservation row closes within its printed tolerance.
+   A supported conservation row closes within its printed tolerance.
 
 ``FAIL``
-   A supported conservation contract is outside its printed tolerance.
+   A supported conservation row is outside its printed tolerance.
 
 ``UNSUPPORTED_SOURCE``
-   The cloudy ``rhoTheta`` budget currently omits part of the moist
-   latent-heating source.  Do not interpret this status as thermal closure.
-   Use dry ``rhoTheta`` for strict thermal closure and total nonprecipitating
-   water for moist conservation checks.
+   The row is not a supported conservation verdict because the diagnostic
+   does not account for every required internal source.  In SatAdj Cloud
+   Chamber runs, ``rhoTheta`` is always labeled ``UNSUPPORTED_SOURCE`` because
+   the current diagnostic omits part of the moist latent-heating source,
+   regardless of the numerical residual.  Use dry ``rhoTheta`` for strict
+   thermal closure and total nonprecipitating water for moist conservation
+   checks.
 
 Enabling the budget diagnostic must not change the simulated state.
 

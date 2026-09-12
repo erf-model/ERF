@@ -198,6 +198,81 @@ deterministic_perturbation (amrex::Real x, amrex::Real y, amrex::Real z,
 }
 
 /**
+ * @brief Discrete derivative ratio for the staggered initial velocity field.
+ *
+ * The ratio makes the finite-volume x/y divergence cancel on rectangular
+ * grids.  A one-cell horizontal direction has an identically zero sine
+ * pattern, so the perturbation is zero rather than dividing by a zero
+ * discrete derivative factor.
+ */
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+staggered_velocity_v_scale (amrex::Real lx, amrex::Real ly,
+                            amrex::Real dx, amrex::Real dy,
+                            int nx, int ny) noexcept
+{
+    if (nx <= 1 || ny <= 1) { return amrex::Real(0.0); }
+    if (lx == ly && dx == dy) { return amrex::Real(1.0); }
+    constexpr amrex::Real pi = amrex::Real(3.1415926535897932384626433832795);
+    const amrex::Real kx_d = std::sin(pi * dx / lx) / dx;
+    const amrex::Real ky_d = std::sin(pi * dy / ly) / dy;
+    return ky_d == amrex::Real(0.0) ? amrex::Real(0.0) : kx_d / ky_d;
+}
+
+/**
+ * @brief Evaluate the x-face component of the Cloud Chamber initial velocity.
+ */
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+initial_u_velocity_perturbation (
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& lo,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& length,
+    amrex::Real U_0, int nx, int ny) noexcept
+{
+    if (nx <= 1 || ny <= 1) { return amrex::Real(0.0); }
+    constexpr amrex::Real pi = amrex::Real(3.1415926535897932384626433832795);
+    const amrex::Real sx = std::sin(pi * (x - lo[0]) / length[0]);
+    const amrex::Real sz = std::sin(pi * (z - lo[2]) / length[2]);
+    return U_0 * sx * sx *
+        std::sin(amrex::Real(2.0) * pi * (y - lo[1]) / length[1]) * sz * sz;
+}
+
+/**
+ * @brief Evaluate the y-face component of the Cloud Chamber initial velocity.
+ */
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+initial_v_velocity_perturbation (
+    amrex::Real x, amrex::Real y, amrex::Real z,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& lo,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& length,
+    amrex::Real U_0, amrex::Real v_scale, int nx, int ny) noexcept
+{
+    if (nx <= 1 || ny <= 1) { return amrex::Real(0.0); }
+    constexpr amrex::Real pi = amrex::Real(3.1415926535897932384626433832795);
+    const amrex::Real sy = std::sin(pi * (y - lo[1]) / length[1]);
+    const amrex::Real sz = std::sin(pi * (z - lo[2]) / length[2]);
+    return -U_0 * v_scale *
+        std::sin(amrex::Real(2.0) * pi * (x - lo[0]) / length[0]) *
+        sy * sy * sz * sz;
+}
+
+/**
+ * @brief The Cloud Chamber initial vertical velocity perturbation.
+ */
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+amrex::Real
+initial_w_velocity_perturbation () noexcept
+{
+    return amrex::Real(0.0);
+}
+
+/**
  * @brief Compute the potential temperature at a given location.
  * @param[in] config Configuration parameters.
  * @param[in] x x-coordinate.

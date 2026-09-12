@@ -1,5 +1,4 @@
-# Cloud Chamber Stage 1 dry proof of concept.
-# No-moisture physical-temperature thermal chamber regression.
+# Cloud Chamber dry physical-temperature regression.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
 erf.anelastic = 1
