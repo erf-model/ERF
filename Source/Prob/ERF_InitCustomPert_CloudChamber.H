@@ -1,4 +1,4 @@
-// Cloud Chamber Stage 1 initializer.
+// Cloud Chamber custom thermodynamic initializer.
 //
 // ERF has already initialized the hydrostatic/base state when this snippet is
 // called.  `state` is therefore the current conserved state and state_pert is

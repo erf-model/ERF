@@ -97,8 +97,9 @@ Global ERF requirements
 
 The Cloud Chamber parser enforces a deliberately narrow numerical scope.
 Supported Cloud Chamber cases use one nonperiodic Cartesian level,
-fixed-density anelastic dynamics, gravity, ConstantDz geometry, explicit
-vertical diffusion, and ConstantAlpha scalar diffusion.
+fixed-density anelastic dynamics, gravity, and ConstantDz geometry.  The
+generalized physical-temperature wall-transfer path additionally requires
+explicit vertical diffusion and ConstantAlpha scalar diffusion.
 
 A typical common block is:
 
@@ -797,7 +798,13 @@ The wall virtual potential-temperature state is
 
    \theta_v=\theta(1+\epsilon_v q_v),
 
-with
+where
+
+.. math::
+
+   \epsilon_v=\frac{R_v}{R_d}-1,
+
+using ERF's thermodynamic constants.  With
 
 .. math::
 
@@ -1040,15 +1047,18 @@ Run checklist
    for compatibility with an existing legacy input.
 #. Use one ConstantDz, nonperiodic Cartesian level with fixed-density anelastic
    dynamics and gravity.
-#. In physical mode, define bottom/top initial temperature and add RH only when
-   SatAdj is enabled.
-#. Define all six stationary ``NoSlipWall`` faces with physical temperature and
-   ``dry`` or ``wet`` moisture state.
-#. Choose the momentum, heat, and vapor model on each face.  Remember that one
-   ``coefficient_source`` is shared by every bulk channel on that face.
-#. Supply every coefficient or roughness length required by the selected
-   models.  Check ``0 < z0_* < Delta_n/2`` on the actual grid.
-#. For wet heat+vapor MOST on the same face, use equal ``z0_h`` and ``z0_q``.
+#. In ``physical_temperature_rh``, define bottom/top initial temperature and
+   add RH only when SatAdj is enabled.
+#. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
+   faces with physical wall temperature and ``dry`` or ``wet`` moisture state.
+   Choose the momentum, heat, and vapor model on each face; remember that one
+   ``coefficient_source`` is shared by every bulk channel on that face.  Supply
+   every required coefficient or roughness length, check ``0 < z0_* <
+   Delta_n/2`` on the actual grid, and use equal ``z0_h`` and ``z0_q`` for wet
+   heat+vapor MOST on one face.
+#. For ``legacy_theta_qv``, use the legacy ``<face>.theta`` wall values and,
+   for cloudy legacy cases, provide ``<face>.qv``.  Do not use generalized
+   per-channel wall-transfer keys in legacy mode.
 #. Choose a timestep that satisfies the wall-rate guard, or use adaptive
    stepping.
 #. Run a short case and inspect velocity, temperature/potential temperature,

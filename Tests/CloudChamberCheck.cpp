@@ -104,14 +104,37 @@ bool close_to_zero (Real value, const BudgetRow& row)
     return std::abs(value) <= budget_tolerance(row);
 }
 
-bool retained_flux_is_active (Real value, const BudgetRow& row)
+Real retained_flux_activation_threshold (const BudgetRow& row, int face)
 {
-    // This is an activation oracle for the retained applied face flux, not a
-    // closure test.  A short neutral startup can produce a real flux smaller
-    // than the budget tolerance, while an impermeable wall remains exactly
-    // zero through the production gate.
-    static_cast<void>(row);
-    return value != Real(0.0);
+    // Use the other retained face fluxes in this interval as a local physical
+    // scale.  The square-root epsilon factor rejects roundoff-scale noise
+    // without reusing the independently scaled conservation tolerance.
+    Real local_scale = Real(0.0);
+    for (int other_face = 0;
+         other_face < static_cast<int>(row.faces.size()); ++other_face) {
+        if (other_face != face) {
+            local_scale = std::max(local_scale, std::abs(row.faces[other_face]));
+        }
+    }
+    return Real(64.0) * std::sqrt(std::numeric_limits<Real>::epsilon()) * local_scale;
+}
+
+bool retained_flux_is_active (Real value, const BudgetRow& row, int face)
+{
+    const Real threshold = retained_flux_activation_threshold(row, face);
+    return std::isfinite(static_cast<double>(value)) &&
+        threshold > Real(0.0) && std::abs(value) > threshold;
+}
+
+bool retained_flux_activation_contract_holds ()
+{
+    BudgetRow row;
+    row.faces[5] = Real(1.0);
+    const Real threshold = retained_flux_activation_threshold(row, 4);
+    return threshold > Real(0.0) &&
+        !retained_flux_is_active(Real(0.0), row, 4) &&
+        !retained_flux_is_active(Real(0.5) * threshold, row, 4) &&
+        retained_flux_is_active(Real(0.1), row, 4);
 }
 
 bool is_budget_mode (const std::string& mode)
@@ -134,8 +157,8 @@ struct BudgetSummary {
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
-    bool heat_face_nonzero = false;
-    bool vapor_face_nonzero = false;
+    bool heat_face_active = false;
+    bool vapor_face_active = false;
     Real max_residual_ratio = Real(0.0);
 };
 
@@ -211,8 +234,8 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             if (require_transfer_activation) {
                 for (int face = 2 * (AMREX_SPACEDIM - 1);
                      face < 2 * AMREX_SPACEDIM; ++face) {
-                    summary.heat_face_nonzero = summary.heat_face_nonzero ||
-                        retained_flux_is_active(row.faces[face], row);
+                    summary.heat_face_active = summary.heat_face_active ||
+                        retained_flux_is_active(row.faces[face], row, face);
                 }
             }
         } else if (row.scalar == "total_nonprecipitating_water") {
@@ -244,8 +267,8 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                 if (require_transfer_activation) {
                     for (int face = 2 * (AMREX_SPACEDIM - 1);
                          face < 2 * AMREX_SPACEDIM; ++face) {
-                        summary.vapor_face_nonzero = summary.vapor_face_nonzero ||
-                            retained_flux_is_active(row.faces[face], row);
+                        summary.vapor_face_active = summary.vapor_face_active ||
+                            retained_flux_is_active(row.faces[face], row, face);
                     }
                 }
             }
@@ -267,12 +290,12 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
         return false;
     }
     if (require_transfer_activation) {
-        if (!summary.heat_face_nonzero) {
-            error = "active wet-wall heat oracle found no nonzero retained rhoTheta wall flux";
+        if (!summary.heat_face_active) {
+            error = "active wet-wall heat oracle found no retained rhoTheta wall flux above its activation threshold";
             return false;
         }
-        if (!summary.vapor_face_nonzero) {
-            error = "active wet-wall vapor oracle found no nonzero retained water_vapor wall flux";
+        if (!summary.vapor_face_active) {
+            error = "active wet-wall vapor oracle found no retained water_vapor wall flux above its activation threshold";
             return false;
         }
     }
@@ -294,6 +317,9 @@ int main (int argc, char** argv)
                   << "       checker all_dry|wet_budget|bulk_wet|neutral_wet|most_wet initial_plotfile final_plotfile budget_file\n"
                   << "       checker neutral_momentum|fixed_momentum|most_momentum initial_plotfile final_a final_b\n";
         return 2;
+    }
+    if (!retained_flux_activation_contract_holds()) {
+        return fail("retained-flux activation oracle contract is broken");
     }
 
     amrex::Initialize(argc, argv, false);
@@ -562,8 +588,8 @@ int main (int argc, char** argv)
                   << " total_rows=" << summary.total_rows
                   << " vapor_rows=" << summary.vapor_rows
                   << " cloud_rows=" << summary.cloud_rows
-                  << " heat_face_nonzero=" << summary.heat_face_nonzero
-                  << " vapor_face_nonzero=" << summary.vapor_face_nonzero;
+                  << " heat_face_active=" << summary.heat_face_active
+                  << " vapor_face_active=" << summary.vapor_face_active;
         std::cout << " max_residual_ratio=" << summary.max_residual_ratio << "\n";
     }
 
