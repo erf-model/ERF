@@ -235,6 +235,20 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
+        // OmegaFromW below averages (rho0 u) and (rho0 v) over the faces below and above
+        // each w-face, so at the lowest and highest w-face of a box it reads one face in the
+        // z-ghost layer. Where a box face lies inside the domain (a BoxArray split in z) that
+        // ghost face must hold the neighbouring box's momentum, in the same rho0 scaling as
+        // the valid faces; VelocityToMomentum and ConvertForProjection both write the valid
+        // faces only. Fill the z-ghost layer here, after the conversion, so no caller has to.
+        // At the domain bottom the w-face k = 0 is set to zero and nothing below it is read;
+        // at the domain top the ghost face is outside the domain, which FillBoundary leaves
+        // to the extrapolation in VelocityToMomentum (or the boundary fill in the time step).
+        AMREX_ALWAYS_ASSERT(mom_mf[IntVars::xmom].nGrowVect()[2] >= 1 &&
+                            mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
+        mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+        mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+
         for ( MFIter mfi(rhs_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Array4<Real const>& rho0u_arr = mom_mf[IntVars::xmom].const_array(mfi);
@@ -851,6 +865,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (solverChoice.mesh_type == MeshType::VariableDz)
     {
+        // WFromOmega reads the same z-ghost faces of (rho0 u) and (rho0 v) as OmegaFromW above,
+        // but the fluxes were added to the valid faces only. Fill the ghost faces again, or the
+        // lowest and highest w-face of a box inside the domain (a BoxArray split in z) would be
+        // converted back with the horizontal momenta from before the projection.
+        mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+        mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
+
         for (MFIter mfi(mom_mf[Vars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
              Box tbz = mfi.nodaltilebox(2);

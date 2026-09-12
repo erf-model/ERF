@@ -303,6 +303,18 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngParallel.cpp
+      # Motivation: planar surface-layer fields on a BoxArray split in z hold
+      # duplicate 2D boxes, and every copy must be filled from the computed
+      # surface copy, across ranks and periodic boundaries.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestPlanarBoundaryParallel.cpp
+      # Motivation: rebalance_columns integrated each box of a BoxArray split in
+      # z from its own lowest cell, so the hydrostatic base state depended on
+      # where the columns were split.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestRebalanceColumnsParallel.cpp
+      # Motivation: the hydrostatic base state over terrain integrated each box of
+      # a level split in z from the ghost cell below it, so a fine level's base
+      # state depended on where its boxes were split.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestColumnBandsParallel.cpp
       # The column boxes are distributed afresh, so check the copies across ranks too
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp

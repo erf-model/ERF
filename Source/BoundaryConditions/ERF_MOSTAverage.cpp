@@ -116,6 +116,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
 
+    m_planar_bndry.resize(m_maxlev);
+
     m_Vsg.resize(m_maxlev, zero);
 }
 
@@ -205,6 +207,11 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_fields[lev][2] = Theta_prim.get();
         m_fields[lev][3] = Qv_prim.get();
         m_fields[lev][4] = Qr_prim.get();
+
+        // Surface copies of the planar boxes (see fill_planar_boundary)
+        if (!use_eb) {
+            m_planar_bndry[lev].define(ba, ba2d, dm, m_geom[lev].Domain().smallEnd(2));
+        }
 
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
@@ -1506,6 +1513,29 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 }
 
 /**
+ * Function to fill the ghost cells of one planar average.
+ *
+ * The averages hold one box per 3D box, so a 3D BoxArray split in z gives duplicate
+ * planar boxes of which only the surface copy is computed (compute_region_averages
+ * skips the boxes off the surface); a FillBoundary could then fill a ghost cell from
+ * an uncomputed copy (see PlanarBoundary).  With the split, the valid region of the
+ * uncomputed copies is filled as well.  With EB terrain the averages are computed on
+ * every box and FillBoundary is well defined.
+ *
+ * @param[in]     lev Current level
+ * @param[in,out] mf  Planar average to fill
+ */
+void
+MOSTAverage::fill_planar_boundary (const int& lev, MultiFab& mf)
+{
+    if (m_terrain_type == TerrainType::EB) {
+        mf.FillBoundary(m_geom[lev].periodicity());
+    } else {
+        m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
+    }
+}
+
+/**
  * Function to compute average over local region.
  *
  * @param[in] lev Current level
@@ -1635,7 +1665,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[imf]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[imf]);
 
     } // imf
 
@@ -1741,7 +1771,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[iavg]);
 
     }
     else // copy temperature
@@ -1841,7 +1871,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[iavg]);
 
     }
 

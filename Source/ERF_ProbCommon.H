@@ -16,6 +16,7 @@
 #include "ERF_HSEUtils.H"
 #include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_ColumnBands.H"
 
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
