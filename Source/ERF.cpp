@@ -1293,6 +1293,7 @@ ERF::InitData_post ()
             }
             m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, face_pp_prefix, Qv_prim,
                                                                  z_phys_nd,
+                                                                 zlevels_stag,
                                                                  solverChoice.mesh_type,
                                                                  solverChoice.terrain_type,
                                                                  solverChoice.turbChoice[finest_level],

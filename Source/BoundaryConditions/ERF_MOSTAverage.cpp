@@ -29,6 +29,7 @@ tangential_periodicity (const Geometry& geom, const int dir)
  * @param[in] a_pp_prefix ParmParse prefix for MOST inputs
  * @param[in] mesh_type Mesh type for the simulation
  * @param[in] terrain_type Terrain type for the simulation
+ * @param[in] zlevels_stag Nominal staggered z levels at each level
  * @param[in] eb_vec Embedded-boundary data at each level
  */
 MOSTAverage::MOSTAverage (Orientation face,
@@ -37,12 +38,14 @@ MOSTAverage::MOSTAverage (Orientation face,
                           std::string a_pp_prefix,
                           const MeshType& mesh_type,
                           const TerrainType& terrain_type,
+                          const Vector<Vector<Real>>& zlevels_stag,
                           const Vector<const eb_*>& eb_vec)
   : m_face(face),
     m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
     m_mesh_type(mesh_type),
     m_terrain_type(terrain_type),
+    m_zlevels_stag(zlevels_stag),
     m_eb_vec(eb_vec)
 {
     // Get basic info
@@ -344,6 +347,14 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     // stencil from every face-owned FAB; distributed staging can replace this
     // guard in the future.
     validate_lateral_reference_stencil(lev);
+    // Report the reference height the surface layer will use at this level
+    {
+        const Real zref_min = m_zref[lev]->min(0);
+        const Real zref_max = m_zref[lev]->max(0);
+        Print() << "MOST reference height at level " << lev << ": " << zref_min;
+        if (zref_max > zref_min) { Print() << " to " << zref_max; }
+        Print() << std::endl;
+    }
 
     // Setup normalization data for the chosen policy
     //--------------------------------------------------------
@@ -710,17 +721,49 @@ MOSTAverage::set_k_indices_N (const int& lev)
     const bool is_lo_face = m_face.isLow();
     const bool zlo = (dir == 2 && is_lo_face);
 
+    const bool stretched = (dir == 2 && m_mesh_type != MeshType::ConstantDz);
+    if (stretched) {
+        for (int ilev : {0, lev}) {
+            const int nz = m_geom[ilev].Domain().length(2);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                ilev < static_cast<int>(m_zlevels_stag.size()) &&
+                static_cast<int>(m_zlevels_stag[ilev].size()) == nz + 1,
+                "MOSTAverage: z levels are needed for a stretched mesh without terrain!");
+        }
+    }
+
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
-        const Real m_dz = m_geom[lev].CellSize(dir);
-        zref_tmp = zlo ? m_geom[lev].ProbLo(dir) + myhalf * m_dz
-                       : myhalf * m_dz;
+        if (stretched) {
+            const auto& zlevels = m_zlevels_stag[0];
+            zref_tmp = zlo ? cell_center_height(zlevels, 0)
+                           : zlevels.back() - cell_center_height(zlevels, zlevels.size()-2);
+        } else {
+            const Real dz = m_geom[lev].CellSize(dir);
+            zref_tmp = zlo ? m_geom[lev].ProbLo(dir) + myhalf * dz : myhalf * dz;
+        }
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
     }
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
-    if (read_z) {
+    if (read_z && stretched) {
+        const auto& zlevels = m_zlevels_stag[lev];
+        const int nz = static_cast<int>(zlevels.size()) - 1;
+        const Real target = zlo ? zref_tmp : zlevels.back() - zref_tmp;
+        const Real first_center = cell_center_height(zlevels, 0);
+        const Real last_center = cell_center_height(zlevels, nz - 1);
+        const Real target_min = zlo ? first_center : zlevels.back() - last_center;
+        const Real target_max = zlo ? last_center : zlevels.back() - first_center;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= target_min && zref_tmp <= target_max,
+                                         "Query point must remain inside the stretched mesh!");
+        const int lk = k_index_below(zlevels, target);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= m_radius,
+                                         "K index must be larger than averaging radius!");
+        m_k_indx[lev]->setVal(lk);
+        m_zref[lev]->setVal(zlo ? cell_center_height(zlevels, lk)
+                                : zlevels.back() - cell_center_height(zlevels, lk));
+    } else if (read_z) {
         const Real m_zlo = m_geom[lev].ProbLo(dir);
         const Real m_zhi = m_geom[lev].ProbHi(dir);
         const Real m_dz  = m_geom[lev].CellSize(dir);
@@ -794,16 +837,25 @@ MOSTAverage::set_k_indices_N (const int& lev)
             : (is_lo_face ? dom_lo + wall_offset : dom_hi - wall_offset);
         m_k_indx[lev]->setVal(ref_index);
 
-        const Real m_dz = m_geom[lev].CellSize(dir);
-        const Real m_zlo = m_geom[lev].ProbLo(dir);
-        const Real m_zhi = m_geom[lev].ProbHi(dir);
-        const Real zref_abs = is_lo_face
-            ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
-            : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
+        if (stretched) {
+            const auto& zlevels = m_zlevels_stag[lev];
+            const int k = ref_index - dom_lo;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(k >= 0 && k < ncell,
+                                             "MOST reference index must lie inside the stretched domain!");
+            const Real zcell = cell_center_height(zlevels, k);
+            m_zref[lev]->setVal(zlo ? zcell : zlevels.back() - zcell);
+        } else {
+            const Real m_dz = m_geom[lev].CellSize(dir);
+            const Real m_zlo = m_geom[lev].ProbLo(dir);
+            const Real m_zhi = m_geom[lev].ProbHi(dir);
+            const Real zref_abs = is_lo_face
+                ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
+                : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
 
-        m_zref[lev]->setVal(zlo
-            ? zref_abs
-            : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
+            m_zref[lev]->setVal(zlo
+                ? zref_abs
+                : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
+        }
     }
 }
 
@@ -1094,7 +1146,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
                                        + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                 Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
                                        + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
-                if (z_target > z_lo && z_target < z_hi){
+                if (in_cell_z(z_target, z_lo, z_hi)) {
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
                     amrex::ignore_unused(d_radius);
