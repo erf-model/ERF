@@ -74,7 +74,13 @@ MOSTAverage::MOSTAverage (Orientation face,
     if (!specified_policy) { m_policy = 0; }
     if ((m_mesh_type == MeshType::VariableDz) && (m_policy == 0)) {
         if (specified_policy) {
-            Warning("MOST Planar averaging requested with variable dz -- proceed with caution");
+            if (m_face.coordDir() != 2) {
+                Warning("MOST lateral planar averaging requested with variable dz; "
+                        "the x/y-wall average is cell-count weighted rather than "
+                        "physically area-weighted in the stretched vertical direction.");
+            } else {
+                Warning("MOST planar averaging requested with variable dz -- proceed with caution");
+            }
         } else {
             Print() << "Note: Switching to local averaging for MOST with defaults"
                     << std::endl;

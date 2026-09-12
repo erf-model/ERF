@@ -362,6 +362,7 @@ struct SurfaceLayerFields
         }
         auto layer = std::make_unique<SurfaceLayer>(
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
+            Vector<Vector<Real>>{},
             MeshType::ConstantDz, TerrainType::None, TurbChoice{},
             0.0, 0.0);
         layer->set_surface_layer_faces(active_faces);

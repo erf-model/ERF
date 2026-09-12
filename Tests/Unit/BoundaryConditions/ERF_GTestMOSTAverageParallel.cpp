@@ -123,7 +123,8 @@ TEST(MOSTAverageParallel, DistributedAndTiledPlaneAverageMatchesReference)
                 std::to_string(face.coordDir()) + (face.isLow() ? "_lo" : "_hi");
             ScopedMOSTParams params(prefix.c_str());
             MOSTAverage averages(face, Vector<Geometry>{fields.geom}, false,
-                                  prefix, MeshType::ConstantDz, TerrainType::None);
+                                  prefix, MeshType::ConstantDz, TerrainType::None,
+                                  Vector<Vector<Real>>{});
             averages.make_MOSTAverage_at_level(
                 0, fields.vars_old, fields.theta, fields.qv,
                 fields.qr, fields.z_phys_nd);
@@ -164,7 +165,8 @@ TEST(MOSTAverageParallel, BothPoliciesSupportKAndZrefOnEveryWall)
 
                 MOSTAverage averages(face, Vector<Geometry>{fields.geom}, false,
                                       prefix, MeshType::ConstantDz,
-                                      TerrainType::None);
+                                      TerrainType::None,
+                                      Vector<Vector<Real>>{});
                 averages.make_MOSTAverage_at_level(
                     0, fields.vars_old, fields.theta, fields.qv,
                     fields.qr, fields.z_phys_nd);
@@ -244,7 +246,8 @@ TEST(MOSTAverageParallel, DistributedTerrainKIndexDrivesBothPolicies)
             params.add_zref(requested_distance);
             MOSTAverage averages(face, Vector<Geometry>{fields.geom}, false,
                                   prefix, MeshType::ConstantDz,
-                                  TerrainType::StaticFittedMesh);
+                                  TerrainType::StaticFittedMesh,
+                                  Vector<Vector<Real>>{});
             averages.make_MOSTAverage_at_level(
                 0, fields.vars_old, fields.theta, fields.qv,
                 fields.qr, z_phys_nd);
@@ -283,7 +286,8 @@ TEST(MOSTAverageParallel, DistributedAndTiledRegionAverageMatchesReference)
                 (face.isLow() ? "_lo" : "_hi");
             ScopedMOSTParams params(prefix.c_str(), 1, 0);
             MOSTAverage averages(face, Vector<Geometry>{fields.geom}, false,
-                                  prefix, MeshType::ConstantDz, TerrainType::None);
+                                  prefix, MeshType::ConstantDz, TerrainType::None,
+                                  Vector<Vector<Real>>{});
             averages.make_MOSTAverage_at_level(
                 0, fields.vars_old, fields.theta, fields.qv,
                 fields.qr, fields.z_phys_nd);
