@@ -343,6 +343,26 @@ public:
 
     void ReadStormTrackerRestart();
 
+    void WeatherDiagnosticsTracker (const SolverChoice& sc);
+
+    void TrackerAtStation_RainAccumulation(const SolverChoice& sc,
+                                           const int levc,
+                                           const std::pair<int,int>& station_loc,
+                                           const amrex::Real& time);
+
+    std::pair<int, int> ComputeStationLocationIJ (const SolverChoice& sc,
+                                                  const amrex::Geometry& lev_geom,
+                                                  const amrex::Vector<amrex::MultiFab>& S_data,
+                                                  const amrex::Real& station_latitude,
+                                                  const amrex::Real& station_longitude);
+
+    void MakeStationTrackerDirectory(const std::string& station_tracker_dir);
+
+    std::string MakeStationTrackerFilename(const std::string& basename,
+                                           const int nstep);
+
+    amrex::Vector<std::array<amrex::Real, 2>> station_rain_accum_vs_time;
+
     // Initialize multilevel data
     void InitData ();
 

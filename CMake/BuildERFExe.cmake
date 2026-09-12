@@ -551,6 +551,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
+       ${SRC_DIR}/Utils/ERF_WeatherDiagnostics.cpp
        ${SRC_DIR}/Utils/ERF_InitZLevels.cpp
        ${SRC_DIR}/Utils/ERF_MakeSubdomains.cpp
        ${SRC_DIR}/Utils/ERF_MomentumToVelocity.cpp

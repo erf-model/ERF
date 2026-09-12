@@ -596,6 +596,16 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
+    if(solverChoice.io_station_tracker &&
+       (nstep == 0 || nstep%solverChoice.station_plot_freq == 0)) {
+        WeatherDiagnosticsTracker(solverChoice);
+
+        if (ParallelDescriptor::IOProcessor()) {
+            MakeStationTrackerDirectory("StationTracker");
+            std::string filename_station_tracker = MakeStationTrackerFilename("rain_accum",nstep);
+            WriteLinePlot(filename_station_tracker, station_rain_accum_vs_time);
+        }
+    }
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
