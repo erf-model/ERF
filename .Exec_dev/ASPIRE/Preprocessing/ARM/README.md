@@ -21,7 +21,7 @@ Install the `armlive_getfiles` utility directly from GitHub:
 
 ### 3. Get the python script
 ```bash
-pip install git+[https://code.ornl.gov/ofg/armlive_getfiles.git](https://code.ornl.gov/ofg/armlive_getfiles.git)
+pip install git+https://code.ornl.gov/ofg/armlive_getfiles.git
 ```
 
 ### 4. Get data
