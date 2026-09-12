@@ -844,10 +844,21 @@ Define
    D_h=\ln(z_\mathrm{ref}/z_{0h}),\qquad
    D_q=\ln(z_\mathrm{ref}/z_{0q}).
 
-The scalar resistance used by the stability fixed point is ``z0_h`` when
-MOST heat is active, otherwise ``z0_q`` when active wet MOST vapor is present,
-and otherwise ``z0_m`` for momentum-only MOST.  If wet heat and wet vapor are
-both active, the parser requires ``z0_h == z0_q``.
+The scalar resistance used by the stability fixed point is represented by
+
+.. math::
+
+   D_s =
+   \begin{cases}
+      D_h, & \text{if MOST heat is active},\\
+      D_q, & \text{if heat is inactive and active wet MOST vapor is present},\\
+      D_m, & \text{for momentum-only MOST}.
+   \end{cases}
+
+Thus ``z0_h`` supplies the scalar stability resistance when MOST heat is
+active, ``z0_q`` supplies it otherwise for active wet MOST vapor, and ``z0_m``
+is used for momentum-only MOST.  When wet heat and wet vapor are both active,
+the parser requires ``z0_h == z0_q``.
 
 Starting from :math:`\zeta=0`, ERF evaluates its existing
 ``calc_psi_m2`` and ``calc_psi_h2`` similarity functions and iterates
