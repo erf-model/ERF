@@ -415,6 +415,17 @@ wall_transfer_contract_error (const WallTransferContract& contract,
             " active roughness lengths z0_m, z0_h, and z0_q must be finite and positive";
     }
 
+    if (heat_bulk && vapor_bulk && most_provider &&
+        contract.z0_h != contract.z0_q) {
+        return "Cloud Chamber: " + face +
+            " coupled heat/vapor MOST requires z0_h == z0_q because the "
+            "prescribed-temperature bulk-Richardson closure uses one scalar "
+            "similarity resistance; z0_h=" +
+            std::to_string(static_cast<double>(contract.z0_h)) +
+            ", z0_q=" +
+            std::to_string(static_cast<double>(contract.z0_q));
+    }
+
     if (bulk_active) {
         if (!contract.coefficient_source_specified ||
             (contract.coefficient_source != "fixed" &&

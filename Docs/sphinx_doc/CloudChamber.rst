@@ -547,7 +547,7 @@ Monin--Obukhov similarity state for all active bulk momentum, heat, and vapor
 channels on a face.  The implementation uses ERF's
 ``similarity_funs::calc_psi_m2`` and ``calc_psi_h2`` functions, initializes the
 stability coordinate neutrally, clamps bulk Richardson number to ``[-4,4]``,
-uses relaxation ``0.5``, tolerance ``1e-3``, and a bounded iteration count.
+uses relaxation ``0.5``, tolerance ``1e-3``, and at most 100 iterations.
 Failure to converge or a non-finite result is an error; there is no silent
 fallback.
 
@@ -563,16 +563,28 @@ and ``gravity_sign = +1`` at ``zlo`` and ``-1`` at ``zhi``.  ``U_MOST`` is
 ``max(U_t,0.01)`` only for conditioning the stability iteration; physical
 momentum and scalar fluxes still multiply the actual ``U_t`` and are exactly
 zero at rest.  Momentum, heat, and vapor use separate ``z0_m``, ``z0_h``, and
-``z0_q`` roughness lengths.  MOST is restricted to horizontal faces; neutral
-roughness and fixed bulk channels may still be used independently on side
-walls.  The scope remains single-level Cartesian ConstantDz, stationary-wall,
+``z0_q`` roughness lengths.  When heat and vapor MOST are both active on one
+face, ``z0_h`` and ``z0_q`` must be exactly equal because the
+prescribed-temperature bulk-Richardson closure uses one scalar similarity
+resistance.  With only one MOST scalar channel active, its roughness supplies
+that stability resistance; momentum-only MOST falls back to ``z0_m``.  After
+convergence, active heat and vapor coefficients retain their respective scalar
+roughnesses.  MOST is restricted to horizontal faces; neutral roughness and
+fixed bulk channels may still be used independently on side walls.  The scope remains single-level Cartesian ConstantDz, stationary-wall,
 nonperiodic Cloud Chamber physics; smooth-wall, natural/mixed-convection,
 terrain, embedded-boundary, AMR, stretched-``dz``, and moving-wall support are
 out of scope.
 
 The wall potential temperature uses the configured solver exponent
 ``rdOcp = R_d/c_p``; the same sampled value is used when the resulting
-coefficient drives the scalar flux.
+coefficient drives the scalar flux.  Cloud Chamber stability follows ERF's
+existing prescribed-temperature MOST virtual-temperature convention and does
+not add cloud-water loading to bulk Richardson number.  Its denominator
+conditioning is also inherited from ERF:
+``A_m = max(D_m - psi_m, 1)`` and ``A_s = max(D_s - psi_h, 1)``.  Therefore,
+neutral-limit equivalence to the raw log-law expression applies when that
+conditioning floor is inactive; it is not an unconditional identity for every
+parser-valid roughness ratio.
 
 Developer contract for Cloud Chamber wall closures
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -675,14 +687,14 @@ Chamber path.
      - ``resolved_molecular``
      - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
      - optional
-     - ``bulk_aero`` requires fixed coefficient source and ``C_H``; neutral requires ``z0_m`` and ``z0_h``
+     - ``bulk_aero`` requires ``C_H`` only with ``coefficient_source = fixed``; neutral requires ``z0_m`` and ``z0_h``
    * - ``<face>.vapor_transfer_model``
      - string
      - --
      - ``resolved_molecular``
      - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
      - optional
-     - ``bulk_aero`` requires fixed coefficient source and ``C_E``; neutral requires ``z0_m`` and ``z0_q``; dry vapor is still exact zero
+     - ``bulk_aero`` requires ``C_E`` only with ``coefficient_source = fixed``; neutral requires ``z0_m`` and ``z0_q``; dry vapor is still exact zero
    * - ``<face>.coefficient_source``
      - string
      - --
@@ -760,7 +772,7 @@ syntax.
    but this feature does not provide calibrated or recommended physical
    values.
 
-Neutral and bulk wall-rate timestep guard
+Neutral, bulk, and MOST wall-rate timestep guard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ERF scans the wall-adjacent tangential speed using the same half-cell sample
@@ -773,6 +785,14 @@ as the closure. Active bulk scalar channels contribute
 where ``s`` is heat or wet vapor. Neutral scalar channels use their derived
 ``C_H`` or ``C_E`` in the same expression. Dry vapor is excluded because its
 owned wall flux is exactly zero, even if neutral-vapor metadata is present.
+
+For fixed bulk and neutral/log-law momentum, the coefficient is fixed for the
+local rate calculation and the momentum expression below supplies the exact
+local infinity-row-sum Jacobian factor.  For MOST, the current wall state is
+solved once and its resulting ``C_D``, ``C_H``, and ``C_E`` are then frozen for
+this local rate estimate.  This is an intentional frozen-coefficient estimate,
+not an exact Jacobian of the nonlinear MOST closure and must not be read as
+one.
 
 For neutral momentum, the local tangential drag equation is
 

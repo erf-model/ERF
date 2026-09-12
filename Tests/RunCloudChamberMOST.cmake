@@ -32,7 +32,7 @@ execute_process(
     ERROR_FILE "${CHANGED_DIR}/simulation.log"
     RESULT_VARIABLE changed_result)
 if(NOT changed_result EQUAL 0)
-    message(FATAL_ERROR "MOST changed-roughness simulation failed: ${changed_result}")
+    message(FATAL_ERROR "MOST changed-momentum-model simulation failed: ${changed_result}")
 endif()
 
 foreach(RUN_DIR IN ITEMS "${BASELINE_DIR}" "${CHANGED_DIR}")

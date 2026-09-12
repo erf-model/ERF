@@ -44,6 +44,11 @@ struct FaceRuntimeCoefficients {
     unsigned char valid = 0;
 };
 
+struct MostStabilityResult {
+    amrex::Real zeta = amrex::Real(0.0);
+    int iterations = 0;
+};
+
 enum class ScalarChannel : unsigned char {
     None,
     Heat,
@@ -94,6 +99,8 @@ static_assert(std::is_trivially_copyable_v<WallFlux>);
 static_assert(std::is_standard_layout_v<WallFlux>);
 static_assert(std::is_trivially_copyable_v<FaceRuntimeCoefficients>);
 static_assert(std::is_standard_layout_v<FaceRuntimeCoefficients>);
+static_assert(std::is_trivially_copyable_v<MostStabilityResult>);
+static_assert(std::is_standard_layout_v<MostStabilityResult>);
 static_assert(std::is_trivially_copyable_v<ScalarWallSample>);
 static_assert(std::is_standard_layout_v<ScalarWallSample>);
 static_assert(std::is_trivially_copyable_v<NeutralLogMomentumState>);
@@ -221,6 +228,41 @@ neutral_log_scalar_coefficient (amrex::Real wall_distance,
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
+MostStabilityResult
+most_stability_coordinate (amrex::Real Ri,
+                           amrex::Real D_m,
+                           amrex::Real D_s) noexcept
+{
+    similarity_funs sfuns;
+    amrex::Real zeta = amrex::Real(0.0);
+    bool converged = false;
+    int iterations = 0;
+    constexpr int max_iters = 100;
+    for (int iter = 0; iter < max_iters; ++iter) {
+        const amrex::Real zeta_old = zeta;
+        const amrex::Real psi_m = sfuns.calc_psi_m2(zeta_old);
+        const amrex::Real psi_s = sfuns.calc_psi_h2(zeta_old);
+        const amrex::Real A_m = amrex::max(D_m - psi_m, amrex::Real(1.0));
+        const amrex::Real A_s = amrex::max(D_s - psi_s, amrex::Real(1.0));
+        const amrex::Real zeta_new = amrex::Real(0.5) * zeta_old +
+            amrex::Real(0.5) * Ri * A_m * A_m / A_s;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            std::isfinite(static_cast<double>(zeta_new)),
+            "Cloud Chamber MOST produced a nonfinite stability coordinate");
+        zeta = zeta_new;
+        iterations = iter + 1;
+        if (std::abs(zeta - zeta_old) <= amrex::Real(1.0e-3)) {
+            converged = true;
+            break;
+        }
+    }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        converged, "Cloud Chamber MOST fixed-point iteration did not converge");
+    return {zeta, iterations};
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
 FaceRuntimeCoefficients
 most_wall_coefficients (
     const erf_wall_thermodynamics::FaceWall& wall,
@@ -272,30 +314,16 @@ most_wall_coefficients (
     const amrex::Real D_h = std::log(wall_distance / z0_h);
     const amrex::Real D_q = std::log(wall_distance / z0_q);
 
-    similarity_funs sfuns;
-    amrex::Real zeta = amrex::Real(0.0);
-    bool converged = false;
-    constexpr int max_iters = 40;
-    for (int iter = 0; iter < max_iters; ++iter) {
-        const amrex::Real zeta_old = zeta;
-        const amrex::Real psi_m = sfuns.calc_psi_m2(zeta_old);
-        const amrex::Real psi_h = sfuns.calc_psi_h2(zeta_old);
-        const amrex::Real A_m = amrex::max(D_m - psi_m, amrex::Real(1.0));
-        const amrex::Real A_h = amrex::max(D_h - psi_h, amrex::Real(1.0));
-        const amrex::Real zeta_new = amrex::Real(0.5) * zeta_old +
-            amrex::Real(0.5) * Ri * A_m * A_m / A_h;
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            std::isfinite(static_cast<double>(zeta_new)),
-            "Cloud Chamber MOST produced a nonfinite stability coordinate");
-        zeta = zeta_new;
-        if (std::abs(zeta - zeta_old) <= amrex::Real(1.0e-3)) {
-            converged = true;
-            break;
-        }
-    }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        converged, "Cloud Chamber MOST fixed-point iteration did not converge");
+    // A coupled MOST heat/vapor face is host-constrained to have equal scalar
+    // roughness.  For a single active scalar channel, that channel supplies
+    // the scalar resistance used by the bulk-Richardson fixed point.
+    const amrex::Real z0_stability = most_heat ? z0_h :
+        (most_vapor ? z0_q : z0_m);
+    const amrex::Real D_stability = std::log(wall_distance / z0_stability);
+    const auto stability = most_stability_coordinate(Ri, D_m, D_stability);
+    const amrex::Real zeta = stability.zeta;
 
+    similarity_funs sfuns;
     const amrex::Real psi_m = sfuns.calc_psi_m2(zeta);
     const amrex::Real psi_h = sfuns.calc_psi_h2(zeta);
     const amrex::Real A_m = amrex::max(D_m - psi_m, amrex::Real(1.0));
@@ -344,8 +372,9 @@ AMREX_FORCE_INLINE
 amrex::Real
 momentum_infinity_row_sum_factor () noexcept
 {
-    // The maximum absolute row sum of the two-component tangential
-    // Jacobian of C_D |u_t| u_t is (3 + sqrt(2))/2 * C_D |u_t|.
+    // For a fixed C_D, the maximum absolute row sum of the two-component
+    // tangential Jacobian of C_D |u_t| u_t is (3 + sqrt(2))/2 * C_D |u_t|.
+    // Cloud Chamber MOST applies this factor to its frozen current C_D.
     return (amrex::Real(3.0) + std::sqrt(amrex::Real(2.0))) / amrex::Real(2.0);
 }
 

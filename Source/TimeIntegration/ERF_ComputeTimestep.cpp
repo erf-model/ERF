@@ -373,9 +373,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              {
                  // A free staggered component can receive tangential traction
                  // from every active perpendicular wall at an edge/corner.
-                 // Each tangent reconstruction and stress-node average is a
-                 // convex average, so the row-sum bound is the sum of the
-                 // per-wall velocity-parallel Jacobian bounds.
+                 // Fixed and neutral coefficients use the exact local
+                 // velocity-parallel Jacobian row-sum factor.  MOST evaluates
+                 // its current coefficients once per wall/cell and uses that
+                 // state as a frozen-coefficient local rate estimate; it is
+                 // not a nonlinear MOST Jacobian bound.
                  Real momentum_rate = Real(0.0);
                  amrex::GpuArray<Real, AMREX_SPACEDIM> low_momentum_rates{};
                  amrex::GpuArray<Real, AMREX_SPACEDIM> high_momentum_rates{};
