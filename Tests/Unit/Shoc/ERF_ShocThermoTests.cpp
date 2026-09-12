@@ -1,4 +1,5 @@
 #include "ERF_ShocThermoUtils.H"
+#include "ERF_ShocTestUtils.H"
 
 #include <gtest/gtest.h>
 
@@ -16,8 +17,12 @@ expect_round_trip (amrex::Real theta,
     const amrex::Real tabs = shoc::temperature_from_thetal(thetal, qc, qi, exner);
     const amrex::Real theta_back = tabs / exner;
 
-    EXPECT_NEAR(theta_back, theta, 1.0e-12_rt);
-    EXPECT_NEAR(shoc::thetal_from_theta(theta_back, qc, qi, exner), thetal, 1.0e-12_rt);
+    // At O(300 K), the SINGLE round-trip residual is one represented-value
+    // ulp; two ulps cover the measured float conversion envelope.
+    EXPECT_NEAR(theta_back, theta,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), theta, 2));
+    EXPECT_NEAR(shoc::thetal_from_theta(theta_back, qc, qi, exner), thetal,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), thetal, 2));
     EXPECT_GT(tabs, shoc::constants::min_temp());
 }
 } // namespace
@@ -139,7 +144,9 @@ TEST(ShocThermo, MoistEnergyDistinguishesLiquidAndIce)
                                                       0.0_rt, 1.0e-3_rt,
                                                       0.0_rt, 0.0_rt, 0.0_rt);
 
-    EXPECT_NEAR(liquid_energy - ice_energy,
-                shoc::constants::latent_ice() * 1.0e-3_rt,
-                1.0e-12_rt);
+    const amrex::Real expected_energy_difference =
+        shoc::constants::latent_ice() * 1.0e-3_rt;
+    EXPECT_NEAR(liquid_energy - ice_energy, expected_energy_difference,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_energy_difference, 2));
 }
