@@ -113,6 +113,17 @@ static_assert(std::is_standard_layout_v<ScalarFluxReplacement>);
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 bool
+wall_uses_most_vapor (const erf_wall_thermodynamics::FaceWall& wall) noexcept
+{
+    using namespace erf_wall_thermodynamics;
+    return wall.moisture == MoistureMode::WetEquilibrium &&
+        wall.vapor.model == ScalarModel::BulkAero &&
+        wall.vapor.provider == CoefficientProvider::MOST;
+}
+
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
 wall_uses_most (const erf_wall_thermodynamics::FaceWall& wall) noexcept
 {
     using namespace erf_wall_thermodynamics;
@@ -120,8 +131,7 @@ wall_uses_most (const erf_wall_thermodynamics::FaceWall& wall) noexcept
             wall.momentum.provider == CoefficientProvider::MOST) ||
         (wall.heat.model == ScalarModel::BulkAero &&
          wall.heat.provider == CoefficientProvider::MOST) ||
-        (wall.vapor.model == ScalarModel::BulkAero &&
-         wall.vapor.provider == CoefficientProvider::MOST);
+        wall_uses_most_vapor(wall);
 }
 
 AMREX_GPU_HOST_DEVICE
@@ -282,9 +292,7 @@ most_wall_coefficients (
     const bool most_heat =
         wall.heat.model == ScalarModel::BulkAero &&
         wall.heat.provider == CoefficientProvider::MOST;
-    const bool most_vapor =
-        wall.vapor.model == ScalarModel::BulkAero &&
-        wall.vapor.provider == CoefficientProvider::MOST;
+    const bool most_vapor = wall_uses_most_vapor(wall);
     if (!(most_momentum || most_heat || most_vapor)) {
         result.valid = 1;
         return result;

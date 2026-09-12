@@ -415,17 +415,6 @@ wall_transfer_contract_error (const WallTransferContract& contract,
             " active roughness lengths z0_m, z0_h, and z0_q must be finite and positive";
     }
 
-    if (heat_bulk && vapor_bulk && most_provider &&
-        contract.z0_h != contract.z0_q) {
-        return "Cloud Chamber: " + face +
-            " coupled heat/vapor MOST requires z0_h == z0_q because the "
-            "prescribed-temperature bulk-Richardson closure uses one scalar "
-            "similarity resistance; z0_h=" +
-            std::to_string(static_cast<double>(contract.z0_h)) +
-            ", z0_q=" +
-            std::to_string(static_cast<double>(contract.z0_q));
-    }
-
     if (bulk_active) {
         if (!contract.coefficient_source_specified ||
             (contract.coefficient_source != "fixed" &&
@@ -486,6 +475,32 @@ wall_transfer_contract_error (const WallTransferContract& contract,
           contract.vapor_coefficient < amrex::Real(0.0)))) {
         return "Cloud Chamber: " + face +
             " bulk coefficients C_D, C_H, and C_E must be finite and nonnegative";
+    }
+    return {};
+}
+
+inline std::string
+wall_coupled_most_roughness_error (const WallTransferContract& contract,
+                                   const std::string& face,
+                                   bool wet_wall)
+{
+    const bool heat_most = contract.heat_model_specified &&
+        contract.heat_model == "bulk_aero" &&
+        contract.coefficient_source_specified &&
+        contract.coefficient_source == "most";
+    const bool vapor_most = contract.vapor_model_specified &&
+        contract.vapor_model == "bulk_aero" &&
+        contract.coefficient_source_specified &&
+        contract.coefficient_source == "most";
+    if (wet_wall && heat_most && vapor_most &&
+        contract.z0_h != contract.z0_q) {
+        return "Cloud Chamber: " + face +
+            " coupled heat/vapor MOST requires z0_h == z0_q because the "
+            "prescribed-temperature bulk-Richardson closure uses one scalar "
+            "similarity resistance; z0_h=" +
+            std::to_string(static_cast<double>(contract.z0_h)) +
+            ", z0_q=" +
+            std::to_string(static_cast<double>(contract.z0_q));
     }
     return {};
 }
@@ -883,6 +898,14 @@ inline Config parse_config (const amrex::Real* problo,
                 }
             } else {
                 amrex::Error("Cloud Chamber: " + face + ".moisture must be dry or wet");
+            }
+            const std::string coupled_most_error =
+                wall_coupled_most_roughness_error(
+                    transfer_contract, face,
+                    wall.wall.moisture ==
+                        erf_wall_thermodynamics::MoistureMode::WetEquilibrium);
+            if (!coupled_most_error.empty()) {
+                amrex::Error(coupled_most_error);
             }
             wall.wall.thermal.mode = erf_wall_thermodynamics::ThermalMode::FixedPhysicalTemperature;
             if (transfer_contract.momentum_model == "law_of_wall_momentum") {

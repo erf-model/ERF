@@ -656,6 +656,7 @@ TEST(CloudChamberWallFlux, MOSTUsesActiveScalarRoughnessForStability)
     EXPECT_DOUBLE_EQ(heat_runtime_a.zeta, heat_runtime_inactive_vapor.zeta);
 
     FaceWall vapor_a = base_wall();
+    vapor_a.moisture = MoistureMode::WetEquilibrium;
     vapor_a.vapor.model = ScalarModel::BulkAero;
     vapor_a.vapor.provider = CoefficientProvider::MOST;
     vapor_a.vapor.z0 = Real(0.02);
@@ -675,6 +676,35 @@ TEST(CloudChamberWallFlux, MOSTUsesActiveScalarRoughnessForStability)
         Real(5.0), Real(0.5), 1);
     EXPECT_NE(vapor_runtime_a.zeta, vapor_runtime_b.zeta);
     EXPECT_DOUBLE_EQ(vapor_runtime_a.zeta, vapor_runtime_inactive_heat.zeta);
+    EXPECT_TRUE(wall_uses_most(vapor_a));
+
+    FaceWall dry_vapor_a = base_wall();
+    dry_vapor_a.momentum.model = MomentumModel::BulkAero;
+    dry_vapor_a.momentum.provider = CoefficientProvider::MOST;
+    dry_vapor_a.momentum.z0_m = Real(0.01);
+    dry_vapor_a.vapor.model = ScalarModel::BulkAero;
+    dry_vapor_a.vapor.provider = CoefficientProvider::MOST;
+    dry_vapor_a.vapor.z0 = Real(0.02);
+    FaceWall dry_vapor_b = dry_vapor_a;
+    dry_vapor_b.vapor.z0 = Real(0.04);
+    const auto dry_runtime_a = most_wall_coefficients(
+        dry_vapor_a, Real(285.0), Real(0.005), Real(100000.0), R_d/Cp_d,
+        Real(5.0), Real(0.5), 1);
+    const auto dry_runtime_b = most_wall_coefficients(
+        dry_vapor_b, Real(285.0), Real(0.005), Real(100000.0), R_d/Cp_d,
+        Real(5.0), Real(0.5), 1);
+    EXPECT_TRUE(wall_uses_most(dry_vapor_a));
+    EXPECT_FALSE(wall_uses_most_vapor(dry_vapor_a));
+    EXPECT_DOUBLE_EQ(dry_runtime_a.zeta, dry_runtime_b.zeta);
+    EXPECT_DOUBLE_EQ(dry_runtime_a.C_D, dry_runtime_b.C_D);
+
+    const auto dry_vapor_flux = evaluate_scalar_flux_in(
+        dry_vapor_a, ScalarChannel::Vapor,
+        ScalarWallSample{Real(1.0), Real(0.005), Real(100000.0), Real(5.0),
+                         Real(0.0), Real(0.0), Real(0.0), R_d/Cp_d,
+                         Real(0.5), Real(285.0), Real(0.005), 1});
+    EXPECT_EQ(dry_vapor_flux.owned_channels, OwnVapor);
+    EXPECT_DOUBLE_EQ(dry_vapor_flux.rhoQv_in, Real(0.0));
 }
 
 TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
@@ -1677,14 +1707,21 @@ TEST(CloudChamberNeutralLog, HostParserContractMatrix)
     coupled_most.z0_q = Real(0.02);
     EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
         coupled_most, "zlo").empty());
+    EXPECT_TRUE(erf_cloud_chamber::wall_coupled_most_roughness_error(
+        coupled_most, "zlo", true).empty());
 
     coupled_most.z0_q = Real(0.03);
-    const auto coupled_error = erf_cloud_chamber::wall_transfer_contract_error(
-        coupled_most, "zhi");
+    EXPECT_TRUE(erf_cloud_chamber::wall_transfer_contract_error(
+        coupled_most, "zhi").empty());
+    const auto coupled_error =
+        erf_cloud_chamber::wall_coupled_most_roughness_error(
+            coupled_most, "zhi", true);
     EXPECT_NE(coupled_error.find("zhi"), std::string::npos);
     EXPECT_NE(coupled_error.find("z0_h == z0_q"), std::string::npos);
     EXPECT_NE(coupled_error.find("z0_h=0.020000"), std::string::npos);
     EXPECT_NE(coupled_error.find("z0_q=0.030000"), std::string::npos);
+    EXPECT_TRUE(erf_cloud_chamber::wall_coupled_most_roughness_error(
+        coupled_most, "zhi", false).empty());
 
     auto smooth = momentum_only();
     smooth.momentum_model = "law_of_wall_momentum";

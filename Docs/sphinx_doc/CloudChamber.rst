@@ -575,6 +575,12 @@ nonperiodic Cloud Chamber physics; smooth-wall, natural/mixed-convection,
 terrain, embedded-boundary, AMR, stretched-``dz``, and moving-wall support are
 out of scope.
 
+For an impermeable ``moisture = dry`` wall, a configured bulk/MOST vapor
+channel remains a strict metadata and roughness contract but is not an active
+scalar-transfer channel: ``z0_q`` does not select the shared MOST stability
+resistance or alter active ``C_D``, ``C_H``, or ``C_E``.  Dry stability still
+uses ``qv_air`` in ``theta_v`` and sets ``qv_wall = qv_air``.
+
 The wall potential temperature uses the configured solver exponent
 ``rdOcp = R_d/c_p``; the same sampled value is used when the resulting
 coefficient drives the scalar flux.  Cloud Chamber stability follows ERF's
@@ -687,14 +693,14 @@ Chamber path.
      - ``resolved_molecular``
      - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
      - optional
-     - ``bulk_aero`` requires ``C_H`` only with ``coefficient_source = fixed``; neutral requires ``z0_m`` and ``z0_h``
+     - ``heat_transfer_model = bulk_aero`` requires ``C_H`` only with ``coefficient_source = fixed``; ``C_H`` is not supplied with MOST; neutral requires ``z0_m`` and ``z0_h``
    * - ``<face>.vapor_transfer_model``
      - string
      - --
      - ``resolved_molecular``
      - ``resolved_molecular``, ``bulk_aero``, or ``neutral_roughness_log``
      - optional
-     - ``bulk_aero`` requires ``C_E`` only with ``coefficient_source = fixed``; neutral requires ``z0_m`` and ``z0_q``; dry vapor is still exact zero
+     - ``vapor_transfer_model = bulk_aero`` requires ``C_E`` only with ``coefficient_source = fixed``; ``C_E`` is not supplied with MOST; neutral requires ``z0_m`` and ``z0_q``; dry vapor is still exact zero
    * - ``<face>.coefficient_source``
      - string
      - --
@@ -773,7 +779,7 @@ syntax.
    values.
 
 Neutral, bulk, and MOST wall-rate timestep guard
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ERF scans the wall-adjacent tangential speed using the same half-cell sample
 as the closure. Active bulk scalar channels contribute
@@ -952,6 +958,9 @@ Troubleshooting
   ``wall_transfer_model`` on the same face.
 * ``coefficient_source = most`` is restricted to ``zlo``/``zhi`` and shares one
   converged pointwise stability state across active bulk channels.
+* A dry bulk/MOST vapor channel remains a strict configuration/roughness
+  contract, but it is not an active scalar resistance; ``qv_air`` still enters
+  ``theta_v`` and ``qv_wall = qv_air`` preserves exact zero dry vapor flux.
 * ``neutral_roughness_log`` requires explicit roughness lengths and the
   grid-relative inequality ``0 < z0_* < z_ref``; there are no calibrated
   defaults.
