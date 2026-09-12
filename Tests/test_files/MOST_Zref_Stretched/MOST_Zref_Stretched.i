@@ -33,8 +33,12 @@ zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
 # TIME STEP CONTROL
-erf.anelastic = 1
-erf.fixed_dt  = 1.0
+# Compressible on purpose: the anelastic Poisson solve on a stretched or
+# terrain-fitted mesh needs an FFT build, and the CI builds without FFT.
+# The reference-height lookups do not depend on the dycore.
+erf.anelastic          = 0
+erf.fixed_dt           = 1.0
+erf.fixed_mri_dt_ratio = 8
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval = 1

@@ -183,7 +183,7 @@ Compute_h_zeta_AtCellCenter (const int &i, const int &j, const int &k,
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = fourth * dzInv *
       ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
+      - z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
     return met_h_zeta;
 }
 
@@ -208,7 +208,7 @@ Compute_h_xi_AtCellCenter (const int &i, const int &j, const int &k,
     amrex::Real dxInv = cellSizeInv[0];
     amrex::Real met_h_xi   = fourth * dxInv *
       ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
+      - z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
     return met_h_xi;
 }
 
@@ -233,7 +233,7 @@ Compute_h_eta_AtCellCenter (const int &i, const int &j, const int &k,
     amrex::Real dyInv = cellSizeInv[1];
     amrex::Real met_h_eta  = fourth * dyInv *
       ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
+      - z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
     return met_h_eta;
 }
 
@@ -260,7 +260,7 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i,j  ,k+1) - z_nd(i,j  ,k))
-                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
+                                                       + (z_nd(i,j+1,k+1) - z_nd(i,j+1,k)) );
     return met_h_zeta;
 }
 
@@ -307,7 +307,7 @@ Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i,j+1,k  ) - z_nd(i,j,k  ))
-                                                    + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
+                                                       + (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)) );
     return met_h_eta;
 }
 
@@ -330,7 +330,7 @@ Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
                         const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_zeta = myhalf * cellSizeInv[2] * ( (z_nd(i  ,j,k+1) - z_nd(i  ,j,k  ))
-                                                    + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
+                                                       + (z_nd(i+1,j,k+1) - z_nd(i+1,j,k  )) );
     return met_h_zeta;
 }
 
@@ -353,7 +353,7 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_xi   = myhalf * cellSizeInv[0] * ( (z_nd(i+1,j,k  ) - z_nd(i,j,k  ))
-                                                    + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
+                                                       + (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)) );
     return met_h_xi;
 }
 
@@ -401,7 +401,7 @@ Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
 {
     amrex::Real met_h_zeta = amrex::Real(0.125) * cellSizeInv[2] *
       ( (z_nd(i  ,j  ,k+1) - z_nd(i  ,j  ,k-1)) + (z_nd(i+1,j  ,k+1) - z_nd(i+1,j  ,k-1)) +
-        (z_nd(i  ,j+1,k+1) - z_nd(  i,j+1,k-1)) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k-1)) );
+        (z_nd(i  ,j+1,k+1) - z_nd(i  ,j+1,k-1)) + (z_nd(i+1,j+1,k+1) - z_nd(i+1,j+1,k-1)) );
     return met_h_zeta;
 }
 
@@ -424,7 +424,7 @@ Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
                       const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_xi   = myhalf * cellSizeInv[0] * ( (z_nd(i+1,j  ,k) - z_nd(i,j  ,k))
-                                                    + (z_nd(i+1,j+1,k) - z_nd(i,j+1,k)) );
+                                                       + (z_nd(i+1,j+1,k) - z_nd(i,j+1,k)) );
     return met_h_xi;
 }
 
@@ -447,7 +447,7 @@ Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
                        const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real met_h_eta  = myhalf * cellSizeInv[1] * ( (z_nd(i  ,j+1,k) - z_nd(i  ,j,k))
-                                                    + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
+                                                       + (z_nd(i+1,j+1,k) - z_nd(i+1,j,k)) );
     return met_h_eta;
 }
 
@@ -501,7 +501,7 @@ Compute_h_xi_AtEdgeCenterK (const int &i, const int &j, const int &k,
     amrex::Real dxInv = cellSizeInv[0];
     amrex::Real met_h_xi  = fourth * dxInv *
       ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) );
+      - z_nd(i-1,j,k) - z_nd(i-1,j,k+1) );
     return met_h_xi;
 }
 
@@ -526,7 +526,7 @@ Compute_h_eta_AtEdgeCenterK (const int &i, const int &j, const int &k,
     amrex::Real dyInv = cellSizeInv[1];
     amrex::Real met_h_eta = fourth * dyInv *
       ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) );
+      - z_nd(i,j-1,k) - z_nd(i,j-1,k+1) );
     return met_h_eta;
 }
 
@@ -552,7 +552,7 @@ Compute_h_zeta_AtEdgeCenterJ (const int &i, const int &j, const int &k,
 {
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = fourth * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                                             -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
+                                              - z_nd(i,j,k-1) - z_nd(i,j+1,k-1) );
     return met_h_zeta;
 }
 
@@ -577,7 +577,7 @@ Compute_h_xi_AtEdgeCenterJ (const int &i, const int &j, const int &k,
     amrex::Real dxInv = cellSizeInv[0];
     amrex::Real met_h_xi = fourth * dxInv *
       ( z_nd(i+1,j+1,k) + z_nd(i+1,j  ,k)
-       -z_nd(i-1,j+1,k) - z_nd(i-1,j  ,k) );
+      - z_nd(i-1,j+1,k) - z_nd(i-1,j  ,k) );
     return met_h_xi;
 }
 
@@ -626,7 +626,7 @@ Compute_h_zeta_AtEdgeCenterI (const int &i, const int &j, const int &k,
 {
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = fourth * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                                             -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
+                                              - z_nd(i,j,k-1) - z_nd(i+1,j,k-1) );
     return met_h_zeta;
 }
 
@@ -674,7 +674,7 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
     amrex::Real dyInv = cellSizeInv[1];
     amrex::Real met_h_eta = fourth * dyInv *
       ( z_nd(i+1,j+1,k) + z_nd(i,j+1,k)
-       -z_nd(i+1,j-1,k) - z_nd(i,j-1,k) );
+      - z_nd(i+1,j-1,k) - z_nd(i,j-1,k) );
     return met_h_eta;
 }
 
@@ -748,7 +748,7 @@ Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
     // Note: we assume the z_nd array spans from the bottom to top of the domain
     // i.e. no domain decomposition across processors in vertical direction
     const amrex::Real z0_cc = fourth*( z_nd(i  ,j  ,0) + z_nd(i  ,j+1,0)
-                                      +z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
+                                     + z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
 
     return (z_cc - z0_cc);
 }
@@ -1084,11 +1084,11 @@ rotate_stress_tensor (const int& i,
                       const amrex::Array4<const amrex::Real>& u_arr,
                       const amrex::Array4<const amrex::Real>& v_arr,
                       const amrex::Array4<const amrex::Real>& w_arr,
-                      const amrex::Array4<amrex::Real>& tau11_arr,
-                      const amrex::Array4<amrex::Real>& tau22_arr,
-                      const amrex::Array4<amrex::Real>& tau33_arr,
-                      const amrex::Array4<amrex::Real>& tau12_arr,
-                      const amrex::Array4<amrex::Real>& tau21_arr,
+                      const amrex::Array4<amrex::Real>& /*tau11_arr*/,
+                      const amrex::Array4<amrex::Real>& /*tau22_arr*/,
+                      const amrex::Array4<amrex::Real>& /*tau33_arr*/,
+                      const amrex::Array4<amrex::Real>& /*tau12_arr*/,
+                      const amrex::Array4<amrex::Real>& /*tau21_arr*/,
                       const amrex::Array4<amrex::Real>& tau13_arr,
                       const amrex::Array4<amrex::Real>& tau31_arr,
                       const amrex::Array4<amrex::Real>& tau23_arr,
@@ -1098,8 +1098,6 @@ rotate_stress_tensor (const int& i,
     amrex::Array1D<amrex::Real,0,2> n_hat;
 
     // Unit-tangent vectors
-    amrex::Array1D<amrex::Real,0,2> t_hat_1;
-    amrex::Array1D<amrex::Real,0,2> t_hat_2;
     amrex::Array1D<amrex::Real,0,2> u_t_hat;
 
     // Final basis vector for right-hand coord sys
@@ -1109,31 +1107,27 @@ rotate_stress_tensor (const int& i,
     amrex::Array2D<amrex::Real,0,2,0,2> R_mat;
 
     // Metric data
-    amrex::Real h_xi   = Compute_h_xi_AtIface(i, j, klo, dxInv, zphys_arr);
-    amrex::Real h_eta  = Compute_h_eta_AtIface(i, j, klo, dxInv, zphys_arr);
+    amrex::Real h_xi   =   Compute_h_xi_AtIface(i, j, klo, dxInv, zphys_arr);
+    amrex::Real h_eta  =  Compute_h_eta_AtIface(i, j, klo, dxInv, zphys_arr);
     amrex::Real h_zeta = Compute_h_zeta_AtIface(i, j, klo, dxInv, zphys_arr);
 
-    // Populate the normal vector
+    // Populate the inward normal vector
     amrex::Real Inormn = one/std::sqrt(one + h_xi*h_xi + h_eta*h_eta);
-    n_hat(0) = Inormn*h_xi; n_hat(1) = Inormn*h_eta; n_hat(2) = -Inormn;
+    n_hat(0) = -Inormn*h_xi; n_hat(1) = -Inormn*h_eta; n_hat(2) = Inormn;
 
-    // Populate the tangent vectors: t_1 ~ (1,0,h_xi) and t_2 ~ (0,1,h_eta).
-    // NOTE: the out-of-plane component of each is identically zero and must be
-    //       set explicitly since Array1D is an aggregate with no default init.
-    amrex::Real Inorm1 = one/std::sqrt(one + h_xi*h_xi);
-    amrex::Real Inorm2 = one/std::sqrt(one + h_eta*h_eta);
-    t_hat_1(0) = -Inorm1;      t_hat_2(0) = zero;
-    t_hat_1(1) = zero;         t_hat_2(1) = -Inorm2;
-    t_hat_1(2) = -Inorm1*h_xi; t_hat_2(2) = -Inorm2*h_eta;
+    // Populate the u_t vector (u_t = u - (u \cdot n)n)
+    amrex::Real u    = u_arr(i,j,klo);
+    amrex::Real v    = fourth * ( v_arr(i  ,j,klo) + v_arr(i  ,j+1,klo)
+                                + v_arr(i-1,j,klo) + v_arr(i-1,j+1,klo) );
+    amrex::Real w    = myhalf * ( w_arr(i  ,j,klo) + w_arr(i-1,j  ,klo) );
+    amrex::Real u_dot_n = n_hat(0)*u + n_hat(1)*v + n_hat(2)*w;
+    u_t_hat(0) = u - u_dot_n*n_hat(0);
+    u_t_hat(1) = v - u_dot_n*n_hat(1);
+    u_t_hat(2) = w - u_dot_n*n_hat(2);
+    amrex::Real Norm_u_t = u_t_hat(0)*u_t_hat(0)
+                         + u_t_hat(1)*u_t_hat(1)
+                         + u_t_hat(2)*u_t_hat(2);
 
-    // Populate the u_t vector
-    amrex::Real Norm_u_t = zero;
-    amrex::Real mag1 = (u_arr(i,j,klo) + h_xi *w_arr(i,j,klo))*Inorm1;
-    amrex::Real mag2 = (v_arr(i,j,klo) + h_eta*w_arr(i,j,klo))*Inorm2;
-    for (int icol(0); icol<3; ++icol) {
-        u_t_hat(icol) = mag1*t_hat_1(icol) + mag2*t_hat_2(icol);
-        Norm_u_t  += u_t_hat(icol)*u_t_hat(icol);
-    }
     // NOTE: the direction of the tangential velocity is undefined when that
     //       velocity vanishes (a quiescent surface cell, or flow normal to the
     //       terrain), so we cannot normalize. Leaving u_t_hat as the zero vector
@@ -1144,46 +1138,41 @@ rotate_stress_tensor (const int& i,
         u_t_hat(icol) *= Inorm_u_t;
     }
 
-    // Populate the a_hat vector
+    // Populate the a_hat = n_hat X u_t_hat vector
     a_hat(0) =   n_hat(1)*u_t_hat(2) - n_hat(2)*u_t_hat(1);
     a_hat(1) = -(n_hat(0)*u_t_hat(2) - n_hat(2)*u_t_hat(0));
     a_hat(2) =   n_hat(0)*u_t_hat(1) - n_hat(1)*u_t_hat(0);
 
     // Copy column vectors into R_mat
-    int jrow;
-    jrow = 0;
-    for (int icol(0); icol<3; ++icol) {
-        R_mat(icol,jrow) = u_t_hat(icol);
+    // NOTE: basis vectors form rows of R_mat
+    int icol = 0;
+    for (int jrow(0); jrow<3; ++jrow) {
+        R_mat(icol,jrow) = u_t_hat(jrow);
     }
-    jrow = 1;
-    for (int icol(0); icol<3; ++icol) {
-        R_mat(icol,jrow) = a_hat(icol);
+    icol = 1;
+    for (int jrow(0); jrow<3; ++jrow) {
+        R_mat(icol,jrow) = a_hat(jrow);
     }
-    jrow = 2;
-    for (int icol(0); icol<3; ++icol) {
-        R_mat(icol,jrow) = n_hat(icol);
+    icol = 2;
+    for (int jrow(0); jrow<3; ++jrow) {
+        R_mat(icol,jrow) = n_hat(jrow);
     }
 
-    // Body-fixed tau
+    // Body-fixed stresses
     amrex::Real T11    = two*R_mat(0,0)*R_mat(2,0)*flux;
     amrex::Real T22    = two*R_mat(0,1)*R_mat(2,1)*flux;
-    amrex::Real T33    = two*R_mat(0,2)*R_mat(2,2)*flux;
+    //amrex::Real T33    = two*R_mat(0,2)*R_mat(2,2)*flux;
     amrex::Real T12    = (R_mat(0,0)*R_mat(2,1) + R_mat(2,0)*R_mat(0,1))*flux;
     amrex::Real T13    = (R_mat(0,0)*R_mat(2,2) + R_mat(0,2)*R_mat(2,0))*flux;
-    amrex::Real T23    = (R_mat(0,1)*R_mat(2,2) + R_mat(0,2)*R_mat(2,1))*flux;
+    amrex::Real T23    = (R_mat(0,2)*R_mat(2,1) + R_mat(0,1)*R_mat(2,2))*flux;
 
-    // Rotated stress fluxes
-    tau11_arr(i,j,klo) = h_zeta*T11;
-    tau22_arr(i,j,klo) = h_zeta*T22;
-    tau33_arr(i,j,klo) = -h_xi*T13 - h_eta*T23 + T33;
-
-    tau12_arr(i,j,klo) = h_zeta*T12;
-    tau21_arr(i,j,klo) = h_zeta*T12; // the body-fixed tensor is symmetric: T21 == T12
-
-    tau13_arr(i,j,klo) = -h_xi*T11 - h_eta*T12 + T13;
+    // Populate the stress tensor (apply JT)
+    // NOTE: We cannot set the stresses that do not live at the
+    //       bottom face --- e.g., tau11/22/33/12/21.
+    tau13_arr(i,j,klo) =  -h_xi*T11 - h_eta*T12 + T13;
     tau31_arr(i,j,klo) = h_zeta*T13;
 
-    tau23_arr(i,j,klo) = -h_xi*T12 - h_eta*T22 + T23;
+    tau23_arr(i,j,klo) =  -h_xi*T12 - h_eta*T22 + T23;
     tau32_arr(i,j,klo) = h_zeta*T23;
 }
 #endif

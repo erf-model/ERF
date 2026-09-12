@@ -140,6 +140,9 @@ def abort_reason(log):
     m = re.search(r"Assertion `[^']*' failed, file \"[^\"]*/([^/\"]+)\", line (\d+), Msg: ([^\n]*)", log)
     if m:
         return "abort %s:%s %s" % (m.group(1), m.group(2), m.group(3).replace("!!!", "").strip()[:40])
+    m = re.search(r"amrex::Abort::\d+::([^\n]*)", log)
+    if m:
+        return "abort %s" % m.group(1).replace("!!!", "").strip()[:60]
     return "failed"
 
 
