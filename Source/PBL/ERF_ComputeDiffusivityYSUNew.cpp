@@ -7,6 +7,8 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 
+#include <cmath>
+
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
 #endif
@@ -623,6 +625,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
+        const bool enable_ysu_rad_tend_limiter = turbChoice.enable_ysu_rad_tend_limiter;
+        const amrex::Real ysu_rad_tend_limiter_magnitude = turbChoice.ysu_rad_tend_limiter_magnitude;
 
         // ========================================================================
         // Cloud-top detection for top-down mixing (H10 Section 3b)
@@ -711,6 +715,26 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // LW component is at index 1
                         LRAD += -qheat_arr(i, j, kk, 1) * ldz;
                     }
+                }
+
+                // YSUNew radiative tendency limiter/smoothing
+                // Apply optional finite guards, bounds checking, and smoothing
+                amrex::Real LRAD_raw = LRAD;  // Store raw value for diagnostics
+                amrex::Real LRAD_limited = LRAD;
+
+                if (enable_ysu_rad_tend_limiter && has_qheating_rates) {
+                    // Guard against NaN/Inf in the raw heating rate
+                    if (!std::isfinite(LRAD_raw)) {
+                        LRAD_limited = zero;  // Safe fallback: no radiative forcing
+                    } else {
+                        // Apply the magnitude limiter/bounds
+                        // Clamp LRAD to [-limiter_magnitude, +limiter_magnitude]
+                        const amrex::Real lim_mag = ysu_rad_tend_limiter_magnitude;
+                        LRAD_limited = amrex::min(LRAD_raw,  lim_mag);
+                        LRAD_limited = amrex::max(LRAD_limited, -lim_mag);
+                    }
+                    // Use limited value for subsequent wstar computation
+                    LRAD = LRAD_limited;
                 }
 
                 // Top-down convective velocity (H10 Eq. 12):

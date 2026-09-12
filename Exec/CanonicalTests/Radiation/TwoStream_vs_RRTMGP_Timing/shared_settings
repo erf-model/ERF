@@ -1,0 +1,53 @@
+# Shared configuration for the two-stream / RRTMGP timing comparison.
+#
+# Both solvers run from this same block; the only difference between
+# inputs_twostream and inputs_rrtmgp is which solver is selected. Anything
+# that would bias a timing comparison is pinned here:
+#
+#   - identical grid, timestep, step count and sounding;
+#   - the same moisture model, since RRTMGP needs condensate and gas
+#     concentrations and running two-stream without it would compare
+#     different physics configurations;
+#   - radiation called on every slow step for both, so the comparison is
+#     per call and not an artifact of update frequency;
+#   - plotfiles and per-solver diagnostic logs switched off, so file I/O
+#     does not land in the measured region;
+#   - MFIter tiling pinned, so neither solver is measured with a different
+#     box decomposition.
+
+max_step  = 20
+stop_time = 1000.0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =      0.   0.     0.
+geometry.prob_hi     =  15000. 400. 50000.
+geometry.is_periodic = 1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+amr.max_level        = 0
+amr.max_grid_size_z  = 1024
+
+erf.fixed_dt       = 1.0
+erf.fixed_fast_dt  = 0.25
+
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+
+erf.check_int       = -1
+erf.plot_int_1      = -1
+
+erf.use_gravity     = true
+erf.use_coriolis    = false
+erf.moisture_model  = "SatAdj"
+erf.molec_diff_type = "Constant"
+erf.dynamic_viscosity = 0.0
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_moist"
+erf.sounding_type = Ideal
+
+amrex.tiny_profile = 1

@@ -255,18 +255,46 @@ void make_sources (int level,
                                                                Array4<const Real>{};
 
 
+
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
-        if (solverChoice.rad_type != RadiationType::None && is_slow_step) {
+        // The gate covers both radiation solvers: RRTMGP, selected by
+        // erf.radiation_model (SolverChoice::rad_type), and two-stream,
+        // selected by erf.radiation_type (RadChoice::rad_type). Both write
+        // the same 2-component (SW, LW) qheating_rates MultiFab (see
+        // Source/ERF_MakeNewArrays.cpp and
+        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so the
+        // injection formula is the same either way. The nullptr check is
+        // defensive: qheating_rates is only allocated when at least one
+        // solver is active, and this can be reached before that allocation
+        // during early init.
+        //
+        // Temporal consistency is guaranteed by where advance_radiation() sits
+        // and by the is_slow_step gating:
+        //   1. qheating_rates[lev] contains heating rates computed from the old
+        //      state (t^n) at the beginning of the slow step (called in
+        //      ERF::Advance before dycore, see ERF_AdvanceRadiation.cpp).
+        //   2. This source term is ONLY added when is_slow_step==true, ensuring
+        //      it is computed once per slow step and NOT repeated in fast
+        //      substeps.
+        //   3. The resulting radiative tendency is consistent with the old-state
+        //      atmosphere throughout all fast substeps of the current slow step,
+        //      providing a single radiative "kick" per slow step.
+        //   4. No adaptation or re-evaluation of radiation occurs within a slow
+        //      step; the heating field is frozen at the beginning of the slow
+        //      step and applies uniformly to all fast substeps.
+        if ((solverChoice.rad_type != RadiationType::None ||
+             solverChoice.radChoice.rad_type == RadType::TwoStream) &&
+            is_slow_step && qheating_rates != nullptr) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Short-wavelength and long-wavelength radiation source terms
+                // Computed once per slow step from the old state (t^n)
                 cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
             });
         }
-
 
         // *************************************************************************************
         // 3. Add Rayleigh damping for (rho theta)
