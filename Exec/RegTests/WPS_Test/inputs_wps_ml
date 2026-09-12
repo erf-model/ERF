@@ -91,7 +91,7 @@ erf.molec_diff_type = "None"
 erf.pbl_type        = "MRF"
 erf.les_type        = "Smagorinsky2D"
 erf.Cs              = 0.1
-    
+
 erf.use_coriolis      = true
 erf.variable_coriolis = true
 erf.coriolis_3d       = true

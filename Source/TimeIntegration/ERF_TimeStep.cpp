@@ -139,7 +139,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
 
                 update_sst_tsk(itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
-                               m_SurfaceLayer, low_data_zlo,
+                               m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                S_new, *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             }

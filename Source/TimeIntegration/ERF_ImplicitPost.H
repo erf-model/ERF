@@ -63,7 +63,7 @@
                 for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
                     l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoQ1_comp][ori];
                 }
-                const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
+                const bool l_use_SurfLayer = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
 
                 for ( MFIter mfi(S_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
                 {

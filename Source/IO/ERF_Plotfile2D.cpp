@@ -205,6 +205,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         const MultiFab* shoc_olen_source = nullptr;
         const MultiFab* shoc_wthv_source = nullptr;
         const ShocDriver* native_shoc = native_shoc_driver[lev].get();
+        SurfaceLayer* surf_layer = m_SurfaceLayer[Orientation(Direction::z,Orientation::low)].get();
         const bool native_shoc_owns_scalar_fluxes =
             native_shoc && native_shoc->owns_scalar_surface_fluxes();
         const bool native_shoc_has_consumed_flux_diagnostics =
@@ -240,8 +241,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // NOTE: the SurfaceLayer pblh holds only the bogus value it was initialized
         //       with unless erf.most.pblh_calc was set (the default is "none"), so we
         //       leave the source null in that case and emit the missing value.
-        if (!pblh_source && m_SurfaceLayer && m_SurfaceLayer->computes_pblh()) {
-            pblh_source = m_SurfaceLayer->get_pblh(lev);
+        if (!pblh_source && surf_layer && surf_layer->computes_pblh()) {
+            pblh_source = surf_layer->get_pblh(lev);
         }
 
         if (containerHasElement(plot_var_names, "z_surf")) {
@@ -339,7 +340,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         // helpers.
         if (containerHasElement(plot_var_names, "u_star")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_u_star(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_u_star(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // u_star
@@ -348,8 +349,8 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             // NOTE: w_star holds only the bogus value it was initialized with unless
             //       erf.most.include_wstar is on (it is off by default), so we must
             //       pass a null source in that case and emit the missing value
-            const MultiFab* w_star_source = (m_SurfaceLayer && m_SurfaceLayer->computes_w_star())
-                                          ? m_SurfaceLayer->get_w_star(lev) : nullptr;
+            const MultiFab* w_star_source = (surf_layer && surf_layer->computes_w_star())
+                                          ? surf_layer->get_w_star(lev) : nullptr;
             plotfile2d::fill_component_from_klevel_or_value(
                 mf[lev], mf_comp, w_star_source, 0, -999);
             mf_comp++;
@@ -357,21 +358,21 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (containerHasElement(plot_var_names, "t_star")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_t_star(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_t_star(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // t_star
 
         if (containerHasElement(plot_var_names, "q_star")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_q_star(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_q_star(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // q_star
 
         if (containerHasElement(plot_var_names, "Olen")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_olen(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_olen(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // Olen
@@ -384,21 +385,21 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (containerHasElement(plot_var_names, "t_surf")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_t_surf(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_t_surf(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // t_surf
 
         if (containerHasElement(plot_var_names, "q_surf")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_q_surf(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_q_surf(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // q_surf
 
         if (containerHasElement(plot_var_names, "z0")) {
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, m_SurfaceLayer ? m_SurfaceLayer->get_z0(lev) : nullptr,
+                mf[lev], mf_comp, surf_layer ? surf_layer->get_z0(lev) : nullptr,
                 0, -999);
             mf_comp++;
         } // z0
@@ -505,7 +506,7 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         if (containerHasElement(plot_var_names, "surface_diagnostic_source")) {
             plotfile2d::fill_component_from_klevel_or_value(
                 mf[lev], mf_comp,
-                m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr,
+                surf_layer ? surf_layer->get_surface_diagnostic_source(lev) : nullptr,
                 0, 0);
             mf_comp++;
         } // surface_diagnostic_source
@@ -586,19 +587,19 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             near_surface_sources.native_vegetation_fraction =
                 lsm.Get_Data_Ptr(lev, "noahmp_vegetation_fraction");
             near_surface_sources.theta_surface =
-                m_SurfaceLayer ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
+                surf_layer ? surf_layer->get_t_surf(lev) : nullptr;
             near_surface_sources.theta_star =
-                m_SurfaceLayer ? m_SurfaceLayer->get_t_star(lev) : nullptr;
+                surf_layer ? surf_layer->get_t_star(lev) : nullptr;
             near_surface_sources.mixing_ratio_surface =
-                m_SurfaceLayer ? m_SurfaceLayer->get_q_surf(lev) : nullptr;
+                surf_layer ? surf_layer->get_q_surf(lev) : nullptr;
             near_surface_sources.mixing_ratio_star =
-                m_SurfaceLayer ? m_SurfaceLayer->get_q_star(lev) : nullptr;
+                surf_layer ? surf_layer->get_q_star(lev) : nullptr;
             near_surface_sources.roughness_height =
-                m_SurfaceLayer ? m_SurfaceLayer->get_z0(lev) : nullptr;
+                surf_layer ? surf_layer->get_z0(lev) : nullptr;
             near_surface_sources.obukhov_length =
-                m_SurfaceLayer ? m_SurfaceLayer->get_olen(lev) : nullptr;
+                surf_layer ? surf_layer->get_olen(lev) : nullptr;
             near_surface_sources.source_mask =
-                m_SurfaceLayer ? m_SurfaceLayer->get_surface_diagnostic_source(lev) : nullptr;
+                surf_layer ? surf_layer->get_surface_diagnostic_source(lev) : nullptr;
             near_surface_sources.land_mask =
                 (lmask_lev[lev].empty()) ? nullptr : lmask_lev[lev][0].get();
             near_surface_sources.cons = &vars_new[lev][Vars::cons];

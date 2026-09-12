@@ -5,6 +5,13 @@
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
 
+    [[maybe_unused]] const bool SurfLayer_xlo = SurfLayer[0] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_ylo = SurfLayer[1] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zlo = use_SurfLayer && SurfLayer[2] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_xhi = SurfLayer[3] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_yhi = SurfLayer[4] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zhi = SurfLayer[5] != nullptr;
+
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);

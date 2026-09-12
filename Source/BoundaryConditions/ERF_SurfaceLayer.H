@@ -43,6 +43,7 @@ public:
   /**
    * Construct the surface-layer interface.
    *
+   * @param[in]     face                orientation of face (for wall geometries)
    * @param[in]     geom                geometry for all AMR levels
    * @param[in,out] use_rot_surface_flux whether to use rotated surface fluxes
    * @param[in]     a_pp_prefix         ParmParse prefix used by MOST averages
@@ -57,7 +58,8 @@ public:
    * @param[in]     low_time_interval   low-boundary-data time interval
    * @param[in]     eb_vec              optional embedded-boundary geometry data
    */
-  explicit SurfaceLayer (const amrex::Vector<amrex::Geometry>& geom,
+  explicit SurfaceLayer (amrex::Orientation face,
+                         const amrex::Vector<amrex::Geometry>& geom,
                          bool& use_rot_surface_flux,
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
@@ -70,21 +72,27 @@ public:
                          double final_low_time,
                          double low_time_interval = 0.0,
                          const amrex::Vector<const eb_*>& eb_vec = {})
-  : m_geom(geom),
+  : m_face(face),
+    m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
     m_final_low_time(final_low_time),
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
+    m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
          zlevels_stag, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
 
+      // Keep standalone SurfaceLayer instances compatible with the historical
+      // single-face behavior. ERF replaces this with the complete active-face
+      // set after constructing all SurfaceLayer objects.
+      m_surface_layer_faces[static_cast<int>(face)] = 1;
+
       // Get roughness
-      amrex::ParmParse pp("erf");
+      amrex::ParmParse pp(a_pp_prefix);
       pp.queryAdd("most.z0", z0_const);
 
       // Specify how to compute the flux
@@ -108,6 +116,14 @@ public:
           } else {
               amrex::Abort("Undefined MOST flux type!");
           }
+      }
+
+      if (flux_type == FluxCalcType::BULK_COEFF ||
+          flux_type == FluxCalcType::CUSTOM ||
+          flux_type == FluxCalcType::RICO) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "BULK_COEFF, CUSTOM, and RICO surface-layer fluxes are supported only on the z-low face.");
       }
 
       // Include w* to handle free convection (Beljaars 1995, QJRMS)
@@ -311,6 +327,11 @@ public:
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
                          a_turb_choice.dirichlet_k == true);
       if (m_update_k_rans) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "RANS surface-layer k updates are supported only on the z-low face.");
+      }
+      if (m_update_k_rans) {
           inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
       }
@@ -442,6 +463,9 @@ public:
           if (m_terrain_type == TerrainType::EB) {
               amrex::Abort("Text-file surface forcing is not supported with EB terrain");
           }
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "most.use_sfc_fluxes and most.use_sfc_sst are supported only on the z-low face.");
 
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
@@ -535,13 +559,42 @@ public:
           }
           // else use z0_const
       }
+      if (read_z0) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "Custom MOST roughness is supported only on the z-low face.");
+      }
 
       // Attributes for MFs and FABs
       //--------------------------------------------------------
       // Create a 2D ba for planar terrain, 3D for EB terrain
+      const int dir = m_face.coordDir();
+      int sm_index;
+      if (m_face.isLow()) {
+          sm_index = m_geom[lev].Domain().smallEnd(dir);
+      } else {
+          sm_index = m_geom[lev].Domain().bigEnd(dir);
+      }
+
       amrex::BoxArray ba = mf.boxArray();
       amrex::BoxArray ba_flux;
       amrex::IntVect ng{1,1,0};
+
+      // The lateral-wall implementation uses the two-dimensional land-mask
+      // layout to identify grids on the requested face.  Lateral walls are
+      // intentionally restricted to grids spanning the complete z domain;
+      // z-decomposed and partial-height grids are not supported.
+      if (dir != 2) {
+          const int dom_lo_z = m_geom[lev].Domain().smallEnd(2);
+          const int dom_hi_z = m_geom[lev].Domain().bigEnd(2);
+          for (int ibox = 0; ibox < ba.size(); ++ibox) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                  ba[ibox].smallEnd(2) == dom_lo_z && ba[ibox].bigEnd(2) == dom_hi_z,
+                  "Surface layer boundaries on x/y faces require Cartesian grids that "
+                  "span the full level z domain; partial-height refined grids and grids "
+                  "decomposed in z are not supported. Set erf.max_grid_size_z accordingly.");
+          }
+      }
 
       if (m_terrain_type == TerrainType::EB) {
           // Use full 3D BoxArray for EB terrain
@@ -550,8 +603,15 @@ public:
       } else {
           // Collapse to 2D for planar terrain
           amrex::BoxList bl2d = ba.boxList();
-          for (auto& b : bl2d) { b.setRange(2,0); }
+          for (auto& b : bl2d) {
+            b.setRange(dir,sm_index);
+          }
           ba_flux = amrex::BoxArray(std::move(bl2d));
+          // The selected wall-normal direction is collapsed. Retain ghosts in
+          // every tangential direction, including x/y ghosts on z faces and z
+          // ghosts on lateral faces, for the surface-layer stencil.
+          ng = mf.nGrowVect();
+          ng[dir] = 0;
       }
 
       const amrex::DistributionMapping& dm = mf.DistributionMap();
@@ -590,6 +650,20 @@ public:
 
       q_surf[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       q_surf[lev]->setVal(default_land_surf_moist);
+
+      const amrex::iMultiFab& surface_mask = *m_lmask_lev[lev][0];
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.boxArray().size() == mf.boxArray().size(),
+          "Surface-layer mask and state must have the same number of boxes.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.DistributionMap() == mf.DistributionMap(),
+          "Surface-layer mask and state must have identical ownership.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.boxArray().size() == u_star[lev]->boxArray().size(),
+          "Surface-layer mask and parameters must have the same number of boxes.");
+      AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+          surface_mask.DistributionMap() == u_star[lev]->DistributionMap(),
+          "Surface-layer mask and parameters must have identical ownership.");
 
       surface_diagnostic_source[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       surface_diagnostic_source[lev]->setVal(
@@ -1202,6 +1276,19 @@ public:
   void set_coupled_sst_active (const bool active) { m_use_coupled_sst = active; }
 
   /**
+   * Set the domain faces that use the surface-layer boundary condition.
+   *
+   * The face set is used to suppress transpose stress writes at shared edges;
+   * the face-normal component remains owned by its corresponding face path.
+   *
+   * @param[in] active_faces whether a specific x/y/z lo/hi face is enabled
+   */
+  void set_surface_layer_faces (const amrex::GpuArray<int, AMREX_SPACEDIM*2>& active_faces)
+  {
+      m_surface_layer_faces = active_faces;
+  }
+
+  /**
    * Reads columns of data from a text file, returning each column in a vector.
    *
    * @param[in] fname       path to text file
@@ -1210,6 +1297,15 @@ public:
    */
   static amrex::Vector<amrex::Vector<amrex::Real>>
   read_cols(const std::string& fname, const int skip_nlines = 1);
+
+  /**
+   * Fills surface layer data for lateral faces. A normal FillBoundary on
+   * lateral faces would bring in data from other ranks or interior grids
+   * that do not own data on the lateral face.
+   *
+   * @param[in] lev level index
+   */
+  void fill_lateral_surface_parameter_ghosts (const int& lev);
 
   enum struct FluxCalcType {
     MOENG = 0,  ///< Moeng functional form
@@ -1250,8 +1346,10 @@ public:
 
 private:
   // Set in constructor
+  amrex::Orientation m_face;
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
+  amrex::GpuArray<int, AMREX_SPACEDIM*2> m_surface_layer_faces{};
   double m_start_low_time;
   double m_final_low_time;
   double m_low_time_interval;
