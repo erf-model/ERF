@@ -725,10 +725,20 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     # The checker is a small AMReX PlotFileData consumer and is built only
     # when regression tests are enabled.  All SHOC cases use explicit
     # state-update ownership settings in their input fixture.
+    # DOUBLE keeps the historical strict fcompare oracle.  SINGLE uses the
+    # field-aware comparator so the shared gold remains the scientific
+    # reference while represented-float roundoff is bounded per field.
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_shoc_clear_gold_comparison "field_aware")
+    else()
+        set(_shoc_clear_gold_comparison "fcompare")
+    endif()
+
     add_test_shoc_r(SHOC_Stable_Clear "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Stable_Clear"
         CHECK_MODE "stable_clear"
-        GOLD_COMPARISON "fcompare"
+        GOLD_COMPARISON "${_shoc_clear_gold_comparison}"
+        GOLD_MODE "stable_clear"
         LABELS regression shoc
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Stable_Cloud "" "erf_exec" "plt00020"
@@ -741,7 +751,8 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     add_test_shoc_r(SHOC_Unstable_Clear_BOMEX "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Clear_BOMEX"
         CHECK_MODE "unstable_clear"
-        GOLD_COMPARISON "fcompare"
+        GOLD_COMPARISON "${_shoc_clear_gold_comparison}"
+        GOLD_MODE "unstable_clear"
         LABELS regression shoc
         TIMEOUT 900)
     add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj "" "erf_exec" "plt00020"
