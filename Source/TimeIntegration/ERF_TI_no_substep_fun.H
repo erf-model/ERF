@@ -204,7 +204,9 @@
                 }
                 for (int i = 0; i <= AMREX_SPACEDIM; ++i) {
                     dUdt[i].setVal(0, 0, ncomp_fast[i], dUdt[i].nGrow());
-                    MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), 0);
+                    // Copy F_slow to dUdt, INCLUDING GHOST CELLS
+                    // Ghost cells are required by redistribute_term which operates on grown boxes
+                    MultiFab::Copy(dUdt[i], F_slow[i], 0, 0, F_slow[i].nComp(), F_slow[i].nGrow());
                     dUdt[i].setDomainBndry(bogus_large_value_d, 0, ncomp_fast[i], fine_geom);
                     dUdt[i].FillBoundary(fine_geom.periodicity());
                 }

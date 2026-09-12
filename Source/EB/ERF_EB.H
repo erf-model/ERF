@@ -107,6 +107,16 @@ class eb_ {
      */
     void set_connection_flags (amrex::EBFArrayBoxFactory* factory);
 
+    /**
+     * \brief Enforce FC-CC consistency by marking FC faces as covered when both CC neighbors are covered.
+     * \param fc_factory Face-centered factory to modify (non-const)
+     * \param cc_factory Cell-centered factory to read neighbor states (const)
+     * \param idim Direction of face centering (0=x, 1=y, 2=z)
+     */
+    void mask_fc_from_cc (amrex::EBFArrayBoxFactory* fc_factory,
+                          const amrex::EBFArrayBoxFactory* cc_factory,
+                          int idim);
+
     #if USE_FC_FACTORY
     //! Return the native AMReX x-face EB factory.
     amrex::EBFArrayBoxFactory const* get_u_const_factory() const noexcept { return m_u_factory_fc.get(); }
