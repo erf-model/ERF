@@ -13,6 +13,7 @@
 #include "../../../Source/Diffusion/ERF_Diffusion.H"
 #include "../../../Source/Diffusion/ERF_CloudChamberWallStress.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
+#include "../../../Source/DataStructs/ERF_DataStruct.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 #include "../../../Source/Prob/ERF_ProblemDispatch.H"
 
@@ -311,6 +312,25 @@ TEST(CloudChamberConfig, AcceptsLegacyThetaQvWithoutPhysicalKeys)
         false};
 
     EXPECT_TRUE(erf_cloud_chamber::initialization_contract_error(contract).empty());
+}
+
+// Motivation: the production configuration seam, rather than a directly
+// injected wall sample, must carry a non-default c_p into SolverChoice::rdOcp.
+TEST(CloudChamberConfig, NonDefaultCpPropagatesToSolverChoiceRdOcp)
+{
+    constexpr char prefix[] = "cloud_chamber_cp_propagation_test";
+    const Real configured_cp = Real(900.0);
+    amrex::ParmParse pp(prefix);
+    pp.add("init_type", "ConstantDensity");
+    pp.add("c_p", configured_cp);
+
+    SolverChoice solver_choice;
+    solver_choice.init_params(0, prefix);
+
+    EXPECT_NEAR(solver_choice.c_p, configured_cp,
+                scaled_tolerance(configured_cp));
+    EXPECT_NEAR(solver_choice.rdOcp, R_d / configured_cp,
+                scaled_tolerance(R_d / configured_cp));
 }
 
 // Motivation: per-channel wall configuration must remain unambiguous; mixing

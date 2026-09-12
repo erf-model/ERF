@@ -110,8 +110,10 @@ Required configuration
      explicit temperature.
    * The retained aggregate wall key
      ``wall_transfer_model = resolved_molecular`` remains supported.  The
-     generalized contract may instead select ``bulk_aero`` independently for
-     heat and vapor with fixed, nonnegative coefficients.
+     generalized contract may instead select supported momentum, heat, and
+     vapor models independently.  Bulk channels use fixed, nonnegative
+     coefficients where selected, or MOST-provided coefficients on the
+     supported horizontal ``zlo``/``zhi`` walls.
 
 The common solver settings are:
 

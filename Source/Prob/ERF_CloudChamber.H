@@ -393,7 +393,7 @@ wall_transfer_contract_error (const WallTransferContract& contract,
     if (contract.z0_m_specified &&
         !(any_neutral || (bulk_active && most_provider))) {
         return "Cloud Chamber: " + face +
-            ".z0_m requires a neutral_roughness_log channel";
+            ".z0_m requires a neutral_roughness_log or MOST channel";
     }
     if (contract.z0_h_specified &&
         !(heat_neutral || (heat_bulk && most_provider))) {

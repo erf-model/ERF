@@ -104,6 +104,11 @@ bool close_to_zero (Real value, const BudgetRow& row)
     return std::abs(value) <= budget_tolerance(row);
 }
 
+bool retained_flux_is_active (Real value, const BudgetRow& row)
+{
+    return std::abs(value) > budget_tolerance(row);
+}
+
 bool is_budget_mode (const std::string& mode)
 {
     return mode == "all_dry" || mode == "wet_budget" || mode == "bulk_wet" ||
@@ -124,7 +129,8 @@ struct BudgetSummary {
     int total_rows = 0;
     int vapor_rows = 0;
     int cloud_rows = 0;
-    bool bulk_face_nonzero = false;
+    bool heat_face_nonzero = false;
+    bool vapor_face_nonzero = false;
     Real max_residual_ratio = Real(0.0);
 };
 
@@ -182,9 +188,10 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
             ++summary.thermal_rows;
             if (!check_closure(row, "rhoTheta")) { return false; }
             if (require_transfer_activation) {
-                for (const auto value : row.faces) {
-                    summary.bulk_face_nonzero = summary.bulk_face_nonzero ||
-                        value != Real(0.0);
+                for (int face = 2 * (AMREX_SPACEDIM - 1);
+                     face < 2 * AMREX_SPACEDIM; ++face) {
+                    summary.heat_face_nonzero = summary.heat_face_nonzero ||
+                        retained_flux_is_active(row.faces[face], row);
                 }
             }
         } else if (row.scalar == "total_nonprecipitating_water") {
@@ -213,17 +220,21 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         return false;
                     }
                 }
-                if (require_transfer_activation &&
-                    (row.faces[4] != Real(0.0) || row.faces[5] != Real(0.0))) {
-                    summary.bulk_face_nonzero = true;
+                if (require_transfer_activation) {
+                    for (int face = 2 * (AMREX_SPACEDIM - 1);
+                         face < 2 * AMREX_SPACEDIM; ++face) {
+                        summary.vapor_face_nonzero = summary.vapor_face_nonzero ||
+                            retained_flux_is_active(row.faces[face], row);
+                    }
                 }
             }
         } else if (row.scalar == "cloud_water") {
             ++summary.cloud_rows;
             if (!check_closure(row, "cloud-water")) { return false; }
-            for (const auto value : row.faces) {
-                if (!close_to_zero(value, row)) {
-                    error = "cloud-water wall flux is nonzero";
+            for (int face = 0; face < 2 * AMREX_SPACEDIM; ++face) {
+                if (row.faces[face] != Real(0.0)) {
+                    error = "cloud-water wall flux is not algebraically zero on face " +
+                        std::to_string(face);
                     return false;
                 }
             }
@@ -234,9 +245,15 @@ bool check_budget_rows (const std::vector<BudgetRow>& rows,
         error = "expected at least two budget intervals for rhoTheta and every water scalar";
         return false;
     }
-    if (require_transfer_activation && !summary.bulk_face_nonzero) {
-        error = "active wet wall oracle found no nonzero retained wall flux";
-        return false;
+    if (require_transfer_activation) {
+        if (!summary.heat_face_nonzero) {
+            error = "active wet-wall heat oracle found no nonzero retained rhoTheta wall flux";
+            return false;
+        }
+        if (!summary.vapor_face_nonzero) {
+            error = "active wet-wall vapor oracle found no nonzero retained water_vapor wall flux";
+            return false;
+        }
     }
     return true;
 }
@@ -524,7 +541,8 @@ int main (int argc, char** argv)
                   << " total_rows=" << summary.total_rows
                   << " vapor_rows=" << summary.vapor_rows
                   << " cloud_rows=" << summary.cloud_rows
-                  << " active_face_nonzero=" << summary.bulk_face_nonzero;
+                  << " heat_face_nonzero=" << summary.heat_face_nonzero
+                  << " vapor_face_nonzero=" << summary.vapor_face_nonzero;
         std::cout << " max_residual_ratio=" << summary.max_residual_ratio << "\n";
     }
 

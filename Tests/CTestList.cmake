@@ -391,8 +391,8 @@ function(add_test_cloud_chamber_fixed_momentum TEST_NAME)
 endfunction(add_test_cloud_chamber_fixed_momentum)
 
 # Production wiring regression for all-channel horizontal MOST.  The harness
-# checks wet-wall budgets in both runs and changes horizontal momentum
-# roughness to require an observable production-path momentum response.
+# checks wet-wall budgets in both runs and changes only horizontal momentum
+# transfer to require an observable production-path momentum response.
 function(add_test_cloud_chamber_most TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj_MOSTMixedWalls")
     setup_test()

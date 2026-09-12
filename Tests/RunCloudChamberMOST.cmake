@@ -24,7 +24,9 @@ endif()
 execute_process(
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${MPIEXEC_PREFLAGS}
             ${TEST_EXE} ${INPUT} max_step=60 erf.plot_int_1=30
-            erf.cloud_chamber_budget_interval=30 zlo.z0_m=0.005 zhi.z0_m=0.005
+            erf.cloud_chamber_budget_interval=30
+            zlo.momentum_transfer_model=resolved_noslip
+            zhi.momentum_transfer_model=resolved_noslip
     WORKING_DIRECTORY "${CHANGED_DIR}"
     OUTPUT_FILE "${CHANGED_DIR}/simulation.log"
     ERROR_FILE "${CHANGED_DIR}/simulation.log"
