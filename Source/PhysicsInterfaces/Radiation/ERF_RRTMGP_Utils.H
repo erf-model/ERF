@@ -4,6 +4,7 @@
 #include "rrtmgp_const.h"
 
 #include "ERF_Constants.H"
+#include "ERF_RadiationCloudFraction.H"
 
 namespace rrtmgp {
 
@@ -24,14 +25,9 @@ mixing_ratio_to_cloud_mass (View1 const& mixing_ratio  ,
         // NOTE: these thresholds (from E3SM) seem arbitrary, but included here for consistency
         // This limits in-cloud mixing ratio to amrex::Real(0.005) kg/kg. According to note in cloud_diagnostics
         // in EAM, this is consistent with limits in MG2. Is this true for P3?
-        if (cloud_fraction(icol,ilay) > 0) {
-            // Compute layer-integrated cloud mass (per unit area)
-            auto incloud_mixing_ratio = std::min(mixing_ratio(icol,ilay) /
-                                                 std::max(amrex::Real(0.0001), cloud_fraction(icol,ilay)), amrex::Real(0.005));
-            cloud_mass(icol,ilay) = incloud_mixing_ratio * rho(icol,ilay) * dz(icol,ilay);
-        } else {
-            cloud_mass(icol,ilay) = 0;
-        }
+        cloud_mass(icol,ilay) = radiation_cloud_mass(mixing_ratio(icol,ilay),
+                                                     cloud_fraction(icol,ilay),
+                                                     rho(icol,ilay), dz(icol,ilay));
     });
 }
 

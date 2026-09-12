@@ -3181,6 +3181,9 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_do_subcol_sampling**        | Enable MCICA subcolumn sampling                          | Boolean            | true                               |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+| **erf.rad_use_shoc_cldfrac**           | Use Native SHOC diagnosed liquid-cloud fraction in       | Boolean            | true                               |
+|                                       | RRTMGP when runtime Native SHOC is active               |                    |                                    |
++---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_year**              | Fixed orbital year for zenith calcs                      | Integer            | < 0 uses timestamp year            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_eccentricity**      | Override orbital eccentricity                            | Real               | < 0 uses computed value            |
@@ -3229,6 +3232,34 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.four_stream_radiation**         | use the four-stream radiation approximation              | Boolean            | false                              |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
+
+Native SHOC cloud coupling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``erf.radiation_model = RRTMGP`` and runtime Native SHOC is selected,
+``erf.rad_use_shoc_cldfrac`` defaults to true and uses the Native SHOC
+``shoc_cldfrac`` diagnostic. This diagnostic is the liquid-cloud fraction from
+the SHOC PDF; it excludes cloud ice. The host ``qc`` field remains the liquid
+mixing-ratio input to RRTMGP, and the diagnostic is not a replacement
+condensate field. Other radiation models and non-Native PBL paths retain their
+existing behavior.
+
+RRTMGP uses one shared total-cloud mask for the combined liquid and ice optics.
+Both liquid and ice paths are therefore normalized with that same total
+fraction: the SHOC liquid fraction is used for liquid-only layers, while any
+positive ice gives the existing binary ice fraction of one. The existing
+in-cloud mixing-ratio floor of ``1e-4`` and cap of ``0.005`` are unchanged, as
+is the single conversion from kg/m2 to g/m2. This shared-mask approximation
+cannot represent liquid occupying only part of an ice-cloud layer.
+
+With ``erf.rad_use_shoc_cldfrac = false``, cloud fractions are binary, but
+Native SHOC + RRTMGP still runs radiation after the post-SHOC state update;
+this is a fraction-only comparison, not a restoration of the pre-coupling
+algorithm. With ``erf.rad_do_subcol_sampling = true`` RRTMGP uses the existing
+MCICA maximum-random-overlap path. Setting it to false uses a deterministic
+clear/cloudy band-to-g-point mapping for binary fractions. The combination of
+Native SHOC, ``rad_use_shoc_cldfrac = true``, and sampling disabled is rejected
+at startup; use sampling, or disable the SHOC fraction for a binary experiment.
 
 .. _inputs-notes:
 

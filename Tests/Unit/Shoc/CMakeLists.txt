@@ -20,6 +20,7 @@ add_executable(erf_shoc_unit_tests
   ERF_ShocDriverTests.cpp
   ERF_ShocPhysicalPropertyTests.cpp
   ERF_ShocThermoTests.cpp
+  ERF_ShocRadiationCouplingTests.cpp
 )
 
 build_erf_exe(erf_shoc_unit_tests NO_ERF_MAIN)
@@ -30,6 +31,7 @@ target_include_directories(erf_shoc_unit_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Source/PBL
   ${CMAKE_SOURCE_DIR}/Source/PBL/Shoc
   ${CMAKE_SOURCE_DIR}/Source/Utils
+  ${CMAKE_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation
 )
 
 target_compile_definitions(erf_shoc_unit_tests PRIVATE

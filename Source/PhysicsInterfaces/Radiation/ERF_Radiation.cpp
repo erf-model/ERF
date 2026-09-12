@@ -102,6 +102,9 @@ Radiation::Radiation (const int& lev,
     // Radiation timestep, as a number of atm steps
     pp.queryAdd("rad_freq_in_steps", m_rad_freq_in_steps);
 
+    // Use Native SHOC's diagnosed liquid-cloud fraction when supplied.
+    pp.query("rad_use_shoc_cldfrac", m_use_shoc_cldfrac);
+
     // Get nvar if specified
     pp.queryAdd("rad_nvar", m_rad_nvar);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_rad_nvar >= 0,
@@ -122,6 +125,15 @@ Radiation::Radiation (const int& lev,
 
     // Do MCICA subcolumn sampling
     pp.queryAdd("rad_do_subcol_sampling", m_do_subcol_sampling);
+
+    if (radiation_sampling_config_unsupported(
+            m_do_subcol_sampling, sc.turbChoice[lev].uses_native_shoc(),
+            m_use_shoc_cldfrac)) {
+        amrex::Abort(
+            "erf.rad_do_subcol_sampling=false does not support Native SHOC "
+            "fractional-cloud coupling. Set erf.rad_do_subcol_sampling=true, "
+            "or set erf.rad_use_shoc_cldfrac=false for binary cloud fractions.");
+    }
 
     // Determine orbital year. If orbital_year is negative, use current year
     // from timestamp for orbital year; if non-negative, use provided orbital year
@@ -226,6 +238,9 @@ Radiation::Radiation (const int& lev,
                 << m_nswbands << " " << m_nlwbands << "\n";
         Print() << "Number of short/longwave gauss points: "
                 << m_nswgpts  << " " << m_nlwgpts  << "\n";
+        Print() << "Native SHOC cloud fraction for RRTMGP: "
+                << ((m_use_shoc_cldfrac && sc.turbChoice[lev].uses_native_shoc()) ? "enabled" : "disabled")
+                << "\n";
         Print() << "========================================================\n";
     }
 }
@@ -238,6 +253,7 @@ Radiation::set_grids (int& level,
                       const BoxArray& ba,
                       Geometry& geom,
                       MultiFab* cons_in,
+                      const MultiFab* liquid_cloud_fraction,
                       iMultiFab* lmask,
                       MultiFab*  t_surf,
                       Vector<MultiFab*>& lsm_input_ptrs,
@@ -256,11 +272,23 @@ Radiation::set_grids (int& level,
     m_dt             = dt;
     m_geom           = geom;
     m_cons_in        = cons_in;
+    m_liquid_cloud_fraction = liquid_cloud_fraction;
     m_qheating_rates = qheating_rates;
     m_rad_fluxes     = rad_fluxes;
     m_z_phys         = z_phys;
     m_lat            = lat;
     m_lon            = lon;
+
+    if (m_liquid_cloud_fraction != nullptr) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_liquid_cloud_fraction->boxArray().ixType().cellCentered(),
+                                         "Radiation liquid cloud fraction must be cell-centered.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_liquid_cloud_fraction->nComp() > 0,
+                                         "Radiation liquid cloud fraction must have at least one component.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_liquid_cloud_fraction->boxArray() == cons_in->boxArray(),
+                                         "Radiation liquid cloud fraction must match the conserved state BoxArray.");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_liquid_cloud_fraction->DistributionMap() == cons_in->DistributionMap(),
+                                         "Radiation liquid cloud fraction must match the conserved state DistributionMap.");
+    }
 
     // Update the day and month
     time_t timestamp = time_t(time);
@@ -359,6 +387,8 @@ Radiation::alloc_buffers ()
     qv_lay        = real2d_k("qv"           , m_ncol, m_nlay);
     qc_lay        = real2d_k("qc"           , m_ncol, m_nlay);
     qi_lay        = real2d_k("qi"           , m_ncol, m_nlay);
+    cldfrac_liq   = real2d_k("cldfrac_liq"  , m_ncol, m_nlay);
+    cldfrac_ice   = real2d_k("cldfrac_ice"  , m_ncol, m_nlay);
     cldfrac_tot   = real2d_k("cldfrac_tot"  , m_ncol, m_nlay);
     eff_radius_qc = real2d_k("eff_radius_qc", m_ncol, m_nlay);
     eff_radius_qi = real2d_k("eff_radius_qi", m_ncol, m_nlay);
@@ -488,6 +518,8 @@ Radiation::dealloc_buffers ()
     qv_lay            = real2d_k();
     qc_lay            = real2d_k();
     qi_lay            = real2d_k();
+    cldfrac_liq       = real2d_k();
+    cldfrac_ice       = real2d_k();
     cldfrac_tot       = real2d_k();
     eff_radius_qc     = real2d_k();
     eff_radius_qi     = real2d_k();
@@ -557,6 +589,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
     Table2D<Real,Order::C> qv_lay_tab(qv_lay.data(), {0,0}, {static_cast<int>(qv_lay.extent(0)),static_cast<int>(qv_lay.extent(1))});
     Table2D<Real,Order::C> qc_lay_tab(qc_lay.data(), {0,0}, {static_cast<int>(qc_lay.extent(0)),static_cast<int>(qc_lay.extent(1))});
     Table2D<Real,Order::C> qi_lay_tab(qi_lay.data(), {0,0}, {static_cast<int>(qi_lay.extent(0)),static_cast<int>(qi_lay.extent(1))});
+    Table2D<Real,Order::C> cldfrac_liq_tab(cldfrac_liq.data(), {0,0}, {static_cast<int>(cldfrac_liq.extent(0)),static_cast<int>(cldfrac_liq.extent(1))});
+    Table2D<Real,Order::C> cldfrac_ice_tab(cldfrac_ice.data(), {0,0}, {static_cast<int>(cldfrac_ice.extent(0)),static_cast<int>(cldfrac_ice.extent(1))});
     Table2D<Real,Order::C> cldfrac_tot_tab(cldfrac_tot.data(), {0,0}, {static_cast<int>(cldfrac_tot.extent(0)),static_cast<int>(cldfrac_tot.extent(1))});
 
     Table2D<Real,Order::C> lwp_tab(lwp.data(), {0,0}, {static_cast<int>(lwp.extent(0)),static_cast<int>(lwp.extent(1))});
@@ -577,6 +611,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
     const bool has_lsm = m_lsm;
     const bool has_lat = m_lat;
     const bool has_lon = m_lon;
+    const bool has_shoc_cldfrac = m_use_shoc_cldfrac && (m_liquid_cloud_fraction != nullptr);
     const bool has_surflayer = (t_surf);
     int  ncol  = m_ncol;
     int  nlay  = m_nlay;
@@ -598,6 +633,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                           Array4<const Real>{};
         const Array4<const Real>& lon_arr  = (m_lon)    ? m_lon->const_array(mfi) :
                                                           Array4<const Real>{};
+        const Array4<const Real>& shoc_cf_arr = has_shoc_cldfrac
+            ? m_liquid_cloud_fraction->const_array(mfi) : Array4<const Real>{};
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -610,6 +647,10 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             Real qv = (moist) ? std::max(cons_arr(i,j,k,RhoQ1_comp)/r,Real(0.)) : Real(0.);
             Real qc = (moist) ? std::max(cons_arr(i,j,k,RhoQ2_comp)/r,Real(0.)) : Real(0.);
             Real qi = (ice && qi_comp >= 0) ? std::max(cons_arr(i,j,k,qi_comp)/r,Real(0.)) : Real(0.);
+            const RadiationCloudFractions cloud_fractions =
+                radiation_cloud_fractions(qc, qi,
+                                           has_shoc_cldfrac ? shoc_cf_arr(i,j,k) : Real(0.),
+                                           has_shoc_cldfrac);
 
             // EOS avg to z-face
             Real r_lo   = cons_arr(i,j,k-1,Rho_comp);
@@ -641,7 +682,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
             qv_lay_tab(icol,ilay) = qv;
             qc_lay_tab(icol,ilay) = qc;
             qi_lay_tab(icol,ilay) = qi;
-            cldfrac_tot_tab(icol,ilay) = ((qc+qi)>Real(0.)) ? Real(1.) : Real(0.);
+            cldfrac_liq_tab(icol,ilay) = cloud_fractions.liquid;
+            cldfrac_ice_tab(icol,ilay) = cloud_fractions.ice;
+            cldfrac_tot_tab(icol,ilay) = cloud_fractions.total;
 
             // NOTE: These are populated in 'mixing_ratio_to_cloud_mass'
             lwp_tab(icol,ilay) = Real(0.);
@@ -1265,6 +1308,9 @@ Radiation::run_impl ()
     Kokkos::deep_copy(mu0, h_mu0);
 
     // Compute layer cloud mass per unit area (populates lwp/iwp)
+    // Both phases are represented by the same combined optical mask below. Use
+    // that same fraction for both conversions so the grid-mean condensate mass
+    // is not inflated when liquid and ice coexist in a layer.
     rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
     rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
 
@@ -1430,7 +1476,8 @@ Radiation::run_impl ()
                             lw_clnsky_flux_up_c, lw_clnsky_flux_dn_c,
                             sw_bnd_flux_up_c, sw_bnd_flux_dn_c, sw_bnd_flux_dir_c,
                             lw_bnd_flux_up_c, lw_bnd_flux_dn_c,
-                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag);
+                            eccf, m_extra_clnclrsky_diag, m_extra_clnsky_diag,
+                            m_do_subcol_sampling);
 
         // Compute heating rates for this chunk
         rrtmgp::compute_heating_rate(sw_flux_up_c, sw_flux_dn_c, r_lay_c, z_del_c, sw_heating_c);
