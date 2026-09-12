@@ -130,7 +130,20 @@ Real
 point_value (const MultiFab& mf, const IntVect& point)
 {
     const Box point_box(point, point);
-    return mf.min(point_box, 0, 1, true);
+    ReduceOps<ReduceOpMin> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    for (MFIter mfi(mf, false); mfi.isValid(); ++mfi) {
+        const Box overlap = point_box & mfi.fabbox();
+        if (overlap.isEmpty()) { continue; }
+        const auto array = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+            {
+                return {array(i,j,k,0)};
+            });
+    }
+    Gpu::streamSynchronize();
+    return get<0>(reduce_data.value());
 }
 
 void

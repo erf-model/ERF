@@ -607,7 +607,11 @@ public:
             b.setRange(dir,sm_index);
           }
           ba_flux = amrex::BoxArray(std::move(bl2d));
+          // The selected wall-normal direction is collapsed. Retain ghosts in
+          // every tangential direction, including x/y ghosts on z faces and z
+          // ghosts on lateral faces, for the surface-layer stencil.
           ng = mf.nGrowVect();
+          ng[dir] = 0;
       }
 
       const amrex::DistributionMapping& dm = mf.DistributionMap();

@@ -202,6 +202,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
         IntVect ng = mf.nGrowVect();
+        ng[dir] = 0;
 
         m_fields[lev][0] = vars_old[Vars::xvel];
         m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -232,6 +233,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
         IntVect ng = mf.nGrowVect();
+        ng[dir] = 0;
 
         m_fields[lev][1] = vars_old[Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -262,6 +264,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const DistributionMapping& dm = mf.DistributionMap();
         const int ncomp = 1;
         IntVect ng = mf.nGrowVect();
+        ng[dir] = 0;
 
         m_fields[lev][2] = vars_old[Vars::zvel];
         m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -285,6 +288,7 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         const int ncomp  = 1;
         const int incomp = 1;
         IntVect ng = mf.nGrowVect();
+        ng[dir] = 0;
 
         // Get field pointers
         m_fields[lev][3] = Theta_prim.get();
@@ -1554,8 +1558,10 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = (use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref) + normal_face_offset;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref) + normal_face_offset;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -1669,8 +1675,10 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -1813,8 +1821,10 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -2090,8 +2100,10 @@ MOSTAverage::compute_region_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = (use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref) + normal_face_offset;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref) + normal_face_offset;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -2219,8 +2231,10 @@ MOSTAverage::compute_region_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -2363,8 +2377,10 @@ MOSTAverage::compute_region_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
+                    const int kk = use_spatial_indices
+                        ? max(k_box.smallEnd(2), min(k_box.bigEnd(2), k)) : k;
                     const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                        ? k_arr(ki,kj,kk) : wall_normal_ref;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
