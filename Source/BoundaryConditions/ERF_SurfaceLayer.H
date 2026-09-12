@@ -115,6 +115,14 @@ public:
           }
       }
 
+      if (flux_type == FluxCalcType::BULK_COEFF ||
+          flux_type == FluxCalcType::CUSTOM ||
+          flux_type == FluxCalcType::RICO) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "BULK_COEFF, CUSTOM, and RICO surface-layer fluxes are supported only on the z-low face.");
+      }
+
       // Include w* to handle free convection (Beljaars 1995, QJRMS)
       pp.queryAdd("most.include_wstar", m_include_wstar);
 
@@ -316,6 +324,11 @@ public:
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
                          a_turb_choice.dirichlet_k == true);
       if (m_update_k_rans) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "RANS surface-layer k updates are supported only on the z-low face.");
+      }
+      if (m_update_k_rans) {
           inv_Cmu2 = one / (a_turb_choice.Cmu0 * a_turb_choice.Cmu0);
           theta_ref = a_turb_choice.theta_ref;
       }
@@ -447,6 +460,9 @@ public:
           if (m_terrain_type == TerrainType::EB) {
               amrex::Abort("Text-file surface forcing is not supported with EB terrain");
           }
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "most.use_sfc_fluxes and most.use_sfc_sst are supported only on the z-low face.");
 
           // load sensible and latent heat fluxes from sfc to prescribe
           std::string sfc_file = "";
@@ -539,6 +555,11 @@ public:
               read_z0 = true;
           }
           // else use z0_const
+      }
+      if (read_z0) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "Custom MOST roughness is supported only on the z-low face.");
       }
 
       // Attributes for MFs and FABs

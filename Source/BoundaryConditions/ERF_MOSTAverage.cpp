@@ -116,6 +116,11 @@ MOSTAverage::MOSTAverage (Orientation face,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !(m_face.coordDir() != 2 && m_norm_vec),
         "MOST normal-vector terrain handling is only supported on z faces.");
+    if (m_interp || m_norm_vec) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            m_face.coordDir() == 2 && m_face.isLow(),
+            "MOST terrain interpolation and normal-vector handling are supported only on the z-low face.");
+    }
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
@@ -1402,6 +1407,9 @@ MOSTAverage::compute_plane_averages (const int& lev)
             }
         }
 
+        const int normal_face_offset =
+            (!m_face.isLow() && imf < 3 && imf == dir) ? 1 : 0;
+
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
 
@@ -1488,8 +1496,8 @@ MOSTAverage::compute_plane_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
-                    const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    const int ref = (use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref) + normal_face_offset;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -1954,6 +1962,9 @@ MOSTAverage::compute_region_averages (const int& lev)
             }
         }
 
+        const int normal_face_offset =
+            (!m_face.isLow() && imf < 3 && imf == dir) ? 1 : 0;
+
         // Continue if no valid Qv pointer
         if (!fields[imf]) continue;
 
@@ -2021,8 +2032,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                         ? max(k_box.smallEnd(0), min(k_box.bigEnd(0), i)) : i;
                     const int kj = use_spatial_indices
                         ? max(k_box.smallEnd(1), min(k_box.bigEnd(1), j)) : j;
-                    const int ref = use_spatial_indices
-                        ? k_arr(ki,kj,k) : wall_normal_ref;
+                    const int ref = (use_spatial_indices
+                        ? k_arr(ki,kj,k) : wall_normal_ref) + normal_face_offset;
                     int mi = i_arr ? i_arr(ki,kj,k) : i;
                     int mj = j_arr ? j_arr(ki,kj,k) : j;
                     int mk = k;
@@ -2913,6 +2924,9 @@ MOSTAverage::write_norm_indices (const int& lev)
                 for (int i(il); i <= iu; ++i) {
                     ofile << "(I1,J1,K1): " << "(" << i << "," << j << "," << k << ")" << "\n";
 
+                    // This diagnostic reports the cell-centered reference used
+                    // for the CC fields.  The high-face +1 adjustment applies
+                    // only to the face-centered velocity normal to the wall.
                     const int ref = k_arr(i,j,k);
                     int im = i_arr ? i_arr(i,j,k) : i;
                     int jm = j_arr ? j_arr(i,j,k) : j;
