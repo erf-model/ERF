@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <string>
 
 TEST(ShocRuntimeOptions, DefaultsValidate)
@@ -99,6 +100,40 @@ shift_column_heights (ShocColumnData& col, amrex::Real offset)
         zi(0,k,0) += offset;
     }
     shoc_test::sync();
+}
+
+ShocColumnData
+make_first_level_ri_crossing_column (amrex::Real surface_sensible_flux)
+{
+    auto col = shoc_test::make_column(2);
+    auto thetal = col.thetal.array();
+    auto qv = col.qv.array();
+    auto qc = col.qc.array();
+    auto qi = col.qi.array();
+    auto qw = col.qw.array();
+    auto u = col.u.array();
+    auto v = col.v.array();
+
+    // Nominally target a Richardson number well above the critical value;
+    // the expected crossing below is derived from the represented state.
+    constexpr amrex::Real theta_increment = amrex::Real(0.002752293577981651);
+    for (int k = 0; k < col.layout.nlev; ++k) {
+        thetal(0,k,0) = amrex::Real(300.0) + theta_increment * k;
+        qv(0,k,0) = amrex::Real(0.0);
+        qc(0,k,0) = amrex::Real(0.0);
+        qi(0,k,0) = amrex::Real(0.0);
+        qw(0,k,0) = amrex::Real(0.0);
+        u(0,k,0) = amrex::Real(2.0);
+        v(0,k,0) = amrex::Real(1.0);
+    }
+
+    shoc::set_fab_val(col.surf_sens_flux, surface_sensible_flux, shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_lat_flux, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_u, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc::set_fab_val(col.surf_tau_v, amrex::Real(0.0), shoc::InitRunOn::Host);
+    shoc_test::sync();
+
+    return col;
 }
 }
 
@@ -230,11 +265,13 @@ TEST(ShocStructure, SurfaceLayerUsesUstarFloorAndFiniteObukhov)
     const auto obklen = col.obklen.const_array();
     const auto wthv_out = col.wthv_sec.const_array();
 
-    EXPECT_DOUBLE_EQ(ustar(0,0,0), 0.01);
+    EXPECT_DOUBLE_EQ(ustar(0,0,0), amrex::Real(0.01));
     EXPECT_TRUE(std::isfinite(obklen(0,0,0)));
     EXPECT_DOUBLE_EQ(wthv_out(0,0,0), wthv_out(0,0,0));
     for (int k = 1; k < col.layout.nlev; ++k) {
-        EXPECT_DOUBLE_EQ(wthv_out(0,k,0), 1.0e-3 * k);
+        // Compare against the value represented by amrex::Real, not the
+        // ideal double literal that was used to initialize the float field.
+        EXPECT_DOUBLE_EQ(wthv_out(0,k,0), amrex::Real(1.0e-3) * k);
     }
 }
 
@@ -262,15 +299,20 @@ TEST(ShocStructure, SurfaceLayerObukhovUsesClampedUstar)
         ShocStructure::diagnose_surface_layer(col);
     });
 
-    const amrex::Real thv_sfc = 300.0 * (1.0 + 0.61 * 0.010);
-    const amrex::Real ustar = 0.01;
+    const amrex::Real thv_sfc = amrex::Real(300.0) *
+                                (amrex::Real(1.0) + amrex::Real(0.61) * amrex::Real(0.010));
+    const amrex::Real ustar = amrex::Real(0.01);
     const amrex::Real ustar_cu = ustar * ustar * ustar;
-    const amrex::Real kbfs = 0.02;
+    const amrex::Real kbfs = amrex::Real(0.02);
     const amrex::Real expected_obk = -thv_sfc * ustar_cu /
-                                     (CONST_GRAV * KAPPA * (kbfs + 1.0e-10));
+                                     (CONST_GRAV * KAPPA * (kbfs + amrex::Real(1.0e-10)));
 
     EXPECT_DOUBLE_EQ(col.ustar.const_array()(0,0,0), ustar);
-    EXPECT_NEAR(col.obklen.const_array()(0,0,0), expected_obk, 1.0e-12);
+    // The SINGLE result differs by 2.33e-10 at |obk| ~= 3.75e-3 in the
+    // baseline; eight output-scale ulps leave a narrow roundoff envelope.
+    EXPECT_NEAR(col.obklen.const_array()(0,0,0), expected_obk,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_obk, 8));
 }
 
 TEST(ShocStructure, SurfaceLayerUsesShocThermodynamicMapping)
@@ -299,22 +341,28 @@ TEST(ShocStructure, SurfaceLayerUsesShocThermodynamicMapping)
         ShocStructure::diagnose_surface_layer(col);
     });
 
-    const amrex::Real qc_sfc = 1.0e-3;
-    const amrex::Real qi_sfc = 2.0e-4;
+    const amrex::Real qc_sfc = amrex::Real(1.0e-3);
+    const amrex::Real qi_sfc = amrex::Real(2.0e-4);
     const amrex::Real cldliq = qc_sfc + qi_sfc;
-    const amrex::Real th_sfc = 298.0 + (L_v * qc_sfc + shoc::latent_sublimation() * qi_sfc) / Cp_d;
-    const amrex::Real thv_sfc = th_sfc * (1.0 + 0.61 * 0.010 - cldliq);
-    const amrex::Real ustar_raw = std::sqrt(std::sqrt(0.04 * 0.04 + 0.03 * 0.03));
+    const amrex::Real th_sfc = amrex::Real(298.0) +
+                               (L_v * qc_sfc + shoc::latent_sublimation() * qi_sfc) / Cp_d;
+    const amrex::Real thv_sfc = th_sfc *
+                                (amrex::Real(1.0) + amrex::Real(0.61) * amrex::Real(0.010) - cldliq);
+    const amrex::Real ustar_raw = std::sqrt(std::sqrt(amrex::Real(0.04) * amrex::Real(0.04) +
+                                                      amrex::Real(0.03) * amrex::Real(0.03)));
     const amrex::Real ustar = amrex::max(amrex::Real(0.01), ustar_raw);
-    const amrex::Real kbfs = 0.02 + 0.61 * th_sfc * 2.0e-4;
+    const amrex::Real kbfs = amrex::Real(0.02) + amrex::Real(0.61) * th_sfc * amrex::Real(2.0e-4);
     const amrex::Real expected_obk = -thv_sfc * std::pow(ustar, 3) /
-                                     (CONST_GRAV * KAPPA * (kbfs + 1.0e-10));
+                                     (CONST_GRAV * KAPPA * (kbfs + amrex::Real(1.0e-10)));
 
     EXPECT_NEAR(col.ustar.const_array()(0,0,0), ustar, 1.0e-12);
-    EXPECT_NEAR(col.obklen.const_array()(0,0,0), expected_obk, 1.0e-10);
-    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), kbfs, 1.0e-12);
+    EXPECT_NEAR(col.obklen.const_array()(0,0,0), expected_obk,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-10),
+                                                       expected_obk, 8));
+    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), kbfs,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), kbfs, 4));
     for (int k = 1; k < col.layout.nlev; ++k) {
-        EXPECT_DOUBLE_EQ(col.wthv_sec.const_array()(0,k,0), 5.0e-4 * k);
+        EXPECT_DOUBLE_EQ(col.wthv_sec.const_array()(0,k,0), amrex::Real(5.0e-4) * k);
     }
 }
 
@@ -343,13 +391,15 @@ TEST(ShocStructure, SurfaceLayerThermodynamicMappingUsesExner)
         ShocStructure::diagnose_surface_layer(col);
     });
 
-    const amrex::Real qc_sfc = 1.0e-3;
-    const amrex::Real qi_sfc = 2.0e-4;
-    const amrex::Real theta_sfc = 298.0 + (L_v * qc_sfc + shoc::latent_sublimation() * qi_sfc) /
-                                             (Cp_d * 0.8);
-    const amrex::Real kbfs = 0.02 + 0.61 * theta_sfc * 2.0e-4;
+    const amrex::Real qc_sfc = amrex::Real(1.0e-3);
+    const amrex::Real qi_sfc = amrex::Real(2.0e-4);
+    const amrex::Real theta_sfc = amrex::Real(298.0) +
+                                  (L_v * qc_sfc + shoc::latent_sublimation() * qi_sfc) /
+                                  (Cp_d * amrex::Real(0.8));
+    const amrex::Real kbfs = amrex::Real(0.02) + amrex::Real(0.61) * theta_sfc * amrex::Real(2.0e-4);
 
-    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), kbfs, 1.0e-12)
+    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), kbfs,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), kbfs, 4))
         << "SHOC theta_l to theta conversion must divide the latent term by ERF exner.";
 }
 
@@ -380,9 +430,12 @@ TEST(ShocStructure, SurfaceLayerMatchesTranslatedE3smFixture)
         shoc_test::read_fixture_vector("structure/e3sm_diag_obklen_surface_mapping.txt");
     ASSERT_EQ(fixture.size(), 3);
 
-    EXPECT_NEAR(col.ustar.const_array()(0,0,0), fixture[0], 1.0e-15);
-    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), fixture[1], 1.0e-15);
-    EXPECT_NEAR(col.obklen.const_array()(0,0,0), fixture[2], 1.0e-14);
+    EXPECT_NEAR(col.ustar.const_array()(0,0,0), fixture[0],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-15), fixture[0], 2));
+    EXPECT_NEAR(col.wthv_sec.const_array()(0,0,0), fixture[1],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-15), fixture[1], 4));
+    EXPECT_NEAR(col.obklen.const_array()(0,0,0), fixture[2],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-14), fixture[2], 4));
 }
 
 TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
@@ -429,6 +482,70 @@ TEST(ShocStructure, PblHeightUsesVaporNotTotalWaterInVirtualTheta)
     const auto pblh_inconsistent_qw = col.pblh.const_array()(0,0,0);
 
     EXPECT_NEAR(pblh_consistent_qw, pblh_inconsistent_qw, 1.0e-10);
+}
+
+// Motivation: A bulk Richardson number that first exceeds the critical value
+// above the reference level must locate the crossing between the two levels;
+// this prevents the first crossing from being rounded up to the upper height.
+TEST(ShocStructure, PblHeightInterpolatesFirstStableRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(0.0));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+    });
+
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const auto thetal = col.thetal.const_array();
+    const amrex::Real ustar = col.ustar.const_array()(0,0,0);
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+    const amrex::Real theta0 = thetal(0,0,0);
+    const amrex::Real theta1 = thetal(0,1,0);
+    const amrex::Real ri1 = CONST_GRAV * (theta1 - theta0) * (z1_agl - z0_agl) /
+                            (theta0 * (amrex::Real(100.0) * ustar * ustar));
+    ASSERT_TRUE(std::isfinite(ri1));
+    ASSERT_GT(ri1, amrex::Real(0.3));
+
+    // The first-level reference Richardson number is zero, so interpolate the
+    // critical crossing from the represented Ri(1), not from its nominal input.
+    const amrex::Real expected = z0_agl + (amrex::Real(0.3) / ri1) *
+                                           (z1_agl - z0_agl);
+    const amrex::Real tolerance = amrex::max(
+        amrex::Real(1.0e-8),
+        amrex::Real(1000.0) * std::numeric_limits<amrex::Real>::epsilon() * expected);
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_pblh(col);
+    });
+    const auto pblh = col.pblh.const_array()(0,0,0);
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
+    EXPECT_NEAR(pblh, expected, tolerance);
+}
+
+// Motivation: Positive surface buoyancy runs a second Richardson search for
+// the convective correction; this protects that duplicated first-level branch
+// from retaining the old upper-level shortcut after the stable search is fixed.
+TEST(ShocStructure, PblHeightInterpolatesFirstConvectiveRichardsonCrossing)
+{
+    auto col = make_first_level_ri_crossing_column(amrex::Real(1.0e-8));
+
+    shoc_test::run_and_sync([&] {
+        ShocStructure::diagnose_surface_layer(col);
+        ShocStructure::diagnose_pblh(col);
+    });
+
+    const auto pblh = col.pblh.const_array()(0,0,0);
+    const auto zt = col.zt.const_array();
+    const auto zi = col.zi.const_array();
+    const amrex::Real z0_agl = shoc::height_agl(zt(0,0,0), zi(0,0,0));
+    const amrex::Real z1_agl = shoc::height_agl(zt(0,1,0), zi(0,0,0));
+
+    EXPECT_GT(pblh, z0_agl);
+    EXPECT_LT(pblh, z1_agl);
 }
 
 TEST(ShocStructure, PblHeightStaysInsideColumn)

@@ -2981,8 +2981,12 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.time_window**              | width of the exponential filter, normalized by the time  | Real > 0            | 1.0e-16          |
 |                                       | step; read only when ``erf.most.time_average`` is true   |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.zref**                     | height [m] above the surface at which the MOST           | Real > 0            | 10.0             |
-|                                       | quantities are evaluated                                 |                     |                  |
+| **erf.most.zref**                     | height [m] above the surface at which the MOST           | Real > 0            | see description  |
+|                                       | quantities are evaluated. If unset, terrain-fitted       |                     |                  |
+|                                       | meshes query 10 m above the surface and other meshes     |                     |                  |
+|                                       | use the first cell center, taken from the z levels on a  |                     |                  |
+|                                       | stretched mesh. A height on a cell face lies in the      |                     |                  |
+|                                       | cell above it                                            |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.k_arr_in**                 | vertical cell index at which the MOST quantities are     | List of Integers    | None             |
 |                                       | evaluated, one per level; an alternative to              |                     |                  |
