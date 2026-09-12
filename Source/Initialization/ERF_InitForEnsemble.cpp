@@ -10,6 +10,19 @@
 using namespace amrex;
 namespace fs = std::filesystem;
 
+Vector<Real>
+perturb_scale =
+{
+    0.01,       // density [kg/m3]
+    1.0,        // theta [K]
+    1.0,        // u [m/s]
+    1.0,        // v [m/s]
+    0.5,        // w [m/s]
+    5.0e-4,     // qv [kg/kg]
+    1.0e-4,      // qc [kg/kg]
+    1.0e-4      // qrain [kg/kg]
+};
+
 /**
  * Create a cell-centered MultiFab of random perturbations for one AMR level.
  *
@@ -94,85 +107,103 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
 }
 
 /**
- * Apply horizontal Gaussian smoothing to cell-centered perturbations.
+ * Apply 3D isotropic/anisotropic Gaussian smoothing to cell-centered perturbations.
  *
  * @param lev Integer specifying the current level
  * @param mf_cc_pert MultiFab containing perturbations to smooth in place
  */
+
 void
-ERF::apply_gaussian_smoothing_to_perturbations(const int lev,
-                                               MultiFab& mf_cc_pert)
+ERF::apply_gaussian_smoothing_to_perturbations(const int lev, MultiFab& mf_cc_pert)
 {
     const Geometry& gm = geom[lev];
     const Real dx = gm.CellSize(0);
     const Real dy = gm.CellSize(1);
+    const Real dz = gm.CellSize(2);
 
-    const Real dmesh = std::min(dx, dy);
-
-    // ---- User choice ----
     const Real sigma = solverChoice.ens_pert_correlated_radius;
-    const int  r     = static_cast<int>(3.0 * sigma / dmesh);
+
+    const int rx = static_cast<int>(std::ceil(3.0 * sigma / dx));
+    const int ry = static_cast<int>(std::ceil(3.0 * sigma / dy));
+    const int rz = static_cast<int>(std::ceil(3.0 * sigma / dz));
 
     const int ncomp = mf_cc_pert.nComp();
 
-    // ---- Precompute Gaussian weights ----
-    const int wsize = 2*r + 1;
-    Vector<Real> w_host(wsize * wsize);
-
-    Real Z = zero;
-    for (int m = -r; m <= r; ++m) {
-        for (int n = -r; n <= r; ++n) {
-            Real val = std::exp(-(m*m*dx*dx + n*n*dy*dy)
-                                 /(two*sigma*sigma));
-            w_host[(m+r)*wsize + (n+r)] = val;
-            Z += val;
+    // 1. Build 1D Gaussian weight vectors on host
+    auto compute_1d_weights = [](int r, Real d, Real sig) {
+        Vector<Real> w(2*r + 1);
+        Real sum = 0.0;
+        for (int m = -r; m <= r; ++m) {
+            Real val = std::exp(-(m * m * d * d) / (2.0 * sig * sig));
+            w[m + r] = val;
+            sum += val;
         }
-    }
+        for (auto& v : w) v /= sum;
+        return w;
+    };
 
-    for (auto& v : w_host) {
-        v /= Z;
-    }
+    Vector<Real> wx_h = compute_1d_weights(rx, dx, sigma);
+    Vector<Real> wy_h = compute_1d_weights(ry, dy, sigma);
+    Vector<Real> wz_h = compute_1d_weights(rz, dz, sigma);
 
-    Gpu::DeviceVector<Real> w_dev(w_host.size());
-    Gpu::copy(Gpu::hostToDevice, w_host.begin(), w_host.end(), w_dev.begin());
+    Gpu::DeviceVector<Real> wx_d(wx_h.size()), wy_d(wy_h.size()), wz_d(wz_h.size());
+    Gpu::copy(Gpu::hostToDevice, wx_h.begin(), wx_h.end(), wx_d.begin());
+    Gpu::copy(Gpu::hostToDevice, wy_h.begin(), wy_h.end(), wy_d.begin());
+    Gpu::copy(Gpu::hostToDevice, wz_h.begin(), wz_h.end(), wz_d.begin());
 
-    Real const* w = w_dev.data();
+    Real const* wx = wx_d.data();
+    Real const* wy = wy_d.data();
+    Real const* wz = wz_d.data();
 
-    // ---- Create a grown copy (for stencil access) ----
-    IntVect ngrow_big(AMREX_D_DECL(r, r, 0));
+    // Temp MultiFab for separable intermediate states
+    IntVect ngrow(AMREX_D_DECL(rx, ry, rz));
+    MultiFab mf_tmp(mf_cc_pert.boxArray(), mf_cc_pert.DistributionMap(), ncomp, ngrow);
 
-    MultiFab mf_copy(mf_cc_pert.boxArray(),
-                     mf_cc_pert.DistributionMap(),
-                     ncomp, ngrow_big);
-
-    mf_copy.ParallelCopy(mf_cc_pert,
-                         0, 0, ncomp,
-                         IntVect(0), ngrow_big,
-                         gm.periodicity());
-
-    // ---- Apply smoothing ----
-    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
+    // --- Pass 1: X Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
-
-        auto const& in  = mf_copy.const_array(mfi);
+        auto const& in  = mf_tmp.const_array(mfi);
         auto const& out = mf_cc_pert.array(mfi);
-
-        ParallelFor(bx, ncomp,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            Real sum = zero;
-
-            for (int m = -r; m <= r; ++m) {
-                for (int nn = -r; nn <= r; ++nn) {
-                    Real wij = w[(m+r)*wsize + (nn+r)];
-                    sum += wij * in(i+m, j+nn, k, n);
-                }
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
+            for (int m = -rx; m <= rx; ++m) {
+                sum += wx[m + rx] * in(i + m, j, k, n);
             }
-
-            out(i,j,k,n) = sum;
+            out(i, j, k, n) = sum;
         });
     }
+
+    // --- Pass 2: Y Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const& in  = mf_tmp.const_array(mfi);
+        auto const& out = mf_cc_pert.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
+            for (int nn = -ry; nn <= ry; ++nn) {
+                sum += wy[nn + ry] * in(i, j + nn, k, n);
+            }
+            out(i, j, k, n) = sum;
+        });
+    }
+
+    // --- Pass 3: Z Direction ---
+    mf_tmp.ParallelCopy(mf_cc_pert, 0, 0, ncomp, IntVect(0), ngrow, gm.periodicity());
+    for (MFIter mfi(mf_cc_pert, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        auto const& in  = mf_tmp.const_array(mfi);
+        auto const& out = mf_cc_pert.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            Real sum = 0.0;
+            for (int p = -rz; p <= rz; ++p) {
+                sum += wz[p + rz] * in(i, j, k + p, n);
+            }
+            out(i, j, k, n) = sum;
+        });
+    }
+
     NormalizeMultiFabRMS_PerComponent(mf_cc_pert);
 }
 
@@ -602,9 +633,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)  = std::max(tmp_rho*tmp_qv,0.0_rt);
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)  = std::max(tmp_rho*tmp_qc,0.0_rt);
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)  = std::max(tmp_rho*tmp_qrain,0.0_rt);
         });
     }
 
@@ -665,6 +696,12 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
     // Optional safety check (recommended)
     AMREX_ALWAYS_ASSERT(mf_cc_pert.nComp() == ncomp);
 
+    // Create a GPU-accessible array and copy the host vector into it
+    GpuArray<Real, 8> scale_gpu; // Use the maximum possible ncomp, e.g., 8
+    for (int n = 0; n < ncomp; ++n) {
+        scale_gpu[n] = perturb_scale[n];
+    }
+
     for (MFIter mfi(mf_cc_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -675,7 +712,7 @@ AddPertToBckgnd(MultiFab& mf_cc_fine,
         amrex::ParallelFor(bx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real ens_amp = ens_pert_amplitude*std::abs(bg(i,j,k,n));
+            Real ens_amp = ens_pert_amplitude*scale_gpu[n]*std::abs(bg(i,j,k,n));
             bg(i,j,k,n) += ens_amp*pert(i,j,k,n);
         });
     }

@@ -53,7 +53,52 @@ namespace MicVar_Morr {
       graup_accum,
       omega,
       NumVars
-  };
+   };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void morrison_copy_state_to_micro_cell (
+    const amrex::Array4<const amrex::Real>& states,
+    const amrex::Array4<const amrex::Real>& base,
+    const amrex::Array4<amrex::Real>& rho,
+    const amrex::Array4<amrex::Real>& theta,
+    const amrex::Array4<amrex::Real>& qv,
+    const amrex::Array4<amrex::Real>& qc,
+    const amrex::Array4<amrex::Real>& qi,
+    const amrex::Array4<amrex::Real>& qn,
+    const amrex::Array4<amrex::Real>& qt,
+    const amrex::Array4<amrex::Real>& qpr,
+    const amrex::Array4<amrex::Real>& qps,
+    const amrex::Array4<amrex::Real>& qpg,
+    const amrex::Array4<amrex::Real>& qp,
+    const amrex::Array4<amrex::Real>& tabs,
+    const amrex::Array4<amrex::Real>& pres,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const int i, const int j, const int k) noexcept
+{
+    const amrex::Real rho_value = states(i,j,k,Rho_comp);
+    const amrex::Real rho_theta = states(i,j,k,RhoTheta_comp);
+    rho(i,j,k) = rho_value;
+    theta(i,j,k) = rho_theta / rho_value;
+    qv(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ1_comp) / rho_value);
+    qc(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ2_comp) / rho_value);
+    qi(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ3_comp) / rho_value);
+    qn(i,j,k) = qc(i,j,k) + qi(i,j,k);
+    qt(i,j,k) = qv(i,j,k) + qn(i,j,k);
+    qpr(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ4_comp) / rho_value);
+    qps(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ5_comp) / rho_value);
+    qpg(i,j,k) = amrex::max(amrex::Real(0.0), states(i,j,k,RhoQ6_comp) / rho_value);
+    qp(i,j,k) = qpr(i,j,k) + qps(i,j,k) + qpg(i,j,k);
+
+    const amrex::Real p0 = use_anelastic_reference_pressure
+        ? base(i,j,k,BaseState::p0_comp) : amrex::Real(0.0);
+    const MicrophysicsThermoState thermo = diagnose_microphysics_thermo_state(
+        rho_value, rho_theta, qv(i,j,k), rdOcp,
+        use_anelastic_reference_pressure, p0);
+    tabs(i,j,k) = thermo.temperature;
+    // Morrison's native pressure unit is Pa.
+    pres(i,j,k) = thermo.pressure_pa;
 }
 
 class Morrison : public NullMoist {
@@ -74,6 +119,7 @@ public:
         m_moisture_type = sc.moisture_type;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
+        set_anelastic_reference_pressure_mode(sc);
     }
 
     // init
@@ -96,11 +142,17 @@ public:
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
+
     // Copy state into micro vars
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
-
-    using NullMoist::Update_Micro_Vars;
 
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
@@ -198,7 +250,7 @@ private:
     amrex::Geometry m_geom;
 
     // constants
-    amrex::Real m_rdOcp;
+    amrex::Real m_rdOcp{RdoCp};
     bool m_do_cond;
     MoistureType m_moisture_type = MoistureType::None;
 
