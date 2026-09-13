@@ -802,11 +802,55 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     )
 endfunction(add_test_sdm)
 
+# Real ERF P1 smoke cases.  The source input is shared with the focused unit
+# tests; runtime overrides exercise the same executable without recompiling
+# for 4, 16, or 64 liquid bins.
+function(add_test_sbm_prototype TEST_NAME METHOD NBINS NRANKS)
+    set(_source_input
+        "${PROJECT_SOURCE_DIR}/Tests/Unit/Microphysics/SBM/inputs_sbm_${METHOD}")
+    set(_test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    file(MAKE_DIRECTORY "${_test_dir}")
+    file(COPY "${_source_input}" DESTINATION "${_test_dir}")
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_input "${_test_dir}/inputs_sbm_${METHOD}")
+    set(_log "${_test_dir}/${TEST_NAME}.log")
+    # The split is a runtime input so this test exercises the same executable
+    # for every supported bin count.
+    math(EXPR _split "${NBINS} / 2")
+    set(_runtime_options "erf.sbm_nbins=${NBINS} erf.sbm_cloud_rain_split=${_split}")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NRANKS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${_input}
+        -DRUNTIME_OPTIONS=${_runtime_options}
+        -DWORKING_DIRECTORY=${_test_dir}
+        -DLOG=${_log}
+        -DEXPECTED_COMPONENTS=${NBINS}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunSBMPrototype.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NRANKS}
+        WORKING_DIRECTORY "${_test_dir}/"
+        LABELS "regression;sbm;sbm-p1"
+        ATTACHED_FILES_ON_FAIL "${_log}")
+endfunction(add_test_sbm_prototype)
+
 #=============================================================================
 # Regression tests
 #=============================================================================
 
 if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
+    add_test_sbm_prototype(SBM_P1_Compressible_4 compressible 4 2)
+    add_test_sbm_prototype(SBM_P1_Compressible_16 compressible 16 2)
+    add_test_sbm_prototype(SBM_P1_Compressible_64 compressible 64 2)
+    add_test_sbm_prototype(SBM_P1_Anelastic_4 anelastic 4 2)
+    add_test_sbm_prototype(SBM_P1_Anelastic_16 anelastic 16 2)
+    add_test_sbm_prototype(SBM_P1_Anelastic_64 anelastic 64 2)
+
     # The checker is a small AMReX PlotFileData consumer and is built only
     # when regression tests are enabled.  All SHOC cases use explicit
     # state-update ownership settings in their input fixture.
