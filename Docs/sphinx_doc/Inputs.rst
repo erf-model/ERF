@@ -3171,6 +3171,44 @@ List of Parameters
 | **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
+Experimental SBM P0/P1 inputs
+-----------------------------
+
+When ``erf.moisture_model = SBM``, ERF reads the following runtime-sized
+spectral-bin settings.  See :ref:`spectral-bin-microphysics` for state
+ownership, units, qualification tests, and current limitations.
+
+``erf.sbm_nbins``
+   Runtime bin count in the inclusive range 2 through 1,000,000.  Validation
+   occurs before allocation; the qualified tests use 4, 16, and 64.
+``erf.sbm_edges``
+   Optional list of exactly ``sbm_nbins + 1`` finite, nonnegative, strictly
+   increasing particle-mass coordinate edges.  The default is ``0, 1, ...,
+   sbm_nbins``.
+``erf.sbm_pivots``
+   Optional list of exactly ``sbm_nbins`` finite positive pivots, each inside
+   its corresponding edge interval.  Midpoints are used by default.
+``erf.sbm_cloud_rain_split``
+   Interior liquid-population bin index separating ``qc`` and ``qr``.  The
+   default is ``sbm_nbins/2``.  This is projection metadata, not grid metadata.
+``erf.sbm_moment_mode``
+   ``1`` for the qualified one-moment P1 mass state; ``2`` describes a P0
+   two-moment schema and is rejected by P1 transport.
+``erf.sbm_manufactured_initialization``
+   Boolean.  When true, install the deterministic nonuniform spectrum used by
+   the real P1 ERF regression.  Ordinary nonzero ``qc``/``qr`` without an
+   explicit spectral initializer is rejected.
+``erf.sbm_manufactured_velocity``
+   Optional velocity used only by the deterministic manufactured regression;
+   the default is zero.
+``erf.sbm_diagnostic_file``
+   Optional output path for the numerical P1 diagnostic consumed by the
+   independent qualification checker.
+
+The particle-mass coordinate is in ``kg``.  Transported spectral mass
+components are density-weighted state variables in ``kg m^-3``; these units
+are distinct in the layout metadata.
+
 .. _inputs-radiation:
 
 Radiation

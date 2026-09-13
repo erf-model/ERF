@@ -3,83 +3,115 @@
 Spectral-bin microphysics (experimental)
 =========================================
 
-ERF's spectral-bin microphysics (SBM) work will represent liquid water and
-future aerosol populations with runtime-sized spectral bins.  This branch is
-an **experimental P0/P1 infrastructure prototype**, not a production
-warm-cloud microphysics scheme: it transports an inert liquid spectrum and
+ERF's spectral-bin microphysics (SBM) work currently provides an **experimental
+P0/P1 infrastructure prototype**, not a production warm-cloud microphysics
+scheme.  P1 transports an inert, runtime-sized liquid spectral mass state and
 does not implement condensation, evaporation, activation, regeneration,
-collision/coalescence, sedimentation, ice, or aerosol lifecycle physics.
+collision/coalescence, sedimentation, aerosol lifecycle physics, or ice.
 
-State ownership and coupling
------------------------------
+Authoritative state and projections
+-----------------------------------
 
-The spectral state is stored in a separate ERF-managed auxiliary
-``MultiFab``.  Its component count is resolved at startup from the configured
-grid; spectral components are never appended to the compact ``cons`` state.
-The generic auxiliary manager keeps old, evaluation, output, and scratch
-storage and reports its approximate resident memory at initialization.
+The authoritative state is a separate ERF-managed auxiliary ``MultiFab`` with
+one component per liquid mass bin.  The generic auxiliary manager owns old,
+evaluation, output, and scratch states and retains the accepted face-transfer
+ledger needed by a future reflux consumer.  The runtime component count is
+resolved from the input grid; spectral components are not appended to ERF's
+compact ``cons`` state.
 
-The compact ERF moisture state remains:
+The compact ERF moisture fields have the following ownership when SBM is
+active:
 
-* ``qv``: authoritative water vapor in ``cons`` and ordinary ERF transport;
-* ``qc``: a redundant fixed projection of the cloud-side liquid bins;
-* ``qr``: a redundant fixed projection of the rain-side liquid bins.
+* ``qv`` remains authoritative and follows ERF's native vapor path;
+* ``qc`` and ``qr`` are redundant host-coupling projections of the liquid
+  spectrum, with the configured interior bin split;
+* ``qc`` and ``qr`` are not independently advected, diffused, sourced,
+  clipped, or advanced by bulk microphysics.
 
-When SBM is active, the spectral liquid mass is authoritative.  ``qc`` and
-``qr`` are projected from the accepted spectral state and are not independently
-advected, diffused, sourced, clipped, or advanced by the native bulk moisture
-path.
+For every stage, the production donor kernel constructs the spectral
+face-centered fluxes once.  Those same fluxes form the spectral divergence and
+are recorded in ``AuxiliaryFaceTransferLedger``.  Bulk face transfers are
+obtained by summing the accepted spectral face components, so the flux-level
+projection is preserved rather than reconstructed from cell-centered output.
+Compressible acceptance is ``dt * F(stage 2)``; anelastic Heun acceptance is
+``0.5 * dt * (F(stage 0) + F(stage 1))``.
 
 Runtime inputs
 --------------
 
-The following ``erf`` inputs are parsed when
-``erf.moisture_model = SBM``:
+These ``erf`` inputs are read only when ``erf.moisture_model = SBM``:
 
 ``erf.sbm_nbins``
-   Number of liquid-mass bins; the default is 4.  The same executable accepts
-   other runtime counts such as 16 and 64.
+   Runtime number of liquid-mass bins.  It must be in ``[2, 1000000]`` and is
+   validated before any vector resize.  The qualification tests use 4, 16,
+   and 64 with one executable.
 ``erf.sbm_edges``
-   ``Nb+1`` nonnegative, strictly increasing bin edges.  If omitted, the
-   default grid is ``0, 1, ..., Nb``.
+   Optional ``Nb+1`` finite, nonnegative, strictly increasing coordinate edges.
+   The default is ``0, 1, ..., Nb``.
 ``erf.sbm_pivots``
-   ``Nb`` positive pivots, one inside each bin.  If omitted, bin midpoints are
-   used.
+   Optional ``Nb`` finite positive pivots, each inside its bin.  Midpoints are
+   used when omitted.
 ``erf.sbm_cloud_rain_split``
-   Interior edge index separating cloud and rain liquid bins; the default is
-   ``Nb/2``.
+   Interior liquid-population bin index.  It belongs to projection metadata,
+   not to the generic spectral coordinate grid; the default is ``Nb/2``.
 ``erf.sbm_moment_mode``
-   ``1`` selects the qualified P1 liquid-mass transport layout.  ``2`` is
-   available as a distinct P0 two-moment layout contract, but P1 number
-   transport is not yet qualified and therefore fails closed at startup.
+   ``1`` selects the qualified one-moment P1 liquid-mass layout.  ``2`` is a
+   distinct P0 two-moment schema contract and is rejected by P1 transport.
 ``erf.sbm_manufactured_initialization``
-   When true, installs a deterministic positive manufactured liquid spectrum
-   for transport tests.  When false, a run may start only with an empty
-   spectrum (zero ``qc`` and ``qr``); ERF never guesses bins from arbitrary
-   nonzero bulk condensate.
+   Installs a deterministic positive nonuniform liquid spectrum for the
+   qualification case.  Without it, nonzero compact condensate is rejected;
+   P1 never guesses bins from bulk ``qc``/``qr``.
+``erf.sbm_manufactured_velocity``
+   Optional deterministic carrier velocity used by the manufactured ERF
+   regression.  It is zero by default and has no effect on ordinary runs.
+``erf.sbm_diagnostic_file``
+   Optional path for the numerical P1 qualification diagnostic.  It records
+   mass conservation, nonuniform transport, state projection, and accepted
+   face-flux projection values for an independent CTest checker.
 
-Supported P1 configuration
+Units and schema semantics
 --------------------------
 
-The qualified target is a single AMR level, double-precision, static
-Cartesian, triply periodic manufactured case using first-order donor
-advection.  It uses the actual ERF dry-air carrier mass-flux fields and the
-host compressible RK3 or anelastic Heun stage recurrence.  A material negative
-or non-finite auxiliary value fails the run; P1 does not silently clip it.
+The liquid-mass spectral coordinate and the transported state have different
+dimensions.  The coordinate metadata is ``coordinate_units = kg``.  A
+transported mass-bin component is density-weighted and therefore has
+``mass_state_units = kg m^-3``; a two-moment number block, when supported by a
+future implementation, has ``number_state_units = m^-3``.  These fields are
+part of the stable layout/inspection schema and are not cosmetic labels.
 
-P1 currently rejects AMR, diffusion or implicit moisture diffusion, FCT or
-high-order auxiliary transport, moving terrain, embedded boundaries, SHOC and
-other macrophysics, independent moisture forcing, large-scale/sounding
-forcing, two-moment transport, unsupported boundary/restart ownership, and
-all physical warm-cloud, aerosol, collision, sedimentation, and ice processes.
-These are later implementation stages.  GPU qualification, distributed
-face-ownership/FCT qualification, restart qualification, and production
-microphysics validation are also outside this prototype.
+Supported P1 boundary
+---------------------
 
-The resolved layout and capability contracts are available through the host
-inspection methods in ``Source/Microphysics/SBM``.  They are intended for
-future agent/conformance tooling and do not add parsing or string work to the
-transport kernels.
+The qualified P1 configuration is:
 
-This mode is for infrastructure validation only and must not be interpreted as
+* one AMR level;
+* double precision;
+* static Cartesian, fully periodic geometry;
+* exactly one liquid population with one-moment spectral mass;
+* first-order donor spectral transport using ERF's actual dry-air carrier
+  mass-flux fields;
+* compressible RK3 or anelastic Heun stage integration;
+* finite, nonnegative authoritative spectral state with no silent clipping.
+
+The real manufactured regressions cover both time integrators and 4, 16, and
+64 bins.  They verify spatial change, per-bin nonnegativity, periodic mass
+conservation, compact projection, and accepted face-transfer projection.  The
+variable-density free-stream unit test remains a separate preservation test;
+it does not replace the nonuniform transport regression.
+
+Explicitly unsupported
+----------------------
+
+P1 does not qualify AMR, moving or non-Cartesian terrain, embedded boundaries,
+diffusion or implicit moisture diffusion, SHOC/macrophysics, high-order/FCT
+transport, sedimentation, condensation/evaporation, activation/regeneration,
+collision/coalescence, ice, aerosol lifecycle physics, dynamic grids,
+two-moment transport, independent moisture forcing, large-scale or sounding
+forcing, sponge/wall modifications, restart/schema conversion, or production
+microphysics.  GPU performance, AMR reflux execution, and physical
+warm-cloud validation remain future work.  A future non-liquid population can
+be represented by the generic population/grid schema without acquiring a
+meaningless cloud/rain split, but no non-liquid physics is implemented here.
+
+This mode is infrastructure validation only and must not be interpreted as
 production-ready microphysics.

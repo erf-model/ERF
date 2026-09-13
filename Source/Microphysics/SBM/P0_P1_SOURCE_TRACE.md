@@ -1,103 +1,118 @@
 # ERF SBM P0/P1 source trace
 
-This trace records the pinned ERF integration points used by the P0/P1
-implementation.  It is a source map, not a replacement for the v1.0 design.
+This trace records the source locations and contracts used by the experimental
+P0/P1 implementation.  It is an implementation map, not a replacement for
+the design document or a claim of physical microphysics qualification.
 
 ## Provenance
 
-* ERF base: `33ce039e87f309592609098792dff06d0762438c`
+* P1 base: `origin/sbm-p0-p1-aux-state` at `c321be7007da476e4218186fa76698f7f22e02e8`
+* P1 branch: `sbm-p1-qualification`
+* ERF development ancestor: `33ce039e87f309592609098792dff06d0762438c`
 * AMReX submodule: `e60cdc18711ccf7fc0616d7a2fdf062021376976`
-* Design Markdown SHA-256: `a0fc579a65c66b18acbf98761eda0796f52e181a2ca57eb52fe2804f48fa6272`
-* Implementation branch: `sbm-p0-p1-aux-state`
+* Qualification prompt SHA-256: `ffd655e0087e72c5d1b125100d46fabf8d7b88e19848bb8aadcbb29e9d5c688`
 
-## Host stage and state path
+## Authoritative state and stage path
 
-`Source/TimeIntegration/ERF_MRI.H`, `MRISplitIntegrator::advance`, is the
-authoritative stage driver.  The compressible path calls the slow callbacks at
-stage output times `t+h/3`, `t+h/2`, and `t+h`, with stage intervals `h/3`,
-`h/2`, and `h`.  `S_old` remains the full-step baseline while `S_new` is the
-stage state.  The anelastic path calls two callbacks, both over `h`; stage 1
-is the predictor and stage 2 applies the Heun correction against the old
-state.
+`Source/AuxiliaryState/ERF_AuxiliaryStateManager.{H,cpp}` owns generic old,
+evaluation, output, scratch, and face-ledger storage.  The stage algebra is
+explicit in `ERF_AuxiliaryStageContext.H`: compressible ERF RK3 uses the old
+full-step baseline at every callback, while anelastic Heun uses the predictor
+only as the stage-1 evaluation and corrects against the unchanged old state.
 
-`Source/TimeIntegration/ERF_TI_slow_rhs_pre.H` and
-`Source/TimeIntegration/ERF_TI_slow_rhs_post.H` bind those callbacks to
-`erf_slow_rhs_pre` and `erf_slow_rhs_post`.  The post callback receives the
-stage index, old state, current stage state, fast-integrator state, and the
-time-averaged carrier moment fields.
+`Source/TimeIntegration/ERF_TI_slow_rhs_post.H` calls
+`ERF::advance_sbm_stage` after ERF's host slow-RHS, state update, and boundary
+operations.  `Source/Microphysics/SBM/ERF_SBMErfIntegration.cpp` constructs the
+provider context and passes ERF's actual `avg_xmom`, `avg_ymom`, and `avg_zmom`
+carrier fields to `ERF_SBMTransportPrototype.cpp`.
 
-`Source/TimeIntegration/ERF_SlowRhsPost.cpp`, `erf_slow_rhs_post`, copies the
-stage state into `cur_cons`, constructs scalar advection fluxes with
-`AdvectionSrcForScalars`, adds source/diffusion tendencies, and then updates
-the stage state.  Its existing anelastic update is
-`old + 0.5*((predictor-old) + h*R1)`; its existing compressible update is
-`old + h*Rstage` for each callback interval.  Native moisture state values
-are clipped nonnegative in this routine.  The SBM provider bypasses those
-native `qc`/`qr` operations and supplies projected values from the auxiliary
-state instead.
+## Actual production face-transfer ledger
 
-## Carrier flux and geometry
+`Source/AuxiliaryState/ERF_AuxiliaryFaceTransfer.{H,cpp}` provides compact,
+generic stage-local x/y/z face-centered `MultiFab` storage and
+`AuxiliaryFaceTransferLedger`.  Each call to `record_stage` copies the exact
+stage flux and accumulates the accepted transfer using `StageContext`:
 
-`Source/Advection/ERF_AdvectionSrcForState.cpp`,
-`AdvectionSrcForScalars`, and `Source/Advection/ERF_AdvectionSrcForScalars.H`
-show that scalar face fluxes are the host time-averaged momentum/carrier
-field multiplied by a reconstructed primitive mixing ratio.  For the
-second-order donor path the face value is the arithmetic face value selected
-by the host advection implementation; the conservative cell tendency is the
-negative divergence of those face fluxes.
+* compressible: `I = dt * F(stage 2)`;
+* anelastic: `I = dt/2 * (F(stage 0) + F(stage 1))`.
 
-The carrier fields are built in
-`Source/Advection/ERF_AdvectionSrcForRho.cpp` through
-`AdvectionSrcForRho` (called from `ERF_SlowRhsPre.cpp`).  `avg_xmom`,
-`avg_ymom`, and `avg_zmom` are the time-averaged dry carrier momentum flux
-fields produced from the density/continuity update, not velocities reconstructed
-from `u`, `v`, and `w`.  Scalar divergence uses `detJ^{-1}`, horizontal map
-factor product `mf_mx*mf_my`, and the inverse cell sizes.  P1 is deliberately
-restricted to static Cartesian geometry, where the metric factors are unity,
-but the auxiliary API retains explicit geometry/metric slots so a later
-extension cannot silently reconstruct a different carrier.
+`Source/Microphysics/SBM/ERF_SBMTransportPrototype.cpp` constructs each donor
+face flux once in the stage transfer, uses those same arrays in the spectral
+divergence, validates the updated authoritative spectrum, and records the
+stage.  `ERF_SBMBulkProjection.cpp` projects the accepted spectral face
+transfer into two compact bulk face components.  No independently reconstructed
+`qc`/`qr` face flux is used.  The accepted face object is retained in the ERF
+provider as `sbm_accepted_bulk_face_transfer`, ready for a future AMR reflux
+consumer; P1 itself remains single-level.
 
-## Flux registers and accepted ledgers
+## Compact projection and metadata
 
-`ERF_SlowRhsPre.cpp` and `ERF_SlowRhsPost.cpp` add native fluxes to
-`YAFluxRegister` only on the accepted final host stage (`nrk==2` for
-compressible and `nrk==1` for anelastic).  This is a final-stage native host
-register convention.  P1 does not change it.  The new auxiliary ledger is
-separate: compressible acceptance is `h*F2`, while anelastic acceptance is
-`h/2*F0 + h/2*F1`, matching the exact recurrence rather than the native
-final-stage-only register call.
+`ERF_SBMLayout.{H,cpp}` separates generic `SpectralGrid` coordinate metadata
+from liquid-only projection metadata.  A population has a generic
+`mass_offset`; `LiquidProjectionSpec` owns the cloud/rain split.  A second
+non-liquid population can therefore be represented without liquid semantics.
+The grid coordinate is in `kg`, while transported mass components are in
+`kg m^-3` and number components are in `m^-3`.
 
-## Moisture ownership audit
+`SBMBulkProjection::apply_to_core` is the only P1 compact-state projection:
+`qc` is the sum of the liquid cloud bins and `qr` is the sum of the liquid rain
+bins.  `apply_to_face_transfer` applies the identical partition to accepted
+face transfers.
 
-`Source/DataStructs/ERF_DataStruct.H` owns the semantic moisture component
-map and input parsing.  `Source/Microphysics/ERF_Microphysics.H` selects the
-Eulerian/Lagrangian interface.  `Source/TimeIntegration/ERF_AdvanceMicrophysics.cpp`
-is the post-dycore microphysics call site.  `Source/ERF_MakeNewArrays.cpp`
-allocates the core state and MRI storage.
+## Ownership and capability gating
 
-For native models, the post slow RHS loops from `RhoQ1_comp` across every
-moisture component and can independently advect, diffuse, add sources, and
-clip those fields.  Initializers, nudging/large-scale forcing, wall/diffusion
-paths, and microphysics can also write the compact moisture state.  The P1
-SBM capability validator rejects configurations with such incompatible
-features enabled, and the provider-aware path excludes the owned `qc`/`qr`
-components from native scalar update/source/diffusion/clip handling.  `qv`
-remains the sole ordinary vapor component.  Spectral liquid mass is the
-authoritative state; `qc` and `qr` are derived projections.
+`ERF_SBMContracts.{H,cpp}` contains both the stable capability report and the
+host-side `OwnershipRegistry`.  `ERF_SlowRhsPost.cpp` asks that registry for
+the number of native moisture components, leaving `qv` on ERF's path while
+`qc`/`qr` are provider-owned.  `ERF_DataStruct.H` invokes the same capability
+evaluator for fail-closed configuration validation; unsupported diffusion,
+forcing, terrain, coupling, P2 physics, and two-moment transport are rejected
+before the run proceeds.  `ERF_SBMErfIntegration.cpp` separately rejects
+restart/schema conversion before SBM state initialization.  No strings or
+dynamic ownership lookups enter device kernels.
 
-## P0/P1 capability boundary
+## Runtime inputs and finite checks
 
-Supported by this branch: runtime 1M/2M spectral contracts, fixed cloud/rain
-edge projection, typed attached-property metadata, generic ERF-owned
-auxiliary state, explicit compressible/anelastic stage context, first-order
-donor transfer helpers, and static single-level Cartesian manufactured
-transport.
+`ERF_DataStruct.H` reads `sbm_*` settings only after selecting the SBM
+moisture model.  `sbm_nbins` and the cloud/rain split are validated before
+allocation; edge/pivot lengths, finiteness, monotonicity, and bin membership
+are checked.  `validate_runtime_bin_count` is the small pure contract used by
+the parser and unit tests.
 
-Rejected/fail-closed: AMR, moving terrain, terrain/EB geometry, diffusion or
-implicit moisture diffusion, SHOC/macrophysics, FCT/high-order transport,
-sedimentation, condensation/evaporation, activation/regeneration,
-collision/coalescence, ice, dynamic grids, two-moment transport, independent
-custom moisture sources, large-scale/sounding forcing, and restart schema
-conversion.  The transport kernel checks every auxiliary component after each
-stage and aborts on a material negative or non-finite value; it never clips a
-bad state.
+`ERF_SBMTransportPrototype::validate_nonnegative_state` performs an explicit
+finite query over the authoritative auxiliary state and a material-negative
+reduction.  NaN, positive/negative infinity, and material negative values fail
+closed; roundoff-scale negative values follow the documented tolerance and are
+not silently clipped.
+
+## P1 capability boundary
+
+Qualified infrastructure: one-moment liquid mass transport, runtime bin
+counts, static single-level periodic Cartesian manufactured transport,
+compressible RK3, anelastic Heun, exact accepted face-transfer projection, and
+compact projection conservation.
+
+Explicitly unsupported: AMR execution/reflux, moving or non-Cartesian terrain,
+embedded boundaries, diffusion, implicit moisture diffusion, SHOC/macrophysics,
+high-order/FCT transport, sedimentation, condensation/evaporation,
+activation/regeneration, collision/coalescence, ice, aerosol lifecycle physics,
+dynamic grids, two-moment transport, independent moisture forcing,
+large-scale/sounding forcing, sponge/wall modification, restart/schema
+conversion, GPU performance qualification, and physical warm-cloud validation.
+
+## Tests
+
+* `Tests/Unit/Microphysics/SBM/ERF_GTestSBMP0P1.cpp`: grid/layout metadata,
+  two-moment algebra, temporal recurrence, face-ledger weights, topology,
+  ownership, finite/negative controls, free-stream preservation, and runtime
+  4/16/64-bin transport.
+* `Tests/CTestList.cmake` and `Tests/RunSBMPrototype.cmake`: six real ERF MPI
+  cases (compressible/anelastic × 4/16/64 bins).
+* `Tests/SBMQualificationCheck.cpp`: independent numerical diagnostic checker;
+  it verifies the emitted invariant values so CTest does not rely on log text
+  alone.
+
+The six manufactured cases use a nonuniform periodic spectrum, verify spectral
+mass conservation and compact projection, and check the accepted face ledger.
+The existing variable-density free-stream test remains a separate preservation
+test rather than a substitute for nonuniform transport.
