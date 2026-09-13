@@ -684,8 +684,12 @@ if (ng_pblh > 1) {
         {
             auto pblh_out = pblh_mf.array(mfi);
             const Box& tbx = mfi.tilebox();
+            // The scheme measures its height from the top of an immersed column
+            // (zib); the stored field is the absolute height above the domain
+            // bottom, the convention of YSUNew and of every consumer of
+            // SurfaceLayer::get_pblh(). zib is zero without erf.pbl_ib_aware.
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0) + zib_arr(i, j, 0);
             });
         }
         //
@@ -1165,7 +1169,7 @@ if (ng_pblh > 1) {
                 std::min(K_turb(i, j, k, EddyDiff::Theta_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Q_v) = std::max(
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
-            K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
+            K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0) + zib;   // absolute height, as stored
 
             // IMPORTANT — units convention for HGAMT_v / HGAMQ_v:
             // These are stored as (countergradient term / pblh), i.e. already

@@ -30,9 +30,10 @@ at step 14); halving the step only delays it.
 
 `erf.if_snap_partial_cells = true` makes the six forcing functions read the
 blanking snapped to solid or fluid at half: a height-map building becomes
-the same staircase of whole cells an exact box is, the wall law sits on
-the faces between a solid and a fluid cell, the drag inside the solid, and
-the sliver cells carry nothing. The 24 h day of `SEB/IsolatedBuilding`
+the same staircase of whole cells an exact box is, the wall law (with
+`erf.if_use_most`) and the thermal conditions sit on the boundary solid
+cells, roofs included, the drag on the interior cells, and the sliver cells
+carry nothing. The 24 h day of `SEB/IsolatedBuilding`
 on an exact box is the evidence that this configuration is stable. (A
 first version that kept the fractions and only moved the selection
 threshold to half left faces between a solid core and a half-solid rim
@@ -40,7 +41,9 @@ relaxed toward a wall-law target while the core's other faces were damped,
 and a thin slab drove its density negative within two minutes.) The default
 is false, the raw fractions, for backward compatibility; buildings from
 height maps should set it. With the switch off every result is
-bit-identical to before, and on an exact box the switch changes nothing.
+bit-identical to before; on an exact box the switch moves the wall law onto
+the boundary cells alone (without it a boundary cell carries the wall law
+and the interior drag together, and the roof only the drag).
 
 ## What is checked
 
@@ -53,8 +56,8 @@ below 2 m/s, and the cube still throws a wake.
 ```
 == height-map cube, wall law snapped to half cells (4 ranks, 19000 steps)
   fluid temperature within 0.5 K of neutral: PASS (max |theta - 300| 0.000 K at t = 9500 s)
-  vertical velocity below 2 m/s: PASS (max |w| 0.60 m/s)
-  wake behind the cube: PASS (min u in the wake -0.32 m/s (inflow 3))
+  vertical velocity below 2 m/s: PASS (max |w| 0.48 m/s)
+  wake behind the cube: PASS (min u in the wake -0.33 m/s (inflow 3))
 partial cells: PASS
 ALL PASS
 ```

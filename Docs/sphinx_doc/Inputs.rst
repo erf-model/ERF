@@ -1771,6 +1771,7 @@ List of Parameters
 |                                          | zero diffusivity inside the solid, a neutral log law at  |                    |                  |
 |                                          | the top for the surface scales; identical without        |                    |                  |
 |                                          | immersed cells; not with terrain-fitted coordinates      |                    |                  |
+|                                          | (the stored PBL height stays the absolute height)        |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ib_z0**                        | roughness length [m] of that log law                     | Real > 0           | 0.01             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2905,11 +2906,13 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_snap_partial_cells**     | read the blanking snapped to solid or fluid at half, so  | Boolean            | false            |
 |                                   | a height-map building becomes a staircase of whole cells |                    |                  |
-|                                   | (what an exact box is) with no sliver cells; false keeps |                    |                  |
-|                                   | the raw fractions, on which the wall law and the drag    |                    |                  |
-|                                   | disagree at the corners of the reader's one-cell ramp    |                    |                  |
-|                                   | and grow a checkerboard over hours; set it for buildings |                    |                  |
-|                                   | from height maps (see                                    |                    |                  |
+|                                   | with no sliver cells: the wall law sits on the boundary  |                    |                  |
+|                                   | solid cells (roofs included) and the drag on the         |                    |                  |
+|                                   | interior cells, the thermal conditions on the same       |                    |                  |
+|                                   | boundary cells; false keeps the raw fractions, on which  |                    |                  |
+|                                   | the wall law and the drag disagree at the corners of the |                    |                  |
+|                                   | reader's one-cell ramp and grow a checkerboard over      |                    |                  |
+|                                   | hours; set it for buildings from height maps (see        |                    |                  |
 |                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |
@@ -2943,7 +2946,7 @@ column would be taken for a building), a uniform vertical grid (no
 | **erf.ibseb.enable**              | build the face set of the resolved buildings and run     | Boolean            | false                  |
 |                                   | the balance on it                                        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.n_slab_layers**       | conduction layers per face                               | Integer >= 1       | 4                      |
+| **erf.ibseb.n_slab_layers**       | conduction layers per face                               | Integer in [1, 32] | 4                      |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.T_skin_init**         | initial skin temperature of every face [K]               | Real > 0           | 300.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

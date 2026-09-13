@@ -64,6 +64,12 @@ roofs' L is entirely their own.
    depth is the first cell centre above the inversion, 95 m, and the
    roofs' depth in w* is that minus the 40 m roof.
 
+The Deardorff deck is also run through a checkpoint at step 300 and
+restarted to step 600; the step-599 face dumps must match the straight
+run's to 1e-3 K in the skin and slab and 1 % in the fluxes. The previous
+step's sensible flux, which the convective velocity scale reads, is part of
+the checkpointed face state, so the restarted trajectory does not separate.
+
 ## Reference output (4 ranks)
 
 ```
@@ -89,5 +95,13 @@ stability: PASS
   bulk Richardson depth on the capped sounding: PASS (diagnosed 95.0 m (expected 95), range over the run 95.0-95.0 m)
   roofs' depth in w* is the mixed layer above the roof: PASS (55.0 m above the 40 m roof)
 bulkri: PASS
+== deardorff through a checkpoint at step 300 (4 ranks)
+  same faces: PASS (80 faces)
+  skin and slab after the restart: PASS (max |dT_skin| 0.0e+00 K, max |dT_slab| 0.0e+00 K)
+  H after the restart: PASS (max diff 0.0e+00 W/m2)
+  G after the restart: PASS (max diff 0.0e+00 W/m2)
+  LW_net after the restart: PASS (max diff 0.0e+00 W/m2)
+  SW_abs after the restart: PASS (max diff 0.0e+00 W/m2)
+restart: PASS
 ALL PASS
 ```

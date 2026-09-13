@@ -22,8 +22,10 @@
  */
 namespace ibseb {
 
-/// Largest number of layers the stack arrays allow.
-constexpr int SLAB_MAX_LAYERS = 256;
+/// Largest number of layers the stack arrays allow. The kernels keep three
+/// such arrays per thread, so the bound is kept small for GPU occupancy; 32
+/// layers resolve any wall (erf.ibseb.n_slab_layers is checked against it).
+constexpr int SLAB_MAX_LAYERS = 32;
 
 /**
  * Advance one slab column by one step and return the conduction into it.

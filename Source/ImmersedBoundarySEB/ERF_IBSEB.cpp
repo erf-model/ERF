@@ -68,12 +68,13 @@ ERF::init_ibseb ()
         m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev);
         const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
+        std::unique_ptr<MultiFab> restored;
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
             if (FileExists(name + "_H")) {
-                MultiFab state(grids[lev], dmap[lev], m_ibseb[lev]->state_ncomp(), 0);
-                VisMF::Read(state, name);
-                m_ibseb[lev]->load_state(state);
+                restored = std::make_unique<MultiFab>(grids[lev], dmap[lev], m_ibseb[lev]->state_ncomp(), 0);
+                VisMF::Read(*restored, name);
+                m_ibseb[lev]->load_state(*restored);
                 Print() << "[IBSEB] Face state restored from " << restart_chkfile << "\n";
             } else {
                 Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
@@ -82,10 +83,15 @@ ERF::init_ibseb ()
         m_ibseb[lev]->assign_materials();
         m_ibseb[lev]->compute_view_fractions();
         m_ibseb[lev]->set_init_cost(ParallelDescriptor::second() - t_init0);
+        // Initial diagnostics for the first report. On a restart they
+        // overwrite the sensible flux with a diagnostic value, so the
+        // checkpointed flux (which the convective velocity scale of the next
+        // step reads as the previous step's) is put back afterwards.
         m_ibseb[lev]->compute_shortwave(t_new[lev]);
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                                        vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
+        if (restored) { m_ibseb[lev]->load_state(*restored); }
         m_ibseb[lev]->report(t_new[lev], istep[lev], ibseb_params.csv_int > 0);
     }
 }
@@ -175,8 +181,8 @@ ERF::ibseb_report (int nstep, Real time)
  * With the first level as the reference, ``Ri_b(z) = g (z - z_1) (theta(z)
  * - theta_1) / (theta_1 (|U(z) - U_1|^2 + 100 u*^2))`` with u* = 0.1 m/s,
  * and the depth is the first cell centre where it exceeds
- * ``erf.ibseb.ri_crit``, or the domain top when it never does (a neutral
- * profile). The profile is the plane average of the conserved state and the
+ * ``erf.ibseb.ri_crit``, or the domain depth when it never does (a neutral
+ * profile); both are heights above the domain bottom. The profile is the plane average of the conserved state and the
  * face velocities, uniform vertical spacing assumed as elsewhere in the
  * balance; called once per step and level when the convective velocity
  * scale is on and z_i is not fixed, also as the fallback of the pblh mode.
@@ -198,7 +204,7 @@ ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab
     u_ave.line_average(0, uu);
     v_ave.line_average(0, vv);
     const Real dz = geom[lev].CellSize(2);
-    const Real z_top = geom[lev].ProbHi(2);
+    const Real z_top = geom[lev].ProbHi(2) - geom[lev].ProbLo(2);   // depth of the domain
     const Real th1 = rth[0] / rho[0];
     const Real U1  = std::sqrt(uu[0] * uu[0] + vv[0] * vv[0]);
     const Real ustar_floor2 = 100.0 * 0.1 * 0.1;
@@ -208,7 +214,7 @@ ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab
         const Real U  = std::sqrt(uu[k] * uu[k] + vv[k] * vv[k]);
         const Real dU = U - U1;
         const Real rib = CONST_GRAV * (k * dz) * (th - th1) / (th1 * (dU * dU + ustar_floor2));
-        if (rib > ibseb_params.ri_crit) { z_i = geom[lev].ProbLo(2) + (k + 0.5) * dz - geom[lev].ProbLo(2); break; }
+        if (rib > ibseb_params.ri_crit) { z_i = (k + 0.5) * dz; break; }
     }
     return z_i;
 }

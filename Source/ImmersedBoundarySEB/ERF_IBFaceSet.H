@@ -45,8 +45,9 @@
  *
  * **Output.** The list is never written directly. scatter_diagnostics() puts
  * the number of faces and their mean skin temperature into cell-centred
- * fields for the plotfile; save_state() / load_state() move the skin and
- * slab temperatures through a cell-centred field with six slots per cell
+ * fields for the plotfile; save_state() / load_state() move the skin
+ * temperature, the sensible flux and the slab temperatures through a
+ * cell-centred field with six slots per cell
  * (one per direction and side) for the checkpoint. On restart the list is
  * rebuilt from the blanking and refilled from that field, so a restart does
  * not depend on the rank count or on the order the faces were found in.
@@ -100,11 +101,13 @@ public:
      * Number of components of the checkpoint state field.
      *
      * A fluid cell can carry up to six faces (two per direction), so the field
-     * has six slots of ``1 + n_layers()`` values: component
-     * ``(dir*2 + (side>0)) * (1 + n_layers())`` is the skin temperature of that
-     * slot and the following ``n_layers()`` components are its slab layers.
+     * has six slots of ``2 + n_layers()`` values: component
+     * ``(dir*2 + (side>0)) * (2 + n_layers())`` is the skin temperature of that
+     * slot, the next its sensible flux (read as the previous step's by the
+     * convective velocity scale), and the following ``n_layers()`` components
+     * are its slab layers.
      */
-    int state_ncomp () const { return 6 * (1 + n_layers()); }
+    int state_ncomp () const { return 6 * (2 + n_layers()); }
 
     /**
      * View fractions: sample a cosine-weighted hemisphere around
@@ -245,7 +248,7 @@ public:
     void scatter_diagnostics (amrex::MultiFab& nfaces, amrex::MultiFab& tskin) const;
 
     /**
-     * Write the face state (skin and slab temperatures) into a cell-centred
+     * Write the face state (skin temperature, sensible flux and slab temperatures) into a cell-centred
      * field with state_ncomp() components, for the checkpoint.
      *
      * Each face writes its own slot (see state_ncomp()), so no two faces
@@ -255,7 +258,7 @@ public:
     void save_state (amrex::MultiFab& state) const;
 
     /**
-     * Read the face state back from a field written by save_state(), after
+     * Read the face state (skin, flux, slab) back from a field written by save_state(), after
      * build() has recreated the list from the blanking. Only the slots that
      * correspond to a face of this list are read.
      */

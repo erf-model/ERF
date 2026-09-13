@@ -930,9 +930,10 @@ IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
 }
 
 /**
- * Write the skin and slab temperatures into the six-slot state field. The
- * slot of a face is ``(dir*2 + (side>0)) * (1 + n_layers)``; no two faces of a
- * cell share a slot, so the writes are plain stores.
+ * Write the skin temperature, the sensible flux and the slab temperatures
+ * into the six-slot state field. The slot of a face is
+ * ``(dir*2 + (side>0)) * (2 + n_layers)``; no two faces of a cell share a
+ * slot, so the writes are plain stores.
  */
 void
 IBFaceSet::save_state (MultiFab& state) const
@@ -942,28 +943,30 @@ IBFaceSet::save_state (MultiFab& state) const
     const int nl = n_layers();
     const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int* pd = d_dir.data(); const int* ps = d_side.data();
-    const Real* pT = d_T_skin.data(); const Real* pS = d_T_slab.data();
+    const Real* pT = d_T_skin.data(); const Real* pS = d_T_slab.data(); const Real* pH = d_H.data();
     for (MFIter mfi(state); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
         auto const& st = state.array(mfi);
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f  = f0 + m;
-            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (1 + nl);
-            st(pi[f], pj[f], pk[f], c0) = pT[f];
-            for (int l = 0; l < nl; ++l) { st(pi[f], pj[f], pk[f], c0 + 1 + l) = pS[f * nl + l]; }
+            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (2 + nl);
+            st(pi[f], pj[f], pk[f], c0)     = pT[f];
+            st(pi[f], pj[f], pk[f], c0 + 1) = pH[f];
+            for (int l = 0; l < nl; ++l) { st(pi[f], pj[f], pk[f], c0 + 2 + l) = pS[f * nl + l]; }
         });
     }
     Gpu::streamSynchronize();
     if (m_params.debug) {
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << state_ncomp()
-                << " components (6 slots x " << (1 + n_layers()) << ")\n";
+                << " components (6 slots x " << (2 + n_layers()) << ")\n";
     }
 }
 
 /**
- * Read the skin and slab temperatures back from the six-slot state field,
- * the inverse of save_state(), into a list that build() has just recreated.
+ * Read the skin temperature, the sensible flux and the slab temperatures back
+ * from the six-slot state field, the inverse of save_state(), into a list
+ * that build() has just recreated.
  */
 void
 IBFaceSet::load_state (const MultiFab& state)
@@ -972,16 +975,17 @@ IBFaceSet::load_state (const MultiFab& state)
     const int nl = n_layers();
     const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int* pd = d_dir.data(); const int* ps = d_side.data();
-    Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data();
+    Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data(); Real* pH = d_H.data();
     for (MFIter mfi(state); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
         auto const& st = state.const_array(mfi);
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f  = f0 + m;
-            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (1 + nl);
+            const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (2 + nl);
             pT[f] = st(pi[f], pj[f], pk[f], c0);
-            for (int l = 0; l < nl; ++l) { pS[f * nl + l] = st(pi[f], pj[f], pk[f], c0 + 1 + l); }
+            pH[f] = st(pi[f], pj[f], pk[f], c0 + 1);
+            for (int l = 0; l < nl; ++l) { pS[f * nl + l] = st(pi[f], pj[f], pk[f], c0 + 2 + l); }
         });
     }
     Gpu::streamSynchronize();

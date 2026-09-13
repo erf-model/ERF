@@ -228,7 +228,7 @@ struct IBSEBParams
             if (lw_down < 0.0 || T_ground <= 0.0) { amrex::Abort("erf.ibseb.lw_down must be >= 0 and T_ground > 0"); }
             if (z0_wall <= 0.0 || z0h_wall <= 0.0) { amrex::Abort("erf.ibseb.z0_wall and z0h_wall must be positive [m]"); }
             if (k_therm <= 0.0 || rho_cp <= 0.0 || thickness <= 0.0) { amrex::Abort("erf.ibseb.k_therm, rho_cp and thickness must be positive"); }
-            if (n_slab_layers > 256) { amrex::Abort("erf.ibseb.n_slab_layers must be <= 256"); }
+            if (n_slab_layers > 32) { amrex::Abort("erf.ibseb.n_slab_layers must be <= 32 (the slab kernels keep their layers on the stack)"); }
             if (n_slab_layers < 1) { amrex::Abort("erf.ibseb.n_slab_layers must be >= 1"); }
             if (T_skin_init <= 0.0 || T_interior <= 0.0) {
                 amrex::Abort("erf.ibseb.T_skin_init and T_interior must be positive [K]");
