@@ -193,3 +193,52 @@ parent does not, either because it re-reads a terrain file at its own resolution
 because it reads a nested wrfinput file.  Each level is individually hydrostatic; the
 difference between them is set by the difference in surface elevation and is carried up
 the column as an essentially constant offset in pressure.
+
+.. _subsec:base-state-lateral-ghost:
+
+The base state in the lateral ghost cells
+----------------------------------------------------------------------------
+
+At a lateral boundary that is not periodic, the base state has to be given values in the
+ghost cells outside the domain.  Where the boundary reflects -- a symmetry or slip wall --
+the nodal mesh is extended by mirroring, so a ghost cell sits at exactly the height of the
+cell it reflects, and reflecting the base state with it is right.
+
+Where the boundary is outflow or open, the nodal mesh is instead extrapolated past the
+domain, and a ghost cell does **not** sit at the height of the cell just inside it whenever
+the terrain has a slope where it meets the boundary.  Copying the base state outward at
+constant index, as a zero-gradient condition would, therefore leaves values that belong to
+a different height than the one the mesh assigns to the cell: the base state there is
+neither the hydrostatic profile at that height nor in hydrostatic balance along the ghost
+column, while :math:`\det J` and the metric terms in the same column are height-consistent.
+
+ERF instead builds the base state in those ghost cells as the same reference atmosphere
+sampled at the height the mesh puts them at.  Writing :math:`z_g` for the height of the
+ghost cell and :math:`z_r` for the height of the cell inside the domain it would otherwise
+have copied -- the nearest cell that is inside the domain laterally, which for a corner
+means the nearest corner cell -- and :math:`\delta z = z_g - z_r`:
+
+* :math:`p_0` is carried across the height offset by the hydrostatic relation, using the
+  scale height of the cell it came from,
+
+  .. math::
+
+     p_0(z_g) = p_0(z_r)\, \exp\!\left(-\frac{g\, \delta z}{R_d T_v}\right),
+     \qquad R_d T_v = \frac{p_0(z_r)}{\rho_0(z_r)}.
+
+* :math:`\theta_0` and :math:`q_{v,0}` carry over unchanged.  Reconstructing them at
+  :math:`z_g` would need the profile of the column above and below the cell, and the cells
+  that can be read there are the ones the box in hand happens to hold, so the stencil -- and
+  with it the answer -- would depend on where the grids are split in the vertical.  Holding
+  them fixed leaves an error of :math:`(\partial\theta_0/\partial z)\,\delta z`, which for
+  the offsets a terrain-fitted mesh produces is a few thousandths of a kelvin, against the
+  several pascals in :math:`p_0` that the transfer above removes.
+
+* :math:`\rho_0` and :math:`\pi_0` then follow from the equation of state, so that it holds
+  exactly in the ghost cell.
+
+The construction is local to each ghost cell, so it applies to any number of ghost layers
+and to the corners, and it reduces to the plain copy -- bit for bit -- wherever the two
+heights agree.  That covers every constant-:math:`\Delta z` mesh and any terrain that is
+flat where it meets the boundary, so runs that were not affected by the height offset in
+the first place are unchanged.
