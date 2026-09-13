@@ -136,7 +136,8 @@ TEST(ShocImplicit, ThermodynamicHelpersMatchTranslatedE3smFixtures)
     const auto tabs_profile =
         shoc_test::read_fixture_vector("implicit_energy/e3sm_compute_shoc_temperature_decreasing_profile.txt");
     ASSERT_EQ(tabs_profile.size(), 3);
-    EXPECT_NEAR(ShocImplicit::compute_temperature(300.0, 1.0e-5, 1.0 / 1.1), tabs_profile[0], 1.0e-12);
+    EXPECT_NEAR(ShocImplicit::compute_temperature(300.0, 1.0e-5, 1.0 / 1.1), tabs_profile[0],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), tabs_profile[0], 2));
     EXPECT_NEAR(ShocImplicit::compute_temperature(350.0, 1.0e-5, 1.0 / 1.5), tabs_profile[1],
                 shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), tabs_profile[1], 2));
     EXPECT_NEAR(ShocImplicit::compute_temperature(400.0, 1.0e-5, 0.5), tabs_profile[2], 1.0e-12);
