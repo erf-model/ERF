@@ -562,14 +562,18 @@ pblh_mf.setVal(0.0);
                              geom.Domain());
         }
 
-        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage
-    {
-    auto pblh_out = pblh_mf.array(mfi);
-    const Box& vbx = mfi.validbox();
-    ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
-    });
-    }
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.
+        // pbl_height_corrector only covers this tile (grown by one), so loop over
+        // the tile, not the valid box: with tiling in x/y the valid box reaches
+        // past it. Under TileNoZ the tile spans the full column, and pblh_mf has
+        // no ghost cells, so the tiles together still fill every cell.
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            const Box& tbx = mfi.tilebox();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+            });
+        }
         //
         // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
         // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile
