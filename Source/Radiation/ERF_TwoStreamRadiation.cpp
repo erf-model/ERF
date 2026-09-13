@@ -245,15 +245,25 @@ TwoStreamRadiation::advance (int lev,
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dt_step > 0.0 && std::isfinite(dt_step),
             "TwoStreamRadiation: the force-restore update needs a positive, finite dt_step");
     }
-    // The column kernel clamps a bad density or rho*theta to a placeholder
-    // and carries on, which would hide a corrupt state behind plausible
-    // heating rates. Refuse a non-finite state instead (the kernel keeps
-    // its clamps for the physically valid but extreme case).
-    if (call_site == "pre_dycore" &&
-        cons_old.contains_nan(Rho_comp, 2, 0) ) {
-        amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
-                     std::to_string(lev) + ", step " + std::to_string(nstep) +
-                     " has a non-finite density or rho*theta");
+    // The column kernel would substitute placeholders (rho = 1, rho*theta of
+    // 288 K) for a non-finite or non-positive density or rho*theta and carry
+    // on, hiding a corrupt state behind plausible heating rates. Refuse such
+    // a state here instead; both checks are collective reductions, so every
+    // rank takes the same branch.
+    if (call_site == "pre_dycore") {
+        if (cons_old.contains_nan(Rho_comp, 2, 0)) {
+            amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
+                         std::to_string(lev) + ", step " + std::to_string(nstep) +
+                         " has a non-finite density or rho*theta");
+        }
+        const amrex::Real rho_min = cons_old.min(Rho_comp, 0);
+        const amrex::Real rth_min = cons_old.min(RhoTheta_comp, 0);
+        if (!(rho_min > 0.0) || !(rth_min > 0.0)) {
+            amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
+                         std::to_string(lev) + ", step " + std::to_string(nstep) +
+                         " has a non-positive density (min " + std::to_string(rho_min) +
+                         ") or rho*theta (min " + std::to_string(rth_min) + ")");
+        }
     }
 
     // The column sweep runs once per step, at the pre-dycore call. The

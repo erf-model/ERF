@@ -548,6 +548,9 @@ amrex::Real diagnose_cloud_fraction_prognostic(
 
     amrex::Real rho       = state_arr(i, j, k, Rho_comp);
     amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
+    // Unreachable from TwoStreamRadiation::advance, which refuses a state with
+    // a non-finite or non-positive density or rho*theta before the sweep;
+    // kept so a direct kernel caller (unit tests) cannot divide by zero.
     if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
     if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
 
