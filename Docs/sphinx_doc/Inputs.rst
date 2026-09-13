@@ -2386,9 +2386,6 @@ Capability to output text files to produce line plots of quantities of interest 
 | **erf.station_plot_freq**         | frequency in which to write the output                          | Integer            | must be set|
 +-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
 
-The ``erf.io_station_tracker`` is a bool by default false, and is required if the weather tracker output needs to be written out. ``erf.station_latitude`` is the latitude of the weather station in deg N, ``erf.station_longitude`` in deg W and ``erf.station_plot_freq`` is the frequency in which to write the output. The output is written into a directory named ``StationTracker``.
-
-
 Boundary Plane I/O (Coupling Support)
 =====================================
 
