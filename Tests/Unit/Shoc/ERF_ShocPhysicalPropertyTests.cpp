@@ -579,6 +579,14 @@ TEST(ShocPhysical, SupersaturationCondensesInDeterministicPdfLimit)
     const amrex::Real qw_val = 1.25_rt * qs;
     const amrex::Real temp = getTgivenPandTh(p_mid_val, thetal_val, R_d / Cp_d);
     const amrex::Real expected_ql = deterministic_pdf_condensate(qw_val, qs, temp);
+    // The independent oracle is algebraically equivalent to SHOC's
+    // expression, but the differently associated evaluations were observed
+    // 12 representable-float steps apart with GCC 11 in SINGLE precision.
+    // Keep the mathematical oracle while allowing 32 epsilon-scaled units
+    // of compiler-rounding headroom; DOUBLE retains the existing tolerance.
+    const amrex::Real ql_tolerance =
+        shoc_test::precision_scaled_tolerance(
+            1.0e-10_rt * amrex::max(1.0_rt, expected_ql), expected_ql, 32);
 
     ASSERT_GT(qs, 0.0_rt);
     ASSERT_GT(qw_val, 0.0_rt);
@@ -619,7 +627,7 @@ TEST(ShocPhysical, SupersaturationCondensesInDeterministicPdfLimit)
         EXPECT_GT(shoc_cond(0,k,0), 0.0_rt);
         EXPECT_NEAR(shoc_evap(0,k,0), 0.0_rt, 1.0e-14_rt);
         EXPECT_NEAR(shoc_ql_out(0,k,0), expected_ql,
-                    1.0e-10_rt * amrex::max(1.0_rt, expected_ql));
+                    ql_tolerance);
     }
 }
 
