@@ -2365,6 +2365,8 @@ hurricane eye through the run.
 |                                           | ``io_hurricane_eye_tracker`` is true                     |                    |                  |
 +-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
+.. _inputs_weather_station_tracker:
+
 .. _sec:WeatherStationTrackerInputs:
 
 Weather Station Tracker
@@ -3887,7 +3889,7 @@ Hindcast Forcing and Hurricane Tracking
 Weather Station Tracker
 ------------------------
 
-* :ref:`WeatherStationTrackerInputs` -- ``erf.io_station_tracker``, ``erf.station_latitude``,
+* :ref:`Weather Station Tracker Inputs <inputs_weather_station_tracker>` -- ``erf.io_station_tracker``, ``erf.station_latitude``,
   ``erf.station_longitude``, ``erf.station_plot_freq``
 
 Diagnostics and Testing
