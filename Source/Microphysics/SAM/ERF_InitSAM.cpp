@@ -1,5 +1,6 @@
 #include <AMReX_GpuContainers.H>
 #include "ERF_SAM.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_PlaneAverage.H"
 #include "ERF_EOS.H"

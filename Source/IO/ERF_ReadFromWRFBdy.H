@@ -4,7 +4,7 @@
 
 #include <ERF.H>
 #include <ERF_EOS.H>
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_DataStruct.H>

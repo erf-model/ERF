@@ -1,6 +1,8 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
+#include <AMReX_Periodicity.H>
+#include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
 
 /**
@@ -472,7 +474,6 @@ struct PBLDerivativeDzInv_T
                 two / (z_cc(i,j,k+1) - z_cc(i,j,k  ))};
     }
 };
-#endif
 
 /**
  * @brief Apply spatial smoothing to PBLH field using 5-point stencil.
@@ -481,43 +482,76 @@ struct PBLDerivativeDzInv_T
  * the diagnosed PBLH field. This is standard post-processing practice for
  * discrete Rib-crossing detection as described in Seibert et al. (2000):
  * "Review and intercomparison of operational methods for the determination of
- * the mixing height", Atmospheric Environment, 34, 1001–1027.
+ * the mixing height", Atmospheric Environment, 34, 1001-1027.
  *
- * Stencil: PBLH_smooth(i,j) = w * PBLH(i,j) + (1-w)/4 * [PBLH(i±1,j) + PBLH(i,j±1)]
+ * Stencil: PBLH_smooth(i,j) = w * PBLH(i,j) + (1-w)/4 * [PBLH(i+-1,j) + PBLH(i,j+-1)]
  *
- * @param[in,out] pblh_fab FArrayBox containing 2D PBLH field (component 0)
- * @param[in] xybx Valid box for smoothing (x,y indices only)
- * @param[in] weight Center cell weight in stencil (must be in [0,1])
- * @param[in] passes Number of smoothing iterations
- * @param[in] domain Domain box for reflective boundary conditions
+ * The stencil reads one column outside the region it writes, so the result on a
+ * cell depends on columns that a single tile -- or a single box -- does not own.
+ * The caller therefore names the region it wants smoothed (xybx_valid, normally
+ * the planar tile box) inside a work array carrying `passes` columns of halo
+ * around it, filled from the same inputs. Pass p writes the region grown by
+ * passes-1-p and reads the one grown by passes-p, so each pass consumes one
+ * column of halo and the last lands exactly on xybx_valid. Every read stays
+ * inside the array, and the result does not depend on how the domain is divided
+ * into boxes or tiles.
+ *
+ * At a non-periodic domain edge there is no column to read, so the stencil reuses
+ * the cell's own value (reflective/Neumann). Across a periodic edge the halo holds
+ * the wrapped columns and is read directly, which is why the periodicity has to be
+ * passed in: clamping there would fold an edge into a domain that has none.
+ *
+ * @param[in,out] pblh_fab   FArrayBox holding the 2D PBLH field (component 0),
+ *                           sized to contain xybx_valid grown by `passes` in x and y
+ * @param[in] xybx_valid     Region to smooth (x,y indices only)
+ * @param[in] weight         Center cell weight in stencil (must be in [0,1])
+ * @param[in] passes         Number of smoothing iterations
+ * @param[in] domain         Domain box, for the reflective edge condition
+ * @param[in] periodicity    Domain periodicity, so periodic edges read the halo
  */
 inline void
 ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
-                    const amrex::Box& xybx,
+                    const amrex::Box& xybx_valid,
                     const amrex::Real weight,
                     const int passes,
-                    const amrex::Box& domain)
+                    const amrex::Box& domain,
+                    const amrex::Periodicity& periodicity)
 {
+    if (passes <= 0) { return; }
+
+    // The caller must supply the halo the passes will consume; see the note above.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        pblh_fab.box().contains(amrex::grow(xybx_valid, amrex::IntVect(passes,passes,0))),
+        "ApplyPBLHSmoothing: the PBLH work array needs `passes` columns of halo "
+        "around the region being smoothed");
+
     // Use a temporary to hold intermediate results
-    amrex::FArrayBox pblh_temp(xybx, 1, amrex::The_Async_Arena());
+    amrex::FArrayBox pblh_temp(pblh_fab.box(), 1, amrex::The_Async_Arena());
     auto pblh = pblh_fab.array();
     auto pblh_tmp = pblh_temp.array();
 
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
+    const bool per_x = periodicity.isPeriodic(0);
+    const bool per_y = periodicity.isPeriodic(1);
+
     const amrex::Real wt_side = (one - weight) / four; // Weight for each of 4 neighbors
 
     // Apply smoothing passes
     for (int pass = 0; pass < passes; ++pass) {
-        amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        const int halo = passes - 1 - pass;
+        const amrex::Box bx = amrex::grow(xybx_valid, amrex::IntVect(halo,halo,0));
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
-            // Use reflective (Neumann) boundary conditions:
-            // At domain boundaries, reuse the current cell's own value
-            const int i_xlo = (i > dom_lo.x) ? (i - 1) : i;
-            const int i_xhi = (i < dom_hi.x) ? (i + 1) : i;
-            const int j_ylo = (j > dom_lo.y) ? (j - 1) : j;
-            const int j_yhi = (j < dom_hi.y) ? (j + 1) : j;
+            // Reflective (Neumann) at a non-periodic domain edge: reuse the cell's
+            // own value. Everywhere else -- including across a periodic edge, where
+            // the halo holds the wrapped column -- read the neighbour.
+            const int i_xlo = (per_x || i > dom_lo.x) ? (i - 1) : i;
+            const int i_xhi = (per_x || i < dom_hi.x) ? (i + 1) : i;
+            const int j_ylo = (per_y || j > dom_lo.y) ? (j - 1) : j;
+            const int j_yhi = (per_y || j < dom_hi.y) ? (j + 1) : j;
 
             // 5-point stencil
             pblh_tmp(i, j, 0) = weight * pblh(i, j, 0)
@@ -525,12 +559,10 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
                                           pblh(i, j_ylo, 0) + pblh(i, j_yhi, 0));
         });
 
-        // Swap arrays for next iteration (or final result)
-        if (pass < passes - 1) {
-            pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, 0, 0, 1);
-        } else {
-            // Copy final result back
-            pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, 0, 0, 1);
-        }
+        // Copy back only what this pass computed: outside bx the array still holds
+        // the previous pass, which no later pass reads.
+        pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, bx, 0, bx, 0, 1);
     }
 }
+
+#endif

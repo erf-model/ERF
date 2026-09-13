@@ -35,7 +35,6 @@
 #include <ERF_RRTMGP_Interface.H>
 #include <ERF_RRTMGP_Utils.H>
 #include <ERF_OrbCosZenith.H>
-#include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_EOS.H>

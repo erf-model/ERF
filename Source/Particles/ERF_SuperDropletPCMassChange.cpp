@@ -2,7 +2,8 @@
 #include <AMReX_GpuAtomic.H>
 #include <AMReX_GpuBuffer.H>
 #include <AMReX_TracerParticle_mod_K.H>
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_SuperDropletPCMassChange.H"
 #include "ERF_InterpolationUtils.H"
 #include "ERF_MicrophysicsUtils.H"

@@ -13,7 +13,9 @@
 #include <AMReX_Random.H>
 #include <AMReX_GpuContainers.H>
 
-#include "ERF_Constants.H"
+#include <limits>
+#include <cmath>
+#include "ERF_NumericalConstants.H"
 #include "ERF_MaterialProperties.H"
 
 /**

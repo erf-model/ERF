@@ -2,8 +2,10 @@
 #define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
+#include <limits>
 #include <AMReX_GpuPrint.H>
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 
 #ifdef ERF_USE_PARTICLES
 
