@@ -39,53 +39,73 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
         const int domhi_z = geom.Domain().bigEnd(2);
         if (domhi_z > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
-        for ( amrex::MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
+        //
+        // A column is integrated upward from the bottom of its box.  A box stacked on another box
+        //    of this level (the BoxArray is split in z, e.g. amr.max_grid_size below the number of
+        //    cells in z) must continue from the density that box reached, not start afresh from
+        //    the ghost cell below it.  The boxes are therefore integrated in bands of equal lowest
+        //    index, bottom up, and before each band the cells just below it are filled from the
+        //    bands already done.  With a single band nothing is filled.
+        //
+        const amrex::Vector<int> bands = column_bands(rho_hse.boxArray());
+
+        for (const int klo_band : bands)
         {
-            amrex::Array4<amrex::Real      > rho_arr  = rho_hse.array(mfi);
-            amrex::Array4<amrex::Real const> z_cc_arr = z_phys_cc->const_array(mfi);
+            if (klo_band != bands[0]) {
+                fill_below_band(rho_hse, 0, 1, klo_band, amrex::IntVect(1,1,0), geom);
+            }
 
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            const amrex::Box& tbz = mfi.nodaltilebox(2);
-            amrex::Box b2d = tbz; // Copy constructor
-            b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-            b2d.setRange(2,0);
-
-            const int klo = tbz.smallEnd(2);
-            const int khi = tbz.bigEnd(2)-1;
-
-            amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            for ( amrex::MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
             {
-                //
-                // The density we start each column's integration from.  If this box does
-                //    not reach the bottom of the domain then that is the density in the
-                //    ghost cell below the box, which has been interpolated from the
-                //    coarser level.
-                //
-                // NOTE: we must do this lookup here, inside the kernel, for two reasons:
-                //       rho_arr is device memory, so reading it on the host is invalid in
-                //       a GPU build, and -- more importantly -- each column has its own
-                //       surface density, so we must not use the value at one corner of
-                //       the box for every column.
-                //
-                const amrex::Real rho_local_sfc = (klo == 0) ? rho_sfc : rho_arr(i,j,klo-1);
+                amrex::Array4<amrex::Real      > rho_arr  = rho_hse.array(mfi);
+                amrex::Array4<amrex::Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
-                amrex::Array1D<amrex::Real,0,255> r;
-                amrex::Array1D<amrex::Real,0,255> p;
-                HSEutils::init_isentropic_hse_terrain(i,j,rho_local_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+                // Create a flat box with same horizontal extent but only one cell in vertical
+                const amrex::Box& tbz = mfi.nodaltilebox(2);
+                amrex::Box b2d = tbz; // Copy constructor
+                b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
+                b2d.setRange(2,0);
 
-                for (int k = klo; k <= khi; k++) {
-                   rho_arr(i,j,k) = r(k);
-                }
+                const int klo = tbz.smallEnd(2);
+                const int khi = tbz.bigEnd(2)-1;
 
-                // Impose Neumann conditions at bottom and top of domain boundary
-                if (klo == domlo_z) {
-                    rho_arr(i,j,domlo_z-1) = rho_arr(i,j,domlo_z);
-                }
-                if (khi == domhi_z) {
-                    rho_arr(i,j,domhi_z+1) = rho_arr(i,j,domhi_z);
-                }
-            });
-        } // mfi
+                if (klo != klo_band) { continue; }
+
+                amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+                {
+                    //
+                    // The density we start each column's integration from.  If this box does
+                    //    not reach the bottom of the domain then that is the density in the
+                    //    ghost cell below the box: the density the box of this level below it
+                    //    reached or, where there is no such box, the one interpolated from the
+                    //    coarser level.
+                    //
+                    // NOTE: we must do this lookup here, inside the kernel, for two reasons:
+                    //       rho_arr is device memory, so reading it on the host is invalid in
+                    //       a GPU build, and -- more importantly -- each column has its own
+                    //       surface density, so we must not use the value at one corner of
+                    //       the box for every column.
+                    //
+                    const amrex::Real rho_local_sfc = (klo == 0) ? rho_sfc : rho_arr(i,j,klo-1);
+
+                    amrex::Array1D<amrex::Real,0,255> r;
+                    amrex::Array1D<amrex::Real,0,255> p;
+                    HSEutils::init_isentropic_hse_terrain(i,j,rho_local_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+
+                    for (int k = klo; k <= khi; k++) {
+                       rho_arr(i,j,k) = r(k);
+                    }
+
+                    // Impose Neumann conditions at bottom and top of domain boundary
+                    if (klo == domlo_z) {
+                        rho_arr(i,j,domlo_z-1) = rho_arr(i,j,domlo_z);
+                    }
+                    if (khi == domhi_z) {
+                        rho_arr(i,j,domhi_z+1) = rho_arr(i,j,domhi_z);
+                    }
+                });
+            } // mfi
+        } // band
 
     } else {
 
