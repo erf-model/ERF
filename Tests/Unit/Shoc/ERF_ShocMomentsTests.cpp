@@ -70,12 +70,20 @@ TEST(ShocMoments, SurfaceMomentBoundaryConditionsMatchTranslatedE3smSemantics)
         ShocMoments::diagnose_second_moments(col, opts);
     });
 
-    const amrex::Real ustar2 = std::sqrt(0.04 * 0.04 + 0.03 * 0.03);
-    const amrex::Real wstar = std::cbrt((CONST_GRAV / 300.0) * 0.02 * 400.0);
-    const amrex::Real uf = amrex::max(amrex::Real(0.01), std::sqrt(ustar2 + amrex::Real(0.3) * wstar * wstar));
-    const amrex::Real expected_thl_sec = 0.72 * std::pow(0.02 / uf, 2);
-    const amrex::Real expected_qw_sec = 0.72 * std::pow(1.0e-4 / uf, 2);
-    const amrex::Real expected_qwthl = 0.36 * (0.02 / uf) * (1.0e-4 / uf);
+    const amrex::Real ustar2 = std::sqrt(amrex::Real(0.04) * amrex::Real(0.04) +
+                                         amrex::Real(0.03) * amrex::Real(0.03));
+    const amrex::Real wstar = std::cbrt((CONST_GRAV / amrex::Real(300.0)) *
+                                        amrex::Real(0.02) * amrex::Real(400.0));
+    const amrex::Real uf = amrex::max(
+        amrex::Real(0.01),
+        std::sqrt(ustar2 + amrex::Real(0.3) * wstar * wstar));
+    const amrex::Real expected_thl_sec = amrex::Real(0.72) *
+                                         std::pow(amrex::Real(0.02) / uf, 2);
+    const amrex::Real expected_qw_sec = amrex::Real(0.72) *
+                                        std::pow(amrex::Real(1.0e-4) / uf, 2);
+    const amrex::Real expected_qwthl = amrex::Real(0.36) *
+                                       (amrex::Real(0.02) / uf) *
+                                       (amrex::Real(1.0e-4) / uf);
     const amrex::Real expected_wtke = std::pow(amrex::max(std::sqrt(ustar2), amrex::Real(0.01)), 3);
 
     const auto thl_sec = col.thl_sec.const_array();
@@ -83,10 +91,18 @@ TEST(ShocMoments, SurfaceMomentBoundaryConditionsMatchTranslatedE3smSemantics)
     const auto qwthl = col.qwthl_sec.const_array();
     const auto wtke = col.wtke_sec.const_array();
 
-    EXPECT_NEAR(thl_sec(0,0,0), expected_thl_sec, 1.0e-12);
-    EXPECT_NEAR(qw_sec(0,0,0), expected_qw_sec, 1.0e-12);
-    EXPECT_NEAR(qwthl(0,0,0), expected_qwthl, 1.0e-12);
-    EXPECT_NEAR(wtke(0,0,0), expected_wtke, 1.0e-12);
+    EXPECT_NEAR(thl_sec(0,0,0), expected_thl_sec,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_thl_sec, 4));
+    EXPECT_NEAR(qw_sec(0,0,0), expected_qw_sec,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_qw_sec, 4));
+    EXPECT_NEAR(qwthl(0,0,0), expected_qwthl,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_qwthl, 4));
+    EXPECT_NEAR(wtke(0,0,0), expected_wtke,
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       expected_wtke, 4));
 }
 
 TEST(ShocMoments, TopTaperDampsUpperMomentDiagnosticsOnly)

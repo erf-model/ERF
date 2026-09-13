@@ -1546,85 +1546,114 @@ Diffusive Physics
 List of Parameters
 ------------------
 
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                        | Definition                                               | Acceptable Values  | Default          |
-+==================================+==========================================================+====================+==================+
-| **erf.alpha_T**                  | Diffusion coeff. for temperature                         | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.alpha_C**                  | Diffusion coeff. for scalar                              | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rho0_trans**               | Reference density to compute const. rho*Alpha            | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.les_type**                 | Using an LES model, and if so, which type?               | "None",            | "None"           |
-|                                  |                                                          | "Smagorinsky",     |                  |
-|                                  |                                                          | "Deardorff"        |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rans_type**                | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.molec_diff_type**          | Using molecular viscosity and diffusivity?               | "None",            | "None"           |
-|                                  |                                                          | "Constant", or     |                  |
-|                                  |                                                          | "ConstantAlpha"    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.dynamic_viscosity**        | Viscous coeff. if DNS                                    | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cs**                       | Constant Smagorinsky coeff.                              | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_moist_Ri_correction**  | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
-|                                  | model                                                    |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ck**                       | Constant Deardorff k coeff.                              | Real               | 0.1              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ce**                       | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ce_wall**                  | Constant Deardorff epsilon coeff. at the wall; if > 0,   | Real               | 0.0              |
-|                                  | then set Ce to this at k=0                               |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.sigma_k**                  | Constant Deardorff coeff. in downgradient diffusion term | Real               | 0.5              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.theta_ref**                | Reference potential temperature used to characterize     | Real               | 0.0              |
-|                                  | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
-|                                  | instantaneous local value is used                        |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Pr_t**                     | Turbulent Prandtl Number                                 | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Sc_t**                     | Turbulent Schmidt Number                                 | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.num_diff_coeff**           | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
-|                                  | turns it off                                             |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.implicit_before_substep**  | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
-|                                  | before the acoustic substepping rather than after.       |                    |                  |
-|                                  | Forced to true if any level has ``substepping_type`` =   |                    |                  |
-|                                  | ``None``                                                 |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.thermal_stratification**   | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
-|                                  | quantify thermal stratification (per-level)              | thetal             |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.mix_isotropic**            | use an isotropic mixing length (per-level);              | Boolean            | true             |
-|                                  | automatically turned off for 2-D Smagorinsky             |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_Ri_correction**        | apply the Richardson-number correction to the            | Boolean            | true             |
-|                                  | Smagorinsky coefficient (per-level)                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ri_crit**                  | critical Richardson number used by that correction       | Real               | 0.25             |
-|                                  | (per-level)                                              |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cmu0**                     | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cb**                       | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_crit**                  | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
-|                                  | closure (per-level)                                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_min**                   | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
-|                                  | closure (per-level)                                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.max_geom_lscale**          | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
-|                                  | (per-level)                                              |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.dirichlet_k**              | impose a Dirichlet condition on the turbulent kinetic    | Boolean            | false            |
-|                                  | energy at the wall (per-level)                           |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                              | Definition                                               | Acceptable Values  | Default          |
++========================================+==========================================================+====================+==================+
+| **erf.alpha_T**                        | Diffusion coeff. for temperature                         | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.alpha_C**                        | Diffusion coeff. for scalar                              | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rho0_trans**                     | Reference density to compute const. rho*Alpha            | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.les_type**                       | Using an LES model, and if so, which type?               | "None",            | "None"           |
+|                                        |                                                          | "Smagorinsky",     |                  |
+|                                        |                                                          | "Deardorff"        |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_type**                      | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.molec_diff_type**                | Using molecular viscosity and diffusivity?               | "None",            | "None"           |
+|                                        |                                                          | "Constant", or     |                  |
+|                                        |                                                          | "ConstantAlpha"    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dynamic_viscosity**              | Viscous coeff. if DNS                                    | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cs**                             | Constant Smagorinsky coeff.                              | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_moist_Ri_correction**        | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
+|                                        | model                                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ck**                             | Constant Deardorff k coeff.                              | Real               | 0.1              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce**                             | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce_wall**                        | Constant Deardorff epsilon coeff. at the wall; if > 0,   | Real               | 0.0              |
+|                                        | then set Ce to this at k=0                               |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sigma_k**                        | Constant Deardorff coeff. in downgradient diffusion term | Real               | 0.5              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.theta_ref**                      | Reference potential temperature used to characterize     | Real               | 0.0              |
+|                                        | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
+|                                        | instantaneous local value is used                        |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Pr_t**                           | Turbulent Prandtl Number                                 | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Sc_t**                           | Turbulent Schmidt Number                                 | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.num_diff_coeff**                 | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
+|                                        | turns it off                                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_before_substep**        | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
+|                                        | before the acoustic substepping rather than after.       |                    |                  |
+|                                        | Forced to true if any level has ``substepping_type`` =   |                    |                  |
+|                                        | ``None``                                                 |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
+|                                        | quantify thermal stratification (per-level)              | thetal             |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mix_isotropic**                  | use an isotropic mixing length (per-level);              | Boolean            | true             |
+|                                        | automatically turned off for 2-D Smagorinsky             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_Ri_correction**              | apply the Richardson-number correction to the            | Boolean            | true             |
+|                                        | Smagorinsky coefficient (per-level)                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ri_crit**                        | critical Richardson number used by that correction       | Real               | 0.25             |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cmu0**                           | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cb**                             | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_crit**                        | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
+|                                        | closure (per-level)                                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_min**                         | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
+|                                        | closure (per-level)                                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.max_geom_lscale**                | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dirichlet_k**                    | k-equation RANS under a surface layer: set the turbulent | Boolean            | false            |
+|                                        | kinetic energy of the first cell above the wall from u*  |                    |                  |
+|                                        | and t* (Axell & Liungman 2001, Eq. 16) and hold it       |                    |                  |
+|                                        | through the step (per-level)                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.tke_floor**                      | runtime floor on the turbulent kinetic energy [m^2/s^2]  | Real >= 0          | 0 (machine       |
+|                                        | in the k-equation update and the RANS closure; distinct  |                    | epsilon on rho k)|
+|                                        | from ``erf.tke_min``, the initial value (per-level)      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_tke_dissipation**       | Deardorff or k-equation RANS: treat the TKE dissipation  | Boolean            | false            |
+|                                        | implicitly, eps = (C k_old^1/2 / L) k_new folded into    |                    |                  |
+|                                        | the update, which removes the dissipation time-step      |                    |                  |
+|                                        | limit near the wall (per-level)                          |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_consistent_diffusivities**  | k-equation RANS: horizontal heat, scalar and moisture    | Boolean            | false            |
+|                                        | diffusivities follow the scalar stability function       |                    |                  |
+|                                        | (Axell & Liungman Eq. 32) like the vertical heat         |                    |                  |
+|                                        | diffusivity, instead of Pr_t and Sc_t times the eddy     |                    |                  |
+|                                        | viscosity (per-level)                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_from_pblh**          | k-equation RANS: cap the geometric length at kappa times | Boolean            | false            |
+|                                        | 0.1 times the diagnosed PBL height (needs                |                    |                  |
+|                                        | ``erf.most.pblh_calc = MYNN25``), clamped to             |                    |                  |
+|                                        | [``erf.rans_lscale_min``, ``erf.max_geom_lscale``]       |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_min**                | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
+|                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
+|                                        | local surface projected on its normal (no linear solve)  |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
@@ -2651,7 +2680,10 @@ methods for defining how the terrain-fitted coordinates given the topography:
 
 The user can also specify that terrain should be represented with an immersed forcing method
 (with an optional wall model, see :ref:`Forcings` for more detail), or
-with an embedded boundary / cut cell representation.
+with an embedded boundary / cut cell representation.  The embedded boundary
+geometry may be built from the terrain height field, from a three-dimensional
+STL mesh of buildings, or from the union of the two; see
+:ref:`sec:EBBuildingsSTL`.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
 
@@ -3609,43 +3641,132 @@ Embedded Boundary (EB) Tuning
 List of Parameters
 ------------------
 
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                     | Definition                                               | Acceptable Values  | Default          |
-+===============================+==========================================================+====================+==================+
-| **eb2.small_volfrac**         | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
-|                               | effectively empty                                        |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_boundary_type**      | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
-|                               |                                                          | NoSlipWall,        |                  |
-|                               |                                                          | SurfaceLayer       |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_x**  | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_y**  | apply the tangential-diffusion constraint on y-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_z**  | apply the tangential-diffusion constraint on z-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.geometry**              | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
-|                               | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.plane_point**           | a point on the cutting plane.  Read only when            | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``plane``                             |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.plane_normal**          | normal of the cutting plane, pointing into the solid     | 3 Reals            | 0.0 0.0 -1.0     |
-|                               | region.  Read only when ``eb2.geometry`` = ``plane``     |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.box_lo**                | low corner of the embedded box.  Read only when          | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.box_hi**                | high corner of the embedded box.  Read only when         | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                            | Definition                                               | Acceptable Values  | Default          |
++======================================+==========================================================+====================+==================+
+| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
+|                                      | effectively empty                                        |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_boundary_type**             | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
+|                                      |                                                          | NoSlipWall,        |                  |
+|                                      |                                                          | SurfaceLayer       |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_x**         | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_y**         | apply the tangential-diffusion constraint on y-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_z**         | apply the tangential-diffusion constraint on z-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.geometry**                     | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
+|                                      | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_point**                  | a point on the cutting plane.  Read only when            | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``plane``                             |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_normal**                 | normal of the cutting plane, pointing into the solid     | 3 Reals            | 0.0 0.0 -1.0     |
+|                                      | region.  Read only when ``eb2.geometry`` = ``plane``     |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_lo**                       | low corner of the embedded box.  Read only when          | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``box``                               |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_hi**                       | high corner of the embedded box.  Read only when         | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``box``                               |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_file**           | path to an STL file describing 3D building geometry,     | String             | None             |
+|                                      | which is unioned with the terrain implicit function.     |                    |                  |
+|                                      | Read only when ``eb2.geometry`` = ``terrain``            |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_scale**          | uniform scale factor applied to the STL coordinates.     | Real > 0           | 1.0              |
+|                                      | Read only when ``erf.buildings_stl_file`` is set         |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_center**         | translation [m] applied to the STL coordinates after     | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | scaling. Read only when ``erf.buildings_stl_file`` is    |                    |                  |
+|                                      | set                                                      |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_reverse_normal** | flip the orientation of the STL triangle normals, for    | 0 or 1             | 0                |
+|                                      | meshes whose normals point into the solid.  Read only    |                    |                  |
+|                                      | when ``erf.buildings_stl_file`` is set                   |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_only**               | build the embedded boundary from the STL buildings       | Boolean            | true if no       |
+|                                      | alone, leaving the terrain surface out of the implicit   |                    | terrain surface  |
+|                                      | function.  Read only when ``eb2.geometry`` = ``terrain`` |                    | is specified,    |
+|                                      | Setting it to true without                               |                    | false otherwise  |
+|                                      | ``erf.buildings_stl_file`` is an error                   |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. _sec:EBBuildingsSTL:
+
+STL-Based Building Geometry
+---------------------------
+
+When ``eb2.geometry`` = ``terrain`` (the default), the implicit function used to
+cut the mesh can include three-dimensional building geometry read from an STL
+triangle mesh.  Unlike the height-field terrain representation, which stores a
+single surface height per :math:`(x,y)` location and therefore cannot represent
+an overhang or a vertical wall exactly, the STL representation resolves vertical
+walls, roof overhangs and other fully three-dimensional structures.
+
+The STL file is named with ``erf.buildings_stl_file``.  ERF reads either binary
+or ASCII STL, applying ``erf.buildings_stl_scale`` to the coordinates, then
+translating by ``erf.buildings_stl_center``, and flipping the triangle normals
+if ``erf.buildings_stl_reverse_normal`` is set.  These three inputs are read
+only when ``erf.buildings_stl_file`` is present.
+
+.. note:: These inputs use the ``erf`` prefix rather than ``eb2``, because
+          ``eb2`` is AMReX's own namespace and AMReX already reads
+          ``eb2.stl_file``, ``eb2.stl_scale``, ``eb2.stl_center`` and
+          ``eb2.stl_reverse_normal`` for its separate ``eb2.geometry`` =
+          ``stl`` path.  The ERF inputs described here are read only when
+          ``eb2.geometry`` = ``terrain``.
+
+Which geometry is built depends on whether terrain is also requested:
+
+- **Terrain only** (no ``erf.buildings_stl_file``): the implicit function is the
+  terrain height field, exactly as before.
+- **Terrain plus buildings** (``erf.buildings_stl_file`` set and a terrain
+  surface specified): the terrain and building implicit functions are combined
+  with a union, so a cell is solid if it lies below the terrain surface *or*
+  inside a building.
+- **Buildings only** (``erf.buildings_stl_file`` set and no terrain surface
+  specified): the terrain surface is not constructed and the STL mesh alone
+  defines the embedded boundary.  This is the natural choice for an urban case
+  over flat ground, and it also keeps the embedded boundary from coinciding with
+  the lower-:math:`z` domain boundary, so the ground is governed by the ``zlo``
+  boundary condition rather than by ``erf.eb_boundary_type``.
+
+"A terrain surface is specified" means any of the ways ERF can be told about
+terrain: ``erf.terrain_file_name_nc``, ``erf.terrain_file_name``,
+``erf.terrain_file_name_USGS``, or ``prob.custom_terrain_type`` set to anything
+other than ``None``.  This is the same set of sources, in the same precedence
+order, that ``init_terrain_surface`` consults, so a case that would run with
+terrain on its own does not silently lose that terrain when an STL file is added.
+
+You may also state the choice outright instead of relying on that inference, by
+setting ``erf.buildings_only``.  Setting it to ``false`` unions the buildings
+with the terrain surface even when no terrain input is given, which produces a
+flat ground plane at :math:`z = 0`; setting it to ``true`` without an
+``erf.buildings_stl_file`` is an error.
+
+ERF prints which of the three modes it selected, together with the STL file
+name and the scale, center and reverse-normal values, when it builds the EB
+geometry.
+
+Internally the STL mesh is handled by the ``BuildingsIF`` implicit function
+(``Source/EB/ERF_EBIFBuildings.H``), which uses the AMReX ``STLtools``
+infrastructure with bounding-volume-hierarchy acceleration.  At construction it
+samples the signed distance to the mesh onto the finest-level grid, computing
+the samples in parallel across ranks and then replicating the result so that
+each rank can evaluate the implicit function locally, including on the GPU.
+Evaluation is a trilinear interpolation of that sampled field, so the building
+geometry is resolved at the finest level's cell size; points outside the sampled
+region are treated as fluid.  Very large or highly detailed meshes will
+therefore be limited by the mesh resolution rather than by the STL itself.
 
 .. _inputs-particles:
 

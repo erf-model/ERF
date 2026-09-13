@@ -3,7 +3,15 @@
 MOST reference height on a flat periodic column with a stretched vertical
 grid: 4x4x40 cells, `erf.initial_dz = 10`, `erf.grid_stretching_ratio = 1.1`
 (top 4425.9 m), `zlo.type = surface_layer`, `erf.most.z0 = 0.1`, MRF,
-anelastic, `erf.most.zref` unset.
+compressible with implicit acoustic substepping (`erf.fixed_dt = 1`,
+`erf.fixed_mri_dt_ratio = 8`), `erf.most.zref` unset.
+
+The deck is compressible on purpose. The anelastic Poisson solve on a stretched
+or terrain-fitted mesh needs the FFT solver (`ERF_ENABLE_FFT`), and the CI
+builds without it, so an anelastic version of this deck aborted three of the
+four cases below with "Rebuild with USE_FFT = TRUE". The reference-height
+lookups do not depend on the dycore: u*(0) is the same to all six digits in
+both, and the stretched-against-uniform comparison changes by under 1e-4.
 
 The initial wind is sheared on purpose. `sounding_most_zref` ramps it linearly
 from 10 m/s at the ground to 15 m/s at 50 m, and holds it constant above. ERF
@@ -76,8 +84,8 @@ Stretched against uniform, new binary:
 | t [s] | stretched u* | uniform u* | rel diff |
 |---|---|---|---|
 | 0 | 1.10045 | 1.10045 | 0 |
-| 5 | 1.0636 | 1.06323 | 3.5e-04 |
-| 10 | 1.03113 | 1.03083 | 2.9e-04 |
+| 5 | 1.06358 | 1.06321 | 3.5e-04 |
+| 10 | 1.0311 | 1.03079 | 3.0e-04 |
 
 ## Running by hand
 

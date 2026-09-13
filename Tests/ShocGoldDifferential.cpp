@@ -29,13 +29,10 @@ struct FieldTolerance {
     Real relative;
 };
 
-// These are source-reviewed tolerances for the shared cloudy SHOC golds.  The
-// additive absolute-plus-relative rule below keeps small moisture and
-// diagnostic fields tighter than a single global fcompare absolute floor.
-// The expanded entries below cover the measured deterministic
-// CPU/compiler envelope from the stable-cloud CI failures; all other fields
-// retain their pre-repair limits.
-const std::map<std::string, FieldTolerance>& tolerance_profile ()
+// These are the existing DOUBLE tolerances for field-aware cloudy SHOC
+// comparisons. Clear-sky DOUBLE regressions retain their historical strict
+// amrex_fcompare path in CTest.
+[[maybe_unused]] const std::map<std::string, FieldTolerance>& double_tolerance_profile ()
 {
     static const std::map<std::string, FieldTolerance> profile {
         {"density",     {1.0e-10, 3.0e-8}},
@@ -66,6 +63,96 @@ const std::map<std::string, FieldTolerance>& tolerance_profile ()
     return profile;
 }
 
+// SINGLE-vs-shared-gold tolerances are field-specific and were rounded up from
+// the measured deterministic baseline envelope across the seven SHOC cases.
+// The additive absolute-plus-relative rule keeps near-zero diagnostics from
+// receiving a global absolute floor.  The two clear profiles retain separate
+// z-velocity absolute bounds because that field is close to zero in BOMEX.
+[[maybe_unused]] const std::map<std::string, FieldTolerance>& single_cloudy_tolerance_profile ()
+{
+    static const std::map<std::string, FieldTolerance> profile {
+        {"density",     {1.0e-8,  3.0e-6}},
+        {"rhoKE",       {1.0e-8,  8.0e-5}},
+        {"x_velocity",  {1.0e-8,  7.0e-5}},
+        {"y_velocity",  {1.0e-8,  3.0e-5}},
+        {"z_velocity",  {6.0e-5,  2.0e-3}},
+        {"temp",        {1.0e-6,  5.0e-6}},
+        {"theta",       {1.0e-6,  5.0e-6}},
+        {"pressure",    {1.0e-3,  3.0e-6}},
+        {"Kmv",         {1.0e-6,  2.0e-4}},
+        {"Khv",         {1.0e-6,  2.0e-4}},
+        {"Lturb",       {1.0e-5,  1.5e-3}},
+        {"shoc_cldfrac",{1.0e-12, 1.0e-10}},
+        {"shoc_ql",     {1.0e-9,  7.0e-4}},
+        {"shoc_cond",   {1.0e-10, 4.0e-3}},
+        {"brunt",       {1.0e-9,  5.0e-3}},
+        {"shear_prod",  {1.0e-11, 1.0e-3}},
+        {"buoy_prod",   {1.0e-10, 3.0e-3}},
+        {"diss_tke",    {1.0e-10, 2.0e-4}},
+        {"qv",          {1.0e-9,  2.0e-5}},
+        {"qc",          {1.0e-9,  7.0e-4}},
+        {"qi",          {1.0e-12, 1.0e-8}},
+        {"qrain",       {1.0e-10, 2.0e-3}},
+        {"qsnow",       {1.0e-12, 1.0e-8}},
+        {"qgraup",      {1.0e-12, 1.0e-8}}
+    };
+    return profile;
+}
+
+[[maybe_unused]] const std::map<std::string, FieldTolerance>& single_stable_clear_tolerance_profile ()
+{
+    static const std::map<std::string, FieldTolerance> profile {
+        {"density",     {1.0e-8,  3.0e-6}},
+        {"rhoKE",       {1.0e-8,  3.0e-4}},
+        {"x_velocity",  {1.0e-8,  4.0e-5}},
+        {"y_velocity",  {1.0e-8,  4.0e-5}},
+        {"z_velocity",  {5.0e-5,  3.0e-3}},
+        {"temp",        {1.0e-6,  1.0e-6}},
+        {"theta",       {1.0e-6,  2.0e-6}},
+        {"pressure",    {1.0e-2,  2.0e-6}},
+        {"Kmv",         {1.0e-6,  3.0e-4}},
+        {"Khv",         {1.0e-6,  3.0e-4}},
+        {"Lturb",       {1.0e-4,  1.0e-4}},
+        {"shoc_cldfrac",{1.0e-12, 1.0e-12}},
+        {"shoc_ql",     {1.0e-12, 1.0e-12}},
+        {"shoc_cond",   {1.0e-12, 1.0e-12}},
+        {"brunt",       {1.0e-9,  3.0e-3}},
+        {"shear_prod",  {1.0e-11, 1.0e-3}},
+        {"buoy_prod",   {1.0e-9,  4.0e-3}},
+        {"diss_tke",    {1.0e-10, 3.0e-4}},
+        {"qv",          {1.0e-9,  1.0e-6}},
+        {"qc",          {1.0e-12, 1.0e-12}}
+    };
+    return profile;
+}
+
+[[maybe_unused]] const std::map<std::string, FieldTolerance>& single_unstable_clear_tolerance_profile ()
+{
+    static const std::map<std::string, FieldTolerance> profile {
+        {"density",     {1.0e-8,  3.0e-6}},
+        {"rhoKE",       {1.0e-8,  1.0e-4}},
+        {"x_velocity",  {1.0e-8,  2.0e-5}},
+        {"y_velocity",  {1.0e-8,  1.0e-5}},
+        {"z_velocity",  {1.2e-4, 1.0e-3}},
+        {"temp",        {1.0e-6,  3.0e-6}},
+        {"theta",       {1.0e-6,  3.0e-6}},
+        {"pressure",    {1.0e-2,  3.0e-6}},
+        {"Kmv",         {1.0e-6,  8.0e-5}},
+        {"Khv",         {1.0e-6,  8.0e-5}},
+        {"Lturb",       {1.0e-4,  1.0e-4}},
+        {"shoc_cldfrac",{1.0e-12, 1.0e-12}},
+        {"shoc_ql",     {1.0e-12, 1.0e-12}},
+        {"shoc_cond",   {1.0e-12, 1.0e-12}},
+        {"brunt",       {1.0e-9,  1.2e-2}},
+        {"shear_prod",  {1.0e-11, 5.0e-4}},
+        {"buoy_prod",   {1.0e-9,  1.2e-2}},
+        {"diss_tke",    {1.0e-10, 2.0e-4}},
+        {"qv",          {1.0e-9,  2.0e-6}},
+        {"qc",          {1.0e-12, 1.0e-12}}
+    };
+    return profile;
+}
+
 const std::vector<std::string>& base_fields ()
 {
     static const std::vector<std::string> fields {
@@ -82,6 +169,8 @@ const std::vector<std::string>& fields_for_mode (const std::string& mode)
     static const std::vector<std::string> stable_cloud = base_fields();
     static const std::vector<std::string> unstable_cloud = base_fields();
     static const std::vector<std::string> unstable_cloud_nocond = base_fields();
+    static const std::vector<std::string> stable_clear = base_fields();
+    static const std::vector<std::string> unstable_clear = base_fields();
     static const std::vector<std::string> unstable_cloud_kessler = [] {
         auto fields = base_fields();
         fields.emplace_back("qrain");
@@ -96,6 +185,12 @@ const std::vector<std::string>& fields_for_mode (const std::string& mode)
         return fields;
     }();
 
+    if (mode == "stable_clear") {
+        return stable_clear;
+    }
+    if (mode == "unstable_clear") {
+        return unstable_clear;
+    }
     if (mode == "stable_cloud") {
         return stable_cloud;
     }
@@ -116,7 +211,8 @@ const std::vector<std::string>& fields_for_mode (const std::string& mode)
 
 bool is_supported_mode (const std::string& mode)
 {
-    return mode == "stable_cloud" || mode == "unstable_cloud" ||
+    return mode == "stable_clear" || mode == "unstable_clear" ||
+           mode == "stable_cloud" || mode == "unstable_cloud" ||
            mode == "unstable_cloud_nocond" || mode == "unstable_cloud_kessler" ||
            mode == "unstable_cloud_wsm6";
 }
@@ -237,7 +333,24 @@ Real maximum_difference (const MultiFab& candidate, const MultiFab& gold)
     return difference.norm0();
 }
 
-bool compare_fields (PlotFileData& gold,
+const std::map<std::string, FieldTolerance>& tolerance_profile (const std::string& mode)
+{
+#ifdef AMREX_USE_FLOAT
+    if (mode == "stable_clear") {
+        return single_stable_clear_tolerance_profile();
+    }
+    if (mode == "unstable_clear") {
+        return single_unstable_clear_tolerance_profile();
+    }
+    return single_cloudy_tolerance_profile();
+#else
+    amrex::ignore_unused(mode);
+    return double_tolerance_profile();
+#endif
+}
+
+bool compare_fields (const std::string& mode,
+                     PlotFileData& gold,
                      PlotFileData& candidate,
                      const std::vector<std::string>& fields)
 {
@@ -255,7 +368,7 @@ bool compare_fields (PlotFileData& gold,
             scale = std::max(scale, std::max(candidate_field.norm0(), gold_field.norm0()));
         }
 
-        const FieldTolerance tolerance = tolerance_profile().at(field);
+        const FieldTolerance tolerance = tolerance_profile(mode).at(field);
         const Real allowed_error = tolerance.absolute + tolerance.relative * scale;
         const bool passed = absolute_error <= allowed_error;
         all_passed = all_passed && passed;
@@ -296,7 +409,7 @@ main (int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    const bool passed = compare_fields(gold, candidate, fields);
+    const bool passed = compare_fields(args.mode, gold, candidate, fields);
     amrex::Finalize();
     return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 }

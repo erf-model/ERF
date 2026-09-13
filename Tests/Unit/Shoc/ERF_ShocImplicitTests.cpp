@@ -137,7 +137,8 @@ TEST(ShocImplicit, ThermodynamicHelpersMatchTranslatedE3smFixtures)
         shoc_test::read_fixture_vector("implicit_energy/e3sm_compute_shoc_temperature_decreasing_profile.txt");
     ASSERT_EQ(tabs_profile.size(), 3);
     EXPECT_NEAR(ShocImplicit::compute_temperature(300.0, 1.0e-5, 1.0 / 1.1), tabs_profile[0], 1.0e-12);
-    EXPECT_NEAR(ShocImplicit::compute_temperature(350.0, 1.0e-5, 1.0 / 1.5), tabs_profile[1], 1.0e-12);
+    EXPECT_NEAR(ShocImplicit::compute_temperature(350.0, 1.0e-5, 1.0 / 1.5), tabs_profile[1],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12), tabs_profile[1], 2));
     EXPECT_NEAR(ShocImplicit::compute_temperature(400.0, 1.0e-5, 0.5), tabs_profile[2], 1.0e-12);
 
     const amrex::Real exner = 0.75;
@@ -154,7 +155,8 @@ TEST(ShocImplicit, ThermodynamicHelpersMatchTranslatedE3smFixtures)
     EXPECT_NEAR(ShocImplicit::compute_vapor(1.0e-2, 0.0), vapor_fixture[0], 1.0e-15);
     EXPECT_NEAR(ShocImplicit::compute_vapor(1.2e-2, 0.0), vapor_fixture[1], 1.0e-15);
     EXPECT_NEAR(ShocImplicit::compute_vapor(1.5e-2, 1.5e-4), vapor_fixture[2], 1.0e-15);
-    EXPECT_NEAR(ShocImplicit::compute_vapor(1.7e-2, 2.0e-3), vapor_fixture[3], 1.0e-15);
+    EXPECT_NEAR(ShocImplicit::compute_vapor(1.7e-2, 2.0e-3), vapor_fixture[3],
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-15), vapor_fixture[3], 4));
     EXPECT_NEAR(ShocImplicit::compute_vapor(2.0e-2, 0.0), vapor_fixture[4], 1.0e-15);
 }
 
@@ -208,8 +210,12 @@ TEST(ShocImplicit, GeometryHelpersMatchTranslatedE3smFixtures)
     ASSERT_EQ(rdp_zt.size(), rdp_fixture.size());
 
     for (int k = 0; k < static_cast<int>(rdp_fixture.size()); ++k) {
-        EXPECT_NEAR(rdp_zt[k], rdp_fixture[k], 1.0e-15);
-        EXPECT_NEAR(tmpi[k], tmpi_fixture[k], 1.0e-12);
+        EXPECT_NEAR(rdp_zt[k], rdp_fixture[k],
+                    shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-15),
+                                                           rdp_fixture[k], 4));
+        EXPECT_NEAR(tmpi[k], tmpi_fixture[k],
+                    shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                           tmpi_fixture[k], 4));
     }
 }
 
@@ -263,11 +269,19 @@ TEST(ShocImplicit, UniformProfileWithNoFluxRemainsUnchanged)
 
     for (int k = 0; k < col.layout.nlev; ++k) {
         EXPECT_NEAR(theta_tend(0,k,0), 0.0, 1.0e-12);
-        EXPECT_NEAR(qv_tend(0,k,0), 0.0, 1.0e-12);
+        // The largest observed SINGLE cancellation residual is 9.31e-11 for
+        // qv and 1.19e-8 for momentum/TKE tendencies in this zero-flux case.
+        EXPECT_NEAR(qv_tend(0,k,0), amrex::Real(0.0),
+                    shoc_test::precision_aware_tolerance(amrex::Real(1.0e-12),
+                                                          amrex::Real(2.0e-10)));
         EXPECT_NEAR(qc_tend(0,k,0), 0.0, 1.0e-12);
         EXPECT_NEAR(u_tend(0,k,0), 0.0, 1.0e-12);
-        EXPECT_NEAR(v_tend(0,k,0), 0.0, 1.0e-12);
-        EXPECT_NEAR(tke_tend(0,k,0), 0.0, 1.0e-12);
+        EXPECT_NEAR(v_tend(0,k,0), amrex::Real(0.0),
+                    shoc_test::precision_aware_tolerance(amrex::Real(1.0e-12),
+                                                          amrex::Real(2.0e-8)));
+        EXPECT_NEAR(tke_tend(0,k,0), amrex::Real(0.0),
+                    shoc_test::precision_aware_tolerance(amrex::Real(1.0e-12),
+                                                          amrex::Real(5.0e-9)));
     }
 }
 
@@ -323,8 +337,12 @@ TEST(ShocImplicit, PdfDiagnosedLiquidFeedsHostWriteback)
     const auto qv_out = col.qv.const_array();
     const auto qc_out = col.qc.const_array();
 
-    EXPECT_NEAR(qc_out(0,1,0), 1.0e-3, 1.0e-12);
-    EXPECT_NEAR(qv_out(0,1,0), 0.011, 1.0e-12);
+    EXPECT_NEAR(qc_out(0,1,0), amrex::Real(1.0e-3),
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       amrex::Real(1.0e-3), 2));
+    EXPECT_NEAR(qv_out(0,1,0), amrex::Real(0.011),
+                shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                       amrex::Real(0.011), 2));
     EXPECT_GT(theta_out(0,1,0), 300.0);
     EXPECT_GT(qc_tend(0,1,0), 0.0);
     EXPECT_LT(qv_tend(0,1,0), 0.0);
@@ -606,7 +624,11 @@ TEST(ShocEnergyFixer, LiquidPartitionChangeDoesNotCreateEnergyCorrection)
                                   u_new, v_new, tke_new);
 
     for (int k = 0; k < col.layout.nlev; ++k) {
-        EXPECT_NEAR(thl_new[k], thl_old[k], 1.0e-12)
+        // The SINGLE result is one represented-temperature ulp below 300 K;
+        // two ulps bound the measured liquid-repartition cancellation.
+        EXPECT_NEAR(thl_new[k], thl_old[k],
+                    shoc_test::precision_scaled_tolerance(amrex::Real(1.0e-12),
+                                                           thl_old[k], 2))
             << "E3SM's moist-energy convention cancels the latent heating "
             << "already present in host_dse for liquid repartitioning.";
     }
@@ -727,13 +749,13 @@ TEST(ShocImplicit, SurfaceFluxScalingMatchesE3smFormula)
     }
     zi(0,col.layout.nlev,0) = 40.0 * col.layout.nlev;
 
-    const amrex::Real wthl_sfc = 0.008;
+    const amrex::Real wthl_sfc = amrex::Real(0.008);
     shoc::set_fab_val(col.surf_sens_flux, wthl_sfc, shoc::InitRunOn::Host);
     shoc::set_fab_val(col.surf_lat_flux, 0.0, shoc::InitRunOn::Host);
     shoc::set_fab_val(col.surf_tau_u, 0.0, shoc::InitRunOn::Host);
     shoc::set_fab_val(col.surf_tau_v, 0.0, shoc::InitRunOn::Host);
 
-    const amrex::Real dt = 5.0;
+    const amrex::Real dt = amrex::Real(5.0);
     ShocRuntimeOptions opts;
     shoc_test::run_and_sync([&] {
         ShocImplicit::update_prognostics(col, opts, dt);
@@ -746,15 +768,20 @@ TEST(ShocImplicit, SurfaceFluxScalingMatchesE3smFormula)
     //   delta_thetal = cmnfac * wthl_sfc = dt / dz * wthl_sfc
     //               = 5.0 / 40.0 * 0.008 = 0.001 K
     const amrex::Real rho_zi_sfc = rho(0,0,0); // linear interp at z=0 ≈ rho
-    const amrex::Real expected_cmnfac = dt * rho_zi_sfc / (rho(0,0,0) * 40.0);
+    const amrex::Real expected_cmnfac = dt * rho_zi_sfc /
+                                        (rho(0,0,0) * amrex::Real(40.0));
     const amrex::Real expected_delta = expected_cmnfac * wthl_sfc;
+    const amrex::Real expected_delta_represented =
+        (amrex::Real(300.0) + expected_delta) - amrex::Real(300.0);
 
     const auto thetal_new = col.thetal.const_array();
     const amrex::Real actual_delta = thetal_new(0,0,0) - 300.0;
 
     // The key check: the bottom-cell increment must match the E3SM formula,
     // not be ~20x weaker (which the old tmpi[0]*rdp_zt[0] factor produced).
-    EXPECT_NEAR(actual_delta, expected_delta, 1.0e-6)
+    EXPECT_NEAR(actual_delta, expected_delta_represented,
+                shoc_test::precision_scaled_tolerance(
+                    amrex::Real(1.0e-6), amrex::Real(300.0), 1))
         << "Surface flux scaling diverges from E3SM cmnfac = dt*g*rho_zi*rdp_zt";
 
     // Cells above the bottom must be essentially unchanged (zero diffusion)
