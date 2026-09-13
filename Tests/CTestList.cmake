@@ -213,6 +213,50 @@ function(add_test_cloud_chamber_parity TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/budget_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/budget_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_cloud_chamber_parity)
 
+# Run the deck in test_files/<TEST_FILES_DIR> on a single box (one rank) and on a split
+# BoxArray (ERF_TEST_NRANKS ranks) and compare the two plotfiles PLTFILE with fcompare.
+# COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
+# SPLIT_OPTIONS give the split (the deck's own grid when empty).
+function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_BP_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_BP_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_BP_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_BP_FCOMPARE_ATOL}")
+    endif()
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DPLTFILE=${PLTFILE}
+        -DRTOL=${_fcompare_rtol}
+        -DATOL=${_fcompare_atol}
+        "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
+        "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
+        "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;box-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_box_parity)
+
 function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
     set(_cloud_chamber_input_name "${SOURCE_NAME}")
     set(TEST_FILES_DIR "${SOURCE_NAME}")
@@ -747,6 +791,29 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# A terrain-fitted mesh whose BoxArray is split in z (amr.max_grid_size below the number of
+# cells in z), under a MOST surface layer. The anelastic case covers the projection as well,
+# but its terrain Poisson solve is the FFT-preconditioned GMRES, so it needs the FFT build.
+# The compressible case without acoustic substepping runs in every build.
+if(ERF_ENABLE_FFT)
+add_test_r(ABL_MOST_WOA_ZSplit               ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+endif()
+add_test_r(ABL_MOST_WOA_ZSplit_NoSub         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# The ZSplit decks on one box against their 12 boxes: the base state and the projection used to
+# depend on the split in z (u 0.01 m/s and theta 0.18 K apart after 10 steps in the anelastic
+# case). The runner is a cmake -P script, so it needs MPI and cannot expand the Windows exe glob.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+if(ERF_ENABLE_FFT)
+add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_BoxParity/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size=64"
+    FCOMPARE_RTOL "1.0e-9")
+endif()
+add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size=64"
+    FCOMPARE_RTOL "1.0e-9")
+endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_TKE
