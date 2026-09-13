@@ -194,6 +194,8 @@ endfunction(add_test_cloud_chamber)
 # and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
 # (surface at k = 0, cooling to space from the top layer).
 function(add_test_two_stream_radiation TEST_NAME PLTFILE)
+    set(oneValueArgs "RUNTIME_OPTIONS")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
@@ -211,6 +213,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         -DCHECKER_LOG=${test_checker_log}
         -DCHECKER=${TWO_STREAM_RADIATION_CHECKER}
         -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        "-DRUNTIME_OPTIONS=${ADD_TEST_TSR_RUNTIME_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1070,6 +1073,11 @@ endif()
 # there like the other script-driven tests.
 if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_two_stream_radiation(TwoStream_ColumnHeating "plt00002")
+  # Same column over a Witch-of-Agnesi hill on a terrain-fitted mesh: the
+  # layer thicknesses come from the nodal heights, every column differs, and
+  # the runner's 1-rank vs NRANKS comparison of the diagnostics CSV has a
+  # real signal (rank-local means fail it).
+  add_test_two_stream_radiation(TwoStream_ColumnHeating_Terrain "plt00002")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

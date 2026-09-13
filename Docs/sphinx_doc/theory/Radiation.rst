@@ -178,7 +178,11 @@ The emission temperature of each layer is the absolute temperature, recovered fr
 where :math:`\theta_m = \theta (1 + R_v q_v / R_d)` is the moist potential temperature. The column
 sweeps follow ERF's vertical index convention: the lowest cell-centered index is the layer adjacent to
 the surface and the highest index is the layer adjacent to the top of the domain, with fluxes stored on
-the layer interfaces between them.
+the layer interfaces between them. On a stretched or terrain-following grid the thickness of a layer is
+the distance between its two interfaces, taken from the nodal heights ``z_phys_nd`` (each interface
+height over a column is the mean of its four nodes); that thickness enters both the heating-rate
+divergence :math:`\Delta F / (\rho c_p \Delta z)` and the mass path :math:`\rho \Delta z` of the
+mass optical-depth model. On a uniform grid it is the cell size.
 
 In each layer, the two-stream equations for upward (:math:`F_{\uparrow}`) and downward (:math:`F_{\downarrow}`)
 fluxes are:
@@ -343,7 +347,7 @@ relative humidity (RH) and cloud liquid water content (qc):
 
 .. math::
 
-   C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + c_{\text{qc}} q_c \right)
+   C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + \min \left( 1, \frac{q_c}{q_{c,\text{scale}}} \right) \right)
 
 where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage
 (RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional

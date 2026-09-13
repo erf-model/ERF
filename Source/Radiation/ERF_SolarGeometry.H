@@ -238,8 +238,9 @@ amrex::Real compute_solar_zenith_angle(
  * @brief Compute solar azimuth angle from declination, hour angle, latitude, and zenith.
  *
  * Standard spherical-trigonometry formula (accounting for all quadrants):
- *   sin(azimuth) = sin(hour_angle) * cos(decl) / sin(zenith)
- *   cos(azimuth) = (sin(decl) - sin(zenith_angle) * sin(lat)) / (cos(zenith_angle) * cos(lat))
+ *   sin(azimuth) = -sin(hour_angle) * cos(decl) / sin(zenith)
+ *   (the hour angle is negative before solar noon, when the sun is east of south)
+ *   cos(azimuth) = (sin(decl) - cos(zenith) * sin(lat)) / (sin(zenith) * cos(lat))
  *
  * Azimuth convention: 0° = north, 90° = east, 180° = south, 270° = west.
  *
@@ -276,9 +277,14 @@ amrex::Real compute_solar_azimuth_angle(
     if (sin_zenith < 1.0e-6) return 0.0;
 
     // Compute numerator and denominator for sine/cosine of azimuth
-    amrex::Real sin_azimuth = std::sin(hour_angle_rad) * std::cos(declination_rad) / sin_zenith;
-    amrex::Real cos_azimuth = (std::sin(declination_rad) - sin_zenith * std::sin(latitude_rad))
-        / (cos_zenith * std::cos(latitude_rad));
+    // Hour angle < 0 before solar noon (sun east of south, azimuth < pi), so the
+    // sign is flipped for the clockwise-from-north convention.
+    amrex::Real sin_azimuth = -std::sin(hour_angle_rad) * std::cos(declination_rad) / sin_zenith;
+    // Guard the pole, where the azimuth is undefined (cos(lat) = 0).
+    const amrex::Real cos_lat = std::cos(latitude_rad);
+    if (std::abs(cos_lat) < 1.0e-6) return 0.0;
+    amrex::Real cos_azimuth = (std::sin(declination_rad) - cos_zenith * std::sin(latitude_rad))
+        / (sin_zenith * cos_lat);
 
     // Use atan2 to get full-quadrant azimuth angle [-pi, pi]
     // Then adjust to [0, 2*pi] (north = 0, east = pi/2)

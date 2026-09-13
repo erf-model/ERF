@@ -3329,7 +3329,7 @@ time-varying solar geometry based on astronomical calculations, heterogeneous/LS
 albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional
 Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface
 temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``;
-other options are ``None`` and ``RRTMGP``.
+other options are ``None`` and ``RRTMGP``. It cannot be combined with ``erf.radiation_model``; the run stops at start-up if both are set.
 
 
 
@@ -3453,7 +3453,7 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.cloud_fraction_rh_max**            | Maximum RH threshold for cloud fraction saturation [0,1]   | Real [0,1]         | 1.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.cloud_fraction_qc_scale**          | Scaling coefficient for qc contribution to cloud fraction  | Real >= 0          | 1.0e-3           |
+| **erf.radiation.cloud_fraction_qc_scale**          | Cloud water [kg/kg] at which the qc term alone saturates   | Real > 0           | 1.0e-3           |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Aerosol/Turbidity Parameters**                   |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

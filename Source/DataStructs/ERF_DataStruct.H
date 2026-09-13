@@ -1161,6 +1161,13 @@ struct SolverChoice {
         }
 
         radChoice.init_params(0, max_level, pp_prefix);
+        // The two radiation selectors are independent inputs. With both set the
+        // RRTMGP branch would take the pre-dycore call and the two-stream
+        // post-dycore call would step a surface state no sweep ever fed.
+        if (rad_type != RadiationType::None && radChoice.rad_type == RadType::TwoStream) {
+            amrex::Abort("erf.radiation_model and erf.radiation_type = TwoStream are both set; "
+                         "select one radiation model.");
+        }
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {

@@ -483,28 +483,29 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 }
 
-// Motivation: verify that radiation heating variables (qsrc_sw, qsrc_lw)
-// are available when either RRTMGP or TwoStream radiation is active, but not when
-// radiation is disabled. This regression test ensures the capability check correctly
-// recognizes both solverChoice.rad_type (RRTMGP) and solverChoice.radChoice.rad_type
-// (TwoStream) as sources of radiation heating.
+// Motivation: qsrc_sw / qsrc_lw storage exists for either radiation
+// selector. The predicate ERF::setPlotVariables evaluates is
+// erf_plotfile::radiation_heating_storage_available, so drive that with the
+// two selector enums rather than setting the capability flag by hand; the
+// test fails if the TwoStream half of the mapping is dropped.
 TEST(Plotfile3DSelection, RadiationHeatingStorageRecognizesTwoStreamAndRRTMGP)
 {
+    // No radiation at all
+    EXPECT_FALSE(erf_plotfile::radiation_heating_storage_available(RadiationType::None, RadType::None));
     auto caps_no_rad = make_capabilities(MoistureType::None);
-    // No radiation: heating variables should be unavailable
-    caps_no_rad.radiation_heating_storage = false;
+    caps_no_rad.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(RadiationType::None, RadType::None);
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_no_rad));
     EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_no_rad));
 
-    // RRTMGP enabled (via solverChoice.rad_type)
-    auto caps_rrtmgp = make_capabilities(MoistureType::None);
-    caps_rrtmgp.radiation_heating_storage = true;  // Simulates RRTMGP active
-    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_rrtmgp));
-    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_rrtmgp));
+    // RRTMGP through erf.radiation_model
+    EXPECT_TRUE(erf_plotfile::radiation_heating_storage_available(RadiationType::RRTMGP, RadType::None));
 
-    // TwoStream enabled (via solverChoice.radChoice.rad_type)
+    // Two-stream through erf.radiation_type
+    EXPECT_TRUE(erf_plotfile::radiation_heating_storage_available(RadiationType::None, RadType::TwoStream));
     auto caps_twostream = make_capabilities(MoistureType::None);
-    caps_twostream.radiation_heating_storage = true;  // Simulates TwoStream active
+    caps_twostream.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(RadiationType::None, RadType::TwoStream);
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_twostream));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_twostream));
 }

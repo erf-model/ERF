@@ -1,6 +1,7 @@
 #ifndef ERF_RAD_STRUCT_H_
 #define ERF_RAD_STRUCT_H_
 
+#include <cmath>
 #include <string>
 #include <iostream>
 
@@ -544,9 +545,9 @@ public:
   amrex::Real cloud_fraction_rh_max = 1.0;
 
   /**
-   * @brief Scaling coefficient for cloud liquid water contribution to cloud fraction [dimensionless].
-   * Cloud fraction has additional contribution from qc: cf += cloud_fraction_qc_scale * qc.
-   * Default 1.0e-3 converts qc [kg/kg] to dimensionless cloud fraction contribution.
+   * @brief Cloud water [kg/kg] at which the liquid-water term alone gives a
+   * cloud fraction of 1: cf += min(1, qc / cloud_fraction_qc_scale).
+   * Default 1.0e-3 kg/kg, so a typical stratus cloud water saturates the term.
    * Only used when cloud_fraction_prog_enable == true.
    */
   amrex::Real cloud_fraction_qc_scale = 1.0e-3;
@@ -718,6 +719,42 @@ public:
    *
    * Sub-option queries are only performed if rad_type == RadType::TwoStream.
    */
+  /**
+   * @brief Bring an out-of-range input back into its valid range and say so.
+   * Every erf.radiation.* value with a physical range passes through one of
+   * these, so a typo in a deck is reported instead of silently corrected.
+   */
+  static void clamp_low (const char* key, amrex::Real& value, amrex::Real lo)
+  {
+    if (value < lo) {
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: erf.radiation." << key << " = " << value
+                       << " is below its minimum " << lo << "; using " << lo << "\n";
+      }
+      value = lo;
+    }
+  }
+  static void clamp_high (const char* key, amrex::Real& value, amrex::Real hi)
+  {
+    if (value > hi) {
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: erf.radiation." << key << " = " << value
+                       << " is above its maximum " << hi << "; using " << hi << "\n";
+      }
+      value = hi;
+    }
+  }
+  static void reset_nonpositive (const char* key, amrex::Real& value, amrex::Real fallback)
+  {
+    if (!std::isfinite(value) || value <= 0.0) {
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        amrex::Print() << "WARNING: erf.radiation." << key << " = " << value
+                       << " must be positive; using " << fallback << "\n";
+      }
+      value = fallback;
+    }
+  }
+
   void init_params(int lev, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
@@ -778,21 +815,21 @@ public:
       pp.query("radiation.sw_kext_cloud", sw_kext_cloud);
       pp.query("radiation.sw_cloud_omega", sw_cloud_omega);
       pp.query("radiation.sw_cloud_g", sw_cloud_g);
-      if (sw_kabs_dry < 0.0) sw_kabs_dry = 0.0;
-      if (sw_kscat_dry < 0.0) sw_kscat_dry = 0.0;
-      if (sw_kabs_vapor < 0.0) sw_kabs_vapor = 0.0;
-      if (sw_kext_cloud < 0.0) sw_kext_cloud = 0.0;
-      if (sw_cloud_omega < 0.0) sw_cloud_omega = 0.0;
-      if (sw_cloud_omega > 1.0) sw_cloud_omega = 1.0;
-      if (sw_cloud_g < -1.0) sw_cloud_g = -1.0;
-      if (sw_cloud_g > 1.0) sw_cloud_g = 1.0;
+      clamp_low("sw_kabs_dry", sw_kabs_dry, 0.0);
+      clamp_low("sw_kscat_dry", sw_kscat_dry, 0.0);
+      clamp_low("sw_kabs_vapor", sw_kabs_vapor, 0.0);
+      clamp_low("sw_kext_cloud", sw_kext_cloud, 0.0);
+      clamp_low("sw_cloud_omega", sw_cloud_omega, 0.0);
+      clamp_high("sw_cloud_omega", sw_cloud_omega, 1.0);
+      clamp_low("sw_cloud_g", sw_cloud_g, -1.0);
+      clamp_high("sw_cloud_g", sw_cloud_g, 1.0);
       pp.query("radiation.lw_mass_absorption_enable", lw_mass_absorption_enable);
       pp.query("radiation.lw_kabs_dry", lw_kabs_dry);
       pp.query("radiation.lw_kabs_vapor", lw_kabs_vapor);
       pp.query("radiation.lw_kabs_cloud", lw_kabs_cloud);
-      if (lw_kabs_dry < 0.0) lw_kabs_dry = 0.0;
-      if (lw_kabs_vapor < 0.0) lw_kabs_vapor = 0.0;
-      if (lw_kabs_cloud < 0.0) lw_kabs_cloud = 0.0;
+      clamp_low("lw_kabs_dry", lw_kabs_dry, 0.0);
+      clamp_low("lw_kabs_vapor", lw_kabs_vapor, 0.0);
+      clamp_low("lw_kabs_cloud", lw_kabs_cloud, 0.0);
       pp.query("radiation.v", verbosity);
       pp.query("radiation.diag_file", diag_file);
 
@@ -820,9 +857,9 @@ public:
       pp.query("radiation.cloud_fraction", cloud_fraction);
 
       // Parameter validation (R5/R5'): clip cloud_fraction to [0, 1]
-      if (cloud_fraction < 0.0) cloud_fraction = 0.0;
-      if (cloud_fraction > 1.0) cloud_fraction = 1.0;
-      if (cloud_tau_per_layer < 0.0) cloud_tau_per_layer = 0.0;
+      clamp_low("cloud_fraction", cloud_fraction, 0.0);
+      clamp_high("cloud_fraction", cloud_fraction, 1.0);
+      clamp_low("cloud_tau_per_layer", cloud_tau_per_layer, 0.0);
       if (cloud_top_height_m < cloud_base_height_m) {
         cloud_top_height_m = cloud_base_height_m;
       }
@@ -836,14 +873,14 @@ public:
 
       // Parameter validation (R5/R5'): clip albedos to [0, 1] and
       // asymmetry factors to [-1, 1]
-      if (single_scattering_albedo < 0.0) single_scattering_albedo = 0.0;
-      if (single_scattering_albedo > 1.0) single_scattering_albedo = 1.0;
-      if (asymmetry_factor < -1.0) asymmetry_factor = -1.0;
-      if (asymmetry_factor > 1.0) asymmetry_factor = 1.0;
-      if (cloud_single_scattering_albedo < 0.0) cloud_single_scattering_albedo = 0.0;
-      if (cloud_single_scattering_albedo > 1.0) cloud_single_scattering_albedo = 1.0;
-      if (cloud_asymmetry_factor < -1.0) cloud_asymmetry_factor = -1.0;
-      if (cloud_asymmetry_factor > 1.0) cloud_asymmetry_factor = 1.0;
+      clamp_low("single_scattering_albedo", single_scattering_albedo, 0.0);
+      clamp_high("single_scattering_albedo", single_scattering_albedo, 1.0);
+      clamp_low("asymmetry_factor", asymmetry_factor, -1.0);
+      clamp_high("asymmetry_factor", asymmetry_factor, 1.0);
+      clamp_low("cloud_single_scattering_albedo", cloud_single_scattering_albedo, 0.0);
+      clamp_high("cloud_single_scattering_albedo", cloud_single_scattering_albedo, 1.0);
+      clamp_low("cloud_asymmetry_factor", cloud_asymmetry_factor, -1.0);
+      clamp_high("cloud_asymmetry_factor", cloud_asymmetry_factor, 1.0);
 
       // Runtime diagnostics controls (all optional; every channel is on
       // by default)
@@ -867,7 +904,7 @@ public:
         diag_callsite_mode = "both";
       }
       // Ensure dedup tolerance is non-negative
-      if (diag_dedup_tol < 0.0) diag_dedup_tol = 0.0;
+      clamp_low("diag_dedup_tol", diag_dedup_tol, 0.0);
 
       // Surface heterogeneity fallback parameters (all optional; only used
       // when hetero
@@ -876,15 +913,15 @@ public:
       pp.query("radiation.surface_emissivity_lw", surface_emissivity_lw);
       pp.query("radiation.surface_temp_k", surface_temp_k);
       pp.query("radiation.surface_albedo_sw_diffuse", surface_albedo_sw_diffuse);
-      if (surface_albedo_sw_diffuse > 1.0) surface_albedo_sw_diffuse = 1.0;
+      clamp_high("surface_albedo_sw_diffuse", surface_albedo_sw_diffuse, 1.0);
 
       // Clamp albedo/emissivity to [0, 1],
       // ensure surface temp is positive and finite
-      if (surface_albedo_sw < 0.0) surface_albedo_sw = 0.0;
-      if (surface_albedo_sw > 1.0) surface_albedo_sw = 1.0;
-      if (surface_emissivity_lw < 0.0) surface_emissivity_lw = 0.0;
-      if (surface_emissivity_lw > 1.0) surface_emissivity_lw = 1.0;
-      if (surface_temp_k <= 0.0) surface_temp_k = 300.0;  // Ensure positive
+      clamp_low("surface_albedo_sw", surface_albedo_sw, 0.0);
+      clamp_high("surface_albedo_sw", surface_albedo_sw, 1.0);
+      clamp_low("surface_emissivity_lw", surface_emissivity_lw, 0.0);
+      clamp_high("surface_emissivity_lw", surface_emissivity_lw, 1.0);
+      reset_nonpositive("surface_temp_k", surface_temp_k, 300.0);
       if (!std::isfinite(surface_temp_k)) surface_temp_k = 300.0;  // Ensure finite
 
       // Dynamic optical depth diagnosis from moisture/clouds
@@ -898,10 +935,10 @@ public:
 
       // Clamp the dynamic tau coefficients
       // to nonnegative (negative would give unphysical behavior)
-      if (tau_sw_coeff_qv < 0.0) tau_sw_coeff_qv = 0.0;
-      if (tau_sw_coeff_qc < 0.0) tau_sw_coeff_qc = 0.0;
-      if (tau_lw_coeff_qv < 0.0) tau_lw_coeff_qv = 0.0;
-      if (tau_lw_coeff_qc < 0.0) tau_lw_coeff_qc = 0.0;
+      clamp_low("tau_sw_coeff_qv", tau_sw_coeff_qv, 0.0);
+      clamp_low("tau_sw_coeff_qc", tau_sw_coeff_qc, 0.0);
+      clamp_low("tau_lw_coeff_qv", tau_lw_coeff_qv, 0.0);
+      clamp_low("tau_lw_coeff_qc", tau_lw_coeff_qc, 0.0);
 
       // Prognostic cloud fraction diagnosis from RH/qc
       // (all optional; disabled by default)
@@ -912,14 +949,14 @@ public:
 
       // Clamp the cloud fraction parameters
       // to physically reasonable ranges
-      if (cloud_fraction_rh_min < 0.0) cloud_fraction_rh_min = 0.0;
-      if (cloud_fraction_rh_min > 1.0) cloud_fraction_rh_min = 1.0;
-      if (cloud_fraction_rh_max < 0.0) cloud_fraction_rh_max = 0.0;
-      if (cloud_fraction_rh_max > 1.0) cloud_fraction_rh_max = 1.0;
+      clamp_low("cloud_fraction_rh_min", cloud_fraction_rh_min, 0.0);
+      clamp_high("cloud_fraction_rh_min", cloud_fraction_rh_min, 1.0);
+      clamp_low("cloud_fraction_rh_max", cloud_fraction_rh_max, 0.0);
+      clamp_high("cloud_fraction_rh_max", cloud_fraction_rh_max, 1.0);
       if (cloud_fraction_rh_max < cloud_fraction_rh_min) {
         cloud_fraction_rh_max = cloud_fraction_rh_min;
       }
-      if (cloud_fraction_qc_scale < 0.0) cloud_fraction_qc_scale = 0.0;
+      clamp_low("cloud_fraction_qc_scale", cloud_fraction_qc_scale, 0.0);
 
       // Prescribed bulk aerosol/turbidity optical depth
       // (all optional; disabled by default)
@@ -958,9 +995,9 @@ public:
 
       // Clamp the aerosol parameters
       // to physically reasonable ranges
-      if (aerosol_tau_per_layer < 0.0) aerosol_tau_per_layer = 0.0;
-      if (aerosol_tau_surface < 0.0) aerosol_tau_surface = 0.0;
-      if (aerosol_scale_height_m <= 0.0) aerosol_scale_height_m = 2000.0;  // Ensure positive
+      clamp_low("aerosol_tau_per_layer", aerosol_tau_per_layer, 0.0);
+      clamp_low("aerosol_tau_surface", aerosol_tau_surface, 0.0);
+      reset_nonpositive("aerosol_scale_height_m", aerosol_scale_height_m, 2000.0);
 
       // Time-varying solar geometry from the diurnal cycle
       // (all optional; disabled by default)
@@ -973,8 +1010,8 @@ public:
       // Clamp latitude/longitude/day-of-year to valid ranges
       // Latitude must be in [-90, 90]
       if (!std::isfinite(latitude_deg)) latitude_deg = 0.0;
-      if (latitude_deg < -90.0) latitude_deg = -90.0;
-      if (latitude_deg > 90.0) latitude_deg = 90.0;
+      clamp_low("latitude_deg", latitude_deg, -90.0);
+      clamp_high("latitude_deg", latitude_deg, 90.0);
 
       // Longitude must be in [-180, 180]; wrap if outside
       if (!std::isfinite(longitude_deg)) longitude_deg = 0.0;
@@ -983,8 +1020,8 @@ public:
 
       // Day-of-year must be in [1, 366]
       if (!std::isfinite(day_of_year)) day_of_year = 172.0;
-      if (day_of_year < 1.0) day_of_year = 1.0;
-      if (day_of_year > 366.0) day_of_year = 366.0;
+      clamp_low("day_of_year", day_of_year, 1.0);
+      clamp_high("day_of_year", day_of_year, 366.0);
 
       // Time zone offset: no strict bounds, but ensure finite
       if (!std::isfinite(time_zone_offset_hours)) time_zone_offset_hours = 0.0;
@@ -1039,7 +1076,7 @@ public:
       if (!std::isfinite(seb_lh_default)) seb_lh_default = 0.0;
       if (!std::isfinite(seb_grdflx_default)) seb_grdflx_default = 0.0;
       if (!std::isfinite(seb_q_sfc_default)) seb_q_sfc_default = 0.0;
-      if (!std::isfinite(seb_t_deep_default) || seb_t_deep_default <= 0.0) seb_t_deep_default = 300.0;
+      reset_nonpositive("seb_t_deep_default", seb_t_deep_default, 300.0);
       if (!std::isfinite(seb_q_deep_default)) seb_q_deep_default = 0.0;
 
       seb_sw_flux_default = amrex::max(amrex::Real(-2000.0), amrex::min(amrex::Real(2000.0), seb_sw_flux_default));

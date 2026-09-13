@@ -74,7 +74,8 @@ struct ColumnResult {
 // absolute temperature `T_air` (converted to rho*theta through the EOS).
 ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
                                  int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0,
-                                 amrex::Real qc = 0.0)
+                                 amrex::Real qc = 0.0,
+                                 const std::vector<amrex::Real>* z_faces = nullptr)
 {
     const TwoStreamParams rad_choice = make_two_stream_params(rad_choice_in);
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
@@ -97,7 +98,26 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     amrex::Real* scalar_ptr = scalars.data();
     const auto state_arr = state.const_array();
     const auto qheating_arr = qheating.array();
-    const amrex::Array4<const amrex::Real> no_z_phys{};
+    // Interface heights on the nodal box when the caller supplies a stretched
+    // grid (nz + 1 faces); otherwise the sweep uses the uniform spacing.
+    amrex::FArrayBox z_nd(amrex::surroundingNodes(bx), 1);
+    if (z_faces != nullptr) {
+        AMREX_ALWAYS_ASSERT(static_cast<int>(z_faces->size()) == nz + 1);
+        amrex::Gpu::DeviceVector<amrex::Real> faces_d(nz + 1);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_faces->begin(), z_faces->end(), faces_d.begin());
+        const amrex::Real* faces = faces_d.data();
+        const auto znd = z_nd.array();
+        amrex::ParallelFor(amrex::surroundingNodes(bx), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            znd(i, j, k) = faces[k];
+        });
+        amrex::Gpu::streamSynchronize();
+    }
+    const amrex::Array4<const amrex::Real> no_z_phys =
+        (z_faces != nullptr) ? z_nd.const_array() : amrex::Array4<const amrex::Real>{};
+    // Per-column scratch of the sweep (nlev + 1 interface entries).
+    amrex::FArrayBox scratch(two_stream_scratch_box(bx), TwoStreamScratch::NCOMP);
+    const auto scratch_arr = scratch.array();
 
     // Geometry::CellSize() is host-only, so read it before the device lambda.
     const amrex::Real dz_uniform = geom.CellSize(2);
@@ -112,7 +132,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
         amrex::Real lw_up = 0.0;
         vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
                                   qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up,
-                                  no_z_phys);
+                                  no_z_phys, scratch_arr);
         scalar_ptr[0] = max_heating;
         scalar_ptr[1] = sw_surface;
         scalar_ptr[2] = sw_up;
@@ -653,3 +673,113 @@ TEST(TwoStreamColumn, MassModelCloudWaterBrightensTheColumn)
     // The cloud also makes the column opaque in the longwave.
     EXPECT_LT(std::abs(cloudy.lw_net_surface), std::abs(clear.lw_net_surface));
 }
+
+// Motivation: the layer thickness on a non-uniform grid was the
+// centre-to-centre spacing, with the top layer copying the one below, so
+// the mass path rho dz did not add up to the column. With the thickness
+// taken between the interfaces of z_phys_nd, a constant-density column has
+// the same total optical depth however it is layered, and the mass model
+// gives the same fluxes on a stretched grid as on a uniform one.
+TEST(TwoStreamColumn, MassModelIsIndependentOfTheStretching)
+{
+    RadChoice rc = base_choice();
+    rc.tau_model = TauModel::Mass;
+    rc.sw_kabs_dry = 4.0e-6;
+    rc.sw_kscat_dry = 3.0e-6;
+    rc.lw_kabs_dry = 1.0e-4;
+    const amrex::Real rho = 1.0;
+    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
+    const amrex::Real incident = rc.S0 * mu0;
+    const int nz = 8;
+    const amrex::Real height = 800.0;
+
+    // Geometrically stretched faces, ratio 1.25, summing to the same height.
+    std::vector<amrex::Real> faces(nz + 1, 0.0);
+    {
+        amrex::Real d = 1.0, sum = 0.0;
+        std::vector<amrex::Real> dz(nz);
+        for (int k = 0; k < nz; ++k) { dz[k] = d; sum += d; d *= 1.25; }
+        for (int k = 0; k < nz; ++k) { faces[k + 1] = faces[k] + dz[k] * height / sum; }
+    }
+    EXPECT_NEAR(faces[nz], height, 1.0e-9);
+
+    const ColumnResult uniform   = run_uniform_column(rc, rho, 290.0, nz, height / nz);
+    const ColumnResult stretched = run_uniform_column(rc, rho, 290.0, nz, height / nz, 0.0, 0.0, &faces);
+    EXPECT_NEAR(uniform.sw_surface, stretched.sw_surface, 1.0e-9 * incident);
+    EXPECT_NEAR(uniform.sw_up_toa,  stretched.sw_up_toa,  1.0e-9 * incident);
+    EXPECT_NEAR(uniform.lw_up_toa,  stretched.lw_up_toa,  1.0e-9 * incident);
+    // and the column really is stretched: the top layer heats less per unit
+    // depth than the bottom one would if the layering were uniform.
+    EXPECT_NE(uniform.q_sw[nz - 1], stretched.q_sw[nz - 1]);
+}
+
+// Motivation: with a prognostic cloud fraction the cloud-band layers used
+// to be re-derived from the clear-sky base, which dropped the dynamic
+// moisture optical depth diagnosed a few lines earlier. The dynamic term
+// must survive: switching it on changes the optical depth of a cloud-band
+// layer by exactly coeff_qv * qv whether or not the cloud fraction is
+// prognostic.
+TEST(TwoStreamColumn, DynamicOpticalDepthSurvivesPrognosticCloudFraction)
+{
+    RadChoice rc = base_choice();
+    rc.tau_profile_type = TauProfileType::CloudLayer;
+    rc.cloud_base_height_m = 0.0;
+    rc.cloud_top_height_m = 1000.0;
+    rc.cloud_tau_per_layer = 0.5;
+    rc.cloud_fraction_prog_enable = true;
+    rc.cloud_fraction_rh_min = 0.0;
+    rc.cloud_fraction_rh_max = 1.0;
+    rc.cloud_fraction_qc_scale = 1.0e-3;   // qc = 1e-3 saturates the qc term
+    rc.tau_sw_coeff_qv = 10.0;
+    rc.tau_sw_coeff_qc = 0.0;
+    const amrex::Real rho = 1.0, qv = 0.01, qc = 1.0e-3;
+
+    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox state(bx, RhoQ2_comp + 1);
+    const amrex::Real theta = getThgivenRandT(rho, 290.0, RdoCp, qv);
+    state.setVal<amrex::RunOn::Device>(0.0);
+    state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
+    state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
+    state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
+    state.setVal<amrex::RunOn::Device>(rho * qc, bx, RhoQ2_comp, 1);
+    const auto state_arr = state.const_array();
+
+    rc.tau_sw_dynamic_enable = false;
+    const TwoStreamParams p_static = make_two_stream_params(rc);
+    rc.tau_sw_dynamic_enable = true;
+    const TwoStreamParams p_dynamic = make_two_stream_params(rc);
+    rc.cloud_fraction_prog_enable = false;
+    const TwoStreamParams p_dynamic_fixed_cf = make_two_stream_params(rc);
+
+    amrex::Gpu::DeviceVector<amrex::Real> out(3, 0.0);
+    amrex::Real* out_ptr = out.data();
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        out_ptr[0] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_static);
+        out_ptr[1] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic);
+        out_ptr[2] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic_fixed_cf);
+    });
+    amrex::Gpu::streamSynchronize();
+    std::vector<amrex::Real> h(3);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, out.begin(), out.end(), h.begin());
+
+    // cf = 1 here, so the prognostic and fixed cloud fractions give the same
+    // band enhancement, and the dynamic term adds coeff_qv * qv = 0.1 on top.
+    EXPECT_NEAR(h[0], 0.05 + 0.5, 1.0e-12);
+    EXPECT_NEAR(h[1] - h[0], rc.tau_sw_coeff_qv * qv, 1.0e-12);
+    EXPECT_NEAR(h[1], h[2], 1.0e-12);
+}
+
+// Motivation: the qc term of the prognostic cloud fraction was
+// qc_scale * qc, which with the default scale of 1e-3 and a real cloud
+// water of 1e-3 kg/kg gave 1e-6, i.e. nothing. qc_scale is the cloud water
+// at which the term alone saturates.
+TEST(TwoStreamColumn, CloudFractionLiquidWaterTermIsAThreshold)
+{
+    EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.0, 1.0e-3, 0.0, 1.0, 1.0e-3), 1.0, 1.0e-12);
+    EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.0, 5.0e-4, 0.0, 1.0, 1.0e-3), 0.5, 1.0e-12);
+    EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.0, 0.0,    0.0, 1.0, 1.0e-3), 0.0, 1.0e-12);
+    // RH and qc terms add and saturate at 1
+    EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.9, 5.0e-4, 0.8, 1.0, 1.0e-3), 1.0, 1.0e-12);
+}
+

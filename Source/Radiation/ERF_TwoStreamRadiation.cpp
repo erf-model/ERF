@@ -206,7 +206,7 @@ TwoStreamRadiation::advance (int lev,
                              amrex::Real dt_step,
                              const std::string& call_site,
                              const MultiFab& cons_old,
-                             const MultiFab* z_phys_cc,
+                             const MultiFab* z_phys_nd,
                              const Geometry& geom,
                              LandSurface& lsm,
                              MultiFab* qheating)
@@ -262,12 +262,18 @@ TwoStreamRadiation::advance (int lev,
     // and only advances the surface-energy-balance state.
     const bool do_sweep = (call_site != "post_dycore");
 
-    // Create RadiationDiagnostics instance for this level with controls
-    RadiationDiagnostics rad_diag(rad_choice.verbosity, rad_choice.diag_file,
-                                   rad_choice.diag_enable, rad_choice.diag_stdout_enable,
-                                   rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
-                                   rad_choice.diag_csv_enable, rad_choice.diag_callsite_mode,
-                                   rad_choice.diag_dedup_tol);
+    // One diagnostics writer for the life of the run, so its header-written
+    // flag and (step, call_site, time) duplicate guard actually carry over
+    // between calls.
+    if (!m_diag) {
+        m_diag = std::make_unique<RadiationDiagnostics>(
+            rad_choice.verbosity, rad_choice.diag_file,
+            rad_choice.diag_enable, rad_choice.diag_stdout_enable,
+            rad_choice.diag_tagged_enable, rad_choice.diag_regtest_line_enable,
+            rad_choice.diag_csv_enable, rad_choice.diag_callsite_mode,
+            rad_choice.diag_dedup_tol);
+    }
+    RadiationDiagnostics& rad_diag = *m_diag;
 
     // ========================================
     // GPU-Safe ParallelFor Implementation with Cloud Fraction
@@ -433,11 +439,17 @@ TwoStreamRadiation::advance (int lev,
             // value to the device sweep.
             const amrex::Real dz_uniform_lev = geom.CellSize(2);
 
-            // Get z_phys_cc for nonuniform dz support if available
-            Array4<const amrex::Real> z_phys_cc_arr;
-            if (z_phys_cc != nullptr) {
-                z_phys_cc_arr = z_phys_cc->const_array(mfi);
+            // Nodal heights for the layer thicknesses on a stretched or
+            // terrain-following grid (nullptr on a uniform grid).
+            Array4<const amrex::Real> z_phys_nd_arr;
+            if (z_phys_nd != nullptr) {
+                z_phys_nd_arr = z_phys_nd->const_array(mfi);
             }
+
+            // Per-column scratch of the sweep (interfaces need nlev + 1 entries),
+            // shared by the clear and cloudy evaluations of the same column.
+            FArrayBox scratch_fab(two_stream_scratch_box(bx), TwoStreamScratch::NCOMP);
+            Array4<amrex::Real> scratch_arr = scratch_fab.array();
 
             //  Wire LSM surface property fields or use standalone fallback MultiFabs
             // Priority:
@@ -568,7 +580,7 @@ TwoStreamRadiation::advance (int lev,
                         i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, sw_up_clear, lw_net_clear, lw_up_clear,
-                        z_phys_cc_arr,
+                        z_phys_nd_arr, scratch_arr,
                         time_utc_seconds,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
@@ -593,7 +605,7 @@ TwoStreamRadiation::advance (int lev,
                             i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, sw_up_cloudy, lw_net_cloudy, lw_up_cloudy,
-                             z_phys_cc_arr,
+                             z_phys_nd_arr, scratch_arr,
                              time_utc_seconds,
                              has_hetero_alb_sw, &hetero_alb_sw_arr,
                              has_hetero_emiss_lw, &hetero_emiss_lw_arr,
@@ -651,6 +663,18 @@ TwoStreamRadiation::advance (int lev,
             sw_up_toa_sum += sw_up_sum_box;
             lw_net_sum += lw_sum_box;
             lw_up_toa_sum += lw_up_sum_box;
+        }
+        // Every accumulator above is rank-local. Reduce before forming means
+        // and maxima, so the diagnostics describe the whole domain and do
+        // not change with the decomposition. These are collective calls; the
+        // conditions around them are input-driven and identical on all ranks.
+        if (do_sweep) {
+            amrex::Real sums[4] = {sw_surface_sum, sw_up_toa_sum, lw_net_sum, lw_up_toa_sum};
+            ParallelDescriptor::ReduceRealSum(sums, 4);
+            sw_surface_sum = sums[0]; sw_up_toa_sum = sums[1];
+            lw_net_sum = sums[2];     lw_up_toa_sum = sums[3];
+            ParallelDescriptor::ReduceLongSum(n_columns_total);
+            ParallelDescriptor::ReduceRealMax(max_heating_global);
         }
         } // do_sweep
 
@@ -731,6 +755,9 @@ TwoStreamRadiation::advance (int lev,
                 seb_residual_max = std::max(seb_residual_max, residual_max_box);
                 n_seb_columns += n_cols_box;
             }
+            ParallelDescriptor::ReduceRealSum(seb_residual_sum);
+            ParallelDescriptor::ReduceRealMax(seb_residual_max);
+            ParallelDescriptor::ReduceLongSum(n_seb_columns);
         }
 
         //  Prognostic SEB surface temperature and moisture evolution
@@ -858,6 +885,15 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Abort("TwoStreamRadiation: non-finite surface temperature or moisture "
                                  "after the force-restore update at level " + std::to_string(lev) +
                                  ", step " + std::to_string(nstep));
+                }
+
+                {
+                    amrex::Real sums[2] = {t_s_sum, q_s_sum};
+                    ParallelDescriptor::ReduceRealSum(sums, 2);
+                    t_s_sum = sums[0]; q_s_sum = sums[1];
+                    ParallelDescriptor::ReduceRealMax(t_s_max_val);
+                    ParallelDescriptor::ReduceRealMax(q_s_max_val);
+                    ParallelDescriptor::ReduceLongSum(n_prog_columns);
                 }
 
                 // Compute mean values from sums

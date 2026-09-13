@@ -112,7 +112,7 @@ void ERF::advance_radiation (int lev,
     //   update, which runs at the post-dycore call).
     else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
-                               vars_old[lev][Vars::cons], z_phys_cc[lev].get(), geom[lev],
+                               vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, qheating_rates[lev].get());
     }
 }

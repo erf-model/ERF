@@ -104,7 +104,7 @@ erf.radiation.tau_lw_coeff_qc       = 0.0     # LW tau coefficient for cloud liq
 erf.radiation.cloud_fraction_prog_enable   = false   # Enable prognostic (RH/qc-diagnosed) cloud fraction instead of static cloud_fraction. Bool. Default: false
 erf.radiation.cloud_fraction_rh_min        = 0.0     # RH [0,1] below which diagnosed cloud fraction is 0. Default: 0.0
 erf.radiation.cloud_fraction_rh_max        = 1.0     # RH [0,1] at/above which diagnosed cloud fraction saturates to 1; must be >= rh_min. Default: 1.0
-erf.radiation.cloud_fraction_qc_scale      = 1.0e-3  # Scaling coefficient converting qc [kg/kg] into an additional cloud-fraction contribution. Default: 1.0e-3
+erf.radiation.cloud_fraction_qc_scale      = 1.0e-3  # Cloud water [kg/kg] at which the qc term alone gives cloud fraction 1: cf += min(1, qc / scale). Default: 1.0e-3
 
 # ==============================================================================
 # SECTION 6: Bulk aerosol / turbidity (prescribed optical depth)

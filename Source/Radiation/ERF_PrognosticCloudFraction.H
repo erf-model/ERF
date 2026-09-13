@@ -13,7 +13,7 @@
  *
  * Cloud fraction diagnosis formula:
  *   cf_rh(k) = max(0, min(1, (rh(k) - rh_min) / (rh_max - rh_min)))  [linear ramp]
- *   cf_qc(k) = min(1, qc_scale * qc(k))  [qc contribution]
+ *   cf_qc(k) = min(1, qc / qc_scale(k))  [qc contribution]
  *   cf_diag(k) = min(1, cf_rh(k) + cf_qc(k))  [combined with saturation]
  *
  * References:
@@ -125,9 +125,10 @@ amrex::Real diagnose_cloud_fraction_from_rh_qc(
         cf += 1.0;
     }
 
-    // qc contribution: scaled by qc_scale
+    // qc contribution: qc_scale is the cloud water [kg/kg] at which the
+    // liquid-water term alone saturates, so cf_qc = qc / qc_scale, capped at 1.
     if (qc_scale > 0.0) {
-        amrex::Real cf_qc = qc_scale * qc;
+        amrex::Real cf_qc = qc / qc_scale;
         if (cf_qc > 1.0) cf_qc = 1.0;
         cf += cf_qc;
     }

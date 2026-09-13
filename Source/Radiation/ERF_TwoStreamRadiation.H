@@ -13,6 +13,7 @@
 
 #include <ERF_RadStruct.H>
 #include <ERF_LandSurface.H>
+#include <ERF_RadiationDiagnostics.H>
 
 /**
  * @brief The two-stream radiation model (erf.radiation_type = TwoStream).
@@ -70,7 +71,7 @@ public:
      * @param call_site  "pre_dycore" (column sweep + diagnostics) or
      *                   "post_dycore" (cached diagnostics + SEB update)
      * @param cons_old   old-state conserved variables of this level
-     * @param z_phys_cc  cell-centre heights, or nullptr on a uniform grid
+     * @param z_phys_nd  nodal heights (layer interfaces), or nullptr on a uniform grid
      * @param geom       geometry of this level
      * @param lsm        land-surface model (queried for per-column fields)
      * @param qheating   2-component (SW, LW) heating-rate MultiFab of this
@@ -82,7 +83,7 @@ public:
                   amrex::Real dt_step,
                   const std::string& call_site,
                   const amrex::MultiFab& cons_old,
-                  const amrex::MultiFab* z_phys_cc,
+                  const amrex::MultiFab* z_phys_nd,
                   const amrex::Geometry& geom,
                   LandSurface& lsm,
                   amrex::MultiFab* qheating);
@@ -106,6 +107,10 @@ private:
     };
 
     const RadChoice* m_rad = nullptr;
+
+    // CSV / console diagnostics writer, created on the first advance() so its
+    // header and duplicate-row state persist across calls.
+    std::unique_ptr<RadiationDiagnostics> m_diag;
 
     // Fallback surface properties when no LSM supplies them (2D: i,j).
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_alb_sw;
