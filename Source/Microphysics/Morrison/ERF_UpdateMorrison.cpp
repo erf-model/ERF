@@ -1,5 +1,4 @@
 #include "ERF_Morrison.H"
-#include "ERF_Constants.H"
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_MultiFabUtil.H>
 

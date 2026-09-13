@@ -19,7 +19,7 @@
 #include <AMReX_Utility.H>
 
 #include <ERF_NullSurf.H>
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_SurfacePrecipitation.H>

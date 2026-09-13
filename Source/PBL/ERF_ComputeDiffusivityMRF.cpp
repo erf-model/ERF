@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
@@ -200,6 +202,31 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
 MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
 pblh_mf.setVal(0.0);
 
+// PBLH smoothing reads one column per pass outside the cells it writes, so the
+// planar work arrays have to carry that many columns of halo and the PBLH passes
+// have to fill them: otherwise the stencil reads off the end of the tile and the
+// answer depends on the decomposition. With smoothing off this is the single
+// column of halo the diffusivity kernels already use, so nothing changes.
+const int ng_pblh = (turbChoice.enable_pblh_smoothing)
+                  ? std::max(1, turbChoice.pblh_smoothing_passes) : 1;
+if (ng_pblh > 1) {
+    const int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
+                                   xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
+                                   yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
+                                   SurfLayer->get_u_star(level)->nGrowVect()[0],
+                                   SurfLayer->get_u_star(level)->nGrowVect()[1],
+                                   SurfLayer->get_olen(level)->nGrowVect()[0],
+                                   SurfLayer->get_olen(level)->nGrowVect()[1],
+                                   (terrain_blank) ? terrain_blank->nGrowVect()[0] : 1000,
+                                   (terrain_blank) ? terrain_blank->nGrowVect()[1] : 1000});
+    if (ng_pblh > ng_avail) {
+        amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
+                   + " needs " + std::to_string(ng_pblh) + " halo columns, but the state and "
+                     "surface-layer arrays carry only " + std::to_string(ng_avail)
+                   + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
+    }
+}
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -215,19 +242,31 @@ pblh_mf.setVal(0.0);
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(gbx, IntVect{0, 0, 0});
 
+        // The PBLH passes run on the region the smoothing stencil will consume
+        // (see ng_pblh above). growntilebox() is no use here: it does not grow at
+        // an interior tile edge, so a tile in the middle of a box gets no halo at
+        // all -- which is exactly how the stencil came to read off the end of the
+        // array. Grow the tile box explicitly instead, which costs a little
+        // duplicated work in the overlaps. With smoothing off this is xybx and
+        // nothing is duplicated.
+        const Box gbx_work  = (turbChoice.enable_pblh_smoothing)
+                            ? amrex::grow(mfi.tilebox(), IntVect(ng_pblh,ng_pblh,0)) : gbx;
+        const Box xybx_work = PerpendicularBox<ZDir>(gbx_work, IntVect{0, 0, 0});
+        const Box xybx_tile = PerpendicularBox<ZDir>(mfi.tilebox(), IntVect{0, 0, 0});
+
         // Pass 1 (predictor): PBLH with base surface temperature, no VPERT
         // Pass 2 (wstar/VPERT): compute wstar, HGAMT, HGAMQ, VPERT from predictor height
         // Pass 3 (corrector): PBLH with VPERT-enhanced surface temperature (WRF-consistent)
         //   WRF reference (module_bl_mrf.F lines 813-964):
         //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L964
-        FArrayBox pbl_height_predictor(xybx, 1, The_Async_Arena());  // Pass 1: base t_layer_v
-        FArrayBox pbl_height_corrector(xybx, 1, The_Async_Arena());  // Pass 3: VPERT-enhanced
-        IArrayBox pbl_index(xybx, 1, The_Async_Arena());
-        IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
-        FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
-        FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
-        FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale
-        FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox pbl_height_predictor(xybx_work, 1, The_Async_Arena());  // Pass 1: base t_layer_v
+        FArrayBox pbl_height_corrector(xybx_work, 1, The_Async_Arena());  // Pass 3: VPERT-enhanced
+        IArrayBox pbl_index(xybx_work, 1, The_Async_Arena());
+        IArrayBox pbl_index_zero_ri(xybx_work, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
+        FArrayBox hgamt_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
+        FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
+        FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale
+        FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
         const auto& pbli_arr        = pbl_index.array();
@@ -283,11 +322,11 @@ pblh_mf.setVal(0.0);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(l_ib && use_terrain_fitted_coords),
             "erf.pbl_ib_aware is not supported with terrain-fitted coordinates");
         const Array4<Real const> blank_arr = l_ib ? terrain_blank->const_array(mfi) : Array4<Real const>{};
-        IArrayBox ksurf_fab(xybx, 1, The_Async_Arena());
-        FArrayBox zib_fab(xybx, 1, The_Async_Arena());
-        FArrayBox us_eff_fab(xybx, 1, The_Async_Arena()), ts_eff_fab(xybx, 1, The_Async_Arena());
-        FArrayBox qs_eff_fab(xybx, 1, The_Async_Arena()), ol_eff_fab(xybx, 1, The_Async_Arena());
-        FArrayBox t10_eff_fab(xybx, 1, The_Async_Arena()), q10_eff_fab(xybx, 1, The_Async_Arena());
+        IArrayBox ksurf_fab(xybx_work, 1, The_Async_Arena());
+        FArrayBox zib_fab(xybx_work, 1, The_Async_Arena());
+        FArrayBox us_eff_fab(xybx_work, 1, The_Async_Arena()), ts_eff_fab(xybx_work, 1, The_Async_Arena());
+        FArrayBox qs_eff_fab(xybx_work, 1, The_Async_Arena()), ol_eff_fab(xybx_work, 1, The_Async_Arena());
+        FArrayBox t10_eff_fab(xybx_work, 1, The_Async_Arena()), q10_eff_fab(xybx_work, 1, The_Async_Arena());
         const auto& ksurf_arr = ksurf_fab.array();
         const auto& zib_arr   = zib_fab.array();
         const auto& us_eff_arr = us_eff_fab.array();  const auto& ts_eff_arr = ts_eff_fab.array();
@@ -299,7 +338,7 @@ pblh_mf.setVal(0.0);
             const Array4<Real const>& uv_ib = xvel.const_array(mfi);
             const Array4<Real const>& vv_ib = yvel.const_array(mfi);
             const bool have_qstar = (q_star_mf != nullptr);
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 int ks = klo;
                 if (l_ib) {
@@ -331,7 +370,7 @@ pblh_mf.setVal(0.0);
             });
         }
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
             const Real zib  = zib_arr(i, j, 0);     // its height, subtracted from every height below
@@ -433,7 +472,7 @@ pblh_mf.setVal(0.0);
         // WRF reference (module_bl_mrf.F lines 857-880):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
         //
-        ParallelFor(xybx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
             const Real zib  = zib_arr(i, j, 0);     // its height, subtracted from every height below
@@ -534,7 +573,7 @@ pblh_mf.setVal(0.0);
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        ParallelFor(xybx, [=,one_d=one]
+        ParallelFor(xybx_work, [=,one_d=one]
                     AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
@@ -629,20 +668,26 @@ pblh_mf.setVal(0.0);
         // for the determination of the mixing height. Atmospheric Environment, 34, 1001-1027.
         // Spatial smoothing removes unphysical grid-to-grid noise from discrete Rib-crossing detection
         if (turbChoice.enable_pblh_smoothing) {
-            ApplyPBLHSmoothing(pbl_height_corrector, xybx,
+            // Smooth the tile's own columns, reading the halo the passes above
+            // filled. The result is the same however the domain is split.
+            ApplyPBLHSmoothing(pbl_height_corrector, xybx_tile,
                              turbChoice.pblh_smoothing_weight,
                              turbChoice.pblh_smoothing_passes,
-                             geom.Domain());
+                             geom.Domain(), geom.periodicity());
         }
 
-        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage
-    {
-    auto pblh_out = pblh_mf.array(mfi);
-    const Box& vbx = mfi.validbox();
-    ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
-    });
-    }
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.
+        // pbl_height_corrector only covers this tile (grown by one), so loop over
+        // the tile, not the valid box: with tiling in x/y the valid box reaches
+        // past it. Under TileNoZ the tile spans the full column, and pblh_mf has
+        // no ghost cells, so the tiles together still fill every cell.
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            const Box& tbx = mfi.tilebox();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+            });
+        }
         //
         // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
         // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile

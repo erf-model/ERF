@@ -9,7 +9,6 @@
 #include <AMReX_Algorithm.H>
 #include <AMReX_Math.H>
 
-#include "ERF_Constants.H"
 #include "ERF_SuperDropletPCDefinitions.H"
 
 // Unit tests for ERF's immersion-freezing INAS parameterization

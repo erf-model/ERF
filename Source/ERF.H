@@ -39,6 +39,7 @@
 
 #include "ERF_ProbCommon.H"
 
+#include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_BaseStateParams.H>
@@ -940,6 +941,9 @@ private:
     void initializeWindFarm (const int&);
 #endif
 
+    // Initialize embedded boundary geometries
+    void initializeEB ();
+
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
@@ -1489,6 +1493,8 @@ private:
                                                     "Khv","Khh",
                                                     // turbulence lengthscale
                                                     "Lturb",
+                                                    // k-eqn RANS: smoothed turbulent Richardson number and stability functions
+                                                    "Rt", "cmu", "cmu_prime",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",

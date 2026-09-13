@@ -7,7 +7,7 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 

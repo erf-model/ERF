@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include "ERF_Constants.H"
 #include <ERF_PhysBCFunct.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_TimeInterpolatedData.H>

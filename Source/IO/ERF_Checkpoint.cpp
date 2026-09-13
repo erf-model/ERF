@@ -3,6 +3,7 @@
  */
 
 #include <iostream>
+#include "ERF_Constants.H"
 #include <fstream>
 #include <cmath>
 #include <vector>
