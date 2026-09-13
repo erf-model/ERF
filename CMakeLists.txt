@@ -237,11 +237,16 @@ if (${ERF_USE_INTERNAL_AMREX})
     if(WIN32)
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
+      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextrema.exe
+        CACHE STRING "Path to fextrema executable for regression tests")
     else()
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
+      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema
+        CACHE STRING "Path to fextrema executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
+    message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
 else()
     message(STATUS "Using external AMReX")
 
@@ -333,11 +338,16 @@ else()
     if(WIN32)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
+      set(FEXTREMA_EXE ${AMReX_DIR}/../../../*/amrex_fextrema.exe
+        CACHE STRING "Path to fextrema executable for regression tests")
     else()
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
+      set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema
+        CACHE STRING "Path to fextrema executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
+    message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
 
 endif()
 
