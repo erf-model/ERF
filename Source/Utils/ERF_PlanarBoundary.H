@@ -27,9 +27,10 @@
  *
  * The buffer is kept for each index type and number of components, so only the first
  * fill of each kind allocates.  For a face-centered MultiFab (the MOST velocity averages)
- * neighbouring surface boxes share a face in the buffer; which of the two supplies that
- * face is up to ParallelCopy, as it was up to FillBoundary before, and both should hold
- * the same value.
+ * neighbouring surface boxes share a face in the buffer.  Both should hold the same value
+ * there, but nothing enforces it, so fill() gives the shared faces a single value before
+ * it copies: the lowest global box index wins, which does not depend on the decomposition
+ * or the rank count, and every copy of the field then agrees.
  *
  * A level none of whose boxes reaches the surface (a fine level aloft) has no computed
  * copy to fill from, and fill() leaves the MultiFab as it is.

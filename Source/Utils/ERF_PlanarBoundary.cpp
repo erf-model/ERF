@@ -82,6 +82,14 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
         buf[mfi].copy<RunOn::Device>(mf[src], bx, 0, bx, 0, ncomp);
     }
 
+    // A face-centered buffer's boxes share a face with their neighbours, and the gather above
+    // takes each box's face from its own surface copy, so two boxes can hold different values
+    // there.  Give every shared face one value before the ParallelCopy -- OverrideSync's
+    // precedence is the lowest global box index, so the result does not depend on the
+    // decomposition or the rank count -- and every copy of mf then ends up with the same
+    // value.  Returns immediately for cell-centered data, which has no shared faces.
+    buf.OverrideSync(period);
+
     // Fill every copy, valid region and ghost cells, from the computed surface copies
     mf.ParallelCopy(buf, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), period);
 }
