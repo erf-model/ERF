@@ -2,6 +2,7 @@
 #define ERF_HURRICANE_DIAGNOSTICS_H_
 
 #include <AMReX.H>
+#include "ERF_Constants.H"
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParallelReduce.H>
 #include <limits>

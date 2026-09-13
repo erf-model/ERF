@@ -2,6 +2,7 @@
  * \file ERF_Write1DProfiles.cpp
  */
 #include <iomanip>
+#include "ERF_Constants.H"
 
 #include "ERF.H"
 #include "ERF_EOS.H"

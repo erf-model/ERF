@@ -1,4 +1,5 @@
 #include "ERF_ShocImplicit.H"
+#include "ERF_Constants.H"
 #include "ERF_ShocEnergyFixer.H"
 #include "ERF_ShocTestUtils.H"
 

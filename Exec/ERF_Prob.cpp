@@ -2,6 +2,14 @@
 #include "ERF_EOS.H"
 #include "ERF_HashRNG.H"
 #include "ERF_Microphysics.H"
+// The Prob/ERF_InitCustomPert*.H and Prob/ERF_Update*.H fragments are textually
+// included inside the member functions below, so they cannot carry their own
+// includes.  The constants they reference must be visible in this translation
+// unit: R_d, RdoRv, p_0, Gamma and friends from ERF_Constants.H, and
+// tbgmin/tbgmax/a_bg (used by ERF_InitCustomPert_Bubble.H) from the
+// microphysics constants.
+#include "ERF_Constants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_TerrainMetrics.H"
 #include "Prob/ERF_ProblemDispatch.H"
 

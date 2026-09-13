@@ -39,6 +39,7 @@
 
 #include "ERF_ProbCommon.H"
 
+#include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_BaseStateParams.H>

@@ -2,6 +2,7 @@
 #define ERF_PBLMODELS_H_
 
 #include <AMReX_Periodicity.H>
+#include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
 
 /**
