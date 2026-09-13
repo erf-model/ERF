@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include <ERF_Constants.H>
+#include <ERF_MicrophysicsConstants.H>   // rhor, the density of water
 
 /**
  * @file ERF_SimplifiedSEB.H

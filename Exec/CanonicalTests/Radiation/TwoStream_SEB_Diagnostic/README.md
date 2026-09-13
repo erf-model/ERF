@@ -114,7 +114,7 @@ python check_seb_diagnostic.py
 ### Modified Files
 - `Source/DataStructs/ERF_RadStruct.H` — Added `seb_diagnostic_enable` parameter
 - `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with SEB columns
-- `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` — Integrated residual computation
+- `Source/Radiation/ERF_TwoStreamRadiation.cpp` — Integrated residual computation
 
 ### Key Design Decisions
 1. **Diagnostic-only**: No feedback to T_s, heating rates, or any prognostic fields

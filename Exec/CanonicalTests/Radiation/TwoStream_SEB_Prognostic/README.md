@@ -189,7 +189,7 @@ python check_seb_prognostic.py coupled
 ### Modified Files
 - `Source/DataStructs/ERF_RadStruct.H` — Added 9 new prognostic parameters
 - `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with T_s/q_s columns
-- `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` — Integrated prognostic update with Noah-MP gating
+- `Source/Radiation/ERF_TwoStreamRadiation.cpp` — Integrated prognostic update with Noah-MP gating
 
 ### Key Design Decisions
 1. **Prognostic-only update**: T_s and q_s evolved in place; no feedback to radiation or atmosphere

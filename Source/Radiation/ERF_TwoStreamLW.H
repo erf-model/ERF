@@ -46,7 +46,7 @@ constexpr amrex::Real stefan_boltzmann = amrex::Real(5.670374419e-8);
  *
  * Layer temperature T(k) is the absolute temperature obtained from
  * rho*theta through the Exner function (see get_temperature_from_rhotheta()
- * in ERF_AdvanceTwoStreamRadiation.cpp), not the potential temperature.
+ * in ERF_TwoStreamRadiation.cpp), not the potential temperature.
  *
  * MODEL SIMPLIFICATIONS:
  * -------------------------

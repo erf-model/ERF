@@ -38,7 +38,7 @@
  *
  * The functions are header-only and GPU-safe so that the column physics can
  * be exercised directly by unit tests (Tests/Unit/Radiation) as well as by
- * the level driver in ERF_AdvanceTwoStreamRadiation.cpp.
+ * the level driver in ERF_TwoStreamRadiation.cpp (TwoStreamRadiation::advance).
  */
 
 /**
@@ -864,7 +864,7 @@ void vertical_two_stream_sweep(
 
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nlev <= MAX_RAD_LEVELS,
         "vertical_two_stream_sweep: domain vertical extent exceeds "
-        "MAX_RAD_LEVELS; increase the constant in ERF_AdvanceTwoStreamRadiation.cpp");
+        "MAX_RAD_LEVELS; increase the constant in ERF_TwoStreamColumn.H");
 
     // Physical constants
     const amrex::Real sigma  = stefan_boltzmann;  // Stefan-Boltzmann [W/(m^2·K^4)]

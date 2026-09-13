@@ -265,7 +265,7 @@ void make_sources (int level,
         // selected by erf.radiation_type (RadChoice::rad_type). Both write
         // the same 2-component (SW, LW) qheating_rates MultiFab (see
         // Source/ERF_MakeNewArrays.cpp and
-        // Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp), so the
+        // Source/Radiation/ERF_TwoStreamRadiation.cpp), so the
         // injection formula is the same either way. The nullptr check is
         // defensive: qheating_rates is only allocated when at least one
         // solver is active, and this can be reached before that allocation

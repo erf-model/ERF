@@ -10,7 +10,7 @@ blending.
 
 It replicates, level-by-level, the EXACT same algorithm implemented in
 compute_sw_layer_two_stream() (ERF_TwoStreamSW.H) and the vertical_two_stream_
-sweep() driver (ERF_AdvanceTwoStreamRadiation.cpp), for both the clear-sky
+sweep() driver (ERF_TwoStreamRadiation.cpp), for both the clear-sky
 column and the cloudy column, then blends them via cloud_fraction, and
 compares against the radiation_sw_scatter_diag.dat output file.
 

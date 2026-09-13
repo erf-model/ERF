@@ -1,5 +1,8 @@
-#include <ERF.H>
+#include <ERF_TwoStreamRadiation.H>
 #include <ERF_RadStruct.H>
+#include <AMReX_VisMF.H>
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamColumn.H>
 #include <ERF_PrognosticCloudFraction.H>
@@ -65,8 +68,8 @@ void fill_or_copy_seb_field(
 }
 
 /**
- * @file ERF_AdvanceTwoStreamRadiation.cpp
- * @brief Two-stream radiation driver with per-level heating rates.
+ * @file ERF_TwoStreamRadiation.cpp
+ * @brief TwoStreamRadiation: the two-stream radiation model and its surface state.
  *
  * Computes SW/LW fluxes and per-level heating rates using real per-column
  * vertical sweeps over the atmospheric grid. Reads temperature and density
@@ -106,20 +109,151 @@ void fill_or_copy_seb_field(
  * heating_rate_max the max(|Q_sw|+|Q_lw|) over the column evaluations.
  */
 
-void ERF::compute_twostream_radiation_diagnostics(
-    int lev,
-    int nstep,
-    amrex::Real time,
-    amrex::Real dt_step,
-    std::string const& call_site
-    )
+void
+TwoStreamRadiation::resize (int nlevs_max)
 {
-    BL_PROFILE("ERF::compute_twostream_radiation_diagnostics()");
-    const auto& rad_choice = solverChoice.radChoice;
+    m_alb_sw.resize(nlevs_max);
+    m_emiss_lw.resize(nlevs_max);
+    m_t_sfc.resize(nlevs_max);
+    m_sw_flux_sfc.resize(nlevs_max);
+    m_lw_flux_sfc.resize(nlevs_max);
+    m_hfx_sfc.resize(nlevs_max);
+    m_lh_sfc.resize(nlevs_max);
+    m_grdflx_sfc.resize(nlevs_max);
+    m_q_sfc.resize(nlevs_max);
+    m_t_deep.resize(nlevs_max);
+    m_q_deep.resize(nlevs_max);
+    m_flux_diag.resize(nlevs_max);
+}
+
+void
+TwoStreamRadiation::define_level (int lev,
+                                  const RadChoice& rad_choice,
+                                  const BoxArray& ba2d,
+                                  const DistributionMapping& dm)
+{
+    if (rad_choice.rad_type != RadType::TwoStream) { return; }
+    m_rad = &rad_choice;
+
+    // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y
+    const IntVect ng_sfc{1,1,0};
+    m_alb_sw[lev]   = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+    m_emiss_lw[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+    m_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+    m_alb_sw[lev]->setVal(rad_choice.surface_albedo_sw);
+    m_emiss_lw[lev]->setVal(rad_choice.surface_emissivity_lw);
+    m_t_sfc[lev]->setVal(rad_choice.surface_temp_k);
+
+    if (rad_choice.seb_enable) {
+        m_sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_lw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_hfx_sfc[lev]     = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_lh_sfc[lev]      = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_grdflx_sfc[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_q_sfc[lev]       = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_t_deep[lev]      = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_q_deep[lev]      = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
+        m_sw_flux_sfc[lev]->setVal(rad_choice.seb_sw_flux_default);
+        m_lw_flux_sfc[lev]->setVal(rad_choice.seb_lw_flux_default);
+        m_hfx_sfc[lev]->setVal(rad_choice.seb_hfx_default);
+        m_lh_sfc[lev]->setVal(rad_choice.seb_lh_default);
+        m_grdflx_sfc[lev]->setVal(rad_choice.seb_grdflx_default);
+        m_q_sfc[lev]->setVal(rad_choice.seb_q_sfc_default);
+        m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+        m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+    }
+    m_flux_diag[lev] = FluxDiag{};
+}
+
+void
+TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname) const
+{
+    // The force-restore state is the only part of this model a restart must
+    // carry; without it T_s and q_s restart from the scalar defaults.
+    if (!active() || !m_rad->seb_enable) { return; }
+    if (m_t_sfc[lev]) {
+        VisMF::Write(*m_t_sfc[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TSfc"));
+    }
+    if (m_q_sfc[lev]) {
+        VisMF::Write(*m_q_sfc[lev],
+                     MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
+    }
+}
+
+void
+TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile)
+{
+    // Older checkpoints do not carry the state; then the defaults set by
+    // define_level stand.
+    if (!active() || !m_rad->seb_enable) { return; }
+    const std::string tsfc_name =
+        MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_TSfc");
+    if (m_t_sfc[lev] && amrex::FileExists(tsfc_name + "_H")) {
+        VisMF::Read(*m_t_sfc[lev], tsfc_name);
+    }
+    const std::string qsfc_name =
+        MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_QSfc");
+    if (m_q_sfc[lev] && amrex::FileExists(qsfc_name + "_H")) {
+        VisMF::Read(*m_q_sfc[lev], qsfc_name);
+    }
+}
+
+void
+TwoStreamRadiation::advance (int lev,
+                             int nstep,
+                             amrex::Real time,
+                             amrex::Real dt_step,
+                             const std::string& call_site,
+                             const MultiFab& cons_old,
+                             const MultiFab* z_phys_cc,
+                             const Geometry& geom,
+                             LandSurface& lsm,
+                             MultiFab* qheating)
+{
+    BL_PROFILE("TwoStreamRadiation::advance()");
 
     // Only proceed if TwoStream radiation is enabled
-    if (rad_choice.rad_type != RadType::TwoStream) {
-        return;
+    if (!active()) { return; }
+    const RadChoice& rad_choice = *m_rad;
+
+    // ---- Contract checks. Each of these would otherwise surface as a wrong
+    // heating rate or an out-of-bounds read several routines away.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(call_site == "pre_dycore" || call_site == "post_dycore",
+        "TwoStreamRadiation::advance: call_site must be pre_dycore or post_dycore");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev < m_alb_sw.size() && m_alb_sw[lev] != nullptr,
+        "TwoStreamRadiation::advance called on a level define_level has not built");
+    // The sweep indexes the 2D surface fields with the MFIter of the 3D state,
+    // so both must have the same number of boxes on the same ranks.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        m_alb_sw[lev]->boxArray().size() == cons_old.boxArray().size() &&
+        m_alb_sw[lev]->DistributionMap() == cons_old.DistributionMap(),
+        "TwoStreamRadiation: the 2D surface fields and the 3D state are laid out differently");
+    if (qheating != nullptr) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(qheating->nComp() == 2 &&
+                                         qheating->boxArray() == cons_old.boxArray() &&
+                                         qheating->DistributionMap() == cons_old.DistributionMap(),
+            "TwoStreamRadiation: qheating must be the 2-component (SW, LW) field on the state's grids");
+    }
+    if (rad_choice.seb_enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_sw_flux_sfc[lev] && m_lw_flux_sfc[lev] && m_hfx_sfc[lev] &&
+                                         m_lh_sfc[lev] && m_grdflx_sfc[lev] && m_q_sfc[lev] &&
+                                         m_t_deep[lev] && m_q_deep[lev],
+            "TwoStreamRadiation: seb_enable is set but the SEB fields were not allocated");
+    }
+    if (call_site == "post_dycore" && rad_choice.seb_prognostic_enable) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dt_step > 0.0 && std::isfinite(dt_step),
+            "TwoStreamRadiation: the force-restore update needs a positive, finite dt_step");
+    }
+    // The column kernel clamps a bad density or rho*theta to a placeholder
+    // and carries on, which would hide a corrupt state behind plausible
+    // heating rates. Refuse a non-finite state instead (the kernel keeps
+    // its clamps for the physically valid but extreme case).
+    if (call_site == "pre_dycore" &&
+        cons_old.contains_nan(Rho_comp, 2, 0) ) {
+        amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
+                     std::to_string(lev) + ", step " + std::to_string(nstep) +
+                     " has a non-finite density or rho*theta");
     }
 
     // The column sweep runs once per step, at the pre-dycore call. The
@@ -158,7 +292,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real q_s_max  = std::numeric_limits<amrex::Real>::quiet_NaN();
 
     // Get state at this level (conservative variables: density, RhoTheta, etc.)
-    const auto& state_cons = vars_old[lev][Vars::cons];
+    const MultiFab& state_cons = cons_old;
 
     // Only compute radiation if we have valid state data
     if (state_cons.nComp() > 0 ) {
@@ -168,7 +302,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     amrex::Real cos_zenith;
     if (rad_choice.solar_geometry_dynamic_enable) {
         // Convert absolute simulation time to UTC seconds within the day [0, 86400)
-        amrex::Real time_utc_seconds = std::fmod(t_old[lev], 86400.0);
+        amrex::Real time_utc_seconds = std::fmod(time, 86400.0);
         if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
         cos_zenith = compute_cos_zenith_angle(
             time_utc_seconds,
@@ -210,16 +344,14 @@ void ERF::compute_twostream_radiation_diagnostics(
         // Compute UTC seconds within the day for dynamic solar geometry
         amrex::Real time_utc_seconds = 0.0;
         if (rad_choice.solar_geometry_dynamic_enable) {
-            time_utc_seconds = std::fmod(t_old[lev], 86400.0);
+            time_utc_seconds = std::fmod(time, 86400.0);
             if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
         }
 
-        // Note: qheating_rates[lev] is expected to be allocated with
-        // 2 components by the caller whenever rad_choice.rad_type ==
-        // RadType::TwoStream (see Source/ERF_MakeNewArrays.cpp). If not yet
-        // allocated (e.g. before initialization), this function still safely
-        // computes and logs CSV diagnostics but skips the per-level heating write.
-        MultiFab* qheating_mf = qheating_rates[lev].get();
+        // qheating is ERF's 2-component (SW, LW) heating-rate MultiFab of this
+        // level. If it is not allocated yet, the sweep still runs for the
+        // diagnostics and skips the per-level heating write.
+        MultiFab* qheating_mf = qheating;
 
         // Surface radiative fluxes for the SEB. Precedence: an LSM field when
         // the LSM exposes one; otherwise, with seb_use_radiation_fluxes, the
@@ -234,14 +366,14 @@ void ERF::compute_twostream_radiation_diagnostics(
                                       !lsm_has_field(lsm, lev, "fira");
 
         if (rad_choice.seb_enable) {
-            fill_or_copy_seb_field(twostream_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
-            fill_or_copy_seb_field(twostream_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
+            fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
+            fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
             // Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
             if (!rad_choice.seb_prognostic_enable) {
-                fill_or_copy_seb_field(twostream_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
+                fill_or_copy_seb_field(m_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
             }
 
             // Net absorbed shortwave: Noah-MP splits it into the canopy (sav)
@@ -249,30 +381,30 @@ void ERF::compute_twostream_radiation_diagnostics(
             // net flux to the atmosphere (positive up); the SEB wants the
             // absorbed flux, so the sign flips.
             if (!sw_flux_from_rad) {
-                fill_or_copy_seb_field(sw_flux_sfc[lev].get(), lsm, lev, "sav",
+                fill_or_copy_seb_field(m_sw_flux_sfc[lev].get(), lsm, lev, "sav",
                                        rad_choice.seb_sw_flux_default, 1.0, "sag");
             }
             if (!lw_flux_from_rad) {
-                fill_or_copy_seb_field(lw_flux_sfc[lev].get(), lsm, lev, "fira",
+                fill_or_copy_seb_field(m_lw_flux_sfc[lev].get(), lsm, lev, "fira",
                                        rad_choice.seb_lw_flux_default, -1.0);
             }
             // The LSM data lists carry no sensible or latent heat flux under
             // these names, so H and LE come from the scalar defaults unless a
             // model exposes them; G is Noah-MP's grdflx when present.
-            fill_or_copy_seb_field(hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
-            fill_or_copy_seb_field(lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
-            fill_or_copy_seb_field(grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
+            fill_or_copy_seb_field(m_hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
+            fill_or_copy_seb_field(m_lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
+            fill_or_copy_seb_field(m_grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
 
             // Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.
             if (!rad_choice.seb_prognostic_enable) {
-                fill_or_copy_seb_field(q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
+                fill_or_copy_seb_field(m_q_sfc[lev].get(), lsm, lev, "noahmp_water_vapor_mixing_ratio_2m_vegetated", rad_choice.seb_q_sfc_default);
             }
             // No LSM exposes a deep-soil temperature or moisture in kg/kg by
             // name (Noah-MP's smstav / smstot are soil-moisture availability
             // and total column water), so the reservoir values are the
             // scalar defaults.
-            t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
-            q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+            m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+            m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
         }
 
         // The column sweep integrates the whole atmospheric column in one
@@ -280,7 +412,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         // would hand it partial columns (the default CPU tile size splits z),
         // so this loop is deliberately untiled and works on valid boxes; the
         // horizontal ParallelFor below still provides the parallelism.
-        const Box& rad_domain = geom[lev].Domain();
+        const Box& rad_domain = geom.Domain();
         if (do_sweep) {
         for (MFIter mfi(state_cons, false); mfi.isValid(); ++mfi)
         {
@@ -299,12 +431,12 @@ void ERF::compute_twostream_radiation_diagnostics(
             const auto& state_arr = state_cons.const_array(mfi);
             // Geometry::CellSize() is host-only; read it here and hand the
             // value to the device sweep.
-            const amrex::Real dz_uniform_lev = geom[lev].CellSize(2);
+            const amrex::Real dz_uniform_lev = geom.CellSize(2);
 
             // Get z_phys_cc for nonuniform dz support if available
             Array4<const amrex::Real> z_phys_cc_arr;
-            if (z_phys_cc[lev] != nullptr) {
-                z_phys_cc_arr = z_phys_cc[lev]->const_array(mfi);
+            if (z_phys_cc != nullptr) {
+                z_phys_cc_arr = z_phys_cc->const_array(mfi);
             }
 
             //  Wire LSM surface property fields or use standalone fallback MultiFabs
@@ -326,8 +458,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                         hetero_alb_sw_arr = lsm_ptr->const_array(mfi);
                         has_hetero_alb_sw = true;
                     }
-                } else if (twostream_alb_sw[lev]) {
-                    hetero_alb_sw_arr = twostream_alb_sw[lev]->const_array(mfi);
+                } else if (m_alb_sw[lev]) {
+                    hetero_alb_sw_arr = m_alb_sw[lev]->const_array(mfi);
                     has_hetero_alb_sw = true;
                 }
             }
@@ -344,8 +476,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                         hetero_emiss_lw_arr = lsm_ptr->const_array(mfi);
                         has_hetero_emiss_lw = true;
                     }
-                } else if (twostream_emiss_lw[lev]) {
-                    hetero_emiss_lw_arr = twostream_emiss_lw[lev]->const_array(mfi);
+                } else if (m_emiss_lw[lev]) {
+                    hetero_emiss_lw_arr = m_emiss_lw[lev]->const_array(mfi);
                     has_hetero_emiss_lw = true;
                 }
             }
@@ -362,8 +494,8 @@ void ERF::compute_twostream_radiation_diagnostics(
                         t_sfc_arr = lsm_ptr->const_array(mfi);
                         has_t_sfc_field = true;
                     }
-                } else if (twostream_t_sfc[lev]) {
-                    t_sfc_arr = twostream_t_sfc[lev]->const_array(mfi);
+                } else if (m_t_sfc[lev]) {
+                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
                 }
             }
@@ -372,8 +504,8 @@ void ERF::compute_twostream_radiation_diagnostics(
             // Surface flux arrays the sweep fills for the SEB when asked to.
             Array4<amrex::Real> sw_sfc_out;
             Array4<amrex::Real> lw_sfc_out;
-            if (sw_flux_from_rad) sw_sfc_out = sw_flux_sfc[lev]->array(mfi);
-            if (lw_flux_from_rad) lw_sfc_out = lw_flux_sfc[lev]->array(mfi);
+            if (sw_flux_from_rad) sw_sfc_out = m_sw_flux_sfc[lev]->array(mfi);
+            if (lw_flux_from_rad) lw_sfc_out = m_lw_flux_sfc[lev]->array(mfi);
 
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
@@ -522,6 +654,14 @@ void ERF::compute_twostream_radiation_diagnostics(
         }
         } // do_sweep
 
+        // The heating rates go straight into the RhoTheta source term, so a
+        // non-finite value here becomes a non-finite state one step later.
+        if (do_sweep && qheating_mf != nullptr &&
+            (qheating_mf->contains_nan(0, 2, 0) || qheating_mf->contains_inf(0, 2, 0))) {
+            amrex::Abort("TwoStreamRadiation: non-finite heating rate after the column sweep at level " +
+                         std::to_string(lev) + ", step " + std::to_string(nstep));
+        }
+
          // Warn if diagnostic is requested but SEB infrastructure isn't enabled
         if (rad_choice.seb_diagnostic_enable && !rad_choice.seb_enable) {
             static bool warned_seb_misconfig = false;
@@ -546,11 +686,11 @@ void ERF::compute_twostream_radiation_diagnostics(
                 Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
 
                 // Get SEB field arrays
-                Array4<const amrex::Real> sw_flux_arr = sw_flux_sfc[lev]->const_array(mfi);
-                Array4<const amrex::Real> lw_flux_arr = lw_flux_sfc[lev]->const_array(mfi);
-                Array4<const amrex::Real> hfx_arr = hfx_sfc[lev]->const_array(mfi);
-                Array4<const amrex::Real> lh_arr = lh_sfc[lev]->const_array(mfi);
-                Array4<const amrex::Real> grdflx_arr = grdflx_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> sw_flux_arr = m_sw_flux_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> lw_flux_arr = m_lw_flux_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> hfx_arr = m_hfx_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> lh_arr = m_lh_sfc[lev]->const_array(mfi);
+                Array4<const amrex::Real> grdflx_arr = m_grdflx_sfc[lev]->const_array(mfi);
 
                 // Count columns and compute residuals
                 amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
@@ -623,17 +763,17 @@ void ERF::compute_twostream_radiation_diagnostics(
                     Box xy_box(IntVect(lo[0], lo[1], 0), IntVect(hi[0], hi[1], 0));
 
                     // Get SEB field arrays (read-only)
-                    Array4<const amrex::Real> sw_flux_arr = sw_flux_sfc[lev]->const_array(mfi);
-                    Array4<const amrex::Real> lw_flux_arr = lw_flux_sfc[lev]->const_array(mfi);
-                    Array4<const amrex::Real> hfx_arr = hfx_sfc[lev]->const_array(mfi);
-                    Array4<const amrex::Real> lh_arr = lh_sfc[lev]->const_array(mfi);
-                    Array4<const amrex::Real> grdflx_arr = grdflx_sfc[lev]->const_array(mfi);
-                    Array4<const amrex::Real> t_deep_arr = t_deep[lev]->const_array(mfi);
-                    Array4<const amrex::Real> q_deep_arr = q_deep[lev]->const_array(mfi);
+                    Array4<const amrex::Real> sw_flux_arr = m_sw_flux_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> lw_flux_arr = m_lw_flux_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> hfx_arr = m_hfx_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> lh_arr = m_lh_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> grdflx_arr = m_grdflx_sfc[lev]->const_array(mfi);
+                    Array4<const amrex::Real> t_deep_arr = m_t_deep[lev]->const_array(mfi);
+                    Array4<const amrex::Real> q_deep_arr = m_q_deep[lev]->const_array(mfi);
 
                     // Get SEB state arrays (read-write for prognostic update)
-                    Array4<amrex::Real> t_s_arr = twostream_t_sfc[lev]->array(mfi);
-                    Array4<amrex::Real> q_s_arr = q_sfc[lev]->array(mfi);
+                    Array4<amrex::Real> t_s_arr = m_t_sfc[lev]->array(mfi);
+                    Array4<amrex::Real> q_s_arr = m_q_sfc[lev]->array(mfi);
                     // Count columns and prepare for reductions
                     amrex::Long n_cols_box = static_cast<amrex::Long>(bx.length(0)) *
                                              static_cast<amrex::Long>(bx.length(1));
@@ -711,6 +851,15 @@ void ERF::compute_twostream_radiation_diagnostics(
                     n_prog_columns += n_cols_box;
                 }
 
+                // The force-restore kernels return a zero tendency on any
+                // non-finite input, so a NaN here means the state itself was
+                // corrupted (a bad restart file, or an overwrite elsewhere).
+                if (m_t_sfc[lev]->contains_nan(0, 1, 0) || m_q_sfc[lev]->contains_nan(0, 1, 0)) {
+                    amrex::Abort("TwoStreamRadiation: non-finite surface temperature or moisture "
+                                 "after the force-restore update at level " + std::to_string(lev) +
+                                 ", step " + std::to_string(nstep));
+                }
+
                 // Compute mean values from sums
                 if (n_prog_columns > 0) {
                     t_s_mean = t_s_sum / static_cast<amrex::Real>(n_prog_columns);
@@ -748,11 +897,11 @@ void ERF::compute_twostream_radiation_diagnostics(
                 LW_up_TOA      = lw_up_toa_sum * inv_n;
             }
             heating_rate_max = max_heating_global;
-            twostream_flux_diag[lev] = TwoStreamFluxDiag{SW_surface, SW_TOA, SW_up_TOA,
+            m_flux_diag[lev] = FluxDiag{SW_surface, SW_TOA, SW_up_TOA,
                                                          LW_net_surface, LW_up_TOA,
                                                          heating_rate_max};
         } else {
-            const TwoStreamFluxDiag& cached = twostream_flux_diag[lev];
+            const FluxDiag& cached = m_flux_diag[lev];
             SW_surface       = cached.SW_surface;
             SW_TOA           = cached.SW_TOA;
             SW_up_TOA        = cached.SW_up_TOA;

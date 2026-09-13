@@ -8,6 +8,7 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
+#include <ERF_IndexDefines.H>
 #include <ERF_TurbStruct.H>
 
 /**

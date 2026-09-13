@@ -519,7 +519,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
        ${SRC_DIR}/Radiation/ERF_RadiationDiagnostics.cpp
-       ${SRC_DIR}/Radiation/ERF_AdvanceTwoStreamRadiation.cpp
+       ${SRC_DIR}/Radiation/ERF_TwoStreamRadiation.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp

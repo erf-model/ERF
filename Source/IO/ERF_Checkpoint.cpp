@@ -363,19 +363,9 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
-        // Write the two-stream force-restore surface state. Without these a
-        // restart resets the prognostic surface temperature and moisture to
-        // the scalar defaults.
-        if (solverChoice.radChoice.rad_type == RadType::TwoStream &&
-            solverChoice.radChoice.seb_enable) {
-            if (twostream_t_sfc[lev]) {
-                VisMF::Write(*twostream_t_sfc[lev],
-                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TSfc"));
-            }
-            if (q_sfc[lev]) {
-                VisMF::Write(*q_sfc[lev],
-                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
-            }
+        // Two-stream radiation: the force-restore surface state
+        if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+            two_stream_rad.write_checkpoint(lev, checkpointname);
         }
 
         // Write the LSM data
@@ -1173,20 +1163,9 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        // Read the two-stream force-restore surface state. Older checkpoints
-        // do not carry it; then the scalar defaults set by init_stuff stand.
-        if (solverChoice.radChoice.rad_type == RadType::TwoStream &&
-            solverChoice.radChoice.seb_enable) {
-            const std::string tsfc_name =
-                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_TSfc");
-            if (twostream_t_sfc[lev] && amrex::FileExists(tsfc_name + "_H")) {
-                VisMF::Read(*twostream_t_sfc[lev], tsfc_name);
-            }
-            const std::string qsfc_name =
-                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_QSfc");
-            if (q_sfc[lev] && amrex::FileExists(qsfc_name + "_H")) {
-                VisMF::Read(*q_sfc[lev], qsfc_name);
-            }
+        // Two-stream radiation: the force-restore surface state
+        if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+            two_stream_rad.read_checkpoint(lev, restart_chkfile);
         }
 
         // Read the radiation heating rates

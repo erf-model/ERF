@@ -191,7 +191,7 @@ Expected result: LW upwelling flux varies with local time
 
 **Solution**: Check that all code changes were applied:
 - ERF_RadStruct.H: Three new fields + init_params() queries
-- ERF_AdvanceTwoStreamRadiation.cpp: Five helper functions + modified vertical_two_stream_sweep()
+- ERF_TwoStreamRadiation.cpp: Five helper functions + modified vertical_two_stream_sweep()
 
 ### Issue: Checker script reports failures
 
@@ -210,7 +210,7 @@ Expected result: LW upwelling flux varies with local time
 
 ## References
 
-- **ERF_AdvanceTwoStreamRadiation.cpp**: Source code (lines comments)
+- **ERF_TwoStreamRadiation.cpp**: Source code (lines comments)
 
 ---
 

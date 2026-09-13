@@ -111,6 +111,8 @@ void ERF::advance_radiation (int lev,
     //   and dt_advance the step size (used by the surface-energy-balance
     //   update, which runs at the post-dycore call).
     else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
-        compute_twostream_radiation_diagnostics(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore");
+        two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
+                               vars_old[lev][Vars::cons], z_phys_cc[lev].get(), geom[lev],
+                               lsm, qheating_rates[lev].get());
     }
 }

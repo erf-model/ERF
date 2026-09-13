@@ -21,7 +21,7 @@
 #   All parameter names, types, and default values below were
 #   cross-checked directly against:
 #     - Source/DataStructs/ERF_RadStruct.H  (RadChoice::init_params())
-#     - Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp
+#     - Source/Radiation/ERF_TwoStreamRadiation.cpp
 #
 #   Enable the two-stream model with:
 #     erf.radiation_type = "TwoStream"
