@@ -271,8 +271,6 @@ function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
 
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    # fextrema is built next to fcompare by the AMReX plotfile tools
-    string(REPLACE "amrex_fcompare" "amrex_fextrema" FEXTREMA_EXE "${FCOMPARE_EXE}")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
         -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
