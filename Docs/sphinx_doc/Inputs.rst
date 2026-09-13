@@ -2372,7 +2372,7 @@ hurricane eye through the run.
 Weather Station Tracker
 ------------------------
 
-It is the capability to output line plots of quantities of interest at a given weather station specified by the latitude and longitude. The options are the following:
+Capability to output text files to produce line plots of quantities of interest vs time at a given weather station specified by the latitude and longitude. Currently only the rain accumulation at the ground is written into the output. More options will be made available soon. The options are the following:
 
 +-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
 | Parameter                         | Definition                                                      | Acceptable Values  | Default    |
