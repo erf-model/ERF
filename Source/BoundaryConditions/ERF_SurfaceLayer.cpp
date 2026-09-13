@@ -1,4 +1,5 @@
 #include "ERF_SurfaceLayer.H"
+#include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
 
 using namespace amrex;

@@ -1,4 +1,5 @@
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "ERF_ShocInterface.H"
 
 using namespace amrex;

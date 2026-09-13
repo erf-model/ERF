@@ -1,4 +1,5 @@
 #include <cmath>
+#include "ERF_Constants.H"
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_BoxList.H>

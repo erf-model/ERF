@@ -7,6 +7,7 @@
 */
 
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
 
 using namespace amrex;

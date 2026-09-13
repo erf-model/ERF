@@ -1,4 +1,5 @@
 #include <AMReX_Reduce.H>
+#include "ERF_Constants.H"
 
 #include <ERF_EOS.H>
 #include <ERF_TimestepUtils.H>

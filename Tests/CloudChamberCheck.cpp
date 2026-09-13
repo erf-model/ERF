@@ -1,4 +1,5 @@
 #include <AMReX.H>
+#include "ERF_Constants.H"
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include "../Source/Utils/ERF_EOS.H"

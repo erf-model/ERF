@@ -2,6 +2,7 @@
  * \file ERF_Plotfile.cpp
  */
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_PlotfileSelection.H"

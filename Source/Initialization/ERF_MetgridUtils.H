@@ -5,6 +5,7 @@
 #define ERF_METGRIDUTIL_H_
 
 #include <cmath>
+#include "ERF_Constants.H"
 #include <limits>
 
 #include <ERF.H>
