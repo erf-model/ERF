@@ -73,10 +73,7 @@ void unpack_ij (const Long idx, const int nx, const Dim3& dlo, int& i, int& j) n
  * @param[out] station_loc_j Global minimum j-index
  */
 std::pair<int, int>
-ComputeLocation (const SolverChoice& sc,
-                 const Geometry& lev_geom,
-                 const Vector<MultiFab>& S_data,
-                 Real* d_val_min_ptr,
+ComputeLocation (Real* d_val_min_ptr,
                  int* d_i_min_ptr,
                  int* d_j_min_ptr)
 {
@@ -253,10 +250,7 @@ ERF::ComputeStationLocationIJ (const SolverChoice& sc,
         Gpu::copy(Gpu::hostToDevice, &h_j_min, &h_j_min + 1, d_j_min_ptr);
     }
 
-    std::pair<int, int> station_loc = ComputeLocation (sc,
-                                                       lev_geom,
-                                                       S_data,
-                                                       d_val_min_ptr,
+    std::pair<int, int> station_loc = ComputeLocation (d_val_min_ptr,
                                                        d_i_min_ptr,
                                                        d_j_min_ptr);
     return station_loc;
@@ -335,7 +329,6 @@ ERF::WeatherDiagnosticsTracker (const SolverChoice& sc)
     static bool is_start = true;
     int levc=finest_level;
 
-    const MoistureType moisture_type = sc.moisture_type;
     const Real station_latitude  = sc.station_latitude;
     const Real station_longitude = sc.station_longitude;
 
