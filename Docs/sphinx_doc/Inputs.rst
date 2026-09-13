@@ -836,6 +836,26 @@ Notes
 
 -  | If **erf.anelastic** is true then **substepping_type** is internally set to "None".
 
+-  | The implicit vertical diffusion solves invert one tridiagonal system per column, so a
+     column of the domain must lie entirely within a single grid.  If the grids at any level
+     are decomposed in the vertical -- for example because **amr.max_grid_size_z** is smaller
+     than the number of cells in z, or because the grid generator stacked boxes in z to cover
+     a tagged region -- then the code will abort rather than solve each piece of a column
+     separately, which would impose spurious internal boundaries and make the answer depend on
+     the grid decomposition.  To run such a case, either set **erf.vert_implicit_fac = 0 0 0**
+     (equivalently **erf.vert_implicit = false**), turn off
+     **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
+     grids that are not split in z.
+
+-  | A column may, however, end below the top of the domain, as it does on a refined level that
+     does not reach the domain top, or where the refined region is a staircase in z.  In that
+     case the physical boundary condition is applied only where the column really does end at
+     the domain boundary; elsewhere the solve is closed with the value on the coarse/fine
+     boundary.  This holds for the scalars (theta, moisture, turbulent kinetic energy) as well
+     as for the momenta.  For **u** and **v** the column of faces along a grid seam is solved over the
+     range covered by both of the cell columns adjacent to it, so the two grids sharing that
+     seam obtain the same answer.
+
 -  | The time step controls work somewhat differently depending on whether one is using
      acoustic substepping in time; this is determined by the value of **substepping_type**.
 

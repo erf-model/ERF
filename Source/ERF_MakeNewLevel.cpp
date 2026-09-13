@@ -1086,6 +1086,9 @@ ERF::ClearLevel (int lev)
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
 
+    // Clears the map of the vertical extent of the grid column over each (i,j)
+    column_kextent[lev].reset();
+
     // Clears the physical boundary condition routines
     physbcs_cons[lev].reset();
     physbcs_u[lev].reset();
