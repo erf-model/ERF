@@ -105,24 +105,6 @@ python check_seb_diagnostic.py
 # Verify: 10 columns, SEB residual ~-10.0 W/m^2, finite values
 ```
 
-## Implementation Summary
-
-### New Files
-- `Source/Radiation/ERF_SimplifiedSEB.H` — GPU-safe residual diagnostic kernel
-- `Exec/CanonicalTests/Radiation/TwoStream_SEB_Diagnostic/` — RegTest directory
-
-### Modified Files
-- `Source/DataStructs/ERF_RadStruct.H` — Added `seb_diagnostic_enable` parameter
-- `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with SEB columns
-- `Source/Radiation/ERF_TwoStreamRadiation.cpp` — Integrated residual computation
-
-### Key Design Decisions
-1. **Diagnostic-only**: No feedback to T_s, heating rates, or any prognostic fields
-2. **GPU-safe**: All computation via `AMREX_GPU_DEVICE AMREX_FORCE_INLINE` kernels
-3. **Backward compatible**: When disabled (default), zero overhead and bitwise-identical output
-4. **Auto-enable SEB**: If `seb_diagnostic_enable=true` but `seb_enable=false`, auto-enable SEB internally
-5. **Safe no-op**: If any input flux is NaN/Inf, return 0.0 residual (safe fallback)
-
 ## References
 
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice parameters documentation

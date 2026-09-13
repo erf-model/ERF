@@ -180,25 +180,6 @@ erf inputs_seb_prognostic_coupled
 python check_seb_prognostic.py coupled
 ```
 
-## Implementation Summary
-
-### New Files
-- `Source/Radiation/ERF_SimplifiedSEB.H` — GPU-safe prognostic tendency kernels
-- `Exec/CanonicalTests/Radiation/TwoStream_SEB_Prognostic/` — RegTest directory
-
-### Modified Files
-- `Source/DataStructs/ERF_RadStruct.H` — Added 9 new prognostic parameters
-- `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with T_s/q_s columns
-- `Source/Radiation/ERF_TwoStreamRadiation.cpp` — Integrated prognostic update with Noah-MP gating
-
-### Key Design Decisions
-1. **Prognostic-only update**: T_s and q_s evolved in place; no feedback to radiation or atmosphere
-2. **GPU-safe**: All time integration via `AMREX_GPU_DEVICE AMREX_FORCE_INLINE` kernels
-3. **Noah-MP gating**: When Noah-MP drives LSM at a level, update skipped (LSM takes precedence)
-4. **Auto-enable prerequisites**: If `seb_prognostic_enable=true`, auto-enable `seb_enable` and `seb_diagnostic_enable`
-5. **Safe no-op on non-finite**: If any input NaN/Inf or parameters invalid, return 0.0 tendency (no update)
-6. **Clamping**: All updated values clamped to configured bounds to prevent instability
-
 ## References
 
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice parameters documentation
