@@ -90,6 +90,23 @@ ImplicitDiffForStateLU_N (const Box& bx,
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
                               "Unexpected upper BC for scalars used with implicit vertical diffusion");
 
+    // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
+    // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
+    // and the row above sees it as a Dirichlet neighbour.
+    // NOTE: init_bcs requires zlo.type = surface_layer whenever dirichlet_k is set,
+    //       so this matches the l_dirichlet_k pin in erf_slow_rhs_post, which also
+    //       requires a surface layer. Do not relax one without the other.
+    const bool pin_klo = (qty_index == RhoKE_comp) && (klo == domain.smallEnd(2)) &&
+                         (solverChoice.turbChoice[level].rans_type == RANSType::kEqn) &&
+                         solverChoice.turbChoice[level].dirichlet_k;
+
+    // A column whose bottom or top is not the domain boundary ends at a coarse/fine boundary
+    // instead.  There the system must be closed with the value on the other side of that
+    // boundary rather than given a physical BC row at an interior height, so that the answer
+    // does not depend on where the grid happens to end in the vertical.
+    const bool at_zlo = (klo == domain.smallEnd(2));
+    const bool at_zhi = (khi == domain.bigEnd(2));
+
     Real Fact = implicit_fac * dt * dz_inv;
 
 #ifdef AMREX_USE_GPU
@@ -109,12 +126,18 @@ ImplicitDiffForStateLU_N (const Box& bx,
                             prim_index, prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = zero;
-                c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
+                if (!at_zlo) { a_tmp = -Fact * rhoAlpha_lo * dz_inv; }
+                c_tmp      = (pin_klo) ? zero : -Fact * rhoAlpha_hi * dz_inv;
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
-                if (use_SurfLayer && scalar_zflux) {
+                if (!at_zlo) {
+                    // Coarse/fine boundary: close the system with the known value below
+                    RHS_a(i,j,klo) -= a_tmp * (cell_data(i,j,klo-1,n) / cell_data(i,j,klo-1,Rho_comp));
+                } else if (pin_klo) {
+                    // Dirichlet row: no flux terms
+                } else if (use_SurfLayer && scalar_zflux) {
                     RHS_a(i,j,klo) +=  Fact * scalar_zflux(i,j,klo); // NOTE: scalar_zflux = -K*d_z(\phi)
                 } else if (neumann_on_zlo) {
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
@@ -129,6 +152,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
                     const Real gam_hi = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo+1, gam_comp));
                     RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
+                    if (!at_zlo) {
+                        const Real gam_lo = myhalf * (mu_turb(i, j, klo, gam_comp) + mu_turb(i, j, klo-1, gam_comp));
+                        RHS_a(i,j,klo) += Fact * rhoAlpha_lo * gam_lo;
+                    }
                 }
 
                 RHS_a(i,j,klo)    /= b_tmp;         // NOTE: this is now "rho"
@@ -175,11 +202,23 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
+                if (!at_zhi) { c_tmp = -Fact * rhoAlpha_hi * dz_inv; }
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
                 RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
-                if (neumann_on_zhi) {
+                if (!at_zhi) {
+                    // Coarse/fine boundary: close the system with the known value above.  The
+                    // countergradient flux then passes through both faces, as it does in the
+                    // interior, rather than only through the lower one.
+                    RHS_a(i,j,khi) -= c_tmp * (cell_data(i,j,khi+1,n) / cell_data(i,j,khi+1,Rho_comp));
+                    if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                        const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
+                        const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
+                        RHS_a(i,j,khi) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
+                    }
+                } else if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\phi)
                 }
 
@@ -232,9 +271,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
 template <int stagdir>
 void
 ImplicitDiffForMomLU_N (const Box& bx,
-                        const Box& /*domain*/,
+                        const Box& domain,
                         const int level,
                         const double dt_d,
+                        const Array4<const int >& col_kext,
                         const Array4<const Real>& cell_data,
                         const Array4<      Real>& face_data,
                         const Array4<const Real>& tau,
@@ -277,9 +317,16 @@ ImplicitDiffForMomLU_N (const Box& bx,
     int ihi = bx.bigEnd(0);
     int jlo = bx.smallEnd(1);
     int jhi = bx.bigEnd(1);
-    int klo = bx.smallEnd(2);
-    int khi = bx.bigEnd(2);
+    int box_klo = bx.smallEnd(2);
+    int box_khi = bx.bigEnd(2);
     amrex::ignore_unused(ilo, ihi, jlo, jhi);
+
+    // Vertical staggering of this component, and the vertical extent of the domain for the
+    // faces we are solving on.  A column whose top or bottom is not the domain boundary ends
+    // at a coarse/fine boundary instead, and must not be given a physical BC row.
+    constexpr int knodal = (stagdir == 2) ? 1 : 0;
+    const int dom_klo = domain.smallEnd(2);
+    const int dom_khi = domain.bigEnd(2) + knodal;
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
@@ -315,6 +362,25 @@ ImplicitDiffForMomLU_N (const Box& bx,
 #else
     for (int j(jlo); j<=jhi; ++j) {
       for (int i(ilo); i<=ihi; ++i) {
+#endif
+
+          // The face column at (i,j) is shared by the two cell columns on either side of it,
+          // and so by the box on either side of a grid seam.  Solve only over the vertical
+          // range that both of those cell columns cover: the boxes on the two sides then
+          // build the same tridiagonal system and get the same answer, so the duplicated
+          // faces along the seam stay consistent.  Faces outside that range sit on a lateral
+          // coarse/fine boundary and are set from the coarse level, so it is consistent to
+          // leave them to the explicit update.
+          const int klo = amrex::max(box_klo, col_kext(i-ioff,j-joff,0,0),
+                                              col_kext(i     ,j     ,0,0));
+          const int khi = amrex::min(box_khi, col_kext(i-ioff,j-joff,0,1)+knodal,
+                                              col_kext(i     ,j     ,0,1)+knodal);
+
+          // Fewer than two faces in common -- nothing to invert, leave the column explicit
+#ifdef AMREX_USE_GPU
+          if (khi <= klo) { return; }
+#else
+          if (khi <= klo) { continue; }
 #endif
           // Notes:
           //
@@ -364,8 +430,17 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               RHS_a(i,j,klo) = face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
-              // BCs: Dirichlet (u_i = val), slip wall (w = 0), or surface layer (w = 0)
-              if (ext_dir_on_zlo) {
+              // BCs: Dirichlet (u_i = val), slip wall (w = 0), or surface layer (w = 0) --
+              //      but only where the bottom of this column really is the domain boundary
+              if (klo != dom_klo) {
+                  // Coarse/fine (or grid) boundary: close the system with the known face value
+                  // below instead of imposing a physical BC at an interior height
+                  a_tmp = -Fact * rhoAlpha_lo * dz_inv;
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+                  const Real rho_below = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                  + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                  RHS_a(i,j,klo) -= a_tmp * (face_data(i,j,klo-1) / rho_below);
+              } else if (ext_dir_on_zlo) {
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
                   if (stagdir==2) {
                       c_tmp = zero;
@@ -457,8 +532,16 @@ ImplicitDiffForMomLU_N (const Box& bx,
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
 
-              // BCs: Dirichlet (u_i = val), slip wall (w = 0)
-              if (ext_dir_on_zhi) {
+              // BCs: Dirichlet (u_i = val), slip wall (w = 0) --
+              //      but only where the top of this column really is the domain boundary
+              if (khi != dom_khi) {
+                  // Coarse/fine (or grid) boundary: close the system with the known face value
+                  // above instead of imposing a physical BC at an interior height
+                  c_tmp = -Fact * rhoAlpha_hi * dz_inv;
+                  const Real rho_above = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                  + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                  RHS_a(i,j,khi) -= c_tmp * (face_data(i,j,khi+1) / rho_above);
+              } else if (ext_dir_on_zhi) {
                   if (stagdir==2) {
                       a_tmp = zero;
                       RHS_a(i,j,khi) = zero;
@@ -506,6 +589,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const Box&, \
         const int, \
         const double, \
+        const Array4<const int >&, \
         const Array4<const Real>&, \
         const Array4<      Real>&, \
         const Array4<const Real>&, \

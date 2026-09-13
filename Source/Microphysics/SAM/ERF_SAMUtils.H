@@ -8,6 +8,7 @@
 #include <AMReX_GpuQualifiers.H>
 
 #include "ERF_Constants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_EOS.H"
 #include "ERF_IndexDefines.H"

@@ -8,7 +8,8 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Particles.H>
 #include "ERF_IndexDefines.H"
-#include "ERF_Constants.H"
+#include <cmath>
+#include "ERF_NumericalConstants.H"
 #include "ERFPC.H"
 #include "ERF_SDInitialization.H"
 

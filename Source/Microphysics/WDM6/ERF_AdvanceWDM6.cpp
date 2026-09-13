@@ -1,4 +1,6 @@
 #include "ERF_WDM6.H"
+#include "ERF_MicrophysicsConstants.H"
+#include "ERF_Constants.H"
 #include <AMReX_IArrayBox.H>
 #include <AMReX_Reduce.H>
 #include <algorithm>

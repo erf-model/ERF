@@ -7,6 +7,7 @@
 */
 
 #include <memory>
+#include "ERF_Constants.H"
 
 #include "ERF_EOS.H"
 #include "ERF.H"

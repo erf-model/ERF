@@ -58,6 +58,12 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 erf.use_gravity  = true
 erf.use_coriolis = false
 
+# The level-1 grids tagged by lo_theta are stacked in z, so a column of the domain is
+# covered by more than one box.  The implicit vertical diffusion solve inverts one
+# tridiagonal system per column and so cannot be used on such a decomposition; do the
+# vertical diffusion explicitly instead.
+erf.vert_implicit_fac = 0 0 0
+
 erf.les_type         = "None"
 #
 # Diffusion coefficient from Straka, K = 75 m^2/s

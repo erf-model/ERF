@@ -18,7 +18,6 @@
 #include <mo_load_cloud_coefficients.h>
 
 #include <ERF_RRTMGP_Utils.H>
-#include <ERF_Constants.H>
 
 #include <ERF_Kokkos.H>
 
