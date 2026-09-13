@@ -385,6 +385,32 @@ public:
         }
     }
 
+    /**
+     * Function to report whether the user has actually specified a terrain surface,
+     * i.e. whether init_terrain_surface will do anything other than return flat terrain.
+     *
+     * This mirrors the source precedence in init_terrain_surface, and is deliberately
+     * kept next to it so that the two cannot drift apart.  A problem that overrides
+     * the terrain unconditionally, rather than keying off prob.custom_terrain_type,
+     * should override this to return true.
+    */
+    virtual bool
+    terrain_is_specified ()
+    {
+        amrex::ParmParse pp("erf");
+        std::string fname;
+        if (pp.query("terrain_file_name_nc",   fname) ||
+            pp.query("terrain_file_name",      fname) ||
+            pp.query("terrain_file_name_USGS", fname)) {
+            return true;
+        }
+
+        std::string custom_terrain_type = "None";
+        amrex::ParmParse pp_prob("prob");
+        pp_prob.query("custom_terrain_type", custom_terrain_type);
+        return (custom_terrain_type != "None");
+    }
+
 #ifdef ERF_USE_NETCDF
     void
     read_terrain_netcdf (const std::string& fname,

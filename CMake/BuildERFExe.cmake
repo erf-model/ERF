@@ -435,6 +435,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBAux.cpp
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
+       ${SRC_DIR}/EB/ERF_EBInit.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp

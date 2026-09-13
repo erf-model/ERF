@@ -8,12 +8,6 @@
 
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
-#include "AMReX_EB2_IF_Box.H"
-#include "AMReX_EB2_IF_Sphere.H"
-#include "AMReX_EB2_IF_Plane.H"
-#include "AMReX_EB2_IF_Union.H"
-#include "ERF_EBIFTerrain.H"
-#include "ERF_EBIFBuildings.H"
 
 using namespace amrex;
 
