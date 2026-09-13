@@ -44,6 +44,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    GettingStarted.rst
    buildingConfiguration.rst
    Inputs.rst
+   SpectralBinMicrophysics.rst
    Initialization.rst
    CloudChamber.rst
    BestPractices.rst

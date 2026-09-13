@@ -53,6 +53,10 @@ Model overview and transported quantities in ERF
 | Super-Droplet      | ``SuperDroplets``       | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | Method (SDM)       |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Spectral-bin       | ``SBM``                 | :math:`q_r` | --          | --              | --          |
+| warm-cloud         | (experimental P0/P1)   |             |             |                 |             |
+| transport          |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
 .. note::
 

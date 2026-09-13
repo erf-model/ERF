@@ -3136,7 +3136,9 @@ List of Parameters
 |                                   |                                                          | Morrison_NoIce,      |                  |
 |                                   |                                                          | WSM6, WDM6,          |                  |
 |                                   |                                                          | SuperDroplets,       |                  |
-|                                   |                                                          | MoistNoCondensation  |                  |
+|                                   |                                                          | MoistNoCondensation, |                  |
+|                                   |                                                          | SBM (experimental    |                  |
+|                                   |                                                          | P0/P1 transport)     |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
 |                                   | the dycore; otherwise, update after the dycore has been  |                      |                  |
