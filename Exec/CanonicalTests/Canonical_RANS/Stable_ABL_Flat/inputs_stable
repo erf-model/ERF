@@ -1,0 +1,102 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Stable ABL on flat ground with the one-equation k RANS closure: the
+# GABLS1 set-up (Beare et al. 2006), 8 m/s geostrophic wind at 73 N,
+# surface cooling of 0.25 K/h from 265 K, z0 = 0.1 m. Column problem, so
+# the horizontal grid is coarse on purpose.
+erf.prob_name = "ABL"
+
+erf.anelastic = 1
+erf.use_fft   = true
+
+stop_time = 32400.0   # 9 h physics run; CTest overrides max_step
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 400    400    400
+amr.n_cell           =   8      8    100     # dz = 4 m, first cell centre 2 m
+amr.max_grid_size    = 100
+amr.blocking_factor  = 4
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY: prescribed cooling surface (GABLS1)
+zlo.type                   = "surface_layer"
+erf.most.z0                = 0.1
+erf.most.surf_temp         = 265.0
+erf.most.surf_heating_rate = -0.25   # [K/h]
+erf.most.pblh_calc         = "MYNN25"
+
+zhi.type       = "SlipWall"
+zhi.theta_grad = 0.01   # [K/m], matches the sounding above 100 m
+
+# INITIALIZATION
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.sounding_type       = "Ideal"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 2.0
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval = 10
+erf.v            = 1
+amr.v            = 0
+
+erf.data_log        = surf_hist.dat mean_profiles.dat flux_profiles.dat sfs_profiles.dat
+erf.profile_int     = 100
+erf.destag_profiles = false
+
+# REFINEMENT / REGRIDGING
+amr.max_level = 0
+
+# CHECKPOINT FILES
+erf.check_file = chk
+erf.check_int  = 8100
+
+# PLOTFILES
+erf.plot_file_1 = plt
+erf.plot_int_1  = 8100
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE Kmv Khv Lturb walldist diss
+
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.use_gravity  = true
+erf.use_coriolis = true
+erf.coriolis_3d  = false
+erf.latitude     = 73.0
+erf.rotational_time_period = 86455.2516813368   # f = 1.39e-4 1/s
+
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind    = 8.0 0.0 0.0
+
+# gravity-wave damping above 300 m (Beare et al. 2006)
+erf.rayleigh_damp_W     = true
+erf.rayleigh_dampcoef   = 0.2
+erf.rayleigh_zdamp      = 100.
+
+erf.molec_diff_type = "None"
+
+# TURBULENCE MODELING: one-equation k RANS
+erf.les_type                      = "None"
+erf.rans_type                     = "kEqn"
+erf.dirichlet_k                   = true
+erf.init_tke_from_ustar           = true
+erf.rans_consistent_diffusivities = true   # heat and scalars follow cmu' (AL01 Eq. 32)
+erf.rans_lscale_from_pblh         = true   # cap l_g at kappa * 0.1 * zi
+erf.rans_lscale_min               = 1.0
+erf.theta_ref                     = 265.0
+
+# PROBLEM PARAMETERS: no perturbations
+prob.pert_deltaU  = 0.0
+prob.pert_deltaV  = 0.0
+prob.T_0_Pert_Mag = 0.0
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
+prob.W_0_Pert_Mag = 0.0
