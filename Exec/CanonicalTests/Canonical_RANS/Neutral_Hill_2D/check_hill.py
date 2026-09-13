@@ -7,8 +7,12 @@ Usage: check_hill.py [--smoke | --physics] [--flat] <plotfile>
 exact distance to the ridge, the length-scale bounds built on it, positivity
 and the wall-cell k retention; --physics adds the hill-top speed-up and
 the far-field log law after the 6 h run. --flat is for the flat-fitted
-variant (prob.hmax = 1e-6), where the Poisson wall distance must equal
-the height above the surface to solver tolerance.
+variant (prob.hmax = 1e-6), where the wall distance must equal the height
+above the surface to solver tolerance.
+
+The deck defaults to erf.wall_dist_type = terrain_height; the _Poisson CTest
+variants override it with the Tucker (2003) solve. The same tolerances cover
+both paths and are set by the looser one, which is Poisson.
 """
 
 import math
@@ -93,15 +97,18 @@ def main(argv):
             sum_rel += rel
             n_rel += 1
     if flat:
-        # exact to 1e-6 m above the first cell; the first cell carries the
-        # odd-reflection Dirichlet ghost of the Poisson solve (dz^2/8 in phi,
-        # 1.5 cm in distance here), 0.2 % of its 7.8 m
+        # terrain_height is exact here; the tolerance is set by the Poisson
+        # variant, which is exact to 1e-6 m above the first cell but whose
+        # first cell carries the odd-reflection Dirichlet ghost (dz^2/8 in
+        # phi, 1.5 cm in distance here), 0.2 % of its 7.8 m
         rep.check("max rel err walldist vs z - h (flat fitted)", max_rel, 0.0, 3e-3)
         rep.check("max abs err walldist, d < 100 m (flat) [m]", max_abs_near, 0.0, 0.1)
     else:
-        # Tucker's Poisson distance is weakest at the convex crest: about
-        # 5-10 % in the first cells there. The absolute error near the
-        # surface is judged in units of the vertical cell size.
+        # Tolerances cover both wall-distance paths and are set by the
+        # looser one: Tucker's Poisson distance is weakest at the convex
+        # crest, about 5-10 % in the first cells there (terrain_height is
+        # within about 7 %). The absolute error near the surface is judged
+        # in units of the vertical cell size.
         rep.check("max rel err walldist vs exact ridge distance", max_rel, 0.0, 0.15)
         rep.check("mean rel err walldist vs exact ridge distance", sum_rel / n_rel, 0.0, 0.03)
         rep.check("max abs err walldist, d < 100 m [cells]", max_abs_near / hdr["dx"][2], 0.0, 0.2)

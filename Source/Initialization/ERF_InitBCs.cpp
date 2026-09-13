@@ -339,6 +339,16 @@ void ERF::init_bcs ()
                 Error("If using one-eqn RANS, all levels must be RANS for now");
             }
         }
+        // The AL01 Eq. 16 wall value is computed only by SurfaceLayer::update_fluxes,
+        // so without a surface layer at zlo nothing ever writes it. The pin in
+        // erf_slow_rhs_post is gated on SurfLayer != nullptr and would silently do
+        // nothing, while ImplicitDiffForStateLU_* would still collapse the klo row
+        // and freeze the first cell at whatever it was initialized to. Rather than
+        // let the two paths disagree, require the surface layer.
+        if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) {
+            Error("erf.dirichlet_k = true requires zlo.type = surface_layer: the wall value "
+                  "of k (Axell & Liungman Eq. 16) is computed by the surface layer model");
+        }
         Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
     }
 

@@ -5,17 +5,18 @@ hmax = 100 m and L = 500 m (half-width at half height), on a
 terrain-fitted mesh under a MOST surface layer, driven by a 10 m/s
 geostrophic wind at f = 1e-4 1/s, z0 = 0.1 m. Closed with the one-equation
 k RANS model of Axell & Liungman (2001). The wall distance the closure
-needs on a fitted mesh comes from the Poisson solve of Tucker (2003,
-J. Comput. Phys. 190, 229-248); this case checks it against the exact
-distance to the ridge, and the flat-fitted variant (`prob.hmax = 1e-6`)
-checks it against the analytic height above the surface on the same mesh
-machinery.
+needs on a fitted mesh defaults here to `terrain_height`, with the Poisson
+solve of Tucker (2003, J. Comput. Phys. 190, 229-248) exercised by the
+`_Poisson` CTest variants (see below); this case checks it against the
+exact distance to the ridge, and the flat-fitted variant
+(`prob.hmax = 1e-6`) checks it against the analytic height above the
+surface on the same mesh machinery.
 
 | item | value |
 | --- | --- |
 | domain | 5120 x 40 x 1000 m, one cell wide in y |
 | grid | 128 x 1 x 64, dx = 40 m, dz = 15.6 m, basic terrain following |
-| time step | 1.5 s fixed (Courant 0.375), anelastic with the MLMG projection |
+| time step | 1.5 s fixed (Courant 0.375), anelastic with the FFT-preconditioned GMRES projection (the only path for a fitted mesh) |
 | closure | `erf.rans_type = kEqn`, AL01 defaults, `dirichlet_k = true` |
 | physics run | 6 h (14400 steps), about 10 min on 2 ranks |
 | smoke runs | 40 steps (`ctest -R RANS_Neutral_Hill_2D`, `ctest -R RANS_Flat_Fitted_2D`) |

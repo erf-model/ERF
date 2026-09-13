@@ -1541,114 +1541,114 @@ Diffusive Physics
 List of Parameters
 ------------------
 
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                        | Definition                                               | Acceptable Values  | Default          |
-+==================================+==========================================================+====================+==================+
-| **erf.alpha_T**                  | Diffusion coeff. for temperature                         | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.alpha_C**                  | Diffusion coeff. for scalar                              | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rho0_trans**               | Reference density to compute const. rho*Alpha            | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.les_type**                 | Using an LES model, and if so, which type?               | "None",            | "None"           |
-|                                  |                                                          | "Smagorinsky",     |                  |
-|                                  |                                                          | "Deardorff"        |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rans_type**                | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.molec_diff_type**          | Using molecular viscosity and diffusivity?               | "None",            | "None"           |
-|                                  |                                                          | "Constant", or     |                  |
-|                                  |                                                          | "ConstantAlpha"    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.dynamic_viscosity**        | Viscous coeff. if DNS                                    | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cs**                       | Constant Smagorinsky coeff.                              | Real               | 0.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_moist_Ri_correction**  | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
-|                                  | model                                                    |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ck**                       | Constant Deardorff k coeff.                              | Real               | 0.1              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ce**                       | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ce_wall**                  | Constant Deardorff epsilon coeff. at the wall; if > 0,   | Real               | 0.0              |
-|                                  | then set Ce to this at k=0                               |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.sigma_k**                  | Constant Deardorff coeff. in downgradient diffusion term | Real               | 0.5              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.theta_ref**                | Reference potential temperature used to characterize     | Real               | 0.0              |
-|                                  | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
-|                                  | instantaneous local value is used                        |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Pr_t**                     | Turbulent Prandtl Number                                 | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Sc_t**                     | Turbulent Schmidt Number                                 | Real               | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.num_diff_coeff**           | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
-|                                  | turns it off                                             |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.implicit_before_substep**  | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
-|                                  | before the acoustic substepping rather than after.       |                    |                  |
-|                                  | Forced to true if any level has ``substepping_type`` =   |                    |                  |
-|                                  | ``None``                                                 |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.thermal_stratification**   | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
-|                                  | quantify thermal stratification (per-level)              | thetal             |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.mix_isotropic**            | use an isotropic mixing length (per-level);              | Boolean            | true             |
-|                                  | automatically turned off for 2-D Smagorinsky             |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_Ri_correction**        | apply the Richardson-number correction to the            | Boolean            | true             |
-|                                  | Smagorinsky coefficient (per-level)                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Ri_crit**                  | critical Richardson number used by that correction       | Real               | 0.25             |
-|                                  | (per-level)                                              |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cmu0**                     | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cb**                       | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_crit**                  | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
-|                                  | closure (per-level)                                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_min**                   | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
-|                                  | closure (per-level)                                      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.max_geom_lscale**          | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
-|                                  | (per-level)                                              |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.dirichlet_k**              | k-equation RANS under a surface layer: set the turbulent | Boolean            | false            |
-|                                  | kinetic energy of the first cell above the wall from u*  |                    |                  |
-|                                  | and t* (Axell & Liungman 2001, Eq. 16) and hold it       |                    |                  |
-|                                  | through the step (per-level)                             |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.tke_floor**                | runtime floor on the turbulent kinetic energy [m^2/s^2]  | Real >= 0          | 0 (machine       |
-|                                  | in the k-equation update and the RANS closure; distinct  |                    | epsilon on rho k)|
-|                                  | from ``erf.tke_min``, the initial value (per-level)      |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.implicit_tke_dissipation** | Deardorff or k-equation RANS: treat the TKE dissipation  | Boolean            | false            |
-|                                  | implicitly, eps = (C k_old^1/2 / L) k_new folded into    |                    |                  |
-|                                  | the update, which removes the dissipation time-step      |                    |                  |
-|                                  | limit near the wall (per-level)                          |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rans_consistent_diffusivit-| k-equation RANS: horizontal heat, scalar and moisture    | Boolean            | false            |
-| ies**                            | diffusivities follow the scalar stability function       |                    |                  |
-|                                  | (Axell & Liungman Eq. 32) like the vertical heat         |                    |                  |
-|                                  | diffusivity, instead of Pr_t and Sc_t times the eddy     |                    |                  |
-|                                  | viscosity (per-level)                                    |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rans_lscale_from_pblh**    | k-equation RANS: cap the geometric length at kappa times | Boolean            | false            |
-|                                  | 0.1 times the diagnosed PBL height (needs                |                    |                  |
-|                                  | ``erf.most.pblh_calc = MYNN25``), clamped to             |                    |                  |
-|                                  | [``erf.rans_lscale_min``, ``erf.max_geom_lscale``]       |                    |                  |
-|                                  | (per-level)                                              |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.rans_lscale_min**          | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.wall_dist_type**           | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
-|                                  | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
-|                                  | local surface projected on its normal (no linear solve)  |                    |                  |
-+----------------------------------+----------------------------------------------------------+--------------------+------------------+
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                              | Definition                                               | Acceptable Values  | Default          |
++========================================+==========================================================+====================+==================+
+| **erf.alpha_T**                        | Diffusion coeff. for temperature                         | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.alpha_C**                        | Diffusion coeff. for scalar                              | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rho0_trans**                     | Reference density to compute const. rho*Alpha            | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.les_type**                       | Using an LES model, and if so, which type?               | "None",            | "None"           |
+|                                        |                                                          | "Smagorinsky",     |                  |
+|                                        |                                                          | "Deardorff"        |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_type**                      | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.molec_diff_type**                | Using molecular viscosity and diffusivity?               | "None",            | "None"           |
+|                                        |                                                          | "Constant", or     |                  |
+|                                        |                                                          | "ConstantAlpha"    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dynamic_viscosity**              | Viscous coeff. if DNS                                    | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cs**                             | Constant Smagorinsky coeff.                              | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_moist_Ri_correction**        | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
+|                                        | model                                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ck**                             | Constant Deardorff k coeff.                              | Real               | 0.1              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce**                             | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ce_wall**                        | Constant Deardorff epsilon coeff. at the wall; if > 0,   | Real               | 0.0              |
+|                                        | then set Ce to this at k=0                               |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sigma_k**                        | Constant Deardorff coeff. in downgradient diffusion term | Real               | 0.5              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.theta_ref**                      | Reference potential temperature used to characterize     | Real               | 0.0              |
+|                                        | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
+|                                        | instantaneous local value is used                        |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Pr_t**                           | Turbulent Prandtl Number                                 | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Sc_t**                           | Turbulent Schmidt Number                                 | Real               | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.num_diff_coeff**                 | coefficient of the sixth-order numerical diffusion; 0    | Real in [0,1]      | 0.0              |
+|                                        | turns it off                                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_before_substep**        | if true, the vertical implicit diffusive solve is done   | Boolean            | true             |
+|                                        | before the acoustic substepping rather than after.       |                    |                  |
+|                                        | Forced to true if any level has ``substepping_type`` =   |                    |                  |
+|                                        | ``None``                                                 |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
+|                                        | quantify thermal stratification (per-level)              | thetal             |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.mix_isotropic**                  | use an isotropic mixing length (per-level);              | Boolean            | true             |
+|                                        | automatically turned off for 2-D Smagorinsky             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_Ri_correction**              | apply the Richardson-number correction to the            | Boolean            | true             |
+|                                        | Smagorinsky coefficient (per-level)                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Ri_crit**                        | critical Richardson number used by that correction       | Real               | 0.25             |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cmu0**                           | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Cb**                             | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_crit**                        | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
+|                                        | closure (per-level)                                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.Rt_min**                         | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
+|                                        | closure (per-level)                                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.max_geom_lscale**                | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.dirichlet_k**                    | k-equation RANS under a surface layer: set the turbulent | Boolean            | false            |
+|                                        | kinetic energy of the first cell above the wall from u*  |                    |                  |
+|                                        | and t* (Axell & Liungman 2001, Eq. 16) and hold it       |                    |                  |
+|                                        | through the step (per-level)                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.tke_floor**                      | runtime floor on the turbulent kinetic energy [m^2/s^2]  | Real >= 0          | 0 (machine       |
+|                                        | in the k-equation update and the RANS closure; distinct  |                    | epsilon on rho k)|
+|                                        | from ``erf.tke_min``, the initial value (per-level)      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.implicit_tke_dissipation**       | Deardorff or k-equation RANS: treat the TKE dissipation  | Boolean            | false            |
+|                                        | implicitly, eps = (C k_old^1/2 / L) k_new folded into    |                    |                  |
+|                                        | the update, which removes the dissipation time-step      |                    |                  |
+|                                        | limit near the wall (per-level)                          |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_consistent_diffusivities**  | k-equation RANS: horizontal heat, scalar and moisture    | Boolean            | false            |
+|                                        | diffusivities follow the scalar stability function       |                    |                  |
+|                                        | (Axell & Liungman Eq. 32) like the vertical heat         |                    |                  |
+|                                        | diffusivity, instead of Pr_t and Sc_t times the eddy     |                    |                  |
+|                                        | viscosity (per-level)                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_from_pblh**          | k-equation RANS: cap the geometric length at kappa times | Boolean            | false            |
+|                                        | 0.1 times the diagnosed PBL height (needs                |                    |                  |
+|                                        | ``erf.most.pblh_calc = MYNN25``), clamped to             |                    |                  |
+|                                        | [``erf.rans_lscale_min``, ``erf.max_geom_lscale``]       |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_lscale_min**                | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
+|                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
+|                                        | local surface projected on its normal (no linear solve)  |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.

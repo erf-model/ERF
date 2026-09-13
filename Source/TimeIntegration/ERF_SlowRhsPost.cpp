@@ -707,7 +707,14 @@ void erf_slow_rhs_post (int level, int finest_level,
             const int klo = domain.smallEnd(2);
             if (tbx.smallEnd(2) <= klo && tbx.bigEnd(2) >= klo) {
                 ParallelFor(makeSlab(tbx,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    cur_cons(i,j,k,RhoKE_comp) = old_cons(i,j,k,RhoKE_comp);
+                    // Hold k, not rho*k.  Eq. 16 defines the primitive wall value, and
+                    // cur_cons(Rho_comp) has already been updated for this stage (and,
+                    // with moving terrain, rescaled by detJ/detJ_new along with RhoKE),
+                    // so copying the conserved variable straight across would let the
+                    // wall value drift by the first-cell density change every step.
+                    // Both states carry the same detJ convention, so the ratio is exact.
+                    cur_cons(i,j,k,RhoKE_comp) = cur_cons(i,j,k,Rho_comp) *
+                        ( old_cons(i,j,k,RhoKE_comp) / old_cons(i,j,k,Rho_comp) );
                 });
             }
         }

@@ -84,9 +84,11 @@ def main(argv):
                 max_rel = max(max_rel, rel)
                 sum_rel += rel
                 n_rel += 1
-    # Tucker's Poisson distance is weakest at the convex crest (about 10 %
-    # in the first cell there); the absolute error near the surface is
-    # judged in units of the vertical cell size.
+    # The deck defaults to erf.wall_dist_type = terrain_height and the _Poisson
+    # CTest variant overrides it; these tolerances cover both paths and are set
+    # by the looser one, Tucker's Poisson distance, which is weakest at the
+    # convex crest (about 10 % in the first cell there). The absolute error near
+    # the surface is judged in units of the vertical cell size.
     rep.check("max rel err walldist vs exact hill distance", max_rel, 0.0, 0.15)
     rep.check("mean rel err walldist vs exact hill distance", sum_rel / n_rel, 0.0, 0.03)
     rep.check("max abs err walldist, d < 100 m [cells]", max_abs_near / hdr["dx"][2], 0.0, 0.2)

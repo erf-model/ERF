@@ -2,13 +2,19 @@
 # Neutral flow over a periodic two-dimensional ridge (Witch of Agnesi,
 # hmax = 100 m, L = 500 m at half height) on a terrain-fitted mesh with
 # the one-equation k RANS closure under a MOST surface layer. The wall
-# distance comes from the Poisson solve of Tucker (2003); the case checks
-# it against the exact distance to the ridge and measures the hill-top
-# speed-up against the Jackson-Hunt estimate 2 h/L.
+# distance defaults to terrain_height (set below); the _Poisson CTest
+# variants override it with the Tucker (2003) solve. Either way the case
+# checks it against the exact distance to the ridge and measures the
+# hill-top speed-up against the Jackson-Hunt estimate 2 h/L.
 erf.prob_name = "ABL"
 
 erf.anelastic = 1
-erf.use_fft   = false    # terrain-fitted mesh: MLMG projection
+# NOTE: on a terrain-fitted mesh (StaticFittedMesh -> MeshType::VariableDz) the
+#       projection ignores erf.use_fft and always runs FFT-preconditioned GMRES,
+#       which aborts unless the build sets USE_FFT = TRUE. That is why CTest
+#       registers this deck only under ERF_ENABLE_FFT. This setting has no effect
+#       here; it would select MLMG only if the deck were flattened to ConstantDz.
+erf.use_fft   = false
 
 stop_time = 21600.0   # 6 h physics run (14400 steps); CTest overrides max_step
 
