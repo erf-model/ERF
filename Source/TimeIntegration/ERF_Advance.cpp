@@ -443,8 +443,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // diagnostics and advances the force-restore surface state by dt_lev.
     // No column sweep runs here; that happened in advance_radiation above.
     // ***********************************************************************************************
-    if (solverChoice.rad_type == RadiationType::None &&
-        solverChoice.radChoice.rad_type == RadType::TwoStream) {
+    if (solverChoice.rad_type == RadiationType::TwoStream) {
         two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, qheating_rates[lev].get());

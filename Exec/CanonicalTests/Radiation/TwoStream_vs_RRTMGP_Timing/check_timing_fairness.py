@@ -30,7 +30,7 @@ INPUTS = ["inputs_twostream", "inputs_rrtmgp"]
 # Keys each input is allowed to set on its own: the solver selector and the
 # knobs belonging to that solver.
 ALLOWED = {
-    "inputs_twostream": re.compile(r"^(erf\.prob_name|amr\.n_cell|erf\.radiation_type|erf\.radiation\.)"),
+    "inputs_twostream": re.compile(r"^(erf\.prob_name|amr\.n_cell|erf\.radiation_model|erf\.radiation\.)"),
     # The gas volume mixing ratios are read only by the RRTMGP interface, so
     # they are solver-local even though they sit directly under erf.
     "inputs_rrtmgp": re.compile(

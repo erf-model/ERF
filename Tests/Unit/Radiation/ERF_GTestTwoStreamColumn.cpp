@@ -164,7 +164,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
 RadChoice base_choice ()
 {
     RadChoice rc;
-    rc.rad_type = RadType::TwoStream;
+    rc.enabled = true;
     rc.sw_enabled = true;
     rc.lw_enabled = true;
     rc.tau_per_layer = 0.05;

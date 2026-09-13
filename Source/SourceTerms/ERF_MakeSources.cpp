@@ -260,10 +260,8 @@ void make_sources (int level,
         // *************************************************************************************
         // 2. Add radiation source terms to (rho theta)
         // *************************************************************************************
-        // The gate covers both radiation solvers: RRTMGP, selected by
-        // erf.radiation_model (SolverChoice::rad_type), and two-stream,
-        // selected by erf.radiation_type (RadChoice::rad_type). Both write
-        // the same 2-component (SW, LW) qheating_rates MultiFab (see
+        // Every erf.radiation_model (RRTMGP, Simple, TwoStream) writes the
+        // same 2-component (SW, LW) qheating_rates MultiFab (see
         // Source/ERF_MakeNewArrays.cpp and
         // Source/Radiation/ERF_TwoStreamRadiation.cpp), so the
         // injection formula is the same either way. The nullptr check is
@@ -285,8 +283,7 @@ void make_sources (int level,
         //   4. No adaptation or re-evaluation of radiation occurs within a slow
         //      step; the heating field is frozen at the beginning of the slow
         //      step and applies uniformly to all fast substeps.
-        if ((solverChoice.rad_type != RadiationType::None ||
-             solverChoice.radChoice.rad_type == RadType::TwoStream) &&
+        if (solverChoice.rad_type != RadiationType::None &&
             is_slow_step && qheating_rates != nullptr) {
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

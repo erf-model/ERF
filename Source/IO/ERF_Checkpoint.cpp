@@ -364,7 +364,7 @@ ERF::WriteCheckpointFile () const
 #endif
 
         // Two-stream radiation: the force-restore surface state
-        if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
             two_stream_rad.write_checkpoint(lev, checkpointname);
         }
 
@@ -1164,7 +1164,7 @@ ERF::ReadCheckpointFile ()
         }
 
         // Two-stream radiation: the force-restore surface state
-        if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
             two_stream_rad.read_checkpoint(lev, restart_chkfile);
         }
 

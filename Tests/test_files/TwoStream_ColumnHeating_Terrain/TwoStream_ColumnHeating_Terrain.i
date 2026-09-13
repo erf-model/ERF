@@ -76,7 +76,7 @@ erf.use_coriolis = false
 erf.abl_driver_type = "None"
 
 # RADIATION - TwoStream, SW + LW, clear sky, fixed sun
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.00625

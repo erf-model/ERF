@@ -86,7 +86,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 erf.input_sounding_file = "input_sounding_sw_cloud_layer"
 
 # RADIATION - Two-Stream Shortwave with Cloud Layer
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = false
 erf.radiation.tau_per_layer = 0.003125

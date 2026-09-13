@@ -1199,9 +1199,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
 
-    // Two-stream radiation model (erf.radiation_type = TwoStream): owns its
+    // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
     // surface and SEB state; every call from ERF is behind a test of
-    // solverChoice.radChoice.rad_type == RadType::TwoStream.
+    // solverChoice.rad_type == RadiationType::TwoStream.
     TwoStreamRadiation two_stream_rad;
 
 #ifdef ERF_USE_EAMXX_SHOC

@@ -111,7 +111,7 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 erf.input_sounding_file = "input_sounding_lw_isothermal"
 
 # RADIATION - Two-Stream Longwave (Isothermal mode)
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = false
 erf.radiation.lw_enabled = true
 erf.radiation.tau_lw_per_layer = 1.0

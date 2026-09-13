@@ -105,7 +105,7 @@ erf.input_sounding_file = "input_sounding_ysu"
 # genuinely computed via the two-stream sweeps rather than forced to zero
 # by the isothermal override -- this exercises the real per-level LW
 # heating-rate computation coupled to YSUNew PBL model.
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

@@ -63,10 +63,9 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     capabilities.time_average_storage = solverChoice.time_avg_vel;
     capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
     // qsrc_sw / qsrc_lw are available whenever qheating_rates is allocated,
-    // i.e. for both the RRTMGP (rad_type) and TwoStream (radChoice.rad_type) paths.
+    // i.e. for any erf.radiation_model other than None.
     capabilities.radiation_heating_storage =
-        erf_plotfile::radiation_heating_storage_available(solverChoice.rad_type,
-                                                          solverChoice.radChoice.rad_type);
+        erf_plotfile::radiation_heating_storage_available(solverChoice.rad_type);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;
@@ -1732,8 +1731,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
 #endif
 
-        if (solverChoice.rad_type != RadiationType::None ||
-            solverChoice.radChoice.rad_type == RadType::TwoStream) {
+        if (solverChoice.rad_type != RadiationType::None) {
             if (containerHasElement(plot_var_names, "qsrc_sw") ||
                 containerHasElement(plot_var_names, "qsrc_lw")) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(

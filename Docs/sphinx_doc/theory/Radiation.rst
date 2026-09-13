@@ -252,7 +252,7 @@ Limitations
 --------------------------------------
 
 - **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
-  never holds a whole column of its level, so ``erf.radiation_type = TwoStream`` requires
+  never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
   ``amr.max_level = 0``. The run stops at start-up with a message saying so.
 - **Solar time base.** With ``solar_geometry_dynamic_enable`` the hour angle is formed from the
   simulation time modulo 86400 s, i.e. the run is taken to start at 00:00 UTC on

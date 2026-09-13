@@ -97,7 +97,7 @@ erf.input_sounding_file = "input_sounding"
 # RADIATION - Two-Stream SW + LW Prognostic Cloud Fraction
 # When cloud_fraction_prog_enable = false (default), uses static cloud_fraction
 # When cloud_fraction_prog_enable = true, diagnoses cf(k) from RH/qc
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

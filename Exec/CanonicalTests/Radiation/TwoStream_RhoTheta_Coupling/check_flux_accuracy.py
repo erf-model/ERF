@@ -84,7 +84,7 @@ def check_rhotheta_coupling_smoke_test():
         print(f"ERROR: Diagnostic file {diag_file} not found")
         print("This likely means compute_twostream_radiation_diagnostics() "
               "was never called -- check that advance_radiation() wiring "
-              " is present and erf.radiation_type is set "
+              " is present and erf.radiation_model is set "
               "correctly in the inputs file.")
         return False
 

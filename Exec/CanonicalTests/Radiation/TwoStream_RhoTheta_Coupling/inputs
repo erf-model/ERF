@@ -4,7 +4,7 @@
 # radiation calculation itself, this test exercises the wiring that connects
 # it to the time loop:
 #   1. advance_radiation() now calls compute_twostream_radiation_diagnostics()
-#      every step when erf.radiation_type = "TwoStream"
+#      every step when erf.radiation_model = "TwoStream"
 #   2. qheating_rates[lev] is allocated and populated with per-level (SW, LW)
 #      heating rates by vertical_two_stream_sweep()
 #   3. ERF_MakeSources.cpp injects those heating rates into the RhoTheta
@@ -107,7 +107,7 @@ erf.input_sounding_file = "input_sounding_rhotheta_coupling"
 # The sounding is non-isothermal so that longwave heating is genuinely
 # computed by the two-stream sweeps, which exercises the per-level longwave
 # heating-rate calculation.
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

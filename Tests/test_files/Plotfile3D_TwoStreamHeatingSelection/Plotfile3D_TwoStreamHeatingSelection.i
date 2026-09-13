@@ -47,7 +47,7 @@ erf.input_sounding_file = "input_sounding"
 erf.use_coriolis = false
 erf.abl_driver_type = "None"
 
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.v = 0

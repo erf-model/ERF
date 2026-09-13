@@ -16,14 +16,14 @@
 #include <ERF_RadiationDiagnostics.H>
 
 /**
- * @brief The two-stream radiation model (erf.radiation_type = TwoStream).
+ * @brief The two-stream radiation model (erf.radiation_model = TwoStream).
  *
  * Owns everything the model keeps between steps: the per-level surface
  * property fields it falls back on when no land-surface model supplies
  * them, the surface-energy-balance (SEB) fields and force-restore state,
  * and the domain-mean flux diagnostics of the last column sweep. ERF holds
  * one instance and calls it only after testing
- * `solverChoice.radChoice.rad_type == RadType::TwoStream`; every method
+ * `solverChoice.rad_type == RadiationType::TwoStream`; every method
  * here checks the same predicate and returns without acting otherwise.
  *
  * Lifecycle:
@@ -46,9 +46,9 @@ public:
     /** @brief Size the per-level containers; no allocation happens here. */
     void resize (int nlevs_max);
 
-    /** @brief True once a level has been defined with rad_type == TwoStream. */
+    /** @brief True once a level has been defined with the model selected. */
     [[nodiscard]] bool active () const {
-        return (m_rad != nullptr) && (m_rad->rad_type == RadType::TwoStream);
+        return (m_rad != nullptr) && m_rad->enabled;
     }
 
     /**

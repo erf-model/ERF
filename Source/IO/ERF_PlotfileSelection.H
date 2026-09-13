@@ -15,14 +15,13 @@ namespace erf_plotfile
 {
 
 /**
- * @brief Whether the SW/LW heating-rate storage (qsrc_sw, qsrc_lw) exists.
- * Both radiation selectors allocate the same qheating_rates array:
- * erf.radiation_model (RRTMGP, SolverChoice::rad_type) and
- * erf.radiation_type = TwoStream (RadChoice::rad_type).
+ * @brief Whether the SW/LW heating-rate storage (qsrc_sw, qsrc_lw) exists:
+ * every erf.radiation_model other than None (RRTMGP, Simple, TwoStream)
+ * allocates the same qheating_rates array.
  */
-inline bool radiation_heating_storage_available (RadiationType rad_model, RadType rad_type)
+inline bool radiation_heating_storage_available (RadiationType rad_model)
 {
-    return (rad_model != RadiationType::None) || (rad_type == RadType::TwoStream);
+    return rad_model != RadiationType::None;
 }
 
 /**

@@ -12,11 +12,11 @@ using namespace amrex;
  * substeps. It operates on the old state (t^n) at the beginning of the slow
  * step.
  *
- * - RRTMGP path (erf.radiation_model, SolverChoice::rad_type != None): a full
+ * - RRTMGP / Simple path (erf.radiation_model = RRTMGP or Simple): a full
  *   spectral model with its own time-centering and source-term semantics.
  *   Produces qheating_rates[lev].
  *
- * - Two-stream path (erf.radiation_type, RadChoice::rad_type == TwoStream): a
+ * - Two-stream path (erf.radiation_model = TwoStream): a
  *   shortwave and longwave model that computes heating rates from the
  *   old-state atmosphere (t^n) with clear-sky and cloudy column algorithms.
  *   The heating rates go into qheating_rates[lev], a 2-component MultiFab
@@ -57,7 +57,7 @@ void ERF::advance_radiation (int lev,
 {
     BL_PROFILE("ERF::advance_radiation()");
 
-    if (solverChoice.rad_type != RadiationType::None) {
+    if (solverChoice.rad_uses_interface()) {
         BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
 #ifdef ERF_USE_NETCDF
         MultiFab *lat_ptr = lat_m[lev].get();
@@ -98,10 +98,8 @@ void ERF::advance_radiation (int lev,
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated);
     }
-    // Two-stream radiation driver. This is a separate, mutually exclusive
-    // path from the RRTMGP branch above: RRTMGP is selected by
-    // erf.radiation_model (SolverChoice::rad_type), two-stream by
-    // erf.radiation_type (RadChoice::rad_type).
+    // Two-stream radiation driver, a separate path from the IRadiation
+    // models above; erf.radiation_model selects exactly one of them.
     //
     // - The call happens exactly once per slow step (from ERF::Advance).
     // - The heating rates computed here are old-state based (t^n).
@@ -110,7 +108,7 @@ void ERF::advance_radiation (int lev,
     // - istep[lev] is the CSV row index, t_old[lev] the time logged with it,
     //   and dt_advance the step size (used by the surface-energy-balance
     //   update, which runs at the post-dycore call).
-    else if (solverChoice.radChoice.rad_type == RadType::TwoStream) {
+    else if (solverChoice.rad_type == RadiationType::TwoStream) {
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, qheating_rates[lev].get());

@@ -3064,7 +3064,7 @@ List of Parameters
 
 .. note::
 
-   When the two-stream radiation model is selected via ``erf.radiation_type = TwoStream``,
+   When the two-stream radiation model is selected via ``erf.radiation_model = TwoStream``,
    a **Simplified Surface Energy Balance (SEB) force-restore method** is available as an alternative
    to Noah-MP for computing surface temperature and moisture evolution. It is enabled via
    ``erf.radiation.seb_enable``, ``erf.radiation.seb_diagnostic_enable``, and
@@ -3227,7 +3227,8 @@ List of Parameters
 +=======================================+==========================================================+====================+====================================+
 | **erf.radiation_model**               | which radiation model to use; ``Simple`` is a prescribed | None, RRTMGP,      | None                               |
 |                                       | cooling/heating profile with no radiative transfer,      | Simple, TwoStream  |                                    |
-|                                       | ``RRTMGP`` is the full radiative transfer solver         |                    |                                    |
+|                                       | ``RRTMGP`` is the full radiative transfer solver,        |                    |                                    |
+|                                       | ``TwoStream`` the gray two-stream solver (see below)     |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_nvar**                      | Size of block memory allocation                          | Integer > 0        | 12                                 |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -3328,8 +3329,8 @@ Meador-Weaver (1980) two-stream diffuse/scattering approximation, gray-gas longw
 time-varying solar geometry based on astronomical calculations, heterogeneous/LSM-coupled surface
 albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, and an optional
 Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface
-temperature and moisture evolution. Select this model via ``erf.radiation_type = TwoStream``;
-other options are ``None`` and ``RRTMGP``. It cannot be combined with ``erf.radiation_model``; the run stops at start-up if both are set.
+temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
+the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
 
 
 

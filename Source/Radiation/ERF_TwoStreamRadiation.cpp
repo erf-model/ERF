@@ -132,7 +132,7 @@ TwoStreamRadiation::define_level (int lev,
                                   const BoxArray& ba2d,
                                   const DistributionMapping& dm)
 {
-    if (rad_choice.rad_type != RadType::TwoStream) { return; }
+    if (!rad_choice.enabled) { return; }
     m_rad = &rad_choice;
 
     // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y

@@ -149,7 +149,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP, Simple
+    None, RRTMGP, Simple, TwoStream
 );
 
 /**
@@ -1160,14 +1160,9 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
-        radChoice.init_params(0, max_level, pp_prefix);
-        // The two radiation selectors are independent inputs. With both set the
-        // RRTMGP branch would take the pre-dycore call and the two-stream
-        // post-dycore call would step a surface state no sweep ever fed.
-        if (rad_type != RadiationType::None && radChoice.rad_type == RadType::TwoStream) {
-            amrex::Abort("erf.radiation_model and erf.radiation_type = TwoStream are both set; "
-                         "select one radiation model.");
-        }
+        // erf.radiation_model = TwoStream selects the two-stream model; its
+        // erf.radiation.* sub-options are read only then.
+        radChoice.init_params(rad_type == RadiationType::TwoStream, max_level, pp_prefix);
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1770,6 +1765,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
         } else if (rad_type == RadiationType::Simple) {
             amrex::Print() << "Radiation Model: Simple" << std::endl;
+        } else if (rad_type == RadiationType::TwoStream) {
+            amrex::Print() << "Radiation Model: TwoStream" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -2164,6 +2161,12 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
+
+    /** @brief True for the models that run through the IRadiation interface
+     *  (RRTMGP, Simple); the two-stream model has its own class. */
+    [[nodiscard]] bool rad_uses_interface () const {
+        return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
+    }
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;

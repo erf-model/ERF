@@ -51,7 +51,7 @@ erf.use_coriolis = false
 erf.abl_driver_type = "None"
 
 # RADIATION - TwoStream, mass-based optical depth in both bands
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_model = "mass"

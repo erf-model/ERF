@@ -99,7 +99,7 @@ erf.input_sounding_file = "input_sounding_nonuniform_dz"
 
 # RADIATION - Two-Stream SW + LW, both enabled
 # Key difference from uses nonuniform dz(k) from z_phys_cc heights
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

@@ -466,7 +466,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         if ( rad_datalog_int > 0 &&
              (((nstep+1) % rad_datalog_int == 0) || (nstep==0)) ) {
@@ -1546,7 +1546,7 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         // Create data log for radiation model if requested
         rad[0]->setupDataLog();

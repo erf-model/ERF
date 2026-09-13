@@ -18,13 +18,6 @@
  */
 
 /**
- * @brief Radiation model type.
- *
- * Selects which radiative transfer solver to use, if any.
- */
-AMREX_ENUM(RadType, None, TwoStream, RRTMGP);
-
-/**
  * @brief Optical depth profile type for the two-stream solver.
  *
  * - Constant: tau_per_layer / tau_lw_per_layer applied uniformly at every
@@ -77,45 +70,46 @@ struct RadChoice
 {
 public:
   /**
-   * @brief Radiation model type (None, TwoStream, RRTMGP).
+   * @brief True when erf.radiation_model = TwoStream. Set by init_params from
+   * the model SolverChoice read; the erf.radiation.* sub-options are read only then.
    */
-  RadType rad_type = RadType::None;
+  bool enabled = false;
 
   /**
    * @brief Enable shortwave (solar) radiation computation.
-   * Only used when rad_type == RadType::TwoStream.
+   * Only used by the two-stream model.
    */
   bool sw_enabled = true;
 
   /**
    * @brief Enable longwave (thermal) radiation computation.
-   * Only used when rad_type == RadType::TwoStream.
+   * Only used by the two-stream model.
    */
   bool lw_enabled = true;
 
   /**
    * @brief Shortwave optical depth per layer (constant for all layers).
    * Used in Beer-Lambert direct-beam formula.
-   * Only used when rad_type == RadType::TwoStream.
+   * Only used by the two-stream model.
    */
   amrex::Real tau_per_layer = 0.05;
 
   /**
    * @brief Longwave optical depth per layer (constant for all layers).
    * Used in gray-gas LW two-stream solver.
-   * Only used when rad_type == RadType::TwoStream.
+   * Only used by the two-stream model.
    */
   amrex::Real tau_lw_per_layer = 1.0;
 
   /**
    * @brief Solar zenith angle in degrees.
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * Only used by the two-stream model and sw_enabled == true.
    */
   amrex::Real solar_zenith_deg = 45.0;
 
   /**
    * @brief Solar constant (top-of-atmosphere irradiance) in W/m^2.
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * Only used by the two-stream model and sw_enabled == true.
    */
   amrex::Real S0 = 1361.0;
 
@@ -272,7 +266,7 @@ public:
    * Default 0.0 means the clear-sky column is purely absorbing, and the
    * diffuse SW contribution from the clear-sky column is exactly zero —
    * reducing exactly to the direct-beam-only result.
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * Only used by the two-stream model and sw_enabled == true.
    */
   amrex::Real single_scattering_albedo = 0.0;
 
@@ -483,7 +477,7 @@ public:
    * @brief Enable dynamic longwave optical depth diagnosis from moisture/clouds.
    * When true, LW optical depth is computed per-level from qv and qc.
    * When false (default), uses the static tau_lw_per_layer.
-   * Only used when rad_type == RadType::TwoStream and lw_enabled == true.
+   * Only used by the two-stream model and lw_enabled == true.
    */
   bool tau_lw_dynamic_enable = false;
   bool tau_sw_dynamic_enable = false;
@@ -524,7 +518,7 @@ public:
    * @brief Enable prognostic cloud fraction diagnosis from RH/qc.
    * When true, cloud fraction is computed per-level from relative humidity and cloud water.
    * When false (default), uses the static cloud_fraction.
-   * Only used when rad_type == RadType::TwoStream.
+   * Only used by the two-stream model.
    */
   bool cloud_fraction_prog_enable = false;
 
@@ -556,7 +550,7 @@ public:
    * @brief Enable prescribed bulk aerosol/turbidity optical depth.
    * When true, aerosol optical depth is added on top of existing tau_base + cloud + dynamic-moisture contributions.
    * When false (default), there is no aerosol contribution.
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * Only used by the two-stream model and sw_enabled == true.
    */
   bool aerosol_enable = false;
 
@@ -597,7 +591,7 @@ public:
    * When true, solar zenith angle is computed dynamically from simulation time,
    * latitude, longitude, and day-of-year using astronomical formulas.
    * When false (default), uses the static solar_zenith_deg.
-   * Only used when rad_type == RadType::TwoStream and sw_enabled == true.
+   * Only used by the two-stream model and sw_enabled == true.
    */
   bool solar_geometry_dynamic_enable = false;
 
@@ -643,7 +637,7 @@ public:
    * @param[in] pp_prefix ParmParse prefix for the ERF input namespace (e.g., "erf").
    *
    * Queries:
-   * - erf.radiation_type (enum, required if TwoStream is desired)
+   * - erf.radiation_model = TwoStream (read by SolverChoice) selects the model
    * - erf.radiation.sw_enabled (bool, optional, default true)
    * - erf.radiation.lw_enabled (bool, optional, default true)
    * - erf.radiation.tau_per_layer (real, optional)
@@ -717,7 +711,7 @@ public:
    * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
    * - erf.radiation.seb_prognostic_q_max (real, optional, default 1.0, clamped to [0, 1])
    *
-   * Sub-option queries are only performed if rad_type == RadType::TwoStream.
+   * Sub-option queries are only performed when the two-stream model is selected.
    */
   /**
    * @brief Bring an out-of-range input back into its valid range and say so.
@@ -755,37 +749,22 @@ public:
     }
   }
 
-  void init_params(int lev, int max_level, std::string pp_prefix)
+  void init_params(bool two_stream_selected, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
-
-    // Query radiation type, using helper to support per-level specification
-    // Reuse the same helper used in TurbStruct for enum handling
-    query_one_or_per_level_enum_case_insensitive(
-      pp, "radiation_type", rad_type, lev, max_level);
-
-    // RadType::RRTMGP is reserved but not wired to a solver: nothing reads it,
-    // so the run proceeds with no radiation at all. Warn rather than abort,
-    // since existing inputs may still carry this setting. RRTMGP itself is
-    // selected with erf.radiation_model.
-    if (rad_type == RadType::RRTMGP && amrex::ParallelDescriptor::IOProcessor()) {
-      amrex::Print() << "WARNING: erf.radiation_type = RRTMGP is not wired to a "
-                        "solver, so no radiation will be computed. Select RRTMGP "
-                        "with erf.radiation_model, or set erf.radiation_type = "
-                        "TwoStream.\n";
-    }
+    enabled = two_stream_selected;
 
     // The column sweep needs every box to hold the whole atmospheric column
     // of its level, which fine-level boxes never do; there is no coarse-fine
     // treatment of the fluxes yet either. Stop here with the reason rather
     // than at the first fine-level radiation call.
-    if (rad_type == RadType::TwoStream && max_level > 0) {
-      amrex::Abort("erf.radiation_type = TwoStream runs on a single level; "
+    if (enabled && max_level > 0) {
+      amrex::Abort("erf.radiation_model = TwoStream runs on a single level; "
                    "set amr.max_level = 0 or select another radiation model.");
     }
 
-    // Only query sub-options if TwoStream radiation is selected
-    if (rad_type == RadType::TwoStream) {
+    // Only query sub-options if the two-stream model is selected
+    if (enabled) {
       pp.query("radiation.sw_enabled", sw_enabled);
       pp.query("radiation.lw_enabled", lw_enabled);
       pp.query("radiation.tau_per_layer", tau_per_layer);
@@ -1128,11 +1107,11 @@ public:
   /**
    * @brief Check if two-stream radiation is active.
    *
-   * @return true if rad_type == RadType::TwoStream, false otherwise.
+   * @return true when erf.radiation_model = TwoStream.
    */
   [[nodiscard]] bool uses_two_stream_radiation() const noexcept
   {
-    return rad_type == RadType::TwoStream;
+    return enabled;
   }
 };
 

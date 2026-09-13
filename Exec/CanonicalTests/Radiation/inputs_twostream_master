@@ -24,13 +24,13 @@
 #     - Source/Radiation/ERF_TwoStreamRadiation.cpp
 #
 #   Enable the two-stream model with:
-#     erf.radiation_type = "TwoStream"
+#     erf.radiation_model = "TwoStream"
 #------------------------------------------------------------------------------
 
 # ==============================================================================
 # Radiation model selection
 # ==============================================================================
-erf.radiation_type = "TwoStream"   # None (default), TwoStream, RRTMGP
+erf.radiation_model = "TwoStream"   # None (default), RRTMGP, Simple, TwoStream
 
 # ==============================================================================
 # SECTION 1: Base two-stream shortwave (SW) / longwave (LW) parameters

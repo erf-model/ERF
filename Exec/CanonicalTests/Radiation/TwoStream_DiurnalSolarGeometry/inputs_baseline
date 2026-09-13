@@ -90,7 +90,7 @@ erf.input_sounding_file = "input_sounding"
 
 # RADIATION - Two-Stream SW + LW
 # Baseline: solar_geometry_dynamic_enable = false (the baseline behavior)
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

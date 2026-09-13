@@ -108,7 +108,7 @@ erf.moisture_model = "Kessler"    # or repo’s standard moist model
 
 
 # RADIATION
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.05

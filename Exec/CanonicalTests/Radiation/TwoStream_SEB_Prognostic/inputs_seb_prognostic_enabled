@@ -85,7 +85,7 @@ erf.input_sounding_file = "input_sounding"
 erf.moisture_model = "Kessler"
 
 # RADIATION - Two-Stream SW + LW
-erf.radiation_type = "TwoStream"
+erf.radiation_model = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125

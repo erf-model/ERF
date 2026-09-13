@@ -8,7 +8,7 @@ FILE = shared_settings
 amr.n_cell = 42 4 42
 
 # SOLVER UNDER TEST
-erf.radiation_type   = "TwoStream"
+erf.radiation_model   = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.solar_zenith = 60.0

@@ -498,16 +498,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    // Two independent inputs can ask for radiation, and either one needs
-    // this storage:
-    //   erf.radiation_model (SolverChoice::rad_type, a RadiationType)
-    //     selects the RRTMGP solver;
-    //   erf.radiation_type  (RadChoice::rad_type, a RadType)
-    //     selects the two-stream solver.
-    // Both write the same 2-component (SW, LW) heating rates, so the arrays
-    // are shaped the same way whichever solver is active.
-    if (solverChoice.rad_type != RadiationType::None ||
-        solverChoice.radChoice.rad_type == RadType::TwoStream)
+    // Every radiation model (RRTMGP, Simple, TwoStream) writes the same
+    // 2-component (SW, LW) heating rates, so the arrays are shaped the same
+    // way whichever one erf.radiation_model selects.
+    if (solverChoice.rad_type != RadiationType::None)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
@@ -516,7 +510,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
-    if (solverChoice.radChoice.rad_type == RadType::TwoStream)
+    if (solverChoice.rad_type == RadiationType::TwoStream)
     {
         two_stream_rad.define_level(lev, solverChoice.radChoice, ba2d[lev], dm);
     }
