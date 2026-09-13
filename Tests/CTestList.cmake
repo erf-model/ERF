@@ -882,6 +882,16 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02 'erf.plot2d_vars_1=u_star t_star Olen'"
       VARYING_3D "Lturb Kmv" VARYING_2D "u_star")
+  # The PBLH smoothing stencil reads a column its own tile does not own, so it
+  # needs its own coverage: with the stencil reading off the end of the array the
+  # MRF deck differed by 24.5 m in Lturb (12%) between the tiled and untiled runs.
+  # MRF and YSUNew size and fill that halo separately, so both are registered.
+  add_test_tiling_parity(ABL_MRF_Tiling_Smooth    ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
