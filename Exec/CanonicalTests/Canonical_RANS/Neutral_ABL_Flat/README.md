@@ -55,5 +55,3 @@ Physics (`--physics`, adds to the smoke checks, 12 h run):
 | wind speed in the four lowest cells vs u*/kappa ln((z + z0)/z0) | log law | 10 % |
 | Kmv at the second cell over rho kappa u* (z + z0) | 1 | +/- 0.3 |
 
-Results for the current code are recorded in `RESULTS.md` at the top of
-`Canonical_RANS/` as the phases of the RANS plan land.

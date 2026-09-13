@@ -4,8 +4,8 @@ Regression cases for the one-equation k RANS closure of Axell & Liungman
 (2001), `erf.rans_type = kEqn`, laid out like `../Canonical_LES`: one
 directory per case with the input deck, the sounding, a README stating the
 targets and tolerances, and a Python check script. The theory and the
-inputs are described in `Docs/sphinx_doc/theory/RANS.rst`; the development
-record is `PLAN.md` and the numbers per phase are in `RESULTS.md`.
+inputs are described in `Docs/sphinx_doc/theory/RANS.rst`; the measured
+numbers and tolerances for each case are in that case's README.
 
 | case | mesh | physics run | what it checks |
 | --- | --- | --- | --- |
@@ -28,8 +28,7 @@ record is `PLAN.md` and the numbers per phase are in `RESULTS.md`.
 - Shared checks live in `rans_checks.py`; the terrain scripts use the full
   3D reader because ERF writes no planar averages on a fitted mesh.
 - Closure changes are cross-checked against the Kynema `KLAxell` and
-  `KransAxell` implementation and the paper; the comparisons are recorded
-  in `PLAN.md`.
+  `KransAxell` implementation and the paper.
 
 ## Running a case
 
