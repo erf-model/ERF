@@ -115,7 +115,6 @@ python check_seb_diagnostic.py
 - `Source/DataStructs/ERF_RadStruct.H` — Added `seb_diagnostic_enable` parameter
 - `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with SEB columns
 - `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` — Integrated residual computation
-- `Source/Radiation/RAD_DEVELOPMENT.md` — section and roadmap update
 
 ### Key Design Decisions
 1. **Diagnostic-only**: No feedback to T_s, heating rates, or any prognostic fields
@@ -126,6 +125,5 @@ python check_seb_diagnostic.py
 
 ## References
 
-- `Source/Radiation/RAD_DEVELOPMENT.md` — Implementation section
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice parameters documentation
 - Oke, T. R., 1987: Boundary Layer Climates (2nd ed.), Routledge. [SEB theory reference]

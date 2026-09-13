@@ -72,5 +72,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Aerosol/Turbidity section
 - Aerosol optical-depth formulation in `Source/Radiation/`

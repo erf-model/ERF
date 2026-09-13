@@ -207,8 +207,6 @@ Case 5 specifically tests single call-site mode to ensure filtering works.
 
 ## Documentation
 
-- **`RAD_DEVELOPMENT.md`**: section with architecture overview
-- **`RAD_MPI_SKILLS.md`**: Lesson on benchmark reproducibility and diagnostics-aware validation
 - **`README.md`** (this file): User guide and case descriptions
 
 ## Future Extensions

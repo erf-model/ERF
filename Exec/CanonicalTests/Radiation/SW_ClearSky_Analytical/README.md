@@ -71,5 +71,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Base Two-Stream Solver section
 - Beer-Lambert Law references in the main README

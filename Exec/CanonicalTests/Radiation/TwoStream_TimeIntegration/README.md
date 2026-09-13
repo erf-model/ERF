@@ -69,5 +69,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Time Integration and Diagnostics Cadence section
 - Main README for related diagnostic/timing tests

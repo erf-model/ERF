@@ -605,7 +605,7 @@ public:
     void compute_twostream_radiation_diagnostics (int lev,
                                                    int nstep,
                                                    amrex::Real time,
-                                                   amrex::Real dt,
+                                                   amrex::Real dt_step,
                                                    std::string const& call_site);
 
 #ifdef ERF_USE_EAMXX_SHOC

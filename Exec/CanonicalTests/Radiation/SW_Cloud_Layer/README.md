@@ -70,5 +70,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Cloud Optical Depth section
 - Main README table linking to related cloud tests

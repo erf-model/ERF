@@ -28,7 +28,7 @@ TOL = {
 
 CASE_PATHS = {
     "LW_ISOTHERMAL": CASES_DIR / "lw_isothermal",
-    "PHASE6_TIMING": CASES_DIR / "timing",
+    "TIMING": CASES_DIR / "timing",
     "SW_CLEARSKY": CASES_DIR / "sw_clearsky",
     "SW_CLOUD_LAYER": CASES_DIR / "sw_cloud_layer",
     "SW_SCATTERING": CASES_DIR / "sw_scattering",

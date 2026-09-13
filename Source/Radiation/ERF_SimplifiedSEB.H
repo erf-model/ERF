@@ -33,7 +33,6 @@
  *
  * References:
  * -----------
- * - See Radiation Development notes (Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md) for implementation details.
  * - Oke, T. R., 1987: Boundary Layer Climates (2nd ed.), Routledge.
  */
 

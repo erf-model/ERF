@@ -210,12 +210,10 @@ Expected result: LW upwelling flux varies with local time
 
 ## References
 
-- **RAD_DEVELOPMENT.md**: Detailed implementation notes
 - **ERF_AdvanceTwoStreamRadiation.cpp**: Source code (lines comments)
 
 ---
 
 **RegTest Version**: 1.0  
-**Phase**: 11 (Surface Heterogeneity + Fallback)  
 **Created**: 2026-08-08  
 **Status**: Production

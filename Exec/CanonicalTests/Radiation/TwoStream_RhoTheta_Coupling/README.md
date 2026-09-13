@@ -73,5 +73,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — RhoTheta Coupling section
 - `Source/SourceTerms/ERF_MakeSources.cpp` — where `qheating_rates` is added to the RhoTheta source

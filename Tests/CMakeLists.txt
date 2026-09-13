@@ -114,7 +114,7 @@ if(ERF_ENABLE_TESTS)
         erf_shoc_gold_differential
         erf_anelastic_wall_diffusion_check
         erf_cloud_chamber_check
-        erf_two_stream_radiation_check)
+        erf_two_stream_radiation_check
         erf_cloud_chamber_wall_dt_guard_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()

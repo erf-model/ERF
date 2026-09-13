@@ -163,8 +163,7 @@ erf.radiation.seb_prognostic_q_max              = 1.0        # Upper clamp bound
 
 #------------------------------------------------------------------------------
 # End of two-stream radiation parameter reference.
-# See Source/Radiation/RAD_DEVELOPMENT.md for the full capability history,
-# and the other Exec/CanonicalTests/Radiation/* directories for runnable
+# See the other Exec/CanonicalTests/Radiation/* directories for runnable
 # scenario-specific examples (e.g., SW_ClearSky_Analytical, LW_Isothermal,
 # SW_Cloud_Layer, SW_Scattering_Cloud, TwoStream_Aerosol_Turbidity,
 # TwoStream_DiurnalSolarGeometry, TwoStream_DynamicTau_MoistCloud,

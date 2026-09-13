@@ -1,10 +1,9 @@
-# Two-Stream Radiation: YSUNew PBL Coupling with Radiative Tendency Limiter/Smoother
+# Two-Stream Radiation: YSUNew PBL Coupling with Radiative Tendency Limiter
 #
 # This test exercises enhancements:
 #   1. YSUNew (not MRF) is selected as PBL model
-#   2. Radiative tendency limiter/smoother is available for YSUNew
+#   2. Radiative tendency limiter is available for YSUNew
 #   3. qheating_rates from radiation are coupled to YSUNew top-down mixing
-#   4. Optional diagnostic tracking of radiative tendency smoothing
 #
 # Key differences from
 #   - PBL model: MRF → YSUNew
@@ -85,7 +84,7 @@ erf.pbl_ysu_land_Ribcr             = 0.25     # Critical Bulk Richardson number 
 erf.ysu_qcloud_threshold           = 1.0e-4   # Cloud liquid water threshold (kg/kg)
 erf.ysu_moistvars                  = false    # Turbulence on moisture variables
 
-# YSUNew Radiative Tendency Limiter/Smoother
+# YSUNew Radiative Tendency Limiter
 # Disabled by default to preserve the feature-off baseline behavior
 erf.enable_ysu_rad_tend_limiter    = false    # if true, apply finite guards and bounds to qheating_rates
 erf.ysu_rad_tend_limiter_magnitude = 1.0      # Magnitude bound on radiative tendency (K/s)

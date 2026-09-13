@@ -68,5 +68,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Dynamic Optical Depth section
 - Grid geometry handling in `Source/Radiation/`

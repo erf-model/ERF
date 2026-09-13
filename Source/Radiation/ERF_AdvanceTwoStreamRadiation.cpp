@@ -110,7 +110,7 @@ void ERF::compute_twostream_radiation_diagnostics(
     int lev,
     int nstep,
     amrex::Real time,
-    amrex::Real dt,
+    amrex::Real dt_step,
     std::string const& call_site
     )
 {
@@ -679,9 +679,9 @@ void ERF::compute_twostream_radiation_diagnostics(
                             amrex::Real dq_s_dt = prognostic_dqs_dt(lh, q_s_old, q_deep_val,
                                                                      d_s, tau_q);
 
-                            // Explicit Euler update over the step size dt
-                            amrex::Real t_s_new = t_s_old + dt * dT_s_dt;
-                            amrex::Real q_s_new = q_s_old + dt * dq_s_dt;
+                            // Explicit Euler update over the step size
+                            amrex::Real t_s_new = t_s_old + dt_step * dT_s_dt;
+                            amrex::Real q_s_new = q_s_old + dt_step * dq_s_dt;
 
                             // Clamp to valid ranges
                             t_s_new = amrex::max(t_min, amrex::min(t_max, t_s_new));
@@ -738,8 +738,7 @@ void ERF::compute_twostream_radiation_diagnostics(
         // cloud/tau/scattering parameters applied to every column), so the
         // domain-averaged value still equals the true single-column flux there.
         // True horizontal heterogeneity (e.g., patchy clouds varying by column)
-        // remains deferred to future work; see
-        // Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md.
+        // remains deferred to future work.
         if (do_sweep) {
             if (n_columns_total > 0) {
                 const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);

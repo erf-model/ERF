@@ -76,5 +76,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Prognostic Cloud Fraction section
 - Cloud optical-depth formulation in `Source/Radiation/`

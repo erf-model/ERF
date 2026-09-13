@@ -73,5 +73,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Solar Geometry section
 - Solar geometry routines in `Source/Radiation/ERF_SolarGeometry.H`

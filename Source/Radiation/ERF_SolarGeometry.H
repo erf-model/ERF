@@ -20,7 +20,7 @@
  * All functions are AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE, so they can be
  * called from device kernels and from host-side driver code alike.
  * Input validation includes guards against NaN, Inf, and out-of-range values
- * following the clamp_finite() conventions established in prior phases.
+ * following the clamp_finite() conventions used elsewhere in the radiation module.
  *
  * References:
  * -----------

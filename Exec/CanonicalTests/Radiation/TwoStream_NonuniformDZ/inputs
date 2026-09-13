@@ -2,7 +2,7 @@
 #
 # This test validates the implementation of per-level nonuniform
 # vertical spacing (dz(k)) in the TwoStream radiation heating divergence
-# calculation. Unlike previous phases (1-9) that used uniform dz, this test
+# calculation. Unlike the other radiation cases, which use uniform dz, this test
 # exercises the actual terrain-following grid integration.
 #
 # Key features:

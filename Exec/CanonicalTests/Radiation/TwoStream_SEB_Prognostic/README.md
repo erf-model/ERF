@@ -190,7 +190,6 @@ python check_seb_prognostic.py coupled
 - `Source/DataStructs/ERF_RadStruct.H` — Added 9 new prognostic parameters
 - `Source/Radiation/ERF_RadiationDiagnostics.H/.cpp` — Extended CSV output with T_s/q_s columns
 - `Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp` — Integrated prognostic update with Noah-MP gating
-- `Source/Radiation/RAD_DEVELOPMENT.md` — section and roadmap update
 
 ### Key Design Decisions
 1. **Prognostic-only update**: T_s and q_s evolved in place; no feedback to radiation or atmosphere
@@ -202,6 +201,5 @@ python check_seb_prognostic.py coupled
 
 ## References
 
-- `Source/Radiation/RAD_DEVELOPMENT.md` — Implementation section
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice parameters documentation
 - Oke, T. R., 1987: Boundary Layer Climates (2nd ed.), Routledge. [SEB theory reference]

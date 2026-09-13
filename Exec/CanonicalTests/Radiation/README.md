@@ -45,7 +45,6 @@ Case-specific input files, checker names, and expected artifacts are documented 
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — design history, capability notes, and validation mapping for the radiation implementation.
 - `Source/DataStructs/ERF_RadStruct.H` — runtime control structure and parameter definitions for radiation options.
 
 ## References

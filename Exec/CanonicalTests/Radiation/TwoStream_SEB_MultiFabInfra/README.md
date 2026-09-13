@@ -100,6 +100,5 @@ This ensures the initialized atmospheric state is physically meaningful and allo
 
 ## References
 
-- `Source/Radiation/RAD_DEVELOPMENT.md` — Implementation section
 - `Source/DataStructs/ERF_RadStruct.H` — RadChoice SEB parameters
 - `Source/ERF.H` — SEB MultiFab vector declarations

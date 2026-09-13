@@ -74,6 +74,5 @@ erf inputs
 
 ## References
 
-- RAD_DEVELOPMENT.md section
 - Source/Radiation/ERF_AdvanceTwoStreamRadiation.cpp (dynamic tau functions)
 - Source/DataStructs/ERF_RadStruct.H (RadChoice parameters)

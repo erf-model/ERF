@@ -73,6 +73,5 @@ The checker script verifies:
 
 ## Related Documentation
 
-- `RAD_DEVELOPMENT.md` — Scattering section
 - Meador-Weaver (1980) for two-stream scattering formulation
 - Main README for related cloud tests

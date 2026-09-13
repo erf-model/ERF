@@ -2,7 +2,7 @@
 
 ## Overview
 
-This regtest validates implementation: **YSUNew PBL Coupling with Radiative Tendency Limiter/Smoother**.
+This regtest validates implementation: **YSUNew PBL Coupling with Radiative Tendency Limiter**.
 
 ### Key Features Validated
 
@@ -72,14 +72,13 @@ With `enable_ysu_rad_tend_limiter = false` (default):
 
 ## Future Enhancements
 
-- Temporal smoothing with state persistence (smooth_strength ∈ [0,1])
+- Temporal smoothing of the radiative tendency with state persistence
 - Per-component (SW vs LW) separate limiting
 - Adaptive limiter magnitude based on local conditions
 
 ## References
 
 ### Documentation
-- `Source/Radiation/RAD_DEVELOPMENT.md` — technical design
 - `Source/DataStructs/ERF_TurbStruct.H` — Parameter definitions
 - `Source/PBL/ERF_ComputeDiffusivityYSUNew.cpp` — Limiter implementation
 
@@ -92,4 +91,4 @@ With `enable_ysu_rad_tend_limiter = false` (default):
 
 - **MRF Untouched**: implementation is YSUNew-only; no changes to MRF code
 - **No Compilation Required**: Regtest can be visually validated against source; full execution requires build
-- **GPU Safe**: All limiter/smoothing logic uses AMReX GPU-safe patterns
+- **GPU Safe**: The limiter uses AMReX GPU-safe patterns
