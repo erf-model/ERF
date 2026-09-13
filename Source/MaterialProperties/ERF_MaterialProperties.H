@@ -1,11 +1,14 @@
 #ifndef MATERIALPROPERTIES_H
 #define MATERIALPROPERTIES_H
 
+#include <limits>
+
 #include <AMReX_Enum.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 
 /*! Materials */
 namespace Species

@@ -2,6 +2,7 @@
  * \file ERF_ReadBndryPlanes.cpp
  */
 #include "AMReX_Gpu.H"
+#include "ERF_Constants.H"
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_ReadBndryPlanes.H"

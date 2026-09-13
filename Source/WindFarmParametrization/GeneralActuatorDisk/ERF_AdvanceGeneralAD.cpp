@@ -1,7 +1,8 @@
 #include <ERF_GeneralAD.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation_1D.H>
-#include <ERF_Constants.H>
+#include <cmath>
+#include <ERF_NumericalConstants.H>
 
 using namespace amrex;
 

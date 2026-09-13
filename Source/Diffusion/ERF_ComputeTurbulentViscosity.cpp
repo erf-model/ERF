@@ -1,6 +1,7 @@
 /** \file ERF_ComputeTurbulentViscosity.cpp */
 
 #include "ERF_SurfaceLayer.H"
+#include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_RANSClosure.H"
 #include "ERF_Diffusion.H"

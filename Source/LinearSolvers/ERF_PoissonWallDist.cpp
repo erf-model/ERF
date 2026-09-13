@@ -2,6 +2,7 @@
  * \file ERF_PoissonWallDist.cpp
  */
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainPoisson_3D_K.H"
 #include "ERF_TerrainMetrics.H"

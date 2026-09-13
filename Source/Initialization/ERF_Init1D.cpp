@@ -2,6 +2,7 @@
  * \file ERF_Init1D.cpp
  */
 #include <ERF_EOS.H>
+#include "ERF_Constants.H"
 #include <ERF.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_ProbCommon.H>

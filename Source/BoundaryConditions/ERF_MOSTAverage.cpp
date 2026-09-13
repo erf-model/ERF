@@ -1,5 +1,6 @@
 
 #include <utility>
+#include "ERF_Constants.H"
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"

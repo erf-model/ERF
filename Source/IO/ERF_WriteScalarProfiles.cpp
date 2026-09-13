@@ -2,6 +2,7 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include "ERF_Constants.H"
 
 #include "ERF.H"
 #include "ERF_Derive.H"

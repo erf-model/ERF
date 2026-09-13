@@ -46,4 +46,19 @@ Constants
    | :math:`\gamma`        | 1.4                   | :math:`c_p /(c_p-R_d)`   |
    +-----------------------+-----------------------+--------------------------+
 
-These constants are defined in the file  :cpp:`Source/ERF_Constants.H`
+These constants are defined in the file  :cpp:`Source/ERF_Constants.H`, which holds the
+thermodynamic and dynamical constants used throughout ERF.  Two companion headers hold
+the rest:
+
+- :cpp:`Source/ERF_NumericalConstants.H` -- dimensionless numeric literals
+  (:cpp:`zero`, :cpp:`one`, :cpp:`myhalf`, ...) and the mathematical constant
+  :math:`\pi`.  These carry no physical meaning; they exist so the code stays
+  precision-agnostic between double and single builds.  :cpp:`ERF_Constants.H`
+  includes this header.
+
+- :cpp:`Source/Microphysics/ERF_MicrophysicsConstants.H` -- constants used only by the
+  moisture and cloud-physics code: hydrometeor densities, the temperature thresholds that
+  partition condensate among the hydrometeor species, terminal fall-speed coefficients,
+  autoconversion thresholds and collection efficiencies, size-distribution intercepts,
+  and the latent heats of condensation, fusion and sublimation.  This directory is on the
+  include path for every ERF build, so any file may include it.

@@ -32,7 +32,8 @@
 #include <memory>
 #include <cmath>
 
-#include "ERF_Constants.H"
+#include "ERF_Constants.H"            // epsilo, omeps
+#include "ERF_MicrophysicsConstants.H" // tmelt, h2otrip, tboil, ttrice
 
 /**
  * @brief Methods for estimating the saturation vapor pressure of water.

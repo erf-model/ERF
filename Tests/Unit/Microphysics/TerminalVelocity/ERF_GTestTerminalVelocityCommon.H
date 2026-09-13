@@ -2,6 +2,7 @@
 #define ERF_GTEST_TERMINAL_VELOCITY_COMMON_H_
 
 #include <cmath>
+#include "ERF_Constants.H"
 #include <string>
 
 #include <AMReX_REAL.H>

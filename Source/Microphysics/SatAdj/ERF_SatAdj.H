@@ -22,7 +22,8 @@
 #include <AMReX_GpuContainers.H>
 
 #include "ERF_EOS.H"
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"

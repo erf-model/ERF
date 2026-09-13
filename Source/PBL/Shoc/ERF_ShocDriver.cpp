@@ -1,7 +1,6 @@
 #include "ERF_ShocDriver.H"
 #include "ERF_ShocImplicit.H"
 
-#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 
 #include <AMReX_BLProfiler.H>

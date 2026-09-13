@@ -1,4 +1,5 @@
 #include <AMReX_Array.H>
+#include "ERF_Constants.H"
 #include <AMReX_BoxArray.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Reduce.H>

@@ -9,7 +9,7 @@
 #include <AMReX_Utility.H>
 #include <AMReX_MultiFab.H>
 
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_NCInterface.H"

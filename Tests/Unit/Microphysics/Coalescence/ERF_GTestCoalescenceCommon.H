@@ -11,7 +11,7 @@
 #include <AMReX_Algorithm.H>
 #include <AMReX_Math.H>
 
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
 #include "ERF_SuperDropletPCCoalescence.H"
 
 // Unit tests for ERF's collision-coalescence kernels and riming efficiencies

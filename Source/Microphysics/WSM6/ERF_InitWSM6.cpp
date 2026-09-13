@@ -1,4 +1,6 @@
 #include "ERF_WSM6.H"
+#include "ERF_MicrophysicsConstants.H"
+#include "ERF_Constants.H"
 
 #include <AMReX_Gpu.H>
 #include "ERF_EOS.H"
