@@ -2374,7 +2374,7 @@ Weather Station Tracker
 
 It is the capability to output line plots of quantities of interest at a given weather station specified by the latitude and longitude. The options are the following:
 
- +-----------------------------------+-----------------------------------------------------------------+---------------------------------+
+ +-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
  | Parameter                         | Definition                                                      | Acceptable Values  | Default    |
  +===================================+=================================================================+====================+============+
  | **erf.io_station_tracker**        | required if the weather tracker output needs to be written out  | Boolean            | false      |
