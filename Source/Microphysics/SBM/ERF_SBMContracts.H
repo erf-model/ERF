@@ -13,6 +13,7 @@ struct CapabilityInput {
     bool diffusion{false};
     bool implicit_moisture_diffusion{false};
     bool shoc_or_macrophysics{false};
+    bool static_cartesian{true};
     bool moving_terrain{false};
     bool embedded_boundary{false};
     bool high_order_or_fct{false};
@@ -23,6 +24,10 @@ struct CapabilityInput {
     bool dynamic_grid{false};
     bool restart_schema_conversion{false};
     bool two_moment_transport{false};
+    bool custom_moisture_forcing{false};
+    bool large_scale_forcing{false};
+    bool sounding_nudging{false};
+    bool sponge_or_wall_modification{false};
     bool periodic_cartesian{true};
     bool double_precision{true};
 };
@@ -36,6 +41,9 @@ struct CapabilityReport {
 };
 
 CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input);
+
+/** Validate a runtime bin count before it can reach a vector resize. */
+[[nodiscard]] std::string validate_runtime_bin_count(int nbins);
 
 /**
  * Host-only, stable conformance description assembled from production layout

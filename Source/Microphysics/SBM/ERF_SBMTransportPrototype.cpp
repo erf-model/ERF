@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <limits>
+#include <string>
 #include <stdexcept>
 
 namespace erf_sbm {
@@ -76,6 +77,28 @@ HostState accepted_ledger(const ::erf_auxiliary::StageContext& context,
     return result;
 }
 
+void validate_nonnegative_state(const amrex::MultiFab& state, const int ncomp,
+                                const char* context)
+{
+    if (ncomp <= 0 || ncomp > state.nComp()) {
+        throw std::invalid_argument("invalid component count for auxiliary finite-state check");
+    }
+    if (!state.is_finite(0, ncomp, state.nGrowVect())) {
+        throw std::runtime_error(std::string(context) + " contains NaN or infinite values");
+    }
+    for (int comp = 0; comp < ncomp; ++comp) {
+        const amrex::Real minimum = state.min(comp);
+        const amrex::Real scale = amrex::max(amrex::Real(1.0),
+                                              amrex::Math::abs(minimum));
+        const amrex::Real tolerance = amrex::Real(128.0) *
+            std::numeric_limits<amrex::Real>::epsilon() * scale;
+        if (minimum < -tolerance) {
+            throw std::runtime_error(std::string(context) +
+                                     " contains materially negative values; no clipping is permitted");
+        }
+    }
+}
+
 void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    const SBMLayout& layout,
                    const ::erf_auxiliary::StageContext& context,
@@ -84,18 +107,23 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    const amrex::MultiFab& carrier_x,
                    const amrex::MultiFab& carrier_y,
                    const amrex::MultiFab& carrier_z,
-                   const amrex::Geometry& geometry)
+                   const amrex::Geometry& geometry,
+                   ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux)
 {
-    if (layout.populations().size() != 1) {
-        throw std::invalid_argument("P1 transport supports exactly one spectral population");
+    if (layout.populations().size() != 1 ||
+        layout.populations().front().moment_mode != MomentMode::OneMoment ||
+        layout.ncomp() != layout.populations().front().grid.nbins()) {
+        throw std::invalid_argument("P1 transport supports exactly one one-moment spectral population");
     }
     if (geometry.isAllPeriodic() == false || geometry.Domain().length(0) <= 0) {
         throw std::invalid_argument("P1 transport requires a periodic Cartesian geometry");
     }
+    if (!stage_flux.defined() || stage_flux.ncomp() != layout.ncomp()) {
+        throw std::invalid_argument("P1 stage face-transfer storage does not match the spectral layout");
+    }
     const auto& population = layout.populations().front();
-    const int first = population.liquid_mass_offset;
+    const int first = population.mass_offset;
     const int nbins = population.grid.nbins();
-    const int cloud_count = population.grid.cloud_bin_count();
     const auto& evaluation = (context.stage_index == 0) ? manager.old(0) : manager.evaluation(0);
     const auto& old = manager.old(0);
     const auto& predictor = manager.evaluation(0);
@@ -105,37 +133,49 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
     const amrex::Real dyi = static_cast<amrex::Real>(geometry.InvCellSize(1));
     const amrex::Real dzi = static_cast<amrex::Real>(geometry.InvCellSize(2));
 
-    // The accepted stage is formed in one kernel from the same face-transfer
-    // expression used for every liquid bin.  No independently advected qc/qr
-    // flux is constructed.
+    stage_flux.setVal(amrex::Real(0.0));
+
+    // Construct each numerical face flux exactly once on its face-centered
+    // MultiFab.  The same arrays feed the divergence below and the accepted
+    // full-step ledger; no cell-centered or independently reconstructed bulk
+    // flux is involved.
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const auto* carrier = dir == 0 ? &carrier_x : (dir == 1 ? &carrier_y : &carrier_z);
+        auto& flux = stage_flux.direction(dir);
+        for (amrex::MFIter mfi(flux); mfi.isValid(); ++mfi) {
+            const amrex::Box box = mfi.validbox();
+            const auto carrier_arr = carrier->const_array(mfi);
+            const auto eval = evaluation.const_array(mfi);
+            const auto rho = rho_evaluation.const_array(mfi);
+            const auto out = flux.array(mfi);
+            amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                for (int b = 0; b < nbins; ++b) {
+                    const amrex::Real face_mass_flux = carrier_arr(i,j,k);
+                    const int donor_i = (dir == 0 && face_mass_flux >= amrex::Real(0.0)) ? i-1 : i;
+                    const int donor_j = (dir == 1 && face_mass_flux >= amrex::Real(0.0)) ? j-1 : j;
+                    const int donor_k = (dir == 2 && face_mass_flux >= amrex::Real(0.0)) ? k-1 : k;
+                    out(i,j,k,first+b) = face_mass_flux *
+                        donor_ratio(eval, rho, donor_i, donor_j, donor_k, first+b);
+                }
+            });
+        }
+    }
+
     for (amrex::MFIter mfi(output); mfi.isValid(); ++mfi) {
         const amrex::Box box = mfi.validbox();
-        const auto eval = evaluation.const_array(mfi);
         const auto old_arr = old.const_array(mfi);
         const auto pred = predictor.const_array(mfi);
-        const auto rho = rho_evaluation.const_array(mfi);
-        const auto cx = carrier_x.const_array(mfi);
-        const auto cy = carrier_y.const_array(mfi);
-        const auto cz = carrier_z.const_array(mfi);
+        const auto fx = stage_flux.x().const_array(mfi);
+        const auto fy = stage_flux.y().const_array(mfi);
+        const auto fz = stage_flux.z().const_array(mfi);
         const auto out = output.array(mfi);
-        const auto core = core_state.array(mfi);
 
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             for (int b = 0; b < nbins; ++b) {
                 const int n = first + b;
-                const amrex::Real fx_lo = cx(i,j,k) * ((cx(i,j,k) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i-1,j,k,n) : donor_ratio(eval, rho, i,j,k,n));
-                const amrex::Real fx_hi = cx(i+1,j,k) * ((cx(i+1,j,k) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i,j,k,n) : donor_ratio(eval, rho, i+1,j,k,n));
-                const amrex::Real fy_lo = cy(i,j,k) * ((cy(i,j,k) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i,j-1,k,n) : donor_ratio(eval, rho, i,j,k,n));
-                const amrex::Real fy_hi = cy(i,j+1,k) * ((cy(i,j+1,k) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i,j,k,n) : donor_ratio(eval, rho, i,j+1,k,n));
-                const amrex::Real fz_lo = cz(i,j,k) * ((cz(i,j,k) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i,j,k-1,n) : donor_ratio(eval, rho, i,j,k,n));
-                const amrex::Real fz_hi = cz(i,j,k+1) * ((cz(i,j,k+1) >= amrex::Real(0.0)) ?
-                    donor_ratio(eval, rho, i,j,k,n) : donor_ratio(eval, rho, i,j,k+1,n));
-                const amrex::Real rhs = -((fx_hi-fx_lo)*dxi + (fy_hi-fy_lo)*dyi + (fz_hi-fz_lo)*dzi);
+                const amrex::Real rhs = -((fx(i+1,j,k,n)-fx(i,j,k,n))*dxi +
+                                           (fy(i,j+1,k,n)-fy(i,j,k,n))*dyi +
+                                           (fz(i,j,k+1,n)-fz(i,j,k,n))*dzi);
                 if (context.method == ::erf_auxiliary::IntegrationMethod::CompressibleRK3 || context.stage_index == 0) {
                     out(i,j,k,n) = old_arr(i,j,k,n) + dt*rhs;
                 } else {
@@ -143,31 +183,22 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                         ((pred(i,j,k,n)-old_arr(i,j,k,n)) + dt*rhs);
                 }
             }
-            amrex::Real qc = amrex::Real(0.0);
-            amrex::Real qr = amrex::Real(0.0);
-            for (int b = 0; b < cloud_count; ++b) qc += out(i,j,k,first+b);
-            for (int b = cloud_count; b < nbins; ++b) qr += out(i,j,k,first+b);
-            core(i,j,k,RhoQ2_comp) = qc;
-            core(i,j,k,RhoQ3_comp) = qr;
         });
     }
     output.FillBoundary(geometry.periodicity());
 
-    // P1 is deliberately fail-closed.  A material negative auxiliary state
-    // must stop the run; clipping here would hide a donor/geometry/stage bug
-    // and would make the compact projection disagree with its authoritative
-    // spectral state.  The tolerance only covers roundoff at zero.
-    for (int comp = 0; comp < layout.ncomp(); ++comp) {
-        const amrex::Real minimum = output.min(comp);
-        const amrex::Real scale = amrex::max(amrex::Real(1.0),
-                                              amrex::Math::abs(minimum));
-        const amrex::Real tolerance = amrex::Real(128.0) *
-            std::numeric_limits<amrex::Real>::epsilon() * scale;
-        if (!std::isfinite(minimum) || minimum < -tolerance) {
-            throw std::runtime_error("SBM P1 auxiliary state violated the nonnegative invariant; no clipping is permitted");
-        }
+    // The compact host fields are projections of the updated authoritative
+    // spectral state.  This is deliberately separate from face-flux
+    // construction: qc/qr never get their own numerical transport path.
+    const SBMBulkProjection bulk_projection(layout);
+    for (amrex::MFIter mfi(output); mfi.isValid(); ++mfi) {
+        bulk_projection.apply_to_core(mfi.validbox(), output.const_array(mfi),
+                                      core_state.array(mfi));
     }
+
+    validate_nonnegative_state(output, layout.ncomp());
     manager.accept_stage(0);
+    manager.record_stage_face_transfer(0, context, stage_flux);
     core_state.FillBoundary(geometry.periodicity());
 }
 

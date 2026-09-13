@@ -3,6 +3,7 @@
 
 #include <string>
 #include <iostream>
+#include <cmath>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -19,6 +20,7 @@
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_ShocTransportStruct.H"
+#include "ERF_SBMContracts.H"
 
 /**
  * @brief Indices for map scale factors on mass and face grids.
@@ -693,39 +695,68 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
-        // Experimental ERF-native spectral-bin transport configuration.  The
-        // defaults are a valid four-bin manufactured grid; nonzero compact
-        // condensate still requires sbm_manufactured_initialization=true.
-        sbm_nbins = 4;
-        pp.queryAdd("sbm_nbins", sbm_nbins);
-        sbm_moment_mode = 1;
-        pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
-        sbm_cloud_rain_split = sbm_nbins / 2;
-        pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
-        pp.queryAdd("sbm_manufactured_initialization", sbm_manufactured_initialization);
-        sbm_edges.resize(static_cast<std::size_t>(sbm_nbins + 1));
-        sbm_pivots.resize(static_cast<std::size_t>(sbm_nbins));
-        if (pp.countval("sbm_edges") > 0) {
-            pp.getarr("sbm_edges", sbm_edges);
-        } else {
-            for (int n = 0; n <= sbm_nbins; ++n) sbm_edges[static_cast<std::size_t>(n)] = static_cast<amrex::Real>(n);
-        }
-        if (pp.countval("sbm_pivots") > 0) {
-            pp.getarr("sbm_pivots", sbm_pivots);
-        } else {
-            for (int n = 0; n < sbm_nbins; ++n) {
-                sbm_pivots[static_cast<std::size_t>(n)] =
-                    amrex::Real(0.5) * (sbm_edges[static_cast<std::size_t>(n)] + sbm_edges[static_cast<std::size_t>(n+1)]);
-            }
-        }
         if (moisture_type == MoistureType::SBM) {
-            if (sbm_nbins < 2 || sbm_moment_mode < 1 || sbm_moment_mode > 2 ||
-                sbm_edges.size() != static_cast<std::size_t>(sbm_nbins+1) ||
-                sbm_pivots.size() != static_cast<std::size_t>(sbm_nbins)) {
-                amrex::Error("SBM requires sbm_nbins >= 2, sbm_moment_mode 1 or 2, and one edge/pivot per bin");
+            // Validate the signed integer before any conversion to size_t or
+            // allocation.  This keeps malformed negative input a clean ERF
+            // parameter error instead of a huge-vector attempt.
+            sbm_nbins = 4;
+            pp.queryAdd("sbm_nbins", sbm_nbins);
+            const auto bin_count_error = ::erf_sbm::validate_runtime_bin_count(sbm_nbins);
+            if (!bin_count_error.empty()) amrex::Error(bin_count_error);
+            sbm_moment_mode = 1;
+            pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
+            if (sbm_moment_mode < 1 || sbm_moment_mode > 2) {
+                amrex::Error("SBM sbm_moment_mode must be 1 or 2");
             }
+            sbm_cloud_rain_split = sbm_nbins / 2;
+            pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
             if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
                 amrex::Error("sbm_cloud_rain_split must be an interior edge index");
+            }
+            pp.queryAdd("sbm_manufactured_initialization", sbm_manufactured_initialization);
+            pp.queryAdd("sbm_manufactured_velocity", sbm_manufactured_velocity);
+            pp.queryAdd("sbm_diagnostic_file", sbm_diagnostic_file);
+
+            const int edge_count = pp.countval("sbm_edges");
+            const int pivot_count = pp.countval("sbm_pivots");
+            if (edge_count != 0 && edge_count != sbm_nbins + 1) {
+                amrex::Error("SBM sbm_edges must contain exactly sbm_nbins + 1 values");
+            }
+            if (pivot_count != 0 && pivot_count != sbm_nbins) {
+                amrex::Error("SBM sbm_pivots must contain exactly sbm_nbins values");
+            }
+            sbm_edges.resize(static_cast<std::size_t>(sbm_nbins + 1));
+            sbm_pivots.resize(static_cast<std::size_t>(sbm_nbins));
+            if (edge_count != 0) {
+                pp.getarr("sbm_edges", sbm_edges);
+            } else {
+                for (int n = 0; n <= sbm_nbins; ++n) {
+                    sbm_edges[static_cast<std::size_t>(n)] = static_cast<amrex::Real>(n);
+                }
+            }
+            if (pivot_count != 0) {
+                pp.getarr("sbm_pivots", sbm_pivots);
+            } else {
+                for (int n = 0; n < sbm_nbins; ++n) {
+                    sbm_pivots[static_cast<std::size_t>(n)] =
+                        amrex::Real(0.5) * (sbm_edges[static_cast<std::size_t>(n)] +
+                                             sbm_edges[static_cast<std::size_t>(n+1)]);
+                }
+            }
+            for (int n = 0; n <= sbm_nbins; ++n) {
+                const auto edge = sbm_edges[static_cast<std::size_t>(n)];
+                if (!std::isfinite(edge) || edge < amrex::Real(0.0) ||
+                    (n > 0 && !(sbm_edges[static_cast<std::size_t>(n-1)] < edge))) {
+                    amrex::Error("SBM sbm_edges must be finite, nonnegative, and strictly increasing");
+                }
+            }
+            for (int n = 0; n < sbm_nbins; ++n) {
+                const auto pivot = sbm_pivots[static_cast<std::size_t>(n)];
+                if (!std::isfinite(pivot) ||
+                    pivot < sbm_edges[static_cast<std::size_t>(n)] ||
+                    pivot > sbm_edges[static_cast<std::size_t>(n+1)]) {
+                    amrex::Error("SBM sbm_pivots must be finite and lie in their bins");
+                }
             }
         }
 
@@ -1569,29 +1600,34 @@ struct SolverChoice {
         if (moisture_type == MoistureType::SBM) {
             bool any_kturb = false;
             for (int lev = 0; lev <= max_level; ++lev) any_kturb = any_kturb || turbChoice[lev].use_kturb;
-            if (max_level > 0) {
-                amrex::Error("SBM P1 supports only a single level; AMR is fail-closed");
-            }
-            if (mesh_type != MeshType::ConstantDz || terrain_type != TerrainType::None) {
-                amrex::Error("SBM P1 requires static Cartesian geometry without terrain or EB");
-            }
-            if (diffChoice.molec_diff_type != MolecDiffType::None ||
-                implicit_moisture_diffusion || any_kturb || uses_shoc_family()) {
-                amrex::Error("SBM P1 rejects diffusion and SHOC/macrophysics");
-            }
-            if (custom_moisture_forcing) {
-                amrex::Error("SBM P1 rejects independent custom moisture source insertion");
-            }
-            if (large_scale_forcing || nudging_from_input_sounding) {
-                amrex::Error("SBM P1 rejects large-scale/sounding forcing because its moisture and boundary ownership is not qualified");
-            }
-            if (sbm_moment_mode != 1) {
-                amrex::Error("SBM P1 transport is qualified for one-moment liquid mass only; two-moment state is a P0 contract until number transport is implemented");
-            }
+            ::erf_sbm::CapabilityInput capability;
+            capability.max_level = max_level;
+            capability.diffusion = diffChoice.molec_diff_type != MolecDiffType::None || any_kturb;
+            capability.implicit_moisture_diffusion = implicit_moisture_diffusion;
+            capability.shoc_or_macrophysics = uses_shoc_family();
+            capability.static_cartesian = mesh_type == MeshType::ConstantDz &&
+                                          terrain_type == TerrainType::None &&
+                                          buildings_type == BuildingsType::None;
+            capability.moving_terrain = terrain_type == TerrainType::MovingFittedMesh;
+            capability.embedded_boundary = terrain_type == TerrainType::EB ||
+                                           buildings_type == BuildingsType::ImmersedForcing;
+            capability.two_moment_transport = sbm_moment_mode != 1;
+            capability.condensation = moisture_tight_coupling;
+            capability.custom_moisture_forcing = custom_moisture_forcing;
+            capability.large_scale_forcing = large_scale_forcing;
+            capability.sounding_nudging = nudging_from_input_sounding;
+            capability.sponge_or_wall_modification = spongeChoice.sponge_type != SpongeType::None;
+#ifdef AMREX_USE_FLOAT
+            capability.double_precision = false;
+#endif
+            capability.periodic_cartesian = true;
             for (int lev = 0; lev <= max_level; ++lev) {
-                if (!geom_vect[lev].isAllPeriodic()) {
-                    amrex::Error("SBM P1 requires periodic Cartesian boundaries in all directions");
-                }
+                capability.periodic_cartesian = capability.periodic_cartesian && geom_vect[lev].isAllPeriodic();
+            }
+            const auto report = ::erf_sbm::evaluate_p1_capabilities(capability);
+            if (!report.supported) {
+                amrex::Error("SBM P1 capability contract rejected this configuration:\n" +
+                             report.stable_description());
             }
         }
 #if 0
@@ -2251,6 +2287,8 @@ struct SolverChoice {
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{2};
     bool sbm_manufactured_initialization{false};
+    amrex::Real sbm_manufactured_velocity{0.0};
+    std::string sbm_diagnostic_file;
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
 

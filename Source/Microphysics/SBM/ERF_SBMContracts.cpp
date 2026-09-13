@@ -22,6 +22,7 @@ CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input)
     reject(input.diffusion, "auxiliary/projection diffusion is unsupported in P1");
     reject(input.implicit_moisture_diffusion, "implicit moisture diffusion is unsupported in P1");
     reject(input.shoc_or_macrophysics, "SHOC/macrophysics is unsupported in P1");
+    reject(!input.static_cartesian, "non-Cartesian geometry is unsupported in P1");
     reject(input.moving_terrain, "moving terrain is unsupported in P1");
     reject(input.embedded_boundary, "embedded boundaries are unsupported in P1");
     reject(input.high_order_or_fct, "high-order/FCT transport is unsupported in P1");
@@ -32,10 +33,22 @@ CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input)
     reject(input.dynamic_grid, "dynamic spectral grids are unsupported in P1");
     reject(input.restart_schema_conversion, "restart schema conversion is unsupported in P1");
     reject(input.two_moment_transport, "two-moment transport is a P0 contract and is unsupported in P1");
+    reject(input.custom_moisture_forcing, "custom moisture forcing is unsupported in P1");
+    reject(input.large_scale_forcing, "large-scale forcing is unsupported in P1");
+    reject(input.sounding_nudging, "sounding nudging is unsupported in P1");
+    reject(input.sponge_or_wall_modification, "sponge and wall modification are unsupported in P1");
     reject(!input.periodic_cartesian, "only static Cartesian periodic manufactured cases are supported in P1");
     reject(!input.double_precision, "P1 manufactured transport is currently double precision only");
     report.supported = report.rejected_reasons.empty();
     return report;
+}
+
+std::string validate_runtime_bin_count(const int nbins)
+{
+    if (nbins < 2 || nbins > 1000000) {
+        return "SBM sbm_nbins must be in [2, 1000000]";
+    }
+    return {};
 }
 
 std::string CapabilityReport::stable_description() const

@@ -13,13 +13,10 @@ enum class CoordinateKind { LiquidRadius, LiquidMass, DryMass };
 enum class MomentMode { OneMoment, TwoMoment };
 
 struct SpectralGridSpec {
-    int population_id{0};
     CoordinateKind coordinate_kind{CoordinateKind::LiquidMass};
-    std::string units{"kg"};
-    std::string semantic_id{"liquid_mass"};
+    std::string coordinate_units{"kg"};
     std::vector<amrex::Real> edges;
     std::vector<amrex::Real> pivots;
-    int cloud_rain_split{-1}; // bin index; the split is the edge at this index
 };
 
 struct GridValidation {
@@ -34,16 +31,11 @@ public:
 
     explicit SpectralGrid(SpectralGridSpec spec);
 
-    [[nodiscard]] int population_id() const noexcept { return m_spec.population_id; }
     [[nodiscard]] CoordinateKind coordinate_kind() const noexcept { return m_spec.coordinate_kind; }
-    [[nodiscard]] const std::string& units() const noexcept { return m_spec.units; }
-    [[nodiscard]] const std::string& semantic_id() const noexcept { return m_spec.semantic_id; }
+    [[nodiscard]] const std::string& coordinate_units() const noexcept { return m_spec.coordinate_units; }
     [[nodiscard]] const std::vector<amrex::Real>& edges() const noexcept { return m_spec.edges; }
     [[nodiscard]] const std::vector<amrex::Real>& pivots() const noexcept { return m_spec.pivots; }
     [[nodiscard]] int nbins() const noexcept { return static_cast<int>(m_spec.edges.size()) - 1; }
-    [[nodiscard]] int cloud_bin_count() const noexcept { return m_spec.cloud_rain_split; }
-    [[nodiscard]] int rain_bin_begin() const noexcept { return m_spec.cloud_rain_split; }
-    [[nodiscard]] amrex::Real split_edge() const noexcept { return m_spec.edges[static_cast<std::size_t>(m_spec.cloud_rain_split)]; }
 
     [[nodiscard]] amrex::Real pivot(const int bin) const { return m_spec.pivots.at(static_cast<std::size_t>(bin)); }
     [[nodiscard]] std::string identity() const;

@@ -7,9 +7,133 @@
 #include <AMReX_MFParallelFor.H>
 
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 #include <vector>
 
 using namespace amrex;
+
+namespace {
+
+amrex::Real sbm_total_mass(const amrex::MultiFab& state, const int ncomp,
+                           const amrex::Real cell_volume)
+{
+    amrex::Real total = amrex::Real(0.0);
+    for (int comp = 0; comp < ncomp; ++comp) total += state.sum(comp);
+    return cell_volume * total;
+}
+
+amrex::Real sbm_max_projection_error(const erf_sbm::SBMLayout& layout,
+                                     const amrex::MultiFab& spectral,
+                                     const amrex::MultiFab& core)
+{
+    const auto& projection = layout.liquid_projection();
+    const auto liquid = std::find_if(layout.populations().begin(), layout.populations().end(),
+        [&](const erf_sbm::PopulationLayout& population) {
+            return population.population_id == projection.population_id;
+        });
+    const int first = liquid->mass_offset;
+    const int split = projection.cloud_rain_split;
+    const int nbins = liquid->grid.nbins();
+    amrex::MultiFab error(core.boxArray(), core.DistributionMap(), 1, 0);
+    error.setVal(amrex::Real(0.0));
+    for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        const auto spectrum = spectral.const_array(mfi);
+        const auto compact = core.const_array(mfi);
+        const auto result = error.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            amrex::Real qc = amrex::Real(0.0);
+            amrex::Real qr = amrex::Real(0.0);
+            for (int b = 0; b < split; ++b) qc += spectrum(i,j,k,first+b);
+            for (int b = split; b < nbins; ++b) qr += spectrum(i,j,k,first+b);
+            result(i,j,k) = amrex::max(
+                amrex::Math::abs(compact(i,j,k,RhoQ2_comp) - qc),
+                amrex::Math::abs(compact(i,j,k,RhoQ3_comp) - qr));
+        });
+    }
+    return error.max(0);
+}
+
+amrex::Real sbm_max_change(amrex::MultiFab& scratch,
+                           const amrex::MultiFab& current,
+                           const amrex::MultiFab& baseline,
+                           const int ncomp)
+{
+    amrex::Real maximum = amrex::Real(0.0);
+    for (int comp = 0; comp < ncomp; ++comp) {
+        amrex::MultiFab::Copy(scratch, current, comp, 0, 1, 0);
+        amrex::MultiFab::Subtract(scratch, baseline, comp, 0, 1, 0);
+        maximum = amrex::max(maximum, scratch.norm0(0));
+    }
+    return maximum;
+}
+
+void write_sbm_diagnostic(const std::string& path,
+                          const bool anelastic,
+                          const int nbins,
+                          const amrex::Real initial_mass,
+                          const amrex::Real final_mass,
+                          const amrex::Real initial_variation,
+                          const amrex::Real transport_change,
+                          const amrex::Real projection_error,
+                          const amrex::Real face_projection_error,
+                          const amrex::Real compact_mass,
+                          const amrex::Real cell_volume)
+{
+    const amrex::Real mass_error = amrex::Math::abs(final_mass - initial_mass);
+    const amrex::Real compact_mass_error = amrex::Math::abs(compact_mass - final_mass);
+    const amrex::Real mass_tolerance = amrex::Real(1.0e-10) *
+        amrex::max(amrex::Real(1.0), amrex::Math::abs(initial_mass));
+    const amrex::Real projection_tolerance = amrex::Real(1.0e-12) *
+        amrex::max(amrex::Real(1.0), amrex::Math::abs(compact_mass));
+    const amrex::Real face_tolerance = amrex::Real(1.0e-12) *
+        amrex::max(amrex::Real(1.0), amrex::Math::abs(final_mass));
+    const bool passed = initial_variation > amrex::Real(0.0) &&
+                        transport_change > amrex::Real(0.0) &&
+                        mass_error <= mass_tolerance &&
+                        compact_mass_error <= mass_tolerance &&
+                        projection_error <= projection_tolerance &&
+                        face_projection_error <= face_tolerance;
+
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        std::ofstream output(path);
+        if (!output) amrex::Error("unable to write SBM P1 diagnostic: " + path);
+        output << std::setprecision(17)
+               << "format=erf-sbm-p1-diagnostic-v1\n"
+               << "method=" << (anelastic ? "anelastic" : "compressible") << '\n'
+               << "nbins=" << nbins << '\n'
+               << "cell_volume=" << cell_volume << '\n'
+               << "initial_mass=" << initial_mass << '\n'
+               << "final_mass=" << final_mass << '\n'
+               << "mass_error=" << mass_error << '\n'
+               << "mass_tolerance=" << mass_tolerance << '\n'
+               << "compact_mass=" << compact_mass << '\n'
+               << "compact_mass_error=" << compact_mass_error << '\n'
+               << "initial_variation=" << initial_variation << '\n'
+               << "transport_change=" << transport_change << '\n'
+               << "projection_error=" << projection_error << '\n'
+               << "projection_tolerance=" << projection_tolerance << '\n'
+               << "face_projection_error=" << face_projection_error << '\n'
+               << "face_tolerance=" << face_tolerance << '\n'
+               << "passed=" << (passed ? 1 : 0) << '\n';
+    }
+    amrex::ParallelDescriptor::Barrier("SBM P1 diagnostic");
+    if (!passed) {
+        std::ostringstream message;
+        message << "SBM P1 numerical qualification failed: mass_error=" << mass_error
+                << ", compact_mass_error=" << compact_mass_error
+                << ", initial_variation=" << initial_variation
+                << ", transport_change=" << transport_change
+                << ", projection_error=" << projection_error
+                << ", face_projection_error=" << face_projection_error;
+        amrex::Error(message.str());
+    }
+}
+
+} // namespace
 
 void ERF::initialize_sbm_auxiliary(const int lev)
 {
@@ -22,12 +146,36 @@ void ERF::initialize_sbm_auxiliary(const int lev)
     if (!sbm_auxiliary) {
         sbm_auxiliary = std::make_unique<::erf_auxiliary::AuxiliaryStateManager>(sbm_layout->auxiliary_layout());
     }
+    if (!sbm_accepted_bulk_face_transfer) {
+        sbm_accepted_bulk_face_transfer = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
+        sbm_accepted_bulk_face_transfer->define(grids[0], dmap[0], 2, 0);
+    }
+    if (!sbm_ownership) {
+        sbm_ownership = std::make_unique<::erf_sbm::OwnershipRegistry>(true);
+    }
     sbm_auxiliary->define_level(0, grids[0], dmap[0], 1);
     auto& aux = sbm_auxiliary->output(0);
     auto& core = vars_new[0][Vars::cons];
     const auto& projection = *sbm_layout;
     const int nbins = projection.populations().front().grid.nbins();
-    const int offset = projection.populations().front().liquid_mass_offset;
+    const int offset = projection.populations().front().mass_offset;
+
+    // The manufactured regression supplies a nonzero ERF carrier field while
+    // production inputs retain the ordinary initialized velocity/momentum.
+    // These are the same face-centered fields later handed to the transport
+    // kernel, so the qualification cannot pass through an independent donor
+    // velocity reconstruction.
+    if (solverChoice.sbm_manufactured_velocity != Real(0.0)) {
+        vars_new[0][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
+        vars_old[0][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
+        vars_new[0][Vars::yvel].setVal(Real(0.0));
+        vars_old[0][Vars::yvel].setVal(Real(0.0));
+        vars_new[0][Vars::zvel].setVal(Real(0.0));
+        vars_old[0][Vars::zvel].setVal(Real(0.0));
+        avg_xmom[0].setVal(solverChoice.sbm_manufactured_velocity);
+        avg_ymom[0].setVal(Real(0.0));
+        avg_zmom[0].setVal(Real(0.0));
+    }
 
     // There is intentionally no bulk-to-spectrum guess.  An empty spectrum is
     // allowed only when both compact condensate fields are zero.  Tests and
@@ -48,13 +196,20 @@ void ERF::initialize_sbm_auxiliary(const int lev)
         const auto aux_arr = aux.array(mfi);
         const auto core_arr = core.array(mfi);
         const bool manufactured = solverChoice.sbm_manufactured_initialization;
+        const Real xlo = geom[0].ProbLo(0);
+        const Real xlen = geom[0].ProbHi(0) - xlo;
+        const Real dx = geom[0].CellSize(0);
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             const Real rho = core_arr(i,j,k,Rho_comp);
+            const Real x = xlo + (Real(i) + Real(0.5)) * dx;
+            const Real variation = Real(1.0) + Real(0.25) *
+                std::sin(Real(6.2831853071795864769) * (x - xlo) / xlen);
             for (int b = 0; b < nbins; ++b) {
                 // Small deterministic positive values on both sides of the
                 // projection split.  This is a transport manufactured field,
                 // not a physical droplet or aerosol distribution.
-                aux_arr(i,j,k,offset+b) = manufactured ? rho * Real(1.0e-6) * Real(b+1) : Real(0.0);
+                aux_arr(i,j,k,offset+b) = manufactured ?
+                    rho * Real(1.0e-6) * Real(b+1) * variation : Real(0.0);
             }
         });
     }
@@ -94,6 +249,11 @@ void ERF::advance_sbm_stage(const int lev,
     if (solverChoice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0 && sbm_auxiliary != nullptr && sbm_layout != nullptr,
                                      "SBM auxiliary state is not ready");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        sbm_ownership != nullptr &&
+        sbm_ownership->owns(RhoQ2_comp, ::erf_sbm::NativeWritePath::Advection) &&
+        sbm_ownership->owns(RhoQ3_comp, ::erf_sbm::NativeWritePath::Advection),
+        "SBM compact cloud/rain ownership contract is not active");
     const bool anelastic = solverChoice.anelastic[lev] == 1;
     const auto context = anelastic ?
         ::erf_auxiliary::make_anelastic_stage(stage, old_step_time, old_stage_time,
@@ -108,5 +268,35 @@ void ERF::advance_sbm_stage(const int lev,
     // the velocity MultiFabs.
     ::erf_sbm::advance_stage(*sbm_auxiliary, *sbm_layout, context,
                             state_eval[IntVars::cons], state_new[IntVars::cons],
-                            avg_xmom[lev], avg_ymom[lev], avg_zmom[lev], geom[lev]);
+                            avg_xmom[lev], avg_ymom[lev], avg_zmom[lev], geom[lev],
+                            sbm_auxiliary->face_transfer_ledger(0).stage(stage));
+
+    const auto& ledger = sbm_auxiliary->face_transfer_ledger(0);
+    const ::erf_sbm::SBMBulkProjection bulk_projection(*sbm_layout);
+    bulk_projection.apply_to_face_transfer(ledger.accepted(), *sbm_accepted_bulk_face_transfer);
+
+    if (context.completes_level_step && solverChoice.sbm_manufactured_initialization &&
+        !solverChoice.sbm_diagnostic_file.empty()) {
+        auto& scratch = sbm_auxiliary->scratch(0);
+        const auto& old = sbm_auxiliary->old(0);
+        const auto& output = sbm_auxiliary->output(0);
+        const int ncomp = sbm_layout->ncomp();
+        const Real cell_volume = geom[0].CellSize(0) * geom[0].CellSize(1) * geom[0].CellSize(2);
+        Real initial_mass = sbm_total_mass(old, ncomp, cell_volume);
+        Real final_mass = sbm_total_mass(output, ncomp, cell_volume);
+        const Real initial_variation = old.max(0) - old.min(0);
+        const Real transport_change = sbm_max_change(scratch, output, old, ncomp);
+        const Real projection_error = sbm_max_projection_error(*sbm_layout, output,
+                                                               state_new[IntVars::cons]);
+        const Real face_projection_error = bulk_projection.max_face_projection_error(
+            ledger.accepted(), *sbm_accepted_bulk_face_transfer);
+        const Real compact_mass = cell_volume *
+            (state_new[IntVars::cons].sum(RhoQ2_comp) +
+             state_new[IntVars::cons].sum(RhoQ3_comp));
+        write_sbm_diagnostic(solverChoice.sbm_diagnostic_file,
+                             solverChoice.anelastic[lev] == 1, ncomp,
+                             initial_mass, final_mass, initial_variation,
+                             transport_change, projection_error,
+                             face_projection_error, compact_mass, cell_volume);
+    }
 }

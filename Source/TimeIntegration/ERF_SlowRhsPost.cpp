@@ -6,6 +6,7 @@
 #include <ERF_EBRedistribute.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
+#include "Microphysics/SBM/ERF_SBMContracts.H"
 
 using namespace amrex;
 
@@ -186,8 +187,10 @@ void erf_slow_rhs_post (int level, int finest_level,
     // SBM owns the compact cloud/rain fields through its auxiliary spectral
     // state. Vapor remains on ERF's ordinary scalar path, while qc/qr must not
     // receive a second native advection, diffusion, source, or clip.
+    const erf_sbm::OwnershipRegistry ownership(
+        solverChoice.moisture_type == MoistureType::SBM);
     const int n_native_moisture_components =
-        (solverChoice.moisture_type == MoistureType::SBM) ? 1 : n_qstate_total;
+        ownership.owns(RhoQ2_comp, erf_sbm::NativeWritePath::Advection) ? 1 : n_qstate_total;
 
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();

@@ -2,6 +2,7 @@
 #define ERF_SBM_TRANSPORT_PROTOTYPE_H_
 
 #include "ERF_AuxiliaryStageContext.H"
+#include "ERF_AuxiliaryFaceTransfer.H"
 #include "ERF_AuxiliaryStateManager.H"
 #include "ERF_SBMLayout.H"
 
@@ -38,7 +39,12 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    const amrex::MultiFab& carrier_x,
                    const amrex::MultiFab& carrier_y,
                    const amrex::MultiFab& carrier_z,
-                   const amrex::Geometry& geometry);
+                   const amrex::Geometry& geometry,
+                   ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux);
+
+/** Fail-closed finite/nonnegative check for authoritative P1 spectral mass. */
+void validate_nonnegative_state(const amrex::MultiFab& state, int ncomp,
+                                const char* context = "SBM auxiliary state");
 
 } // namespace erf_sbm
 

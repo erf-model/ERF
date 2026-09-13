@@ -59,7 +59,9 @@
 #include <ERF_ForestDrag.H>
 #include <ERF_Provenance.H>
 #include <ERF_AuxiliaryStateManager.H>
+#include <ERF_AuxiliaryFaceTransfer.H>
 #include <ERF_SBMLayout.H>
+#include <ERF_SBMContracts.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -1148,6 +1150,8 @@ private:
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
     std::unique_ptr<::erf_auxiliary::AuxiliaryStateManager> sbm_auxiliary;
+    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> sbm_accepted_bulk_face_transfer;
+    std::unique_ptr<::erf_sbm::OwnershipRegistry> sbm_ownership;
     std::unique_ptr<::erf_sbm::SBMLayout> sbm_layout;
 
     // Used for anelastic or when we impose an initial projection

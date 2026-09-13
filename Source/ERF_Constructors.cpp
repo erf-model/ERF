@@ -119,18 +119,23 @@ ERF::ERF_shared ()
     ReadParameters();
     if (solverChoice.moisture_type == MoistureType::SBM) {
         erf_sbm::SpectralGridSpec grid;
-        grid.population_id = 0;
         grid.coordinate_kind = erf_sbm::CoordinateKind::LiquidMass;
-        grid.units = "kg";
-        grid.semantic_id = "liquid_mass";
+        grid.coordinate_units = "kg";
         grid.edges.assign(solverChoice.sbm_edges.begin(), solverChoice.sbm_edges.end());
         grid.pivots.assign(solverChoice.sbm_pivots.begin(), solverChoice.sbm_pivots.end());
-        grid.cloud_rain_split = solverChoice.sbm_cloud_rain_split;
         erf_sbm::SBMLayoutSpec layout_spec;
-        layout_spec.populations.push_back(std::move(grid));
-        layout_spec.moment_modes.push_back(solverChoice.sbm_moment_mode == 2 ?
-                                           erf_sbm::MomentMode::TwoMoment :
-                                           erf_sbm::MomentMode::OneMoment);
+        erf_sbm::SpectralPopulationSpec population;
+        population.population_id = 0;
+        population.semantic_id = "liquid_mass";
+        population.phase = erf_sbm::PopulationPhase::Liquid;
+        population.grid = std::move(grid);
+        population.moment_mode = solverChoice.sbm_moment_mode == 2 ?
+            erf_sbm::MomentMode::TwoMoment : erf_sbm::MomentMode::OneMoment;
+        population.mass_state_units = "kg m^-3";
+        population.number_state_units = "m^-3";
+        layout_spec.populations.push_back(std::move(population));
+        layout_spec.liquid_projection.population_id = 0;
+        layout_spec.liquid_projection.cloud_rain_split = solverChoice.sbm_cloud_rain_split;
         sbm_layout = std::make_unique<erf_sbm::SBMLayout>(std::move(layout_spec));
         Print() << "SBM layout identity: " << sbm_layout->schema_identity() << std::endl;
     }

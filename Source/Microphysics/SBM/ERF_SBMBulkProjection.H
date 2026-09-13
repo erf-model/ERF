@@ -2,6 +2,7 @@
 #define ERF_SBM_BULK_PROJECTION_H_
 
 #include "ERF_SBMLayout.H"
+#include "ERF_AuxiliaryFaceTransfer.H"
 
 #include <AMReX_MultiFab.H>
 
@@ -22,6 +23,11 @@ public:
     [[nodiscard]] BulkProjection apply(const std::vector<amrex::Real>& auxiliary) const;
     void apply_to_core(const amrex::Box& box, const amrex::Array4<const amrex::Real>& auxiliary,
                        const amrex::Array4<amrex::Real>& core) const;
+    void apply_to_face_transfer(const ::erf_auxiliary::AuxiliaryFaceTransfer& spectral,
+                                ::erf_auxiliary::AuxiliaryFaceTransfer& bulk) const;
+    [[nodiscard]] amrex::Real max_face_projection_error(
+        const ::erf_auxiliary::AuxiliaryFaceTransfer& spectral,
+        const ::erf_auxiliary::AuxiliaryFaceTransfer& bulk) const;
 
     [[nodiscard]] int cloud_offset() const noexcept { return m_cloud_offset; }
     [[nodiscard]] int cloud_count() const noexcept { return m_cloud_count; }

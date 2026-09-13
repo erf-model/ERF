@@ -11,12 +11,8 @@ namespace erf_sbm {
 
 GridValidation SpectralGrid::validate(const SpectralGridSpec& spec)
 {
-    if (spec.population_id < 0) return {false, "population id must be nonnegative"};
     if (spec.edges.size() < 2) return {false, "spectral grid needs at least one bin"};
-    if (spec.cloud_rain_split <= 0 || spec.cloud_rain_split >= static_cast<int>(spec.edges.size()) - 1) {
-        return {false, "cloud/rain split must be an interior bin edge"};
-    }
-    if (spec.units.empty() || spec.semantic_id.empty()) return {false, "grid units and semantic id are required"};
+    if (spec.coordinate_units.empty()) return {false, "spectral coordinate units are required"};
     for (std::size_t i = 0; i < spec.edges.size(); ++i) {
         const auto edge = spec.edges[i];
         if (!std::isfinite(edge) || edge < amrex::Real(0.0)) return {false, "edges must be finite and nonnegative"};
@@ -40,10 +36,8 @@ SpectralGrid::SpectralGrid(SpectralGridSpec spec) : m_spec(std::move(spec))
 std::string SpectralGrid::identity() const
 {
     std::ostringstream out;
-    out << "spectral-grid-v1|population=" << m_spec.population_id
-        << "|kind=" << static_cast<int>(m_spec.coordinate_kind)
-        << "|units=" << m_spec.units << "|semantic=" << m_spec.semantic_id
-        << "|split=" << m_spec.cloud_rain_split << "|edges=" << std::setprecision(17);
+    out << "spectral-grid-v2|kind=" << static_cast<int>(m_spec.coordinate_kind)
+        << "|coordinate_units=" << m_spec.coordinate_units << "|edges=" << std::setprecision(17);
     for (const auto x : m_spec.edges) out << x << ',';
     out << "|pivots=";
     for (const auto x : m_spec.pivots) out << x << ',';

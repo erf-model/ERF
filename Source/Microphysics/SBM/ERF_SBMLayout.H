@@ -12,6 +12,24 @@ namespace erf_sbm {
 
 enum class PropertyKind { NumberCarried, MassBoundedSubset };
 enum class SupportRequirement { None, PositiveMass, PositiveNumber };
+enum class PopulationPhase { Liquid, Ice, Aerosol, Generic };
+
+struct SpectralPopulationSpec {
+    int population_id{0};
+    std::string semantic_id{"liquid_mass"};
+    PopulationPhase phase{PopulationPhase::Liquid};
+    SpectralGridSpec grid;
+    MomentMode moment_mode{MomentMode::OneMoment};
+    // These are units of the transported prognostic components, not of the
+    // particle-coordinate grid.
+    std::string mass_state_units{"kg m^-3"};
+    std::string number_state_units{"m^-3"};
+};
+
+struct LiquidProjectionSpec {
+    int population_id{0};
+    int cloud_rain_split{-1};
+};
 
 struct AttachedPropertyDescriptor {
     std::string name;
@@ -27,16 +45,20 @@ struct AttachedPropertyDescriptor {
 
 struct PopulationLayout {
     int population_id{0};
+    std::string semantic_id;
+    PopulationPhase phase{PopulationPhase::Generic};
     SpectralGrid grid;
     MomentMode moment_mode{MomentMode::OneMoment};
-    int liquid_mass_offset{0};
+    std::string mass_state_units;
+    std::string number_state_units;
+    int mass_offset{0};
     int number_offset{-1};
     int component_count{0};
 };
 
 struct SBMLayoutSpec {
-    std::vector<SpectralGridSpec> populations;
-    std::vector<MomentMode> moment_modes;
+    std::vector<SpectralPopulationSpec> populations;
+    LiquidProjectionSpec liquid_projection;
     std::vector<AttachedPropertyDescriptor> attached_properties;
 };
 
@@ -54,8 +76,9 @@ public:
     [[nodiscard]] const std::vector<PopulationLayout>& populations() const noexcept { return m_populations; }
     [[nodiscard]] const std::vector<AttachedPropertyDescriptor>& attached_properties() const noexcept { return m_properties; }
     [[nodiscard]] const ::erf_auxiliary::AuxiliaryProjection& bulk_projection() const noexcept { return m_projection; }
+    [[nodiscard]] const LiquidProjectionSpec& liquid_projection() const noexcept { return m_liquid_projection; }
     [[nodiscard]] int ncomp() const noexcept { return m_ncomp; }
-    [[nodiscard]] int liquid_mass_offset(const int population) const;
+    [[nodiscard]] int mass_offset(const int population) const;
     [[nodiscard]] int property_offset(const int property) const;
     [[nodiscard]] std::string schema_identity() const noexcept { return m_schema_identity; }
     [[nodiscard]] std::string inspection() const;
@@ -65,6 +88,7 @@ private:
     std::vector<PopulationLayout> m_populations;
     std::vector<AttachedPropertyDescriptor> m_properties;
     std::vector<int> m_property_offsets;
+    LiquidProjectionSpec m_liquid_projection;
     ::erf_auxiliary::AuxiliaryProjection m_projection;
     int m_ncomp{0};
     std::string m_schema_identity;
