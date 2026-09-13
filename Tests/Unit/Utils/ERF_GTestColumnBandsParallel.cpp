@@ -42,27 +42,16 @@ amrex::Real max_abs (const amrex::MultiFab& mf, const amrex::IntVect& ng)
 // fill_below_band on its own
 // ---------------------------------------------------------------------------------------------
 
-// Two boxes side by side at the bottom, one wider box stacked on them; not periodic
-TEST(ColumnBandsParallel, FillBelowBandPrecedence)
+//
+// NOTE: the loops that launch device kernels live here rather than in the TEST bodies below.
+//       nvcc rejects an extended __device__ lambda in a function with private or protected
+//       access within its class, and gtest makes each TEST body a private TestBody() member.
+//
+
+// Valid cells of the left and right boxes hold 1 and 5, their ghost cells 2; the upper box
+// holds 3 everywhere
+void set_precedence_values (amrex::MultiFab& mf, const amrex::Box& left, const amrex::Box& upper)
 {
-    const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(7,7,7));
-    const amrex::RealBox rb(0.0, 0.0, 0.0, 8.0, 8.0, 8.0);
-    const amrex::Geometry geom(domain, rb, amrex::CoordSys::cartesian, {0, 0, 0});
-
-    const amrex::Box left (amrex::IntVect(0,0,0), amrex::IntVect(3,7,3));
-    const amrex::Box right(amrex::IntVect(4,0,0), amrex::IntVect(5,7,3));
-    const amrex::Box upper(amrex::IntVect(0,0,4), amrex::IntVect(7,7,7));
-
-    amrex::BoxList bl;
-    bl.push_back(left); bl.push_back(right); bl.push_back(upper);
-    const amrex::BoxArray ba(std::move(bl));
-    const amrex::DistributionMapping dm(ba);
-    amrex::MultiFab mf(ba, dm, 1, 1);
-
-    EXPECT_EQ(column_bands(ba), amrex::Vector<int>({0, 4}));
-
-    // Valid cells of the left and right boxes hold 1 and 5, their ghost cells 2; the upper box
-    // holds 3 everywhere
     for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const auto a = mf.array(mfi);
         const amrex::Box vbx = mfi.validbox();
@@ -74,15 +63,16 @@ TEST(ColumnBandsParallel, FillBelowBandPrecedence)
             a(i,j,k) = vbx.contains(i,j,k) ? valid : ghost;
         });
     }
+}
 
-    fill_below_band(mf, 0, 1, 4, amrex::IntVect(1,1,0), geom);
-
-    // Below the upper box: a cell inside a box below takes that box's value even where it is
-    // also a ghost cell of its neighbour; a ghost cell of a box below takes the ghost value;
-    // a cell with no box below keeps the upper box's value; the upper box's own cells and the
-    // boxes below are untouched.
-    amrex::MultiFab err(ba, dm, 1, 1);
-    err.setVal(0.0);
+// Subtract from mf what fill_below_band should have left, and store the difference in err.
+// Below the upper box: a cell inside a box below takes that box's value even where it is also
+// a ghost cell of its neighbour; a ghost cell of a box below takes the ghost value; a cell with
+// no box below keeps the upper box's value; the upper box's own cells and the boxes below are
+// untouched.
+void subtract_precedence_expected (const amrex::MultiFab& mf, amrex::MultiFab& err,
+                                   const amrex::Box& left, const amrex::Box& upper)
+{
     for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const auto a = mf.const_array(mfi);
         const auto e = err.array(mfi);
@@ -103,6 +93,34 @@ TEST(ColumnBandsParallel, FillBelowBandPrecedence)
             e(i,j,k) = a(i,j,k) - expected;
         });
     }
+}
+
+// Two boxes side by side at the bottom, one wider box stacked on them; not periodic
+TEST(ColumnBandsParallel, FillBelowBandPrecedence)
+{
+    const amrex::Box domain(amrex::IntVect(0,0,0), amrex::IntVect(7,7,7));
+    const amrex::RealBox rb(0.0, 0.0, 0.0, 8.0, 8.0, 8.0);
+    const amrex::Geometry geom(domain, rb, amrex::CoordSys::cartesian, {0, 0, 0});
+
+    const amrex::Box left (amrex::IntVect(0,0,0), amrex::IntVect(3,7,3));
+    const amrex::Box right(amrex::IntVect(4,0,0), amrex::IntVect(5,7,3));
+    const amrex::Box upper(amrex::IntVect(0,0,4), amrex::IntVect(7,7,7));
+
+    amrex::BoxList bl;
+    bl.push_back(left); bl.push_back(right); bl.push_back(upper);
+    const amrex::BoxArray ba(std::move(bl));
+    const amrex::DistributionMapping dm(ba);
+    amrex::MultiFab mf(ba, dm, 1, 1);
+
+    EXPECT_EQ(column_bands(ba), amrex::Vector<int>({0, 4}));
+
+    set_precedence_values(mf, left, upper);
+
+    fill_below_band(mf, 0, 1, 4, amrex::IntVect(1,1,0), geom);
+
+    amrex::MultiFab err(ba, dm, 1, 1);
+    err.setVal(0.0);
+    subtract_precedence_expected(mf, err, left, upper);
     EXPECT_EQ(max_abs(err, amrex::IntVect(1)), 0.0);
 }
 
