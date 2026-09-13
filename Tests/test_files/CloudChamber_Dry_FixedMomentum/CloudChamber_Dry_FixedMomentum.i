@@ -1,9 +1,10 @@
-# Cloud Chamber dry physical-temperature regression.
+# Dry Cloud Chamber production activation for fixed bulk momentum.
 erf.prob_name = "Cloud Chamber"
 erf.init_type = ConstantDensity
 erf.anelastic = 1
 erf.use_gravity = true
 erf.vert_implicit = false
+erf.project_initial_velocity = 0
 erf.molec_diff_type = ConstantAlpha
 erf.dynamic_viscosity = 0.0
 erf.alpha_T = 0.001
@@ -13,19 +14,21 @@ erf.Cs = 0.1
 erf.fixed_dt = 0.001
 erf.sum_interval = -1
 erf.check_int = -1
-erf.cloud_chamber_budget_interval = 2
+erf.cloud_chamber_budget_interval = -1
 erf.plot_file_1 = plt
-erf.plot_int_1 = 2
+erf.plot_int_1 = 30
 erf.plot_vars_1 = density theta temp pressure x_velocity y_velocity z_velocity
 
-max_step = 6
+max_step = 60
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 2.0 2.0 1.0
 geometry.is_periodic = 0 0 0
 amr.n_cell = 16 16 8
+amr.max_grid_size = 4
 amr.max_level = 0
 
 prob.p_inf = 100000.0
+prob.U_0 = 1.0
 prob.T_0 = 292.0
 prob.thermodynamic_initialization = physical_temperature_rh
 prob.initial_temperature_bottom = 300.0
@@ -39,9 +42,14 @@ ylo.type = NoSlipWall
 yhi.type = NoSlipWall
 zlo.type = NoSlipWall
 zhi.type = NoSlipWall
+
 xlo.temperature = 292.0
 xlo.moisture = dry
-xlo.wall_transfer_model = resolved_molecular
+xlo.momentum_transfer_model = bulk_aero
+xlo.coefficient_source = fixed
+xlo.C_D = 0.001
+xlo.heat_transfer_model = resolved_molecular
+
 xhi.temperature = 292.0
 xhi.moisture = dry
 xhi.wall_transfer_model = resolved_molecular
