@@ -97,6 +97,13 @@ if(ERF_ENABLE_TESTS)
     ${PROJECT_SOURCE_DIR}/Source)
   target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
 
+  # Independent numerical oracle for the real ERF SBM P1 manufactured runs.
+  add_executable(erf_sbm_qualification_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/SBMQualificationCheck.cpp)
+  target_compile_features(erf_sbm_qualification_check PRIVATE cxx_std_17)
+  set(SBM_QUALIFICATION_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_sbm_qualification_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
         erf_shoc_plotfile_check
@@ -105,7 +112,8 @@ if(ERF_ENABLE_TESTS)
         erf_shoc_gold_differential
         erf_anelastic_wall_diffusion_check
         erf_cloud_chamber_check
-        erf_cloud_chamber_wall_dt_guard_check)
+        erf_cloud_chamber_wall_dt_guard_check
+        erf_sbm_qualification_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()
   endif()

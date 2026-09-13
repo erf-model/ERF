@@ -1,6 +1,7 @@
 if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
    NOT DEFINED NRANKS OR NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR
    NOT DEFINED WORKING_DIRECTORY OR NOT DEFINED LOG OR
+   NOT DEFINED DIAGNOSTIC OR NOT DEFINED CHECKER OR
    NOT DEFINED EXPECTED_COMPONENTS)
     message(FATAL_ERROR "RunSBMPrototype.cmake missing required argument")
 endif()
@@ -37,3 +38,14 @@ foreach(expected_text
         message(FATAL_ERROR "SBM P1 log is missing expected text: ${expected_text}")
     endif()
 endforeach()
+
+if(NOT EXISTS "${DIAGNOSTIC}")
+    message(FATAL_ERROR "SBM P1 simulation did not produce numerical diagnostic: ${DIAGNOSTIC}")
+endif()
+execute_process(
+    COMMAND "${CHECKER}" "${DIAGNOSTIC}"
+    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+    RESULT_VARIABLE checker_result)
+if(NOT checker_result EQUAL 0)
+    message(FATAL_ERROR "SBM P1 numerical qualification failed: ${checker_result}")
+endif()

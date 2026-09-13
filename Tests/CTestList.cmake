@@ -814,10 +814,11 @@ function(add_test_sbm_prototype TEST_NAME METHOD NBINS NRANKS)
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(_input "${_test_dir}/inputs_sbm_${METHOD}")
     set(_log "${_test_dir}/${TEST_NAME}.log")
+    set(_diagnostic "${_test_dir}/${TEST_NAME}.diagnostic")
     # The split is a runtime input so this test exercises the same executable
     # for every supported bin count.
     math(EXPR _split "${NBINS} / 2")
-    set(_runtime_options "erf.sbm_nbins=${NBINS} erf.sbm_cloud_rain_split=${_split}")
+    set(_runtime_options "erf.sbm_nbins=${NBINS} erf.sbm_cloud_rain_split=${_split} erf.sbm_manufactured_velocity=0.125 erf.sbm_diagnostic_file=${_diagnostic}")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
         -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
@@ -828,6 +829,8 @@ function(add_test_sbm_prototype TEST_NAME METHOD NBINS NRANKS)
         -DRUNTIME_OPTIONS=${_runtime_options}
         -DWORKING_DIRECTORY=${_test_dir}
         -DLOG=${_log}
+        -DDIAGNOSTIC=${_diagnostic}
+        -DCHECKER=${SBM_QUALIFICATION_CHECKER}
         -DEXPECTED_COMPONENTS=${NBINS}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunSBMPrototype.cmake)
     set_tests_properties(${TEST_NAME}
@@ -836,7 +839,7 @@ function(add_test_sbm_prototype TEST_NAME METHOD NBINS NRANKS)
         PROCESSORS ${NRANKS}
         WORKING_DIRECTORY "${_test_dir}/"
         LABELS "regression;sbm;sbm-p1"
-        ATTACHED_FILES_ON_FAIL "${_log}")
+        ATTACHED_FILES_ON_FAIL "${_log};${_diagnostic}")
 endfunction(add_test_sbm_prototype)
 
 #=============================================================================
