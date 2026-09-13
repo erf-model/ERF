@@ -2,6 +2,7 @@
 #define ERF_AUXILIARY_STATE_MANAGER_H_
 
 #include "ERF_AuxiliaryStateLayout.H"
+#include "ERF_AuxiliaryFaceTransfer.H"
 
 #include <AMReX_MultiFab.H>
 
@@ -25,6 +26,8 @@ public:
                       const amrex::DistributionMapping& dm, int ngrow = 1);
     void begin_step(int level);
     void accept_stage(int level);
+    void record_stage_face_transfer(int level, const StageContext& context,
+                                    const AuxiliaryFaceTransfer& stage_flux);
 
     [[nodiscard]] bool active() const noexcept { return !m_layout.schema_id().empty(); }
     [[nodiscard]] const AuxiliaryStateLayout& layout() const noexcept { return m_layout; }
@@ -36,6 +39,12 @@ public:
     [[nodiscard]] const amrex::MultiFab& evaluation(int level) const { return *m_evaluation.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] const amrex::MultiFab& output(int level) const { return *m_output.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] std::size_t resident_bytes() const noexcept { return m_resident_bytes; }
+    [[nodiscard]] const AuxiliaryFaceTransferLedger& face_transfer_ledger(int level) const {
+        return *m_face_ledgers.at(static_cast<std::size_t>(level));
+    }
+    [[nodiscard]] AuxiliaryFaceTransferLedger& face_transfer_ledger(int level) {
+        return *m_face_ledgers.at(static_cast<std::size_t>(level));
+    }
 
 private:
     AuxiliaryStateLayout m_layout;
@@ -43,6 +52,7 @@ private:
     std::vector<std::unique_ptr<amrex::MultiFab>> m_evaluation;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_output;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_scratch;
+    std::vector<std::unique_ptr<AuxiliaryFaceTransferLedger>> m_face_ledgers;
     std::size_t m_resident_bytes{0};
 };
 

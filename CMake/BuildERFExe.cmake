@@ -385,6 +385,7 @@ function(build_erf_lib erf_lib_name)
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryProjection.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryFaceTransfer.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryStateManager.cpp
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp

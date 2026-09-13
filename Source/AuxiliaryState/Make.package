@@ -1,7 +1,9 @@
 CEXE_sources += ERF_AuxiliaryProjection.cpp
+CEXE_sources += ERF_AuxiliaryFaceTransfer.cpp
 CEXE_sources += ERF_AuxiliaryStateManager.cpp
 
 CEXE_headers += ERF_AuxiliaryProjection.H
+CEXE_headers += ERF_AuxiliaryFaceTransfer.H
 CEXE_headers += ERF_AuxiliaryStageContext.H
 CEXE_headers += ERF_AuxiliaryStateLayout.H
 CEXE_headers += ERF_AuxiliaryStateManager.H

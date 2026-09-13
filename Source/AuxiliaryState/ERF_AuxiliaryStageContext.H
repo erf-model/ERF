@@ -22,6 +22,7 @@ struct StageContext {
     double evaluation_time{0.0};
     double output_time{0.0};
     double stage_interval{0.0};
+    double full_step{0.0};
     bool completes_level_step{false};
 
     // These are intentionally explicit rather than inferred from stage_index.
@@ -57,7 +58,7 @@ inline StageContext make_compressible_stage(const int stage,
         throw std::invalid_argument("compressible auxiliary stage interval does not match ERF RK3");
     }
     return {IntegrationMethod::CompressibleRK3, stage, old_time, evaluation_time,
-            output_time, interval, stage == 2, baseline, evaluation};
+            output_time, interval, full_step, stage == 2, baseline, evaluation};
 }
 
 inline StageContext make_anelastic_stage(const int stage,
@@ -77,7 +78,7 @@ inline StageContext make_anelastic_stage(const int stage,
         throw std::invalid_argument("anelastic auxiliary stage interval does not match ERF Heun");
     }
     return {IntegrationMethod::AnelasticHeun, stage, old_time, evaluation_time,
-            output_time, interval, stage == 1, baseline, evaluation};
+            output_time, interval, full_step, stage == 1, baseline, evaluation};
 }
 
 } // namespace erf_auxiliary
