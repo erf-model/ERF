@@ -183,6 +183,11 @@ void erf_slow_rhs_post (int level, int finest_level,
     // any non-water species that the microphysics model appends after them, and is the
     // count that the advection, diffusion, state update and reflux all work over.
     const int n_qstate_total      = nvars - RhoQ1_comp;
+    // SBM owns the compact cloud/rain fields through its auxiliary spectral
+    // state. Vapor remains on ERF's ordinary scalar path, while qc/qr must not
+    // receive a second native advection, diffusion, source, or clip.
+    const int n_native_moisture_components =
+        (solverChoice.moisture_type == MoistureType::SBM) ? 1 : n_qstate_total;
 
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
@@ -475,7 +480,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     // are advanced by the state update below and included in the reflux.
                     // Computing residuals for only the first n_qstate would leave the
                     // rest to be updated with a residual nothing ever wrote.
-                    num_comp = n_qstate_total;
+                    num_comp = n_native_moisture_components;
 
                 } else {
                     horiz_adv_type = ac.dryscal_horiz_adv_type;
@@ -535,7 +540,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     // established multi-component diffusion call.
                     const bool componentwise_moisture =
                         use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
-                    const int n_diff_calls = componentwise_moisture ? n_qstate_total : 1;
+                    const int n_diff_calls = componentwise_moisture ? n_native_moisture_components : 1;
                     for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
                         const int state_comp = componentwise_moisture ?
                             RhoQ1_comp + qstate : start_comp;
@@ -633,7 +638,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 start_comp = ivar;
                 num_comp = 1;
                 if (ivar == RhoQ1_comp) {
-                    num_comp = n_qstate_total;
+                    num_comp = n_native_moisture_components;
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;
                 }

@@ -255,6 +255,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
+    initialize_sbm_auxiliary(lev);
 
     //********************************************************************************************
     // Radiation

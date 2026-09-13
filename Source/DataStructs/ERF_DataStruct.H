@@ -107,7 +107,7 @@ AMREX_ENUM(MoistureModelType,
  * @brief Moisture and microphysics model.
  */
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, SBM, None
 );
 
 /**
@@ -322,6 +322,14 @@ struct MoistureComponentIndices {
             // accumulation diagnostics.
             mi.qv = RhoQ1_comp;
             mi.qc = RhoQ2_comp;
+            break;
+
+        case MoistureType::SBM:
+            // P0/P1 warm-liquid prototype: qv is ordinary ERF vapor and qc/qr
+            // are redundant projections of the ERF-owned spectral liquid mass.
+            mi.qv = RhoQ1_comp;
+            mi.qc = RhoQ2_comp;
+            mi.qr = RhoQ3_comp;
             break;
 
         case MoistureType::SatAdj:
@@ -684,6 +692,42 @@ struct SolverChoice {
         }
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
+
+        // Experimental ERF-native spectral-bin transport configuration.  The
+        // defaults are a valid four-bin manufactured grid; nonzero compact
+        // condensate still requires sbm_manufactured_initialization=true.
+        sbm_nbins = 4;
+        pp.queryAdd("sbm_nbins", sbm_nbins);
+        sbm_moment_mode = 1;
+        pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
+        sbm_cloud_rain_split = sbm_nbins / 2;
+        pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
+        pp.queryAdd("sbm_manufactured_initialization", sbm_manufactured_initialization);
+        sbm_edges.resize(static_cast<std::size_t>(sbm_nbins + 1));
+        sbm_pivots.resize(static_cast<std::size_t>(sbm_nbins));
+        if (pp.countval("sbm_edges") > 0) {
+            pp.getarr("sbm_edges", sbm_edges);
+        } else {
+            for (int n = 0; n <= sbm_nbins; ++n) sbm_edges[static_cast<std::size_t>(n)] = static_cast<amrex::Real>(n);
+        }
+        if (pp.countval("sbm_pivots") > 0) {
+            pp.getarr("sbm_pivots", sbm_pivots);
+        } else {
+            for (int n = 0; n < sbm_nbins; ++n) {
+                sbm_pivots[static_cast<std::size_t>(n)] =
+                    amrex::Real(0.5) * (sbm_edges[static_cast<std::size_t>(n)] + sbm_edges[static_cast<std::size_t>(n+1)]);
+            }
+        }
+        if (moisture_type == MoistureType::SBM) {
+            if (sbm_nbins < 2 || sbm_moment_mode < 1 || sbm_moment_mode > 2 ||
+                sbm_edges.size() != static_cast<std::size_t>(sbm_nbins+1) ||
+                sbm_pivots.size() != static_cast<std::size_t>(sbm_nbins)) {
+                amrex::Error("SBM requires sbm_nbins >= 2, sbm_moment_mode 1 or 2, and one edge/pivot per bin");
+            }
+            if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
+                amrex::Error("sbm_cloud_rain_split must be an interior edge index");
+            }
+        }
 
         // Register the moisture data this scheme carries: conserved-state
         // components and qmoist diagnostic slots alike.  MoistureComponentIndices
@@ -1522,6 +1566,34 @@ struct SolverChoice {
      */
     void check_params (int max_level, const amrex::Vector<amrex::Geometry>& geom_vect, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type)
     {
+        if (moisture_type == MoistureType::SBM) {
+            bool any_kturb = false;
+            for (int lev = 0; lev <= max_level; ++lev) any_kturb = any_kturb || turbChoice[lev].use_kturb;
+            if (max_level > 0) {
+                amrex::Error("SBM P1 supports only a single level; AMR is fail-closed");
+            }
+            if (mesh_type != MeshType::ConstantDz || terrain_type != TerrainType::None) {
+                amrex::Error("SBM P1 requires static Cartesian geometry without terrain or EB");
+            }
+            if (diffChoice.molec_diff_type != MolecDiffType::None ||
+                implicit_moisture_diffusion || any_kturb || uses_shoc_family()) {
+                amrex::Error("SBM P1 rejects diffusion and SHOC/macrophysics");
+            }
+            if (custom_moisture_forcing) {
+                amrex::Error("SBM P1 rejects independent custom moisture source insertion");
+            }
+            if (large_scale_forcing || nudging_from_input_sounding) {
+                amrex::Error("SBM P1 rejects large-scale/sounding forcing because its moisture and boundary ownership is not qualified");
+            }
+            if (sbm_moment_mode != 1) {
+                amrex::Error("SBM P1 transport is qualified for one-moment liquid mass only; two-moment state is a P0 contract until number transport is implemented");
+            }
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (!geom_vect[lev].isAllPeriodic()) {
+                    amrex::Error("SBM P1 requires periodic Cartesian boundaries in all directions");
+                }
+            }
+        }
 #if 0
         // Warn for PBL models and moisture - these may not yet be compatible
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1701,6 +1773,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: SuperDroplets" << std::endl;
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
+        } else if (moisture_type == MoistureType::SBM) {
+            amrex::Print() << "Moisture Model: SBM (experimental P0/P1 transport only)" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -2169,6 +2243,16 @@ struct SolverChoice {
 
     // Microphysics params
     MoistureComponentIndices moisture_indices;
+
+    // Experimental SBM P0/P1 runtime contract.  These values are read only
+    // when moisture_model = SBM; they never widen the ordinary core state for
+    // other moisture models.
+    int sbm_nbins{4};
+    int sbm_moment_mode{1};
+    int sbm_cloud_rain_split{2};
+    bool sbm_manufactured_initialization{false};
+    amrex::Vector<amrex::Real> sbm_edges;
+    amrex::Vector<amrex::Real> sbm_pivots;
 
     bool moisture_tight_coupling {false};
 

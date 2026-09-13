@@ -58,6 +58,8 @@
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
 #include <ERF_Provenance.H>
+#include <ERF_AuxiliaryStateManager.H>
+#include <ERF_SBMLayout.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ERF_ParticleData.H"
@@ -409,6 +411,18 @@ public:
 
     // Init (NOT restart or regrid)
     void init_only (int lev, double time);
+
+    // Experimental SBM P0/P1 auxiliary-state lifecycle.  The manager is
+    // generic; these ERF methods are the provider-specific integration seam.
+    void initialize_sbm_auxiliary (int lev);
+    void begin_sbm_step (int lev);
+    void advance_sbm_stage (int lev,
+                            amrex::Vector<amrex::MultiFab>& state_old,
+                            amrex::Vector<amrex::MultiFab>& state_new,
+                            amrex::Vector<amrex::MultiFab>& state_eval,
+                            double old_step_time, double old_stage_time,
+                            double new_stage_time, int stage,
+                            double full_step);
 
     // Restart
     void restart ();
@@ -1132,6 +1146,9 @@ private:
     int mean_vars_time_reset_done{0};
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
+
+    std::unique_ptr<::erf_auxiliary::AuxiliaryStateManager> sbm_auxiliary;
+    std::unique_ptr<::erf_sbm::SBMLayout> sbm_layout;
 
     // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;

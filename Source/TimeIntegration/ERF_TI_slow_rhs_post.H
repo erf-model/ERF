@@ -158,6 +158,14 @@
         apply_bcs(S_new, new_stage_time, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow(),
                   fast_only=false, vel_and_mom_synced=false);
 
+        // SBM owns qc/qr in the auxiliary spectral state.  Synchronize its
+        // stage with ERF only after the host slow-RHS and boundary operations
+        // have completed, then project the provider-owned bulk fields back to
+        // the compact state for the next stage.
+        advance_sbm_stage(level, S_old, S_new, S_data,
+                          old_step_time, old_stage_time, new_stage_time,
+                          nrk, dt_advance);
+
         if (solverChoice.moisture_tight_coupling) {
             // TODO: need iteration var for lagrangian microphysics
             // call signature in ERF::Advance() is

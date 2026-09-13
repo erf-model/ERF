@@ -117,6 +117,23 @@ ERF::ERF_shared ()
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
 
     ReadParameters();
+    if (solverChoice.moisture_type == MoistureType::SBM) {
+        erf_sbm::SpectralGridSpec grid;
+        grid.population_id = 0;
+        grid.coordinate_kind = erf_sbm::CoordinateKind::LiquidMass;
+        grid.units = "kg";
+        grid.semantic_id = "liquid_mass";
+        grid.edges.assign(solverChoice.sbm_edges.begin(), solverChoice.sbm_edges.end());
+        grid.pivots.assign(solverChoice.sbm_pivots.begin(), solverChoice.sbm_pivots.end());
+        grid.cloud_rain_split = solverChoice.sbm_cloud_rain_split;
+        erf_sbm::SBMLayoutSpec layout_spec;
+        layout_spec.populations.push_back(std::move(grid));
+        layout_spec.moment_modes.push_back(solverChoice.sbm_moment_mode == 2 ?
+                                           erf_sbm::MomentMode::TwoMoment :
+                                           erf_sbm::MomentMode::OneMoment);
+        sbm_layout = std::make_unique<erf_sbm::SBMLayout>(std::move(layout_spec));
+        Print() << "SBM layout identity: " << sbm_layout->schema_identity() << std::endl;
+    }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.
     execution_provenance = erf_provenance::initialize_execution_provenance();
