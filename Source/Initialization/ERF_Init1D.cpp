@@ -232,109 +232,128 @@ ERF::erf_enforce_hse (int lev,
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
 
-    for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
+    //
+    // A box stacked on another box of this level continues from the pressure (and density) that
+    //    box reached; see erf_init_dens_hse_dry.  The boxes are integrated in bands of equal lowest
+    //    index, bottom up, and before each band the cells just below it are filled from the bands
+    //    already done.  With a single band nothing is filled.
+    //
+    const Vector<int> bands = column_bands(dens.boxArray());
+
+    for (const int klo_band : bands)
     {
-        // Create a flat box with same horizontal extent but only one cell in vertical
-        const Box& tbz = mfi.nodaltilebox(2);
-        int klo = tbz.smallEnd(2);
-        int khi = tbz.bigEnd(2);
-
-        // Note we only grow by 1 because that is how big z_cc is.
-        Box b2d = tbz; // Copy constructor
-        b2d.grow(0,1);
-        b2d.grow(1,1);
-        b2d.setRange(2,0);
-
-        // Intersect this box with the domain
-        Box zdomain = convert(geom[lev].Domain(),tbz.ixType());
-        b2d &= zdomain;
-
-        // We integrate to the first cell (and below) by using rho in this cell
-        // If gravity == 0 this is constant pressure
-        // If gravity != 0, hence this is a wall, this gives gp0 = dens[0] * gravity
-        // (dens_hse*gravity would also be dens[0]*gravity because we use foextrap for rho at k = -1)
-        // Note ng_pres_hse = 1
-
-       // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
-       // Note that gravity is positive
-
-        Array4<Real>  rho_arr = dens.array(mfi);
-        Array4<Real> pres_arr = pres.array(mfi);
-        Array4<Real>   pi_arr =   pi.array(mfi);
-        Array4<Real>   th_arr = theta.array(mfi);
-        Array4<Real> zcc_arr;
-        if (l_use_terrain) {
-           zcc_arr = z_cc->array(mfi);
+        if (klo_band != bands[0]) {
+            fill_below_band(dens, 0, 1, klo_band, IntVect(1,1,0), geom[lev]);
+            fill_below_band(pres, 0, 1, klo_band, IntVect(1,1,0), geom[lev]);
         }
 
-        const Real rdOcp = solverChoice.rdOcp;
-
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
         {
-            // Set value at surface from Newton iteration for rho
-            if (klo == 0)
-            {
-                // Physical height of the terrain at cell center
-                Real hz;
-                if (l_use_terrain) {
-                    hz = zcc_arr(i,j,klo);
-                } else {
-                    hz = myhalf*dz;
-                }
+            // Create a flat box with same horizontal extent but only one cell in vertical
+            const Box& tbz = mfi.nodaltilebox(2);
+            int klo = tbz.smallEnd(2);
+            int khi = tbz.bigEnd(2);
 
-                pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
-                  pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
-                  th_arr(i,j,klo) = getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
+            if (klo != klo_band) { continue; }
 
-                //
-                // Set ghost cell with dz and rho at boundary
-                // (We will set the rest of the ghost cells in the boundary condition routine)
-                //
-                pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
-                  pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
-                  th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+            // Note we only grow by 1 because that is how big z_cc is.
+            Box b2d = tbz; // Copy constructor
+            b2d.grow(0,1);
+            b2d.grow(1,1);
+            b2d.setRange(2,0);
 
-            } else {
+            // Intersect this box with the domain
+            Box zdomain = convert(geom[lev].Domain(),tbz.ixType());
+            b2d &= zdomain;
 
-                // If level > 0 and klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
-                //    filled from FillPatch-ing it.
-                Real dz_loc;
-                if (l_use_terrain) {
-                    dz_loc = (zcc_arr(i,j,klo) - zcc_arr(i,j,klo-1));
-                } else {
-                    dz_loc = dz;
-                }
+            // We integrate to the first cell (and below) by using rho in this cell
+            // If gravity == 0 this is constant pressure
+            // If gravity != 0, hence this is a wall, this gives gp0 = dens[0] * gravity
+            // (dens_hse*gravity would also be dens[0]*gravity because we use foextrap for rho at k = -1)
+            // Note ng_pres_hse = 1
 
-                Real dens_interp = myhalf*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
-                pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
+           // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
+           // Note that gravity is positive
 
-                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
-                th_arr(i,j,klo  ) = getRhoThetagivenP(pres_arr(i,j,klo  )) / rho_arr(i,j,klo  );
-
-                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
-                th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
-            }
-
-            Real dens_interp;
+            Array4<Real>  rho_arr = dens.array(mfi);
+            Array4<Real> pres_arr = pres.array(mfi);
+            Array4<Real>   pi_arr =   pi.array(mfi);
+            Array4<Real>   th_arr = theta.array(mfi);
+            Array4<Real> zcc_arr;
             if (l_use_terrain) {
-                for (int k = klo+1; k <= khi; k++) {
-                    Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
-                    dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
-                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
-                    pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-                    th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
-                }
-            } else {
-                for (int k = klo+1; k <= khi; k++) {
-                    dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
-                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
-                    pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
-                    th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
-                }
+               zcc_arr = z_cc->array(mfi);
             }
-        });
 
-    } // mfi
+            const Real rdOcp = solverChoice.rdOcp;
+
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                // Set value at surface from Newton iteration for rho
+                if (klo == 0)
+                {
+                    // Physical height of the terrain at cell center
+                    Real hz;
+                    if (l_use_terrain) {
+                        hz = zcc_arr(i,j,klo);
+                    } else {
+                        hz = myhalf*dz;
+                    }
+
+                    pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
+                      pi_arr(i,j,klo) = getExnergivenP(pres_arr(i,j,klo), rdOcp);
+                      th_arr(i,j,klo) = getRhoThetagivenP(pres_arr(i,j,klo)) / rho_arr(i,j,klo);
+
+                    //
+                    // Set ghost cell with dz and rho at boundary
+                    // (We will set the rest of the ghost cells in the boundary condition routine)
+                    //
+                    pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
+                      pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                      th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+
+                } else {
+
+                    // If klo > 0 we use the value of pres_arr(i,j,klo-1): the pressure the box of this
+                    //    level below reached or, where there is no such box, the one interpolated from
+                    //    the coarser level.
+                    Real dz_loc;
+                    if (l_use_terrain) {
+                        dz_loc = (zcc_arr(i,j,klo) - zcc_arr(i,j,klo-1));
+                    } else {
+                        dz_loc = dz;
+                    }
+
+                    Real dens_interp = myhalf*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
+                    pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
+
+                    pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
+                    th_arr(i,j,klo  ) = getRhoThetagivenP(pres_arr(i,j,klo  )) / rho_arr(i,j,klo  );
+
+                    pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+                    th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
+                }
+
+                Real dens_interp;
+                if (l_use_terrain) {
+                    for (int k = klo+1; k <= khi; k++) {
+                        Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
+                        dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                        pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
+                        pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                        th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
+                    }
+                } else {
+                    for (int k = klo+1; k <= khi; k++) {
+                        dens_interp = myhalf*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                        pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
+                        pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                        th_arr(i,j,k) = getRhoThetagivenP(pres_arr(i,j,k)) / rho_arr(i,j,k);
+                    }
+                }
+            });
+
+        } // mfi
+    } // band
 
      dens.FillBoundary(geom[lev].periodicity());
      pres.FillBoundary(geom[lev].periodicity());

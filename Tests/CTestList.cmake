@@ -216,6 +216,91 @@ function(add_test_cloud_chamber_parity TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/budget_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/budget_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_cloud_chamber_parity)
 
+# Run the deck in test_files/<TEST_FILES_DIR> on a single box (one rank) and on a split
+# BoxArray (ERF_TEST_NRANKS ranks) and compare the two plotfiles PLTFILE with fcompare.
+# COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
+# SPLIT_OPTIONS give the split (the deck's own grid when empty).
+function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_BP_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_BP_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_BP_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_BP_FCOMPARE_ATOL}")
+    endif()
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DPLTFILE=${PLTFILE}
+        -DRTOL=${_fcompare_rtol}
+        -DATOL=${_fcompare_atol}
+        "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
+        "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
+        "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;box-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_box_parity)
+
+# Tiling parity: run one deck with MFIter tiling on and off and require identical
+# 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
+# while indexing per-tile work arrays. VARYING_3D / VARYING_2D list fields (space
+# separated) that must take more than one value in the untiled run, so the
+# agreement is not between two copies of a constant.
+function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
+    set(options )
+    set(oneValueArgs "RUNTIME_OPTIONS" "VARYING_3D" "VARYING_2D")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_TP "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DRUNTIME_OPTIONS=${ADD_TEST_TP_RUNTIME_OPTIONS}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DFEXTREMA=${FEXTREMA_EXE}
+        -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
+        -DATOL=${ERF_TEST_FCOMPARE_ATOL}
+        -DPLTFILE=${PLTFILE}
+        -DPLT2DFILE=${PLT2DFILE}
+        -DVARYING_3D=${ADD_TEST_TP_VARYING_3D}
+        -DVARYING_2D=${ADD_TEST_TP_VARYING_2D}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTilingParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/tiled.log;${CURRENT_TEST_BINARY_DIR}/untiled.log;${CURRENT_TEST_BINARY_DIR}/fcompare_plt.log;${CURRENT_TEST_BINARY_DIR}/fcompare_plt2d.log;${CURRENT_TEST_BINARY_DIR}/fextrema_plt.log;${CURRENT_TEST_BINARY_DIR}/fextrema_plt2d.log")
+endfunction(add_test_tiling_parity)
+
 function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
     set(_cloud_chamber_input_name "${SOURCE_NAME}")
     set(TEST_FILES_DIR "${SOURCE_NAME}")
@@ -853,6 +938,29 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# A terrain-fitted mesh whose BoxArray is split in z (amr.max_grid_size below the number of
+# cells in z), under a MOST surface layer. The anelastic case covers the projection as well,
+# but its terrain Poisson solve is the FFT-preconditioned GMRES, so it needs the FFT build.
+# The compressible case without acoustic substepping runs in every build.
+if(ERF_ENABLE_FFT)
+add_test_r(ABL_MOST_WOA_ZSplit               ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+endif()
+add_test_r(ABL_MOST_WOA_ZSplit_NoSub         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# The ZSplit decks on one box against their 12 boxes: the base state and the projection used to
+# depend on the split in z (u 0.01 m/s and theta 0.18 K apart after 10 steps in the anelastic
+# case). The runner is a cmake -P script, so it needs MPI and cannot expand the Windows exe glob.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+if(ERF_ENABLE_FFT)
+add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_BoxParity/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size=64"
+    FCOMPARE_RTOL "1.0e-9")
+endif()
+add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size=64"
+    FCOMPARE_RTOL "1.0e-9")
+endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_TKE
@@ -863,6 +971,34 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
 add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
+# RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
+# which neither drops an empty MPIEXEC nor expands the Windows exe globs.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  # pblh (2D) and Lturb (3D) are the per-tile PBL height copied out of the
+  # scheme; the deck is set up so they differ from column to column.
+  add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  # Legacy YSU aborts in unstable conditions, so cool the surface (a stronger
+  # cooling than -0.02 with the 5 m/s wind stops the MOST iteration converging).
+  # It covers the full-column assert only: legacy YSU never calls set_pblh, so
+  # pblh is left out of the 2D plotfile rather than compared as a constant.
+  add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02 'erf.plot2d_vars_1=u_star t_star Olen'"
+      VARYING_3D "Lturb Kmv" VARYING_2D "u_star")
+  # The PBLH smoothing stencil reads a column its own tile does not own, so it
+  # needs its own coverage: with the stencil reading off the end of the array the
+  # MRF deck differed by 24.5 m in Lturb (12%) between the tiled and untiled runs.
+  # MRF and YSUNew size and fill that halo separately, so both are registered.
+  add_test_tiling_parity(ABL_MRF_Tiling_Smooth    ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.enable_pblh_smoothing=true"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
+      VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

@@ -2646,7 +2646,10 @@ methods for defining how the terrain-fitted coordinates given the topography:
 
 The user can also specify that terrain should be represented with an immersed forcing method
 (with an optional wall model, see :ref:`Forcings` for more detail), or
-with an embedded boundary / cut cell representation.
+with an embedded boundary / cut cell representation.  The embedded boundary
+geometry may be built from the terrain height field, from a three-dimensional
+STL mesh of buildings, or from the union of the two; see
+:ref:`sec:EBBuildingsSTL`.
 
 .. note:: The embedded boundary / cut cell representation is a work in progress and not ready for use!
 
@@ -3604,43 +3607,132 @@ Embedded Boundary (EB) Tuning
 List of Parameters
 ------------------
 
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                     | Definition                                               | Acceptable Values  | Default          |
-+===============================+==========================================================+====================+==================+
-| **eb2.small_volfrac**         | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
-|                               | effectively empty                                        |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_boundary_type**      | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
-|                               |                                                          | NoSlipWall,        |                  |
-|                               |                                                          | SurfaceLayer       |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_x**  | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_y**  | apply the tangential-diffusion constraint on y-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.eb_diff_constraint_z**  | apply the tangential-diffusion constraint on z-faces at  | Boolean            | false            |
-|                               | the embedded boundary; read only when                    |                    |                  |
-|                               | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.geometry**              | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
-|                               | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.plane_point**           | a point on the cutting plane.  Read only when            | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``plane``                             |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.plane_normal**          | normal of the cutting plane, pointing into the solid     | 3 Reals            | 0.0 0.0 -1.0     |
-|                               | region.  Read only when ``eb2.geometry`` = ``plane``     |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.box_lo**                | low corner of the embedded box.  Read only when          | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **eb2.box_hi**                | high corner of the embedded box.  Read only when         | 3 Reals            | 0.0 0.0 0.0      |
-|                               | ``eb2.geometry`` = ``box``                               |                    |                  |
-+-------------------------------+----------------------------------------------------------+--------------------+------------------+
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                            | Definition                                               | Acceptable Values  | Default          |
++======================================+==========================================================+====================+==================+
+| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
+|                                      | effectively empty                                        |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_boundary_type**             | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
+|                                      |                                                          | NoSlipWall,        |                  |
+|                                      |                                                          | SurfaceLayer       |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_x**         | apply the tangential-diffusion constraint on x-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_y**         | apply the tangential-diffusion constraint on y-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.eb_diff_constraint_z**         | apply the tangential-diffusion constraint on z-faces at  | Boolean            | false            |
+|                                      | the embedded boundary; read only when                    |                    |                  |
+|                                      | ``erf.eb_boundary_type`` = ``SlipWall``                  |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.geometry**                     | which embedded-boundary shape to build; read only when   | terrain, plane,    | terrain          |
+|                                      | ``erf.terrain_type`` is ``EB`` or ``ImmersedForcing``    | box, sphere        |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_point**                  | a point on the cutting plane.  Read only when            | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``plane``                             |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.plane_normal**                 | normal of the cutting plane, pointing into the solid     | 3 Reals            | 0.0 0.0 -1.0     |
+|                                      | region.  Read only when ``eb2.geometry`` = ``plane``     |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_lo**                       | low corner of the embedded box.  Read only when          | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``box``                               |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **eb2.box_hi**                       | high corner of the embedded box.  Read only when         | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | ``eb2.geometry`` = ``box``                               |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_file**           | path to an STL file describing 3D building geometry,     | String             | None             |
+|                                      | which is unioned with the terrain implicit function.     |                    |                  |
+|                                      | Read only when ``eb2.geometry`` = ``terrain``            |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_scale**          | uniform scale factor applied to the STL coordinates.     | Real > 0           | 1.0              |
+|                                      | Read only when ``erf.buildings_stl_file`` is set         |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_center**         | translation [m] applied to the STL coordinates after     | 3 Reals            | 0.0 0.0 0.0      |
+|                                      | scaling. Read only when ``erf.buildings_stl_file`` is    |                    |                  |
+|                                      | set                                                      |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_stl_reverse_normal** | flip the orientation of the STL triangle normals, for    | 0 or 1             | 0                |
+|                                      | meshes whose normals point into the solid.  Read only    |                    |                  |
+|                                      | when ``erf.buildings_stl_file`` is set                   |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_only**               | build the embedded boundary from the STL buildings       | Boolean            | true if no       |
+|                                      | alone, leaving the terrain surface out of the implicit   |                    | terrain surface  |
+|                                      | function.  Read only when ``eb2.geometry`` = ``terrain`` |                    | is specified,    |
+|                                      | Setting it to true without                               |                    | false otherwise  |
+|                                      | ``erf.buildings_stl_file`` is an error                   |                    |                  |
++--------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. _sec:EBBuildingsSTL:
+
+STL-Based Building Geometry
+---------------------------
+
+When ``eb2.geometry`` = ``terrain`` (the default), the implicit function used to
+cut the mesh can include three-dimensional building geometry read from an STL
+triangle mesh.  Unlike the height-field terrain representation, which stores a
+single surface height per :math:`(x,y)` location and therefore cannot represent
+an overhang or a vertical wall exactly, the STL representation resolves vertical
+walls, roof overhangs and other fully three-dimensional structures.
+
+The STL file is named with ``erf.buildings_stl_file``.  ERF reads either binary
+or ASCII STL, applying ``erf.buildings_stl_scale`` to the coordinates, then
+translating by ``erf.buildings_stl_center``, and flipping the triangle normals
+if ``erf.buildings_stl_reverse_normal`` is set.  These three inputs are read
+only when ``erf.buildings_stl_file`` is present.
+
+.. note:: These inputs use the ``erf`` prefix rather than ``eb2``, because
+          ``eb2`` is AMReX's own namespace and AMReX already reads
+          ``eb2.stl_file``, ``eb2.stl_scale``, ``eb2.stl_center`` and
+          ``eb2.stl_reverse_normal`` for its separate ``eb2.geometry`` =
+          ``stl`` path.  The ERF inputs described here are read only when
+          ``eb2.geometry`` = ``terrain``.
+
+Which geometry is built depends on whether terrain is also requested:
+
+- **Terrain only** (no ``erf.buildings_stl_file``): the implicit function is the
+  terrain height field, exactly as before.
+- **Terrain plus buildings** (``erf.buildings_stl_file`` set and a terrain
+  surface specified): the terrain and building implicit functions are combined
+  with a union, so a cell is solid if it lies below the terrain surface *or*
+  inside a building.
+- **Buildings only** (``erf.buildings_stl_file`` set and no terrain surface
+  specified): the terrain surface is not constructed and the STL mesh alone
+  defines the embedded boundary.  This is the natural choice for an urban case
+  over flat ground, and it also keeps the embedded boundary from coinciding with
+  the lower-:math:`z` domain boundary, so the ground is governed by the ``zlo``
+  boundary condition rather than by ``erf.eb_boundary_type``.
+
+"A terrain surface is specified" means any of the ways ERF can be told about
+terrain: ``erf.terrain_file_name_nc``, ``erf.terrain_file_name``,
+``erf.terrain_file_name_USGS``, or ``prob.custom_terrain_type`` set to anything
+other than ``None``.  This is the same set of sources, in the same precedence
+order, that ``init_terrain_surface`` consults, so a case that would run with
+terrain on its own does not silently lose that terrain when an STL file is added.
+
+You may also state the choice outright instead of relying on that inference, by
+setting ``erf.buildings_only``.  Setting it to ``false`` unions the buildings
+with the terrain surface even when no terrain input is given, which produces a
+flat ground plane at :math:`z = 0`; setting it to ``true`` without an
+``erf.buildings_stl_file`` is an error.
+
+ERF prints which of the three modes it selected, together with the STL file
+name and the scale, center and reverse-normal values, when it builds the EB
+geometry.
+
+Internally the STL mesh is handled by the ``BuildingsIF`` implicit function
+(``Source/EB/ERF_EBIFBuildings.H``), which uses the AMReX ``STLtools``
+infrastructure with bounding-volume-hierarchy acceleration.  At construction it
+samples the signed distance to the mesh onto the finest-level grid, computing
+the samples in parallel across ranks and then replicating the result so that
+each rank can evaluate the implicit function locally, including on the GPU.
+Evaluation is a trilinear interpolation of that sampled field, so the building
+geometry is resolved at the finest level's cell size; points outside the sampled
+region are treated as fluid.  Very large or highly detailed meshes will
+therefore be limited by the mesh resolution rather than by the STL itself.
 
 .. _inputs-particles:
 
