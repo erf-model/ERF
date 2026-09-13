@@ -670,8 +670,13 @@ struct SolverChoice {
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
         // 0: dp/dx with dp/dz correction (default)
         // 1: gradient of vertically interpolated p, see Klemp 2011
+        // 2: as in 1, but p' is carried to the height of the face along dp'/dz = -g rho'
+        //    rather than along a difference of p', with rho' constant over the segment
+        // 3: as in 2, but with rho' reconstructed linearly over the segment
+        // Note that 1, 2 and 3 always use the perturbational pressure, regardless of
+        //    the setting of use_pert_pres_gradient
         pp.queryAdd("gradp_type", gradp_type);
-        AMREX_ALWAYS_ASSERT(gradp_type == 0 || gradp_type == 1);
+        AMREX_ALWAYS_ASSERT(gradp_type >= 0 && gradp_type <= 3);
 
         // For the lateral pressure gradient to be used in the momentum equation, should we
         // take the x- and y-derivatives of the perturbational pressure or the full pressure?

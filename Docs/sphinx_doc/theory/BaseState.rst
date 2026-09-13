@@ -193,3 +193,119 @@ parent does not, either because it re-reads a terrain file at its own resolution
 because it reads a nested wrfinput file.  Each level is individually hydrostatic; the
 difference between them is set by the difference in surface elevation and is carried up
 the column as an essentially constant offset in pressure.
+
+.. _sec:HorizPGF:
+
+Horizontal pressure gradient over terrain
+=========================================
+
+With terrain-fitted coordinates the two cell centers that straddle a lateral face sit
+at different physical heights, so the horizontal pressure gradient cannot be formed by
+differencing the two cell values directly.  Writing the face-normal gradient at an
+:math:`x`-face :math:`(i,j,k)` in terms of the coordinate metric
+
+.. math::
+   \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+       \equiv \frac{z_{cc}(i,j,k) - z_{cc}(i-1,j,k)}{\Delta x},
+
+every option ERF offers has the same algebraic form,
+
+.. math::
+   \left(\frac{\partial p^\prime}{\partial x}\right)_{i,j,k} =
+       \frac{p^\prime(i,j,k) - p^\prime(i-1,j,k)}{\Delta x}
+     - \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+       \; \frac{1}{2}\left( S_{i} + S_{i-1} \right),
+
+and they differ only in the estimate :math:`S` of :math:`\partial p^\prime / \partial z`
+used to carry each cell value the signed distance
+
+.. math::
+   \delta z = \frac{1}{2}\left( z_{cc}(i,j,k) - z_{cc}(i-1,j,k) \right)
+
+to the height of the face.  The choice is made with ``erf.gradp_type``:
+
+- ``erf.gradp_type = 0`` (default) takes :math:`S` from a centered difference of
+  :math:`p^\prime` in each column.
+- ``erf.gradp_type = 1`` takes :math:`S` from the asymmetric pair of one-sided
+  differences of `Klemp (2011)`_ -- downward in column :math:`i`, upward in column
+  :math:`i-1`.
+- ``erf.gradp_type = 2`` and ``3`` instead use the hydrostatic relation
+  :math:`\partial p^\prime / \partial z = -g \rho^\prime`, so that the metric term
+  becomes the weight of the perturbational density acting through the slope of the
+  coordinate surface,
+
+  .. math::
+     \left(\frac{\partial p^\prime}{\partial x}\right)_{i,j,k} =
+         \frac{p^\prime(i,j,k) - p^\prime(i-1,j,k)}{\Delta x}
+       + g \left(\frac{\partial z}{\partial \xi}\right)_{i,j,k}
+         \; \frac{1}{2}\left( \tilde\rho^\prime_{i} + \tilde\rho^\prime_{i-1} \right).
+
+Here :math:`\rho^\prime` is the same quantity that enters the buoyancy term when
+``erf.buoyancy_type = 1``, namely :math:`\rho (1 + q_t) - \rho_0 (1 + q_{v,0})`, and
+:math:`\tilde\rho^\prime` is :math:`\rho^\prime` evaluated at the midpoint of the
+extrapolation segment.  ``erf.gradp_type = 2`` holds :math:`\rho^\prime` constant over
+that segment, while ``erf.gradp_type = 3`` reconstructs it linearly,
+
+.. math::
+   \tilde\rho^\prime_{i}   = \rho^\prime(i,j,k)   - \tfrac{1}{2}\,\delta z \,
+       \left(\frac{\partial \rho^\prime}{\partial z}\right)_{i}, \qquad
+   \tilde\rho^\prime_{i-1} = \rho^\prime(i-1,j,k) + \tfrac{1}{2}\,\delta z \,
+       \left(\frac{\partial \rho^\prime}{\partial z}\right)_{i-1},
+
+with the vertical derivatives taken as centered differences in the interior of the
+domain and one-sided differences at the bottom and top.
+
+Why this matters
+----------------
+
+"Nearly hydrostatic" means that :math:`\partial p / \partial z \approx -\rho g` at all
+times.  Because the base state is itself hydrostatic, that property transfers to the
+deviation: :math:`\partial p^\prime / \partial z \approx -\rho^\prime g`.  The metric
+term above is therefore **not** small compared with the answer -- relative to the true
+horizontal pressure-gradient force it scales as the terrain slope times :math:`L/D`,
+the aspect ratio of the flow feature.  Over steep terrain one is differencing two terms
+that are individually larger than their difference, *even after* the base state has been
+subtracted.  Subtracting a fixed :math:`p_0` removes the balance of :math:`p^\prime`
+against :math:`\rho_0`; it does nothing about the balance of :math:`p^\prime` against
+:math:`\rho^\prime`, which is a property of the instantaneous solution and so cannot be
+removed by any stored base state.
+
+The hydrostatic reconstruction removes that second balance where and when the gradient
+is taken.  ``erf.gradp_type = 3`` is exact in the following sense: if :math:`\rho^\prime`
+is a linear function of :math:`z` and :math:`p^\prime` is its exact hydrostatic integral,
+the same profile in both columns, then the computed horizontal gradient vanishes
+identically, whatever the terrain slope.  ``erf.gradp_type = 2`` is first order in
+:math:`\delta z` rather than exact, but shares the same structure.  This is the
+finite-difference analogue of the local hydrostatic reconstruction of
+`Botta, Klein, Langenberg & Lützenkirchen (2004)`_, with :math:`\rho^\prime` playing the
+role of their locally assumed entropy profile.
+
+Two caveats are worth stating.
+
+**The non-hydrostatic residual is discarded.**  ``erf.gradp_type`` 2 and 3 replace the
+differenced vertical slope of :math:`p^\prime` outright, so they drop whatever part of
+:math:`\partial p^\prime / \partial z` is not in hydrostatic balance.  That part is
+:math:`O(\epsilon)` by hypothesis and is further multiplied by the terrain slope, but it
+is not negligible in strongly non-hydrostatic flow over steep topography.  Over a gentle
+hill these options agree with ``erf.gradp_type`` 0 and 1 to within a small fraction of a
+percent; over a steep one they can differ by more.
+
+**The base state must be internally consistent.**  Because the reconstruction imposes
+:math:`\partial p^\prime / \partial z = -g \rho^\prime`, it relies on :math:`p_0` being
+the hydrostatic integral of :math:`\rho_0`.  This is a weaker requirement than it sounds
+-- ERF constructs :math:`p_0` exactly that way -- but it is a requirement that
+``erf.gradp_type`` 0 and 1 do not have, since they difference the stored pressure field
+itself.  Note that at a state of rest with :math:`p = p_0` and :math:`\rho = \rho_0` all
+four options give identically zero, so none of them introduces a spurious
+pressure-gradient force there.
+
+Only the lateral gradients are affected.  The vertical component :math:`\partial
+p^\prime / \partial z` used in the :math:`w`-momentum equation is computed identically
+for all four options, which is what keeps it an exact algebraic complement of the
+buoyancy term.  Options 1, 2 and 3 always use the perturbational pressure, regardless of
+the setting of ``erf.use_pert_pres_gradient``, and none of them is currently implemented
+for the embedded-boundary terrain representation.
+
+.. _`Klemp (2011)`: https://journals.ametsoc.org/view/journals/mwre/139/7/mwr-d-10-05046.1.xml
+
+.. _`Botta, Klein, Langenberg & Lützenkirchen (2004)`: https://doi.org/10.1016/j.jcp.2003.11.008
