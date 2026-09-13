@@ -1,6 +1,6 @@
-# SEB/Phase3_Longwave
+# SEB/Longwave
 
-Phase 3 of the immersed-boundary surface energy balance: the sky, ground
+Immersed-boundary surface energy balance: the sky, ground
 and building view fractions of every face by hemisphere sampling, and the
 longwave balance through them. The skin temperature still does not evolve.
 
@@ -11,10 +11,10 @@ python3 plot_longwave.py plt00002          # writes plots/*.png
 
 ## The scenario
 
-The two boxes of phase 2: a tall one (80 m core at 140 m with a 5 m rim at
+The two boxes of the Shortwave case: a tall one (80 m core at 140 m with a 5 m rim at
 70 m, as the embedded-boundary reader makes it) and a short one (40 m core
 at 40 m) 40 m east of it, on a 5 m grid, two steps. The sun is fixed 30 deg
-above the western horizon so the shortwave of phase 2 is also exercised.
+above the western horizon so the shortwave is also exercised.
 128 rays per face (16 azimuths by 8 elevations).
 
 ## The decks

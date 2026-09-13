@@ -19,8 +19,7 @@
  * The parameters are parsed once, in ERF::ReadParameters(), and copied into
  * each IBFaceSet, so a face set never reads ParmParse itself. Every input of
  * the balance lives here with its default, so that the whole input surface
- * is in one place; the design notes are in
- * Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md.
+ * is in one place; the inputs are documented in Docs/sphinx_doc/Inputs.rst.
  */
 struct IBSEBParams
 {

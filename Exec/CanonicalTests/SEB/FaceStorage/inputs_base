@@ -1,4 +1,4 @@
-# Phase 1 of the immersed-boundary surface energy balance: face storage.
+# Immersed-boundary surface energy balance: face storage.
 # The ImmersedForcingTest skyscraper (5 m grid, one 128 x 128 heightmap) with
 # erf.ibseb.enable, run for a few steps so the face list, its plotfile
 # scatter, the per-building CSV and the checkpoint round trip can be checked.
@@ -78,7 +78,7 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
 erf.ibseb.enable = true
-erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
+erf.ibseb.prognostic = false        # diagnostic: the skin stays fixed so each term is checked on its own
 erf.ibseb.n_slab_layers = 4
 erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 293.0

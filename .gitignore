@@ -75,6 +75,7 @@ build_*.log
 __pycache__
 
 # Development scratch and run artifacts
+Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md
 Exec/.DevTests/
 *.log
 diffs_*/

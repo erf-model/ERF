@@ -14,8 +14,7 @@ energy balance gives each such face its own skin temperature from
 
 with the absorbed shortwave, the net longwave, the sensible and latent heat
 to the air, and the conduction into the wall. The sections below describe
-each term; ``Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md`` carries the
-design notes and the record of the verification cases.
+each term and the case under ``Exec/CanonicalTests/SEB`` that verifies it.
 
 Face storage
 ------------
@@ -49,7 +48,7 @@ and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
 which holds the skin and slab temperatures of up to six faces per fluid
 cell. On restart the list is rebuilt from the blanking and refilled from
 that field, so a restart does not depend on the number of ranks.
-``Exec/CanonicalTests/SEB/Phase1_Storage`` checks the face counts against the
+``Exec/CanonicalTests/SEB/FaceStorage`` checks the face counts against the
 mask, the rank independence and the checkpoint round trip.
 
 Shortwave and shadow
@@ -113,7 +112,7 @@ view factors and no radiosity; the fractions are stored so a radiosity pass
 can be added later without touching the balance. The net longwave,
 :math:`\varepsilon (LW_{in} - \sigma T_s^4)`, is positive into the face.
 
-``Exec/CanonicalTests/SEB/Phase3_Longwave`` checks the fractions of every
+``Exec/CanonicalTests/SEB/Longwave`` checks the fractions of every
 face against an independent hemisphere sampling, their closure and the
 analytic values on the clean planes, and the longwave formulas on every
 face, on one and four ranks.
@@ -151,7 +150,7 @@ false` diagnoses the flux without applying it. Because the balance now
 owns the temperature condition at the buildings, the immersed forcing's
 surface-temperature inputs must not be set with it.
 
-``Exec/CanonicalTests/SEB/Phase4_Sensible`` holds a cube's faces at 320 K in
+``Exec/CanonicalTests/SEB/SensibleHeat`` holds a cube's faces at 320 K in
 an 8 m/s wind at 300 K and checks the wall function on every face against
 the formulas, the rank independence, the heat budget of the closed domain
 against the summed face flux, and a mass-inflow, pressure-outflow variant
@@ -182,7 +181,7 @@ file serves both models; :cpp:`erf.ibseb.material_default` applies to every
 building and :cpp:`erf.ibseb.material_by_building` gives one id per
 building. Without a file the uniform inputs apply to every face.
 
-``Exec/CanonicalTests/SEB/Phase5_Ground`` checks a thick finely layered slab
+``Exec/CanonicalTests/SEB/SlabConduction`` checks a thick finely layered slab
 against the semi-infinite erfc solution, a thin light slab against the
 steady linear profile, the materials per building, and the slab through a
 checkpoint restart.
@@ -235,7 +234,7 @@ Setting :cpp:`erf.ibseb.prognostic = false` keeps the skin at its initial
 or restart value and diagnoses the terms around it, which is how the
 term-by-term regression tests check each term on its own.
 
-``Exec/CanonicalTests/SEB/Phase6_Prognostic`` runs a cube under a fixed sun
+``Exec/CanonicalTests/SEB/PrognosticSkin`` runs a cube under a fixed sun
 with every step dumped and checks the residual on every face, the
 consistency of every stored flux with the skin temperature, the slab
 energy per step, the closure over the run (radiation in equals heat
@@ -289,7 +288,7 @@ convection. The face's :math:`L` stays its own because a roof in a
 separation zone or a sunlit wall can be in the opposite regime from the
 ground under it.
 
-``Exec/CanonicalTests/SEB/Phase8_WallFunction`` puts the cube in calm air
+``Exec/CanonicalTests/SEB/WallFunction`` puts the cube in calm air
 under a strong sun and checks that the neutral law sheds under 1 W/m2
 from a 340 K roof while the convective scale sheds hundreds; that
 :math:`w_*`, the depth, :math:`u_*` and :math:`H` follow the formulas on
@@ -302,7 +301,7 @@ inversion, with the roof height subtracted in :math:`w_*`.
 Canonical case: an isolated building over a day
 ------------------------------------------------
 
-``Exec/CanonicalTests/SEB/Phase7_IsolatedBuilding`` runs a 40 m concrete
+``Exec/CanonicalTests/SEB/IsolatedBuilding`` runs a 40 m concrete
 cube at Boulder on the June solstice from midnight for 24 hours in a light
 westerly, with the prescribed clear-sky provider and a gray sky.
 
@@ -334,7 +333,7 @@ conduction; the plot script draws the skin temperature by orientation,
 the roof budget, the sun path, the slab profile through the day and
 slices from the plotfiles.
 
-``Exec/CanonicalTests/SEB/Phase2_Shortwave`` puts a short box 40 m east of a
+``Exec/CanonicalTests/SEB/Shortwave`` puts a short box 40 m east of a
 tall one and checks the shadow flag of every face against an independent
 ray cast, the incidence on every orientation, the height to which the tall
 box shadows the short one's west wall against
@@ -347,7 +346,7 @@ reads from the face dump rather than assuming.
 Canonical case: a building set
 ------------------------------
 
-``Exec/CanonicalTests/SEB/Phase8_BuildingSet`` runs four buildings from a
+``Exec/CanonicalTests/SEB/BuildingSet`` runs four buildings from a
 nodal height map (a 60 m concrete slab, a 40 m brick cube east of it, two
 20 m timber blocks) through a solstice morning with the convective
 velocity scale and the stability functions on and the immersed forcing

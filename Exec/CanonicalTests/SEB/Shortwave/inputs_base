@@ -1,4 +1,4 @@
-# Phase 2 of the immersed-boundary surface energy balance: shortwave with
+# Immersed-boundary surface energy balance: shortwave with
 # ray-cast shadowing. A tall box (80 x 80 x 140 m) and a short box
 # (40 x 40 x 40 m) 40 m east of it on a 5 m grid, two steps, the sun fixed
 # in the west so the tall box shadows the short one's west wall. Variants:
@@ -71,7 +71,7 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
 erf.ibseb.enable = true
-erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
+erf.ibseb.prognostic = false        # diagnostic: the skin stays fixed so each term is checked on its own
 erf.ibseb.n_slab_layers = 4
 erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 293.0

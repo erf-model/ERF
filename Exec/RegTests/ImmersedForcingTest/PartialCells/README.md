@@ -32,7 +32,7 @@ at step 14); halving the step only delays it.
 blanking snapped to solid or fluid at half: a height-map building becomes
 the same staircase of whole cells an exact box is, the wall law sits on
 the faces between a solid and a fluid cell, the drag inside the solid, and
-the sliver cells carry nothing. The 24 h day of `SEB/Phase7_IsolatedBuilding`
+the sliver cells carry nothing. The 24 h day of `SEB/IsolatedBuilding`
 on an exact box is the evidence that this configuration is stable. (A
 first version that kept the fractions and only moved the selection
 threshold to half left faces between a solid core and a half-solid rim

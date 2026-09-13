@@ -1,5 +1,5 @@
-# Phase 8 of the immersed-boundary surface energy balance: the wall function
-# beyond neutral. The phase 7 cube (an exact box) in calm air under a strong
+# Immersed-boundary surface energy balance: the wall function beyond
+# neutral. The IsolatedBuilding cube (an exact box) in calm air under a strong
 # fixed sun overhead, so the roof heats fast while the tangential wind at
 # the faces is nearly zero; with the neutral log law the roof cannot shed
 # heat, with the convective velocity scale it can, and with the stability

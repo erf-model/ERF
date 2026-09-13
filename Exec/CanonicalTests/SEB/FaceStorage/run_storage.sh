@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 1 regtest: face storage.
+# Regression test: face storage.
 #
 #   ./run_storage.sh /path/to/erf_exec
 #
@@ -35,7 +35,7 @@ grep -q "Face state restored" run_restart.log && echo "state restored: yes" || {
 # The row's geometry, skin and slab columns must match exactly; the columns
 # read from the atmosphere (net longwave through the air temperature, the
 # sensible flux through the wind) may differ by the immersed forcing's
-# restart non-exactness of about 1e-5 relative (see Phase5_Ground).
+# restart non-exactness of about 1e-5 relative (see SlabConduction).
 python3 - <<'PY' || exit 1
 s = open("ibseb_straight.csv").read().strip().splitlines(); r = open("ibseb_restart.csv").read().strip().splitlines()
 hdr = s[0].split(","); a = s[-1].split(","); b = r[-1].split(",")

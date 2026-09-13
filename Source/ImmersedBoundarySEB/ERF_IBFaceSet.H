@@ -60,7 +60,7 @@
  * it compute_ground() advances the slab under the fixed skin. ``d_Q_ext`` is
  * the hook through which an external incident flux (a fire's radiation)
  * enters without the balance knowing its source: whoever owns it writes the
- * array before solve_balance() runs. See IBSEB_DEVELOPMENT.md.
+ * array before solve_balance() runs.
  */
 class IBFaceSet
 {
@@ -296,8 +296,8 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_T_slab;        ///< Slab layers [K], face-major: [face * n_layers + layer]
     // Static radiative geometry:
     amrex::Gpu::DeviceVector<amrex::Real> d_f_sky, d_f_ground, d_f_bldg;  ///< View fractions, sum to 1
-    // Fluxes of the current step [W/m2], positive as in IBSEB_DEVELOPMENT.md
-    // (SW_abs and LW_net into the face, H, LE, G out of it):
+    // Fluxes of the current step [W/m2]: SW_abs and LW_net positive into the
+    // face, H, LE and G positive out of it:
     amrex::Gpu::DeviceVector<amrex::Real> d_SW_abs, d_LW_net, d_H, d_LE, d_G;
     amrex::Gpu::DeviceVector<amrex::Real> d_Q_ext;         ///< External incident flux [W/m2], e.g. fire radiation
     // Shortwave detail, all [W/m2] except the flag:

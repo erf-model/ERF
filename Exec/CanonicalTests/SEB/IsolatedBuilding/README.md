@@ -1,9 +1,9 @@
-# SEB/Phase7_IsolatedBuilding
+# SEB/IsolatedBuilding
 
 Canonical case for the immersed-boundary surface energy balance: one
-building through a full day. It exercises everything the eight phases
-built (shadow and incidence, view fractions and gray sky, the wall
-function, the slab, the prognostic skin) on the simplest geometry, with
+building through a full day. It exercises every part of the balance
+(shadow and incidence, view fractions and gray sky, the wall function,
+the slab, the prognostic skin) on the simplest geometry, with
 checks on the sequence of the day and on two integrals, so a change to
 any part of the balance shows up here.
 
@@ -102,13 +102,12 @@ the walls' longwave term and supplies drag only. A 1 s step trips the
 dycore's floating-point check on this grid with the balance off as well,
 so the day runs at 0.5 s.
 
-The cube is an exact box rather than the nodal height map of the earlier
-phases: the height map's one-cell ramp leaves corner cells with 1 to 20
+The cube is an exact box rather than the nodal height map of the term-by-term
+cases: the height map's one-cell ramp leaves corner cells with 1 to 20
 percent solid, and on those the immersed forcing develops a vertical
 checkerboard in temperature after about two hours of this run, with the
-balance off as well (see the findings in
-`Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md`). The box has no partial
-cells and 80 plane faces.
+balance off as well (see `Exec/RegTests/ImmersedForcingTest/PartialCells`).
+The box has no partial cells and 80 plane faces.
 
 ## Reference output (4 ranks)
 

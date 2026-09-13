@@ -1,6 +1,6 @@
-# SEB/Phase8_WallFunction
+# SEB/WallFunction
 
-Phase 8, first part: the wall function beyond neutral. Two switches, both
+The wall function beyond neutral. Two switches, both
 off by default, so every earlier result is unchanged unless a deck asks
 for them.
 
@@ -13,7 +13,7 @@ for them.
 The neutral log law on the tangential wind cannot shed heat from a hot
 face in calm air: with the wind at its 1e-3 m/s floor the friction
 velocity vanishes and so does the flux. In the day canonical
-(`Phase7_IsolatedBuilding`) the roof reaches 340 K largely for that
+(`IsolatedBuilding`) the roof reaches 340 K largely for that
 reason.
 
 ## The switches
@@ -39,7 +39,7 @@ reason.
 
 ## The scenario
 
-The phase 7 cube (an exact box) in calm air under a fixed sun 10 degrees
+The IsolatedBuilding cube (an exact box) in calm air under a fixed sun 10 degrees
 off the zenith at 1000 W/m2, with a light 5 cm cladding so the roof heats
 within minutes; 600 steps of 0.5 s, every step dumped. The ground surface
 layer is neutral (300 K on 300 K air), so the seed is neutral and the

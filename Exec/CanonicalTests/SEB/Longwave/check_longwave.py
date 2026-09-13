@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 3 view fractions and longwave.
+"""Check the view fractions and longwave.
 
     python3 check_longwave.py faces_fixed fixed 300 0.9 0.95 300 16 8
     python3 check_longwave.py faces_gray  gray  0.83 0.9 0.95 300 16 8

@@ -1,6 +1,6 @@
-# SEB/Phase5_Ground
+# SEB/SlabConduction
 
-Phase 5 of the immersed-boundary surface energy balance: conduction into
+Immersed-boundary surface energy balance: conduction into
 the walls and roofs through a slab per face, and the material library. The
 skin temperature is still prescribed; the slab beneath it now evolves.
 

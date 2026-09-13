@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the wall function beyond neutral (phase 8).
+"""Check the wall function beyond neutral.
 
     python3 check_wallfunction.py neutral   faces_neutral faces_deardorff
     python3 check_wallfunction.py deardorff faces_deardorff 0.5 1000.0 1.2

@@ -43,7 +43,7 @@ def load_steps(prefix):
 def report(name, ok, detail):
     print(f"  {name}: {'PASS' if ok else 'FAIL'} ({detail})"); return ok
 
-# Independent solar geometry (the phase 2 checker's formulas, extended to the
+# Independent solar geometry (the Shortwave checker's formulas, extended to the
 # beam and diffuse so the day can be integrated).
 def solar(t_utc_s, lat, lon, tz, doy, S0, tau, kd):
     g = 2 * math.pi * (doy - 1) / 365.25

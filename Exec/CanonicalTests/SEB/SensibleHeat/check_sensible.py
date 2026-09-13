@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 4 wall function and the heat budget.
+"""Check the wall function and the heat budget.
 
     python3 check_sensible.py formula faces_diag 0.01 0.001 1004.5
     python3 check_sensible.py budget  run_couple.log plt_diag_00040 plt00040 0.125 1004.5

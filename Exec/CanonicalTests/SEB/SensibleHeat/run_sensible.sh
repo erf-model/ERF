@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 4 regtest: sensible heat through the wall function.
+# Regression test: sensible heat through the wall function.
 #
 #   ./run_sensible.sh /path/to/erf_exec        # NP=4 by default
 #

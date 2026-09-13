@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 6 prognostic balance.
+"""Check the prognostic balance.
 
     python3 check_prognostic.py closure faces_closure 0.5 293.0 [--resid 1e-3]
     python3 check_prognostic.py qext    faces_qext    0.5 293.0 3000.0 380.0
@@ -28,7 +28,7 @@ solar: from the periodic dumps, the east wall warms before the roof and
   the west wall, and every face stays within the bounds.
 restart: the last dump (step 199, t = 100 s) after a restart at step 100 against the
   straight run: geometry exact, skin and slab to 1e-3 K (the atmosphere of
-  the immersed forcing is not bit-exact through a restart, see phase 5).
+  the immersed forcing is not bit-exact through a restart, see SlabConduction).
 """
 import sys, glob, re, argparse
 import numpy as np

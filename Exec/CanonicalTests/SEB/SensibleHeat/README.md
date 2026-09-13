@@ -1,9 +1,9 @@
-# SEB/Phase4_Sensible
+# SEB/SensibleHeat
 
-Phase 4 of the immersed-boundary surface energy balance: sensible heat from
+Immersed-boundary surface energy balance: sensible heat from
 every face through a wall function, added to the temperature equation of
 the adjacent fluid cell. The skin temperature is prescribed; it does not
-evolve until phase 6.
+evolve; the PrognosticSkin case closes the balance.
 
 ```
 ./run_sensible.sh /path/to/erf_exec        # NP=4 by default

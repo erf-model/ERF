@@ -1,4 +1,4 @@
-# SEB/Phase8_BuildingSet
+# SEB/BuildingSet
 
 Canonical case for the balance on a set of buildings from a height map:
 mutual shadowing, the building part of the view fractions, several

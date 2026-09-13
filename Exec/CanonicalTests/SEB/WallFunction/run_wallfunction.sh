@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 8 regtest: the wall function beyond neutral.
+# Regression test: the wall function beyond neutral.
 #
 #   ./run_wallfunction.sh /path/to/erf_exec        # NP=4 by default, a few minutes
 set -u

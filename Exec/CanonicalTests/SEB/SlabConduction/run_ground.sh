@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 5 regtest: slab conduction and materials.
+# Regression test: slab conduction and materials.
 #
 #   ./run_ground.sh /path/to/erf_exec        # NP=4 by default
 set -u

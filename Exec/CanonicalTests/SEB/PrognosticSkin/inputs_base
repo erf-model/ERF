@@ -1,4 +1,4 @@
-# Phase 6 of the immersed-boundary surface energy balance: the prognostic
+# Immersed-boundary surface energy balance: the prognostic
 # skin temperature. A 40 m cube at the centre of a 320 m periodic domain on
 # a 10 m grid (small, so the sunrise deck runs in minutes) in a 3 m/s wind at 300 K. Every step the balance
 #   SW_abs + eps Q_ext + LW_net - H - LE - G = 0

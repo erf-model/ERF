@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the phase 2 shortwave on the building faces with yt.
+"""Plot the shortwave on the building faces with yt.
 
     python3 plot_shortwave.py plt00002 [--out plots] [--z 20] [--y 320]
 

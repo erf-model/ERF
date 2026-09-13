@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 2 regtest: shortwave with ray-cast shadowing.
+# Regression test: shortwave with ray-cast shadowing.
 #
 #   ./run_shortwave.sh /path/to/erf_exec        # NP=4 by default
 #

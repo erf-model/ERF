@@ -1,4 +1,4 @@
-# Phase 5 of the immersed-boundary surface energy balance: conduction into
+# Immersed-boundary surface energy balance: conduction into
 # the walls and the material library. Two 40 m cubes on a 10 m grid in a
 # light wind, the faces held at 320 K over slabs that start at 300 K with a
 # 300 K interior, and the flux to the air switched off so the run is cheap
@@ -42,7 +42,7 @@ erf.if_z0 = 0.01
 erf.use_coriolis = false
 
 erf.ibseb.enable = true
-erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
+erf.ibseb.prognostic = false        # diagnostic: the skin stays fixed so each term is checked on its own
 erf.ibseb.debug = true
 erf.ibseb.csv_int = 1
 erf.ibseb.T_skin_init = 320.0

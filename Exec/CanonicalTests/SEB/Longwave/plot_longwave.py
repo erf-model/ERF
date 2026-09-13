@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the phase 3 view fractions and longwave on the building faces with yt.
+"""Plot the view fractions and longwave on the building faces with yt.
 
     python3 plot_longwave.py plt00002 [--out plots] [--z 20] [--y 320]
 

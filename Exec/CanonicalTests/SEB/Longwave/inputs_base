@@ -1,6 +1,6 @@
-# Phase 3 of the immersed-boundary surface energy balance: view fractions
+# Immersed-boundary surface energy balance: view fractions
 # by hemisphere sampling and the longwave balance through them. The two
-# boxes of phase 2 (a tall one and a short one 40 m east of it) on a 5 m
+# boxes of the Shortwave case (a tall one and a short one 40 m east of it) on a 5 m
 # grid, two steps. Variants: inputs_fixed (sky longwave given), inputs_gray
 # (sky longwave from the air temperature). The face dump at step 2 is what
 # check_longwave.py reads.
@@ -69,7 +69,7 @@ erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 8.0 0.0 0.0
 
 erf.ibseb.enable = true
-erf.ibseb.prognostic = false        # phase test: the skin stays fixed so each term is checked on its own
+erf.ibseb.prognostic = false        # diagnostic: the skin stays fixed so each term is checked on its own
 erf.ibseb.n_slab_layers = 4
 erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 293.0

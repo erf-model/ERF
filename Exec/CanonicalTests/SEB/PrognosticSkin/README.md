@@ -1,10 +1,10 @@
-# SEB/Phase6_Prognostic
+# SEB/PrognosticSkin
 
-Phase 6 of the immersed-boundary surface energy balance: the skin
+Immersed-boundary surface energy balance: the skin
 temperature of every face is now solved from the balance every step,
 consistently with the implicit slab, and the fluxes the air receives are
-those of the closed balance. Phases 2-5 diagnosed each term around a fixed
-skin; this phase closes the loop.
+those of the closed balance. The term-by-term cases diagnose each term around
+a fixed skin; this case closes the loop.
 
 ```
 ./run_prognostic.sh /path/to/erf_exec                       # NP=4 by default
@@ -66,11 +66,11 @@ LW_net, H and G are rewritten at it.
    past the default 380 K bound.
 8. After a restart the skin and slab agree with the straight run to 1e-3 K
    (1e-5 K in practice; the immersed forcing's atmosphere is not bit-exact
-   through a restart, see Phase5_Ground).
+   through a restart, see SlabConduction).
 9. In the sunrise run the east wall warms before the roof, ends the warmest
    face, and the west wall stays the coolest of the walls; every face
    stays within the bounds. This check caught a mirrored solar azimuth in
-   the phase 2 provider, which the noon check could not see.
+   the shortwave provider, which the noon check could not see.
 
 ## Reference output (4 ranks)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 2 shortwave against an independent ray cast and analytic values.
+"""Check the shortwave against an independent ray cast and analytic values.
 
     python3 check_shortwave.py faces_zen60 60 270 800 100 0.3 0.2
     python3 check_shortwave.py faces_solar solar <log>
@@ -93,7 +93,7 @@ def check_fixed(prefix, zen_deg, az_deg, dni, dif, alb, alb_g):
     report("shadow flag = independent ray cast, every face", mism == 0, f"mismatches {mism}/{len(exp_shadow)}, shadowed {int(d['shadow'].sum())}")
     # 2. fluxes on every face
     report("direct = DNI max(0, n.s) (1 - shadow)", close(d["SW_direct_in"], dni * np.maximum(0, cosi) * (1 - d["shadow"])))
-    f_sky = d["f_sky"]; f_gnd = d["f_ground"]   # sampled view fractions (phase 3), read from the dump
+    f_sky = d["f_sky"]; f_gnd = d["f_ground"]   # sampled view fractions, read from the dump
     report("diffuse = f_sky D + f_ground a_g (DNI cos z + D)", close(d["SW_diffuse_in"], f_sky * dif + f_gnd * alb_g * (dir_h + dif)))
     report("absorbed = (1 - albedo) (direct + diffuse)", close(d["SW_abs"], (1 - alb) * (d["SW_direct_in"] + d["SW_diffuse_in"])))
     # 3. analytic spot checks on the clean planes

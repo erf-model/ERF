@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the phase 5 slab: the flux into the walls per face and the slab
+"""Plot the slab: the flux into the walls per face and the slab
 temperature profile of one face over time, from the face dumps.
 
     python3 plot_ground.py faces_thin [--out plots]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 5 slab conduction and materials.
+"""Check the slab conduction and materials.
 
     python3 check_ground.py thick run_thick.log 1.5 2.0e6 20 0.25 faces_thick 0.2 200 50.0
     python3 check_ground.py thin  faces_thin 1.0 0.02 20

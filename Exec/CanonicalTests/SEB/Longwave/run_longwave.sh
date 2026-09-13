@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 3 regtest: view fractions and longwave.
+# Regression test: view fractions and longwave.
 #
 #   ./run_longwave.sh /path/to/erf_exec        # NP=4 by default
 #

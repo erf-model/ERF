@@ -1,6 +1,6 @@
-# SEB/Phase2_Shortwave
+# SEB/Shortwave
 
-Phase 2 of the immersed-boundary surface energy balance: shortwave on the
+Immersed-boundary surface energy balance: shortwave on the
 building faces with ray-cast shadowing, from the prescribed radiation
 provider. The skin temperature still does not evolve.
 

@@ -1,6 +1,6 @@
-# SEB/Phase1_Storage
+# SEB/FaceStorage
 
-Phase 1 of the immersed-boundary surface energy balance: the face storage.
+Immersed-boundary surface energy balance: the face storage.
 No physics yet; the skin temperature stays at its initial value. The test
 checks that the wall faces of resolved buildings are found, stored, written
 to the plotfile and the per-building CSV, and survive a checkpoint and
@@ -40,7 +40,7 @@ python3 plot_storage.py plt00004            # writes plots/*.png
 through its centroid, with the mask outline. `--z`, `--x`, `--y` move the
 slices and `--out` the directory. The face-bearing cells form a one-cell
 ring around the footprint, two faces at the corners, and a cap over the
-roof; in this phase every face is at the initial skin temperature.
+roof; with the balance diagnostic every face is at the initial skin temperature.
 
 ## Reference
 
@@ -57,4 +57,4 @@ restart CSV row matches straight (exact, atmosphere columns to 1e-3): PASS
 ALL PASS
 ```
 
-The restart comparison is exact for the geometry, skin and slab columns of the report row and allows 1e-3 relative on the two columns read from the atmosphere (net longwave, sensible flux), which the immersed forcing does not restart bit-for-bit (see Phase5_Ground).
+The restart comparison is exact for the geometry, skin and slab columns of the report row and allows 1e-3 relative on the two columns read from the atmosphere (net longwave, sensible flux), which the immersed forcing does not restart bit-for-bit (see SlabConduction).

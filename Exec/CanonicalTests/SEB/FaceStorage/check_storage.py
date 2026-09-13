@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the phase 1 face storage against the blanking mask in the plotfile.
+"""Check the face storage against the blanking mask in the plotfile.
 
 Reads a single-level AMReX plotfile, takes terrain_IB_mask, counts the wall
 faces per direction as transitions between fluid (< 0.5) and solid (>= 0.5)

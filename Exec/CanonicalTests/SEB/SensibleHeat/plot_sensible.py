@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the phase 4 wall heat flux and the warm wake with yt.
+"""Plot the wall heat flux and the warm wake with yt.
 
     python3 plot_sensible.py plt00080 [--out plots] [--z 22.5] [--y 320]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the phase 6 prognostic balance from the face dumps, the per-building
+"""Plot the prognostic balance from the face dumps, the per-building
 CSV and a plotfile.
 
     python3 plot_prognostic.py faces_solar ibseb_solar.csv [--plotfile plt05400] [--out plots] [--dt 1.0]

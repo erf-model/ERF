@@ -1,8 +1,8 @@
 # Regression test of the immersed-boundary surface energy balance: the
-# 40 m height-map cube of Exec/CanonicalTests/SEB/Phase6_Prognostic under a
+# 40 m height-map cube of Exec/CanonicalTests/SEB/PrognosticSkin under a
 # fixed sun for 40 steps, with the prognostic skin, the slab and the heat
 # flux into the air. The plotfile carries the per-cell face diagnostics.
-# Phase 6 of the immersed-boundary surface energy balance: the prognostic
+# Immersed-boundary surface energy balance: the prognostic
 # skin temperature. A 40 m cube at the centre of a 320 m periodic domain on
 # a 10 m grid (small, so the sunrise deck runs in minutes) in a 3 m/s wind at 300 K. Every step the balance
 #   SW_abs + eps Q_ext + LW_net - H - LE - G = 0

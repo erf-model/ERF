@@ -1,5 +1,5 @@
 #!/bin/bash
-# Phase 6 regtest: the prognostic skin temperature.
+# Regression test: the prognostic skin temperature.
 #
 #   ./run_prognostic.sh /path/to/erf_exec        # NP=4 by default
 set -u

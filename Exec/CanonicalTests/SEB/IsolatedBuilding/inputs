@@ -43,7 +43,7 @@ erf.input_sounding_file = "input_sounding"
 erf.buildings_type = ImmersedForcing
 # The cube is an exact box on cell faces (eb2.geometry = box), so every
 # cell is fluid or solid and the walls are plane: no partial cells, no
-# stepped rim. A nodal height map of the same cube (the phase 6 file) has
+# stepped rim. A nodal height map of the same cube (the PrognosticSkin file) has
 # corner cells with 1-20 percent solid on which the immersed forcing goes
 # unstable after about two hours.
 eb2.geometry = box
