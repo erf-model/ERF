@@ -4,7 +4,7 @@
 #include <ERF_ShocDriver.H>
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
-#include "ERF_ResolvedWallFlux.H"
+#include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -62,7 +62,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                               MultiFab& avg_zmom,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
-                        const MultiFab& /*zvel*/,
+                        const MultiFab& zvel,
                         const MultiFab& source,
                               MultiFab* terrain_blank,
                               MultiFab* terrain_blank_xface,
@@ -130,6 +130,16 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
                                     tc.rans_type == RANSType::kEqn );
+    // k-eqn RANS with a Dirichlet wall value: SurfaceLayer::update_fluxes
+    // writes AL01 Eq. 16 into the first cell of S_old at the start of the
+    // step; keep that value through every RK stage.
+    const bool l_dirichlet_k    = ( tc.rans_type == RANSType::kEqn && tc.dirichlet_k &&
+                                    (SurfLayer != nullptr) );
+    // Implicit TKE dissipation: eps = c * (rho k)_new with c = diss_old / (rho k)_old,
+    // i.e. Cmu0^3 sqrt(k_old) / L; the source skips the explicit sink and the
+    // update divides by (1 + dt c).
+    const bool l_implicit_diss  = ( tc.use_keqn && tc.implicit_tke_dissipation );
+    const Real l_tke_floor      = tc.tke_floor;
     const bool l_advect_KE      = ( tc.use_tke && tc.advect_tke );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -300,6 +310,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
+        const Array4<const Real> & w = zvel.array(mfi);
 
         const Array4<const Real>& z_nd         = z_phys_nd->const_array(mfi);
         const Array4<const Real>& z_cc         = z_phys_cc->const_array(mfi);
@@ -588,12 +599,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                         // The diffusion views are component-shifted; the
                         // wall helper receives the unshifted views and the
                         // explicit flux component index.
-                        erf_resolved_wall_flux::apply(
+                        erf_cloud_chamber_wall_flux::apply(
                             tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
-                            cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                            cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                             diffflux_x, diffflux_y, diffflux_z, dxInv,
                             chamber_walls, dc.alpha_T, dc.alpha_C,
-                            solverChoice.rdOcp);
+                            solverChoice.rdOcp, cloud_chamber_config->cloudy);
                     }
                     }
                 } // use_diff
@@ -636,7 +647,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                         cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
                         if (ivar == RhoKE_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                            if (l_implicit_diss) {
+                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
+                            }
+                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
                         }
                     });
 
@@ -654,7 +669,12 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
                         if (ivar == RhoKE_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                            if (l_implicit_diss) {
+                                // stage 1 of the trapezoidal update: half the step is implicit
+                                cur_cons(i,j,k,n) /= (one + myhalf * dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
+                            }
+                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
                         } else if (ivar >= RhoQ1_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
@@ -668,7 +688,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
                         if (ivar == RhoKE_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
+                            if (l_implicit_diss) {
+                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
+                            }
+                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
                         } else if (ivar >= RhoQ1_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
                         }
@@ -678,6 +702,23 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             } // is_valid
         } // ivar
+
+        // Re-impose the Dirichlet wall value of k (first cell above the wall)
+        if (l_dirichlet_k && is_valid_slow_var[RhoKE_comp]) {
+            const int klo = domain.smallEnd(2);
+            if (tbx.smallEnd(2) <= klo && tbx.bigEnd(2) >= klo) {
+                ParallelFor(makeSlab(tbx,2,klo), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    // Hold k, not rho*k.  Eq. 16 defines the primitive wall value, and
+                    // cur_cons(Rho_comp) has already been updated for this stage (and,
+                    // with moving terrain, rescaled by detJ/detJ_new along with RhoKE),
+                    // so copying the conserved variable straight across would let the
+                    // wall value drift by the first-cell density change every step.
+                    // Both states carry the same detJ convention, so the ratio is exact.
+                    cur_cons(i,j,k,RhoKE_comp) = cur_cons(i,j,k,Rho_comp) *
+                        ( old_cons(i,j,k,RhoKE_comp) / old_cons(i,j,k,Rho_comp) );
+                });
+            }
+        }
         } // profile
 
         {

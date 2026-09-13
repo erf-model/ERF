@@ -8,6 +8,7 @@
 */
 
 #include <memory>
+#include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
 

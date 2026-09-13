@@ -1,4 +1,5 @@
 #include "ERF_ShocThermoUtils.H"
+#include "ERF_Constants.H"
 #include "ERF_ShocTestUtils.H"
 
 #include <gtest/gtest.h>

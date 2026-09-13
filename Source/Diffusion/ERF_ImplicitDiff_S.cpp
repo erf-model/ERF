@@ -89,6 +89,16 @@ ImplicitDiffForStateLU_S (const Box& bx,
     AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
                               "Unexpected upper BC for scalars used with implicit vertical diffusion");
 
+    // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
+    // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
+    // and the row above sees it as a Dirichlet neighbour.
+    // NOTE: init_bcs requires zlo.type = surface_layer whenever dirichlet_k is set,
+    //       so this matches the l_dirichlet_k pin in erf_slow_rhs_post, which also
+    //       requires a surface layer. Do not relax one without the other.
+    const bool pin_klo = (qty_index == RhoKE_comp) && (klo == domain.smallEnd(2)) &&
+                         (solverChoice.turbChoice[level].rans_type == RANSType::kEqn) &&
+                         solverChoice.turbChoice[level].dirichlet_k;
+
     Real Fact = implicit_fac * dt;
 
 #ifdef AMREX_USE_GPU
@@ -113,12 +123,14 @@ ImplicitDiffForStateLU_S (const Box& bx,
                 dz_inv_hi = two / (dz_ptr[klo] + dz_ptr[klo+1]);
 
                 a_tmp      = zero;
-                c_tmp      = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
+                c_tmp      = (pin_klo) ? zero : -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
-                if (use_SurfLayer && scalar_zflux) {
+                if (pin_klo) {
+                    // Dirichlet row: no flux terms
+                } else if (use_SurfLayer && scalar_zflux) {
                     RHS_a(i,j,klo) +=  Fact * dz_inv * scalar_zflux(i,j,klo); // NOTE: scalar_zflux = -K*d_z(\phi)
                 } else if (neumann_on_zlo) {
                     RHS_a(i,j,klo) += -Fact * dz_inv * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)

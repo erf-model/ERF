@@ -33,6 +33,13 @@ public:
     explicit CloudChamberBudget (int interval) : m_interval(interval) {}
 
     bool enabled () const noexcept { return m_interval > 0; }
+
+    static const char* row_status (Scalar scalar, bool cloudy, bool closes) noexcept
+    {
+        if (cloudy && scalar == RhoTheta) { return "UNSUPPORTED_SOURCE"; }
+        return closes ? "PASS" : "FAIL";
+    }
+
     /**
      * Determine if a budget report is due for the given timestep.
      *
@@ -208,8 +215,8 @@ public:
                     std::numeric_limits<amrex::Real>::epsilon() *
                     (effective_operations * scale + boundary_scale + std::abs(internal));
                 const bool status = std::abs(residual) <= tolerance;
-                const char* status_text = status ? "PASS" :
-                    (cloudy && s == RhoTheta ? "UNSUPPORTED_SOURCE" : "FAIL");
+                const char* status_text = row_status(
+                    static_cast<Scalar>(s), cloudy, status);
                 out << m_interval_start_step << ' ' << m_interval_start_time << ' '
                     << step << ' ' << time << ' ' << names[s] << ' ' << units[s];
                 for (const auto value : faces) { out << ' ' << value; }

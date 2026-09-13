@@ -32,6 +32,7 @@ if(ERF_ENABLE_TESTS)
   message(STATUS "ERF testing configuration summary:")
   message(STATUS "   Number of ranks               = ${ERF_TEST_NRANKS}")
   message(STATUS "   fcompare executable           = ${FCOMPARE_EXE}")
+  message(STATUS "   fextrema executable           = ${FEXTREMA_EXE}")
   message(STATUS "   comparison relative tolerance = ${ERF_TEST_FCOMPARE_RTOL}")
   message(STATUS "   comparison absolute tolerance = ${ERF_TEST_FCOMPARE_ATOL}")
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")
@@ -96,6 +97,14 @@ if(ERF_ENABLE_TESTS)
   target_compile_features(erf_two_stream_radiation_check PRIVATE cxx_std_17)
   set(TWO_STREAM_RADIATION_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_two_stream_radiation_check${CMAKE_EXECUTABLE_SUFFIX}")
+  # Motivation: the bulk wall fixed-dt safety contract must fail loudly when
+  # a requested fixed timestep exceeds the analytically known wall limit.
+  add_executable(erf_cloud_chamber_wall_dt_guard_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberWallDtGuardCheck.cpp)
+  target_link_libraries(erf_cloud_chamber_wall_dt_guard_check PRIVATE AMReX::amrex)
+  target_include_directories(erf_cloud_chamber_wall_dt_guard_check PRIVATE
+    ${PROJECT_SOURCE_DIR}/Source)
+  target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
 
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
@@ -106,6 +115,7 @@ if(ERF_ENABLE_TESTS)
         erf_anelastic_wall_diffusion_check
         erf_cloud_chamber_check
         erf_two_stream_radiation_check)
+        erf_cloud_chamber_wall_dt_guard_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()
   endif()

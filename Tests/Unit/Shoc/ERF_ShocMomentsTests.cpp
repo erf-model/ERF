@@ -1,4 +1,5 @@
 #include "ERF_ShocMoments.H"
+#include "ERF_Constants.H"
 #include "ERF_ShocStructure.H"
 #include "ERF_ShocTKE.H"
 #include "ERF_ShocTestUtils.H"

@@ -1,4 +1,5 @@
 #include <AMReX_MultiFab.H>
+#include "ERF_Constants.H"
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_TableData.H>

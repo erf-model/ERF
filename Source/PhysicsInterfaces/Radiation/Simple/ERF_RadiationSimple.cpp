@@ -1,5 +1,6 @@
 
 #include <ERF_RadiationSimple.H>
+#include "ERF_Constants.H"
 
 #include <AMReX_MFIter.H>
 
