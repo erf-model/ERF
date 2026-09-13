@@ -659,7 +659,7 @@ $(objForExecs): | build_ekat
 endif
 
 all: $(ERF_PREBUILD_TARGETS) $(executable)
-	(SILENT) $(RM) AMReX_buildInfo.cpp
+	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
 AMReX_buildInfo.cpp:

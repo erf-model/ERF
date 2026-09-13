@@ -84,6 +84,11 @@ include $(ERF_SOURCE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_SOURCE_DIR)
 INCLUDE_LOCATIONS += $(ERF_SOURCE_DIR)
 
+ERF_AUXILIARY_STATE_DIR = $(ERF_SOURCE_DIR)/AuxiliaryState
+include $(ERF_AUXILIARY_STATE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_AUXILIARY_STATE_DIR)
+INCLUDE_LOCATIONS += $(ERF_AUXILIARY_STATE_DIR)
+
 ERF_BC_DIR = $(ERF_SOURCE_DIR)/BoundaryConditions
 include $(ERF_BC_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_BC_DIR)
@@ -174,6 +179,11 @@ ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_DIR)
+
+ERF_MOISTURE_SBM_DIR = $(ERF_SOURCE_DIR)/Microphysics/SBM
+include $(ERF_MOISTURE_SBM_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_MOISTURE_SBM_DIR)
+INCLUDE_LOCATIONS += $(ERF_MOISTURE_SBM_DIR)
 
 ERF_MOISTURE_NULL_DIR = $(ERF_SOURCE_DIR)/Microphysics/Null
 include $(ERF_MOISTURE_NULL_DIR)/Make.package
@@ -598,7 +608,7 @@ $(objForExecs): | build_noahmp
 endif
 
 all: build_noahmp $(executable)
-	(SILENT) $(RM) AMReX_buildInfo.cpp
+	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
 AMReX_buildInfo.cpp:

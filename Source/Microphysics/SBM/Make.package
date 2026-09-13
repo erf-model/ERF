@@ -1,0 +1,13 @@
+CEXE_sources += ERF_SpectralGrid.cpp
+CEXE_sources += ERF_SBMLayout.cpp
+CEXE_sources += ERF_SBMBulkProjection.cpp
+CEXE_sources += ERF_SBMContracts.cpp
+CEXE_sources += ERF_SBMTransportPrototype.cpp
+CEXE_sources += ERF_SBMErfIntegration.cpp
+
+CEXE_headers += ERF_SpectralGrid.H
+CEXE_headers += ERF_SBMLayout.H
+CEXE_headers += ERF_SBMBulkProjection.H
+CEXE_headers += ERF_SBMContracts.H
+CEXE_headers += ERF_SBMNullMoist.H
+CEXE_headers += ERF_SBMTransportPrototype.H

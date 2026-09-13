@@ -384,6 +384,8 @@ function(build_erf_lib erf_lib_name)
 
   target_sources(${erf_lib_name}
      PRIVATE
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryProjection.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryStateManager.cpp
        ${SRC_DIR}/ERF_Derive.cpp
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_Constructors.cpp
@@ -485,6 +487,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMBulkProjection.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMContracts.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMTransportPrototype.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMErfIntegration.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
@@ -621,6 +629,7 @@ function(build_erf_lib erf_lib_name)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/AuxiliaryState>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Advection>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/BoundaryConditions>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/DataStructs>)
@@ -637,6 +646,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/MaterialProperties>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SBM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SAM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/Kessler>)
