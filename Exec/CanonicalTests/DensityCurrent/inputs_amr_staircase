@@ -1,0 +1,85 @@
+# Density Current with a level-1 region that is a staircase in z but whose columns
+# are each contained in a single box -- the configuration that exercises the
+# intersection-of-adjacent-columns logic in the implicit vertical diffusion solve.
+erf.prob_name = "Density Current"
+
+erf.init_type = Isentropic
+
+stop_time = 900.0
+
+amr.blocking_factor_x = 16
+amr.blocking_factor_y = 1
+amr.blocking_factor_z = 16
+
+erf.anelastic   = 0
+erf.check_file  = chk
+erf.plot_file_1 = plt
+
+erf.buoyancy_type = 2
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =      0.   0.    0.
+geometry.prob_hi     =  25600. 100.  6400.
+
+xlo.type = "Symmetry"
+xhi.type = "Outflow"
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+geometry.is_periodic = 0 1 0
+
+amr.max_level       = 1
+
+amr.n_cell         = 128   1      32
+erf.fixed_dt       = 2.0
+erf.fixed_fast_dt  = 0.5
+erf.plot_int_1     = 150
+erf.check_int      =-100
+
+erf.sum_interval   =-1
+erf.v              = 0
+amr.v              = 1
+
+erf.plotfile_type   = amrex
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta
+
+erf.use_gravity  = true
+erf.use_coriolis = false
+
+erf.les_type         = "None"
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 75.0
+erf.alpha_T           = 75.0
+
+erf.c_p = 1004.0
+
+prob.T_0 = 300.0
+
+################################ MULTILEVEL ################################
+amr.ref_ratio_vect = 2 1 2
+
+# Static refinement: two side-by-side regions of different height.  On level 1 this
+# gives boxes (0..63, 0..31) and (64..127, 0..15): adjacent columns with different
+# khi, but no column split across boxes in z.
+erf.refinement_indicators = boxA boxB
+
+erf.boxA.max_level = 1
+erf.boxA.in_box_lo_indices_crse =  0 0  0
+erf.boxA.in_box_hi_indices_crse = 31 0 15
+
+erf.boxB.max_level = 1
+erf.boxB.in_box_lo_indices_crse = 32 0 0
+erf.boxB.in_box_hi_indices_crse = 63 0 7
+
+erf.regrid_int = 10
+
+# Do not let the grid generator chop a column in z
+amr.max_grid_size_z = 1024
+amr.grid_eff        = 0.95
+amr.n_error_buf     = 0
+################################ MULTILEVEL ################################
