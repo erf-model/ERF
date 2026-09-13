@@ -86,9 +86,9 @@ height-map set needs (`Exec/RegTests/ImmersedForcingTest/PartialCells`).
   at sunrise the slab is the most shaded building (the cube's shadow on its east wall) and clears by late morning: PASS (slab 0.168 at 05:30-06:10 vs 0.061 after 10:30; others early 0.108, 0.084, 0.112)
   the 20 m blocks are free of shadow by late morning: PASS (north block 0.000, far block 0.000 after 10:30)
   the facing walls of the slab and the cube see more building than the far block's walls: PASS (slab east 0.28, cube west 0.48, far block walls 0.179)
-  timber roofs end warmer than the concrete roof (light cladding warms faster): PASS (roof means at 11.0 h: slab 320.5, north block 332.7, cube 324.2, far block 332.5 K)
-  w* positive on the sunlit faces and most roofs unstable by the end (the shaded rim roofs may be stable): PASS (w* 0.08-0.72 m/s on 268 sunlit faces, 93 % of 140 roofs unstable)
-  cost line reported: PASS (lev=0 advance_ms_per_step_max=0.3804 faces_per_rank_max=157 ranks=4 init_s=0.005792)
+  timber roofs end warmer than the concrete roof (light cladding warms faster): PASS (roof means at 11.0 h: slab 320.2, north block 332.2, cube 323.7, far block 332.1 K)
+  w* positive on the sunlit faces and most roofs unstable by the end (the shaded rim roofs may be stable): PASS (w* 0.10-0.73 m/s on 268 sunlit faces, 93 % of 140 roofs unstable)
+  cost line reported: PASS (lev=0 advance_ms_per_step_max=0.1376 faces_per_rank_max=157 ranks=4 init_s=0.002732)
 building set: PASS
 ALL PASS
 ```
