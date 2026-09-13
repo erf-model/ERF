@@ -42,6 +42,11 @@ if(NOT "${RUNTIME_OPTIONS}" STREQUAL "")
     list(APPEND run_command ${runtime_options})
 endif()
 
+# These negative startup tests intentionally trigger amrex::Abort. Avoid
+# expensive addr2line symbolization of the expected backtrace, particularly
+# for large Debug/LTO CI executables.
+list(APPEND run_command "amrex.call_addr2line=0")
+
 execute_process(
     COMMAND ${run_command}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
