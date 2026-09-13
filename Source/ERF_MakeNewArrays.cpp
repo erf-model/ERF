@@ -634,17 +634,17 @@ ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMappi
     column_kextent[lev]->setVal(column_kextent_lo_sentinel, 0, 1, IntVect(1,1,0));
     column_kextent[lev]->setVal(column_kextent_hi_sentinel, 1, 1, IntVect(1,1,0));
 
+    // NOTE: no ParallelFor here.  This is a private member function, and nvcc does not allow
+    //       an extended (__device__) lambda inside a member function with private or protected
+    //       access.  Each box contributes a single (klo,khi) pair over its whole footprint,
+    //       so BaseFab::setVal fills it on the device without needing a lambda at all.
     for (MFIter mfi(*column_kextent[lev]); mfi.isValid(); ++mfi)
     {
-        const Box& vbx = mfi.validbox();
-        const int box_klo = ba[mfi.index()].smallEnd(2);
-        const int box_khi = ba[mfi.index()].bigEnd(2);
-        const Array4<int>& kext = column_kextent[lev]->array(mfi);
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            kext(i,j,k,0) = box_klo;
-            kext(i,j,k,1) = box_khi;
-        });
+        const Box& vbx  = mfi.validbox();
+        const Box& bx3d = ba[mfi.index()];
+        IArrayBox& kext_fab = (*column_kextent[lev])[mfi];
+        kext_fab.setVal<RunOn::Device>(bx3d.smallEnd(2), vbx, 0, 1);
+        kext_fab.setVal<RunOn::Device>(bx3d.bigEnd(2)  , vbx, 1, 1);
     }
 
     column_kextent[lev]->FillBoundary(geom[lev].periodicity());
