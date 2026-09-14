@@ -27,10 +27,11 @@ Beer-Lambert law:
 
    I_{sw,\text{direct}}(z) = I_0 \mu_0 e^{-\tau_{\text{sw}} \sec(\theta_z)}
 
-where :math:`I_0` is the solar constant at the top of the atmosphere (:math:`S_0 \approx 1361 \, \text{W/m}^2`,
-optionally scaled by the Earth-Sun distance factor :math:`(d_0/d)^2` of Spencer (1971) when
-``earth_sun_distance_enable`` is set),
-:math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle, :math:`\tau_{\text{sw}}` is the
+where :math:`I_0` is the top-of-atmosphere irradiance (``erf.fixed_total_solar_irradiance``, or
+1360.9 W/m² scaled by the Earth-Sun distance factor of the date from the same orbital code RRTMGP
+uses), :math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle
+(``erf.fixed_solar_zenith_angle``, or the sun's position over each column at the calendar time
+given by ``start_datetime``), :math:`\tau_{\text{sw}}` is the
 vertically integrated shortwave optical depth above height :math:`z`, and :math:`\sec(\theta_z)` accounts
 for the path-length modification. The optical depth may be spatially uniform (static :math:`\tau_{\text{per\_layer}}`)
 or dynamically diagnosed from water vapor and cloud liquid water content, parameterized as:
@@ -254,9 +255,15 @@ Limitations
 - **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
   never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
   ``amr.max_level = 0``. The run stops at start-up with a message saying so.
-- **Solar time base.** With ``solar_geometry_dynamic_enable`` the hour angle is formed from the
-  simulation time modulo 86400 s, i.e. the run is taken to start at 00:00 UTC on
-  ``day_of_year``; ``start_datetime`` is not read by this model.
+- **Sun and site.** The sun, the site and the surface temperature come from the inputs the
+  RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
+  ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
+  and the position of the sun is the instantaneous value of RRTMGP's ``orbital_cos_zenith``
+  over each column, not its average over the radiation interval. Without a fixed zenith angle
+  and irradiance the run needs ``start_datetime``, and stops at the first sweep otherwise. The
+  surface temperature of the longwave boundary is, in RRTMGP's order, the land-surface model's
+  field, else the surface layer's temperature, else ``erf.rad_t_sfc``; the prognostic surface
+  energy balance, when on, supplies its own state ahead of the surface layer.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
   call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
   cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
@@ -400,8 +407,6 @@ Bhumralkar, C. M. (1974). Numerical experiments on the computation of ground sur
 Kirchhoff, G. R. (1860). Über die Beziehung zwischen den Emissionsvermögen und den Absorptionsvermögen der Körper für Wärmestrahlung. *Annalen der Physik und Chemie*, 109(3), 275–301.
 
 Meador, W. E., & Weaver, W. R. (1980). Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement. *Journal of the Atmospheric Sciences*, 37(3), 630–643.
-
-Spencer, J. W. (1971). Fourier series representation of the position of the sun. *Search*, 2(5), 172.
 
 Stephens, G. L. (1978). Radiation profiles in extended water clouds. II: Parameterization schemes. *Journal of the Atmospheric Sciences*, 35, 2123–2132.
 

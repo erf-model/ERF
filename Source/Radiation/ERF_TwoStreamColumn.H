@@ -19,7 +19,7 @@
 #include <ERF_TwoStreamLW.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
-#include <ERF_SolarGeometry.H>
+#include <ERF_OrbCosZenith.H>
 
 /**
  * @file ERF_TwoStreamColumn.H
@@ -56,8 +56,6 @@ struct TwoStreamParams
     bool lw_enabled = true;
     amrex::Real tau_per_layer = 0.05;
     amrex::Real tau_lw_per_layer = 1.0;
-    amrex::Real solar_zenith_deg = 45.0;
-    amrex::Real S0 = 1361.0;
 
     TauProfileType tau_profile_type = TauProfileType::Constant;
     amrex::Real cloud_base_height_m = 500.0;
@@ -72,7 +70,7 @@ struct TwoStreamParams
     amrex::Real surface_albedo_sw = 0.3;
     amrex::Real surface_albedo_sw_diffuse = -1.0;
     amrex::Real surface_emissivity_lw = 0.99;
-    amrex::Real surface_temp_k = 300.0;
+    amrex::Real t_sfc_default = 300.0;   // erf.rad_t_sfc
 
     bool tau_sw_dynamic_enable = false;
     bool tau_lw_dynamic_enable = false;
@@ -105,12 +103,16 @@ struct TwoStreamParams
     amrex::Real lw_kabs_vapor = 0.1;
     amrex::Real lw_kabs_cloud = 158.0;
 
-    bool earth_sun_distance_enable = false;
-    bool solar_geometry_dynamic_enable = false;
-    amrex::Real latitude_deg = 0.0;
-    amrex::Real longitude_deg = 0.0;
-    amrex::Real day_of_year = 172.0;
-    amrex::Real time_zone_offset_hours = 0.0;
+    // The sun of this call, set by the driver from the inputs shared with
+    // RRTMGP (erf.fixed_solar_zenith_angle, erf.fixed_total_solar_irradiance,
+    // erf.rad_cons_lat/lon, erf.rad_orbital_*) and start_datetime.
+    bool solar_dynamic = false;          // false: cos_zenith_fixed applies to every column
+    amrex::Real cos_zenith_fixed = 0.5;  // erf.fixed_solar_zenith_angle (a cosine)
+    amrex::Real S0 = 1360.9;             // top-of-atmosphere irradiance of this call [W/m^2]
+    amrex::Real calday = 1.0;            // day of the year plus fraction, UTC (dynamic sun)
+    amrex::Real declin = 0.0;            // solar declination [rad] (dynamic sun)
+    amrex::Real lat_cons_rad = 0.0;      // erf.rad_cons_lat [rad], used where the grid has no lat field
+    amrex::Real lon_cons_rad = 0.0;      // erf.rad_cons_lon [rad]
 };
 static_assert(std::is_trivially_copyable<TwoStreamParams>::value,
               "TwoStreamParams must stay trivially copyable so it can be captured by device lambdas");
@@ -125,8 +127,6 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.lw_enabled = rc.lw_enabled;
     p.tau_per_layer = rc.tau_per_layer;
     p.tau_lw_per_layer = rc.tau_lw_per_layer;
-    p.solar_zenith_deg = rc.solar_zenith_deg;
-    p.S0 = rc.S0;
     p.tau_profile_type = rc.tau_profile_type;
     p.cloud_base_height_m = rc.cloud_base_height_m;
     p.cloud_top_height_m = rc.cloud_top_height_m;
@@ -138,7 +138,7 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.surface_albedo_sw = rc.surface_albedo_sw;
     p.surface_albedo_sw_diffuse = rc.surface_albedo_sw_diffuse;
     p.surface_emissivity_lw = rc.surface_emissivity_lw;
-    p.surface_temp_k = rc.surface_temp_k;
+    p.t_sfc_default = rc.rad_t_sfc;
     p.tau_sw_dynamic_enable = rc.tau_sw_dynamic_enable;
     p.tau_lw_dynamic_enable = rc.tau_lw_dynamic_enable;
     p.tau_sw_coeff_qv = rc.tau_sw_coeff_qv;
@@ -165,12 +165,13 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
     p.lw_kabs_dry = rc.lw_kabs_dry;
     p.lw_kabs_vapor = rc.lw_kabs_vapor;
     p.lw_kabs_cloud = rc.lw_kabs_cloud;
-    p.earth_sun_distance_enable = rc.earth_sun_distance_enable;
-    p.solar_geometry_dynamic_enable = rc.solar_geometry_dynamic_enable;
-    p.latitude_deg = rc.latitude_deg;
-    p.longitude_deg = rc.longitude_deg;
-    p.day_of_year = rc.day_of_year;
-    p.time_zone_offset_hours = rc.time_zone_offset_hours;
+    // Sun: a fixed cosine when given; the date-dependent quantities (calday,
+    // declination and the irradiance of the date) are filled by the driver.
+    p.solar_dynamic = !(rc.fixed_solar_zenith_angle > 0.0);
+    p.cos_zenith_fixed = rc.fixed_solar_zenith_angle;
+    p.S0 = (rc.fixed_total_solar_irradiance >= 0.0) ? rc.fixed_total_solar_irradiance : 1360.9;
+    p.lat_cons_rad = rc.rad_cons_lat * PI / 180.0;
+    p.lon_cons_rad = rc.rad_cons_lon * PI / 180.0;
     return p;
 }
 
@@ -319,12 +320,12 @@ amrex::Real resolve_surface_emissivity_lw(
  *
  * Precedence:
  * 1. If t_sfc array available and value at (i,j) is finite & positive, use it
- * 2. Otherwise, use rad_choice.surface_temp_k (already validated by init_params)
+ * 2. Otherwise, use rad_choice.t_sfc_default (erf.rad_t_sfc, validated by init_params)
  * 3. Hard default: 300.0 K
  *
  * @param[in] i,j Column index
  * @param[in] t_sfc Heterogeneous surface temperature field (may be nullptr)
- * @param[in] rad_choice Radiation parameters with fallback surface_temp_k
+ * @param[in] rad_choice Radiation parameters with the fallback t_sfc_default
  * @param[in] has_t_sfc true if t_sfc is available
  * @return Surface temperature [K], strictly positive
  */
@@ -335,7 +336,7 @@ amrex::Real resolve_surface_temp_k(
     const TwoStreamParams& rad_choice,
     bool has_t_sfc)
 {
-    amrex::Real t_surf = rad_choice.surface_temp_k;  // Default fallback (already validated)
+    amrex::Real t_surf = rad_choice.t_sfc_default;  // erf.rad_t_sfc (already validated)
 
     if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
         amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
@@ -847,14 +848,20 @@ void diagnose_layer_optics(
  * @param[out] sw_up_toa Upwelling (reflected) SW at the top of the atmosphere [W/m^2]
  * @param[out] lw_net_surface Net LW (up - down) at the surface [W/m^2]
  * @param[out] lw_up_toa Upwelling LW at the top of the atmosphere (outgoing longwave) [W/m^2]
- * @param[in] z_phys_nd Optional cell-centered physical height (nonuniform dz)
- * @param[in] time_utc_seconds UTC seconds within the day (dynamic solar geometry)
+ * @param[out] sw_down_toa Incident SW at the top of the atmosphere, S0 cos(zenith) or zero at night [W/m^2]
+ * @param[in] z_phys_nd Optional nodal physical heights (layer interfaces on a nonuniform grid)
  * @param[in] has_hetero_alb_sw true if hetero_alb_sw is available
  * @param[in] hetero_alb_sw Optional per-column SW surface albedo field
  * @param[in] has_hetero_emiss_lw true if hetero_emiss_lw is available
  * @param[in] hetero_emiss_lw Optional per-column LW surface emissivity field
  * @param[in] has_t_sfc true if t_sfc is available
  * @param[in] t_sfc Optional per-column surface temperature field [K]
+ * @param[in] has_latlon true if per-column latitude and longitude fields are available
+ * @param[in] lat_arr Optional per-column latitude [degrees] (dynamic sun)
+ * @param[in] lon_arr Optional per-column longitude [degrees, east positive] (dynamic sun)
+ * @param[out] rad_flux_out Optional 4-component flux output in RRTMGP's layout: at the
+ * lower interface of layer k, component 0 is the upward SW, 1 the downward SW
+ * (direct plus diffuse), 2 the upward LW and 3 the downward LW [W/m^2]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
@@ -870,15 +877,19 @@ void vertical_two_stream_sweep(
     amrex::Real& sw_up_toa,
     amrex::Real& lw_net_surface,
     amrex::Real& lw_up_toa,
+    amrex::Real& sw_down_toa,
     const amrex::Array4<const amrex::Real>& z_phys_nd,
     const amrex::Array4<amrex::Real>& scratch,
-    amrex::Real time_utc_seconds = 0.0,
     bool has_hetero_alb_sw = false,
     const amrex::Array4<const amrex::Real>* hetero_alb_sw = nullptr,
     bool has_hetero_emiss_lw = false,
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw = nullptr,
     bool has_t_sfc = false,
-    const amrex::Array4<const amrex::Real>* t_sfc = nullptr)
+    const amrex::Array4<const amrex::Real>* t_sfc = nullptr,
+    bool has_latlon = false,
+    const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
+    const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
+    const amrex::Array4<amrex::Real>* rad_flux_out = nullptr)
 {
     // Grid bounds: kmin is the surface layer, kmax the top layer.
     const int kmin = bx.smallEnd(2);
@@ -935,35 +946,43 @@ void vertical_two_stream_sweep(
         }
     }
 
-    // Solar zenith angle (optionally time-varying)
+    // Cosine of the solar zenith angle: the fixed value of
+    // erf.fixed_solar_zenith_angle, or the sun's position over this column at
+    // the calendar time of the call, with the same formula RRTMGP uses
+    // (orbital_cos_zenith without the interval average). The latitude and
+    // longitude are the column's own where the grid carries them, else the
+    // erf.rad_cons_lat/lon constants.
     amrex::Real cos_zenith;
-    if (rad_choice.solar_geometry_dynamic_enable) {
-        cos_zenith = compute_cos_zenith_angle(
-            time_utc_seconds,
-            rad_choice.latitude_deg,
-            rad_choice.longitude_deg,
-            rad_choice.day_of_year,
-            rad_choice.time_zone_offset_hours);
+    if (rad_choice.solar_dynamic) {
+        const amrex::Real lat_rad = (has_latlon && lat_arr != nullptr && lat_arr->contains(i, j, 0))
+                                        ? (*lat_arr)(i, j, 0) * PI / 180.0 : rad_choice.lat_cons_rad;
+        const amrex::Real lon_rad = (has_latlon && lon_arr != nullptr && lon_arr->contains(i, j, 0))
+                                        ? (*lon_arr)(i, j, 0) * PI / 180.0 : rad_choice.lon_cons_rad;
+        cos_zenith = static_cast<amrex::Real>(
+            orbital_cos_zenith_instant(rad_choice.calday, lat_rad, lon_rad, rad_choice.declin));
     } else {
-        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * PI / 180.0;
-        cos_zenith = std::cos(zenith_rad);
+        cos_zenith = rad_choice.cos_zenith_fixed;
     }
 
-    // Solar constant, optionally scaled by the Earth-Sun distance factor.
-    const amrex::Real S0 = rad_choice.S0 *
-        (rad_choice.earth_sun_distance_enable
-             ? compute_earth_sun_distance_factor(rad_choice.day_of_year) : 1.0);
+    // Top-of-atmosphere irradiance of this call (fixed, or 1360.9 W/m^2
+    // times the Earth-Sun distance factor of the date; set by the driver).
+    const amrex::Real S0 = rad_choice.S0;
     const amrex::Real tau_sw_base = rad_choice.tau_per_layer;
     const amrex::Real tau_lw_base = rad_choice.tau_lw_per_layer;
 
     amrex::Real local_max_heating = 0.0;
 
     // Zero-initialize this column's heating rate output (covers the
-    // sw_enabled=false and lw_enabled=false cases).
+    // sw_enabled=false and lw_enabled=false cases), and the interface fluxes
+    // when they are wanted (a disabled band or night leaves zeros).
     for (int k = kmin; k <= kmax; ++k) {
         qheating_arr(i, j, k, 0) = 0.0;
         qheating_arr(i, j, k, 1) = 0.0;
+        if (rad_flux_out != nullptr) {
+            for (int comp = 0; comp < 4; ++comp) { (*rad_flux_out)(i, j, k, comp) = 0.0; }
+        }
     }
+    sw_down_toa = (rad_choice.sw_enabled && cos_zenith > 0.0) ? S0 * cos_zenith : 0.0;
 
     // ========================================================================
     // SHORTWAVE. Interfaces m = 0 (surface) .. nlev (TOA); layer m lies
@@ -1034,6 +1053,10 @@ void vertical_two_stream_sweep(
             const amrex::Real d_m = (L.T_dif * d_above + L.T_dir * F_dir(m + 1) + L.R_dif * S(m)) / denom;
             const amrex::Real u_m = A(m) * d_m + S(m);
             const amrex::Real F_net_m = F_dir(m) + d_m - u_m;
+            if (rad_flux_out != nullptr) {
+                (*rad_flux_out)(i, j, k, 0) = u_m;              // SW up at the lower interface of layer k
+                (*rad_flux_out)(i, j, k, 1) = F_dir(m) + d_m;   // SW down, direct plus diffuse
+            }
 
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
             if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
@@ -1108,6 +1131,10 @@ void vertical_two_stream_sweep(
             const int m = k - kmin;
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
             if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rad_flux_out != nullptr) {
+                (*rad_flux_out)(i, j, k, 2) = F_lw_up_iface(m);    // LW up at the lower interface of layer k
+                (*rad_flux_out)(i, j, k, 3) = F_lw_down_iface(m);  // LW down
+            }
 
             amrex::Real F_net_top = F_lw_up_iface(m + 1) - F_lw_down_iface(m + 1);
             amrex::Real F_net_bot = F_lw_up_iface(m)     - F_lw_down_iface(m);

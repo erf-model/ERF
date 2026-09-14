@@ -1176,13 +1176,8 @@ Radiation::run_impl ()
 
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     double delta, eccf;
-    // Want day + fraction; calday 1 == Jan 1 0Z
-    static constexpr double dpy[] = {zero  ,  Real(31.0),  Real(59.0),  Real(90.0), Real(120.0), Real(151.0),
-                                     Real(181.0), Real(212.0), Real(243.0), Real(273.0), Real(304.0), Real(334.0)};
-    bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-    double calday = one + dpy[m_orbital_mon-1] + (m_orbital_day-one) + m_orbital_sec/Real(86400.0);
-    // add extra day if leap year and past February
-    if (leap && m_orbital_mon>2) { calday += one; }
+    // Day of the year plus fraction, calday 1 == Jan 1 0Z (leap-aware)
+    double calday = orbital_calday(m_orbital_year, m_orbital_mon, m_orbital_day, m_orbital_sec);
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     // Overwrite eccf if using a fixed solar constant.

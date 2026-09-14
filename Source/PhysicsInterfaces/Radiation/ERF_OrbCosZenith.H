@@ -4,6 +4,8 @@
 #include <vector>
 #include <cmath>
 
+#include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
 #include <ERF_Constants.H>
 
 typedef double real;
@@ -471,6 +473,43 @@ orbital_params (int& iyear_AD,
 }
 
 
+/**
+ * Day of the year plus fraction of the day, with calday 1.0 at 00:00 UTC on
+ * 1 January, from a UTC calendar date: the form orbital_decl takes. Leap
+ * years add a day after February, as in the RRTMGP interface.
+ */
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+real
+orbital_calday (int year, int mon, int day, int sec)
+{
+    static constexpr real dpy[] = {zero, real(amrex::Real(31.0)), real(amrex::Real(59.0)),
+                                   real(amrex::Real(90.0)), real(amrex::Real(120.0)), real(amrex::Real(151.0)),
+                                   real(amrex::Real(181.0)), real(amrex::Real(212.0)), real(amrex::Real(243.0)),
+                                   real(amrex::Real(273.0)), real(amrex::Real(304.0)), real(amrex::Real(334.0))};
+    const bool leap = (year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0));
+    real calday = one + dpy[mon-1] + real(day - 1) + real(sec) / real(amrex::Real(86400.0));
+    if (leap && mon > 2) { calday += one; }
+    return calday;
+}
+
+/**
+ * Instantaneous cosine of the solar zenith angle at latitude lat and
+ * longitude lon (radians, east positive) at calday for declination declin
+ * (radians). This is the formula orbital_cos_zenith uses when it is not
+ * asked to average over an interval; it is callable from device code so a
+ * per-column kernel can evaluate it.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+real
+orbital_cos_zenith_instant (real jday, real lat, real lon, real declin)
+{
+    return std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
+           std::cos((jday - std::floor(jday))*real(two)*PI + lon);
+}
+
+
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 real
@@ -604,8 +643,7 @@ orbital_cos_zenith (real& jday,
     if (use_dt_avg) {
         return orbital_avg_cos_zenith(jday, lat, lon, declin, dt_avg);
     } else {
-        return  std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
-                std::cos((jday-floor(jday))*real(two)*PI + lon);
+        return orbital_cos_zenith_instant(jday, lat, lon, declin);
     }
 }
 #endif

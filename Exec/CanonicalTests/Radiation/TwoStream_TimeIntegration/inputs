@@ -103,12 +103,13 @@ erf.input_sounding_file = "input_sounding_timing"
 # Extended (stop_time 2.5, dt 0.5, 5 steps) to 10 steps
 # (stop_time 5.0) to verify temporal consistency over a longer simulation.
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 1.0
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
+erf.fixed_solar_zenith_angle = 0.5    # cos(60 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 erf.radiation.v = 1
 erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_timing_diag.dat"

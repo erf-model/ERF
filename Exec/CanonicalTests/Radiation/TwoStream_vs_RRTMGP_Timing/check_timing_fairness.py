@@ -101,16 +101,17 @@ def main():
                      "shared settings belong in %s" % (name, key, COMMON))
         print("  %-18s adds %d settings, all solver-local" % (name, len(own) - 1))
 
-    # 4. both solvers must see the same surface temperature
-    ts = settings(os.path.join(HERE, "inputs_twostream"))
-    rr_t = settings(os.path.join(HERE, "inputs_rrtmgp")).get("erf.rad_t_sfc")
-    ts_t = ts.get("erf.radiation.surface_temp_k")
-    if rr_t is None or ts_t is None or float(rr_t) != float(ts_t):
-        note("surface temperature differs between the solvers "
-             "(RRTMGP %s, two-stream %s); the lower boundary must match"
-             % (rr_t, ts_t))
-    else:
-        print("  both solvers use surface temperature %s K" % ts_t)
+    # 4. both solvers must see the same surface temperature and sun. These
+    #    are inputs the two solvers share, so they live in the shared block.
+    for key in ("erf.rad_t_sfc", "erf.fixed_solar_zenith_angle",
+                "erf.fixed_total_solar_irradiance"):
+        if key not in common:
+            note("%s is not in %s; the two solvers would not see the same "
+                 "surface temperature or sun" % (key, COMMON))
+    if not failures:
+        print("  both solvers use surface temperature %s K, cos(zenith) %s, TSI %s W/m^2"
+              % (common.get("erf.rad_t_sfc"), common.get("erf.fixed_solar_zenith_angle"),
+                 common.get("erf.fixed_total_solar_irradiance")))
 
     # 5. radiation must run every step on both sides
     rr = settings(os.path.join(HERE, "inputs_rrtmgp"))

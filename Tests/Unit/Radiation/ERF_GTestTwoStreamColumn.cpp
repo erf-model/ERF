@@ -63,21 +63,33 @@ constexpr amrex::Real kSigma = 5.670374419e-8;
 struct ColumnResult {
     std::vector<amrex::Real> q_sw;
     std::vector<amrex::Real> q_lw;
+    // Interface fluxes at each layer's lower interface (ERF's rad_fluxes layout)
+    std::vector<amrex::Real> flux_sw_up;
+    std::vector<amrex::Real> flux_sw_dn;
+    std::vector<amrex::Real> flux_lw_up;
+    std::vector<amrex::Real> flux_lw_dn;
     amrex::Real max_heating = 0.0;
     amrex::Real sw_surface = 0.0;
     amrex::Real sw_up_toa = 0.0;
     amrex::Real lw_net_surface = 0.0;
     amrex::Real lw_up_toa = 0.0;
+    amrex::Real sw_down_toa = 0.0;
 };
 
 // Run the sweep for a column with uniform density `rho` and uniform
 // absolute temperature `T_air` (converted to rho*theta through the EOS).
+// `params_override` replaces the kernel parameters derived from the RadChoice
+// (to set the sun directly); `latlon_deg` hands the column a latitude and
+// longitude field, as a WRF grid would.
 ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
                                  int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0,
                                  amrex::Real qc = 0.0,
-                                 const std::vector<amrex::Real>* z_faces = nullptr)
+                                 const std::vector<amrex::Real>* z_faces = nullptr,
+                                 const TwoStreamParams* params_override = nullptr,
+                                 const amrex::Real* latlon_deg = nullptr)
 {
-    const TwoStreamParams rad_choice = make_two_stream_params(rad_choice_in);
+    const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
+                                                                    : make_two_stream_params(rad_choice_in);
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
     const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
     const int is_periodic[3] = {1, 1, 0};
@@ -86,6 +98,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     // Carry the moisture components so qv can be set (zero by default).
     amrex::FArrayBox state(bx, RhoQ2_comp + 1);
     amrex::FArrayBox qheating(bx, 2);
+    amrex::FArrayBox fluxes(bx, 4);
     const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp, qv);
     state.setVal<amrex::RunOn::Device>(0.0);
     state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
@@ -93,11 +106,13 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
     state.setVal<amrex::RunOn::Device>(rho * qc, bx, RhoQ2_comp, 1);
     qheating.setVal<amrex::RunOn::Device>(0.0);
+    fluxes.setVal<amrex::RunOn::Device>(0.0);
 
-    amrex::Gpu::DeviceVector<amrex::Real> scalars(5, 0.0);
+    amrex::Gpu::DeviceVector<amrex::Real> scalars(6, 0.0);
     amrex::Real* scalar_ptr = scalars.data();
     const auto state_arr = state.const_array();
     const auto qheating_arr = qheating.array();
+    const auto flux_arr = fluxes.array();
     // Interface heights on the nodal box when the caller supplies a stretched
     // grid (nz + 1 faces); otherwise the sweep uses the uniform spacing.
     amrex::FArrayBox z_nd(amrex::surroundingNodes(bx), 1);
@@ -119,10 +134,21 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     amrex::FArrayBox scratch(two_stream_scratch_box(bx), TwoStreamScratch::NCOMP);
     const auto scratch_arr = scratch.array();
 
+    // Optional latitude/longitude fields of the column (2D, k = 0).
+    const amrex::Box xy_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox lat_fab(xy_box, 1);
+    amrex::FArrayBox lon_fab(xy_box, 1);
+    const bool has_latlon = (latlon_deg != nullptr);
+    if (has_latlon) {
+        lat_fab.setVal<amrex::RunOn::Device>(latlon_deg[0]);
+        lon_fab.setVal<amrex::RunOn::Device>(latlon_deg[1]);
+    }
+    const auto lat_arr = lat_fab.const_array();
+    const auto lon_arr = lon_fab.const_array();
+
     // Geometry::CellSize() is host-only, so read it before the device lambda.
     const amrex::Real dz_uniform = geom.CellSize(2);
 
-    const amrex::Box xy_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
     {
         amrex::Real max_heating = 0.0;
@@ -130,33 +156,45 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
         amrex::Real sw_up = 0.0;
         amrex::Real lw_net = 0.0;
         amrex::Real lw_up = 0.0;
+        amrex::Real sw_toa = 0.0;
         vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
-                                  qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up,
-                                  no_z_phys, scratch_arr);
+                                  qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up, sw_toa,
+                                  no_z_phys, scratch_arr,
+                                  false, nullptr, false, nullptr, false, nullptr,
+                                  has_latlon, &lat_arr, &lon_arr, &flux_arr);
         scalar_ptr[0] = max_heating;
         scalar_ptr[1] = sw_surface;
         scalar_ptr[2] = sw_up;
         scalar_ptr[3] = lw_net;
         scalar_ptr[4] = lw_up;
+        scalar_ptr[5] = sw_toa;
     });
     amrex::Gpu::streamSynchronize();
 
     ColumnResult result;
-    std::vector<amrex::Real> host_scalars(5);
+    std::vector<amrex::Real> host_scalars(6);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, scalars.begin(), scalars.end(), host_scalars.begin());
     result.max_heating = host_scalars[0];
     result.sw_surface = host_scalars[1];
     result.sw_up_toa = host_scalars[2];
     result.lw_net_surface = host_scalars[3];
     result.lw_up_toa = host_scalars[4];
+    result.sw_down_toa = host_scalars[5];
 
     amrex::FArrayBox host_q(bx, 2, amrex::The_Pinned_Arena());
     host_q.copy<amrex::RunOn::Device>(qheating);
+    amrex::FArrayBox host_f(bx, 4, amrex::The_Pinned_Arena());
+    host_f.copy<amrex::RunOn::Device>(fluxes);
     amrex::Gpu::streamSynchronize();
     const auto hq = host_q.const_array();
+    const auto hf = host_f.const_array();
     for (int k = 0; k < nz; ++k) {
         result.q_sw.push_back(hq(0, 0, k, 0));
         result.q_lw.push_back(hq(0, 0, k, 1));
+        result.flux_sw_up.push_back(hf(0, 0, k, 0));
+        result.flux_sw_dn.push_back(hf(0, 0, k, 1));
+        result.flux_lw_up.push_back(hf(0, 0, k, 2));
+        result.flux_lw_dn.push_back(hf(0, 0, k, 3));
     }
     return result;
 }
@@ -169,11 +207,11 @@ RadChoice base_choice ()
     rc.lw_enabled = true;
     rc.tau_per_layer = 0.05;
     rc.tau_lw_per_layer = 1.0;
-    rc.solar_zenith_deg = 60.0;
-    rc.S0 = 1361.0;
+    rc.fixed_solar_zenith_angle = 0.5;        // cos(60 degrees), the RRTMGP convention
+    rc.fixed_total_solar_irradiance = 1361.0;
     rc.surface_albedo_sw = 0.3;
     rc.surface_emissivity_lw = 1.0;
-    rc.surface_temp_k = 290.0;
+    rc.rad_t_sfc = 290.0;
     return rc;
 }
 
@@ -215,8 +253,8 @@ TEST(TwoStreamColumn, ShortwaveHeatingDecreasesFromTopToSurface)
     }
 
     // Absorbed surface flux: Beer-Lambert through kNz layers, times (1 - albedo).
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real expected = rc.S0 * mu0 * std::exp(-kNz * rc.tau_per_layer / mu0)
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real expected = rc.fixed_total_solar_irradiance * mu0 * std::exp(-kNz * rc.tau_per_layer / mu0)
                                  * (1.0 - rc.surface_albedo_sw);
     EXPECT_NEAR(r.sw_surface, expected, 1.0e-9 * expected);
     EXPECT_GT(r.max_heating, 0.0);
@@ -225,7 +263,7 @@ TEST(TwoStreamColumn, ShortwaveHeatingDecreasesFromTopToSurface)
 TEST(TwoStreamColumn, LongwaveCoolsToSpaceFromTheTopLayer)
 {
     const RadChoice rc = base_choice();
-    const amrex::Real T = rc.surface_temp_k;   // air and surface at the same T
+    const amrex::Real T = rc.rad_t_sfc;   // air and surface at the same T
     const ColumnResult r = run_uniform_column(rc, 1.0, T);
 
     // An isothermal column over a black surface at the same temperature can
@@ -257,10 +295,10 @@ TEST(TwoStreamColumn, HeatingRatesArePotentialTemperatureTendencies)
     const amrex::Real T_air = 290.0;
     const ColumnResult r = run_uniform_column(rc, rho, T_air);
 
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
     const amrex::Real tau = rc.tau_per_layer;
     const amrex::Real tau_col = kNz * tau;
-    const amrex::Real F0 = rc.S0 * mu0;
+    const amrex::Real F0 = rc.fixed_total_solar_irradiance * mu0;
     const amrex::Real F_dir_sfc = F0 * std::exp(-tau_col / mu0);
     // Net downward flux at the top interface and below the top layer.
     const amrex::Real u_top = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * tau_col);
@@ -285,9 +323,9 @@ TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
 
     // Non-scattering layers: the reflected beam alpha * F_dir(0) travels up
     // as diffuse light with transmittance exp(-2 tau) per layer.
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
     const amrex::Real tau_col = kNz * rc.tau_per_layer;
-    const amrex::Real F_dir_sfc = rc.S0 * mu0 * std::exp(-tau_col / mu0);
+    const amrex::Real F_dir_sfc = rc.fixed_total_solar_irradiance * mu0 * std::exp(-tau_col / mu0);
     const amrex::Real expected_up = rc.surface_albedo_sw * F_dir_sfc * std::exp(-2.0 * tau_col);
     EXPECT_NEAR(r.sw_up_toa, expected_up, 1.0e-6 * expected_up);
 
@@ -301,7 +339,7 @@ TEST(TwoStreamColumn, ShortwaveEnergyBudgetClosesWithSurfaceReflection)
     for (int k = 0; k < kNz; ++k) {
         absorbed_air += rho * Cp_d * kDz * exner * r.q_sw[k];
     }
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
     EXPECT_NEAR(absorbed_air + r.sw_surface, incident - r.sw_up_toa, 1.0e-9 * incident);
 }
 
@@ -312,8 +350,8 @@ TEST(TwoStreamColumn, ConservativeScatteringDepositsNoEnergyInTheAir)
     rc.asymmetry_factor = 0.6;
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
 
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
     for (int k = 0; k < kNz; ++k) {
         EXPECT_NEAR(r.q_sw[k], 0.0, 1.0e-7 * incident / (Cp_d * kDz)) << "k = " << k;
     }
@@ -327,7 +365,7 @@ TEST(TwoStreamColumn, GraySurfaceReflectsDownwellingLongwave)
 {
     RadChoice rc = base_choice();
     rc.surface_emissivity_lw = 0.5;
-    const amrex::Real T = rc.surface_temp_k;
+    const amrex::Real T = rc.rad_t_sfc;
     const ColumnResult r = run_uniform_column(rc, 1.0, T);
 
     // F_up(0) = eps B + (1 - eps) F_down(0), F_down(0) = B (1 - exp(-tau_col))
@@ -344,13 +382,19 @@ TEST(TwoStreamColumn, GraySurfaceReflectsDownwellingLongwave)
 
 TEST(TwoStreamColumn, NightHasNoShortwave)
 {
-    RadChoice rc = base_choice();
-    rc.solar_zenith_deg = 120.0;   // sun below the horizon
-    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
+    // A non-positive cosine cannot be given through erf.fixed_solar_zenith_angle
+    // (that means "follow the calendar"), so set the kernel's sun directly.
+    const RadChoice rc = base_choice();
+    TwoStreamParams p = make_two_stream_params(rc);
+    p.solar_dynamic = false;
+    p.cos_zenith_fixed = -0.5;   // sun below the horizon
+    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
     for (int k = 0; k < kNz; ++k) {
         EXPECT_EQ(r.q_sw[k], 0.0) << "k = " << k;
+        EXPECT_EQ(r.flux_sw_dn[k], 0.0) << "k = " << k;
     }
     EXPECT_EQ(r.sw_surface, 0.0);
+    EXPECT_EQ(r.sw_down_toa, 0.0);
 }
 
 TEST(TwoStreamColumn, DisabledBandsWriteZeroHeating)
@@ -454,7 +498,7 @@ TEST(TwoStreamColumn, MassBasedLongwaveIsIndependentOfVerticalResolution)
     rc.lw_mass_absorption_enable = true;
     rc.lw_kabs_dry = 1.0e-4;
     rc.lw_kabs_vapor = 0.1;
-    rc.surface_temp_k = 300.0;
+    rc.rad_t_sfc = 300.0;
     const amrex::Real rho = 1.0;
     const amrex::Real qv = 0.01;
 
@@ -521,8 +565,8 @@ TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
     rc.single_scattering_albedo = 1.0;   // conservative scattering: diffuse flux reaches the surface
     rc.asymmetry_factor = 0.6;
     rc.surface_albedo_sw = 0.2;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
 
     rc.surface_albedo_sw_diffuse = -1.0;   // same as direct
     const ColumnResult same = run_uniform_column(rc, 1.0, 290.0);
@@ -545,24 +589,72 @@ TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
     EXPECT_NEAR(dark.sw_surface, ref.sw_surface, 1.0e-12 * incident);
 }
 
-TEST(TwoStreamColumn, EarthSunDistanceFactorScalesTheSolarConstant)
+TEST(TwoStreamColumn, TopOfAtmosphereIrradianceScalesTheShortwave)
 {
-    // Spencer (1971): perihelion in early January, aphelion in early July.
-    EXPECT_NEAR(compute_earth_sun_distance_factor(3.0), 1.034, 2.0e-3);
-    EXPECT_NEAR(compute_earth_sun_distance_factor(185.0), 0.967, 2.0e-3);
-    amrex::Real mean = 0.0;
-    for (int d = 1; d <= 365; ++d) mean += compute_earth_sun_distance_factor(d);
-    EXPECT_NEAR(mean / 365.0, 1.0, 1.0e-3);
-    EXPECT_EQ(compute_earth_sun_distance_factor(std::nan("")), 1.0);
+    // The driver sets S0 per call (erf.fixed_total_solar_irradiance, or
+    // 1360.9 W/m^2 times the Earth-Sun distance factor of the date); every
+    // shortwave flux is linear in it.
+    const RadChoice rc = base_choice();
+    const ColumnResult ref = run_uniform_column(rc, 1.0, 290.0);
+    TwoStreamParams p = make_two_stream_params(rc);
+    const amrex::Real f = 1.034;   // perihelion
+    p.S0 = f * rc.fixed_total_solar_irradiance;
+    const ColumnResult on = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
+    EXPECT_NEAR(on.sw_surface, f * ref.sw_surface, 1.0e-9 * ref.sw_surface);
+    EXPECT_NEAR(on.sw_up_toa, f * ref.sw_up_toa, 1.0e-9 * ref.sw_up_toa);
+    EXPECT_NEAR(on.sw_down_toa, f * ref.sw_down_toa, 1.0e-9 * ref.sw_down_toa);
+    EXPECT_NEAR(ref.sw_down_toa, rc.fixed_total_solar_irradiance * rc.fixed_solar_zenith_angle, 1.0e-9);
+}
 
-    RadChoice rc = base_choice();
-    rc.day_of_year = 3.0;
-    const ColumnResult off = run_uniform_column(rc, 1.0, 290.0);
-    rc.earth_sun_distance_enable = true;
-    const ColumnResult on = run_uniform_column(rc, 1.0, 290.0);
-    const amrex::Real f = compute_earth_sun_distance_factor(3.0);
-    EXPECT_NEAR(on.sw_surface, f * off.sw_surface, 1.0e-9 * off.sw_surface);
-    EXPECT_NEAR(on.sw_up_toa, f * off.sw_up_toa, 1.0e-9 * off.sw_up_toa);
+TEST(TwoStreamColumn, CalendarSunFollowsTheColumnLatitude)
+{
+    // With the calendar sun the kernel evaluates RRTMGP's instantaneous
+    // cos(zenith) over each column. At 12:00 UTC on the June solstice the
+    // sun stands at the declination over longitude 0: cos(zenith) is
+    // cos(declination) on the equator and cos(60 - declination) at 60N.
+    const RadChoice rc = base_choice();
+    TwoStreamParams p = make_two_stream_params(rc);
+    p.solar_dynamic = true;
+    p.calday = 172.5;
+    p.declin = 23.44 * PI / 180.0;
+    p.lat_cons_rad = 0.0;
+    p.lon_cons_rad = 0.0;
+    const amrex::Real S0 = rc.fixed_total_solar_irradiance;
+
+    const ColumnResult equator = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
+    EXPECT_NEAR(equator.sw_down_toa, S0 * std::cos(p.declin), 1.0e-9 * S0);
+
+    // A latitude field on the grid takes precedence over the constants.
+    const amrex::Real latlon[2] = {60.0, 0.0};
+    const ColumnResult north = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p, latlon);
+    EXPECT_NEAR(north.sw_down_toa, S0 * std::cos(60.0 * PI / 180.0 - p.declin), 1.0e-9 * S0);
+    EXPECT_GT(equator.sw_down_toa - north.sw_down_toa, 0.1 * S0);
+    EXPECT_GT(equator.sw_surface, north.sw_surface);
+
+    // Twelve hours later the same column is in the dark.
+    p.calday = 173.0;
+    const ColumnResult night = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
+    EXPECT_EQ(night.sw_down_toa, 0.0);
+    EXPECT_EQ(night.sw_surface, 0.0);
+}
+
+TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
+{
+    // The 4-component flux output (SW up, SW down, LW up, LW down at each
+    // layer's lower interface, ERF's rad_fluxes layout) must agree with the
+    // scalar surface and top-of-atmosphere diagnostics of the same sweep.
+    const RadChoice rc = base_choice();
+    const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
+    const amrex::Real alb = rc.surface_albedo_sw;   // direct and diffuse albedo are equal here
+    EXPECT_NEAR(r.sw_surface, (1.0 - alb) * r.flux_sw_dn[0], 1.0e-9 * r.sw_surface);
+    EXPECT_NEAR(r.flux_sw_up[0], alb * r.flux_sw_dn[0], 1.0e-9 * r.sw_surface);
+    EXPECT_NEAR(r.flux_lw_up[0] - r.flux_lw_dn[0], r.lw_net_surface, 1.0e-9 * std::abs(r.lw_net_surface));
+    // The beam weakens on the way down and every interface lies below the top.
+    for (int k = kNz - 1; k > 0; --k) {
+        EXPECT_LT(r.flux_sw_dn[k - 1], r.flux_sw_dn[k]) << "k = " << k;
+    }
+    EXPECT_LT(r.flux_sw_dn[kNz - 1], r.sw_down_toa);
+    EXPECT_GT(r.flux_lw_up[0], 0.0);
 }
 
 TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)
@@ -573,8 +665,8 @@ TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)
     rc.sw_kscat_dry = 3.0e-6;
     rc.sw_kabs_vapor = 4.0e-3;
     const amrex::Real rho = 1.0, qv = 0.01;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
 
     const ColumnResult coarse = run_uniform_column(rc, rho, 290.0, 8, 100.0, qv);
     const ColumnResult fine   = run_uniform_column(rc, rho, 290.0, 32, 25.0, qv);
@@ -650,8 +742,8 @@ TEST(TwoStreamColumn, MassModelRayleighOnlyColumnAbsorbsNothing)
     rc.sw_kabs_dry = 0.0;
     rc.sw_kscat_dry = 2.0e-5;   // exaggerated Rayleigh so the effect is visible
     rc.sw_kabs_vapor = 0.0;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0);
     for (int k = 0; k < kNz; ++k) {
         EXPECT_NEAR(r.q_sw[k], 0.0, 1.0e-7 * incident / (Cp_d * kDz)) << "k = " << k;
@@ -688,8 +780,8 @@ TEST(TwoStreamColumn, MassModelIsIndependentOfTheStretching)
     rc.sw_kscat_dry = 3.0e-6;
     rc.lw_kabs_dry = 1.0e-4;
     const amrex::Real rho = 1.0;
-    const amrex::Real mu0 = std::cos(rc.solar_zenith_deg * PI / 180.0);
-    const amrex::Real incident = rc.S0 * mu0;
+    const amrex::Real mu0 = rc.fixed_solar_zenith_angle;
+    const amrex::Real incident = rc.fixed_total_solar_irradiance * mu0;
     const int nz = 8;
     const amrex::Real height = 800.0;
 

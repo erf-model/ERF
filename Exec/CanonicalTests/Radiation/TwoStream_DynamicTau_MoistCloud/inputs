@@ -113,14 +113,14 @@ erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.05
 erf.radiation.tau_lw_per_layer = 1.0
-erf.radiation.solar_zenith = 45.0
-erf.radiation.S0 = 1361.0
+erf.fixed_solar_zenith_angle = 0.7071067811865476    # cos(45 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 
 # Surface Properties (Fallback Scalars)
 # These are used when hetero fields are unavailable/invalid
 erf.radiation.surface_albedo_sw = 0.3      # Land/water typical albedo
 erf.radiation.surface_emissivity_lw = 0.99 # Land/water typical emissivity (blackbody-like)
-erf.radiation.surface_temp_k = 300.0       # Typical surface temperature [K]
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 
 # Cloud Layer (optional, for testing with clouds)
 erf.radiation.tau_profile_type = "constant"

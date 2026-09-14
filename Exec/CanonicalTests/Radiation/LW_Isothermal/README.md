@@ -13,7 +13,7 @@ uniform absolute temperature over a black surface at the same temperature.
 - **Time**: one slow step (0.25 s)
 - **Sounding**: `theta(z) = T0 exp(g z / (c_p T0))` with `T0 = 300 K`, so `T = theta * pi = T0`
   at every level (the sounding is piecewise linear between five levels, accurate to ~0.05 K)
-- **Surface**: `surface_temp_k = 300`, `surface_emissivity_lw = 1`
+- **Surface**: `erf.rad_t_sfc = 300`, `surface_emissivity_lw = 1`
 - **Longwave optical depth per layer**: `tau_lw = 1.0` (the 64-layer column is opaque)
 - **Shortwave**: disabled
 

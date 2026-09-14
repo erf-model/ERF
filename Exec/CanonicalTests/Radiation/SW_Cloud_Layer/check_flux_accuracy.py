@@ -149,8 +149,8 @@ def check_sw_cloud_layer_accuracy():
     if data is None:
         return False
 
-    S0 = read_input_real(inputs, "erf.radiation.S0", 1361.0)
-    zenith_deg = read_input_real(inputs, "erf.radiation.solar_zenith", 45.0)
+    S0 = read_input_real(inputs, "erf.fixed_total_solar_irradiance", 1360.9)
+    cos_zenith = read_input_real(inputs, "erf.fixed_solar_zenith_angle", 0.5)   # a cosine, as RRTMGP takes it
     tau_per_layer = read_input_real(inputs, "erf.radiation.tau_per_layer", 0.05)
     cloud_base_m = read_input_real(inputs, "erf.radiation.cloud_base_height_m", 500.0)
     cloud_top_m = read_input_real(inputs, "erf.radiation.cloud_top_height_m", 1000.0)
@@ -161,7 +161,6 @@ def check_sw_cloud_layer_accuracy():
     prob_extent = read_input_reals(inputs, "geometry.prob_extent", [3000.0, 3000.0, 1024.0])
     n_layers = n_cell[2]
     dz = prob_extent[2] / n_layers
-    cos_zenith = math.cos(math.radians(zenith_deg))
 
     expected_toa_flux = S0 * cos_zenith
     F_clear = column_direct_flux(n_layers, dz, tau_per_layer, S0, cos_zenith,
@@ -177,7 +176,7 @@ def check_sw_cloud_layer_accuracy():
     print("Two-Stream Radiation: SW Cloud-Layer Test")
     print(f"{'='*70}")
     print("\nTest Parameters (from inputs):")
-    print(f"  S0 = {S0:.2f} W/m^2, zenith = {zenith_deg:.1f} deg, cos(zenith) = {cos_zenith:.4f}")
+    print(f"  S0 = {S0:.2f} W/m^2, cos(zenith) = {cos_zenith:.4f} ({math.degrees(math.acos(cos_zenith)):.1f} deg)")
     print(f"  Layers = {n_layers}, dz = {dz:.2f} m, tau_per_layer = {tau_per_layer:.6f}")
     print(f"  Cloud band = [{cloud_base_m:.1f}, {cloud_top_m:.1f}] m, "
           f"cloud_tau_per_layer = {cloud_tau_per_layer:.3f}, cloud_fraction = {cloud_fraction:.2f}")
