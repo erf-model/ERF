@@ -100,6 +100,7 @@ ERF::ERF_shared ()
 
     qheating_rates.resize(nlevs_max);
     rad_fluxes.resize(nlevs_max);
+    two_stream_rad.resize(nlevs_max);
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);
@@ -153,6 +154,8 @@ ERF::ERF_shared ()
         } else if (solverChoice.rad_type == RadiationType::Simple) {
             rad[lev] = std::make_unique<RadiationSimple>(lev, solverChoice);
             rad[lev]->setDataLogFrequency(rad_datalog_int);
+        } else if (solverChoice.rad_type == RadiationType::TwoStream) {
+            // Runs through TwoStreamRadiation (two_stream_rad), not IRadiation.
         } else if (solverChoice.rad_type != RadiationType::None) {
             Abort("Don't know this radiation model!");
         }
