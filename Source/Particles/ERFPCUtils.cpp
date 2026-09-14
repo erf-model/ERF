@@ -1,6 +1,5 @@
 #include <ERFPC.H>
 #include <ERFPCParticleToMesh.H>
-#include <ERF_Constants.H>
 #include <ERF_TerrainConversion.H>
 #include <AMReX_ParticleLocator.H>
 

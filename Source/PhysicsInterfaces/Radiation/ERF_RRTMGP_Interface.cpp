@@ -1,4 +1,5 @@
 #include "ERF_RRTMGP_Interface.H"
+#include "ERF_Constants.H"
 
 namespace rrtmgp {
 

@@ -15,7 +15,9 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_Constants.H"
 #include "ERF_MOSTAverage.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_MOSTStress.H"
+#include "ERF_MOSTUtils.H"
 #include "ERF_EBMOSTStress.H"
 #include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
@@ -47,6 +49,7 @@ public:
    * @param[in]     a_pp_prefix         ParmParse prefix used by MOST averages
    * @param[in]     Qv_prim             primitive water-vapor fields by level
    * @param[in]     z_phys_nd           nodal physical-height fields by level
+   * @param[in]     zlevels_stag        nominal staggered z levels by level
    * @param[in]     a_mesh_type         mesh type
    * @param[in]     a_terrain_type      terrain representation
    * @param[in]     a_turb_choice       turbulence-model options
@@ -60,6 +63,7 @@ public:
                          std::string a_pp_prefix,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                         const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
@@ -74,7 +78,8 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
-    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type, eb_vec)
+    m_ma(geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
+         zlevels_stag, eb_vec)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -93,12 +98,10 @@ public:
           if (read_flux) {
               flux_string = amrex::toLower(flux_string_in);
           }
-          if (flux_string == "donelan") {
-              flux_type = FluxCalcType::DONELAN;
-          } else if (flux_string == "moeng") {
+          if (flux_string == "moeng") {
               flux_type = FluxCalcType::MOENG;
           } else if (flux_string == "rico") {
-                flux_type = FluxCalcType::RICO;
+              flux_type = FluxCalcType::RICO;
           } else if (flux_string == "bulk_coeff") {
               flux_type = FluxCalcType::BULK_COEFF;
           } else if (flux_string == "custom") {
@@ -252,6 +255,10 @@ public:
           amrex::Abort("Undefined MOST roughness type for land!");
       }
 
+      // Allow for smooth-flow limit?
+      pp.queryAdd("most.smooth_flow_viscosity", smooth_flow_visc);
+      amrex::Print() << "The smooth-flow limit will be included for variable roughness models over sea: " << smooth_flow_visc << "\n";
+
       // Specify how to compute the surface flux over sea (if there is any)
       std::string rough_sea_string_in;
       std::string rough_sea_string{"charnock"};
@@ -262,29 +269,30 @@ public:
       if (rough_sea_string == "charnock") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           pp.queryAdd("most.charnock_constant", cnk_a);
-          pp.queryAdd("most.charnock_viscosity", cnk_visc);
           if (cnk_a > 0) {
               amrex::Print() << "If there is water, Charnock relation with C_a="
-                             << cnk_a << (cnk_visc ? " and viscosity" : "")
-                             << " will be used" << std::endl;
+                             << cnk_a << " will be used" << std::endl;
           } else {
               amrex::Print() << "If there is water, Charnock relation with variable "
-                  "Charnock parameter (COARE3.0)"
-                             << (cnk_visc ? " and viscosity" : "") << " will be used"
-                             << std::endl;
+                  "Charnock parameter (COARE3.0) will be used" << std::endl;
           }
       } else if (rough_sea_string == "coare3.0") {
           rough_type_sea = RoughCalcType::CHARNOCK;
           amrex::Print() << "If there is water, Charnock relation with variable "
-              "Charnock parameter (COARE3.0)"
-                         << (cnk_visc ? " and viscosity" : "") << " will be used"
-                         << std::endl;
+              "Charnock parameter (COARE3.0) will be used" << std::endl;
           cnk_a = -1;
       } else if (rough_sea_string == "donelan") {
           rough_type_sea = RoughCalcType::DONELAN;
       } else if (rough_sea_string == "modified_charnock") {
           rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
           pp.queryAdd("most.modified_charnock_depth", depth);
+          if (depth < amrex::Real(10.0) || depth > amrex::Real(100.0) ) {
+              amrex::Print() << "Specified depth of " << depth
+                             << " is outside the valid range of [10 100], resetting to bounds now."
+                             << std::endl;
+          }
+          // Limiter based upon the fit range in Jiménez & Dudhia
+          depth = amrex::min(amrex::max(depth,amrex::Real(10.0)),amrex::Real(100.0));
       } else if (rough_sea_string == "wave_coupled") {
           rough_type_sea = RoughCalcType::WAVE_COUPLED;
       } else if (rough_sea_string == "constant") {
@@ -298,7 +306,8 @@ public:
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
 
       // If we're using the RANS k model, then we need to update the dirichlet
-      // BC based on the instantaneous u* and θ*; the turbulence modeling
+      // wall value of k (written into the first cell above the wall and held
+      // there through the step) based on the instantaneous u* and θ*; the turbulence modeling
       // choices can vary per level but for now, assume that if specified then
       // all levels are using the same RANS model.
       m_update_k_rans = (a_turb_choice.rans_type == RANSType::kEqn &&
@@ -400,6 +409,7 @@ public:
           surface_diagnostic_source.resize(nlevs);
           olen.resize(nlevs);
           pblh.resize(nlevs);
+          m_planar_bndry.resize(nlevs);
       }
 
       // Get pointers to SST,TSK and LANDMASK data
@@ -550,6 +560,11 @@ public:
       const amrex::DistributionMapping& dm = mf.DistributionMap();
       const int ncomp = 1;
 
+      // Surface copies of the planar boxes (see fill_planar_boundary)
+      if (m_terrain_type != TerrainType::EB) {
+          m_planar_bndry[lev].define(ba, ba_flux, dm, m_geom[lev].Domain().smallEnd(2));
+      }
+
       // Z0 heights FAB
       //--------------------------------------------------------
       z_0[lev].define(ba_flux, dm, ncomp, ng);
@@ -681,6 +696,15 @@ public:
                             const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                             const amrex::Real tkefac = one,
                             const amrex::Real zscale = amrex::Real(700.0));
+
+  /**
+   * Fill the ghost cells of a planar surface-layer MultiFab, and the valid region of
+   * its uncomputed copies when the 3D BoxArray is split in z (see PlanarBoundary).
+   *
+   * @param[in]     lev level index
+   * @param[in,out] mf  planar MultiFab to fill
+   */
+  void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
 
   /**
    * Impose surface-layer boundary conditions for planar terrain.
@@ -833,6 +857,8 @@ public:
   void fill_qsurf_with_qsat (const int& lev,
                              const amrex::MultiFab& cons_in,
                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  void set_pblh(const int& lev, const amrex::MultiFab& pblh_in);
 
   /**
    * Updates current time index for interpolating data from SFC/SST file.
@@ -1203,9 +1229,8 @@ public:
   read_cols(const std::string& fname, const int skip_nlines = 1);
 
   enum struct FluxCalcType {
-    MOENG = 0, ///< Moeng functional form
-    DONELAN,   ///< Donelan functional form
-    CUSTOM,    ///< Custom constant flux functional form
+    MOENG = 0,  ///< Moeng functional form
+    CUSTOM,     ///< Custom constant flux functional form
     BULK_COEFF, ///< Bulk transfer coefficient functional form
     ROTATE,     ///< Terrain rotation flux functional form
     RICO
@@ -1268,7 +1293,7 @@ private:
   amrex::Real custom_rhosurf{0}; // use specified value instead of rho from first cell
   bool specified_rho_surf{false};
   amrex::Real cnk_a{amrex::Real(0.0185)};
-  bool cnk_visc{false};
+  bool smooth_flow_visc{true};
   amrex::Real depth{amrex::Real(30.0)};
   amrex::Vector<amrex::MultiFab> z_0;
   bool m_var_z0{false};
@@ -1312,6 +1337,11 @@ private:
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> pblh;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_surf;
+  // The planar BoxArray is the z-collapse of the 3D BoxArray, so a 3D BoxArray split in z
+  // gives duplicate planar boxes (see PlanarBoundary). fill_planar_boundary goes through
+  // this for u*, w* (only when it is computed), t*, q*, L, t_surf, q_surf, pblh and the
+  // diagnostic source, after each is computed on the surface copies.
+  amrex::Vector<PlanarBoundary> m_planar_bndry;
   // Diagnostic-only provenance mask. This records the cell-centered source
   // path used by the SurfaceLayer scalar diagnostic path. It must not feed
   // back into flux calculations, boundary conditions, or model state.

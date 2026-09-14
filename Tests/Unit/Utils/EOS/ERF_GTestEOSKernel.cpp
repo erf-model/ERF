@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "ERF_Constants.H"
 #include <string>
 
 #include <AMReX_Gpu.H>

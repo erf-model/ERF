@@ -15,11 +15,6 @@
 bool shoc_boxarray_spans_full_height (const amrex::BoxArray& ba,
                                       const amrex::Box& domain);
 
-void shoc_fill_physical_boundary_ghosts (amrex::MultiFab& mf,
-                                         const amrex::Geometry& geom,
-                                         int comp,
-                                         int ncomp);
-
 inline bool
 shoc_layout_requires_number_closure (const MoistureComponentIndices& indices,
                                      int ncomp) noexcept
@@ -28,27 +23,11 @@ shoc_layout_requires_number_closure (const MoistureComponentIndices& indices,
 }
 
 inline bool
-shoc_driver_host_diffusion_moisture_supported (const ShocRuntimeOptions& opts,
-                                               MoistureType moisture_type,
-                                               std::string& error_message)
-{
-    if (!shoc_uses_host_diffusion(opts.transport_mode) || moisture_type == MoistureType::None) {
-        return true;
-    }
-
-    error_message =
-        "Native SHOC host_diffusion with moisture is not yet supported because SHOC does not own cloud macrophysics in this mode while SHOC-family microphysics condensation is suppressed. Use state_update for moist SHOC runs, or run host_diffusion only for dry cases until a transport-aware microphysics ownership predicate is implemented.";
-    return false;
-}
-
-inline bool
-shoc_driver_state_update_layout_supported (const ShocRuntimeOptions& opts,
-                                           const MoistureComponentIndices& indices,
+shoc_driver_state_update_layout_supported (const MoistureComponentIndices& indices,
                                            int ncomp,
                                            std::string& error_message)
 {
-    if (!shoc_uses_state_update(opts.transport_mode) ||
-        !shoc_layout_requires_number_closure(indices, ncomp)) {
+    if (!shoc_layout_requires_number_closure(indices, ncomp)) {
         return true;
     }
 
@@ -81,15 +60,9 @@ public:
     void add_slow_tend (const amrex::MFIter& mfi,
                         const amrex::Box& tbx,
                         const amrex::Array4<amrex::Real>& cell_rhs) const;
-    bool uses_state_update () const;
-    bool uses_host_diffusion () const;
     bool uses_momentum_state_update () const;
-    bool uses_momentum_host_diffusion () const;
     bool disables_momentum_transport () const;
     bool owns_scalar_surface_fluxes () const;
-    bool owns_momentum_surface_stresses () const;
-    bool needs_host_surface_momentum_stresses () const;
-    bool owns_surface_fluxes () const;
     bool debug_summary_enabled () const { return m_opts.debug_summary; }
     bool has_native_diagnostics () const { return m_eddy_coeffs_cc.isDefined(); }
     bool has_consumed_surface_flux_diagnostics () const
@@ -132,7 +105,6 @@ public:
 private:
     int m_lev;
     ShocRuntimeOptions m_opts;
-    MoistureType m_moisture_type;
     MoistureComponentIndices m_moisture_indices;
 
     amrex::MultiFab m_theta_tend_cc;
@@ -177,7 +149,6 @@ private:
     amrex::MultiFab* m_tau23_ptr = nullptr;
     amrex::MultiFab* m_eddy_diffs_ptr = nullptr;
     amrex::Vector<std::unique_ptr<ShocColumnWorkspace>> m_column_workspaces;
-    const amrex::Geometry* m_geom_ptr = nullptr;
     int m_advance_calls = 0;
     bool m_prev_turb_valid = false;
 

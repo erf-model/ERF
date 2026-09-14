@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
@@ -9,6 +11,8 @@
 #include "ERF_PBLScaleAwareBlending.H"
 
 using namespace amrex;
+
+
 
 /**
  * Compute vertical diffusivity using the Medium-Range Forecast (MRF) boundary layer scheme.
@@ -147,7 +151,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
       phi_t = (1 - 16 * sf * h/L)^(-1/2)
 
     Stable (L > 0, HOL > 0):
-      phi_m = phi_t = 1 + 5 * sf * h/L
+      Default: phi_m = phi_t = 1 + 5 * sf * h/L
+      QNSE (if enable_qnse_stable_functions=true):
+        phi_m = (1 + qnse_am * zeta) / (1 + qnse_bm * zeta)
+        phi_t = (1 + qnse_ah * zeta) / (1 + qnse_bh * zeta)
+        where zeta = sf * h/L, and default coefficients are from
+        Sukoriansky, Galperin & Perov (2005): qnse_am=2.5, qnse_bm=0.2,
+        qnse_ah=2.5, qnse_bh=0.2. QNSE functions remain bounded as zeta→∞,
+        avoiding over-mixing suppression in very stable conditions.
 
     MIXING ABOVE PBL (Free Atmosphere):
     -----------------------------------
@@ -184,9 +195,39 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     int klo = geom.Domain().smallEnd(2);
     int khi = geom.Domain().bigEnd(2);
 
+
+
+// Collect MRF-computed PBLH for writing back to SurfaceLayer
+MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+pblh_mf.setVal(0.0);
+
+// PBLH smoothing reads one column per pass outside the cells it writes, so the
+// planar work arrays have to carry that many columns of halo and the PBLH passes
+// have to fill them: otherwise the stencil reads off the end of the tile and the
+// answer depends on the decomposition. With smoothing off this is the single
+// column of halo the diffusivity kernels already use, so nothing changes.
+const int ng_pblh = (turbChoice.enable_pblh_smoothing)
+                  ? std::max(1, turbChoice.pblh_smoothing_passes) : 1;
+if (ng_pblh > 1) {
+    const int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
+                                   xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
+                                   yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
+                                   SurfLayer->get_u_star(level)->nGrowVect()[0],
+                                   SurfLayer->get_u_star(level)->nGrowVect()[1],
+                                   SurfLayer->get_olen(level)->nGrowVect()[0],
+                                   SurfLayer->get_olen(level)->nGrowVect()[1]});
+    if (ng_pblh > ng_avail) {
+        amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
+                   + " needs " + std::to_string(ng_pblh) + " halo columns, but the state and "
+                     "surface-layer arrays carry only " + std::to_string(ng_avail)
+                   + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
+    }
+}
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
+
     for (MFIter mfi(eddyViscosity, TileNoZ()); mfi.isValid(); ++mfi) {
 
         // Box operated on must span fill domain in z-dir
@@ -198,19 +239,31 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         const GeometryData gdata = geom.data();
         const Box xybx = PerpendicularBox<ZDir>(gbx, IntVect{0, 0, 0});
 
+        // The PBLH passes run on the region the smoothing stencil will consume
+        // (see ng_pblh above). growntilebox() is no use here: it does not grow at
+        // an interior tile edge, so a tile in the middle of a box gets no halo at
+        // all -- which is exactly how the stencil came to read off the end of the
+        // array. Grow the tile box explicitly instead, which costs a little
+        // duplicated work in the overlaps. With smoothing off this is xybx and
+        // nothing is duplicated.
+        const Box gbx_work  = (turbChoice.enable_pblh_smoothing)
+                            ? amrex::grow(mfi.tilebox(), IntVect(ng_pblh,ng_pblh,0)) : gbx;
+        const Box xybx_work = PerpendicularBox<ZDir>(gbx_work, IntVect{0, 0, 0});
+        const Box xybx_tile = PerpendicularBox<ZDir>(mfi.tilebox(), IntVect{0, 0, 0});
+
         // Pass 1 (predictor): PBLH with base surface temperature, no VPERT
         // Pass 2 (wstar/VPERT): compute wstar, HGAMT, HGAMQ, VPERT from predictor height
         // Pass 3 (corrector): PBLH with VPERT-enhanced surface temperature (WRF-consistent)
         //   WRF reference (module_bl_mrf.F lines 813-964):
         //   https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L964
-        FArrayBox pbl_height_predictor(xybx, 1, The_Async_Arena());  // Pass 1: base t_layer_v
-        FArrayBox pbl_height_corrector(xybx, 1, The_Async_Arena());  // Pass 3: VPERT-enhanced
-        IArrayBox pbl_index(xybx, 1, The_Async_Arena());
-        IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
-        FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
-        FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
-        FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale
-        FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox pbl_height_predictor(xybx_work, 1, The_Async_Arena());  // Pass 1: base t_layer_v
+        FArrayBox pbl_height_corrector(xybx_work, 1, The_Async_Arena());  // Pass 3: VPERT-enhanced
+        IArrayBox pbl_index(xybx_work, 1, The_Async_Arena());
+        IArrayBox pbl_index_zero_ri(xybx_work, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
+        FArrayBox hgamt_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
+        FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
+        FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale
+        FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
         const auto& pbli_arr        = pbl_index.array();
@@ -245,7 +298,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 813-842):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L813-L842
         //
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer = t10av_arr(i, j, 0);
             const Real moisture_fraction = use_moisture ? q10av_arr(i, j, 0) : Real(0);
@@ -262,10 +315,16 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                // to better represent shear associated with surface-layer turbulence at low wind speeds.
+                // Reference: Vogelezang, D.H.P., and A.A.M. Holtslag, 1996: Evaluation and model impacts of
+                // alternative boundary-layer height formulations. Boundary-Layer Meteorology, 81, 245–269.
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, Real(1.0));
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
 
@@ -283,10 +342,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 // FIX: guard theta_v_klo against zero to prevent NaN in Rib
                 const Real theta_v_klo = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
                 const Real ws2_raw = fourth * ( (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) *
-                                              (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
-                                              (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, Real(1.0));
+                                                (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
+                                                (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                // to better represent shear associated with surface-layer turbulence at low wind speeds.
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, Real(1.0));
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -340,7 +403,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 857-880):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L857-L880
         //
-        ParallelFor(xybx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -364,7 +427,24 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // wstar = u* / phi_m
             // Absolute bounds [0.01, 5.0] m/s: prevent division-by-zero (floor) and
             // free-convection blow-up (ceiling), independent of u* for u*->0 safety.
-            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            // BOOTSTRAP NOTE: pblh_pred_arr must be finite (not sentinel) before this
+            // kernel runs. On cold start, pblh_pred_arr is computed in Pass 1 above;
+            // on regrid, SurfaceLayer PBLH may be sentinel — callers must re-run
+            // ComputeDiffusivityMRF before consuming wstar or Beljaars correction after regrid.
+            // Deardorff (1972) convective velocity scale — well-behaved as u_star -> 0.
+            // wstar_conv = (g/theta_v0 * zi * wthv0)^(1/3)
+            const Real theta_v0 = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
+            const Real wthv0 = amrex::max(-u_star_arr(i,j,0) * t_star_arr(i,j,0), Real(0.0)); // surface buoyancy flux, unstable only
+            const Real zi = amrex::max(pblh_pred_arr(i, j, 0), Real(10.0));  // or pblh_corr_arr in Pass 4
+            const Real wstar_conv = std::cbrt(CONST_GRAV / theta_v0 * zi * wthv0);
+
+            Real wstar_shear = u_star_arr(i, j, 0) / phiM_safe;
+
+            // Blend: standard convective/shear combination (WRF YSU-style),
+            // weighted by cube sum so either term can dominate smoothly
+            Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
+                                wstar_conv*wstar_conv*wstar_conv);
+
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
 
@@ -421,7 +501,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
         // WRF reference (module_bl_mrf.F lines 932-964):
         // https://github.com/wrf-model/WRF/blob/master/phys/module_bl_mrf.F#L932-L964
         //
-        ParallelFor(xybx, [=,one_d=one]
+        ParallelFor(xybx_work, [=,one_d=one]
                     AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
@@ -448,7 +528,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                 (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
             }
             Real zval0 = zval, Rib0 = Rib;         // FIX: initialize here, mirrors Pass 1
@@ -469,7 +552,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                 (uvel(i, j, kpbl) + uvel(i + 1, j, kpbl)) +
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) *
                                                 (vvel(i, j, kpbl) + vvel(i, j + 1, kpbl)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib = CONST_GRAV * zval * (theta_v - t_layer_v) / (ws2 * theta_v_klo);
                 above_critical = (Rib >= Ribcr);
             }
@@ -501,6 +587,32 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             }
         });
 
+
+        // Apply PBLH spatial smoothing if enabled (Seibert et al. 2000 methodology)
+        // Seibert et al. (2000): Review and intercomparison of operational methods
+        // for the determination of the mixing height. Atmospheric Environment, 34, 1001-1027.
+        // Spatial smoothing removes unphysical grid-to-grid noise from discrete Rib-crossing detection
+        if (turbChoice.enable_pblh_smoothing) {
+            // Smooth the tile's own columns, reading the halo the passes above
+            // filled. The result is the same however the domain is split.
+            ApplyPBLHSmoothing(pbl_height_corrector, xybx_tile,
+                             turbChoice.pblh_smoothing_weight,
+                             turbChoice.pblh_smoothing_passes,
+                             geom.Domain(), geom.periodicity());
+        }
+
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.
+        // pbl_height_corrector only covers this tile (grown by one), so loop over
+        // the tile, not the valid box: with tiling in x/y the valid box reaches
+        // past it. Under TileNoZ the tile spans the full column, and pblh_mf has
+        // no ghost cells, so the tiles together still fill every cell.
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            const Box& tbx = mfi.tilebox();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
+            });
+        }
         //
         // PASS 4 (WSTAR RECOMPUTE): Recompute wstar, HGAMT, HGAMQ using the corrected
         // PBL height (pblh_corr_arr) to ensure internal consistency between the K-profile
@@ -524,17 +636,35 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
             const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
+            // Enable QNSE stable functions if requested, otherwise use default linear form
+            const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+            const Real qnse_am_d = turbChoice.qnse_am;
+            const Real qnse_bm_d = turbChoice.qnse_bm;
             const Real phiM = (obuk_val > 0)
-                            ? (1 + 5 * HOL_bounded)
+                            ? (enable_qnse_d > Real(0.5)
+                               ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
+                               : (1 + 5 * HOL_bounded))
                             : std::pow(1 + 16 * HOL_abs, -one_quarter);
             const Real phiM_safe = amrex::max(phiM, Real(0.01));
 
             // Absolute bounds [0.01, 5.0] m/s
-            Real wstar = u_star_arr(i, j, 0) / phiM_safe;
+            // Deardorff (1972) convective velocity scale — well-behaved as u_star -> 0.
+            // wstar_conv = (g/theta_v0 * zi * wthv0)^(1/3)
+            const Real theta_v0 = amrex::max(GetThetav(i, j, klo, cell_data, moisture_indices), Real(1.0));
+            const Real wthv0 = amrex::max(-u_star_arr(i,j,0) * t_star_arr(i,j,0), Real(0.0)); // surface buoyancy flux, unstable only
+            const Real zi = amrex::max(pblh_pred_arr(i, j, 0), Real(10.0));  // or pblh_corr_arr in Pass 4
+            const Real wstar_conv = std::cbrt(CONST_GRAV / theta_v0 * zi * wthv0);
+
+            Real wstar_shear = u_star_arr(i, j, 0) / phiM_safe;
+
+            // Blend: standard convective/shear combination (WRF YSU-style),
+            // weighted by cube sum so either term can dominate smoothly
+            Real wstar = std::cbrt(wstar_shear*wstar_shear*wstar_shear +
+                                wstar_conv*wstar_conv*wstar_conv);
+            //Real wstar = u_star_arr(i, j, 0) / phiM_safe;
             wstar = amrex::max(wstar, Real(0.01));
             wstar = amrex::min(wstar, Real(5.0));
             wstar_arr(i, j, 0) = wstar;
-
             bool SFCFLG = (obuk_val <= Real(0));
             const Real HGAMT = (SFCFLG && enable_mrf_countergradient)
                              ? amrex::min(-const_b * u_star_arr(i, j, 0) * t_star_arr(i, j, 0) / wstar, GAMCRT)
@@ -581,7 +711,6 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 }
             }
         });
-
         //
         // PASS 5 (ZERO-RI): Diagnostic PBL height with Ribcr=0, VPERT-enhanced surface temp.
         // Used optionally (pbl_mrf_use_zero_ri_extent) to extend the nonlocal mixing region.
@@ -610,7 +739,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
             }
 
@@ -627,7 +759,10 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                                                 (uvel(i, j, kpbl_zero) + uvel(i + 1, j, kpbl_zero)) +
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) *
                                                 (vvel(i, j, kpbl_zero) + vvel(i, j + 1, kpbl_zero)) );
-                const Real ws2 = amrex::max(ws2_raw, one_d);
+                // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
+                const Real ws2 = (turbChoice.enable_vh96_shear_correction)
+                                ? (ws2_raw + turbChoice.vh96_shear_const_b * u_star_arr(i,j,0) * u_star_arr(i,j,0))
+                                : amrex::max(ws2_raw, one_d);
                 Rib_zero = CONST_GRAV * zval_zero * (theta_v - t_layer_v_enhanced) / (ws2 * theta_v_klo);
                 above_critical_zero = (Rib_zero >= Ribcr_zero);
             }
@@ -674,8 +809,11 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                             ? Compute_Zrel_AtCellCenter(i, j, k, z_nd_arr)
                             : (k + myhalf) * gdata.CellSize(2);
             const Real rho = cell_data(i, j, k, Rho_comp);
-            // FIX: skip ghost cells with uninitialized (zero) density — prevents
-            // division-by-zero inside GetThetav at lateral ghost cells of gbx
+            // Guard: skip lateral ghost cells that may have uninitialized density.
+            // Prevents division-by-zero inside GetThetav at lateral ghost cells of gbx.
+            // REGRID NOTE: On regrid, SurfaceLayer is reallocated and PBLH returns to sentinel.
+            // The driver must call ComputeDiffusivityMRF (or an equivalent bootstrap pass)
+            // before consuming PBLH in update_fluxes() or Beljaars correction after any regrid.
             if (rho <= Real(0)) {
                 K_turb(i, j, k, EddyDiff::Mom_v)   = Real(0);
                 K_turb(i, j, k, EddyDiff::Theta_v) = Real(0);
@@ -716,19 +854,35 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real HOL_abs = std::abs(HOL_bounded);
 
                 const Real one_quarter = Real(0.25);
+                // Enable QNSE stable functions if requested, otherwise use default linear form
+                const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
+                const Real qnse_am_d = turbChoice.qnse_am;
+                const Real qnse_bm_d = turbChoice.qnse_bm;
+                const Real qnse_ah_d = turbChoice.qnse_ah;
+                const Real qnse_bh_d = turbChoice.qnse_bh;
                 const Real phiM = (obuk_val > 0)
-                                ? (1 + 5 * HOL_bounded)
+                                ? (enable_qnse_d > Real(0.5)
+                                   ? (1 + qnse_am_d * HOL_bounded) / (1 + qnse_bm_d * HOL_bounded)
+                                   : (1 + 5 * HOL_bounded))
                                 : std::pow(1 + 16 * HOL_abs, -one_quarter);
                 const Real phit = (obuk_val > 0)
-                                ? (1 + 5 * HOL_bounded)
+                                ? (enable_qnse_d > Real(0.5)
+                                   ? (1 + qnse_ah_d * HOL_bounded) / (1 + qnse_bh_d * HOL_bounded)
+                                   : (1 + 5 * HOL_bounded))
                                 : std::pow(1 + 16 * HOL_abs, -Real(0.5));
 
                 Real phit_cloud = phit;
                 Real phiM_cloud = phiM;
                 if (has_cloud && obuk_val > Real(0)) {
                     Real reduction_factor = Real(1) - Real(0.15) * amrex::min(total_qcloud / qc_threshold, Real(1));
-                    phiM_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
-                    phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    // Apply cloud reduction on top of QNSE if enabled
+                    if (enable_qnse_d > Real(0.5)) {
+                        phiM_cloud = ((1 + qnse_am_d * HOL_bounded * reduction_factor) / (1 + qnse_bm_d * HOL_bounded));
+                        phit_cloud = ((1 + qnse_ah_d * HOL_bounded * reduction_factor) / (1 + qnse_bh_d * HOL_bounded));
+                    } else {
+                        phiM_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                        phit_cloud = Real(1) + Real(5.0) * reduction_factor * sf * pblh_corr_arr(i, j, 0) / obuk_val;
+                    }
                 } else if (has_cloud && obuk_val <= Real(0)) {
                     Real cloud_boost = Real(1.0) + Real(0.05) * amrex::min(total_qcloud / qc_threshold, Real(1));
                     phiM_cloud = std::pow(Real(1) + Real(16.0) * HOL_abs / cloud_boost, -one_quarter);
@@ -742,8 +896,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
 
                 const Real wstar = wstar_arr(i, j, 0);
-
-                if (SFCFLG) {
+                const bool use_qnse_stable_profile = (obuk_val > Real(0)) && (enable_qnse_d > Real(0.5));
+                if (SFCFLG || use_qnse_stable_profile) {
                     // K-profile: K = rho * wstar * kappa * zrel * (1 - zrel/pblh_rel)^2
                     // WRF Reference: module_bl_mrf.F L976-978
                     const Real z_sfc = (use_terrain_fitted_coords)
@@ -929,6 +1083,21 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                 std::min(K_turb(i, j, k, EddyDiff::Q_v), rhoKmax), rhoKmin);
             K_turb(i, j, k, EddyDiff::Turb_lengthscale) = pblh_corr_arr(i, j, 0);
 
+            // IMPORTANT — units convention for HGAMT_v / HGAMQ_v:
+            // These are stored as (countergradient term / pblh), i.e. already
+            // divided by the PBL height, NOT as a raw physical gradient needing
+            // an extra 1/dz scaling downstream.
+            //
+            // The implicit solver (ERF_ImplicitDiff_T.cpp, ImplicitDiffForStateLU_T)
+            // multiplies this stored value by `Fact = implicit_fac * dt * dz_inv`
+            // and `rhoAlpha / met_h_zeta` ONLY — it must NOT apply an additional
+            // dz_inv factor. `Fact` already carries the single grid-spacing
+            // factor needed to convert the countergradient correction into a
+            // flux-divergence contribution consistent with the K*d(phi)/dz terms
+            // it is being added alongside. Adding a second dz_inv
+            // double-counts the grid spacing and is
+            // dimensionally incorrect — do NOT "fix" this by inserting dz_inv
+            // into the RHS_a += Fact * gam_hi/lo terms in ERF_ImplicitDiff_T.cpp.
             if (k < pbli_extent) {
                 K_turb(i, j, k, EddyDiff::HGAMT_v) = hgamt_arr(i, j, 0);
                 K_turb(i, j, k, EddyDiff::HGAMQ_v) = hgamq_arr(i, j, 0);
@@ -955,4 +1124,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
             K_turb(i, j, khi+1, EddyDiff::Turb_lengthscale) = K_turb(i, j, khi, EddyDiff::Turb_lengthscale);
         });
     }// mfi
+    // Write MRF-computed PBLH back into SurfaceLayer so Beljaars correction
+    // and diagnostics can use it, and update_pblh no longer aborts for MRF type.
+    SurfLayer->set_pblh(level, pblh_mf);
 }

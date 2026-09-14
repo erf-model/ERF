@@ -1,5 +1,6 @@
 
 #include <utility>
+#include "ERF_Constants.H"
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"
@@ -14,6 +15,7 @@ using namespace amrex;
  * @param[in] a_pp_prefix ParmParse prefix for MOST inputs
  * @param[in] mesh_type Mesh type for the simulation
  * @param[in] terrain_type Terrain type for the simulation
+ * @param[in] zlevels_stag Nominal staggered z levels at each level
  * @param[in] eb_vec Embedded-boundary data at each level
  */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
@@ -21,11 +23,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           std::string a_pp_prefix,
                           const MeshType& mesh_type,
                           const TerrainType& terrain_type,
+                          const Vector<Vector<Real>>& zlevels_stag,
                           const Vector<const eb_*>& eb_vec)
   : m_geom(std::move(geom)),
     m_pp_prefix(a_pp_prefix),
     m_mesh_type(mesh_type),
     m_terrain_type(terrain_type),
+    m_zlevels_stag(zlevels_stag),
     m_eb_vec(eb_vec)
 {
     // Get basic info
@@ -112,6 +116,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
     m_i_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
+
+    m_planar_bndry.resize(m_maxlev);
 
     m_Vsg.resize(m_maxlev, zero);
 }
@@ -203,6 +209,11 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_fields[lev][3] = Qv_prim.get();
         m_fields[lev][4] = Qr_prim.get();
 
+        // Surface copies of the planar boxes (see fill_planar_boundary)
+        if (!use_eb) {
+            m_planar_bndry[lev].define(ba, ba2d, dm, m_geom[lev].Domain().smallEnd(2));
+        }
+
         // Initialize remaining multifabs
         for (int iavg(2); iavg < m_navg; ++iavg) {
             m_averages[lev][iavg] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -261,6 +272,15 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         set_z_positions_EB(lev);
     } else {                                                   // No Terrain
         set_k_indices_N(lev);
+    }
+
+    // Report the reference height the surface layer will use at this level
+    {
+        const Real zref_min = m_zref[lev]->min(0);
+        const Real zref_max = m_zref[lev]->max(0);
+        Print() << "MOST reference height at level " << lev << ": " << zref_min;
+        if (zref_max > zref_min) { Print() << " to " << zref_max; }
+        Print() << std::endl;
     }
 
     // Setup normalization data for the chosen policy
@@ -612,18 +632,56 @@ MOSTAverage::set_k_indices_N (const int& lev)
     if (!read_z) { zref_tmp = zref_default; }
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
+    // Without terrain-fitted coordinates the mesh can still be stretched in z
+    // (e.g. grid_stretching_ratio with immersed forcing), in which case the cells
+    // are not CellSize(2) tall and the heights come from the staggered z levels.
+    // Heights on such a mesh are measured from its lowest level.  A uniform mesh
+    // keeps the CellSize(2) arithmetic.
+    const bool stretched = (m_mesh_type != MeshType::ConstantDz);
+    if (stretched) {
+        // The default and k_arr_in heights are taken at level 0, the indices at lev
+        for (int ilev : {0, lev}) {
+            const int nz = m_geom[ilev].Domain().length(2);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                (ilev < static_cast<int>(m_zlevels_stag.size())) &&
+                (static_cast<int>(m_zlevels_stag[ilev].size()) == nz+1),
+                "MOSTAverage: z levels are needed for a stretched mesh without terrain!");
+        }
+    }
+
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
-        Real m_zlo = m_geom[0].ProbLo(2);
-        Real m_dz  = m_geom[0].CellSize(2);
-        zref_tmp = m_zlo + myhalf * m_dz;
+        if (stretched) {
+            zref_tmp = cell_center_height(m_zlevels_stag[0], 0);
+        } else {
+            Real m_zlo = m_geom[0].ProbLo(2);
+            Real m_dz  = m_geom[0].CellSize(2);
+            zref_tmp = m_zlo + myhalf * m_dz;
+        }
         m_zref[lev]->setVal( zref_tmp );
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
     }
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
-    if (read_z) {
+    if (read_z && stretched) {
+        const auto& zlevels = m_zlevels_stag[lev];
+        const int nz = static_cast<int>(zlevels.size()) - 1;
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= cell_center_height(zlevels, 0),
+                                         "Query point must be past first z-cell!");
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= cell_center_height(zlevels, nz-1),
+                                         "Query point must be below the last z-cell!");
+
+        int lk = k_index_below(zlevels, zref_tmp);
+
+        m_zref[lev]->setVal( cell_center_height(zlevels, lk) );
+
+        AMREX_ALWAYS_ASSERT(lk >= m_radius);
+
+        m_k_indx[lev]->setVal(lk);
+    } else if (read_z) {
         Real m_zlo = m_geom[lev].ProbLo(2);
         Real m_zhi = m_geom[lev].ProbHi(2);
         Real m_dz  = m_geom[lev].CellSize(2);
@@ -650,9 +708,15 @@ MOSTAverage::set_k_indices_N (const int& lev)
         m_k_indx[lev]->setVal(m_k_in[lev]);
 
         // TODO: check that z_ref is constant across levels
-        Real m_zlo = m_geom[0].ProbLo(2);
-        Real m_dz  = m_geom[0].CellSize(2);
-        m_zref[lev]->setVal( ((Real)m_k_in[0] + myhalf) * m_dz + m_zlo );
+        if (stretched) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_k_in[0] < m_geom[0].Domain().length(2),
+                                             "K index must lie inside the domain!");
+            m_zref[lev]->setVal( cell_center_height(m_zlevels_stag[0], m_k_in[0]) );
+        } else {
+            Real m_zlo = m_geom[0].ProbLo(2);
+            Real m_dz  = m_geom[0].CellSize(2);
+            m_zref[lev]->setVal( ((Real)m_k_in[0] + myhalf) * m_dz + m_zlo );
+        }
     }
 }
 
@@ -755,7 +819,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                                        + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
                     Real z_hi = fourth * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
                                        + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
-                    if (z_target > z_lo && z_target < z_hi){
+                    if (in_cell_z(z_target, z_lo, z_hi)) {
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                          "K index must be larger than averaging radius!");
                         k_arr(i,j,0) = lk;
@@ -860,7 +924,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
                                        + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                 Real z_hi = fourth * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
                                        + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
-                if (z_target > z_lo && z_target < z_hi){
+                if (in_cell_z(z_target, z_lo, z_hi)) {
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                      "K index must be larger than averaging radius!");
                     amrex::ignore_unused(d_radius);
@@ -1450,6 +1514,29 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 }
 
 /**
+ * Function to fill the ghost cells of one planar average.
+ *
+ * The averages hold one box per 3D box, so a 3D BoxArray split in z gives duplicate
+ * planar boxes of which only the surface copy is computed (compute_region_averages
+ * skips the boxes off the surface); a FillBoundary could then fill a ghost cell from
+ * an uncomputed copy (see PlanarBoundary).  With the split, the valid region of the
+ * uncomputed copies is filled as well.  With EB terrain the averages are computed on
+ * every box and FillBoundary is well defined.
+ *
+ * @param[in]     lev Current level
+ * @param[in,out] mf  Planar average to fill
+ */
+void
+MOSTAverage::fill_planar_boundary (const int& lev, MultiFab& mf)
+{
+    if (m_terrain_type == TerrainType::EB) {
+        mf.FillBoundary(m_geom[lev].periodicity());
+    } else {
+        m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
+    }
+}
+
+/**
  * Function to compute average over local region.
  *
  * @param[in] lev Current level
@@ -1579,7 +1666,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[imf]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[imf]);
 
     } // imf
 
@@ -1685,7 +1772,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[iavg]);
 
     }
     else // copy temperature
@@ -1785,7 +1872,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(geom.periodicity());
+        fill_planar_boundary(lev, *averages[iavg]);
 
     }
 

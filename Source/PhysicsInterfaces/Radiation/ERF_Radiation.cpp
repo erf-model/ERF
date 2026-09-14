@@ -13,6 +13,7 @@
  */
 
 #include <filesystem>
+#include "ERF_Constants.H"
 #include <sstream>
 
 #include "ERF_NCInterface.H"

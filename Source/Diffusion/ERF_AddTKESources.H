@@ -8,8 +8,10 @@
     //       The strain rate magnitude is updated at the beginning of the first
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
-    //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
-    //       each RK stage, but that does not change the buoyancy production term here.
+    //       The surface heat flux is stored at hfx_z(i,j,0) (the value the
+    //       turbulence model wrote there is overwritten by the surface layer
+    //       at each RK stage), so the buoyancy production of the first cell
+    //       uses the surface flux.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -38,7 +40,10 @@
             // of momentum are equal
             cell_rhs(i,j,k,qty_index) += two*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
 
-            // TKE dissipation
-            cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
+            // TKE dissipation (explicit); with erf.implicit_tke_dissipation the
+            // sink is folded into the update in erf_slow_rhs_post instead
+            if (!l_implicit_diss) {
+                cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
+            }
         });
     }

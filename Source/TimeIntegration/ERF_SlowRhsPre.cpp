@@ -14,7 +14,8 @@
 #include "ERF_EBAdvection.H"
 #include "ERF_EB.H"
 #include "ERF_SurfaceLayer.H"
-#include "ERF_ResolvedWallFlux.H"
+#include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "Diffusion/ERF_CloudChamberWallStress.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 
 using namespace amrex;
@@ -216,9 +217,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
-            // Native SHOC always owns the scalar fluxes in state_update mode.
-            // When it also owns momentum stresses, we skip the generic
-            // SurfaceLayer call entirely so the host does not re-apply them.
+            // Native SHOC owns the scalar fluxes and does not hand momentum
+            // stresses back to the generic host diffusion path.
+            l_apply_surface_layer_fluxes_in_diffusion = false;
             native_shoc_lev->set_eddy_diffs();
         }
 
@@ -253,12 +254,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
-            if (native_shoc_lev->owns_scalar_surface_fluxes()) {
-                l_apply_surface_layer_fluxes_in_diffusion = false;
-            }
-            if (!native_shoc_lev->needs_host_surface_momentum_stresses()) {
-                surface_layer_handled = true;
-            }
+            surface_layer_handled = true;
         }
         if (!surface_layer_handled && l_use_SurfLayer) {
             Vector<const MultiFab*> mfs = {&S_data[IntVars::cons], &xvel, &yvel, &zvel};
@@ -277,7 +273,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                       Q1fx1, Q1fx2, Q1fx3);
             }
         }
-        if (tc.uses_native_shoc() && native_shoc_lev && native_shoc_lev->owns_scalar_surface_fluxes()) {
+        if (tc.uses_native_shoc() && native_shoc_lev) {
             // SHOC-owned scalar fluxes must not be reused by the host
             // diffusion source, even if the host SurfaceLayer path was also
             // evaluated for momentum stress ownership.
@@ -723,12 +719,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
             }
             if (use_physical_chamber_wall_flux) {
-                erf_resolved_wall_flux::apply(
+                erf_cloud_chamber_wall_flux::apply(
                     bx, domain, RhoTheta_comp, 0, cell_data, cell_prim,
-                    cloud_chamber_base_state->const_array(mfi), cell_rhs,
+                    cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
-                    solverChoice.rdOcp);
+                    solverChoice.rdOcp, cloud_chamber_config->cloudy);
             }
         }
 
@@ -775,6 +771,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            lo_z_face, hi_z_face, domain, bc_ptr_h);
 
         if (l_use_diff) {
+            if (!l_use_eb && use_physical_chamber_wall_flux &&
+                erf_cloud_chamber_wall_stress::has_momentum_wall(chamber_walls)) {
+                erf_cloud_chamber_wall_stress::apply(
+                    bx, domain, cell_data,
+                    cloud_chamber_base_state->const_array(mfi), u, v, w,
+                    tau12, tau13, tau23, dxInv, chamber_walls,
+                    solverChoice.rdOcp, cloud_chamber_config->cloudy);
+            }
+
             // Note: tau** were calculated with calls to
             // ComputeStress[Cons|Var]Visc_[N|S|T] in which ConsVisc ("constant
             // viscosity") means that there is no contribution from a

@@ -335,6 +335,7 @@ TEST(ShocTke, SignedProductionOptionAllowsStableBuoyancyToReduceTke)
 {
     auto col_default = shoc_test::make_column(6);
     auto col_signed = shoc_test::make_column(6);
+    const Real min_tke = Real(4.0e-4);
     ShocRuntimeOptions opts_default;
     ShocRuntimeOptions opts_signed;
     opts_signed.signed_tke_production = true;
@@ -369,12 +370,13 @@ TEST(ShocTke, SignedProductionOptionAllowsStableBuoyancyToReduceTke)
     EXPECT_LT(col_default.tke.const_array()(0,0,0,0), tke_default_before);
     EXPECT_LT(col_signed.tke.const_array()(0,0,0,0), tke_signed_before);
     EXPECT_LT(col_signed.tke.const_array()(0,0,0,0), col_default.tke.const_array()(0,0,0,0));
-    EXPECT_GE(col_signed.tke.const_array()(0,0,0,0), 4.0e-4);
+    EXPECT_GE(col_signed.tke.const_array()(0,0,0,0), min_tke);
 }
 
 TEST(ShocTke, DiffusivitiesRemainPositiveAndFinite)
 {
     auto col = shoc_test::make_column(6);
+    const Real min_tke = Real(4.0e-4);
     ShocRuntimeOptions opts;
 
     shoc_test::run_and_sync([&] {
@@ -396,7 +398,7 @@ TEST(ShocTke, DiffusivitiesRemainPositiveAndFinite)
         EXPECT_TRUE(std::isfinite(tkh(0,k,0,0)));
         EXPECT_TRUE(std::isfinite(isotropy(0,k,0,0)));
         EXPECT_TRUE(std::isfinite(tend(0,k,0,0)));
-        EXPECT_GE(tke(0,k,0,0), 4.0e-4);
+        EXPECT_GE(tke(0,k,0,0), min_tke);
         EXPECT_LE(tke(0,k,0,0), 50.0);
         EXPECT_GE(tk(0,k,0,0), 0.0);
         EXPECT_GE(tkh(0,k,0,0), 0.0);
@@ -407,6 +409,7 @@ TEST(ShocTke, DiffusivitiesRemainPositiveAndFinite)
 TEST(ShocTke, RandomizedColumnsStayBounded)
 {
     ShocRuntimeOptions opts;
+    const Real min_tke = Real(4.0e-4);
     std::mt19937 gen(1729);
 
     for (int n = 0; n < 32; ++n) {
@@ -430,7 +433,7 @@ TEST(ShocTke, RandomizedColumnsStayBounded)
             EXPECT_TRUE(std::isfinite(tkh(0,k,0,0)));
             EXPECT_GE(mix(0,k,0,0), 20.0);
             EXPECT_LE(mix(0,k,0,0), std::sqrt(600.0 * 450.0));
-            EXPECT_GE(tke(0,k,0,0), 4.0e-4);
+            EXPECT_GE(tke(0,k,0,0), min_tke);
             EXPECT_LE(tke(0,k,0,0), 50.0);
             EXPECT_GE(tk(0,k,0,0), 0.0);
             EXPECT_GE(tkh(0,k,0,0), 0.0);

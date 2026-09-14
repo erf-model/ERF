@@ -4,7 +4,7 @@
 #ifdef ERF_USE_PARTICLES
 
 #include <random>
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
 #include "ERF_MaterialProperties.H"
 #include "ERF_SuperDropletPCDefinitions.H"
 #include "ERF_SuperDropletPCProcess.H"

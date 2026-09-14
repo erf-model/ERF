@@ -3,7 +3,13 @@
 #include <AMReX_ParmParse.H>
 #include <ERF_Constants.H>
 #include <ERF_Interpolation_1D.H>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
+#include <numeric>
+#include <utility>
+#include <vector>
 
 using namespace amrex;
 
@@ -41,6 +47,181 @@ init_default_zphys (int /*lev*/,
         });
     }
 }
+
+namespace {
+
+/**
+ * The cells of a (cell-centered) BoxArray as boxes that are never stacked on each other.
+ *
+ * Wherever a box of ba sits on the top face of another box of ba, the run of cells in z
+ * that the two belong to becomes a single box.  Boxes stacked with different lateral
+ * extents are first cut at each other's lateral edges; the joined pieces are then merged
+ * in x and y and chopped to no more than the largest lateral size of the boxes they came
+ * from.  Returns ba itself when no two boxes of ba are stacked.
+ */
+BoxArray
+join_boxes_stacked_in_z (const BoxArray& ba)
+{
+    AMREX_ALWAYS_ASSERT(ba.ixType().cellCentered());
+
+    const int nboxes = static_cast<int>(ba.size());
+
+    // Gather the boxes into stacks: link every box to the boxes that sit on its top face
+    std::vector<int> stack_of(nboxes);
+    std::iota(stack_of.begin(), stack_of.end(), 0);
+    auto find_stack = [&stack_of] (int i) {
+        while (stack_of[i] != i) {
+            stack_of[i] = stack_of[stack_of[i]];
+            i = stack_of[i];
+        }
+        return i;
+    };
+
+    bool any_stacked = false;
+    for (int i = 0; i < nboxes; ++i) {
+        Box above(ba[i]);
+        above.setRange(2, ba[i].bigEnd(2)+1);
+        for (const auto& isect : ba.intersections(above)) {
+            stack_of[find_stack(isect.first)] = find_stack(i);
+            any_stacked = true;
+        }
+    }
+    if (!any_stacked) { return ba; }
+
+    // std::map keeps the order, and so the joined boxes, the same on every rank
+    std::map<int, std::vector<Box>> stacks;
+    for (int i = 0; i < nboxes; ++i) {
+        stacks[find_stack(i)].push_back(ba[i]);
+    }
+
+    BoxList bl_joined;
+    for (const auto& stack : stacks)
+    {
+        const std::vector<Box>& boxes = stack.second;
+        if (boxes.size() == 1) {
+            bl_joined.push_back(boxes[0]);
+            continue;
+        }
+
+        // Cut the stack at every lateral edge of its boxes
+        std::array<std::vector<int>,2> cuts;
+        IntVect max_size(1);
+        for (const auto& b : boxes) {
+            for (int idim = 0; idim < 2; ++idim) {
+                cuts[idim].push_back(b.smallEnd(idim));
+                cuts[idim].push_back(b.bigEnd(idim)+1);
+                max_size[idim] = std::max(max_size[idim], b.length(idim));
+            }
+        }
+        for (auto& c : cuts) {
+            std::sort(c.begin(), c.end());
+            c.erase(std::unique(c.begin(), c.end()), c.end());
+        }
+        auto cut_index = [&cuts] (int idim, int coord) {
+            return static_cast<int>(std::lower_bound(cuts[idim].begin(), cuts[idim].end(), coord)
+                                    - cuts[idim].begin());
+        };
+
+        // The z extents of the boxes over each piece, keyed by the piece's cut indices
+        std::map<std::pair<int,int>, std::vector<std::pair<int,int>>> zruns_of_piece;
+        for (const auto& b : boxes) {
+            for (int ix = cut_index(0, b.smallEnd(0)); ix < cut_index(0, b.bigEnd(0)+1); ++ix) {
+                for (int iy = cut_index(1, b.smallEnd(1)); iy < cut_index(1, b.bigEnd(1)+1); ++iy) {
+                    zruns_of_piece[std::make_pair(ix,iy)].emplace_back(b.smallEnd(2), b.bigEnd(2));
+                }
+            }
+        }
+
+        // Over each piece, join the extents that touch into one box per run of cells
+        BoxList bl_stack;
+        for (auto& piece : zruns_of_piece) {
+            const int ix = piece.first.first;
+            const int iy = piece.first.second;
+            auto& zruns = piece.second;
+            std::sort(zruns.begin(), zruns.end());
+            std::size_t n_first = 0;
+            for (std::size_t n = 1; n <= zruns.size(); ++n) {
+                if (n == zruns.size() || zruns[n].first != zruns[n-1].second+1) {
+                    bl_stack.push_back(Box(IntVect(cuts[0][ix],     cuts[1][iy],     zruns[n_first].first),
+                                           IntVect(cuts[0][ix+1]-1, cuts[1][iy+1]-1, zruns[n-1].second)));
+                    n_first = n;
+                }
+            }
+        }
+
+        // Merging in x and y joins pieces with the same z extent, so it cannot stack them again
+        bl_stack.simplify();
+        max_size[2] = bl_stack.minimalBox().length(2);
+        bl_stack.maxSize(max_size);
+        bl_joined.join(bl_stack);
+    }
+
+    return BoxArray(std::move(bl_joined));
+}
+
+/**
+ * The boxes on which a fine BTF level is built: whole columns, with their DistributionMapping.
+ */
+struct ColumnGrids
+{
+    Box domain;                 // the level's domain and ...
+    BoxArray ba_cc;             // ... its (cell-centered) grids, which the columns were made for
+    bool stacked = false;       // whether any two of those grids are stacked in z
+    BoxArray ba_col_nd;         // the nodal column boxes (only if stacked)
+    DistributionMapping dm_col;
+    MultiFab hold_bd;           // holds no data; see column_grids
+};
+
+/**
+ * The column boxes for a level's grids, made once per set of grids.
+ *
+ * With a moving mesh make_terrain_fitted_coords runs several times per substep, but the
+ * columns only change when the level is regridded.  Reusing the same BoxArray and
+ * DistributionMapping also lets every ParallelCopy to and from the columns reuse its
+ * communication metadata instead of rebuilding it -- but only as long as some FabArray
+ * on those grids stays alive: AMReX erases the copy descriptors of a BoxArray and
+ * DistributionMapping pair as soon as the last FabArray built on it is destroyed.  The
+ * MultiFab that make_terrain_fitted_coords builds on the columns is a temporary, so
+ * without hold_bd, which is defined with no data of its own, every call would take the
+ * metadata of all three of its ParallelCopy calls with it.
+ */
+ColumnGrids const&
+column_grids (int lev, const Geometry& geom, const BoxArray& ba_cc)
+{
+    static std::map<int, ColumnGrids> cache;
+    static bool clear_on_finalize = false;
+    if (!clear_on_finalize) {
+        ExecOnFinalize([] () { cache.clear(); clear_on_finalize = false; });
+        clear_on_finalize = true;
+    }
+
+    ColumnGrids& cg = cache[lev];
+    if (cg.ba_cc.empty() || cg.domain != geom.Domain() || cg.ba_cc != ba_cc)
+    {
+        cg.domain = geom.Domain();
+        cg.ba_cc  = ba_cc;
+
+        BoxArray ba_col = join_boxes_stacked_in_z(ba_cc);
+        cg.stacked = (ba_col != ba_cc);
+
+        if (cg.stacked) {
+            // Joining divides the number of boxes by the number of splits in z, so chop the
+            // columns laterally, as level 0 does, until there are at least as many as ranks
+            ChopGrids2D(ba_col, cg.domain, ParallelDescriptor::NProcs());
+            cg.dm_col = DistributionMapping(ba_col);
+            ba_col.surroundingNodes();
+            cg.ba_col_nd = ba_col;
+            cg.hold_bd.define(cg.ba_col_nd, cg.dm_col, 1, 0, MFInfo().SetAlloc(false));
+        } else {
+            cg.ba_col_nd = BoxArray();
+            cg.dm_col    = DistributionMapping();
+            cg.hold_bd.clear();
+        }
+    }
+    return cg;
+}
+
+} // namespace
 
 /**
  * Computation of the terrain grid from BTF, STF, or Sullivan TF model
@@ -93,7 +274,38 @@ make_terrain_fitted_coords (int lev,
             z_phys_nd.ParallelCopy(z_phys_nd_new,0,0,1,z_phys_nd.nGrowVect(),z_phys_nd.nGrowVect());
         }
     } else { // lev > 0
-        init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
+        //
+        // BTF maps each column of a box between the box's lowest node and the domain top.
+        // A box that sits on another box of this level must continue the columns of the box
+        // below it: its own lowest node holds only the mesh interpolated from the coarse
+        // level, so starting from there would make the mesh above it follow the coarse
+        // terrain and depend on where the grids are split in z.  As on level 0 we therefore
+        // build the mesh on boxes that hold whole columns and copy it back.  The bottom box
+        // of a column, such as a refined patch aloft, still starts from its own lowest node.
+        //
+        ParmParse pp("erf");
+        int terrain_smoothing = 0;
+        pp.query("terrain_smoothing", terrain_smoothing);
+
+        const ColumnGrids* cg = (terrain_smoothing == 0)
+            ? &column_grids(lev, geom, amrex::convert(z_phys_nd.boxArray(), IntVect::TheCellVector()))
+            : nullptr;
+
+        if (cg == nullptr || !cg->stacked) {
+            init_which_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
+        } else {
+            const IntVect& ng = z_phys_nd.nGrowVect();
+            MultiFab z_phys_nd_col(cg->ba_col_nd, cg->dm_col, 1, ng);
+
+            z_phys_nd_col.ParallelCopy(z_phys_nd,0,0,1,ng,ng);
+
+            init_which_terrain_grid(lev, geom, z_phys_nd_col, z_levels_h, fine_terrain, z_phys_interp);
+
+            // Copy the ghost nodes too, then give every node the value of a box that holds it
+            // as valid, rather than one a neighbouring box computed for its ghost node
+            z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,ng,ng);
+            z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,IntVect(0),ng);
+        }
     }
 
     //
@@ -109,31 +321,59 @@ make_terrain_fitted_coords (int lev,
         const auto& dom_lo = lbound(convert(domain,IntVect(1,1,1)));
         const auto& dom_hi = ubound(convert(domain,IntVect(1,1,1)));
 
+        //
+        // Mirror the whole ghost region, not just its first layer: the base state carries
+        // ComputeGhostCells+1 layers and the state stencils reach several cells past the
+        // boundary, so mirroring only the first would leave the rest of the ghost region
+        // holding whatever the terrain construction extrapolated into it.
+        //
+        const IntVect& ngv = z_phys_nd.nGrowVect();
+
         for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.growntilebox();
+            //
+            // Whether this tile reaches a domain boundary is a question about its valid
+            // nodes, so ask it of the tilebox.  The grown tilebox begins a ghost width short
+            // of the boundary and so never equals it -- asking it of the grown box is what
+            // kept this mirroring from ever running.  The grown box is still what we sweep,
+            // so that the ghost rows in the other two directions are covered as well.
+            //
+            const Box& vbx = mfi.tilebox();
+            const Box& bx  = mfi.growntilebox();
             const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
-            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(0) == dom_lo.x) {
+            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && vbx.smallEnd(0) == dom_lo.x) {
+                const int ng = ngv[0];
                 ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
                 {
-                    z_nd_arr(dom_lo.x-1,j,k) = z_nd_arr(dom_lo.x+1,j,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(dom_lo.x-n,j,k) = z_nd_arr(dom_lo.x+n,j,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(0) == dom_hi.x) {
+            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && vbx.bigEnd(0) == dom_hi.x) {
+                const int ng = ngv[0];
                 ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
                 {
-                    z_nd_arr(dom_hi.x+1,j,k) = z_nd_arr(dom_hi.x-1,j,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(dom_hi.x+n,j,k) = z_nd_arr(dom_hi.x-n,j,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(1) == dom_lo.y) {
+            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && vbx.smallEnd(1) == dom_lo.y) {
+                const int ng = ngv[1];
                 ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
                 {
-                    z_nd_arr(i,dom_lo.y-1,k) = z_nd_arr(i,dom_lo.y+1,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(i,dom_lo.y-n,k) = z_nd_arr(i,dom_lo.y+n,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(1) == dom_hi.y) {
+            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && vbx.bigEnd(1) == dom_hi.y) {
+                const int ng = ngv[1];
                 ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
                 {
-                    z_nd_arr(i,dom_hi.y+1,k) = z_nd_arr(i,dom_hi.y-1,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(i,dom_hi.y+n,k) = z_nd_arr(i,dom_hi.y-n,k);
+                    }
                 });
             }
         }

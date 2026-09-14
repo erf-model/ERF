@@ -209,12 +209,7 @@ the EAMxx path is retained for users who need the E3SM/EAMxx reference
 implementation path.
 
 Native SHOC is part of the ERF source tree and does not require EAMxx, EKAT, or
-Kokkos setup. A minimal native configuration is:
-
-.. code-block:: text
-
-   zlo.type = "surface_layer"
-   erf.pbl_type = NATIVE_SHOC
+Kokkos setup.
 
 ERF recognizes the following SHOC-family PBL selections:
 
@@ -231,6 +226,38 @@ ERF recognizes the following SHOC-family PBL selections:
        ``ERF_ENABLE_EAMXX_SHOC=ON``.
    * - ``SHOC``
      - Deprecated alias for ``EAMXX_SHOC``. It does **not** select native SHOC.
+
+Native SHOC quick start
+~~~~~~~~~~~~~~~~~~~~~~~
+
+A minimal Native-SHOC configuration is
+
+.. code-block:: text
+
+   zlo.type = "surface_layer"
+   erf.pbl_type = NATIVE_SHOC
+
+The Native transport defaults are already
+
+.. code-block:: text
+
+   erf.shoc.transport_mode = state_update
+   erf.shoc.momentum_transport = state_update
+
+so those two lines do not need to be specified unless an input file benefits
+from making the choice explicit.
+
+Before running Native SHOC, note three important restrictions:
+
+* the lower boundary must use ``zlo.type = "surface_layer"``;
+* every AMReX box on a Native-SHOC-active level must span the full vertical
+  domain;
+* moisture layouts carrying cloud-liquid or cloud-ice number concentrations
+  are currently rejected because Native SHOC does not yet provide the required
+  number closure.
+
+The remaining sections describe these requirements and the available tuning and
+diagnostic controls in more detail.
 
 SHOC-family PBL schemes require ``zlo.type = "surface_layer"``. The surface
 layer supplies the lower-boundary heat, moisture, and momentum fluxes consumed
@@ -285,46 +312,37 @@ The default native configuration is:
 .. code-block:: text
 
    erf.shoc.transport_mode = state_update
-   erf.shoc.momentum_transport = host_diffusion
+   erf.shoc.momentum_transport = state_update
 
-This mixed configuration is the normal starting point for native SHOC.
+This is the normal starting point for native SHOC.
 
 ``erf.shoc.transport_mode = state_update``
   Native SHOC applies its coupled thermodynamic, moisture/cloud, and TKE column
   update to the ERF state before the dycore advances that state. This is the
   required native transport mode for moist SHOC configurations.
 
-``erf.shoc.transport_mode = host_diffusion``
-  Native SHOC diagnoses and exports the full vertical eddy-diffusivity block
-  for ERF's host diffusion path instead of applying the native pre-dycore
-  thermodynamic/moisture/TKE state update. This mode is currently supported
-  only for dry runs with ``erf.moisture_model = None`` because native SHOC does
-  not own cloud macrophysics in this mode while SHOC-family microphysics
-  condensation is suppressed. It requires
-  ``erf.shoc.momentum_transport = host_diffusion``.
+``erf.shoc.transport_mode`` accepts only ``state_update``. The former
+``host_diffusion`` value is removed and is rejected at startup with migration
+guidance.
 
 The former value ``erf.shoc.transport_mode = tendencies`` has been removed and
 is rejected at startup.
 
 Horizontal momentum is controlled independently:
 
-``erf.shoc.momentum_transport = host_diffusion``
-  Export the native SHOC vertical momentum diffusivity to ERF's host diffusion
-  path. This is the default. Because ERF's dycore then owns vertical momentum
-  diffusion, this mode leaves ERF's vertical implicit diffusion solve active for
-  momentum (``erf.implicit_momentum_diffusion``); see
-  :ref:`sec:Inputs` for the ``erf.vert_implicit*`` controls.
-
 ``erf.shoc.momentum_transport = state_update``
   Apply the native SHOC horizontal-velocity column increment directly to the
-  ERF face velocities. This is an alternate transport choice and is not the
-  default.
+  ERF face velocities. This is the default production path.
 
 ``erf.shoc.momentum_transport = none``
-  Disable SHOC horizontal-momentum transport.
+  Disable the Native-SHOC horizontal-momentum transport contribution. ERF
+  retains generic host ownership of vertical momentum diffusion in this mode.
+  This does not by itself create a nonzero host momentum diffusivity; it only
+  leaves the generic ERF momentum-diffusion path eligible to act when another
+  configured host closure supplies one.
 
-When the scalar/cloud/TKE transport mode is ``host_diffusion``, the momentum
-mode must also be ``host_diffusion``.
+The former ``host_diffusion`` momentum value is removed. Use ``state_update``
+to retain SHOC momentum transport or ``none`` to disable it.
 
 PBL height and turbulent structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -346,63 +364,117 @@ closure.
 TKE behavior and reduced 1.5-order mode
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Native SHOC uses the prognostic ERF TKE state. ERF initializes TKE for SHOC from
-``erf.tke_min`` before the run begins; see :ref:`sec:Initialization`.
+Native SHOC uses ERF's prognostic TKE state. At model initialization ERF sets
+TKE from ``erf.tke_min`` (default ``1.e-6 m^2/s^2``) before any
+problem-specific or surface-layer-based TKE initialization is applied.
+
+``erf.tke_min`` is an **initialization control**, not the internal Native-SHOC
+TKE floor. During each Native-SHOC update the closure currently bounds TKE to
+
+.. math::
+
+   4\times10^{-4}
+   \le e
+   \le 50
+   \qquad \mathrm{m^2\,s^{-2}},
+
+where :math:`e` denotes TKE. Consequently a run initialized below
+:math:`4\times10^{-4}\ \mathrm{m^2\,s^{-2}}` can move to the Native-SHOC
+internal floor on the first SHOC update.
 
 In the default higher-order form
-(``erf.shoc.shoc_1p5tke = false``), native SHOC diagnoses buoyancy production
-from the carried virtual-potential-temperature turbulent flux.
+(``erf.shoc.shoc_1p5tke = false``), the Native-SHOC buoyancy-production term is
 
-Setting:
+.. math::
+
+   P_b = \frac{g}{300\ \mathrm{K}}\,\overline{w'\theta_v'}.
+
+Setting
 
 .. code-block:: text
 
    erf.shoc.shoc_1p5tke = true
 
-selects the reduced 1.5-order form. In this mode the native TKE buoyancy term is
-computed as :math:`-K_h N^2` using the carried/lagged heat diffusivity, and the
-higher-order SHOC moment structure is suppressed. This option therefore changes
-the closure form; it is not merely an output switch.
+selects the reduced 1.5-order form. In that mode the buoyancy term is
 
-The production term used by the native TKE update is also controlled by:
+.. math::
 
-.. code-block:: text
+   P_b = -K_h N^2,
 
-   erf.shoc.signed_tke_production = false
+using the carried heat diffusivity and the diagnosed squared Brunt--Väisälä
+frequency :math:`N^2`. The higher-order thermodynamic variance/covariance
+structure and vertical-velocity third moment are suppressed in this mode, so
+``shoc_1p5tke`` changes the closure rather than merely changing diagnostics.
 
-which is the default. With the default, native SHOC clips the sum of shear and
-buoyancy production at zero before applying dissipation. With:
+The treatment of the total production term is controlled independently by
+``erf.shoc.signed_tke_production``. With the default value ``false``,
+
+.. math::
+
+   P = \max(0,\,P_s + P_b),
+
+where :math:`P_s` is shear production. With
 
 .. code-block:: text
 
    erf.shoc.signed_tke_production = true
 
-the signed sum of shear and buoyancy production is retained, allowing negative
-buoyancy production in stable conditions to directly reduce TKE.
+the clipping is removed:
+
+.. math::
+
+   P = P_s + P_b.
+
+The latter permits negative buoyancy production in stable conditions to reduce
+TKE directly. The default remains ``false``; use a non-default value only when
+the intended experiment calls for the signed-production formulation.
 
 Native stability and diffusivity tuning
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The full input table is given in :ref:`sec:Inputs`. The following points clarify
-the native meaning of the principal tuning controls:
+Native SHOC diagnoses the squared Brunt--Väisälä frequency from virtual
+potential temperature,
+
+.. math::
+
+   N^2 =
+   \frac{g}{\theta_v}
+   \frac{\partial\theta_v}{\partial z}.
+
+Positive :math:`N^2` denotes stable stratification in this diagnostic.
+
+On the general Native diffusivity path, the kinematic momentum and heat
+diffusivities are
+
+.. math::
+
+   K_m = C_{K_m}\,\tau\,e,
+   \qquad
+   K_h = C_{K_h}\,\tau\,e,
+
+where :math:`e` is TKE, :math:`\tau` is the diagnosed isotropy timescale,
+``erf.shoc.coeff_km`` supplies :math:`C_{K_m}`, and
+``erf.shoc.coeff_kh`` supplies :math:`C_{K_h}`. Native SHOC also contains a
+special stable-mixing branch with fixed coefficients, so these two runtime
+coefficients do not control every possible diffusivity calculation.
+
+The full input table is given in :ref:`sec:Inputs`. For normal use, begin with
+the documented defaults and change closure coefficients only for a deliberate
+sensitivity study.
 
 * ``erf.shoc.lambda_low``, ``lambda_high``, ``lambda_slope``, and
-  ``lambda_thresh`` control the stability-dependent coefficient used by the
-  native isotropy-timescale calculation. The stability correction acts for
-  stable stratification.
-* ``erf.shoc.length_fac`` is part of the diagnosed native turbulent mixing
-  length. In the native formula it appears in the denominator before the
-  mixing-length bounds are applied, so larger values reduce the otherwise
-  diagnosed length.
-* ``erf.shoc.coeff_kh`` and ``erf.shoc.coeff_km`` are the scalar/heat and
-  momentum diffusivity coefficients used in the general native diffusivity
-  branch. The special native stable-mixing branch uses its own fixed
-  coefficients.
+  ``lambda_thresh`` control the stability-dependent coefficient in the
+  isotropy-timescale calculation.
+* ``erf.shoc.length_fac`` scales the diagnosed mixing length inversely: larger
+  values reduce the otherwise diagnosed length.
+* The Native mixing-length expression is limited to the range 20 m--20 km
+  before an additional horizontal-grid cap of
+  :math:`\sqrt{\Delta x\,\Delta y}` is applied. On sufficiently fine
+  horizontal grids that final grid cap can therefore be smaller than 20 m.
 * ``erf.shoc.thl2tune``, ``qw2tune``, ``qwthl2tune``, and ``w2tune`` tune the
   diagnosed second moments.
-* ``erf.shoc.c_diag_3rd_mom`` controls the diagnostic third-moment closure.
-* The defaults are the recommended starting point unless a study is
-  intentionally investigating closure sensitivity.
+* ``erf.shoc.c_diag_3rd_mom`` is the damping coefficient used in the
+  diagnostic vertical-velocity third-moment closure.
 
 Upper-boundary taper
 ~~~~~~~~~~~~~~~~~~~~
@@ -413,10 +485,29 @@ The native upper taper is disabled by default:
 
    erf.shoc.top_taper_depth = 0.0
 
-For ``top_taper_depth > 0``, native SHOC applies a smooth taper over that many
-metres below the model top. The multiplier is
-``erf.shoc.top_taper_min_factor`` at the model top and increases smoothly to 1
-at the bottom of the taper layer.
+For a positive taper depth :math:`d_{\mathrm{taper}}`, define
+
+.. math::
+
+   x =
+   \operatorname{clip}
+   \left(
+       \frac{z_{\mathrm{top}}-z}{d_{\mathrm{taper}}},
+       0, 1
+   \right).
+
+Native SHOC uses the smooth multiplier
+
+.. math::
+
+   f =
+   f_{\min}
+   + (1-f_{\min})x^2(3-2x),
+
+where :math:`f_{\min}` is
+``erf.shoc.top_taper_min_factor``. Thus the multiplier is
+``top_taper_min_factor`` at the model top and smoothly reaches one at the
+bottom of the taper layer.
 
 The taper acts on native TKE evolution and TKE-budget quantities, isotropy and
 eddy diffusivities, and diagnosed higher-order moments. It is therefore a
@@ -425,9 +516,10 @@ numerical/physical upper-boundary control, not only a plot-diagnostic filter.
 Diagnostics
 ~~~~~~~~~~~
 
-Native SHOC diagnostics are produced after the native driver runs in both
-``state_update`` and ``host_diffusion`` transport modes. The values reflect the
-selected transport path.
+Native SHOC diagnostics are produced after the native driver runs in the
+supported ``state_update`` transport path. The diagnosed diffusivities remain
+available as diagnostics even though they are no longer exported for generic
+host reapplication.
 
 Request 3-D fields through the ordinary plotfile variable list. For example:
 

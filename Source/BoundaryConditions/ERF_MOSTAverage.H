@@ -11,6 +11,7 @@
 #include "ERF_TerrainMetrics.H"
 #include "ERF_DataStruct.H"
 #include "ERF_EB.H"
+#include "ERF_PlanarBoundary.H"
 
 class MOSTAverage {
 public:
@@ -22,6 +23,7 @@ public:
      * @param[in] a_pp_prefix    ParmParse prefix
      * @param[in] m_mesh_type    mesh type
      * @param[in] m_terrain_type terrain representation
+     * @param[in] zlevels_stag   nominal staggered z levels for all AMR levels
      * @param[in] eb_vec         optional embedded-boundary geometry data
      */
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
@@ -29,6 +31,7 @@ public:
                           std::string a_pp_prefix,
                           const MeshType& m_mesh_type,
                           const TerrainType& m_terrain_type,
+                          const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
                           const amrex::Vector<const eb_*>& eb_vec = {});
 
     // MOSTAverage() = default;
@@ -320,6 +323,58 @@ public:
     [[nodiscard]] const amrex::iMultiFab* get_k_indices (const int& lev) const { return m_k_indx[lev].get(); }
 
     /**
+     * Whether a height lies in the vertical extent [z_lo, z_hi) of a cell.
+     *
+     * The interval is closed below so that a query height landing exactly on a
+     * face (e.g. the default 10 m on a flat mesh with a 10 m first cell) belongs
+     * to the cell above it rather than to neither cell.
+     *
+     * @param[in] z    query height
+     * @param[in] z_lo height of the lower face
+     * @param[in] z_hi height of the upper face
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
+    static bool in_cell_z (const amrex::Real& z,
+                           const amrex::Real& z_lo,
+                           const amrex::Real& z_hi)
+    {
+        return ( (z >= z_lo) && (z < z_hi) );
+    }
+
+    /**
+     * Index of the highest cell whose center lies at or below a height above the
+     * bottom of the domain, on a column of staggered (face) heights.  This is the
+     * stretched-mesh counterpart of floor(zref/dz - 1/2) on a uniform mesh.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     * @param[in] zref    height above zlevels[0]
+     * @return the cell index, or -1 if zref lies below the first cell center
+     */
+    static int k_index_below (const amrex::Vector<amrex::Real>& zlevels,
+                              const amrex::Real& zref)
+    {
+        const int nz = static_cast<int>(zlevels.size()) - 1;
+        int lk = -1;
+        for (int k(0); k < nz; ++k) {
+            if (cell_center_height(zlevels, k) <= zref) { lk = k; } else { break; }
+        }
+        return lk;
+    }
+
+    /**
+     * Height of a cell center above the bottom of the domain, on a column of
+     * staggered (face) heights.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     * @param[in] k       cell index
+     */
+    static amrex::Real cell_center_height (const amrex::Vector<amrex::Real>& zlevels,
+                                           const int& k)
+    {
+        return myhalf * (zlevels[k] + zlevels[k+1]) - zlevels[0];
+    }
+
+    /**
      * Function to compute trilinear interpolation with terrain.
      *
      * @param[in] xp X-position
@@ -360,9 +415,34 @@ public:
                                       + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
             amrex::Real z_hi = fourth * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
-            if (z_target > z_lo && z_target < z_hi){
+            if (in_cell_z(z_target, z_lo, z_hi)) {
                 found = true;
-                zval  = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + myhalf;
+                // Weight between the two cell centers that bracket z_target by
+                // their physical heights, so the interpolation is linear in z
+                // on a stretched or terrain-following column.  A weight taken
+                // from the fraction of the containing cell alone (as before)
+                // is exact only for equal cell heights: at the 10 m face of a
+                // 10 m / 11 m pair it returned the wind at 10.25 m.  A center
+                // beyond the nodes searched here is mirrored about the shared
+                // face, which gives the equal-height weight at those ends.
+                amrex::Real zc = myhalf * (z_lo + z_hi);
+                if (z_target >= zc) {
+                    amrex::Real zc_up = two * z_hi - zc;
+                    if (lk + 2 <= kmax) {
+                        amrex::Real z_up = fourth * ( z_arr(i_new,j_new  ,lk+2) + z_arr(i_new+1,j_new  ,lk+2)
+                                                  + z_arr(i_new,j_new+1,lk+2) + z_arr(i_new+1,j_new+1,lk+2) );
+                        zc_up = myhalf * (z_hi + z_up);
+                    }
+                    zval = (amrex::Real) (lk + 1) + (z_target - zc) / (zc_up - zc);
+                } else {
+                    amrex::Real zc_dn = two * z_lo - zc;
+                    if (lk >= 1) {
+                        amrex::Real z_dn = fourth * ( z_arr(i_new,j_new  ,lk-1) + z_arr(i_new+1,j_new  ,lk-1)
+                                                  + z_arr(i_new,j_new+1,lk-1) + z_arr(i_new+1,j_new+1,lk-1) );
+                        zc_dn = myhalf * (z_dn + z_lo);
+                    }
+                    zval = (amrex::Real) lk + (z_target - zc_dn) / (zc - zc_dn);
+                }
                 break;
             }
         }
@@ -370,7 +450,8 @@ public:
         amrex::ignore_unused(found);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
-        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1)
+        // NOTE: This is the point ahead of the current i,j (e.g. i/j_new + 1);
+        //       in z, floor(zval) is the upper of the two bracketing cells
         const amrex::RealVect lx(ireal + myhalf, jreal + myhalf, zval);
 
         const amrex::IntVect ijk = lx.floor();
@@ -417,6 +498,15 @@ public:
     [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
 
     /**
+     * Fill the ghost cells of one planar average, and the valid region of its
+     * uncomputed copies when the 3D BoxArray is split in z (see PlanarBoundary).
+     *
+     * @param[in]     lev level index
+     * @param[in,out] mf  planar average to fill
+     */
+    void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
+
+    /**
      * Fill the ghost cells of one average that cannot be computed from the field
      * data with a zeroth-order extrapolation of the nearest computed value.
      *
@@ -443,6 +533,7 @@ protected:
     std::string m_pp_prefix;                                         // ParmParse prefix
     MeshType m_mesh_type;                                            // Mesh type
     TerrainType m_terrain_type;                                      // Terrain type
+    amrex::Vector<amrex::Vector<amrex::Real>> m_zlevels_stag;        // Nominal staggered z levels (maxlev)
 
     // General vars for multiple or all policies
     //--------------------------------------------
@@ -459,6 +550,7 @@ protected:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<PlanarBoundary> m_planar_bndry;                    // Fills the planar averages on a z-split BoxArray (maxlev)
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_rot_fields; // Rotated field data
 
     // Vars for planar average policy

@@ -1,6 +1,7 @@
 #include <ERF_EWP.H>
 #include <ERF_IndexDefines.H>
-#include <ERF_Constants.H>
+#include <cmath>
+#include <ERF_NumericalConstants.H>
 #include <ERF_Interpolation_1D.H>
 
 using namespace amrex;

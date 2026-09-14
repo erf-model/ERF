@@ -18,6 +18,7 @@
 #include "ERF_SpongeStruct.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
 
 /**
@@ -111,6 +112,19 @@ AMREX_ENUM(MoistureType,
 );
 
 /**
+ * @brief Whether an anelastic SuperDroplets configuration is unsupported.
+ *
+ * The current SuperDroplets implementation diagnoses thermodynamics through
+ * the compressible equation of state and has no BaseState pressure input.
+ */
+inline bool anelastic_superdroplets_configuration_invalid (
+    const MoistureType moisture_type,
+    const bool any_anelastic) noexcept
+{
+    return any_anelastic && moisture_type == MoistureType::SuperDroplets;
+}
+
+/**
  * @brief Wind-farm model.
  */
 AMREX_ENUM(WindFarmType,
@@ -135,7 +149,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP, Simple
+    None, RRTMGP, Simple, TwoStream
 );
 
 /**
@@ -910,6 +924,13 @@ struct SolverChoice {
             }
         }
 
+        if (anelastic_superdroplets_configuration_invalid(moisture_type, any_anelastic)) {
+            amrex::Error("erf.moisture_model = SuperDroplets is not supported with "
+                         "erf.anelastic = 1: the Super-Droplet path currently uses "
+                         "the compressible equation of state. Use compressible "
+                         "dynamics or a supported Eulerian moisture model.");
+        }
+
         // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
         // We should have different starting values because the stability of the method is dependent on dt.
         // dt is coarser for anelastic --> need to loosen stiffness of immersed forcing.
@@ -954,6 +975,13 @@ struct SolverChoice {
         // *******************************************************************************
 
         pp.queryAdd("ncorr", ncorr);
+        // Wall distance on a terrain-fitted mesh (RANS): "poisson" (Tucker 2003
+        // differential-equation distance) or "terrain_height" (height above the
+        // local surface projected on its normal, no linear solve)
+        pp.queryAdd("wall_dist_type", wall_dist_type);
+        if (wall_dist_type != "poisson" && wall_dist_type != "terrain_height") {
+            amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
+        }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
 #ifdef AMREX_USE_FLOAT
@@ -1135,6 +1163,10 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
+
+        // erf.radiation_model = TwoStream selects the two-stream model; its
+        // erf.radiation.* sub-options are read only then.
+        radChoice.init_params(rad_type == RadiationType::TwoStream, max_level, pp_prefix);
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1737,6 +1769,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
         } else if (rad_type == RadiationType::Simple) {
             amrex::Print() << "Radiation Model: Simple" << std::endl;
+        } else if (rad_type == RadiationType::TwoStream) {
+            amrex::Print() << "Radiation Model: TwoStream" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -1867,6 +1901,7 @@ struct SolverChoice {
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
+    RadChoice     radChoice;
 
     int         force_stage1_single_substep = 1;
 
@@ -1898,6 +1933,7 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
+    std::string wall_dist_type      = "poisson";
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2000,7 +2036,7 @@ struct SolverChoice {
 
     // Native shoc transport mode
     ShocTransportMode     shoc_transport_mode     = ShocTransportMode::StateUpdate;
-    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::HostDiffusion;
+    ShocMomentumTransport shoc_momentum_transport = ShocMomentumTransport::StateUpdate;
 
     // Transport the passive scalar?
     bool transport_scalar = true;
@@ -2077,8 +2113,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return (shoc_uses_momentum_host_diffusion(shoc_momentum_transport) ||
-                shoc_disables_momentum_transport (shoc_momentum_transport));
+        return shoc_disables_momentum_transport(shoc_momentum_transport);
     }
 
     /**
@@ -2089,7 +2124,7 @@ struct SolverChoice {
     {
         if (use_eamxx_shoc)   { return false; }
         if (!use_native_shoc) { return true;  }
-        return shoc_uses_host_diffusion(shoc_transport_mode);
+        return false;
     }
 
     /**
@@ -2130,6 +2165,12 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
+
+    /** @brief True for the models that run through the IRadiation interface
+     *  (RRTMGP, Simple); the two-stream model has its own class. */
+    [[nodiscard]] bool rad_uses_interface () const {
+        return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
+    }
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;

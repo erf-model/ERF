@@ -2,6 +2,7 @@
  * \file ERF_Plotfile.cpp
  */
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_PlotfileSelection.H"
@@ -61,7 +62,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                                 micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
     capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
-    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    // qsrc_sw / qsrc_lw are available whenever qheating_rates is allocated,
+    // i.e. for any erf.radiation_model other than None.
+    capabilities.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(solverChoice.rad_type);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;
@@ -1260,6 +1264,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         }
         if (containerHasElement(plot_var_names, "Lturb")) {
             MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Turb_lengthscale,mf_comp,1,0);
+            mf_comp ++;
+        }
+        // k-eqn RANS diagnostics (zero unless the closure is running)
+        if (containerHasElement(plot_var_names, "Rt")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_Rt,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "cmu")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_cmu,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "cmu_prime")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_cmu_prime,mf_comp,1,0);
             mf_comp ++;
         }
         auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
