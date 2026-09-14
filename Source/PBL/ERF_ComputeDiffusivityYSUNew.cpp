@@ -1437,6 +1437,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                           zero_d=zero, one_d=one, two_d=two] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
+            const Real zib  = zib_arr(i, j, 0);     // its height above the domain bottom
             // Guard: skip lateral ghost cells that may have uninitialized density.
             const Real rho_guard = cell_data(i, j, k, Rho_comp);
             if (rho_guard <= Real(0)) {
@@ -1701,10 +1702,12 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                     // Step 5: Compute K_m using zq_kp1 and wscalek_val (WRF line 961)
                     // WRF: xkzm(i,k) = wscalek(k)*karman*zq(k+1)*zfac(k)**pfac
+                    // The mixing length is the height above the column's own
+                    // surface (zib with erf.pbl_ib_aware, zero otherwise).
                     constexpr Real ckz_pbl = Real(0.001);
                     const Real K_base = ckz_pbl * dz_terrain * rho;
                     constexpr Real pfac = amrex::Real(2.0);
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * zq_kp1 * std::pow(zfac, pfac);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base + rho * wscalek_val * KAPPA * (zq_kp1 - zib) * std::pow(zfac, pfac);
 
                     // Apply Prandtl number to get heat and moisture diffusivity
                     K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
@@ -1742,7 +1745,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     // Step 4: Compute stable wscalek using phi_m
                     // WRF bl_ysu.F90 lines 951-957: wscalek = ust / phi_m(zq(k+1)/L)
                     const Real zol1_stable = zol1_arr_cap(i, j, 0);  // stored from Phase 12
-                    const Real zol_ratio = zq_kp1_stable / zl1_stable;  // zq(k+1) / zl1
+                    const Real zol_ratio = (zq_kp1_stable - zib) / (zl1_stable - zib);  // zq(k+1) / zl1, above the column's surface
                     const Real phim_stable_arg = zol1_stable * zol_ratio;  // (z/L) for level k+1
                     // Enable QNSE stable functions if requested, otherwise use default linear form
                     const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
@@ -1759,7 +1762,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     constexpr Real ckz_pbl_stable = Real(0.001);
                     const Real K_base_stable = ckz_pbl_stable * dz_terrain * rho;
                     constexpr Real pfac_stable = amrex::Real(2.0);
-                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * zq_kp1_stable * std::pow(zfac_stable, pfac_stable);
+                    K_turb(i, j, k, EddyDiff::Mom_v) = K_base_stable + rho * wscalek_stable * KAPPA * (zq_kp1_stable - zib) * std::pow(zfac_stable, pfac_stable);
 
                     // Step 6: Apply Prandtl number for stable PBL
                     // For stable, prfac=0 (from step 3 of SECTION A)

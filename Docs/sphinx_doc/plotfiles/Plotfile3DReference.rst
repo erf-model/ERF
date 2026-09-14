@@ -465,6 +465,52 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | or buildings     |
 |                             | [1]              |
 +-----------------------------+------------------+
+| **ibseb_nfaces**            | Wall faces of the|
+|                             | building balance |
+|                             | touching the     |
+|                             | cell;            |
+|                             | erf.ibseb.enable |
+|                             | [1]              |
++-----------------------------+------------------+
+| **ibseb_tskin**             | Mean skin        |
+|                             | temperature of   |
+|                             | those faces;     |
+|                             | erf.ibseb.enable |
+|                             | [K]              |
++-----------------------------+------------------+
+| **ibseb_sw_abs**            | Mean absorbed    |
+|                             | shortwave of     |
+|                             | those faces;     |
+|                             | erf.ibseb.enable |
+|                             | [W/m2]           |
++-----------------------------+------------------+
+| **ibseb_shadow**            | Mean shadow flag |
+|                             | of those faces;  |
+|                             | erf.ibseb.enable |
+|                             | [1]              |
++-----------------------------+------------------+
+| **ibseb_lw_net**            | Mean net longwave|
+|                             | of those faces;  |
+|                             | erf.ibseb.enable |
+|                             | [W/m2]           |
++-----------------------------+------------------+
+| **ibseb_f_sky**             | Mean sky view    |
+|                             | fraction of those|
+|                             | faces;           |
+|                             | erf.ibseb.enable |
+|                             | [1]              |
++-----------------------------+------------------+
+| **ibseb_H**                 | Mean sensible    |
+|                             | flux out of those|
+|                             | faces;           |
+|                             | erf.ibseb.enable |
+|                             | [W/m2]           |
++-----------------------------+------------------+
+| **ibseb_G**                 | Mean conduction  |
+|                             | into those faces;|
+|                             | erf.ibseb.enable |
+|                             | [W/m2]           |
++-----------------------------+------------------+
 | **volfrac**                 | EB / immersed    |
 |                             | boundary volume  |
 |                             | fraction; unity  |
@@ -492,6 +538,13 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | to be defined    |
 |                             | [count]          |
 +-----------------------------+------------------+
+
+The ``ibseb_*`` fields are selected only when the immersed-boundary surface
+energy balance is on (``erf.ibseb.enable = true``); without it the names are
+dropped from the stream silently. Each is the mean over the wall faces that
+touch the cell (up to three at an outside corner, six in a one-cell slot) and
+zero where the cell touches none, so they are face diagnostics scattered onto
+cells rather than cell-centred fields.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.

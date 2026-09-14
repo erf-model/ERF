@@ -77,7 +77,6 @@ erf.ibseb.sun_mode = "solar"
 erf.ibseb.latitude_deg = 40.0
 erf.ibseb.longitude_deg = -105.0
 erf.ibseb.day_of_year = 172
-erf.ibseb.utc_offset_hours = -7.0
 erf.ibseb.time_zero_utc_s = 43200.0
 erf.ibseb.lw_mode = "gray"
 erf.ibseb.sky_emissivity = 0.83

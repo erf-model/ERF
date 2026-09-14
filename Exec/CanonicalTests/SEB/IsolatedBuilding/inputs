@@ -80,7 +80,6 @@ erf.ibseb.sun_mode = "solar"
 erf.ibseb.latitude_deg = 40.0
 erf.ibseb.longitude_deg = -105.0
 erf.ibseb.day_of_year = 172
-erf.ibseb.utc_offset_hours = -7.0
 erf.ibseb.time_zero_utc_s = 25200.0
 erf.ibseb.solar_constant = 1361.0
 erf.ibseb.sw_transmission = 0.7

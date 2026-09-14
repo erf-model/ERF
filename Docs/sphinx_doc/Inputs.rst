@@ -2986,13 +2986,11 @@ column would be taken for a building), a uniform vertical grid (no
 | **erf.ibseb.sw_diffuse**          | fixed sun: diffuse irradiance on a horizontal surface    | Real >= 0          | 100.0                  |
 |                                   | [W/m2]                                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.latitude_deg**        | solar: site latitude, north positive                     | Real               | 40.0                   |
+| **erf.ibseb.latitude_deg**        | solar: site latitude, north positive                     | Real in [-90, 90]  | 40.0                   |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.longitude_deg**       | solar: site longitude, east positive                     | Real               | -105.0                 |
+| **erf.ibseb.longitude_deg**       | solar: site longitude, east positive                     | Real in [-180,180] | -105.0                 |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.day_of_year**         | solar: day of year                                       | Real in [1, 366]   | 172                    |
-+-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.utc_offset_hours**    | solar: time-zone offset from UTC [h]                     | Real               | -7.0                   |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC at simulation time zero   | Real               | 43200.0                |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

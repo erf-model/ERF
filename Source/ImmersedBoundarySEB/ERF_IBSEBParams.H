@@ -51,8 +51,7 @@ struct IBSEBParams
     amrex::Real latitude_deg      = 40.0;   ///< solar: site latitude, north positive
     amrex::Real longitude_deg     = -105.0; ///< solar: site longitude, east positive
     amrex::Real day_of_year       = 172.0;  ///< solar: day of year
-    amrex::Real utc_offset_hours  = -7.0;   ///< solar: time zone offset from UTC [h]
-    amrex::Real time_zero_utc_s   = 12.0 * 3600.0; ///< solar: seconds after 00:00 UTC at simulation time zero
+    amrex::Real time_zero_utc_s   = 12.0 * 3600.0; ///< solar: seconds after 00:00 UTC at simulation time zero (the sun follows UTC and the longitude)
     amrex::Real solar_constant    = 1361.0; ///< solar: [W/m2]
     amrex::Real sw_transmission   = 0.7;    ///< solar: bulk clear-sky transmission (Bird)
     amrex::Real sw_diffuse_coeff  = 0.5;    ///< solar: share of the attenuated beam that arrives as diffuse light
@@ -168,7 +167,6 @@ struct IBSEBParams
         pp.query("latitude_deg",     latitude_deg);
         pp.query("longitude_deg",    longitude_deg);
         pp.query("day_of_year",      day_of_year);
-        pp.query("utc_offset_hours", utc_offset_hours);
         pp.query("time_zero_utc_s",  time_zero_utc_s);
         pp.query("solar_constant",   solar_constant);
         pp.query("sw_transmission",  sw_transmission);
@@ -215,6 +213,14 @@ struct IBSEBParams
                 amrex::Abort("erf.ibseb.sun_mode must be \"fixed\" or \"solar\"");
             }
             if (sun_zenith_deg < 0.0 || sun_zenith_deg > 180.0) { amrex::Abort("erf.ibseb.sun_zenith_deg must be in [0, 180]"); }
+            if (latitude_deg < -90.0 || latitude_deg > 90.0) { amrex::Abort("erf.ibseb.latitude_deg must be in [-90, 90]"); }
+            if (longitude_deg < -180.0 || longitude_deg > 180.0) { amrex::Abort("erf.ibseb.longitude_deg must be in [-180, 180]"); }
+            if (day_of_year < 1.0 || day_of_year > 366.0) { amrex::Abort("erf.ibseb.day_of_year must be in [1, 366]"); }
+            // The sun is computed from UTC (time_zero_utc_s) and the longitude; a
+            // time-zone offset has no place in that and used to cancel silently.
+            if (pp.contains("utc_offset_hours")) {
+                amrex::Abort("erf.ibseb.utc_offset_hours is not an input: the sun follows time_zero_utc_s (UTC) and longitude_deg; remove it");
+            }
             if (sw_direct_normal < 0.0 || sw_diffuse < 0.0) { amrex::Abort("erf.ibseb.sw_direct_normal and sw_diffuse must be >= 0"); }
             if (sw_transmission <= 0.0 || sw_transmission > 1.0) { amrex::Abort("erf.ibseb.sw_transmission must be in (0, 1]"); }
             if (albedo < 0.0 || albedo > 1.0 || albedo_ground < 0.0 || albedo_ground > 1.0) {
