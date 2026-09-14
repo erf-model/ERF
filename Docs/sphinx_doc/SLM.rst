@@ -104,6 +104,8 @@ Parameter tables and external forcing
 | **slm.use_parameter_file**       | initialize soil and vegetation parameters from the       | Boolean              | false            |
 |                                  | Noah-MP-format parameter file                            |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **slm.radiation_scheme**         | radiation scheme used by SLM                             | ``SLM``, ``NoahMP``  | ``NoahMP``       |
++----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.parameter_file**           | parameter-table filename used when                       | String               | NoahmpTable.TBL  |
 |                                  | ``use_parameter_file`` is true                           |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+

@@ -926,6 +926,9 @@ private:
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
     bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
 
+    enum class RadiationScheme { SLM, NoahMP };
+    RadiationScheme radiation_scheme = RadiationScheme::NoahMP;
+
     // NOAHMP radiation parameters
     int opt_rad = 1;  // Radiation option: 1=modified two-stream (default), 2=two-stream, 3=gap=f(veg)
     int opt_alb = 1;  // Snow albedo option: 1=BATS, 2=CLASS

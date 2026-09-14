@@ -436,6 +436,26 @@ void SLM::init_from_file()
     pp.query("veg_dataset", veg_dataset);
     pp.query("soil_dataset", soil_dataset);
     pp.query("use_param_tbl", use_wrf_lai);
+
+    std::string radiation_scheme_name = "NoahMP";
+    pp.query("radiation_scheme", radiation_scheme_name);
+    const std::string radiation_scheme_lower = amrex::toLower(radiation_scheme_name);
+    if (radiation_scheme_lower == "slm") {
+        radiation_scheme = RadiationScheme::SLM;
+        radiation_scheme_name = "SLM";
+    } else if (radiation_scheme_lower == "noahmp") {
+        radiation_scheme = RadiationScheme::NoahMP;
+        radiation_scheme_name = "NoahMP";
+        if (!use_param_file) {
+            amrex::Abort("slm.radiation_scheme=noahmp requires "
+                         "slm.use_parameter_file=true");
+        }
+    } else {
+        amrex::Abort("Invalid slm.radiation_scheme='" + radiation_scheme_lower +
+                     "'. Expected 'SLM' or 'NoahMP'");
+    }
+    amrex::Print() << " SLM radiation scheme: " << radiation_scheme_name << std::endl;
+
     if (use_param_file) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(parameter_file != "", "Using parameter file, but file path is empty!");
@@ -2409,12 +2429,14 @@ SLM::AdvanceSLM ()
         // Update LAI and SAI based on current month
         UpdateLAI(mfi);
 
-        // Calculate net radiation absorbed by canopy and soil surface
-        // Old SLM radiation (commented out to use NOAHMP radiation instead)
-        // radiative_fluxes(mfi);
-
-        // NOAHMP radiation calculation
-        radiation_noahmp(mfi);
+        if (radiation_scheme == RadiationScheme::SLM) {
+            // Calculate net radiation absorbed by canopy and soil surface
+            // Old SLM radiation
+            radiative_fluxes(mfi);
+        } else {
+            // NOAHMP radiation calculation
+            radiation_noahmp(mfi);
+        }
 
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
