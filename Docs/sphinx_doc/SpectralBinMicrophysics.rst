@@ -46,8 +46,24 @@ accepted-transfer identity for every spectral bin,
 
 and the corresponding identities for the accepted ``qc`` and ``qr`` face
 transfers.  The residual tolerances are scaled by the state/transfer magnitude
-and machine epsilon.  The compact face transfers used in this check are the
-exact projections of the accepted spectral transfer.
+and machine epsilon, with no order-one floor (an exactly zero scale has
+exactly zero tolerance).  The compact face transfers used in this check are
+the exact projections of the accepted spectral transfer.  The compact
+old-state snapshot is copied from ERF's explicit ``state_old`` argument after
+ERF's old/new swap, and the real qualification diagnostic records
+``step_count``; the six qualification cases require at least two complete
+steps.
+
+The authoritative-state finite/nonnegative check uses one GPU-capable fused
+``ParReduce`` traversal across all requested components, followed by a fixed
+number of scalar MPI reductions.  Its negative tolerance is
+``128 * epsilon * max_abs(state)``; an all-zero state therefore has zero
+tolerance.  This avoids one global ``min`` collective per spectral bin.
+
+The memory fields in the qualification diagnostic are logical allocated data
+payloads, including ghost cells in every grown FAB, for the four auxiliary
+cell states, reusable/accepted face transfers, and compact baseline snapshot.
+Allocator metadata is not included.
 
 Runtime inputs
 --------------
@@ -121,7 +137,7 @@ The qualified P1 configuration is:
 The real manufactured regressions cover both time integrators and 4, 16, and
 64 bins.  They verify spatial change, per-bin nonnegativity, periodic mass
 conservation, compact projection, accepted face-transfer projection, and local
-accepted-transfer closure.  The
+accepted-transfer closure after two complete steps.  The
 variable-density free-stream unit test remains a separate preservation test;
 it does not replace the nonuniform transport regression.
 

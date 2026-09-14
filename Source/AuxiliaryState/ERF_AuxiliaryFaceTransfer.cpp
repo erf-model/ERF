@@ -6,6 +6,16 @@
 
 namespace erf_auxiliary {
 
+std::size_t allocated_payload_bytes(const amrex::MultiFab& state) noexcept
+{
+    std::size_t points = 0;
+    for (int box_index = 0; box_index < state.boxArray().size(); ++box_index) {
+        points += static_cast<std::size_t>(
+            amrex::grow(state.boxArray()[box_index], state.nGrowVect()).numPts());
+    }
+    return points * static_cast<std::size_t>(state.nComp()) * sizeof(amrex::Real);
+}
+
 void AuxiliaryFaceTransfer::define(const amrex::BoxArray& ba,
                                    const amrex::DistributionMapping& dm,
                                    const int ncomp, const int ngrow)
@@ -19,9 +29,8 @@ void AuxiliaryFaceTransfer::define(const amrex::BoxArray& ba,
         m_face[static_cast<std::size_t>(dir)]->setVal(0.0);
     }
     m_ncomp = ncomp;
-    std::size_t points = 0;
-    for (const auto& face : m_face) points += static_cast<std::size_t>(face->boxArray().numPts());
-    m_resident_bytes = points * static_cast<std::size_t>(ncomp) * sizeof(amrex::Real);
+    m_resident_bytes = 0;
+    for (const auto& face : m_face) m_resident_bytes += allocated_payload_bytes(*face);
 }
 
 void AuxiliaryFaceTransfer::setVal(const amrex::Real value)

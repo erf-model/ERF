@@ -73,13 +73,13 @@ amrex::Real sbm_max_change(amrex::MultiFab& scratch,
 
 std::size_t sbm_cell_bytes(const amrex::MultiFab& state)
 {
-    return static_cast<std::size_t>(state.boxArray().numPts()) *
-           static_cast<std::size_t>(state.nComp()) * sizeof(amrex::Real);
+    return ::erf_auxiliary::allocated_payload_bytes(state);
 }
 
 void write_sbm_diagnostic(const std::string& path,
                           const bool anelastic,
                           const int nbins,
+                          const int step_count,
                           const amrex::Real initial_mass,
                           const amrex::Real final_mass,
                           const amrex::Real initial_variation,
@@ -113,9 +113,10 @@ void write_sbm_diagnostic(const std::string& path,
         std::ofstream output(path);
         if (!output) amrex::Error("unable to write SBM P1 diagnostic: " + path);
         output << std::setprecision(17)
-               << "format=erf-sbm-p1-diagnostic-v1\n"
+               << "format=erf-sbm-p1-diagnostic-v2\n"
                << "method=" << (anelastic ? "anelastic" : "compressible") << '\n'
                << "nbins=" << nbins << '\n'
+               << "step_count=" << step_count << '\n'
                << "cell_volume=" << cell_volume << '\n'
                << "initial_mass=" << initial_mass << '\n'
                << "final_mass=" << final_mass << '\n'
@@ -143,7 +144,8 @@ void write_sbm_diagnostic(const std::string& path,
     amrex::ParallelDescriptor::Barrier("SBM P1 diagnostic");
     if (!passed) {
         std::ostringstream message;
-        message << "SBM P1 numerical qualification failed: mass_error=" << mass_error
+        message << "SBM P1 numerical qualification failed: step_count=" << step_count
+                << ", mass_error=" << mass_error
                 << ", compact_mass_error=" << compact_mass_error
                 << ", initial_variation=" << initial_variation
                 << ", transport_change=" << transport_change
@@ -166,6 +168,7 @@ void ERF::initialize_sbm_auxiliary(const int lev)
     if (!restart_chkfile.empty()) {
         amrex::Error("SBM P1 restart is unsupported: no auxiliary-state checkpoint/schema conversion is implemented");
     }
+    sbm_step_count = 0;
     if (!sbm_auxiliary) {
         sbm_auxiliary = std::make_unique<::erf_auxiliary::AuxiliaryStateManager>(sbm_layout->auxiliary_layout());
     }
@@ -261,16 +264,22 @@ void ERF::initialize_sbm_auxiliary(const int lev)
             << std::endl;
 }
 
-void ERF::begin_sbm_step(const int lev)
+void ERF::begin_sbm_step(const int lev, const amrex::MultiFab& core_old)
 {
     if (solverChoice.moisture_type == MoistureType::SBM) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0 && sbm_auxiliary != nullptr,
                                          "SBM auxiliary state must be initialized before stepping");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_initial_bulk_state != nullptr,
+                                         "SBM compact baseline must be initialized before stepping");
         sbm_auxiliary->begin_step(0);
-        amrex::MultiFab::Copy(*sbm_initial_bulk_state, vars_new[0][Vars::cons],
+        // ERF swaps vars_old/vars_new before entering advance_dycore.  The
+        // explicit state_old argument is therefore the actual full-step old
+        // compact state, even on the second and subsequent time steps.
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state, core_old,
                               RhoQ2_comp, 0, 1, 0);
-        amrex::MultiFab::Copy(*sbm_initial_bulk_state, vars_new[0][Vars::cons],
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state, core_old,
                               RhoQ3_comp, 1, 1, 0);
+        ++sbm_step_count;
     }
 }
 
@@ -338,6 +347,7 @@ void ERF::advance_sbm_stage(const int lev,
              state_new[IntVars::cons].sum(RhoQ3_comp));
         write_sbm_diagnostic(solverChoice.sbm_diagnostic_file,
                              solverChoice.anelastic[lev] == 1, ncomp,
+                             sbm_step_count,
                              initial_mass, final_mass, initial_variation,
                              transport_change, projection_error,
                              face_projection_error, closure, compact_mass, cell_volume,

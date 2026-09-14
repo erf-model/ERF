@@ -418,7 +418,7 @@ public:
     // Experimental SBM P0/P1 auxiliary-state lifecycle.  The manager is
     // generic; these ERF methods are the provider-specific integration seam.
     void initialize_sbm_auxiliary (int lev);
-    void begin_sbm_step (int lev);
+    void begin_sbm_step (int lev, const amrex::MultiFab& core_old);
     void advance_sbm_stage (int lev,
                             amrex::Vector<amrex::MultiFab>& state_old,
                             amrex::Vector<amrex::MultiFab>& state_new,
@@ -1153,6 +1153,7 @@ private:
     std::unique_ptr<::erf_auxiliary::AuxiliaryStateManager> sbm_auxiliary;
     std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> sbm_accepted_bulk_face_transfer;
     std::unique_ptr<amrex::MultiFab> sbm_initial_bulk_state;
+    int sbm_step_count{0};
     std::unique_ptr<::erf_sbm::OwnershipRegistry> sbm_ownership;
     std::unique_ptr<::erf_sbm::SBMLayout> sbm_layout;
 

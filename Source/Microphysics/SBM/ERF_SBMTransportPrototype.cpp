@@ -3,11 +3,15 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SBMBulkProjection.H"
 
+#include <AMReX_ParReduce.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_MFParallelFor.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_GpuUtility.H>
 
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <stdexcept>
 
@@ -83,19 +87,44 @@ void validate_nonnegative_state(const amrex::MultiFab& state, const int ncomp,
     if (ncomp <= 0 || ncomp > state.nComp()) {
         throw std::invalid_argument("invalid component count for auxiliary finite-state check");
     }
-    if (!state.is_finite(0, ncomp, state.nGrowVect())) {
+
+    // One local GPU-capable traversal covers every requested component and
+    // returns the complete validity tuple.  ParReduce is local in AMReX, so
+    // the three fixed-size reductions below are the only MPI collectives;
+    // their count is independent of ncomp.
+    const auto& arrays = state.const_arrays();
+    const auto local = amrex::ParReduce(
+        amrex::TypeList<amrex::ReduceOpLogicalOr, amrex::ReduceOpMin,
+                        amrex::ReduceOpMax>{},
+        amrex::TypeList<int, amrex::Real, amrex::Real>{},
+        state, state.nGrowVect(), ncomp,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k, int comp)
+            -> amrex::GpuTuple<int, amrex::Real, amrex::Real> {
+            const amrex::Real value = arrays[box_no](i,j,k,comp);
+            const int nonfinite = (amrex::isnan(value) || amrex::isinf(value)) ? 1 : 0;
+            return {nonfinite, value, amrex::Math::abs(value)};
+        });
+    int has_nonfinite = amrex::get<0>(local);
+    amrex::Real minimum = amrex::get<1>(local);
+    amrex::Real maximum_absolute = amrex::max(amrex::Real(0.0), amrex::get<2>(local));
+    amrex::ParallelDescriptor::ReduceIntMax(has_nonfinite);
+    amrex::ParallelDescriptor::ReduceRealMin(minimum);
+    amrex::ParallelDescriptor::ReduceRealMax(maximum_absolute);
+    if (has_nonfinite != 0) {
         throw std::runtime_error(std::string(context) + " contains NaN or infinite values");
     }
-    for (int comp = 0; comp < ncomp; ++comp) {
-        const amrex::Real minimum = state.min(comp);
-        const amrex::Real scale = amrex::max(amrex::Real(1.0),
-                                              amrex::Math::abs(minimum));
-        const amrex::Real tolerance = amrex::Real(128.0) *
-            std::numeric_limits<amrex::Real>::epsilon() * scale;
-        if (minimum < -tolerance) {
-            throw std::runtime_error(std::string(context) +
-                                     " contains materially negative values; no clipping is permitted");
-        }
+
+    // Scale only with the global maximum magnitude.  There is deliberately
+    // no order-one floor: an all-zero state has tau_neg == 0.
+    const amrex::Real tolerance = maximum_absolute == amrex::Real(0.0) ?
+        amrex::Real(0.0) : amrex::Real(128.0) *
+        std::numeric_limits<amrex::Real>::epsilon() * maximum_absolute;
+    if (minimum < -tolerance) {
+        std::ostringstream message;
+        message << context << " has material negative value: minimum=" << minimum
+                << ", global_max_abs=" << maximum_absolute
+                << ", tolerance=" << tolerance;
+        throw std::runtime_error(message.str());
     }
 }
 

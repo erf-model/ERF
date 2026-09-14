@@ -32,10 +32,10 @@ void AuxiliaryStateManager::define_level(const int level,
     m_face_ledgers[static_cast<std::size_t>(level)] = std::make_unique<AuxiliaryFaceTransferLedger>();
     m_face_ledgers[static_cast<std::size_t>(level)]->define(ba, dm, m_layout.ncomp(), 3, 0);
 
-    const std::size_t cells = static_cast<std::size_t>(ba.numPts());
-    const std::size_t nboxes = static_cast<std::size_t>(ba.size());
-    m_state_resident_bytes = nboxes == 0 ? 0 : cells * static_cast<std::size_t>(m_layout.ncomp()) *
-        static_cast<std::size_t>(4) * sizeof(amrex::Real);
+    m_state_resident_bytes = allocated_payload_bytes(*m_old[static_cast<std::size_t>(level)]) +
+        allocated_payload_bytes(*m_evaluation[static_cast<std::size_t>(level)]) +
+        allocated_payload_bytes(*m_output[static_cast<std::size_t>(level)]) +
+        allocated_payload_bytes(*m_scratch[static_cast<std::size_t>(level)]);
     m_face_transfer_resident_bytes = m_face_ledgers[static_cast<std::size_t>(level)]->resident_bytes();
     m_resident_bytes = m_state_resident_bytes + m_face_transfer_resident_bytes;
 }

@@ -32,7 +32,8 @@ foreach(expected_text
         "SBM layout identity"
         "SBM P1 auxiliary state"
         "components=${EXPECTED_COMPONENTS}"
-        "Coarse STEP 1 ends")
+        "Coarse STEP 1 ends"
+        "Coarse STEP 2 ends")
     string(FIND "${simulation_log}" "${expected_text}" expected_offset)
     if(expected_offset EQUAL -1)
         message(FATAL_ERROR "SBM P1 log is missing expected text: ${expected_text}")

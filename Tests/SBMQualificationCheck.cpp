@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 
     const auto format = values.find("format");
     const auto method = values.find("method");
-    if (format == values.end() || format->second != "erf-sbm-p1-diagnostic-v1" ||
+    if (format == values.end() || format->second != "erf-sbm-p1-diagnostic-v2" ||
         method == values.end() ||
         (method->second != "compressible" && method->second != "anelastic")) {
         std::cerr << "invalid SBM diagnostic identity\n";
@@ -69,9 +69,11 @@ int main(int argc, char** argv)
     }
 
     int nbins = 0;
+    int step_count = 0;
     int passed = 0;
     if (!read_integer(values, "nbins", nbins) ||
-        (nbins != 4 && nbins != 16 && nbins != 64)) {
+        (nbins != 4 && nbins != 16 && nbins != 64) ||
+        !read_integer(values, "step_count", step_count) || step_count < 2) {
         std::cerr << "SBM diagnostic failed its discrete checks\n";
         return 1;
     }
@@ -118,7 +120,7 @@ int main(int argc, char** argv)
         read_real(values, "face_transfer_bytes", face_transfer_bytes) &&
         read_real(values, "total_auxiliary_bytes", total_auxiliary_bytes) &&
         read_integer(values, "passed", passed);
-    if (!finite || !(mass_tolerance > 0.0) || !(projection_tolerance > 0.0) ||
+    if (!finite || step_count < 2 || !(mass_tolerance > 0.0) || !(projection_tolerance > 0.0) ||
         !(face_tolerance > 0.0) || !(initial_variation > 0.0) ||
         !(transport_change > 0.0) || mass_error > mass_tolerance ||
         compact_mass_error > mass_tolerance ||
@@ -141,7 +143,8 @@ int main(int argc, char** argv)
     }
 
     std::cout << "SBM P1 qualification passed: method=" << method->second
-              << " nbins=" << nbins << " mass_error=" << mass_error
+              << " nbins=" << nbins << " step_count=" << step_count
+              << " mass_error=" << mass_error
               << " projection_error=" << projection_error
               << " face_projection_error=" << face_projection_error
               << " spectral_transfer_closure_error=" << spectral_closure_error

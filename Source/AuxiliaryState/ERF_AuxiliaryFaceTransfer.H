@@ -12,6 +12,15 @@
 namespace erf_auxiliary {
 
 /**
+ * @brief Logical MultiFab payload size, including each FAB's allocated ghosts.
+ *
+ * This reports the data payload rather than allocator metadata.  Counting the
+ * grown BoxArray entries makes the result independent of MPI ownership and
+ * matches the FAB boxes allocated by AMReX.
+ */
+[[nodiscard]] std::size_t allocated_payload_bytes(const amrex::MultiFab& state) noexcept;
+
+/**
  * @brief Stage-local face flux storage for an auxiliary conserved state.
  *
  * Each direction is a face-centered MultiFab with the same box decomposition

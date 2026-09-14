@@ -12,6 +12,7 @@ the design document or a claim of physical microphysics qualification.
 * AMReX submodule: `e60cdc18711ccf7fc0616d7a2fdf062021376976`
 * Qualification prompt SHA-256: `ffd655e0087e72c5d1b125100d46fabf8d7b88e19848bb8aadcbb29e9d5c688`
 * Final hardening prompt SHA-256: `ae5adcca287e8df24de2c2910c50ccad4318bc988b8ecee19691904b54d9451e`
+* Final qualification fixes prompt SHA-256: `cfbfa4ddbdbcdff30ad05b4d92190923b52dc137fd3c862bbd157586ff907f17`
 
 ## Authoritative state and stage path
 
@@ -26,6 +27,13 @@ only as the stage-1 evaluation and corrects against the unchanged old state.
 operations.  `Source/Microphysics/SBM/ERF_SBMErfIntegration.cpp` constructs the
 provider context and passes ERF's actual `avg_xmom`, `avg_ymom`, and `avg_zmom`
 carrier fields to `ERF_SBMTransportPrototype.cpp`.
+
+`ERF::Advance` swaps ERF's old/new state vectors before entering the dycore.
+`ERF::begin_sbm_step` therefore receives the explicit `state_old[cons]`
+MultiFab from `advance_dycore` and snapshots its compact `qc`/`qr` components.
+This keeps the compact baseline tied to the true start of each full step,
+including the second and subsequent steps; it does not read the destination
+state after the swap.
 
 ## Actual production face-transfer ledger
 
@@ -94,18 +102,22 @@ allocation; edge/pivot lengths, finiteness, monotonicity, and bin membership
 are checked.  `validate_runtime_bin_count` is the small pure contract used by
 the parser and unit tests.
 
-`ERF_SBMTransportPrototype::validate_nonnegative_state` performs an explicit
-finite query over the authoritative auxiliary state and a material-negative
-reduction.  NaN, positive/negative infinity, and material negative values fail
-closed; roundoff-scale negative values follow the documented tolerance and are
-not silently clipped.
+`ERF_SBMTransportPrototype::validate_nonnegative_state` performs one fused,
+GPU-capable `ParReduce` over all requested state components, returning a
+nonfinite flag, minimum, and maximum absolute value.  Because AMReX's
+`ParReduce` is local, exactly three scalar MPI reductions combine those values
+globally, independent of the number of bins.  NaN, positive/negative infinity,
+and material negative values fail closed.  The negative tolerance is
+`128 * epsilon * max_abs(state)` with no order-one floor, so an all-zero state
+has zero tolerance; values within that scale are accepted without clipping.
 
 The diagnostic memory model reports cell-state bytes, face-transfer bytes, and
-their total.  Face-transfer storage is the reusable stage plus accepted
-spectral ledger objects and the accepted compact bulk projection; the initial
-compact state snapshot is included in cell-state bytes.  This accounting is
-kept in terms of transfer objects so a future blockwise or AMR consumer can
-replace the backing layout without changing the ownership contract.
+their total as logical allocated data payloads.  It counts each grown FAB box,
+including ghost cells, for the four cell states, the reusable stage plus
+accepted spectral ledger objects, the accepted compact bulk projection, and
+the initial compact state snapshot.  Allocator metadata is excluded.  The
+versioned diagnostic also records the completed full-step count and the real
+qualification cases require at least two.
 
 ## P1 capability boundary
 
@@ -127,18 +139,20 @@ conversion, GPU performance qualification, and physical warm-cloud validation.
 * `Tests/Unit/Microphysics/SBM/ERF_GTestSBMP0P1.cpp`: grid/layout metadata,
   two-moment algebra, temporal recurrence, face-ledger weights, topology,
   ownership, finite/negative controls, accepted-state local closure (including
-  wrong-final-stage and perturbed-face controls), free-stream preservation, and
-  runtime 4/16/64-bin transport.
+  wrong-final-stage, perturbed-face, zero-scale, and stale-baseline controls),
+  free-stream preservation, and runtime 4/16/64-bin transport.
 * `Tests/CTestList.cmake` and `Tests/RunSBMPrototype.cmake`: six real ERF MPI
   cases (compressible/anelastic × 4/16/64 bins).
 * `Tests/SBMQualificationCheck.cpp`: independent numerical diagnostic checker;
   it verifies the emitted invariant values so CTest does not rely on log text
   alone.
 
-The six manufactured cases use a nonuniform periodic spectrum, verify spectral
-mass conservation and compact projection, and check the accepted face ledger.
-They also emit the three local closure residuals/tolerances and the three-part
-memory accounting consumed by the independent checker.  The documentation
+The six manufactured cases use a nonuniform periodic spectrum, run for two
+complete level-0 steps, verify spectral mass conservation and compact
+projection, and check the accepted face ledger.  They emit the versioned
+diagnostic's step count, three local closure residuals/tolerances, and the
+three-part grown-FAB memory accounting consumed by the independent checker.
+The documentation
 build was attempted with `cd Docs && ./BuildDocs.sh`; its Python catalog checks
 pass, but this checkout has neither `doxygen` nor `sphinx-build` (and
 `python3 -m sphinx` is unavailable).  Reproduce that exact attempt after

@@ -267,6 +267,13 @@ TEST (SBMP0, GenericManagerPreservesBaselineAndPublishesAcceptedState)
     EXPECT_EQ(manager.old(0).min(0), Real(2.0));
     EXPECT_EQ(manager.evaluation(0).min(0), Real(5.0));
     EXPECT_EQ(manager.output(0).min(0), Real(5.0));
+    const auto one_state_bytes = erf_auxiliary::allocated_payload_bytes(manager.old(0));
+    EXPECT_EQ(manager.state_resident_bytes(), 4U * one_state_bytes);
+    EXPECT_GT(one_state_bytes,
+              static_cast<std::size_t>(boxes.numPts()) * 2U * sizeof(Real));
+    erf_auxiliary::AuxiliaryFaceTransfer face_transfer;
+    face_transfer.define(boxes, dm, 2, 0);
+    EXPECT_EQ(manager.face_transfer_resident_bytes(), 2U * face_transfer.resident_bytes());
     EXPECT_GT(manager.resident_bytes(), 0U);
 }
 
@@ -463,6 +470,50 @@ TEST (SBMP1, AcceptedTransferClosesAgainstAcceptedState)
     EXPECT_LE(closure.qr_max, closure.qr_tolerance);
     EXPECT_TRUE(closure.passes());
 
+    // Exact zero states use an exactly zero scale and therefore an exactly
+    // zero closure tolerance.  Small physical magnitudes still get a
+    // magnitude-scaled tolerance without an order-one floor.
+    MultiFab zero_spectral(boxes, dm, layout.ncomp(), 0);
+    MultiFab zero_compact(boxes, dm, 2, 0);
+    MultiFab small_spectral(boxes, dm, layout.ncomp(), 0);
+    MultiFab small_compact(boxes, dm, 2, 0);
+    zero_spectral.setVal(Real(0.0));
+    zero_compact.setVal(Real(0.0));
+    small_spectral.setVal(Real(1.0e-14));
+    small_compact.setVal(Real(1.0e-14));
+    erf_auxiliary::AuxiliaryFaceTransfer zero_transfer_spectral;
+    erf_auxiliary::AuxiliaryFaceTransfer zero_transfer_compact;
+    zero_transfer_spectral.define(boxes, dm, layout.ncomp(), 0);
+    zero_transfer_compact.define(boxes, dm, 2, 0);
+    zero_transfer_spectral.setVal(Real(0.0));
+    zero_transfer_compact.setVal(Real(0.0));
+    const auto zero_closure = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, zero_spectral, zero_spectral, zero_transfer_spectral,
+        zero_compact, 0, 1, zero_compact, 0, 1, zero_transfer_compact, geometry);
+    EXPECT_DOUBLE_EQ(zero_closure.spectral_max, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_closure.qc_max, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_closure.qr_max, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_closure.spectral_tolerance, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_closure.qc_tolerance, Real(0.0));
+    EXPECT_DOUBLE_EQ(zero_closure.qr_tolerance, Real(0.0));
+    EXPECT_TRUE(zero_closure.passes());
+    const auto small_closure = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, small_spectral, small_spectral, zero_transfer_spectral,
+        small_compact, 0, 1, small_compact, 0, 1, zero_transfer_compact, geometry);
+    EXPECT_DOUBLE_EQ(small_closure.spectral_max, Real(0.0));
+    EXPECT_GT(small_closure.spectral_tolerance, Real(0.0));
+    EXPECT_TRUE(small_closure.passes());
+
+    // Negative control for the production second-step bug: using the
+    // destination compact state as the old baseline leaves the material
+    // accepted-transfer divergence in the residual.
+    MultiFab destination_compact(boxes, dm, 2, 0);
+    amrex::MultiFab::Copy(destination_compact, new_compact, 0, 0, 2, 0);
+    const auto stale_baseline = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, old_spectral, new_spectral, accepted_spectral,
+        destination_compact, 0, 1, new_compact, 0, 1, accepted_compact, geometry);
+    EXPECT_GT(stale_baseline.qc_max, stale_baseline.qc_tolerance);
+
     // Negative control: using final-stage-only anelastic flux when stage 0 is
     // zero and stage 1 is twice the accepted average leaves a material local
     // closure residual.
@@ -500,24 +551,32 @@ TEST (SBMP1, FiniteAndMaterialNegativityChecksAreFailClosed)
     const BoxArray boxes(domain);
     const DistributionMapping dm(boxes);
     MultiFab state(boxes, dm, 2, 0);
-    const auto set_single_value = [&](const Real value) {
-        state.setVal(Real(1.0));
+    const auto set_state = [&](const Real background, const Real component_one) {
+        state.setVal(background);
         for (MFIter mfi(state); mfi.isValid(); ++mfi) {
             const auto arr = state.array(mfi);
-            arr(domain.smallEnd(0), domain.smallEnd(1), domain.smallEnd(2), 1) = value;
+            arr(domain.smallEnd(0), domain.smallEnd(1), domain.smallEnd(2), 1) = component_one;
         }
     };
 
-    set_single_value(std::numeric_limits<Real>::quiet_NaN());
-    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "non-min NaN"), std::runtime_error);
-    set_single_value(std::numeric_limits<Real>::infinity());
-    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "+Inf"), std::runtime_error);
-    set_single_value(-std::numeric_limits<Real>::infinity());
-    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "-Inf"), std::runtime_error);
-    set_single_value(Real(-1.0e-4));
-    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "material negative"), std::runtime_error);
-    set_single_value(-Real(32.0) * std::numeric_limits<Real>::epsilon());
+    set_state(Real(0.0), Real(0.0));
+    EXPECT_NO_THROW(erf_sbm::validate_nonnegative_state(state, 2, "exact zero"));
+    set_state(Real(1.0e-14), Real(5.0e-15));
+    EXPECT_NO_THROW(erf_sbm::validate_nonnegative_state(state, 2, "small positive state"));
+    const Real eps = std::numeric_limits<Real>::epsilon();
+    const Real small_scale = Real(1.0e-14);
+    set_state(small_scale, -Real(64.0) * eps * small_scale);
     EXPECT_NO_THROW(erf_sbm::validate_nonnegative_state(state, 2, "roundoff negative"));
+    set_state(small_scale, -Real(256.0) * eps * small_scale);
+    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "scaled negative"), std::runtime_error);
+    set_state(small_scale, -Real(1.0e-2) * small_scale);
+    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "material negative"), std::runtime_error);
+    set_state(Real(1.0), std::numeric_limits<Real>::quiet_NaN());
+    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "non-min NaN"), std::runtime_error);
+    set_state(Real(1.0), std::numeric_limits<Real>::infinity());
+    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "+Inf"), std::runtime_error);
+    set_state(Real(1.0), -std::numeric_limits<Real>::infinity());
+    EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "-Inf"), std::runtime_error);
 }
 
 void run_manufactured_transport (const int nbins, const bool anelastic)

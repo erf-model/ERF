@@ -12,7 +12,7 @@ namespace {
 
 struct ResidualMetric {
     amrex::Real maximum{0.0};
-    amrex::Real scale{1.0};
+    amrex::Real scale{0.0};
 };
 
 amrex::Real scaled_tolerance(const amrex::Real scale)
@@ -21,8 +21,9 @@ amrex::Real scaled_tolerance(const amrex::Real scale)
     // 256-epsilon safety factor covers their accumulation while remaining a
     // machine-precision-scaled check rather than a broad physical tolerance.
     constexpr amrex::Real safety_factor = amrex::Real(256.0);
-    return safety_factor * std::numeric_limits<amrex::Real>::epsilon() *
-           std::max(amrex::Real(1.0), scale);
+    // An exactly zero residual scale has exactly zero tolerance by policy.
+    return scale == amrex::Real(0.0) ? amrex::Real(0.0) :
+        safety_factor * std::numeric_limits<amrex::Real>::epsilon() * scale;
 }
 
 ResidualMetric measure_component(const amrex::MultiFab& old_state,
@@ -67,7 +68,7 @@ ResidualMetric measure_component(const amrex::MultiFab& old_state,
                  amrex::Math::abs(fy(i,j,k,transfer_comp))) * dyi +
                 (amrex::Math::abs(fz(i,j,k+1,transfer_comp)) +
                  amrex::Math::abs(fz(i,j,k,transfer_comp))) * dzi +
-                amrex::Real(1.0);
+                amrex::Real(0.0);
             out(i,j,k,0) = amrex::Math::abs(residual);
             out(i,j,k,1) = scale;
         });

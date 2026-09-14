@@ -3203,7 +3203,10 @@ ownership, units, qualification tests, and current limitations.
    the default is zero.
 ``erf.sbm_diagnostic_file``
    Optional output path for the numerical P1 diagnostic consumed by the
-   independent qualification checker.
+   independent qualification checker.  The versioned diagnostic records the
+   number of completed level-0 steps and the qualification cases require
+   ``step_count >= 2``.  Its memory fields count grown-FAB data payloads,
+   including ghost cells, rather than only valid-cell entries.
 
 The particle-mass coordinate is in ``kg``.  Transported spectral mass
 components are density-weighted state variables in ``kg m^-3``; these units

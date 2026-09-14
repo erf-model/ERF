@@ -758,7 +758,7 @@ void ERF::advance_dycore (int level,
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
 
-    begin_sbm_step(level);
+    begin_sbm_step(level, state_old[IntVars::cons]);
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     if (verbose) Print() << "Done with advance_dycore at level " << level << std::endl;
