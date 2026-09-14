@@ -1192,7 +1192,19 @@ ERF::make_lsm_at_level (int lev)
     lsm_flux[lev].resize(lsm_flux_size);
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
+
+    // Check if we'll be using surface-only init (atmospheric state comes later from FillCoarsePatch)
+    bool will_use_surface_only = false;
+#ifdef ERF_USE_NETCDF
+    if (!nc_init_file[lev].empty() &&
+        (solverChoice.init_type == InitType::WRFInput || solverChoice.init_type == InitType::Metgrid)) {
+        will_use_surface_only = solverChoice.interp_atmos_from_coarse;
+    }
+#endif
+
+    // Only initialize LSM now if we're NOT using surface-only init
+    // (for surface-only, LSM init must wait until after FillCoarsePatch provides atmospheric state)
+    if (solverChoice.lsm_type != LandSurfaceType::None && !will_use_surface_only) {
         //
         // A level with no land file of its own takes its LSM state from level 0 rather
         // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
