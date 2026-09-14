@@ -2,6 +2,7 @@
 
 #include "ERF_SBMBulkProjection.H"
 #include "ERF_SBMContracts.H"
+#include "ERF_SBMTransferClosure.H"
 #include "ERF_SBMTransportPrototype.H"
 
 #include <AMReX_MFParallelFor.H>
@@ -9,7 +10,6 @@
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
-#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -71,6 +71,12 @@ amrex::Real sbm_max_change(amrex::MultiFab& scratch,
     return maximum;
 }
 
+std::size_t sbm_cell_bytes(const amrex::MultiFab& state)
+{
+    return static_cast<std::size_t>(state.boxArray().numPts()) *
+           static_cast<std::size_t>(state.nComp()) * sizeof(amrex::Real);
+}
+
 void write_sbm_diagnostic(const std::string& path,
                           const bool anelastic,
                           const int nbins,
@@ -80,8 +86,12 @@ void write_sbm_diagnostic(const std::string& path,
                           const amrex::Real transport_change,
                           const amrex::Real projection_error,
                           const amrex::Real face_projection_error,
+                          const erf_sbm::AcceptedTransferClosure& closure,
                           const amrex::Real compact_mass,
-                          const amrex::Real cell_volume)
+                          const amrex::Real cell_volume,
+                          const std::size_t cell_state_bytes,
+                          const std::size_t face_transfer_bytes,
+                          const std::size_t total_auxiliary_bytes)
 {
     const amrex::Real mass_error = amrex::Math::abs(final_mass - initial_mass);
     const amrex::Real compact_mass_error = amrex::Math::abs(compact_mass - final_mass);
@@ -96,7 +106,8 @@ void write_sbm_diagnostic(const std::string& path,
                         mass_error <= mass_tolerance &&
                         compact_mass_error <= mass_tolerance &&
                         projection_error <= projection_tolerance &&
-                        face_projection_error <= face_tolerance;
+                        face_projection_error <= face_tolerance &&
+                        closure.passes();
 
     if (amrex::ParallelDescriptor::IOProcessor()) {
         std::ofstream output(path);
@@ -118,6 +129,15 @@ void write_sbm_diagnostic(const std::string& path,
                << "projection_tolerance=" << projection_tolerance << '\n'
                << "face_projection_error=" << face_projection_error << '\n'
                << "face_tolerance=" << face_tolerance << '\n'
+               << "spectral_transfer_closure_error=" << closure.spectral_max << '\n'
+               << "qc_transfer_closure_error=" << closure.qc_max << '\n'
+               << "qr_transfer_closure_error=" << closure.qr_max << '\n'
+               << "spectral_transfer_closure_tolerance=" << closure.spectral_tolerance << '\n'
+               << "qc_transfer_closure_tolerance=" << closure.qc_tolerance << '\n'
+               << "qr_transfer_closure_tolerance=" << closure.qr_tolerance << '\n'
+               << "cell_state_bytes=" << cell_state_bytes << '\n'
+               << "face_transfer_bytes=" << face_transfer_bytes << '\n'
+               << "total_auxiliary_bytes=" << total_auxiliary_bytes << '\n'
                << "passed=" << (passed ? 1 : 0) << '\n';
     }
     amrex::ParallelDescriptor::Barrier("SBM P1 diagnostic");
@@ -128,7 +148,10 @@ void write_sbm_diagnostic(const std::string& path,
                 << ", initial_variation=" << initial_variation
                 << ", transport_change=" << transport_change
                 << ", projection_error=" << projection_error
-                << ", face_projection_error=" << face_projection_error;
+                << ", face_projection_error=" << face_projection_error
+                << ", spectral_transfer_closure_error=" << closure.spectral_max
+                << ", qc_transfer_closure_error=" << closure.qc_max
+                << ", qr_transfer_closure_error=" << closure.qr_max;
         amrex::Error(message.str());
     }
 }
@@ -149,6 +172,11 @@ void ERF::initialize_sbm_auxiliary(const int lev)
     if (!sbm_accepted_bulk_face_transfer) {
         sbm_accepted_bulk_face_transfer = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
         sbm_accepted_bulk_face_transfer->define(grids[0], dmap[0], 2, 0);
+    }
+    if (!sbm_initial_bulk_state) {
+        sbm_initial_bulk_state = std::make_unique<amrex::MultiFab>(
+            grids[0], dmap[0], 2, 0);
+        sbm_initial_bulk_state->setVal(Real(0.0));
     }
     if (!sbm_ownership) {
         sbm_ownership = std::make_unique<::erf_sbm::OwnershipRegistry>(true);
@@ -219,10 +247,16 @@ void ERF::initialize_sbm_auxiliary(const int lev)
         bulk_projection.apply_to_core(mfi.validbox(), aux.const_array(mfi), core.array(mfi));
     }
     core.FillBoundary(geom[0].periodicity());
+    amrex::MultiFab::Copy(*sbm_initial_bulk_state, core, RhoQ2_comp, 0, 1, 0);
+    amrex::MultiFab::Copy(*sbm_initial_bulk_state, core, RhoQ3_comp, 1, 1, 0);
 
     Print() << "SBM P1 auxiliary state: components=" << sbm_layout->ncomp()
             << ", bins=" << nbins
-            << ", resident bytes (old/eval/output/scratch)=" << sbm_auxiliary->resident_bytes()
+            << ", cell-state bytes=" << sbm_auxiliary->state_resident_bytes()
+            << ", face-transfer bytes=" << sbm_auxiliary->face_transfer_resident_bytes() +
+               sbm_accepted_bulk_face_transfer->resident_bytes()
+            << ", total auxiliary bytes=" << sbm_auxiliary->resident_bytes() +
+               sbm_accepted_bulk_face_transfer->resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state)
             << (solverChoice.sbm_manufactured_initialization ? " (manufactured initialization)" : " (empty initialization)")
             << std::endl;
 }
@@ -233,6 +267,10 @@ void ERF::begin_sbm_step(const int lev)
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0 && sbm_auxiliary != nullptr,
                                          "SBM auxiliary state must be initialized before stepping");
         sbm_auxiliary->begin_step(0);
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state, vars_new[0][Vars::cons],
+                              RhoQ2_comp, 0, 1, 0);
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state, vars_new[0][Vars::cons],
+                              RhoQ3_comp, 1, 1, 0);
     }
 }
 
@@ -269,7 +307,7 @@ void ERF::advance_sbm_stage(const int lev,
     ::erf_sbm::advance_stage(*sbm_auxiliary, *sbm_layout, context,
                             state_eval[IntVars::cons], state_new[IntVars::cons],
                             avg_xmom[lev], avg_ymom[lev], avg_zmom[lev], geom[lev],
-                            sbm_auxiliary->face_transfer_ledger(0).stage(stage));
+                            sbm_auxiliary->face_transfer_ledger(0).stage());
 
     const auto& ledger = sbm_auxiliary->face_transfer_ledger(0);
     const ::erf_sbm::SBMBulkProjection bulk_projection(*sbm_layout);
@@ -290,6 +328,11 @@ void ERF::advance_sbm_stage(const int lev,
                                                                state_new[IntVars::cons]);
         const Real face_projection_error = bulk_projection.max_face_projection_error(
             ledger.accepted(), *sbm_accepted_bulk_face_transfer);
+        const auto closure = ::erf_sbm::evaluate_accepted_transfer_closure(
+            *sbm_layout, old, output, ledger.accepted(),
+            *sbm_initial_bulk_state, 0, 1,
+            state_new[IntVars::cons], RhoQ2_comp, RhoQ3_comp,
+            *sbm_accepted_bulk_face_transfer, geom[0]);
         const Real compact_mass = cell_volume *
             (state_new[IntVars::cons].sum(RhoQ2_comp) +
              state_new[IntVars::cons].sum(RhoQ3_comp));
@@ -297,6 +340,12 @@ void ERF::advance_sbm_stage(const int lev,
                              solverChoice.anelastic[lev] == 1, ncomp,
                              initial_mass, final_mass, initial_variation,
                              transport_change, projection_error,
-                             face_projection_error, compact_mass, cell_volume);
+                             face_projection_error, closure, compact_mass, cell_volume,
+                             sbm_auxiliary->state_resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state),
+                             sbm_auxiliary->face_transfer_resident_bytes() +
+                                 sbm_accepted_bulk_face_transfer->resident_bytes(),
+                             sbm_auxiliary->resident_bytes() +
+                                 sbm_accepted_bulk_face_transfer->resident_bytes() +
+                                 sbm_cell_bytes(*sbm_initial_bulk_state));
     }
 }

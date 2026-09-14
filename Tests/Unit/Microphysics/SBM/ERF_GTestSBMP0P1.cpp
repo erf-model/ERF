@@ -21,6 +21,7 @@
 #include "ERF_SBMContracts.H"
 #include "ERF_SBMBulkProjection.H"
 #include "ERF_SBMLayout.H"
+#include "ERF_SBMTransferClosure.H"
 #include "ERF_SBMTransportPrototype.H"
 #include "ERF_SpectralGrid.H"
 
@@ -38,7 +39,7 @@ using amrex::Real;
 erf_sbm::SpectralGridSpec make_grid (const int nbins)
 {
     erf_sbm::SpectralGridSpec spec;
-    spec.coordinate_kind = erf_sbm::CoordinateKind::LiquidMass;
+    spec.coordinate_kind = erf_sbm::CoordinateKind::Mass;
     spec.coordinate_units = "kg";
     spec.edges.resize(static_cast<std::size_t>(nbins + 1));
     spec.pivots.resize(static_cast<std::size_t>(nbins));
@@ -58,8 +59,6 @@ erf_sbm::SpectralPopulationSpec make_population (
     spec.semantic_id = population == 0 ? "liquid_mass" : "aerosol_mass";
     spec.phase = phase;
     spec.grid = make_grid(nbins);
-    spec.grid.coordinate_kind = phase == erf_sbm::PopulationPhase::Aerosol ?
-        erf_sbm::CoordinateKind::DryMass : erf_sbm::CoordinateKind::LiquidMass;
     spec.moment_mode = erf_sbm::MomentMode::OneMoment;
     spec.mass_state_units = "kg m^-3";
     spec.number_state_units = "m^-3";
@@ -101,6 +100,11 @@ TEST (SBMP0, SpectralGridValidationAndRuntimeSizes)
     auto nonfinite = make_grid(4);
     nonfinite.edges[2] = std::numeric_limits<Real>::quiet_NaN();
     EXPECT_FALSE(erf_sbm::SpectralGrid::validate(nonfinite).valid);
+
+    auto radius = make_grid(4);
+    radius.coordinate_kind = erf_sbm::CoordinateKind::Radius;
+    radius.coordinate_units = "m";
+    EXPECT_TRUE(erf_sbm::SpectralGrid::validate(radius).valid);
 
     auto bad_split = erf_sbm::SBMLayoutSpec{};
     bad_split.populations.push_back(make_population(4));
@@ -205,20 +209,46 @@ TEST (SBMP0, AttachedPropertiesAndSecondPopulationAreExtensible)
     spec.populations = {make_population(4, 0, erf_sbm::PopulationPhase::Liquid),
                         make_population(3, 1, erf_sbm::PopulationPhase::Aerosol)};
     spec.liquid_projection = {0, 2};
-    spec.attached_properties.push_back({"solute", "attached_solute", "kg", 1,
-                                        erf_sbm::PropertyKind::MassBoundedSubset,
-                                        erf_sbm::SupportRequirement::PositiveMass});
+    spec.attached_properties.push_back({"dry_solute", "attached_dry_solute", "kg m^-3", 0,
+                                        erf_sbm::PropertyKind::ExtensiveMass,
+                                        erf_sbm::SupportRequirement::PositiveMass,
+                                        erf_sbm::PropertyRemapPolicy::CarrierBinConservative,
+                                        true, true});
+    spec.attached_properties.push_back({"core_number", "aerosol_core_number", "m^-3", 1,
+                                        erf_sbm::PropertyKind::NumberCarried,
+                                        erf_sbm::SupportRequirement::PositiveNumber,
+                                        erf_sbm::PropertyRemapPolicy::CarrierBinConservative});
     const erf_sbm::SBMLayout layout(std::move(spec));
     EXPECT_EQ(layout.populations()[0].mass_offset, 0);
     EXPECT_EQ(layout.populations()[1].mass_offset, 4);
     EXPECT_EQ(layout.property_offset(0), 7);
-    EXPECT_EQ(layout.ncomp(), 10);
-    ASSERT_EQ(layout.auxiliary_layout().components().size(), 10U);
-    EXPECT_EQ(layout.attached_properties()[0].kind, erf_sbm::PropertyKind::MassBoundedSubset);
+    EXPECT_EQ(layout.property_offset(1), 11);
+    EXPECT_EQ(layout.ncomp(), 14);
+    ASSERT_EQ(layout.auxiliary_layout().components().size(), 14U);
+    EXPECT_EQ(layout.attached_properties()[0].kind, erf_sbm::PropertyKind::ExtensiveMass);
     EXPECT_EQ(layout.attached_properties()[0].support, erf_sbm::SupportRequirement::PositiveMass);
+    EXPECT_TRUE(layout.attached_properties()[0].may_overlap_mass);
+    EXPECT_EQ(layout.attached_properties()[0].remap_policy,
+              erf_sbm::PropertyRemapPolicy::CarrierBinConservative);
+    EXPECT_EQ(layout.attached_properties()[1].kind, erf_sbm::PropertyKind::NumberCarried);
+    EXPECT_EQ(layout.attached_properties()[1].units, "m^-3");
     EXPECT_EQ(layout.populations()[1].phase, erf_sbm::PopulationPhase::Aerosol);
     EXPECT_EQ(layout.auxiliary_layout().components()[4].units, "kg m^-3");
-    EXPECT_NE(layout.inspection().find("property solute"), std::string::npos);
+    EXPECT_EQ(layout.auxiliary_layout().components()[7].units, "kg m^-3");
+    EXPECT_EQ(layout.auxiliary_layout().components()[11].units, "m^-3");
+    EXPECT_NE(layout.inspection().find("property dry_solute"), std::string::npos);
+    EXPECT_NE(layout.inspection().find("remap="), std::string::npos);
+
+    std::vector<Real> with_properties(14, Real(0.0));
+    with_properties[0] = Real(1.0);
+    with_properties[1] = Real(2.0);
+    with_properties[2] = Real(4.0);
+    with_properties[3] = Real(8.0);
+    with_properties[7] = Real(100.0); // extensive dry mass is not water
+    with_properties[11] = Real(200.0); // carried number is not water
+    const auto projected = erf_sbm::SBMBulkProjection(layout).apply(with_properties);
+    EXPECT_EQ(projected.qc, Real(3.0));
+    EXPECT_EQ(projected.qr, Real(12.0));
 }
 
 TEST (SBMP0, GenericManagerPreservesBaselineAndPublishesAcceptedState)
@@ -347,8 +377,12 @@ TEST (SBMP1, AcceptedFaceTransferLedgerUsesTheActualStageFlux)
     const DistributionMapping dm(boxes);
     erf_auxiliary::AuxiliaryFaceTransferLedger ledger;
     ledger.define(boxes, dm, 1, 3, 0);
-    erf_auxiliary::AuxiliaryFaceTransfer stage_flux;
-    stage_flux.define(boxes, dm, 1, 0);
+    erf_auxiliary::AuxiliaryFaceTransfer stage0;
+    erf_auxiliary::AuxiliaryFaceTransfer stage1;
+    erf_auxiliary::AuxiliaryFaceTransfer stage2;
+    stage0.define(boxes, dm, 1, 0);
+    stage1.define(boxes, dm, 1, 0);
+    stage2.define(boxes, dm, 1, 0);
 
     const auto c0 = erf_auxiliary::make_compressible_stage(
         0, 0.0, 0.0, 2.0/3.0, 2.0, nullptr, nullptr);
@@ -356,26 +390,108 @@ TEST (SBMP1, AcceptedFaceTransferLedgerUsesTheActualStageFlux)
         1, 0.0, 2.0/3.0, 1.0, 2.0, nullptr, nullptr);
     const auto c2 = erf_auxiliary::make_compressible_stage(
         2, 0.0, 1.0, 2.0, 2.0, nullptr, nullptr);
-    stage_flux.setVal(1.0);
-    ledger.record_stage(c0, stage_flux);
-    stage_flux.setVal(2.0);
-    ledger.record_stage(c1, stage_flux);
-    stage_flux.setVal(3.0);
-    ledger.record_stage(c2, stage_flux);
+    stage0.setVal(1.0);
+    stage1.setVal(2.0);
+    stage2.setVal(3.0);
+    ledger.record_stage(c0, stage0);
+    ledger.record_stage(c1, stage1);
+    ledger.record_stage(c2, stage2);
     EXPECT_DOUBLE_EQ(ledger.accepted().x().min(0), 6.0);
-    EXPECT_DOUBLE_EQ(ledger.stage(0).x().min(0), 1.0);
-    EXPECT_DOUBLE_EQ(ledger.stage(2).x().min(0), 3.0);
+    EXPECT_DOUBLE_EQ(ledger.stage().x().min(0), 3.0);
+    EXPECT_EQ(ledger.resident_bytes(), 2U * stage0.resident_bytes());
+    EXPECT_EQ(ledger.stage_resident_bytes(), stage0.resident_bytes());
+    EXPECT_EQ(ledger.accepted_resident_bytes(), stage0.resident_bytes());
 
     ledger.begin_step();
     const auto a0 = erf_auxiliary::make_anelastic_stage(
         0, 0.0, 0.0, 2.0, 2.0, nullptr, nullptr);
     const auto a1 = erf_auxiliary::make_anelastic_stage(
         1, 0.0, 2.0, 2.0, 2.0, nullptr, nullptr);
-    stage_flux.setVal(1.0);
-    ledger.record_stage(a0, stage_flux);
-    stage_flux.setVal(3.0);
-    ledger.record_stage(a1, stage_flux);
+    stage0.setVal(1.0);
+    stage1.setVal(3.0);
+    ledger.record_stage(a0, stage0);
+    ledger.record_stage(a1, stage1);
     EXPECT_DOUBLE_EQ(ledger.accepted().y().min(0), 4.0);
+}
+
+TEST (SBMP1, AcceptedTransferClosesAgainstAcceptedState)
+{
+    const auto layout = make_layout(4);
+    const Box domain(IntVect(0, 0, 0), IntVect(3, 0, 0));
+    const BoxArray boxes(domain);
+    const DistributionMapping dm(boxes);
+    const Geometry geometry = make_geometry(domain);
+    MultiFab old_spectral(boxes, dm, layout.ncomp(), 0);
+    MultiFab new_spectral(boxes, dm, layout.ncomp(), 0);
+    MultiFab old_compact(boxes, dm, 2, 0);
+    MultiFab new_compact(boxes, dm, 2, 0);
+    erf_auxiliary::AuxiliaryFaceTransfer accepted_spectral;
+    erf_auxiliary::AuxiliaryFaceTransfer accepted_compact;
+    accepted_spectral.define(boxes, dm, layout.ncomp(), 0);
+    accepted_compact.define(boxes, dm, 2, 0);
+    accepted_spectral.setVal(Real(0.0));
+    for (MFIter mfi(accepted_spectral.x()); mfi.isValid(); ++mfi) {
+        const auto flux = accepted_spectral.x().array(mfi);
+        const Real known_flux[] = {Real(0.0), Real(0.25), Real(0.5), Real(0.25), Real(0.0)};
+        for (int i = 0; i <= 4; ++i) flux(i, 0, 0, 0) = known_flux[i];
+    }
+
+    for (MFIter mfi(old_spectral); mfi.isValid(); ++mfi) {
+        const auto old_arr = old_spectral.array(mfi);
+        const auto new_arr = new_spectral.array(mfi);
+        const auto old_bulk = old_compact.array(mfi);
+        const auto new_bulk = new_compact.array(mfi);
+        for (int i = 0; i <= 3; ++i) {
+            const Real divergence = (i == 0 || i == 1) ? Real(0.25) : Real(-0.25);
+            for (int b = 0; b < layout.ncomp(); ++b) {
+                old_arr(i, 0, 0, b) = Real(10.0);
+                new_arr(i, 0, 0, b) = Real(10.0) - (b == 0 ? divergence : Real(0.0));
+            }
+            old_bulk(i, 0, 0, 0) = Real(20.0);
+            old_bulk(i, 0, 0, 1) = Real(20.0);
+            new_bulk(i, 0, 0, 0) = Real(20.0) - divergence;
+            new_bulk(i, 0, 0, 1) = Real(20.0);
+        }
+    }
+    const erf_sbm::SBMBulkProjection projection(layout);
+    projection.apply_to_face_transfer(accepted_spectral, accepted_compact);
+    const auto closure = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, old_spectral, new_spectral, accepted_spectral,
+        old_compact, 0, 1, new_compact, 0, 1, accepted_compact, geometry);
+    EXPECT_LE(closure.spectral_max, closure.spectral_tolerance);
+    EXPECT_LE(closure.qc_max, closure.qc_tolerance);
+    EXPECT_LE(closure.qr_max, closure.qr_tolerance);
+    EXPECT_TRUE(closure.passes());
+
+    // Negative control: using final-stage-only anelastic flux when stage 0 is
+    // zero and stage 1 is twice the accepted average leaves a material local
+    // closure residual.
+    erf_auxiliary::AuxiliaryFaceTransfer final_stage_only;
+    erf_auxiliary::AuxiliaryFaceTransfer wrong_compact;
+    final_stage_only.define(boxes, dm, layout.ncomp(), 0);
+    wrong_compact.define(boxes, dm, 2, 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        amrex::MultiFab::Copy(final_stage_only.direction(dir), accepted_spectral.direction(dir),
+                              0, 0, layout.ncomp(), 0);
+        amrex::MultiFab::Saxpy(final_stage_only.direction(dir), Real(1.0),
+                               accepted_spectral.direction(dir), 0, 0, layout.ncomp(), 0);
+    }
+    projection.apply_to_face_transfer(final_stage_only, wrong_compact);
+    const auto wrong = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, old_spectral, new_spectral, final_stage_only,
+        old_compact, 0, 1, new_compact, 0, 1, wrong_compact, geometry);
+    EXPECT_GT(wrong.spectral_max, wrong.spectral_tolerance);
+
+    // Negative control: perturbing one accepted spectral face is also visible
+    // directly in the local residual and cannot be hidden by a global sum.
+    final_stage_only.x().setVal(Real(0.0));
+    for (MFIter mfi(final_stage_only.x()); mfi.isValid(); ++mfi) {
+        final_stage_only.x().array(mfi)(2, 0, 0, 0) = Real(0.75);
+    }
+    const auto perturbed = erf_sbm::evaluate_accepted_transfer_closure(
+        layout, old_spectral, new_spectral, final_stage_only,
+        old_compact, 0, 1, new_compact, 0, 1, wrong_compact, geometry);
+    EXPECT_GT(perturbed.spectral_max, perturbed.spectral_tolerance);
 }
 
 TEST (SBMP1, FiniteAndMaterialNegativityChecksAreFailClosed)
@@ -487,24 +603,24 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
     }();
     erf_sbm::advance_stage(manager, layout, c0, rho, core,
                            carrier_x, carrier_y, carrier_z, geometry,
-                           manager.face_transfer_ledger(0).stage(0));
+                           manager.face_transfer_ledger(0).stage());
     check_stage_invariants();
     if (anelastic) {
         const auto c1 = erf_auxiliary::make_anelastic_stage(1, 0.0, 1.0, 1.0, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c1, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage(1));
+                               manager.face_transfer_ledger(0).stage());
         check_stage_invariants();
     } else {
         const auto c1 = erf_auxiliary::make_compressible_stage(1, 0.0, 1.0/3.0, 0.5, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c1, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage(1));
+                               manager.face_transfer_ledger(0).stage());
         check_stage_invariants();
         const auto c2 = erf_auxiliary::make_compressible_stage(2, 0.0, 0.5, 1.0, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c2, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage(2));
+                               manager.face_transfer_ledger(0).stage());
         check_stage_invariants();
     }
 

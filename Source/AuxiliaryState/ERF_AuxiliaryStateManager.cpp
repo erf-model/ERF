@@ -34,9 +34,10 @@ void AuxiliaryStateManager::define_level(const int level,
 
     const std::size_t cells = static_cast<std::size_t>(ba.numPts());
     const std::size_t nboxes = static_cast<std::size_t>(ba.size());
-    const std::size_t state_bytes = nboxes == 0 ? 0 : cells * static_cast<std::size_t>(m_layout.ncomp()) *
+    m_state_resident_bytes = nboxes == 0 ? 0 : cells * static_cast<std::size_t>(m_layout.ncomp()) *
         static_cast<std::size_t>(4) * sizeof(amrex::Real);
-    m_resident_bytes = state_bytes + m_face_ledgers[static_cast<std::size_t>(level)]->resident_bytes();
+    m_face_transfer_resident_bytes = m_face_ledgers[static_cast<std::size_t>(level)]->resident_bytes();
+    m_resident_bytes = m_state_resident_bytes + m_face_transfer_resident_bytes;
 }
 
 void AuxiliaryStateManager::begin_step(const int level)

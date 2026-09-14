@@ -9,11 +9,13 @@
 
 namespace erf_sbm {
 
-enum class CoordinateKind { LiquidRadius, LiquidMass, DryMass };
+// Coordinate mathematics is phase-neutral.  Population metadata carries the
+// material/phase semantic (liquid, ice, aerosol, ...).
+enum class CoordinateKind { Mass, Radius };
 enum class MomentMode { OneMoment, TwoMoment };
 
 struct SpectralGridSpec {
-    CoordinateKind coordinate_kind{CoordinateKind::LiquidMass};
+    CoordinateKind coordinate_kind{CoordinateKind::Mass};
     std::string coordinate_units{"kg"};
     std::vector<amrex::Real> edges;
     std::vector<amrex::Real> pivots;

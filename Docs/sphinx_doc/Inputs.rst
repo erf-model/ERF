@@ -3207,7 +3207,12 @@ ownership, units, qualification tests, and current limitations.
 
 The particle-mass coordinate is in ``kg``.  Transported spectral mass
 components are density-weighted state variables in ``kg m^-3``; these units
-are distinct in the layout metadata.
+are distinct in the layout metadata.  Internally, the coordinate kind is
+phase-neutral; population phase and semantic metadata identify whether a
+future coordinate describes liquid, ice, aerosol, or another population.
+Attached P1 property metadata distinguishes additional ``ExtensiveMass`` from
+``NumberCarried`` and future ``MassBoundedSubset`` quantities; no attached
+property is included in the liquid ``qc``/``qr`` water projection.
 
 .. _inputs-radiation:
 

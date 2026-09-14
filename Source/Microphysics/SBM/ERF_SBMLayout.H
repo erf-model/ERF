@@ -10,7 +10,17 @@
 
 namespace erf_sbm {
 
-enum class PropertyKind { NumberCarried, MassBoundedSubset };
+/**
+ * Semantic class of an attached carrier-bin extensive quantity.
+ *
+ * ExtensiveMass is nonnegative additional mass and is not part of the water
+ * projection. NumberCarried is a nonnegative count-like quantity. A
+ * MassBoundedSubset is nonnegative and may be constrained by its carrier mass
+ * when that future physics is implemented.
+ */
+enum class PropertyKind { ExtensiveMass, NumberCarried, MassBoundedSubset };
+/** P1 remap contract; independent remapping is reserved for future work. */
+enum class PropertyRemapPolicy { CarrierBinConservative, Independent };
 enum class SupportRequirement { None, PositiveMass, PositiveNumber };
 enum class PopulationPhase { Liquid, Ice, Aerosol, Generic };
 
@@ -38,7 +48,10 @@ struct AttachedPropertyDescriptor {
     int carrier_population{0};
     PropertyKind kind{PropertyKind::NumberCarried};
     SupportRequirement support{SupportRequirement::None};
-    bool remap_with_mass{true};
+    // All P1 property kinds are aligned to carrier bins and conservatively
+    // remapped with the carrier. The kind, not this policy, distinguishes
+    // additional mass from count-like or mass-bounded semantics.
+    PropertyRemapPolicy remap_policy{PropertyRemapPolicy::CarrierBinConservative};
     bool transported{true};
     bool may_overlap_mass{false};
 };

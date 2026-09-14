@@ -11,6 +11,7 @@ the design document or a claim of physical microphysics qualification.
 * ERF development ancestor: `33ce039e87f309592609098792dff06d0762438c`
 * AMReX submodule: `e60cdc18711ccf7fc0616d7a2fdf062021376976`
 * Qualification prompt SHA-256: `ffd655e0087e72c5d1b125100d46fabf8d7b88e19848bb8aadcbb29e9d5c688`
+* Final hardening prompt SHA-256: `ae5adcca287e8df24de2c2910c50ccad4318bc988b8ecee19691904b54d9451e`
 
 ## Authoritative state and stage path
 
@@ -30,8 +31,10 @@ carrier fields to `ERF_SBMTransportPrototype.cpp`.
 
 `Source/AuxiliaryState/ERF_AuxiliaryFaceTransfer.{H,cpp}` provides compact,
 generic stage-local x/y/z face-centered `MultiFab` storage and
-`AuxiliaryFaceTransferLedger`.  Each call to `record_stage` copies the exact
-stage flux and accumulates the accepted transfer using `StageContext`:
+`AuxiliaryFaceTransferLedger`.  The ledger owns one reusable stage scratch
+transfer and one accepted accumulator; it does not retain a three-stage
+history.  Each call to `record_stage` copies the exact stage flux into the
+scratch object and accumulates the accepted transfer using `StageContext`:
 
 * compressible: `I = dt * F(stage 2)`;
 * anelastic: `I = dt/2 * (F(stage 0) + F(stage 1))`.
@@ -45,14 +48,26 @@ transfer into two compact bulk face components.  No independently reconstructed
 provider as `sbm_accepted_bulk_face_transfer`, ready for a future AMR reflux
 consumer; P1 itself remains single-level.
 
+`Source/Microphysics/SBM/ERF_SBMTransferClosure.{H,cpp}` evaluates the local
+accepted-transfer identity `X_new - X_old + div(I_accepted)` for every
+spectral component and for compact `qc`/`qr`.  The diagnostic stores the
+maximum residual and its machine-epsilon-scaled tolerance.  The standalone
+`Tests/SBMQualificationCheck.cpp` recomputes the pass conditions from those
+values independently of the producer's `passed` flag.
+
 ## Compact projection and metadata
 
 `ERF_SBMLayout.{H,cpp}` separates generic `SpectralGrid` coordinate metadata
 from liquid-only projection metadata.  A population has a generic
 `mass_offset`; `LiquidProjectionSpec` owns the cloud/rain split.  A second
 non-liquid population can therefore be represented without liquid semantics.
-The grid coordinate is in `kg`, while transported mass components are in
-`kg m^-3` and number components are in `m^-3`.
+`CoordinateKind::{Mass,Radius}` and the corresponding units are phase-neutral;
+the schema identities are `spectral-grid-v3` and `sbm-layout-v2`.  Attached
+properties explicitly declare `ExtensiveMass`, `NumberCarried`, or
+`MassBoundedSubset` semantics and their carrier-bin-conservative remap policy.
+The grid coordinate is in `kg` for the qualified liquid/aerosol cases, while
+transported mass components are in `kg m^-3` and number components are in
+`m^-3`.
 
 `SBMBulkProjection::apply_to_core` is the only P1 compact-state projection:
 `qc` is the sum of the liquid cloud bins and `qr` is the sum of the liquid rain
@@ -85,6 +100,13 @@ reduction.  NaN, positive/negative infinity, and material negative values fail
 closed; roundoff-scale negative values follow the documented tolerance and are
 not silently clipped.
 
+The diagnostic memory model reports cell-state bytes, face-transfer bytes, and
+their total.  Face-transfer storage is the reusable stage plus accepted
+spectral ledger objects and the accepted compact bulk projection; the initial
+compact state snapshot is included in cell-state bytes.  This accounting is
+kept in terms of transfer objects so a future blockwise or AMR consumer can
+replace the backing layout without changing the ownership contract.
+
 ## P1 capability boundary
 
 Qualified infrastructure: one-moment liquid mass transport, runtime bin
@@ -104,8 +126,9 @@ conversion, GPU performance qualification, and physical warm-cloud validation.
 
 * `Tests/Unit/Microphysics/SBM/ERF_GTestSBMP0P1.cpp`: grid/layout metadata,
   two-moment algebra, temporal recurrence, face-ledger weights, topology,
-  ownership, finite/negative controls, free-stream preservation, and runtime
-  4/16/64-bin transport.
+  ownership, finite/negative controls, accepted-state local closure (including
+  wrong-final-stage and perturbed-face controls), free-stream preservation, and
+  runtime 4/16/64-bin transport.
 * `Tests/CTestList.cmake` and `Tests/RunSBMPrototype.cmake`: six real ERF MPI
   cases (compressible/anelastic × 4/16/64 bins).
 * `Tests/SBMQualificationCheck.cpp`: independent numerical diagnostic checker;
@@ -114,5 +137,11 @@ conversion, GPU performance qualification, and physical warm-cloud validation.
 
 The six manufactured cases use a nonuniform periodic spectrum, verify spectral
 mass conservation and compact projection, and check the accepted face ledger.
-The existing variable-density free-stream test remains a separate preservation
-test rather than a substitute for nonuniform transport.
+They also emit the three local closure residuals/tolerances and the three-part
+memory accounting consumed by the independent checker.  The documentation
+build was attempted with `cd Docs && ./BuildDocs.sh`; its Python catalog checks
+pass, but this checkout has neither `doxygen` nor `sphinx-build` (and
+`python3 -m sphinx` is unavailable).  Reproduce that exact attempt after
+installing those documented tools.  The existing variable-density free-stream
+test remains a separate preservation test rather than a substitute for
+nonuniform transport.

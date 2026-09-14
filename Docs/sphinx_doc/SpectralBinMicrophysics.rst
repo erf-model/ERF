@@ -14,8 +14,9 @@ Authoritative state and projections
 
 The authoritative state is a separate ERF-managed auxiliary ``MultiFab`` with
 one component per liquid mass bin.  The generic auxiliary manager owns old,
-evaluation, output, and scratch states and retains the accepted face-transfer
-ledger needed by a future reflux consumer.  The runtime component count is
+evaluation, output, and scratch states.  Its face-transfer ledger retains one
+reusable stage scratch and one accepted face-transfer accumulator; it does not
+retain a full three-stage history.  The runtime component count is
 resolved from the input grid; spectral components are not appended to ERF's
 compact ``cons`` state.
 
@@ -35,6 +36,18 @@ obtained by summing the accepted spectral face components, so the flux-level
 projection is preserved rather than reconstructed from cell-centered output.
 Compressible acceptance is ``dt * F(stage 2)``; anelastic Heun acceptance is
 ``0.5 * dt * (F(stage 0) + F(stage 1))``.
+
+For a completed supported step, the production diagnostic evaluates the local
+accepted-transfer identity for every spectral bin,
+
+.. math::
+
+   X^{n+1} - X^n + \nabla_h\!\cdot I = 0,
+
+and the corresponding identities for the accepted ``qc`` and ``qr`` face
+transfers.  The residual tolerances are scaled by the state/transfer magnitude
+and machine epsilon.  The compact face transfers used in this check are the
+exact projections of the accepted spectral transfer.
 
 Runtime inputs
 --------------
@@ -72,12 +85,24 @@ These ``erf`` inputs are read only when ``erf.moisture_model = SBM``:
 Units and schema semantics
 --------------------------
 
-The liquid-mass spectral coordinate and the transported state have different
-dimensions.  The coordinate metadata is ``coordinate_units = kg``.  A
-transported mass-bin component is density-weighted and therefore has
+Spectral coordinates are phase-neutral: the grid describes ``Mass`` or
+``Radius`` mathematics, while population metadata supplies the phase and
+semantic ID.  Thus a future ice or aerosol mass coordinate does not require a
+new phase-specific grid type.  The liquid-mass spectral coordinate and the
+transported state also have different dimensions.  The coordinate metadata is
+``coordinate_units = kg``.  A transported mass-bin component is
+density-weighted and therefore has
 ``mass_state_units = kg m^-3``; a two-moment number block, when supported by a
 future implementation, has ``number_state_units = m^-3``.  These fields are
 part of the stable layout/inspection schema and are not cosmetic labels.
+
+Attached properties are carrier-bin metadata only in P1.  ``ExtensiveMass``
+means additional non-water mass (for example future dry solute), constrained
+to be nonnegative but not bounded above by carrier water mass.  ``NumberCarried``
+is a nonnegative count-like quantity, while ``MassBoundedSubset`` reserves the
+future subset-of-carrier-mass constraint.  All qualified P1 properties use
+explicit carrier-bin conservative remapping semantics and are excluded from
+the ``qc``/``qr`` water projection.
 
 Supported P1 boundary
 ---------------------
@@ -95,7 +120,8 @@ The qualified P1 configuration is:
 
 The real manufactured regressions cover both time integrators and 4, 16, and
 64 bins.  They verify spatial change, per-bin nonnegativity, periodic mass
-conservation, compact projection, and accepted face-transfer projection.  The
+conservation, compact projection, accepted face-transfer projection, and local
+accepted-transfer closure.  The
 variable-density free-stream unit test remains a separate preservation test;
 it does not replace the nonuniform transport regression.
 

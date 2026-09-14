@@ -38,6 +38,10 @@ public:
     [[nodiscard]] const amrex::MultiFab& old(int level) const { return *m_old.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] const amrex::MultiFab& evaluation(int level) const { return *m_evaluation.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] const amrex::MultiFab& output(int level) const { return *m_output.at(static_cast<std::size_t>(level)); }
+    [[nodiscard]] std::size_t state_resident_bytes() const noexcept { return m_state_resident_bytes; }
+    [[nodiscard]] std::size_t face_transfer_resident_bytes() const noexcept {
+        return m_face_transfer_resident_bytes;
+    }
     [[nodiscard]] std::size_t resident_bytes() const noexcept { return m_resident_bytes; }
     [[nodiscard]] const AuxiliaryFaceTransferLedger& face_transfer_ledger(int level) const {
         return *m_face_ledgers.at(static_cast<std::size_t>(level));
@@ -53,6 +57,8 @@ private:
     std::vector<std::unique_ptr<amrex::MultiFab>> m_output;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_scratch;
     std::vector<std::unique_ptr<AuxiliaryFaceTransferLedger>> m_face_ledgers;
+    std::size_t m_state_resident_bytes{0};
+    std::size_t m_face_transfer_resident_bytes{0};
     std::size_t m_resident_bytes{0};
 };
 

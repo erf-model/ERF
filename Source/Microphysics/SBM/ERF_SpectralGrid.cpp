@@ -36,7 +36,7 @@ SpectralGrid::SpectralGrid(SpectralGridSpec spec) : m_spec(std::move(spec))
 std::string SpectralGrid::identity() const
 {
     std::ostringstream out;
-    out << "spectral-grid-v2|kind=" << static_cast<int>(m_spec.coordinate_kind)
+    out << "spectral-grid-v3|kind=" << static_cast<int>(m_spec.coordinate_kind)
         << "|coordinate_units=" << m_spec.coordinate_units << "|edges=" << std::setprecision(17);
     for (const auto x : m_spec.edges) out << x << ',';
     out << "|pivots=";

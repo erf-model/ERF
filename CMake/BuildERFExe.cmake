@@ -491,9 +491,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMBulkProjection.cpp
-       ${SRC_DIR}/Microphysics/SBM/ERF_SBMContracts.cpp
-       ${SRC_DIR}/Microphysics/SBM/ERF_SBMTransportPrototype.cpp
-       ${SRC_DIR}/Microphysics/SBM/ERF_SBMErfIntegration.cpp
+    ${SRC_DIR}/Microphysics/SBM/ERF_SBMContracts.cpp
+    ${SRC_DIR}/Microphysics/SBM/ERF_SBMTransportPrototype.cpp
+    ${SRC_DIR}/Microphysics/SBM/ERF_SBMTransferClosure.cpp
+    ${SRC_DIR}/Microphysics/SBM/ERF_SBMErfIntegration.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp

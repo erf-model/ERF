@@ -2,7 +2,6 @@
 
 #include <AMReX_MultiFabUtil.H>
 
-#include <algorithm>
 #include <stdexcept>
 
 namespace erf_auxiliary {
@@ -35,46 +34,48 @@ void AuxiliaryFaceTransferLedger::define(const amrex::BoxArray& ba,
                                          const int ncomp, const int nstages,
                                          const int ngrow)
 {
-    if (nstages <= 0) throw std::invalid_argument("auxiliary face ledger needs at least one stage");
+    if (nstages <= 0 || nstages > 3) throw std::invalid_argument("auxiliary face ledger needs one to three stages");
     m_ncomp = ncomp;
-    m_stages.clear();
-    m_stages.reserve(static_cast<std::size_t>(nstages));
-    m_recorded.assign(static_cast<std::size_t>(nstages), false);
-    for (int stage = 0; stage < nstages; ++stage) {
-        auto flux = std::make_unique<AuxiliaryFaceTransfer>();
-        flux->define(ba, dm, ncomp, ngrow);
-        m_stages.push_back(std::move(flux));
-    }
+    m_nstages = nstages;
+    m_recorded = {{false, false, false}};
+    m_stage = std::make_unique<AuxiliaryFaceTransfer>();
+    m_stage->define(ba, dm, ncomp, ngrow);
     m_accepted = std::make_unique<AuxiliaryFaceTransfer>();
     m_accepted->define(ba, dm, ncomp, ngrow);
-    m_resident_bytes = m_accepted->resident_bytes();
-    for (const auto& stage : m_stages) m_resident_bytes += stage->resident_bytes();
+    m_resident_bytes = m_stage->resident_bytes() + m_accepted->resident_bytes();
 }
 
 void AuxiliaryFaceTransferLedger::begin_step()
 {
     if (!m_accepted) throw std::logic_error("auxiliary face ledger is not defined");
+    m_stage->setVal(0.0);
     m_accepted->setVal(0.0);
-    std::fill(m_recorded.begin(), m_recorded.end(), false);
+    m_recorded = {{false, false, false}};
 }
 
 void AuxiliaryFaceTransferLedger::record_stage(const StageContext& context,
                                                const AuxiliaryFaceTransfer& stage_flux)
 {
     if (!m_accepted || stage_flux.ncomp() != m_ncomp ||
-        context.stage_index < 0 || context.stage_index >= static_cast<int>(m_stages.size()) ||
+        context.stage_index < 0 || context.stage_index >= m_nstages ||
         m_recorded[static_cast<std::size_t>(context.stage_index)]) {
         throw std::invalid_argument("invalid or duplicate auxiliary face-transfer stage");
     }
-    auto& retained = *m_stages[static_cast<std::size_t>(context.stage_index)];
+    // Production passes the reusable stage scratch itself. Unit tests may pass
+    // independent synthetic stage objects; copy those into the same scratch
+    // without retaining their history.
+    if (&stage_flux != m_stage.get()) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            amrex::MultiFab::Copy(m_stage->direction(dir), stage_flux.direction(dir),
+                                  0, 0, m_ncomp, stage_flux.direction(dir).nGrowVect());
+        }
+    }
     const amrex::Real factor = static_cast<amrex::Real>(context.full_step *
                                                          context.accepted_ledger_weight());
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        amrex::MultiFab::Copy(retained.direction(dir), stage_flux.direction(dir),
-                              0, 0, m_ncomp, stage_flux.direction(dir).nGrowVect());
         if (factor != amrex::Real(0.0)) {
             amrex::MultiFab::Saxpy(m_accepted->direction(dir), factor,
-                                   stage_flux.direction(dir), 0, 0, m_ncomp, 0);
+                                   m_stage->direction(dir), 0, 0, m_ncomp, 0);
         }
     }
     m_recorded[static_cast<std::size_t>(context.stage_index)] = true;

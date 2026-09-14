@@ -119,7 +119,7 @@ ERF::ERF_shared ()
     ReadParameters();
     if (solverChoice.moisture_type == MoistureType::SBM) {
         erf_sbm::SpectralGridSpec grid;
-        grid.coordinate_kind = erf_sbm::CoordinateKind::LiquidMass;
+        grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
         grid.coordinate_units = "kg";
         grid.edges.assign(solverChoice.sbm_edges.begin(), solverChoice.sbm_edges.end());
         grid.pivots.assign(solverChoice.sbm_pivots.begin(), solverChoice.sbm_pivots.end());

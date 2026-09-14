@@ -71,8 +71,7 @@ int main(int argc, char** argv)
     int nbins = 0;
     int passed = 0;
     if (!read_integer(values, "nbins", nbins) ||
-        (nbins != 4 && nbins != 16 && nbins != 64) ||
-        !read_integer(values, "passed", passed) || passed != 1) {
+        (nbins != 4 && nbins != 16 && nbins != 64)) {
         std::cerr << "SBM diagnostic failed its discrete checks\n";
         return 1;
     }
@@ -88,6 +87,15 @@ int main(int argc, char** argv)
     double projection_tolerance = 0.0;
     double face_projection_error = 0.0;
     double face_tolerance = 0.0;
+    double spectral_closure_error = 0.0;
+    double qc_closure_error = 0.0;
+    double qr_closure_error = 0.0;
+    double spectral_closure_tolerance = 0.0;
+    double qc_closure_tolerance = 0.0;
+    double qr_closure_tolerance = 0.0;
+    double cell_state_bytes = 0.0;
+    double face_transfer_bytes = 0.0;
+    double total_auxiliary_bytes = 0.0;
     const bool finite =
         read_real(values, "initial_mass", initial_mass) &&
         read_real(values, "final_mass", final_mass) &&
@@ -99,20 +107,45 @@ int main(int argc, char** argv)
         read_real(values, "projection_error", projection_error) &&
         read_real(values, "projection_tolerance", projection_tolerance) &&
         read_real(values, "face_projection_error", face_projection_error) &&
-        read_real(values, "face_tolerance", face_tolerance);
+        read_real(values, "face_tolerance", face_tolerance) &&
+        read_real(values, "spectral_transfer_closure_error", spectral_closure_error) &&
+        read_real(values, "qc_transfer_closure_error", qc_closure_error) &&
+        read_real(values, "qr_transfer_closure_error", qr_closure_error) &&
+        read_real(values, "spectral_transfer_closure_tolerance", spectral_closure_tolerance) &&
+        read_real(values, "qc_transfer_closure_tolerance", qc_closure_tolerance) &&
+        read_real(values, "qr_transfer_closure_tolerance", qr_closure_tolerance) &&
+        read_real(values, "cell_state_bytes", cell_state_bytes) &&
+        read_real(values, "face_transfer_bytes", face_transfer_bytes) &&
+        read_real(values, "total_auxiliary_bytes", total_auxiliary_bytes) &&
+        read_integer(values, "passed", passed);
     if (!finite || !(mass_tolerance > 0.0) || !(projection_tolerance > 0.0) ||
         !(face_tolerance > 0.0) || !(initial_variation > 0.0) ||
         !(transport_change > 0.0) || mass_error > mass_tolerance ||
         compact_mass_error > mass_tolerance ||
         projection_error > projection_tolerance ||
-        face_projection_error > face_tolerance) {
-        std::cerr << "SBM numerical invariant check failed\n";
+        face_projection_error > face_tolerance ||
+        !(spectral_closure_tolerance > 0.0) ||
+        !(qc_closure_tolerance > 0.0) ||
+        !(qr_closure_tolerance > 0.0) ||
+        spectral_closure_error > spectral_closure_tolerance ||
+        qc_closure_error > qc_closure_tolerance ||
+        qr_closure_error > qr_closure_tolerance ||
+        !(cell_state_bytes > 0.0) || !(face_transfer_bytes > 0.0) ||
+        !(total_auxiliary_bytes >= cell_state_bytes + face_transfer_bytes)) {
+        std::cerr << "SBM numerical invariant values failed independent checks\n";
+        return 1;
+    }
+    if (passed != 1) {
+        std::cerr << "SBM producer diagnostic passed flag is not set\n";
         return 1;
     }
 
     std::cout << "SBM P1 qualification passed: method=" << method->second
               << " nbins=" << nbins << " mass_error=" << mass_error
               << " projection_error=" << projection_error
-              << " face_projection_error=" << face_projection_error << '\n';
+              << " face_projection_error=" << face_projection_error
+              << " spectral_transfer_closure_error=" << spectral_closure_error
+              << " qc_transfer_closure_error=" << qc_closure_error
+              << " qr_transfer_closure_error=" << qr_closure_error << '\n';
     return 0;
 }

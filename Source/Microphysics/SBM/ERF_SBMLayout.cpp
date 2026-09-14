@@ -45,6 +45,9 @@ LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
         if (property.may_overlap_mass && property.kind == PropertyKind::MassBoundedSubset) {
             return {false, "mass-bounded subset cannot overlap liquid mass"};
         }
+        if (property.remap_policy != PropertyRemapPolicy::CarrierBinConservative) {
+            return {false, "P1 attached properties require carrier-bin conservative remapping"};
+        }
         if (!property.transported) {
             return {false, "P1 attached properties must be transported when registered"};
         }
@@ -76,9 +79,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
         m_populations.push_back(std::move(population));
     }
     for (const auto& property : spec.attached_properties) {
-        auto p = property;
-        p.remap_with_mass = (p.kind == PropertyKind::MassBoundedSubset);
-        m_properties.push_back(std::move(p));
+        m_properties.push_back(property);
         const auto& carrier = std::find_if(m_populations.begin(), m_populations.end(),
             [&](const PopulationLayout& candidate) {
                 return candidate.population_id == m_properties.back().carrier_population;
@@ -110,7 +111,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
     }
 
     std::ostringstream schema;
-    schema << "sbm-layout-v1|ncomp=" << m_ncomp << '|';
+    schema << "sbm-layout-v2|ncomp=" << m_ncomp << '|';
     for (const auto& p : m_populations) {
         schema << "population=" << p.population_id << ':' << p.semantic_id
                << ":phase=" << static_cast<int>(p.phase) << ':' << p.grid.identity()
@@ -123,6 +124,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
         const auto& p = m_properties[i];
         schema << "property=" << p.name << ':' << p.semantic_id << ':' << p.units
                << ':' << p.carrier_population << ':' << static_cast<int>(p.kind)
+               << ":remap=" << static_cast<int>(p.remap_policy)
                << ":offset=" << m_property_offsets[i] << '|';
     }
     m_schema_identity = schema.str();
@@ -166,6 +168,7 @@ std::string SBMLayout::inspection() const
     for (std::size_t i = 0; i < m_properties.size(); ++i) {
         out << "property " << m_properties[i].name
             << " kind=" << static_cast<int>(m_properties[i].kind)
+            << " remap=" << static_cast<int>(m_properties[i].remap_policy)
             << " carrier=" << m_properties[i].carrier_population
             << " offset=" << m_property_offsets[i] << '\n';
     }
