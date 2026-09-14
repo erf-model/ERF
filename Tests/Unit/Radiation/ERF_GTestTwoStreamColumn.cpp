@@ -56,167 +56,187 @@
 
 namespace {
 
-constexpr int kNz = 8;
-constexpr amrex::Real kDz = 100.0;
-constexpr amrex::Real kSigma = 5.670374419e-8;
+    constexpr int kNz = 8;
+    constexpr amrex::Real kDz = 100.0;
+    constexpr amrex::Real kSigma = 5.670374419e-8;
 
-struct ColumnResult {
-    std::vector<amrex::Real> q_sw;
-    std::vector<amrex::Real> q_lw;
-    // Interface fluxes: index k is the lower interface of layer k, index nz
-    // the top of the atmosphere (ERF's rad_fluxes level layout)
-    std::vector<amrex::Real> flux_sw_up;
-    std::vector<amrex::Real> flux_sw_dn;
-    std::vector<amrex::Real> flux_lw_up;
-    std::vector<amrex::Real> flux_lw_dn;
-    amrex::Real max_heating = 0.0;
-    amrex::Real sw_surface = 0.0;
-    amrex::Real sw_up_toa = 0.0;
-    amrex::Real lw_net_surface = 0.0;
-    amrex::Real lw_up_toa = 0.0;
-    amrex::Real sw_down_toa = 0.0;
-};
-
-// Run the sweep for a column with uniform density `rho` and uniform
-// absolute temperature `T_air` (converted to rho*theta through the EOS).
-// `params_override` replaces the kernel parameters derived from the RadChoice
-// (to set the sun directly); `latlon_deg` hands the column a latitude and
-// longitude field, as a WRF grid would.
-ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
-                                 int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0,
-                                 amrex::Real qc = 0.0,
-                                 const std::vector<amrex::Real>* z_faces = nullptr,
-                                 const TwoStreamParams* params_override = nullptr,
-                                 const amrex::Real* latlon_deg = nullptr)
-{
-    const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
-                                                                    : make_two_stream_params(rad_choice_in);
-    const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
-    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
-    const int is_periodic[3] = {1, 1, 0};
-    const amrex::Geometry geom(bx, &real_box, 0, is_periodic);
-
-    // Carry the moisture components so qv can be set (zero by default).
-    amrex::FArrayBox state(bx, RhoQ2_comp + 1);
-    amrex::FArrayBox qheating(bx, 2);
-    amrex::FArrayBox fluxes(two_stream_scratch_box(bx), 4);   // nz + 1 levels
-    const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp, qv);
-    state.setVal<amrex::RunOn::Device>(0.0);
-    state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
-    state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
-    state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
-    state.setVal<amrex::RunOn::Device>(rho * qc, bx, RhoQ2_comp, 1);
-    qheating.setVal<amrex::RunOn::Device>(0.0);
-    fluxes.setVal<amrex::RunOn::Device>(0.0);
-
-    amrex::Gpu::DeviceVector<amrex::Real> scalars(6, 0.0);
-    amrex::Real* scalar_ptr = scalars.data();
-    const auto state_arr = state.const_array();
-    const auto qheating_arr = qheating.array();
-    const auto flux_arr = fluxes.array();
-    // Interface heights on the nodal box when the caller supplies a stretched
-    // grid (nz + 1 faces); otherwise the sweep uses the uniform spacing.
-    amrex::FArrayBox z_nd(amrex::surroundingNodes(bx), 1);
-    if (z_faces != nullptr) {
-        AMREX_ALWAYS_ASSERT(static_cast<int>(z_faces->size()) == nz + 1);
-        amrex::Gpu::DeviceVector<amrex::Real> faces_d(nz + 1);
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_faces->begin(), z_faces->end(), faces_d.begin());
-        const amrex::Real* faces = faces_d.data();
-        const auto znd = z_nd.array();
-        amrex::ParallelFor(amrex::surroundingNodes(bx), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            znd(i, j, k) = faces[k];
-        });
-        amrex::Gpu::streamSynchronize();
-    }
-    const amrex::Array4<const amrex::Real> no_z_phys =
-        (z_faces != nullptr) ? z_nd.const_array() : amrex::Array4<const amrex::Real>{};
-    // Per-column scratch of the sweep (nlev + 1 interface entries).
-    amrex::FArrayBox scratch(two_stream_scratch_box(bx), TwoStreamScratch::NCOMP);
-    const auto scratch_arr = scratch.array();
-
-    // Optional latitude/longitude fields of the column (2D, k = 0).
-    const amrex::Box xy_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
-    amrex::FArrayBox lat_fab(xy_box, 1);
-    amrex::FArrayBox lon_fab(xy_box, 1);
-    const bool has_latlon = (latlon_deg != nullptr);
-    if (has_latlon) {
-        lat_fab.setVal<amrex::RunOn::Device>(latlon_deg[0]);
-        lon_fab.setVal<amrex::RunOn::Device>(latlon_deg[1]);
-    }
-    const auto lat_arr = lat_fab.const_array();
-    const auto lon_arr = lon_fab.const_array();
-
-    // Geometry::CellSize() is host-only, so read it before the device lambda.
-    const amrex::Real dz_uniform = geom.CellSize(2);
-
-    amrex::ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
-    {
+    struct ColumnResult {
+        std::vector<amrex::Real> q_sw;
+        std::vector<amrex::Real> q_lw;
+        // Interface fluxes: index k is the lower interface of layer k, index nz
+        // the top of the atmosphere (ERF's rad_fluxes level layout)
+        std::vector<amrex::Real> flux_sw_up;
+        std::vector<amrex::Real> flux_sw_dn;
+        std::vector<amrex::Real> flux_lw_up;
+        std::vector<amrex::Real> flux_lw_dn;
         amrex::Real max_heating = 0.0;
         amrex::Real sw_surface = 0.0;
-        amrex::Real sw_up = 0.0;
-        amrex::Real lw_net = 0.0;
-        amrex::Real lw_up = 0.0;
-        amrex::Real sw_toa = 0.0;
-        vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
-                                  qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up, sw_toa,
-                                  no_z_phys, scratch_arr,
-                                  false, nullptr, false, nullptr, false, nullptr,
-                                  has_latlon, &lat_arr, &lon_arr, &flux_arr);
-        scalar_ptr[0] = max_heating;
-        scalar_ptr[1] = sw_surface;
-        scalar_ptr[2] = sw_up;
-        scalar_ptr[3] = lw_net;
-        scalar_ptr[4] = lw_up;
-        scalar_ptr[5] = sw_toa;
-    });
-    amrex::Gpu::streamSynchronize();
+        amrex::Real sw_up_toa = 0.0;
+        amrex::Real lw_net_surface = 0.0;
+        amrex::Real lw_up_toa = 0.0;
+        amrex::Real sw_down_toa = 0.0;
+    };
 
-    ColumnResult result;
-    std::vector<amrex::Real> host_scalars(6);
-    amrex::Gpu::copy(amrex::Gpu::deviceToHost, scalars.begin(), scalars.end(), host_scalars.begin());
-    result.max_heating = host_scalars[0];
-    result.sw_surface = host_scalars[1];
-    result.sw_up_toa = host_scalars[2];
-    result.lw_net_surface = host_scalars[3];
-    result.lw_up_toa = host_scalars[4];
-    result.sw_down_toa = host_scalars[5];
+    // Run the sweep for a column with uniform density `rho` and uniform
+    // absolute temperature `T_air` (converted to rho*theta through the EOS).
+    // `params_override` replaces the kernel parameters derived from the RadChoice
+    // (to set the sun directly); `latlon_deg` hands the column a latitude and
+    // longitude field, as a WRF grid would.
+    ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho, amrex::Real T_air,
+                                     int nz = kNz, amrex::Real dz = kDz, amrex::Real qv = 0.0,
+                                     amrex::Real qc = 0.0,
+                                     const std::vector<amrex::Real>* z_faces = nullptr,
+                                     const TwoStreamParams* params_override = nullptr,
+                                     const amrex::Real* latlon_deg = nullptr)
+    {
+        const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
+                                                                        : make_two_stream_params(rad_choice_in);
+        const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
+        const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
+        const int is_periodic[3] = {1, 1, 0};
+        const amrex::Geometry geom(bx, &real_box, 0, is_periodic);
 
-    amrex::FArrayBox host_q(bx, 2, amrex::The_Pinned_Arena());
-    host_q.copy<amrex::RunOn::Device>(qheating);
-    amrex::FArrayBox host_f(two_stream_scratch_box(bx), 4, amrex::The_Pinned_Arena());
-    host_f.copy<amrex::RunOn::Device>(fluxes);
-    amrex::Gpu::streamSynchronize();
-    const auto hq = host_q.const_array();
-    const auto hf = host_f.const_array();
-    for (int k = 0; k < nz; ++k) {
-        result.q_sw.push_back(hq(0, 0, k, 0));
-        result.q_lw.push_back(hq(0, 0, k, 1));
+        // Carry the moisture components so qv can be set (zero by default).
+        amrex::FArrayBox state(bx, RhoQ2_comp + 1);
+        amrex::FArrayBox qheating(bx, 2);
+        amrex::FArrayBox fluxes(two_stream_scratch_box(bx), 4);   // nz + 1 levels
+        const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp, qv);
+        state.setVal<amrex::RunOn::Device>(0.0);
+        state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
+        state.setVal<amrex::RunOn::Device>(rho * theta, bx, RhoTheta_comp, 1);
+        state.setVal<amrex::RunOn::Device>(rho * qv, bx, RhoQ1_comp, 1);
+        state.setVal<amrex::RunOn::Device>(rho * qc, bx, RhoQ2_comp, 1);
+        qheating.setVal<amrex::RunOn::Device>(0.0);
+        fluxes.setVal<amrex::RunOn::Device>(0.0);
+
+        amrex::Gpu::DeviceVector<amrex::Real> scalars(6, 0.0);
+        amrex::Real* scalar_ptr = scalars.data();
+        const auto state_arr = state.const_array();
+        const auto qheating_arr = qheating.array();
+        const auto flux_arr = fluxes.array();
+        // Interface heights on the nodal box when the caller supplies a stretched
+        // grid (nz + 1 faces); otherwise the sweep uses the uniform spacing.
+        amrex::FArrayBox z_nd(amrex::surroundingNodes(bx), 1);
+        if (z_faces != nullptr) {
+            AMREX_ALWAYS_ASSERT(static_cast<int>(z_faces->size()) == nz + 1);
+            amrex::Gpu::DeviceVector<amrex::Real> faces_d(nz + 1);
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, z_faces->begin(), z_faces->end(), faces_d.begin());
+            const amrex::Real* faces = faces_d.data();
+            const auto znd = z_nd.array();
+            amrex::ParallelFor(amrex::surroundingNodes(bx), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                znd(i, j, k) = faces[k];
+            });
+            amrex::Gpu::streamSynchronize();
+        }
+        const amrex::Array4<const amrex::Real> no_z_phys =
+            (z_faces != nullptr) ? z_nd.const_array() : amrex::Array4<const amrex::Real>{};
+        // Per-column scratch of the sweep (nlev + 1 interface entries).
+        amrex::FArrayBox scratch(two_stream_scratch_box(bx), TwoStreamScratch::NCOMP);
+        const auto scratch_arr = scratch.array();
+
+        // Optional latitude/longitude fields of the column (2D, k = 0).
+        const amrex::Box xy_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+        amrex::FArrayBox lat_fab(xy_box, 1);
+        amrex::FArrayBox lon_fab(xy_box, 1);
+        const bool has_latlon = (latlon_deg != nullptr);
+        if (has_latlon) {
+            lat_fab.setVal<amrex::RunOn::Device>(latlon_deg[0]);
+            lon_fab.setVal<amrex::RunOn::Device>(latlon_deg[1]);
+        }
+        const auto lat_arr = lat_fab.const_array();
+        const auto lon_arr = lon_fab.const_array();
+
+        // Geometry::CellSize() is host-only, so read it before the device lambda.
+        const amrex::Real dz_uniform = geom.CellSize(2);
+
+        amrex::ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/) noexcept
+        {
+            amrex::Real max_heating = 0.0;
+            amrex::Real sw_surface = 0.0;
+            amrex::Real sw_up = 0.0;
+            amrex::Real lw_net = 0.0;
+            amrex::Real lw_up = 0.0;
+            amrex::Real sw_toa = 0.0;
+            vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
+                                      qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up, sw_toa,
+                                      no_z_phys, scratch_arr,
+                                      false, nullptr, false, nullptr, false, nullptr,
+                                      has_latlon, &lat_arr, &lon_arr, &flux_arr);
+            scalar_ptr[0] = max_heating;
+            scalar_ptr[1] = sw_surface;
+            scalar_ptr[2] = sw_up;
+            scalar_ptr[3] = lw_net;
+            scalar_ptr[4] = lw_up;
+            scalar_ptr[5] = sw_toa;
+        });
+        amrex::Gpu::streamSynchronize();
+
+        ColumnResult result;
+        std::vector<amrex::Real> host_scalars(6);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, scalars.begin(), scalars.end(), host_scalars.begin());
+        result.max_heating = host_scalars[0];
+        result.sw_surface = host_scalars[1];
+        result.sw_up_toa = host_scalars[2];
+        result.lw_net_surface = host_scalars[3];
+        result.lw_up_toa = host_scalars[4];
+        result.sw_down_toa = host_scalars[5];
+
+        amrex::FArrayBox host_q(bx, 2, amrex::The_Pinned_Arena());
+        host_q.copy<amrex::RunOn::Device>(qheating);
+        amrex::FArrayBox host_f(two_stream_scratch_box(bx), 4, amrex::The_Pinned_Arena());
+        host_f.copy<amrex::RunOn::Device>(fluxes);
+        amrex::Gpu::streamSynchronize();
+        const auto hq = host_q.const_array();
+        const auto hf = host_f.const_array();
+        for (int k = 0; k < nz; ++k) {
+            result.q_sw.push_back(hq(0, 0, k, 0));
+            result.q_lw.push_back(hq(0, 0, k, 1));
+        }
+        for (int k = 0; k <= nz; ++k) {
+            result.flux_sw_up.push_back(hf(0, 0, k, 0));
+            result.flux_sw_dn.push_back(hf(0, 0, k, 1));
+            result.flux_lw_up.push_back(hf(0, 0, k, 2));
+            result.flux_lw_dn.push_back(hf(0, 0, k, 3));
+        }
+        return result;
     }
-    for (int k = 0; k <= nz; ++k) {
-        result.flux_sw_up.push_back(hf(0, 0, k, 0));
-        result.flux_sw_dn.push_back(hf(0, 0, k, 1));
-        result.flux_lw_up.push_back(hf(0, 0, k, 2));
-        result.flux_lw_dn.push_back(hf(0, 0, k, 3));
-    }
-    return result;
-}
 
-RadChoice base_choice ()
-{
-    RadChoice rc;
-    rc.enabled = true;
-    rc.sw_enabled = true;
-    rc.lw_enabled = true;
-    rc.tau_per_layer = 0.05;
-    rc.tau_lw_per_layer = 1.0;
-    rc.fixed_solar_zenith_angle = 0.5;        // cos(60 degrees), the RRTMGP convention
-    rc.fixed_total_solar_irradiance = 1361.0;
-    rc.surface_albedo_sw = 0.3;
-    rc.surface_emissivity_lw = 1.0;
-    rc.rad_t_sfc = 290.0;
-    return rc;
-}
+    RadChoice base_choice ()
+    {
+        RadChoice rc;
+        rc.enabled = true;
+        rc.sw_enabled = true;
+        rc.lw_enabled = true;
+        rc.tau_per_layer = 0.05;
+        rc.tau_lw_per_layer = 1.0;
+        rc.fixed_solar_zenith_angle = 0.5;        // cos(60 degrees), the RRTMGP convention
+        rc.fixed_total_solar_irradiance = 1361.0;
+        rc.surface_albedo_sw = 0.3;
+        rc.surface_emissivity_lw = 1.0;
+        rc.rad_t_sfc = 290.0;
+        return rc;
+    }
+
+    //
+    // NOTE: Launch the device kernel lives here rather than in the
+    //       TEST body below; this avoids  private or protected access
+    //       within the private TestBody() member.
+    //
+    void run_two_stream_column_kernel (const amrex::Box& bx,
+                                       amrex::Real* out_ptr,
+                                       amrex::Array4<const amrex::Real> state_arr,
+                                       TwoStreamParams p_static,
+                                       TwoStreamParams p_dynamic,
+                                       TwoStreamParams p_dynamic_cf)
+    {
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            out_ptr[0] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_static);
+            out_ptr[1] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic);
+            out_ptr[2] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic_cf);
+        });
+    }
 
 } // namespace
 
@@ -863,12 +883,8 @@ TEST(TwoStreamColumn, DynamicOpticalDepthSurvivesPrognosticCloudFraction)
 
     amrex::Gpu::DeviceVector<amrex::Real> out(3, 0.0);
     amrex::Real* out_ptr = out.data();
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        out_ptr[0] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_static);
-        out_ptr[1] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic);
-        out_ptr[2] = diagnose_layer_tau(i, j, k, 100.0, 500.0, state_arr, 0.05, true, true, p_dynamic_fixed_cf);
-    });
+    run_two_stream_column_kernel(bx, out_ptr, state_arr,
+                                 p_static, p_dynamic, p_dynamic_fixed_cf);
     amrex::Gpu::streamSynchronize();
     std::vector<amrex::Real> h(3);
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, out.begin(), out.end(), h.begin());
