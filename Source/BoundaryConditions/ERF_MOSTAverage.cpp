@@ -978,7 +978,8 @@ MOSTAverage::set_k_indices_T (const int& lev)
     // first parse of the key and this routine runs once per level.
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
-    bool read_z = (zref_tmp > Real(0));
+    const bool user_zref = (zref_tmp > Real(0));
+    bool read_z = user_zref;
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     // Allow default zref
@@ -1053,9 +1054,15 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 for (int cell = first_cell; ; cell += cell_step) {
                     const Real z_lo = z_at(i, j, cell);
                     const Real z_hi = z_at(i, j, cell + 1);
-                    const bool in_cell = is_lo_face
-                        ? (z_target >= z_lo && z_target < z_hi)
-                        : (z_target > z_lo && z_target <= z_hi);
+                    // Preserve the legacy wall-adjacent choice for an explicitly
+                    // requested zref.  The half-open interval is needed for the
+                    // default query on stretched meshes, where the default can
+                    // land exactly on a cell face.
+                    const bool in_cell = user_zref
+                        ? (z_target >= z_lo && z_target <= z_hi)
+                        : (is_lo_face
+                            ? (z_target >= z_lo && z_target < z_hi)
+                            : (z_target > z_lo && z_target <= z_hi));
                     if (in_cell) {
                         const int wall_offset = is_lo_face ? cell - zlo : zhi - cell;
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wall_offset >= d_radius,
