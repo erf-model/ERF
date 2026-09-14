@@ -257,6 +257,9 @@ Limitations
 - **Solar time base.** With ``solar_geometry_dynamic_enable`` the hour angle is formed from the
   simulation time modulo 86400 s, i.e. the run is taken to start at 00:00 UTC on
   ``day_of_year``; ``start_datetime`` is not read by this model.
+- **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
+  call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
+  cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
 - **Diagnostics file.** ``radiation_diag.dat`` (``erf.radiation.diag_file``) is appended to in
   the run directory by default, with a ``pre_dycore`` and a ``post_dycore`` row per step; set
   ``erf.radiation.diag_csv_enable = false`` to turn it off.
