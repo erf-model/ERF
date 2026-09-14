@@ -260,9 +260,11 @@ Limitations
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
   call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
   cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
-- **Diagnostics file.** ``radiation_diag.dat`` (``erf.radiation.diag_file``) is appended to in
-  the run directory by default, with a ``pre_dycore`` and a ``post_dycore`` row per step; set
-  ``erf.radiation.diag_csv_enable = false`` to turn it off.
+- **Diagnostics file.** The diagnostics are off by default. Setting
+  ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
+  (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
+  ``post_dycore`` row per step. The file is appended to rather than truncated, as ERF's other
+  data logs are, so a rerun in the same directory extends the previous run's rows.
 
 Surface Energy Balance
 --------------------------------------
