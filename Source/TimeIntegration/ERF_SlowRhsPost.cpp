@@ -134,7 +134,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // writes AL01 Eq. 16 into the first cell of S_old at the start of the
     // step; keep that value through every RK stage.
     const bool l_dirichlet_k    = ( tc.rans_type == RANSType::kEqn && tc.dirichlet_k &&
-                                    (SurfLayer != nullptr) );
+                                    (SurfLayer[Orientation(Direction::z, Orientation::low)] != nullptr) );
     // Implicit TKE dissipation: eps = c * (rho k)_new with c = diss_old / (rho k)_old,
     // i.e. Cmu0^3 sqrt(k_old) / L; the source skips the explicit sink and the
     // update divides by (1 + dt c).
