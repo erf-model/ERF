@@ -120,4 +120,5 @@ erf.radiation.cloud_fraction_qc_scale = 1.0e-3
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_progcf_diag.dat"

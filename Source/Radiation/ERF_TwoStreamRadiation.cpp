@@ -248,16 +248,39 @@ TwoStreamRadiation::advance (int lev,
     // The column kernel would substitute placeholders (rho = 1, rho*theta of
     // 288 K) for a non-finite or non-positive density or rho*theta and carry
     // on, hiding a corrupt state behind plausible heating rates. Refuse such
-    // a state here instead; both checks are collective reductions, so every
-    // rank takes the same branch.
+    // a state here instead.
+    //
+    // This runs every step, so it is one pass over the state and one
+    // collective, not the three that contains_nan() plus two MultiFab::min()
+    // calls would cost. A non-finite value is mapped to -infinity so that the
+    // same minimum answers both questions: -infinity means non-finite, and any
+    // other value <= 0 means non-positive. The reduction is collective, so
+    // every rank takes the same branch.
     if (call_site == "pre_dycore") {
-        if (cons_old.contains_nan(Rho_comp, 2, 0)) {
+        ReduceOps<ReduceOpMin, ReduceOpMin> state_ops;
+        ReduceData<amrex::Real, amrex::Real> state_data(state_ops);
+        using StateTuple = typename decltype(state_data)::Type;
+        for (MFIter mfi(cons_old, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto& arr = cons_old.const_array(mfi);
+            state_ops.eval(mfi.tilebox(), state_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> StateTuple {
+                    constexpr amrex::Real neg_inf = -std::numeric_limits<amrex::Real>::infinity();
+                    const amrex::Real rho = arr(i,j,k,Rho_comp);
+                    const amrex::Real rth = arr(i,j,k,RhoTheta_comp);
+                    return {std::isfinite(rho) ? rho : neg_inf,
+                            std::isfinite(rth) ? rth : neg_inf};
+                });
+        }
+        auto state_tuple = state_data.value(state_ops);
+        amrex::Real mins[2] = {amrex::get<0>(state_tuple), amrex::get<1>(state_tuple)};
+        ParallelDescriptor::ReduceRealMin(mins, 2);
+        const amrex::Real rho_min = mins[0];
+        const amrex::Real rth_min = mins[1];
+        if (!std::isfinite(rho_min) || !std::isfinite(rth_min)) {
             amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
                          std::to_string(lev) + ", step " + std::to_string(nstep) +
                          " has a non-finite density or rho*theta");
         }
-        const amrex::Real rho_min = cons_old.min(Rho_comp, 0);
-        const amrex::Real rth_min = cons_old.min(RhoTheta_comp, 0);
         if (!(rho_min > 0.0) || !(rth_min > 0.0)) {
             amrex::Abort("TwoStreamRadiation: the state handed to the column sweep at level " +
                          std::to_string(lev) + ", step " + std::to_string(nstep) +

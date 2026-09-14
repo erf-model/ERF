@@ -113,4 +113,5 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_ysu_coupling_diag.dat"

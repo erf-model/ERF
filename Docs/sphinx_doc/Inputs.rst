@@ -3372,7 +3372,7 @@ Two-Stream Radiation Model Parameters
 | **erf.radiation.tau_lw_per_layer**                 | Longwave optical depth per layer (gray-gas two-stream);    | Real >= 0          | 1.0              |
 |                                                    | uniform for all layers                                     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.solar_zenith_deg**                 | Solar zenith angle [degrees]; used if dynamic solar        | Real [0,180]       | 45.0             |
+| **erf.radiation.solar_zenith**                     | Solar zenith angle [degrees]; used if dynamic solar        | Real [0,180]       | 45.0             |
 |                                                    | geometry disabled                                          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.S0**                               | Solar constant (top-of-atmosphere irradiance) [W/m²]       | Real > 0           | 1361.0           |
@@ -3380,11 +3380,12 @@ Two-Stream Radiation Model Parameters
 | **erf.radiation.earth_sun_distance_enable**        | Scale S0 by the Earth-Sun distance factor (d0/d)^2 for     | Boolean            | false            |
 |                                                    | day_of_year (Spencer 1971)                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.tau_model**                        | Optical depth model: ``per_layer`` (fixed tau per layer)   | "per_layer" or|"mass" | "per_layer"      |
-|                                                    | or ``mass`` (from the layer mass path in both bands;       |                    |                  |
+| **erf.radiation.tau_model**                        | Optical depth model: ``per_layer`` (fixed tau per layer)   | "per_layer" or     | "per_layer"      |
+|                                                    | or ``mass`` (from the layer mass path in both bands;       | "mass"             |                  |
 |                                                    | see the sw_k*/lw_k* coefficients)                          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.sw_kabs_dry**                      | Mass model: dry-air gray SW absorption coefficient [m^2/kg] | Real >= 0          | 4.0e-6           |
+| **erf.radiation.sw_kabs_dry**                      | Mass model: dry-air gray SW absorption coefficient         | Real >= 0          | 4.0e-6           |
+|                                                    | [m^2/kg]                                                   |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.sw_kscat_dry**                     | Mass model: dry-air (Rayleigh) SW scattering coefficient   | Real >= 0          | 3.0e-6           |
 |                                                    | [m^2/kg], omega = 1, g = 0                                 |                    |                  |
@@ -3554,7 +3555,8 @@ Two-Stream Radiation Model Parameters
 | **erf.radiation.diag_file**                        | Output file path for radiation diagnostics CSV             | String             | "radiation_diag  |
 |                                                    |                                                            |                    | .dat"            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.diag_enable**                      | Master switch for radiation diagnostics emission           | Boolean            | true             |
+| **erf.radiation.diag_enable**                      | Master switch for radiation diagnostics emission; set      | Boolean            | false            |
+|                                                    | true to write the CSV and the stdout block                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.diag_stdout_enable**               | Enable human-readable stdout diagnostics block             | Boolean            | true             |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

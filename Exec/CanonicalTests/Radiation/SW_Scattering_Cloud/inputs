@@ -97,6 +97,7 @@ erf.radiation.tau_per_layer = 0.003125
 erf.radiation.solar_zenith = 60.0
 erf.radiation.S0 = 1361.0
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_sw_scatter_diag.dat"
 
 # cloud layer between 300m and 700m, cloud fraction 0.5

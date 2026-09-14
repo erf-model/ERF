@@ -127,4 +127,5 @@ erf.radiation.time_zone_offset_hours = 0.0
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_seb_enabled_diag.dat"

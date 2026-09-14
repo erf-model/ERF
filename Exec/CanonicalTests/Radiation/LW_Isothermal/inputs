@@ -120,4 +120,5 @@ erf.radiation.tau_lw_per_layer = 1.0
 erf.radiation.surface_temp_k = 300.0
 erf.radiation.surface_emissivity_lw = 1.0
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_lw_diag.dat"

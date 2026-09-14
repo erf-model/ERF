@@ -146,6 +146,7 @@ erf.radiation.time_zone_offset_hours = 0.0
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_seb_prog_restart.dat"
 
 # Restart from the checkpoint the enabled run writes at step 36 (t = 18 s)

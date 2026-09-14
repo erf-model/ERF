@@ -63,7 +63,7 @@ erf.radiation.surface_temp_k          = 300.0     # Fallback surface temperature
 # ------------------------------------------------------------------------------
 erf.radiation.v                         = 0                        # Debug verbosity level (0=off, 1+=debug output). Integer. Default: 0
 erf.radiation.diag_file                 = "radiation_diag.dat"     # Output CSV path for radiation diagnostics (relative to run dir). Default: "radiation_diag.dat"
-erf.radiation.diag_enable               = true                     # Master switch for radiation diagnostics emission. Bool. Default: true
+erf.radiation.diag_enable               = false                    # Master switch for radiation diagnostics emission; set true to write the CSV and the stdout block. Bool. Default: false
 erf.radiation.diag_stdout_enable        = true                     # Enable human-readable stdout diagnostics block. Bool. Default: true
 erf.radiation.diag_tagged_enable        = true                     # Enable tagged [RAD][...] debug lines. Bool. Default: true
 erf.radiation.diag_regtest_line_enable  = true                     # Enable RADIATION_DIAG: regression-test parsing line. Bool. Default: true

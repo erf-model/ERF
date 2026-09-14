@@ -12,7 +12,9 @@ column. The difference is the price of spectral detail. Which one belongs in a
 given run depends on whether that detail matters for the science, and on how
 much of the timestep budget radiation is allowed to take.
 
-![Radiation solver cost and scaling](radiation_timing_comparison.png)
+`run_timing_comparison.py` plots the cost and scaling below as
+`radiation_timing_comparison.png`. That plot is a run output, so it is not
+tracked here; regenerate it with the command under Running.
 
 ## Results
 

@@ -26,12 +26,19 @@ TOL = {
     "heating_cv_max": 0.05,
 }
 
+# Four of the five benchmark cases are the standalone canonical cases run
+# again under the suite's metrics, so they are named where they live instead
+# of being copied under cases/. run_case() stages a copy of whichever
+# directory this names into _runs/, so the canonical case is never written
+# to. Only the timing case, which exists solely for this suite, lives here.
+RADIATION_DIR = BASE_DIR.parent
+
 CASE_PATHS = {
-    "LW_ISOTHERMAL": CASES_DIR / "lw_isothermal",
+    "LW_ISOTHERMAL": RADIATION_DIR / "LW_Isothermal",
     "TIMING": CASES_DIR / "timing",
-    "SW_CLEARSKY": CASES_DIR / "sw_clearsky",
-    "SW_CLOUD_LAYER": CASES_DIR / "sw_cloud_layer",
-    "SW_SCATTERING": CASES_DIR / "sw_scattering",
+    "SW_CLEARSKY": RADIATION_DIR / "SW_ClearSky_Analytical",
+    "SW_CLOUD_LAYER": RADIATION_DIR / "SW_Cloud_Layer",
+    "SW_SCATTERING": RADIATION_DIR / "SW_Scattering_Cloud",
 }
 
 

@@ -56,20 +56,25 @@ amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
 /**
  * @brief Diagnose aerosol optical depth for Exponential profile.
  *
- * Returns height-dependent aerosol tau via exponential decay:
- *   tau_aerosol(k) = tau_surface * exp(-z(k) / scale_height)
+ * Returns the optical depth of one layer of an exponentially decaying aerosol
+ * profile, i.e. the profile integrated across that layer,
+ *   tau_aerosol(k) = (tau_surface / scale_height) * dz * exp(-z(k) / scale_height)
+ * so the column sum approaches tau_surface once the domain is much deeper
+ * than the scale height. This is a per-layer contribution, not the column
+ * value above z(k).
  *
  * Clamped to [0, 100] for physical reasonableness.
  * Handles invalid parameters safely with fallback to 0.
  *
  * @param[in] z_level Height at level k [m]
+ * @param[in] dz Thickness of layer k [m]
  * @param[in] tau_surface Total-column aerosol optical depth at surface [dimensionless]
  * @param[in] scale_height_m Decay scale height [m]
  * @return Clamped aerosol optical depth [0, 100]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
-                                            amrex::Real dz,                // NEW: layer thickness
+                                            amrex::Real dz,
                                             amrex::Real tau_surface,
                                             amrex::Real scale_height_m)
 {

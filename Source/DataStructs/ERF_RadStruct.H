@@ -180,9 +180,12 @@ public:
   /**
    * @brief Master switch for radiation diagnostics emission.
    * When false, no diagnostics output (stdout/tagged/regtest/csv).
-   * Default true.
+   * Default false: a run that did not ask for the diagnostics should not
+   * write a CSV row and a stdout block on every step. The per-stream
+   * switches below stay on by default, so setting this one input to true
+   * turns the whole set on.
    */
-  bool diag_enable = true;
+  bool diag_enable = false;
 
   /**
    * @brief Enable human-readable stdout diagnostics block.

@@ -126,4 +126,5 @@ erf.radiation.time_zone_offset_hours = -6.0  # UTC-6 (Central Daylight Time)
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_solar_dynamic_diag.dat"

@@ -124,4 +124,5 @@ erf.radiation.aerosol_tau_surface = 0.15
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1
+erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_aero_diag.dat"
