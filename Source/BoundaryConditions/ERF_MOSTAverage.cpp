@@ -1039,7 +1039,10 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 for (int cell = first_cell; ; cell += cell_step) {
                     const Real z_lo = z_at(i, j, cell);
                     const Real z_hi = z_at(i, j, cell + 1);
-                    if (z_target >= z_lo && z_target <= z_hi) {
+                    const bool in_cell = is_lo_face
+                        ? (z_target >= z_lo && z_target < z_hi)
+                        : (z_target > z_lo && z_target <= z_hi);
+                    if (in_cell) {
                         const int wall_offset = is_lo_face ? cell - zlo : zhi - cell;
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wall_offset >= d_radius,
                                                          "K index must be larger than averaging radius!");
