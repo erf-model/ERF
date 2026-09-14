@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened, closed]
 
 concurrency:
-  group: ${{ github.ref }}-${{ github.head_ref }}-codespell
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-codespell
   cancel-in-progress: true
 
 jobs:
