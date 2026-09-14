@@ -321,7 +321,8 @@ westerly, with the prescribed clear-sky provider and a gray sky.
    :width: 80%
 
    Temperature through the 30 cm roof slab against time.
- The
+
+The
 sequence through the day is the one a building shows: radiative cooling of
 every face below the air at night, the east wall lit first after sunrise,
 the roof peaking early in the afternoon and lagging the sun, the west wall

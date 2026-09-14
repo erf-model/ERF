@@ -353,7 +353,7 @@ IBFaceSet::compute_view_fractions ()
 void
 IBFaceSet::compute_longwave (const MultiFab& cons)
 {
-    constexpr Real sigma = 5.670374419e-8;
+    const Real  sigma  = ibseb::SIGMA_SB;
     const bool  gray   = (m_params.lw_mode == "gray");
     const Real  lw_fix = m_params.lw_down, eps_sky = m_params.sky_emissivity;
     const Real  eps_g  = m_params.emissivity_ground;

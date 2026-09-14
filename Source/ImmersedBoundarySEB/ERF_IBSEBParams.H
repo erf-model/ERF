@@ -36,7 +36,8 @@ struct IBSEBParams
     // ---- Radiation provider ------------------------------------------------
     // Where the downwelling shortwave and longwave come from.
     // "prescribed" is built in: clear-sky formulas with a fixed or computed
-    // sun. "two_stream" is reserved for the ERF-Radiation column fluxes.
+    // sun. "two_stream" is reserved for the column fluxes of the TwoStream
+    // radiation model (erf.radiation_model = TwoStream), not wired yet.
     std::string radiation     = "prescribed";
     // "fixed": the sun stays at sun_zenith_deg / sun_azimuth_deg with the
     // direct-normal and diffuse irradiances given below (analytic tests).

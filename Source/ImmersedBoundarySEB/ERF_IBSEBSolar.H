@@ -4,6 +4,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <ERF_NumericalConstants.H>
+#include <ERF_SolarGeometry.H>
 #include <cmath>
 
 /**
@@ -12,11 +13,9 @@
  *        whether a building face is in shadow.
  *
  * The solar geometry (declination, equation of time, hour angle, zenith,
- * azimuth, Earth-Sun distance) is copied from the ERF-Radiation branch's
- * ERF_SolarGeometry.H so that this branch carries no dependency on it;
- * when that branch is merged the two should be unified. The clear-sky
- * formulas follow Bird (1984) as used by the SLUCM branch. The ray cast is
- * new here.
+ * azimuth, Earth-Sun distance) comes from the radiation module's
+ * ERF_SolarGeometry.H through the wrappers below. The clear-sky formulas
+ * follow Bird (1984) as used by the SLUCM branch. The ray cast is new here.
  *
  * **Sun vector convention.** ``ibseb_sun_vector()`` returns the unit vector
  * from a surface toward the sun, with azimuth measured clockwise from north:
@@ -29,94 +28,33 @@
  */
 namespace ibseb {
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real clamp_day_of_year (amrex::Real doy)
-{
-    if (!(doy == doy)) return 172.0;
-    if (doy < 1.0) return 1.0;
-    if (doy > 366.0) return 366.0;
-    return doy;
-}
-
-/** Solar declination [rad] from the day of year (Spencer 1971). */
+/**
+ * The solar geometry is the radiation module's (Source/Radiation/
+ * ERF_SolarGeometry.H: Spencer's declination and equation of time, the hour
+ * angle from UTC and the site, the zenith and the clockwise-from-north
+ * azimuth, the Earth-Sun distance); these are the names the balance uses.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_declination (amrex::Real day_of_year)
-{
-    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
-    return 0.006918
-        - 0.399912 * std::cos(g)       + 0.070257 * std::sin(g)
-        - 0.006758 * std::cos(2.0 * g) + 0.000907 * std::sin(2.0 * g)
-        - 0.002480 * std::cos(3.0 * g) + 0.000310 * std::sin(3.0 * g);
-}
+{ return compute_solar_declination(day_of_year); }
 
-/** Equation of time [minutes] (Spencer 1971). */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real equation_of_time_min (amrex::Real day_of_year)
-{
-    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.25;
-    return 229.18 * (0.000075 + 0.001868 * std::cos(g) - 0.032077 * std::sin(g)
-                     - 0.014615 * std::cos(2.0 * g) - 0.040849 * std::sin(2.0 * g));
-}
-
-/**
- * Solar hour angle [rad], zero at solar noon, negative in the morning.
- * @param time_utc_s   Seconds after 00:00 UTC of the day.
- * @param longitude_deg Site longitude, east positive.
- * @param tz_offset_h  Time-zone offset from UTC [h]; the longitude correction
- *                     is taken relative to that zone's standard meridian.
- * @param day_of_year  For the equation of time.
- */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_hour_angle (amrex::Real time_utc_s, amrex::Real longitude_deg,
                               amrex::Real tz_offset_h, amrex::Real day_of_year)
-{
-    amrex::Real t_utc_h = std::fmod(time_utc_s / 3600.0, 24.0);
-    if (t_utc_h < 0.0) t_utc_h += 24.0;
-    const amrex::Real std_meridian = 15.0 * tz_offset_h;
-    const amrex::Real t_solar_h = t_utc_h + tz_offset_h + (longitude_deg - std_meridian) / 15.0
-                                + equation_of_time_min(day_of_year) / 60.0;
-    return 15.0 * (t_solar_h - 12.0) * PI / 180.0;
-}
+{ return compute_solar_hour_angle(time_utc_s, longitude_deg, tz_offset_h, day_of_year); }
 
-/** Solar zenith angle [rad] from latitude, declination and hour angle. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_zenith (amrex::Real latitude_deg, amrex::Real decl, amrex::Real hour_angle)
-{
-    const amrex::Real lat = latitude_deg * PI / 180.0;
-    amrex::Real cz = std::sin(lat) * std::sin(decl) + std::cos(lat) * std::cos(decl) * std::cos(hour_angle);
-    cz = amrex::max(amrex::Real(-1.0), amrex::min(amrex::Real(1.0), cz));
-    return std::acos(cz);
-}
+{ return compute_solar_zenith_angle(latitude_deg, decl, hour_angle); }
 
-/**
- * Solar azimuth [rad], clockwise from north, in [0, 2 pi): east of south
- * (below pi) in the morning, when the hour angle is negative, west of south
- * in the afternoon. The sign of the sine term is what puts the morning sun
- * in the east; a check at solar noon cannot tell the two apart, a sunrise
- * case can.
- */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_azimuth (amrex::Real latitude_deg, amrex::Real decl,
                            amrex::Real hour_angle, amrex::Real zenith)
-{
-    const amrex::Real lat = latitude_deg * PI / 180.0;
-    const amrex::Real sz = std::sin(zenith), cz = std::cos(zenith);
-    if (sz < 1.0e-6) return 0.0;
-    const amrex::Real sin_az = -std::sin(hour_angle) * std::cos(decl) / sz;
-    const amrex::Real cos_az = (std::sin(decl) - cz * std::sin(lat)) / (sz * std::cos(lat));
-    amrex::Real az = std::atan2(sin_az, cos_az);
-    if (az < 0.0) az += 2.0 * PI;
-    return az;
-}
+{ return compute_solar_azimuth_angle(latitude_deg, decl, hour_angle, zenith); }
 
-/** Earth-Sun distance correction factor (Spencer 1971), about 0.97 to 1.03. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real earth_sun_distance_factor (amrex::Real day_of_year)
-{
-    const amrex::Real g = 2.0 * PI * (clamp_day_of_year(day_of_year) - 1.0) / 365.0;
-    return 1.000110 + 0.034221 * std::cos(g) + 0.001280 * std::sin(g)
-         + 0.000719 * std::cos(2.0 * g) + 0.000077 * std::sin(2.0 * g);
-}
+{ return compute_earth_sun_distance_factor(day_of_year); }
 
 /** Unit vector toward the sun from zenith and azimuth (east +x, north +y). */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
