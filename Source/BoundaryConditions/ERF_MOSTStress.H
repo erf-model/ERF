@@ -1318,7 +1318,7 @@ struct surface_temp
         t_star_arr(i,j,k) = mdata.kappa * (t_mean - t_surf) / CmPsih;
         if (spec_qflux) {
             q_surf_arr(i,j,k) = mdata.surf_moist_flux * CmPsih /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qv_a;
+                                (u_star_arr(i,j,k) * mdata.kappa) + qv_a_raw;
             q_star_arr(i,j,k) = -mdata.surf_moist_flux / u_star_arr(i,j,k);
         } else {
             // q_star follows the raw atmospheric/surface contrast.  The

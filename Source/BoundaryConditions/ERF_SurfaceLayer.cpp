@@ -305,7 +305,7 @@ SurfaceLayer::update_fluxes (const int& lev,
         }
     }
 
-    if (m_face.coordDir() == 2) {
+    if (m_terrain_type == TerrainType::EB || m_face.coordDir() == 2) {
         fill_planar_boundary(lev, *u_star[lev]);
         if (m_include_wstar) { fill_planar_boundary(lev, *w_star[lev]); }
         fill_planar_boundary(lev, *t_star[lev]);
@@ -337,10 +337,13 @@ void
 SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
 {
     // PlanarBoundary handles both z-low and z-high z-collapsed arrays split
-    // in z. Lateral-wall arrays use ordinary FillBoundary; lateral surface
-    // parameters are exchanged selectively below.
-    if (m_terrain_type == TerrainType::EB || m_face.coordDir() != 2) {
+    // in z. EB fields use ordinary FillBoundary because their 3-D layout has
+    // no duplicate collapsed surface boxes. Lateral planar fields need a
+    // selective exchange so an interior grid cannot provide wall data.
+    if (m_terrain_type == TerrainType::EB) {
         mf.FillBoundary(m_geom[lev].periodicity());
+    } else if (m_face.coordDir() != 2) {
+        fill_lateral_surface_parameter_ghosts(lev, &mf);
     } else {
         m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
     }
@@ -466,6 +469,12 @@ SurfaceLayer::compute_fluxes (const int& lev,
             gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
         }
 
+        // The mask iterator can have more lateral ghost cells than the
+        // surface-layer fields, and an EB FAB may be decomposed in z. Keep
+        // the face selection above, but never launch outside the target FAB.
+        gtbx &= u_star[lev]->fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
+
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
         auto q_star_arr = q_star[lev]->array(mfi);
@@ -554,7 +563,8 @@ SurfaceLayer::compute_fluxes (const int& lev,
 }
 
 void
-SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
+SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev,
+                                                     MultiFab* selected_field)
 {
     const int dir = m_face.coordDir();
     AMREX_ALWAYS_ASSERT(dir < 2);
@@ -569,9 +579,19 @@ SurfaceLayer::fill_lateral_surface_parameter_ghosts (const int& lev)
     period[dir] = 0; // The selected wall is not a periodic source plane.
     const Periodicity tangential_periodicity(period);
 
-    Vector<MultiFab*> fields{
-        u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), olen[lev].get()};
-    if (m_include_wstar) { fields.push_back(w_star[lev].get()); }
+    Vector<MultiFab*> fields;
+    if (selected_field) {
+        fields.push_back(selected_field);
+    } else {
+        const Vector<MultiFab*> all_fields{
+            u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), olen[lev].get(),
+            t_surf[lev].get(), q_surf[lev].get(), pblh[lev].get(),
+            surface_diagnostic_source[lev].get()};
+        for (MultiFab* field : all_fields) {
+            if (field) { fields.push_back(field); }
+        }
+        if (m_include_wstar && w_star[lev]) { fields.push_back(w_star[lev].get()); }
+    }
 
     for (MultiFab* field : fields) {
         // Each parameter field owns its own index type and BoxArray. Build

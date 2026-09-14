@@ -1326,8 +1326,11 @@ public:
    * that do not own data on the lateral face.
    *
    * @param[in] lev level index
+   * @param[in,out] selected_field if non-null, fill only this field;
+   *                              otherwise fill all lateral surface fields
    */
-  void fill_lateral_surface_parameter_ghosts (const int& lev);
+  void fill_lateral_surface_parameter_ghosts (const int& lev,
+                                               amrex::MultiFab* selected_field = nullptr);
 
   enum struct FluxCalcType {
     MOENG = 0,  ///< Moeng functional form

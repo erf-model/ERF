@@ -192,11 +192,11 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         int sm_index;
         const BoxArray& ba = mf.boxArray();
-        auto m_bx = ba.minimalBox();
+        const Box dom_bx = convert(m_geom[lev].Domain(), ba.ixType());
         if (m_face.isLow()) {
-            sm_index = m_bx.smallEnd(dir);
+            sm_index = dom_bx.smallEnd(dir);
         } else {
-            sm_index = m_bx.bigEnd(dir);
+            sm_index = dom_bx.bigEnd(dir);
         }
 
         BoxList bl2d = ba.boxList();
@@ -222,12 +222,12 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         int sm_index;
         const BoxArray& ba = mf.boxArray();
-        auto m_bx = ba.minimalBox();
+        const Box dom_bx = convert(m_geom[lev].Domain(), ba.ixType());
 
         if (m_face.isLow()) {
-            sm_index = m_bx.smallEnd(dir);
+            sm_index = dom_bx.smallEnd(dir);
         } else {
-            sm_index = m_bx.bigEnd(dir);
+            sm_index = dom_bx.bigEnd(dir);
         }
 
         BoxList bl2d = ba.boxList();
@@ -253,12 +253,12 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         // Create a 2D ba, dm, & ghost cells
         int sm_index;
         const BoxArray& ba = mf.boxArray();
-        auto m_bx = ba.minimalBox();
+        const Box dom_bx = convert(m_geom[lev].Domain(), ba.ixType());
 
         if (m_face.isLow()) {
-            sm_index = m_bx.smallEnd(dir);
+            sm_index = dom_bx.smallEnd(dir);
         } else {
-            sm_index = m_bx.bigEnd(dir);
+            sm_index = dom_bx.bigEnd(dir);
         }
 
         BoxList bl2d = ba.boxList();
@@ -763,8 +763,8 @@ MOSTAverage::set_k_indices_N (const int& lev)
             zref_tmp = zlo ? cell_center_height(zlevels, 0)
                            : zlevels.back() - cell_center_height(zlevels, zlevels.size()-2);
         } else {
-            const Real dz = m_geom[lev].CellSize(dir);
-            zref_tmp = zlo ? m_geom[lev].ProbLo(dir) + myhalf * dz : myhalf * dz;
+            const Real dz = m_geom[0].CellSize(dir);
+            zref_tmp = zlo ? m_geom[0].ProbLo(dir) + myhalf * dz : myhalf * dz;
         }
         Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
         read_z = true;
@@ -2532,19 +2532,23 @@ MOSTAverage::compute_region_averages (const int& lev)
             //       The fields   are: U/V/W/T/Qv/Qr
             //       We clip iavg at 3 since all the remaining data is CC
 
-            // Bounded box of CC data used for normalization
             int imf = min(iavg,3);
-            Box bnd_bx = (m_fields[lev][imf]->boxArray()).minimalBox();
+
+            // For a z face, tangential extrapolation follows the level's
+            // actual BoxArray extent. Fine patches may occupy only part of
+            // the domain, and their interior ghosts must remain untouched.
+            Box bnd_bx = m_fields[lev][imf]->boxArray().minimalBox();
+
+            // Domain box in the index type of the current source field.
+            // This is the physical-domain skip extent, including the
+            // high-side nodal offset for velocity fields.
+            Box dom_bx = convert(domain, fields[imf]->boxArray().ixType());
 
             int sm_index = 0;
             if (m_face.isLow()) {
-                sm_index = m_geom[lev].Domain().smallEnd(dir);
+                sm_index = dom_bx.smallEnd(dir);
             } else {
-                sm_index = m_geom[lev].Domain().bigEnd(dir);
-
-                if (imf == dir) {
-                    sm_index += 1;
-                }
+                sm_index = dom_bx.bigEnd(dir);
             }
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -2554,7 +2558,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 Box pbx = mfi.tilebox();
                 Box gpbx = mfi.growntilebox(ng);
 
-                if (bnd_bx.contains(gpbx)) {
+                if (dom_bx.contains(gpbx)) {
                     continue;
                 }
 
@@ -2575,8 +2579,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto ma_arr = averages[iavg]->array(mfi);
 
                 if (dir == 0) {
-                    int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
-                    int k_lo = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
+                    int j_lo = dom_bx.smallEnd(1); int j_hi = dom_bx.bigEnd(1);
+                    int k_lo = dom_bx.smallEnd(2); int k_hi = dom_bx.bigEnd(2);
 
                     ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
@@ -2597,8 +2601,8 @@ MOSTAverage::compute_region_averages (const int& lev)
                         ma_arr(i,j,k) = ma_arr(sm_index,lj,lk);
                     });
                 } else if (dir == 1) {
-                    int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
-                    int k_lo = vbx.smallEnd(2); int k_hi = vbx.bigEnd(2);
+                    int i_lo = dom_bx.smallEnd(0); int i_hi = dom_bx.bigEnd(0);
+                    int k_lo = dom_bx.smallEnd(2); int k_hi = dom_bx.bigEnd(2);
                     ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                     {
                         // Periodic tangential ghosts were populated by the
@@ -3149,7 +3153,7 @@ MOSTAverage::write_averages (const int& lev)
     int imf_cc = 3;
 
 
-    int navg = m_navg - 4;
+    int navg = m_navg - 1;
 
     std::ofstream ofile;
     ofile.open (std::string("MOST_averages_" + std::to_string(m_face) + ".txt"));
