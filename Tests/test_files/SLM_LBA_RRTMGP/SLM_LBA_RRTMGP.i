@@ -165,7 +165,6 @@ slm.Rc_max  = 5000.0  # maximum stomatal resistance
 slm.T_opt   = 298.0   # optimum temperature for transpiration
 #slm.zref    = 25.0    # height of reference level (m)
 
-slm.SLM_use_inputs = false
 
 #slm.rad_input_file = "LBA_240x240x250_default_rad_coszrs_combined.nc"
 erf.do_radiation = false

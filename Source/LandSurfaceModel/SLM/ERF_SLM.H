@@ -233,9 +233,6 @@ public:
         time = t_new;
         start_time = t_start;
 
-        // override ERF inputs from reference data if testing flag is set
-        this->time_interp_from_ref();
-
         if (first_step)
         {
             // initialize values using first reference data
@@ -371,24 +368,22 @@ public:
             }
 
             // update zref using updated z_phys_nd
-            if (!set_from_file) {
-                amrex::Real zlo      = m_geom.ProbLo(2);
-                amrex::Real dz       = m_geom.CellSize(2);
-                for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
-                    const amrex::Box& xybx      = mfi.growntilebox(0);
-                    const amrex::Array4<const amrex::Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real>{};
-                    auto ztop_arr = ztop.array(mfi);
-                    auto zrefxy_arr = zrefxy.array(mfi);
-                    auto landmask_arr = landmask.const_array(mfi);
+            amrex::Real zlo      = m_geom.ProbLo(2);
+            amrex::Real dz       = m_geom.CellSize(2);
+            for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
+                const amrex::Box& xybx      = mfi.growntilebox(0);
+                const amrex::Array4<const amrex::Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real>{};
+                auto ztop_arr = ztop.array(mfi);
+                auto zrefxy_arr = zrefxy.array(mfi);
+                auto landmask_arr = landmask.const_array(mfi);
 
-                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                        if (landmask_arr(i,j,0) == 1) {
-                            amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
-                            zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
-                            //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
-                        }
-                    });
-                }
+                ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                    if (landmask_arr(i,j,0) == 1) {
+                        amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
+                        zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
+                        //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
+                    }
+                });
             }
         }
 
@@ -513,9 +508,6 @@ public:
     set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
                        const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) override;
 
-    static std::vector<std::vector<amrex::Real>>
-    read_cols(const std::string& fname, const int skip_nlines = 1);
-
     int Lsm_Type() override
     {
         return LSM_Type::SLM;
@@ -523,9 +515,7 @@ public:
 
     void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames);
 
-    void init_from_file();
-
-    void time_interp_from_ref();
+    void init_from_inputs();
 
     void slm_init();
 
@@ -883,19 +873,9 @@ private:
     amrex::MultiFab net_rad;
     amrex::MultiFab wet_canop; // wetted portion of canopy
 
-    // Variables related to setting initial conditions (for testing purposes only)
-    bool set_from_file = false;
-    int num_ref_inputs = 1;
-    std::string ref_sounding_file, ref_flux_file, ref_sst_file;
-    std::vector<std::vector<amrex::Real>> sounding;
-    std::vector<std::vector<amrex::Real>> fluxes;
-    std::vector<std::vector<amrex::Real>> sst;
-    int time_index = 0;
-    int start_time_index = 0;
     amrex::Real time = 0.0;
 
     amrex::Real start_time = -1.0;
-    amrex::Real time_unit = 1.0;
     bool first_step = true;
     bool m_updated = false;
 

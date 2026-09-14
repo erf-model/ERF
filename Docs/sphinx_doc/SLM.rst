@@ -7,11 +7,10 @@ The Simple Land-surface Model (SLM) supplies lower-boundary sensible-heat,
 latent-heat, and momentum fluxes for land cells.  Select it with
 ``erf.land_surface_model = "SLM"``.  SLM uses the ``slm.`` input prefix.
 
-SLM can initialize a horizontally uniform land surface from the input file,
-read land-surface fields from ``WRFInput``, or use reference sounding, flux,
-and skin-temperature files for testing.  The soil layers are ordered from the
-surface downward.  ``slm.soil_dz`` gives the thickness of each layer in m and
-must contain exactly ``slm.nsoil`` values.
+SLM can initialize a horizontally uniform land surface from the input file or
+read land-surface fields from ``WRFInput``.  The soil layers are ordered from
+the surface downward.  ``slm.soil_dz`` gives the thickness of each layer in m
+and must contain exactly ``slm.nsoil`` values.
 
 Build and coupling requirements
 -------------------------------
@@ -49,10 +48,6 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.soil_dz**                  | thickness of each soil layer [m], from the surface       | Real values; exactly | must be set      |
 |                                  | downward; the number of values must equal ``nsoil``      | ``nsoil`` values     |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_use_inputs**           | use SLM input/reference data files instead of the        | Boolean              | false            |
-|                                  | normal uniform initialization; also enables the          |                      |                  |
-|                                  | reference-file path when not using ``WRFInput``          |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.landtype0**                | initial land-use category applied over the domain        | Integer land type    | 16               |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
@@ -139,36 +134,6 @@ parameter-file datasets must be ``usgs`` or ``modis`` for vegetation and
 ``stas`` or ``stas_ruc`` for soil.  The radiation file is expected to contain
 the variables ``SWVIS``, ``SWNIR``, ``SWVISD``, ``SWNIRD``, ``COSZRS``, and
 ``LWDS`` with dimensions matching the horizontal SLM grid.
-
-Reference-data testing options
-------------------------------
-
-These options support the SLM reference-data testing path.  They are read
-when ``slm.SLM_use_inputs = true``.  The three files contain, respectively,
-the sounding, surface flux, and surface-temperature reference data.
-
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| Parameter                        | Definition                                               | Acceptable Values    | Default          |
-+==================================+==========================================================+======================+==================+
-| **slm.SLM_num_ref_inputs**       | number of reference input records/files                  | Integer >= 1         | 1                |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_sounding_file**    | reference sounding file; columns are time, pressure,     | String               | must be set      |
-|                                  | temperature, humidity, u velocity, and v velocity        |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_flux_file**        | reference flux file; columns are time, SW down, LW down, | String               | must be set      |
-|                                  | SW up, and LW up                                         |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_sst_file**         | reference skin-temperature file; columns are time, SST,  | String               | must be set      |
-|                                  | and precipitation                                        |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.start_time**               | starting time selected from the reference data           | Real                 | -1.0             |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.time_unit**                | seconds represented by one reference-data time unit      | Real > 0             | 1.0              |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-
-When ``slm.SLM_use_inputs = false``, ``slm.zref`` is recomputed from the
-canopy height and the lowest atmospheric cell unless the run is initialized
-from ``WRFInput``.  When it is true, ``slm.zref`` is used directly.
 
 WRFInput initialization
 ------------------------

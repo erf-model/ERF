@@ -311,8 +311,8 @@ SLM::Init (const int& /*lev*/,
     lsm_fab_vars[LsmVar_SLM::tstar]->setVal(0.0);
     lsm_fab_vars[LsmVar_SLM::qstar]->setVal(0.0);
 
-    // Initialize SLM from inputs if specified
-    init_from_file();
+    // Initialize SLM from inputs (for idealized cases, if specified), and load any other parameters
+    init_from_inputs();
 
     landtype.setVal(landtype0);
     nroot.setVal(m_nz_lsm);
@@ -337,12 +337,8 @@ SLM::Init (const int& /*lev*/,
         slm_init();
     }
 
-    //Following Noah-MP, zref is modified to become ztop (canopy topheight) + dz0(center height of the atmosphere's lowest grid)
-    //First, read in SLM_use_inputs, if true, zref is set from the inputs parameter slm.zref
-    // if false, SLM is coupled to ERF atmosphere, therefore, zref is computed  
-    pp.query("SLM_use_inputs",set_from_file);
-
-    if (!set_from_file && !use_wrfinput) {
+    // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (center height of the atmosphere's lowest grid)
+    if (!use_wrfinput) {
         Real zlo      = m_geom.ProbLo(2);
         Real dz       = m_geom.CellSize(2);
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -369,13 +365,18 @@ SLM::Init (const int& /*lev*/,
                        Lsm_Data_Ptr(Lsm_DataIndex("alb_nir_sfc_diff"))};
 }
 /**
- * Initialize SLM from input data - used for testing only
+ * Initialize SLM from inputs.
+ *
+ * Initializes for idealized cases if provided:
+ *  - Reads uniform land, vegetation, soil, and surface-property inputs.
+ *  - Reads layer-dependent soil properties when not using WRFInput.
+ * Initializes other options:
+ *  - Configures soil nudging and relaxation-height values.
+ *  - Loads optional Noah-MP parameter tables and radiation settings.
  */
-void SLM::init_from_file()
+void SLM::init_from_inputs()
 {
     ParmParse pp("slm");
-    pp.query("SLM_use_inputs", set_from_file);
-
     pp.query("landtype0", landtype0);
     pp.query("LAI0", LAI0);
 
@@ -787,73 +788,6 @@ void SLM::init_from_file()
 #endif
     }
 
-    if (set_from_file)
-    {
-        pp.query("SLM_num_ref_inputs", num_ref_inputs);
-        pp.query("SLM_ref_sounding_file", ref_sounding_file);
-        pp.query("SLM_ref_flux_file", ref_flux_file);
-        pp.query("SLM_ref_sst_file", ref_sst_file);
-
-        pp.query("start_time", start_time);
-        pp.query("time_unit", time_unit);
-
-        // Reads the SLM input flux file assuming the following fields:
-        //  t[day], swdn[W/m2], lwdn[W/m2], swup[W/m2], lwup[W/m2]
-        fluxes = SLM::read_cols(ref_flux_file, 1);
-
-        // Reads the SLM input SST file assuming the following fields:
-        // t[day], sst[K], precip[mm/s]
-        sst = SLM::read_cols(ref_sst_file, 1);
-
-        // Reads the SLM input sounding file assuming the following fields:
-        //  t[day], pres0[mb], tabs[K], q[g/kg], uvel[m/s], vvel[m/s]
-        sounding = SLM::read_cols(ref_sounding_file, 1);
-
-        // setup initial time value and input file indices
-        if (start_time != -1.0) {
-            // if the user provided a start time, find which row index it occurs at in the file
-            auto it = std::find(sst[0].begin(), sst[0].end(), start_time);
-            if (it != sst[0].end())
-            {
-                time_index = it - sst[0].begin();
-                time = sst[0][time_index];
-
-            } else {
-                amrex::Error("SLM: invalid start_time value: could not find time value in input file!");
-            }
-        } else {
-            // if the user did not provide a starting time, then default to the first time in the file
-            time = sst[0][0];
-            time_index = 0;
-        }
-
-        start_time_index = time_index;
-
-        lsm_fab_vars[LsmVar_SLM::precipref]->setVal(sst[2][time_index]);
-
-        lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->setVal(fluxes[1][time_index]);
-        lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->setVal(0.0);
-        lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->setVal(0.0);
-        lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->setVal(0.0);
-
-        lsm_fab_vars[LsmVar_SLM::lwref]->setVal(fluxes[2][time_index]);
-        lsm_fab_vars[LsmVar_SLM::coszrsxy]->setVal(1.0);
-
-        const amrex::Real pres = sounding[1][time_index] * 100.0;
-        const amrex::Real qv = sounding[3][time_index] / 1000.0;
-        const amrex::Real theta = getThgivenTandP(sounding[2][time_index], pres, R_d / Cp_d);
-        lsm_fab_vars[LsmVar_SLM::tref]->setVal(sounding[2][time_index]);
-        lsm_fab_vars[LsmVar_SLM::qref]->setVal(qv);
-        lsm_fab_vars[LsmVar_SLM::pref]->setVal(pres / 100.0);
-        //lsm_fab_vars[LsmVar_SLM::dref]->setVal(getRhogivenThetaPress(theta, pres, R_d / Cp_d, qv));
-        lsm_fab_vars[LsmVar_SLM::dref]->setVal(pres / (rair * sounding[2][time_index]));
-
-        lsm_fab_vars[LsmVar_SLM::uref]->setVal(sounding[4][time_index]);
-        lsm_fab_vars[LsmVar_SLM::vref]->setVal(sounding[5][time_index]);
-
-        sstxy.setVal(sst[1][time_index]);
-
-    }
     shf_soil.setVal(0.0);
     lhf_soil.setVal(0.0);
 
@@ -867,71 +801,6 @@ void SLM::init_from_file()
 
     mw_inc.setVal(0.0);
     evapo_dry.setVal(0.0);
-}
-
-void SLM::time_interp_from_ref()
-{
-    // performs time interpolation of SLM inputs from reference data instead of
-    // using ERF inputs
-    if (set_from_file)
-    {
-        // Increment time used when reading input from testing files.
-        //  Note: file times are in days, so we convert our dt to days
-        time += (m_dt * (time_unit / 86400.0));
-
-        amrex::Real t0 = sst[0][time_index];
-        amrex::Real t1 = sst[0][time_index+1];
-        while (time >= t1)
-        {
-            int prev_index = time_index;
-            // shift time index to next window
-            time_index = std::min(time_index + 1, int(sst[0].size() - start_time_index - 2));
-            t0 = sst[0][time_index];
-            t1 = sst[0][time_index+1];
-            if (prev_index == time_index) {
-                break;
-            }
-        }
-
-        // interpolate values from input files based on the current time
-        amrex::Real precip_interp = linear_interp(t0, t1, time, sst[2][time_index], sst[2][time_index + 1]);
-        amrex::Real sw_interp = linear_interp(t0, t1, time, fluxes[1][time_index], fluxes[1][time_index + 1]);
-        amrex::Real lw_interp = linear_interp(t0, t1, time, fluxes[2][time_index], fluxes[2][time_index + 1]);
-        amrex::Real sst_interp = linear_interp(t0, t1, time, sst[1][time_index], sst[1][time_index + 1]);
-
-        amrex::Real p_interp = linear_interp(t0, t1, time, sounding[1][time_index], sounding[1][time_index + 1]);
-        amrex::Real t_interp = linear_interp(t0, t1, time, sounding[2][time_index], sounding[2][time_index + 1]);
-        amrex::Real q_interp = linear_interp(t0, t1, time, sounding[3][time_index], sounding[3][time_index + 1]);
-        amrex::Real u_interp = linear_interp(t0, t1, time, sounding[4][time_index], sounding[4][time_index + 1]);
-        amrex::Real v_interp = linear_interp(t0, t1, time, sounding[5][time_index], sounding[5][time_index + 1]);
-        lsm_fab_vars[LsmVar_SLM::precipref]->setVal(precip_interp);
-
-        // total SW split into:
-        //   Diffuse = ~30% SW
-        //   Direct  = ~70% SW
-        // Visible and NIR = 50/50%
-        lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->setVal(0.5*(sw_interp*0.7));
-        lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->setVal(0.5*(sw_interp*0.7));
-        lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->setVal(0.5*(sw_interp*0.3));
-        lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->setVal(0.5*(sw_interp*0.3));
-
-        lsm_fab_vars[LsmVar_SLM::lwref]->setVal(lw_interp);
-        lsm_fab_vars[LsmVar_SLM::coszrsxy]->setVal(1.0);
-
-        const amrex::Real pres = p_interp * 100.0;
-        const amrex::Real qv = q_interp / 1000.0;
-        const amrex::Real theta = getThgivenTandP(t_interp, pres, R_d / Cp_d);
-        lsm_fab_vars[LsmVar_SLM::tref]->setVal(t_interp);
-        lsm_fab_vars[LsmVar_SLM::qref]->setVal(qv);
-        lsm_fab_vars[LsmVar_SLM::pref]->setVal(pres / 100.0);
-        //lsm_fab_vars[LsmVar_SLM::dref]->setVal(getRhogivenThetaPress(theta, pres, R_d / Cp_d, qv));
-
-        lsm_fab_vars[LsmVar_SLM::dref]->setVal(pres / (rair * t_interp));
-        lsm_fab_vars[LsmVar_SLM::uref]->setVal(u_interp);
-        lsm_fab_vars[LsmVar_SLM::vref]->setVal(v_interp);
-
-        sstxy.setVal(sst_interp);
-    }
 }
 
 /**
@@ -4591,63 +4460,6 @@ void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
 
     // Fill interior ghost cells and periodic boundaries
     cons_in.FillBoundary(m_geom.periodicity());
-}
-
-/**
- * Read columns of data from a file, returning each column in a vector.
- */
-std::vector<std::vector<amrex::Real>> SLM::read_cols(const std::string &fname, const int skip_nlines)
-{
-    std::ifstream ifs(fname);
-    if (!ifs.is_open())
-    {
-        amrex::Error("Error opening input file " + fname);
-    }
-
-    std::vector<std::vector<amrex::Real>> datasets;
-    std::string line;
-    int i = 0;
-    int ncols = -1;
-
-    while (std::getline(ifs, line))
-    {
-        i++;
-        if (i <= skip_nlines) continue;
-
-        std::istringstream iss(line);
-
-        amrex::Real tmp;
-        // Get the number of columns in the file
-        if (ncols == -1) {
-            int j = 0;
-            while (iss >> tmp) {
-                datasets.push_back(std::vector<amrex::Real>());
-                j+= 1;
-            }
-
-            ncols = j;
-            iss = std::istringstream(line);
-
-            amrex::Print() << "-> got " << std::to_string(j) << " columns\n";
-        }
-
-        int j = 0;
-        while (iss >> tmp) {
-            // verify each line has the same number of columns
-            if (j > ncols) {
-              amrex::Error(
-                "Error reading file '" + fname + "': expected line " +
-                std::to_string(i) + " to have " + std::to_string(ncols) +
-                " columns, but got " + std::to_string(j));
-            }
-            datasets[j].push_back(tmp);
-            j+= 1;
-        }
-    }
-
-    ifs.close();
-
-    return datasets;
 }
 
 void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)

@@ -449,14 +449,14 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
         // write out flags
         //  - dosoiltnudge
         //  - dosoilwnudge
-        //  - set_from_file
+        //  - reserved compatibility slot for the removed set_from_file flag
         //  - use_param_file
         //  - interpolate_lai
         //  - use_wrf_lai
         //  - use_wrfinput
         HeaderFile << dosoiltnudging << "\n";
         HeaderFile << dosoilwnudging << "\n";
-        HeaderFile << set_from_file << "\n";
+        HeaderFile << 0 << "\n";
         HeaderFile << use_param_file << "\n";
         HeaderFile << interpolate_lai << "\n";
         HeaderFile << use_wrf_lai << "\n";
@@ -735,13 +735,15 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     GotoNextLine(is);
 
     // Read in flags
+    int reserved_slm_flag = 0;
     is >> dosoiltnudging;
     is >> dosoilwnudging;
-    is >> set_from_file;
+    is >> reserved_slm_flag;
     is >> use_param_file;
     is >> interpolate_lai;
     is >> use_wrf_lai;
     is >> use_wrfinput;
+    amrex::ignore_unused(reserved_slm_flag);
     GotoNextLine(is);
 
     // read in level 'lev' BoxArray from Header
