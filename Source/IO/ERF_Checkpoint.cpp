@@ -1358,27 +1358,27 @@ ERF::ReadCheckpointFile ()
     // override it here from the checkpoint. Older checkpoints without this file
     // restart with the legacy reset-to-zero behavior.
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
-            std::string LsmStepFileName(restart_chkfile + "/lsm_step");
-            if (amrex::FileExists(LsmStepFileName)) {
-                Vector<char> LsmStepCharPtr;
-                ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
-                std::string LsmStepStr(LsmStepCharPtr.dataPtr());
-                std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
-                int step_val = 0;
-                for (int lev = 0; lev <= finest_level; ++lev) {
-                    if (lsm_is >> step_val) {
-                        lsm.Set_LSM_Step(lev, step_val);
-                        Print() << "Restored LSM step counter at level " << lev
-                                << " to " << step_val << std::endl;
-                    }
+        std::string LsmStepFileName(restart_chkfile + "/lsm_step");
+        if (amrex::FileExists(LsmStepFileName)) {
+            Vector<char> LsmStepCharPtr;
+            ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
+            std::string LsmStepStr(LsmStepCharPtr.dataPtr());
+            std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
+            int step_val = 0;
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                if (lsm_is >> step_val) {
+                    lsm.Set_LSM_Step(lev, step_val);
+                    Print() << "Restored LSM step counter at level " << lev
+                            << " to " << step_val << std::endl;
                 }
-            } else {
-                Print() << "Warning: legacy checkpoint without lsm_step file; "
-                        << "LSM substep schedule will reset (may break bitwise reproducibility)."
-                        << std::endl;
             }
+        } else {
+            Print() << "Warning: legacy checkpoint without lsm_step file; "
+                    << "LSM substep schedule will reset (may break bitwise reproducibility)."
+                    << std::endl;
+        }
 
+        if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
             // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
             // from chk*/noahmp_restart. lsm.Init() during MakeNewLevelFromScratch
             // has already cold-initialized this state from wrfinput/tables; this
