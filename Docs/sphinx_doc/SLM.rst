@@ -58,11 +58,11 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.LAI0**                     | initial leaf-area index                                  | Real >= 0            | 0.0              |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.clay0**                    | clay fraction/content for each soil layer [%]            | One Real or          | must be set      |
-|                                  |                                                          | ``nsoil`` Reals      |                  |
+| **slm.clay0**                    | clay fraction/content for each soil layer [%]; not read  | One Real or          | required unless  |
+|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.sand0**                    | sand fraction/content for each soil layer [%]            | One Real or          | must be set      |
-|                                  |                                                          | ``nsoil`` Reals      |                  |
+| **slm.sand0**                    | sand fraction/content for each soil layer [%]; not read  | One Real or          | required unless  |
+|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real or          | must be set      |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
@@ -176,7 +176,8 @@ WRFInput initialization
 With ``erf.init_type = WRFInput``, SLM reads the mapped land-surface fields
 from the WRF input data, including soil thickness and temperature/moisture,
 LAI, vegetation and soil type, skin temperature, and vegetation fractions.
-The uniform ``sw0`` and ``st0`` values are therefore not used in this mode.
+The uniform ``clay0``, ``sand0``, ``sw0``, and ``st0`` values are therefore not
+used in this mode; clay and sand are derived from the WRF soil type.
 
 The active WRF-to-SLM field mapping is:
 
@@ -214,6 +215,45 @@ For each horizontal cell, SLM performs the following operations:
 * WRF soil moisture is divided by the SLM soil porosity.  Thus the SLM ``wsoil``
   value is a normalized wetness fraction, with saturation represented relative to
   ``poro_soil``.
+
+For WRF ``ISLTYP`` values 1--16, SLM assigns the following sand and clay
+contents to every soil layer in the cell.
+
++----------+-----------------------+----------+----------+
+| ISLTYP   | Soil type             | Sand [%] | Clay [%] |
++==========+=======================+==========+==========+
+| 1        | Sand                  | 92.0     | 3.0      |
++----------+-----------------------+----------+----------+
+| 2        | Loamy sand            | 82.0     | 6.0      |
++----------+-----------------------+----------+----------+
+| 3        | Sandy loam            | 65.0     | 10.0     |
++----------+-----------------------+----------+----------+
+| 4        | Silt loam             | 20.0     | 15.0     |
++----------+-----------------------+----------+----------+
+| 5        | Silt                  | 8.0      | 12.0     |
++----------+-----------------------+----------+----------+
+| 6        | Loam                  | 40.0     | 20.0     |
++----------+-----------------------+----------+----------+
+| 7        | Sandy clay loam       | 60.0     | 30.0     |
++----------+-----------------------+----------+----------+
+| 8        | Clay loam             | 32.0     | 34.0     |
++----------+-----------------------+----------+----------+
+| 9        | Silty clay loam       | 20.0     | 40.0     |
++----------+-----------------------+----------+----------+
+| 10       | Sandy clay            | 52.0     | 42.0     |
++----------+-----------------------+----------+----------+
+| 11       | Silty clay            | 6.0      | 47.0     |
++----------+-----------------------+----------+----------+
+| 12       | Clay                  | 20.0     | 60.0     |
++----------+-----------------------+----------+----------+
+| 13       | Organic material      | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 14       | Water                 | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 15       | Bedrock               | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 16       | Other/urban           | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
 
 The category constants and their WRFInput treatment are:
 

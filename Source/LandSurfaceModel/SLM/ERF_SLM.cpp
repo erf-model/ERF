@@ -400,9 +400,9 @@ void SLM::init_from_file()
     pp.query("soilwnudging", dosoilwnudging);
     pp.query("tausoil", tausoil);
 
-    get_layer_prop("clay0", m_nz_lsm, clay0);
-    get_layer_prop("sand0", m_nz_lsm, sand0);
     if (!use_wrfinput) {
+        get_layer_prop("clay0", m_nz_lsm, clay0);
+        get_layer_prop("sand0", m_nz_lsm, sand0);
         get_layer_prop("sw0", m_nz_lsm, sw0);
         get_layer_prop("st0", m_nz_lsm, st0);
     }
