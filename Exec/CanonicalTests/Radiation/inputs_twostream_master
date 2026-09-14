@@ -21,7 +21,7 @@
 #   All parameter names, types, and default values below were
 #   cross-checked directly against:
 #     - Source/DataStructs/ERF_RadStruct.H  (RadChoice::init_params())
-#     - Source/Radiation/ERF_TwoStreamRadiation.cpp
+#     - Source/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
 #
 #   Enable the two-stream model with:
 #     erf.radiation_model = "TwoStream"
@@ -116,6 +116,7 @@ erf.radiation.aerosol_scale_height_m = 2000.0       # Aerosol exponential decay 
 
 # ==============================================================================
 # SECTION 7: Sun and site (inputs shared with RRTMGP)
+# ==============================================================================
 # The sun follows the calendar unless erf.fixed_solar_zenith_angle is set: start_datetime
 # (UTC) gives the date and time of day, the position is evaluated over each column at
 # erf.rad_cons_lat/lon or at the grid's own lat_m/lon_m fields (WRF and metgrid inits).
@@ -127,6 +128,7 @@ erf.rad_orbital_eccentricity                = -9999.0     # Override of the orbi
 erf.rad_orbital_obliquity                   = -9999.0     # Override of the obliquity [degrees]; < 0 computes it. Default: -9999.0
 erf.rad_orbital_mvelp                       = -9999.0     # Override of the mean longitude of perihelion [degrees]; < 0 computes it. Default: -9999.0
 
+# ==============================================================================
 # SECTION 8: Simplified Surface Energy Balance (SEB) infrastructure
 #            (MultiFab allocation + Noah-MP passthrough fallback defaults)
 # ==============================================================================

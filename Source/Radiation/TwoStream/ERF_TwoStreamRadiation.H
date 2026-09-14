@@ -77,8 +77,10 @@ public:
      * @param qheating   2-component (SW, LW) heating-rate MultiFab of this
      *                   level, written at the pre-dycore call; may be nullptr
      * @param rad_fluxes 4-component (SW up, SW down, LW up, LW down) interface
-     *                   fluxes of this level in RRTMGP's layout, written at
-     *                   the pre-dycore call; may be nullptr
+     *                   fluxes of this level in RRTMGP's level layout (index k
+     *                   the lower interface of layer k, the top of the
+     *                   atmosphere in the z-ghost cell above the top layer),
+     *                   written at the pre-dycore call; may be nullptr
      * @param t_surf     the surface layer's surface temperature, or nullptr;
      *                   used as the longwave boundary condition where no
      *                   land-surface field exists, as RRTMGP does

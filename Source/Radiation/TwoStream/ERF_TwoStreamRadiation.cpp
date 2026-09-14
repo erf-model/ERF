@@ -59,11 +59,16 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
 
     // Calendar date of this call (UTC), as the RRTMGP interface forms it.
     time_t timestamp = time_t(epoch_time);
-    struct tm* timeinfo = gmtime(&timestamp);
-    int  year = (rc.rad_orbital_year >= 0) ? rc.rad_orbital_year : timeinfo->tm_year + 1900;
-    const int mon = timeinfo->tm_mon + 1;
-    const int day = timeinfo->tm_mday;
-    const int sec = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
+    struct tm timeinfo{};
+#if defined(_WIN32)
+    gmtime_s(&timeinfo, &timestamp);
+#else
+    gmtime_r(&timestamp, &timeinfo);
+#endif
+    int  year = (rc.rad_orbital_year >= 0) ? rc.rad_orbital_year : timeinfo.tm_year + 1900;
+    const int mon = timeinfo.tm_mon + 1;
+    const int day = timeinfo.tm_mday;
+    const int sec = timeinfo.tm_hour*3600 + timeinfo.tm_min*60 + timeinfo.tm_sec;
 
     // Orbital parameters of the year (Berger 1978) unless overridden, then
     // the declination and Earth-Sun distance factor of the day.
@@ -575,7 +580,9 @@ TwoStreamRadiation::advance (int lev,
             // surface layer's temperature, else this model's own field (the
             // erf.rad_t_sfc value, or the LSM copy). The prognostic surface
             // energy balance owns the surface temperature when it is on, so
-            // its state comes before the surface layer's.
+            // its state comes before the surface layer's; the gate is the one
+            // the force-restore update itself uses (init_params turns
+            // seb_enable on with seb_prognostic_enable, so the two agree).
             bool has_t_sfc_field = false;
             Array4<const amrex::Real> t_sfc_arr;
             {
@@ -587,7 +594,7 @@ TwoStreamRadiation::advance (int lev,
                         t_sfc_arr = lsm_ptr->const_array(mfi);
                         has_t_sfc_field = true;
                     }
-                } else if (rad_choice.seb_prognostic_enable && m_t_sfc[lev]) {
+                } else if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
                     t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
                 } else if (t_surf != nullptr) {
@@ -610,9 +617,11 @@ TwoStreamRadiation::advance (int lev,
             }
 
             // Interface fluxes for ERF's rad_fluxes (SW up, SW down, LW up,
-            // LW down at each layer's lower interface), the layout RRTMGP
-            // writes. The cloudy evaluation goes to a scratch FArrayBox and
-            // is blended like the heating rates.
+            // LW down at each layer's lower interface, plus the top of the
+            // atmosphere in the z-ghost cell above the column), the level
+            // layout RRTMGP writes. The cloudy evaluation goes to a scratch
+            // FArrayBox on the same grown box and is blended like the
+            // heating rates.
             const bool write_fluxes = (rad_fluxes != nullptr);
             Array4<amrex::Real> rad_flux_clear_arr;
             FArrayBox rad_flux_cloudy_fab;
@@ -620,7 +629,7 @@ TwoStreamRadiation::advance (int lev,
             if (write_fluxes) {
                 rad_flux_clear_arr = rad_fluxes->array(mfi);
                 if (cloud_fraction > 0.0) {
-                    rad_flux_cloudy_fab.resize(bx, 4);
+                    rad_flux_cloudy_fab.resize(two_stream_scratch_box(bx), 4);
                     rad_flux_cloudy_arr = rad_flux_cloudy_fab.array();
                 }
             }
@@ -756,7 +765,10 @@ TwoStreamRadiation::advance (int lev,
                                     (1.0 - cloud_fraction) * q_clear_val +
                                     cloud_fraction * q_cloudy_val;
                             }
-                            if (write_fluxes) {
+                        }
+                        if (write_fluxes) {
+                            // nlev + 1 levels: the top interface sits at kmax + 1
+                            for (int k = kmin; k <= kmax + 1; ++k) {
                                 for (int comp = 0; comp < 4; ++comp) {
                                     rad_flux_clear_arr(i, j, k, comp) =
                                         (1.0 - cloud_fraction) * rad_flux_clear_arr(i, j, k, comp) +

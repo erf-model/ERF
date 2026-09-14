@@ -795,6 +795,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
         const int nx         = vbx.length(0);
         const int imin       = vbx.smallEnd(0);
         const int jmin       = vbx.smallEnd(1);
+        const int ktop       = vbx.bigEnd(2);
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         const Array4<Real>& f_arr = m_rad_fluxes->array(mfi);
@@ -814,11 +815,19 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
 
-            // Populate the fluxes
+            // Populate the fluxes: level ilay is the lower interface of
+            // layer k, and the top-of-atmosphere level nlay goes into the
+            // z-ghost cell above the top layer (rad_fluxes has one).
             f_arr(i,j,k,0) = sw_flux_up_tab(icol,ilay);
             f_arr(i,j,k,1) = sw_flux_dn_tab(icol,ilay);
             f_arr(i,j,k,2) = lw_flux_up_tab(icol,ilay);
             f_arr(i,j,k,3) = lw_flux_dn_tab(icol,ilay);
+            if (k == ktop) {
+                f_arr(i,j,k+1,0) = sw_flux_up_tab(icol,ilay+1);
+                f_arr(i,j,k+1,1) = sw_flux_dn_tab(icol,ilay+1);
+                f_arr(i,j,k+1,2) = lw_flux_up_tab(icol,ilay+1);
+                f_arr(i,j,k+1,3) = lw_flux_dn_tab(icol,ilay+1);
+            }
 
             if (k==0) {
                 sfc_flux_sw_dn_tab(icol) = sw_flux_dn_tab(icol,ilay);

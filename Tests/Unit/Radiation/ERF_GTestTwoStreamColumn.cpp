@@ -63,7 +63,8 @@ constexpr amrex::Real kSigma = 5.670374419e-8;
 struct ColumnResult {
     std::vector<amrex::Real> q_sw;
     std::vector<amrex::Real> q_lw;
-    // Interface fluxes at each layer's lower interface (ERF's rad_fluxes layout)
+    // Interface fluxes: index k is the lower interface of layer k, index nz
+    // the top of the atmosphere (ERF's rad_fluxes level layout)
     std::vector<amrex::Real> flux_sw_up;
     std::vector<amrex::Real> flux_sw_dn;
     std::vector<amrex::Real> flux_lw_up;
@@ -98,7 +99,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     // Carry the moisture components so qv can be set (zero by default).
     amrex::FArrayBox state(bx, RhoQ2_comp + 1);
     amrex::FArrayBox qheating(bx, 2);
-    amrex::FArrayBox fluxes(bx, 4);
+    amrex::FArrayBox fluxes(two_stream_scratch_box(bx), 4);   // nz + 1 levels
     const amrex::Real theta = getThgivenRandT(rho, T_air, RdoCp, qv);
     state.setVal<amrex::RunOn::Device>(0.0);
     state.setVal<amrex::RunOn::Device>(rho, bx, Rho_comp, 1);
@@ -183,7 +184,7 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
 
     amrex::FArrayBox host_q(bx, 2, amrex::The_Pinned_Arena());
     host_q.copy<amrex::RunOn::Device>(qheating);
-    amrex::FArrayBox host_f(bx, 4, amrex::The_Pinned_Arena());
+    amrex::FArrayBox host_f(two_stream_scratch_box(bx), 4, amrex::The_Pinned_Arena());
     host_f.copy<amrex::RunOn::Device>(fluxes);
     amrex::Gpu::streamSynchronize();
     const auto hq = host_q.const_array();
@@ -191,6 +192,8 @@ ColumnResult run_uniform_column (const RadChoice& rad_choice_in, amrex::Real rho
     for (int k = 0; k < nz; ++k) {
         result.q_sw.push_back(hq(0, 0, k, 0));
         result.q_lw.push_back(hq(0, 0, k, 1));
+    }
+    for (int k = 0; k <= nz; ++k) {
         result.flux_sw_up.push_back(hf(0, 0, k, 0));
         result.flux_sw_dn.push_back(hf(0, 0, k, 1));
         result.flux_lw_up.push_back(hf(0, 0, k, 2));
@@ -393,6 +396,7 @@ TEST(TwoStreamColumn, NightHasNoShortwave)
         EXPECT_EQ(r.q_sw[k], 0.0) << "k = " << k;
         EXPECT_EQ(r.flux_sw_dn[k], 0.0) << "k = " << k;
     }
+    EXPECT_EQ(r.flux_sw_dn[kNz], 0.0);
     EXPECT_EQ(r.sw_surface, 0.0);
     EXPECT_EQ(r.sw_down_toa, 0.0);
 }
@@ -649,12 +653,26 @@ TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
     EXPECT_NEAR(r.sw_surface, (1.0 - alb) * r.flux_sw_dn[0], 1.0e-9 * r.sw_surface);
     EXPECT_NEAR(r.flux_sw_up[0], alb * r.flux_sw_dn[0], 1.0e-9 * r.sw_surface);
     EXPECT_NEAR(r.flux_lw_up[0] - r.flux_lw_dn[0], r.lw_net_surface, 1.0e-9 * std::abs(r.lw_net_surface));
-    // The beam weakens on the way down and every interface lies below the top.
-    for (int k = kNz - 1; k > 0; --k) {
+    // The beam weakens on the way down, level by level, from the incident
+    // flux at the top-of-atmosphere level nz.
+    for (int k = kNz; k > 0; --k) {
         EXPECT_LT(r.flux_sw_dn[k - 1], r.flux_sw_dn[k]) << "k = " << k;
     }
-    EXPECT_LT(r.flux_sw_dn[kNz - 1], r.sw_down_toa);
+    // Level nz is the top of the atmosphere, where the diagnostics are taken:
+    // this is what the OLR plot variable reads.
+    EXPECT_EQ(r.flux_sw_dn[kNz], r.sw_down_toa);
+    EXPECT_EQ(r.flux_sw_up[kNz], r.sw_up_toa);
+    EXPECT_EQ(r.flux_lw_up[kNz], r.lw_up_toa);
+    EXPECT_EQ(r.flux_lw_dn[kNz], 0.0);
     EXPECT_GT(r.flux_lw_up[0], 0.0);
+    // Air and black surface at one temperature: the upward LW is sigma T^4 at
+    // every level, so the surface and top values agree ...
+    EXPECT_NEAR(r.flux_lw_up[0], r.flux_lw_up[kNz], 1.0e-9 * r.flux_lw_up[0]);
+    // ... and a colder atmosphere absorbs part of the surface emission on the
+    // way up, so the outgoing flux at the top is the smaller one.
+    const ColumnResult cold = run_uniform_column(rc, 1.0, 270.0);
+    EXPECT_GT(cold.flux_lw_up[0], cold.flux_lw_up[kNz]);
+    EXPECT_EQ(cold.flux_lw_up[kNz], cold.lw_up_toa);
 }
 
 TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)

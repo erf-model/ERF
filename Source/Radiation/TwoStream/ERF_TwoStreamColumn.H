@@ -859,9 +859,11 @@ void diagnose_layer_optics(
  * @param[in] has_latlon true if per-column latitude and longitude fields are available
  * @param[in] lat_arr Optional per-column latitude [degrees] (dynamic sun)
  * @param[in] lon_arr Optional per-column longitude [degrees, east positive] (dynamic sun)
- * @param[out] rad_flux_out Optional 4-component flux output in RRTMGP's layout: at the
- * lower interface of layer k, component 0 is the upward SW, 1 the downward SW
- * (direct plus diffuse), 2 the upward LW and 3 the downward LW [W/m^2]
+ * @param[out] rad_flux_out Optional 4-component flux output in RRTMGP's level layout:
+ * at index k the lower interface of layer k, and at kmax + 1 the top-of-atmosphere
+ * interface (the array must extend one cell above the column); component 0 is the
+ * upward SW, 1 the downward SW (direct plus diffuse), 2 the upward LW and 3 the
+ * downward LW [W/m^2]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep(
@@ -896,8 +898,11 @@ void vertical_two_stream_sweep(
     const int kmax = bx.bigEnd(2);
     const int nlev = kmax - kmin + 1;
 
-    // The scratch box must hold nlev + 1 interface entries for this column.
+    // The scratch box must hold nlev + 1 interface entries for this column,
+    // and so must the flux output when it is wanted.
     AMREX_ASSERT(scratch.contains(i, j, kmin) && scratch.contains(i, j, kmax + 1));
+    AMREX_ASSERT(rad_flux_out == nullptr ||
+                 (rad_flux_out->contains(i, j, kmin) && rad_flux_out->contains(i, j, kmax + 1)));
 
     // Per-column scratch accessors (see TwoStreamScratch). Layer fields are
     // indexed by layer m in [0, nlev), interface fields by m in [0, nlev].
@@ -978,7 +983,9 @@ void vertical_two_stream_sweep(
     for (int k = kmin; k <= kmax; ++k) {
         qheating_arr(i, j, k, 0) = 0.0;
         qheating_arr(i, j, k, 1) = 0.0;
-        if (rad_flux_out != nullptr) {
+    }
+    if (rad_flux_out != nullptr) {
+        for (int k = kmin; k <= kmax + 1; ++k) {
             for (int comp = 0; comp < 4; ++comp) { (*rad_flux_out)(i, j, k, comp) = 0.0; }
         }
     }
@@ -1044,6 +1051,10 @@ void vertical_two_stream_sweep(
         amrex::Real u_above = S(nlev);
         sw_up_at_toa = u_above;
         amrex::Real F_net_above = F_dir(nlev) + d_above - u_above;
+        if (rad_flux_out != nullptr) {
+            (*rad_flux_out)(i, j, kmax + 1, 0) = u_above;      // SW up at the top of the atmosphere
+            (*rad_flux_out)(i, j, kmax + 1, 1) = F_dir(nlev);  // SW down at the top: the incident beam
+        }
         for (int k = kmax; k >= kmin; --k) {
             const int m = k - kmin;
             const TwoStreamLayerSW L = layer_props(m);
@@ -1134,6 +1145,10 @@ void vertical_two_stream_sweep(
             if (rad_flux_out != nullptr) {
                 (*rad_flux_out)(i, j, k, 2) = F_lw_up_iface(m);    // LW up at the lower interface of layer k
                 (*rad_flux_out)(i, j, k, 3) = F_lw_down_iface(m);  // LW down
+                if (k == kmax) {
+                    (*rad_flux_out)(i, j, kmax + 1, 2) = F_lw_up_iface(nlev);    // outgoing LW at the top
+                    (*rad_flux_out)(i, j, kmax + 1, 3) = F_lw_down_iface(nlev);  // zero: nothing comes in from space
+                }
             }
 
             amrex::Real F_net_top = F_lw_up_iface(m + 1) - F_lw_down_iface(m + 1);
