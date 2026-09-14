@@ -1,7 +1,7 @@
 #------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "ABL"
 
-max_step = 20
+max_step = 10
 
 amrex.fpe_trap_invalid = 1
 
@@ -101,7 +101,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk
-erf.check_int       = 20 number of timesteps between checkpoints
+erf.check_int       = 10 number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt
