@@ -861,13 +861,33 @@ MOSTAverage::set_k_indices_N (const int& lev)
             : (is_lo_face ? dom_lo + wall_offset : dom_hi - wall_offset);
         m_k_indx[lev]->setVal(ref_index);
 
-        if (stretched) {
-            const auto& zlevels = m_zlevels_stag[lev];
-            const int k = ref_index - dom_lo;
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(k >= 0 && k < ncell,
-                                             "MOST reference index must lie inside the stretched domain!");
-            const Real zcell = cell_center_height(zlevels, k);
-            m_zref[lev]->setVal(zlo ? zcell : zlevels.back() - zcell);
+        // TODO: check that z_ref is constant across levels
+        if (dir == 2) {
+            const int dom_lo0 = m_geom[0].Domain().smallEnd(2);
+            const int dom_hi0 = m_geom[0].Domain().bigEnd(2);
+            const int wall_offset0 = zlo ? m_k_in[0] - dom_lo0 : m_k_in[0];
+            const int ref_index0 = zlo ? m_k_in[0] : dom_hi0 - wall_offset0;
+            const int k0 = ref_index0 - dom_lo0;
+            AMREX_ALWAYS_ASSERT(wall_offset0 >= m_radius);
+
+            if (stretched) {
+                const auto& zlevels = m_zlevels_stag[0];
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    k0 >= 0 && k0 < m_geom[0].Domain().length(2),
+                    "MOST reference index must lie inside the stretched domain!");
+                const Real zcell = cell_center_height(zlevels, k0);
+                m_zref[lev]->setVal(zlo ? zcell : zlevels.back() - zcell);
+            } else {
+                const Real dz0 = m_geom[0].CellSize(2);
+                const Real zlo0 = m_geom[0].ProbLo(2);
+                const Real zhi0 = m_geom[0].ProbHi(2);
+                const Real zref_abs = is_lo_face
+                    ? zlo0 + (static_cast<Real>(wall_offset0) + myhalf) * dz0
+                    : zhi0 - (static_cast<Real>(wall_offset0) + myhalf) * dz0;
+                m_zref[lev]->setVal(zlo
+                    ? zref_abs
+                    : (is_lo_face ? zref_abs - zlo0 : zhi0 - zref_abs));
+            }
         } else {
             const Real m_dz = m_geom[lev].CellSize(dir);
             const Real m_zlo = m_geom[lev].ProbLo(dir);
@@ -1012,7 +1032,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
         const int zhi = domain.bigEnd(2);
         const int top_node = zhi + 1;
 
-        for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+        // Iterate the full 3-D source layout so z-split grids can be tested
+        // for ownership of the selected wall before collapsing the kernel box.
+        for (MFIter mfi(*m_fields[lev][3], TileNoZ()); mfi.isValid(); ++mfi) {
             Box npbx = mfi.tilebox(IntVect(1,1,0),ng_indx);
             const Box vbx = mfi.validbox();
 
@@ -1081,8 +1103,9 @@ MOSTAverage::set_k_indices_T (const int& lev)
             });
         }
 
-        m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), Periodicity(IntVect(1,1,1)));
-        m_zref[lev]->FillBoundary(m_zref[lev]->nGrowVect(), Periodicity(IntVect(1,1,1)));
+        const Periodicity period = tangential_periodicity(m_geom[lev], 2);
+        m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), period);
+        m_zref[lev]->FillBoundary(m_zref[lev]->nGrowVect(), period);
 
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -1910,23 +1933,15 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
                                  const IntVect& ng_fill)
 {
     // Peel back the level
-    auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
 
-    // NOTE: The fields and averages have different indexing.
-    //       The averages are: U/V/W/T/Qv/Tv/Umag_XY/Umag_XZ/Umag_YZ
-    //       The fields   are: U/V/W/T/Qv/Qr
-    //       We clip iavg at 3 since all the remaining data is CC.
-    const int imf = min(iavg,3);
+    // Extrapolation is performed directly in each average's own index space;
+    // the source fields use different centering and are not needed here.
 
     IntVect ng = averages[iavg]->nGrowVect();
     // Only the selected wall-normal direction is collapsed.  For x/y faces
     // the z ghosts are tangential and must be extrapolated/fillable.
     ng[m_face.coordDir()] = 0;
-
-    // With no field-derived ghost region, retain the original FillBoundary
-    // behavior and do not extrapolate from a mismatched source layout.
-    if (ng_fill.allLE(IntVect(0))) { return; }
 
     // Everything we hold was computed above
     if (ng.allLE(ng_fill)) { return; }
@@ -1937,7 +1952,7 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(*averages[iavg], false); mfi.isValid(); ++mfi) {
         // Use the average's index space.  The source field and the average
         // have different layouts for U/V/W and for the selected wall face.
         const Box avg_fab = averages[iavg]->fabbox(mfi.index());

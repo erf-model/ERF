@@ -535,10 +535,6 @@ void ERF::advance_dycore (int level,
             Array4<Real> tau13 = Tau[level][TauType::tau13].get()->array(mfi);
             Array4<Real> tau23 = Tau[level][TauType::tau23].get()->array(mfi);
 
-            //Array4<Real> tau21 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
-            //Array4<Real> tau31 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
-            //Array4<Real> tau32 = l_use_terrain_fitted_coords ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};
-
             Array4<Real> tau21  = (Tau[level][TauType::tau21]) ? Tau[level][TauType::tau21].get()->array(mfi) : Array4<Real>{};
             Array4<Real> tau31  = (Tau[level][TauType::tau31]) ? Tau[level][TauType::tau31].get()->array(mfi) : Array4<Real>{};
             Array4<Real> tau32  = (Tau[level][TauType::tau32]) ? Tau[level][TauType::tau32].get()->array(mfi) : Array4<Real>{};

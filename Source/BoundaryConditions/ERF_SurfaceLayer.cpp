@@ -460,7 +460,7 @@ SurfaceLayer::compute_fluxes (const int& lev,
         }
 
         // X/Y faces still need the full valid z column
-        if (dir == 2) {
+        if (!l_use_eb && dir == 2) {
             gtbx.makeSlab(2, sm_index);
         } else {
             gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));

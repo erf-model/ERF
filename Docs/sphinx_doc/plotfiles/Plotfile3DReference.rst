@@ -557,16 +557,30 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **hfx1**                    | Heat flux in     |
 |                             | x-direction.     |
-|                             | Only available   |
-|                             | with X surface   |
-|                             | layers enabled   |
+|                             | Written when     |
+|                             | requested.       |
+|                             | Nonzero with X   |
+|                             | surface layer or |
+|                             | rotated zlo flux;|
+|                             | zero otherwise.  |
+|                             | Surface-layer    |
+|                             | flux, not the    |
+|                             | full horizontal  |
+|                             | diffusive flux.  |
 |                             | [W/m^2]          |
 +-----------------------------+------------------+
 | **hfx2**                    | Heat flux in     |
 |                             | y-direction.     |
-|                             | Only available   |
-|                             | with Y surface   |
-|                             | layers enabled   |
+|                             | Written when     |
+|                             | requested.       |
+|                             | Nonzero with Y   |
+|                             | surface layer or |
+|                             | rotated zlo flux;|
+|                             | zero otherwise.  |
+|                             | Surface-layer    |
+|                             | flux, not the    |
+|                             | full horizontal  |
+|                             | diffusive flux.  |
 |                             | [W/m^2]          |
 +-----------------------------+------------------+
 | **hfx3**                    | Heat flux in     |
@@ -578,18 +592,32 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **q1fx1**                   | Moisture flux 1  |
 |                             | in x-direction.  |
-|                             | Only available   |
-|                             | with X surface   |
-|                             | layers and       |
-|                             | moisture enabled |
+|                             | Written when     |
+|                             | requested with   |
+|                             | moisture enabled.|
+|                             | Nonzero with X   |
+|                             | surface layer or |
+|                             | rotated zlo flux;|
+|                             | zero otherwise.  |
+|                             | Surface-layer    |
+|                             | flux, not the    |
+|                             | full horizontal  |
+|                             | diffusive flux.  |
 |                             | [kg/m^2/s]       |
 +-----------------------------+------------------+
 | **q1fx2**                   | Moisture flux 1  |
 |                             | in y-direction.  |
-|                             | Only available   |
-|                             | with Y surface   |
-|                             | layers and       |
-|                             | moisture enabled |
+|                             | Written when     |
+|                             | requested with   |
+|                             | moisture enabled.|
+|                             | Nonzero with Y   |
+|                             | surface layer or |
+|                             | rotated zlo flux;|
+|                             | zero otherwise.  |
+|                             | Surface-layer    |
+|                             | flux, not the    |
+|                             | full horizontal  |
+|                             | diffusive flux.  |
 |                             | [kg/m^2/s]       |
 +-----------------------------+------------------+
 | **q1fx3**                   | Moisture flux 1  |
@@ -608,6 +636,11 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | moisture enabled |
 |                             | [kg/m^2/s]       |
 +-----------------------------+------------------+
+
+The horizontal surface-layer flux variables ``hfx1``, ``hfx2``,
+``q1fx1``, and ``q1fx2`` do not represent the complete horizontal
+diffusive flux. Without a corresponding lateral surface layer or a
+rotated zlo surface flux, these variables are written as zero.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.

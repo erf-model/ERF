@@ -547,15 +547,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
-        /*
-        if (Tau_lev[TauType::tau31]) {
-            tau21 = Tau_lev[TauType::tau21]->array(mfi);
-            tau31 = Tau_lev[TauType::tau31]->array(mfi);
-            tau32 = Tau_lev[TauType::tau32]->array(mfi);
-        } else {
-            tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
-        }
-        */
        tau21 = (Tau_lev[TauType::tau21]) ? Tau_lev[TauType::tau21]->array(mfi) : Array4<Real>{};
        tau31 = (Tau_lev[TauType::tau31]) ? Tau_lev[TauType::tau31]->array(mfi) : Array4<Real>{};
        tau32 = (Tau_lev[TauType::tau32]) ? Tau_lev[TauType::tau32]->array(mfi) : Array4<Real>{};
