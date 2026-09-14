@@ -510,6 +510,20 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                 for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
                 lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                          domain_bcs_type, RefRatio, zero, nc_init_file);
+
+                // Now set up the LSM data/flux pointers (same as in make_lsm_at_level)
+                for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+                    lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+                    lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+                }
+                for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+                    lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+                    lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+                }
+                if (lev>0) {
+                    lsm.Set_Lev0_Data_Ptr(lev);
+                    lsm.Set_Lev0_Flux_Ptr(lev);
+                }
             }
         }
 
@@ -1194,9 +1208,10 @@ ERF::make_lsm_at_level (int lev)
     lsm.Define(lev, solverChoice);
 
     // Check if we'll be using surface-only init (atmospheric state comes later from FillCoarsePatch)
+    // Only applies to fine levels (lev > 0); level 0 always initializes normally
     bool will_use_surface_only = false;
 #ifdef ERF_USE_NETCDF
-    if (!nc_init_file[lev].empty() &&
+    if (lev > 0 && !nc_init_file[lev].empty() &&
         (solverChoice.init_type == InitType::WRFInput || solverChoice.init_type == InitType::Metgrid)) {
         will_use_surface_only = solverChoice.interp_atmos_from_coarse;
     }
@@ -1217,17 +1232,22 @@ ERF::make_lsm_at_level (int lev)
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                  domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-    if (lev>0) {
-        lsm.Set_Lev0_Data_Ptr(lev);
-        lsm.Set_Lev0_Flux_Ptr(lev);
+
+    // Only access LSM data pointers if LSM has been initialized
+    // (if using surface-only init, this will be done later after FillCoarsePatch)
+    if (solverChoice.lsm_type != LandSurfaceType::None && !will_use_surface_only) {
+        for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+            lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+            lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+        }
+        for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+            lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+            lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+        }
+        if (lev>0) {
+            lsm.Set_Lev0_Data_Ptr(lev);
+            lsm.Set_Lev0_Flux_Ptr(lev);
+        }
     }
 }
 
