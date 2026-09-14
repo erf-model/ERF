@@ -118,7 +118,7 @@ static_assert(std::is_trivially_copyable<TwoStreamParams>::value,
 /**
  * @brief Copy the column-kernel parameters out of a RadChoice.
  */
-inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
+inline TwoStreamParams make_two_stream_params (const RadChoice& rc)
 {
     TwoStreamParams p;
     p.sw_enabled = rc.sw_enabled;
@@ -190,8 +190,9 @@ inline TwoStreamParams make_two_stream_params(const RadChoice& rc)
  * @return Temperature [K], clamped to [100, 400]; 288.15 for unphysical input.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho,
-                                          amrex::Real qv = 0.0)
+amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
+                                           amrex::Real rho,
+                                           amrex::Real qv = 0.0)
 {
     if (!(rho > 0.0) || !std::isfinite(rho) ||
         !(rho_theta > 0.0) || !std::isfinite(rho_theta)) {
@@ -225,8 +226,10 @@ amrex::Real get_temperature_from_rhotheta(amrex::Real rho_theta, amrex::Real rho
  * @return Clamped finite value in [min, max]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real clamp_finite(amrex::Real value, amrex::Real min, amrex::Real max,
-                         amrex::Real fallback)
+amrex::Real clamp_finite (amrex::Real value,
+                          amrex::Real min,
+                          amrex::Real max,
+                          amrex::Real fallback)
 {
     if (!std::isfinite(value)) {
         value = fallback;
@@ -243,7 +246,7 @@ amrex::Real clamp_finite(amrex::Real value, amrex::Real min, amrex::Real max,
  * @return true if finite and > 0, false otherwise
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool is_finite_positive(amrex::Real value)
+bool is_finite_positive (amrex::Real value)
 {
     return std::isfinite(value) && value > 0.0;
 }
@@ -263,7 +266,7 @@ bool is_finite_positive(amrex::Real value)
  * @return SW albedo in [0, 1]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real resolve_surface_albedo_sw(
+amrex::Real resolve_surface_albedo_sw (
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_alb_sw,
     const TwoStreamParams& rad_choice,
@@ -296,7 +299,7 @@ amrex::Real resolve_surface_albedo_sw(
  * @return LW emissivity in [0, 1]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real resolve_surface_emissivity_lw(
+amrex::Real resolve_surface_emissivity_lw (
     int i, int j,
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw,
     const TwoStreamParams& rad_choice,
@@ -329,7 +332,7 @@ amrex::Real resolve_surface_emissivity_lw(
  * @return Surface temperature [K], strictly positive
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real resolve_surface_temp_k(
+amrex::Real resolve_surface_temp_k (
     int i, int j,
     const amrex::Array4<const amrex::Real>* t_sfc,
     const TwoStreamParams& rad_choice,
@@ -356,7 +359,7 @@ amrex::Real resolve_surface_temp_k(
  * @return true if this layer is inside the configured cloud band.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool is_cloud_level(amrex::Real z_center, const TwoStreamParams& rad_choice)
+bool is_cloud_level (amrex::Real z_center, const TwoStreamParams& rad_choice)
 {
     return (z_center >= rad_choice.cloud_base_height_m &&
             z_center <= rad_choice.cloud_top_height_m);
@@ -369,8 +372,8 @@ bool is_cloud_level(amrex::Real z_center, const TwoStreamParams& rad_choice)
  * stored values are non-finite or negative.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_qv_from_state(int i, int j, int k,
-                              const amrex::Array4<const amrex::Real>& state_arr)
+amrex::Real get_qv_from_state (int i, int j, int k,
+                               const amrex::Array4<const amrex::Real>& state_arr)
 {
     if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
@@ -388,8 +391,8 @@ amrex::Real get_qv_from_state(int i, int j, int k,
  * Returns 1 for unphysical input.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_inverse_exner(int i, int j, int k,
-                              const amrex::Array4<const amrex::Real>& state_arr)
+amrex::Real get_inverse_exner (int i, int j, int k,
+                               const amrex::Array4<const amrex::Real>& state_arr)
 {
     amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
     if (!(rho_theta > 0.0) || !std::isfinite(rho_theta)) return 1.0;
@@ -405,8 +408,8 @@ amrex::Real get_inverse_exner(int i, int j, int k,
  * stored values are non-finite or negative.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real get_qc_from_state(int i, int j, int k,
-                              const amrex::Array4<const amrex::Real>& state_arr)
+amrex::Real get_qc_from_state (int i, int j, int k,
+                               const amrex::Array4<const amrex::Real>& state_arr)
 {
     if (state_arr.nComp() <= RhoQ2_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
@@ -433,8 +436,8 @@ amrex::Real get_qc_from_state(int i, int j, int k,
  * @return Optical depth for this layer [unitless].
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_dynamic(amrex::Real tau_base, amrex::Real qv, amrex::Real qc,
-                                 amrex::Real coeff_qv, amrex::Real coeff_qc)
+amrex::Real diagnose_tau_dynamic (amrex::Real tau_base, amrex::Real qv, amrex::Real qc,
+                                  amrex::Real coeff_qv, amrex::Real coeff_qc)
 {
     if (!(qv > 0.0) || !std::isfinite(qv)) qv = 0.0;
     if (!(qc > 0.0) || !std::isfinite(qc)) qc = 0.0;
@@ -463,7 +466,7 @@ amrex::Real diagnose_tau_dynamic(amrex::Real tau_base, amrex::Real qv, amrex::Re
  * @return Optical depth for this layer [unitless].
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real tau_layer_value(
+amrex::Real tau_layer_value (
     amrex::Real z_center, amrex::Real tau_base,
     const TwoStreamParams& rad_choice, bool apply_cloud)
 {
@@ -498,7 +501,7 @@ amrex::Real tau_layer_value(
  * @param[out] g Selected asymmetry factor for this level.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void select_scattering_props(
+void select_scattering_props (
     amrex::Real z_center, const TwoStreamParams& rad_choice, bool apply_cloud,
     amrex::Real& omega, amrex::Real& g)
 {
@@ -534,7 +537,7 @@ void select_scattering_props(
  * @return Diagnosed cloud fraction [0, 1] if enabled; 0 if disabled
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_cloud_fraction_prognostic(
+amrex::Real diagnose_cloud_fraction_prognostic (
     int i, int j, int k,
     const amrex::Array4<const amrex::Real>& state_arr,
     const TwoStreamParams& rad_choice)
@@ -628,7 +631,7 @@ inline amrex::Box two_stream_scratch_box (const amrex::Box& bx)
  * @return Optical depth of layer k [unitless].
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_layer_tau(
+amrex::Real diagnose_layer_tau (
     int i, int j, int k,
     amrex::Real dz_layer, amrex::Real z_center,
     const amrex::Array4<const amrex::Real>& state_arr,
@@ -730,7 +733,7 @@ amrex::Real diagnose_layer_tau(
  * @param[out] g Asymmetry factor of the layer (0 for LW).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void diagnose_layer_optics(
+void diagnose_layer_optics (
     int i, int j, int k,
     amrex::Real dz_layer, amrex::Real z_center,
     const amrex::Array4<const amrex::Real>& state_arr,
@@ -857,7 +860,7 @@ void diagnose_layer_optics(
  * @param[in] t_sfc Optional per-column surface temperature field [K]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void vertical_two_stream_sweep(
+void vertical_two_stream_sweep (
     int i, int j,
     const amrex::Box& bx,
     amrex::Real dz_uniform,
