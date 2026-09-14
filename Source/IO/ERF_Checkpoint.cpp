@@ -367,6 +367,11 @@ ERF::WriteCheckpointFile () const
         }
 #endif
 
+        // Two-stream radiation: the force-restore surface state
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
+            two_stream_rad.write_checkpoint(lev, checkpointname);
+        }
+
         // Write the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
@@ -1160,6 +1165,11 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
                 MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
+        }
+
+        // Two-stream radiation: the force-restore surface state
+        if (solverChoice.rad_type == RadiationType::TwoStream) {
+            two_stream_rad.read_checkpoint(lev, restart_chkfile);
         }
 
         // Read the radiation heating rates

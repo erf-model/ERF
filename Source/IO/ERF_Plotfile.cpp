@@ -62,7 +62,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                                 micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
     capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
-    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    // qsrc_sw / qsrc_lw are available whenever qheating_rates is allocated,
+    // i.e. for any erf.radiation_model other than None.
+    capabilities.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(solverChoice.rad_type);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;

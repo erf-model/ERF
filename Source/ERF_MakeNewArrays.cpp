@@ -504,12 +504,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
+    // Every radiation model (RRTMGP, Simple, TwoStream) writes the same
+    // 2-component (SW, LW) heating rates, so the arrays are shaped the same
+    // way whichever one erf.radiation_model selects.
     if (solverChoice.rad_type != RadiationType::None)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(zero);
         rad_fluxes[lev]->setVal(zero);
+    }
+
+    // Two-stream radiation: the model owns its 2D surface and SEB fields.
+    if (solverChoice.rad_type == RadiationType::TwoStream)
+    {
+        two_stream_rad.define_level(lev, solverChoice.radChoice, ba2d[lev], dm);
     }
 
     //*********************************************************
@@ -634,17 +643,17 @@ ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMappi
     column_kextent[lev]->setVal(column_kextent_lo_sentinel, 0, 1, IntVect(1,1,0));
     column_kextent[lev]->setVal(column_kextent_hi_sentinel, 1, 1, IntVect(1,1,0));
 
+    // NOTE: no ParallelFor here.  This is a private member function, and nvcc does not allow
+    //       an extended (__device__) lambda inside a member function with private or protected
+    //       access.  Each box contributes a single (klo,khi) pair over its whole footprint,
+    //       so BaseFab::setVal fills it on the device without needing a lambda at all.
     for (MFIter mfi(*column_kextent[lev]); mfi.isValid(); ++mfi)
     {
-        const Box& vbx = mfi.validbox();
-        const int box_klo = ba[mfi.index()].smallEnd(2);
-        const int box_khi = ba[mfi.index()].bigEnd(2);
-        const Array4<int>& kext = column_kextent[lev]->array(mfi);
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            kext(i,j,k,0) = box_klo;
-            kext(i,j,k,1) = box_khi;
-        });
+        const Box& vbx  = mfi.validbox();
+        const Box& bx3d = ba[mfi.index()];
+        IArrayBox& kext_fab = (*column_kextent[lev])[mfi];
+        kext_fab.setVal<RunOn::Device>(bx3d.smallEnd(2), vbx, 0, 1);
+        kext_fab.setVal<RunOn::Device>(bx3d.bigEnd(2)  , vbx, 1, 1);
     }
 
     column_kextent[lev]->FillBoundary(geom[lev].periodicity());
@@ -1292,5 +1301,7 @@ ERF::make_physbcs (int lev)
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                               solverChoice.rdOcp, solverChoice.gravity);
 }

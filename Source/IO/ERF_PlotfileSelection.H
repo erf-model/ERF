@@ -15,6 +15,16 @@ namespace erf_plotfile
 {
 
 /**
+ * @brief Whether the SW/LW heating-rate storage (qsrc_sw, qsrc_lw) exists:
+ * every erf.radiation_model other than None (RRTMGP, Simple, TwoStream)
+ * allocates the same qheating_rates array.
+ */
+inline bool radiation_heating_storage_available (RadiationType rad_model)
+{
+    return rad_model != RadiationType::None;
+}
+
+/**
  * @brief What the active run can supply to a 3D plotfile.
  *
  * Availability of the *moist* components is not described here: it comes from

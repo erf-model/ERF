@@ -51,6 +51,13 @@ erf.use_gravity     = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
 
+# Splitting the fine grids in z is the whole point of this test, and ERF refuses to combine
+# a z split with implicit vertical diffusion: that solve inverts one tridiagonal system per
+# column, so a column split across boxes would be solved piecewise and the answer would
+# depend on the decomposition.  There is no diffusion in this deck at all, but the check
+# looks only at whether an implicit stage is configured, so turn the stages off explicitly.
+erf.vert_implicit = false
+
 # TERRAIN GRID TYPE
 erf.terrain_type      = StaticFittedMesh
 erf.terrain_smoothing = 0                       # BTF

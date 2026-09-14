@@ -259,7 +259,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -394,7 +394,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -906,7 +906,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
