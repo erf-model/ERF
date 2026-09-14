@@ -84,9 +84,6 @@ public:
         // Skip radiation on nested patches - heating rates will be interpolated from coarser level
         if (is_nested_patch) {
             m_is_nested_patch = true;
-            amrex::Print() << "Radiation: Level " << m_lev
-                           << " is a nested patch (doesn't reach model top) - "
-                           << "radiation will be skipped, using interpolated heating rates" << std::endl;
             return;
         }
 
@@ -120,9 +117,6 @@ public:
         // does no radiation work.
         m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk_requested);
 
-        amrex::Print() << "Radiation::Init() for level " << m_lev
-                       << " m_nlay=" << m_nlay
-                       << " m_ncol=" << m_ncol << std::endl;
         alloc_buffers();
     };
 

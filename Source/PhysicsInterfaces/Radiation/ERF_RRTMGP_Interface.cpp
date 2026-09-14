@@ -264,10 +264,6 @@ rrtmgp_initialize (gas_concs_t& gas_concs_k,
     pool_max_nlay = nlay;
     pool_nvar = nvar;
 
-    amrex::Print() << "RRTMGP: Initialized pool with nlay=" << nlay
-                   << " ncol=" << ncol << " nvar=" << nvar
-                   << " size=" << my_size_ref << std::endl;
-
     // We are now initialized!
     initialized = true;
 }
@@ -416,8 +412,6 @@ rrtmgp_main (const int ncol, const int nlay,
     // Check if we need to reinitialize the memory pool for larger nlay
     // This happens with vertical refinement where fine levels have more vertical cells
     if (static_cast<size_t>(nlay) > pool_max_nlay) {
-        amrex::Print() << "RRTMGP: Reinitializing pool for nlay=" << nlay
-                       << " (previous max was " << pool_max_nlay << ")" << std::endl;
 
         // Finalize old pool
         pool_t::finalize();
@@ -427,10 +421,6 @@ rrtmgp_main (const int ncol, const int nlay,
         auto my_size_ref = static_cast<unsigned long>(pool_nvar * ncol * nlay * ngpt);
         pool_t::init(my_size_ref);
         pool_max_nlay = nlay;
-
-        amrex::Print() << "RRTMGP: Pool reinitialized with ncol=" << ncol
-                       << " nlay=" << nlay << " nvar=" << pool_nvar
-                       << " size=" << my_size_ref << std::endl;
     }
 
     // Setup pointers to RRTMGP SW fluxes

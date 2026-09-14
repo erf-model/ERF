@@ -307,9 +307,6 @@ Radiation::set_grids (int& level,
 void
 Radiation::alloc_buffers ()
 {
-    amrex::Print() << "Radiation::Init_Buffers() allocating for m_nlay=" << m_nlay
-                   << " m_ncol=" << m_ncol << std::endl;
-
     // 1d size (m_ngas)
     const Real* mol_weight_gas_p = m_mol_weight_gas.data();
     const std::string* gas_names_p = m_gas_names.data();
@@ -1154,10 +1151,6 @@ Radiation::initialize_impl ()
 void
 Radiation::run_impl ()
 {
-    amrex::Print() << "Radiation::run_impl() for level " << m_lev
-                   << " m_nlay=" << m_nlay
-                   << " m_ncol=" << m_ncol << std::endl;
-
     // A rank that owns no boxes on this level has no columns and therefore no
     // radiation work to do. Bail out before the chunk loop; there are no MPI
     // collectives in this routine, so returning early cannot deadlock.
