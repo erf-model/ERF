@@ -29,15 +29,19 @@ constexpr amrex::Real tsi_reference = 1360.9;
 /**
  * Set the sun of this call from the inputs shared with RRTMGP. A fixed
  * cosine (erf.fixed_solar_zenith_angle > 0) with a fixed irradiance needs no
- * calendar. Otherwise the calendar date and time of day come from
- * start_datetime (epoch_time = start_time + t, as RRTMGP forms it) and go
- * through the same orbital code (orbital_params, orbital_decl of
- * ERF_OrbCosZenith.H) for the declination and the Earth-Sun distance factor;
- * the column sweep then evaluates the position over each column. Without a
- * start date there is no sun to place, so the run stops and says what to set.
+ * calendar; a fixed cosine alone takes the date-scaled irradiance when a
+ * start date is known and the unscaled reference otherwise. A calendar sun
+ * needs the date: it comes from start_datetime (epoch_time = start_time + t,
+ * as RRTMGP forms it, in double so a time of day at ~1.7e9 s is resolved) and
+ * goes through the same orbital code (orbital_params once per year,
+ * orbital_decl per call, both of ERF_OrbCosZenith.H) for the declination and
+ * the Earth-Sun distance factor; the column sweep then evaluates the position
+ * over each column. Without a start date there is no sun to place, so the run
+ * stops and says what to set.
  */
 void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
-                      amrex::Real epoch_time, bool have_datetime, int lev, int nstep)
+                      TwoStreamRadiation::OrbitalCache& orbit,
+                      double epoch_time, bool have_datetime, int lev, int nstep)
 {
     const bool fixed_sun = (rc.fixed_solar_zenith_angle > 0.0);
     const bool fixed_tsi = (rc.fixed_total_solar_irradiance >= 0.0);
@@ -48,13 +52,25 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
     p.S0               = fixed_tsi ? rc.fixed_total_solar_irradiance : tsi_reference;
     if (!rc.sw_enabled || (fixed_sun && fixed_tsi)) { return; }
 
+    if (fixed_sun && !have_datetime) {
+        // A fixed sun with the default irradiance and no calendar to scale it
+        // by: the unscaled reference. Say so once.
+        if (!orbit.noted_unscaled) {
+            if (ParallelDescriptor::IOProcessor()) {
+                Print() << "NOTE: erf.fixed_solar_zenith_angle is set, erf.fixed_total_solar_irradiance "
+                           "is not, and no start_datetime is known: the two-stream model uses the "
+                           "unscaled reference irradiance of " << tsi_reference << " W/m^2.\n";
+            }
+            orbit.noted_unscaled = true;
+        }
+        return;
+    }
     if (!have_datetime) {
         amrex::Abort("TwoStreamRadiation (level " + std::to_string(lev) + ", step " +
-                     std::to_string(nstep) + "): the sun follows the calendar unless both "
-                     "erf.fixed_solar_zenith_angle (cosine, > 0) and "
-                     "erf.fixed_total_solar_irradiance (>= 0) are set, and no start date is "
-                     "known. Set start_datetime = \"YYYY-MM-DD HH:MM:SS\" (UTC), as for RRTMGP, "
-                     "or fix both inputs.");
+                     std::to_string(nstep) + "): the sun follows the calendar because "
+                     "erf.fixed_solar_zenith_angle is not set, and no start date is known. "
+                     "Set start_datetime = \"YYYY-MM-DD HH:MM:SS\" (UTC), as for RRTMGP, or fix "
+                     "the sun with erf.fixed_solar_zenith_angle (the cosine of the angle).");
     }
 
     // Calendar date of this call (UTC), as the RRTMGP interface forms it.
@@ -65,19 +81,27 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
 #else
     gmtime_r(&timestamp, &timeinfo);
 #endif
-    int  year = (rc.rad_orbital_year >= 0) ? rc.rad_orbital_year : timeinfo.tm_year + 1900;
+    const int year = (rc.rad_orbital_year >= 0) ? rc.rad_orbital_year : timeinfo.tm_year + 1900;
     const int mon = timeinfo.tm_mon + 1;
     const int day = timeinfo.tm_mday;
     const int sec = timeinfo.tm_hour*3600 + timeinfo.tm_min*60 + timeinfo.tm_sec;
 
-    // Orbital parameters of the year (Berger 1978) unless overridden, then
-    // the declination and Earth-Sun distance factor of the day.
-    real eccen = rc.rad_orbital_eccentricity;
-    real obliq = rc.rad_orbital_obliquity;
-    real mvelp = rc.rad_orbital_mvelp;
-    real obliqr = 0.0, lambm0 = 0.0, mvelpp = 0.0;
-    orbital_params(year, eccen, obliq, mvelp, obliqr, lambm0, mvelpp);
+    // Orbital parameters of the year (Berger 1978) unless overridden: a few
+    // hundred series terms and six vectors, so once per year, not per step.
+    if (orbit.year != year) {
+        int  iyear = year;
+        real eccen = rc.rad_orbital_eccentricity;
+        real obliq = rc.rad_orbital_obliquity;
+        real mvelp = rc.rad_orbital_mvelp;
+        real obliqr = 0.0, lambm0 = 0.0, mvelpp = 0.0;
+        orbital_params(iyear, eccen, obliq, mvelp, obliqr, lambm0, mvelpp);
+        orbit.year = year;
+        orbit.eccen = eccen; orbit.obliqr = obliqr; orbit.lambm0 = lambm0; orbit.mvelpp = mvelpp;
+    }
+
+    // Declination and Earth-Sun distance factor of the day.
     real calday = orbital_calday(year, mon, day, sec);
+    real eccen = orbit.eccen, mvelpp = orbit.mvelpp, lambm0 = orbit.lambm0, obliqr = orbit.obliqr;
     real delta = 0.0, eccf = 1.0;
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
@@ -281,7 +305,7 @@ TwoStreamRadiation::advance (int lev,
                             const MultiFab* t_surf,
                             const MultiFab* lat_m,
                             const MultiFab* lon_m,
-                            amrex::Real epoch_time,
+                            double epoch_time,
                             bool have_datetime)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
@@ -415,7 +439,7 @@ TwoStreamRadiation::advance (int lev,
     // incident SW at the top (SW_TOA) is a domain mean formed by the sweep,
     // since with a calendar sun it varies across the columns.
     TwoStreamParams ts_params = make_two_stream_params(rad_choice);
-    if (do_sweep) { set_solar_state(ts_params, rad_choice, epoch_time, have_datetime, lev, nstep); }
+    if (do_sweep) { set_solar_state(ts_params, rad_choice, m_orbit, epoch_time, have_datetime, lev, nstep); }
 
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
@@ -584,6 +608,7 @@ TwoStreamRadiation::advance (int lev,
             // the force-restore update itself uses (init_params turns
             // seb_enable on with seb_prognostic_enable, so the two agree).
             bool has_t_sfc_field = false;
+            bool t_sfc_is_theta = false;   // the surface layer works in potential temperature
             Array4<const amrex::Real> t_sfc_arr;
             {
                 std::string varname_t_sfc = "t_sfc";
@@ -600,6 +625,7 @@ TwoStreamRadiation::advance (int lev,
                 } else if (t_surf != nullptr) {
                     t_sfc_arr = t_surf->const_array(mfi);
                     has_t_sfc_field = true;
+                    t_sfc_is_theta = true;
                 } else if (m_t_sfc[lev]) {
                     t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
@@ -709,7 +735,7 @@ TwoStreamRadiation::advance (int lev,
                         z_phys_nd_arr, scratch_arr,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                        has_t_sfc_field, &t_sfc_arr,
+                        has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr);
 
@@ -737,7 +763,7 @@ TwoStreamRadiation::advance (int lev,
                             z_phys_nd_arr, scratch_arr,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                            has_t_sfc_field, &t_sfc_arr,
+                            has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
                             has_latlon, &lat_arr, &lon_arr,
                             write_fluxes ? &rad_flux_cloudy_arr : nullptr);
 

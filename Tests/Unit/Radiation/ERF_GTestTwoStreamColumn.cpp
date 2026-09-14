@@ -87,7 +87,8 @@ namespace {
                                      amrex::Real qc = 0.0,
                                      const std::vector<amrex::Real>* z_faces = nullptr,
                                      const TwoStreamParams* params_override = nullptr,
-                                     const amrex::Real* latlon_deg = nullptr)
+                                     const amrex::Real* latlon_deg = nullptr,
+                                     const amrex::Real* t_sfc_theta = nullptr)
     {
         const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
                                                                         : make_two_stream_params(rad_choice_in);
@@ -147,6 +148,13 @@ namespace {
         const auto lat_arr = lat_fab.const_array();
         const auto lon_arr = lon_fab.const_array();
 
+        // Optional surface-temperature field holding a potential temperature,
+        // as the surface layer supplies it.
+        amrex::FArrayBox t_sfc_fab(xy_box, 1);
+        const bool has_t_sfc = (t_sfc_theta != nullptr);
+        if (has_t_sfc) { t_sfc_fab.setVal<amrex::RunOn::Device>(*t_sfc_theta); }
+        const auto t_sfc_arr = t_sfc_fab.const_array();
+
         // Geometry::CellSize() is host-only, so read it before the device lambda.
         const amrex::Real dz_uniform = geom.CellSize(2);
 
@@ -161,7 +169,8 @@ namespace {
             vertical_two_stream_sweep(i, j, bx, dz_uniform, state_arr, rad_choice, /*cloudy=*/false,
                                       qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up, sw_toa,
                                       no_z_phys, scratch_arr,
-                                      false, nullptr, false, nullptr, false, nullptr,
+                                      false, nullptr, false, nullptr,
+                                      has_t_sfc, &t_sfc_arr, /*t_sfc_is_theta=*/true,
                                       has_latlon, &lat_arr, &lon_arr, &flux_arr);
             scalar_ptr[0] = max_heating;
             scalar_ptr[1] = sw_surface;
@@ -693,6 +702,31 @@ TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
     const ColumnResult cold = run_uniform_column(rc, 1.0, 270.0);
     EXPECT_GT(cold.flux_lw_up[0], cold.flux_lw_up[kNz]);
     EXPECT_EQ(cold.flux_lw_up[kNz], cold.lw_up_toa);
+}
+
+TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
+{
+    // The surface layer hands the sweep a potential temperature (MOST works in
+    // theta). The emission needs the temperature, T_s = theta_s * Exner of the
+    // lowest cell; using theta directly would overstate sigma T^4 by the fourth
+    // power of 1/Exner, several percent below 1000 hPa.
+    RadChoice rc = base_choice();
+    rc.surface_emissivity_lw = 1.0;
+    const amrex::Real rho = 1.0, T_air = 290.0;
+    const amrex::Real theta_air = getThgivenRandT(rho, T_air, RdoCp);
+    const amrex::Real exner = T_air / theta_air;            // Exner function of the state
+    ASSERT_LT(exner, 0.999);                                // the state is not at p_0
+    const amrex::Real theta_s = 300.0;
+    const ColumnResult r = run_uniform_column(rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr, &theta_s);
+    const amrex::Real T_s = theta_s * exner;
+    const amrex::Real B_T = kSigma * T_s * T_s * T_s * T_s;
+    const amrex::Real B_theta = kSigma * theta_s * theta_s * theta_s * theta_s;
+    EXPECT_NEAR(r.flux_lw_up[0], B_T, 1.0e-9 * B_T);
+    EXPECT_LT(r.flux_lw_up[0], 0.99 * B_theta);
+    // Without a field the erf.rad_t_sfc value is a temperature and is used as is.
+    const ColumnResult d = run_uniform_column(rc, rho, T_air);
+    const amrex::Real B_d = kSigma * std::pow(rc.rad_t_sfc, 4);
+    EXPECT_NEAR(d.flux_lw_up[0], B_d, 1.0e-9 * B_d);
 }
 
 TEST(TwoStreamColumn, MassModelShortwaveIsIndependentOfVerticalResolution)

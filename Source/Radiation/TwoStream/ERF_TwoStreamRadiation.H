@@ -88,7 +88,9 @@ public:
      *                   erf.rad_cons_lat); only the WRF/metgrid inits fill it
      * @param lon_m      per-column longitude [degrees], likewise
      * @param epoch_time seconds since 1970-01-01 00:00 UTC of this call
-     *                   (start_time + time), the RRTMGP time base
+     *                   (start_time + time), the RRTMGP time base; double, as
+     *                   RRTMGP keeps it, since a float cannot resolve a time
+     *                   of day at ~1.7e9 s
      * @param have_datetime true when start_datetime (or a WRF/metgrid start
      *                   date) fixed the calendar; without it a dynamic sun
      *                   cannot be placed and the call aborts
@@ -107,7 +109,7 @@ public:
                   const amrex::MultiFab* t_surf,
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
-                  amrex::Real epoch_time,
+                  double epoch_time,
                   bool have_datetime);
 
     /** @brief Write the prognostic surface state of one level (SEB on). */
@@ -115,6 +117,19 @@ public:
 
     /** @brief Read it back when the checkpoint carries it; else keep defaults. */
     void read_checkpoint (int lev, const std::string& restart_chkfile);
+
+    // Orbital elements of the current year (Berger 1978, or the erf.rad_orbital_*
+    // overrides), computed once per year rather than every step, and the
+    // one-time note about an unscaled irradiance. Public so the file-local
+    // solar-state helper can fill it.
+    struct OrbitalCache {
+        int year = -9999;
+        double eccen = 0.0;
+        double obliqr = 0.0;
+        double lambm0 = 0.0;
+        double mvelpp = 0.0;
+        bool noted_unscaled = false;
+    };
 
 private:
     // Domain-mean flux diagnostics of the last column sweep, per level, so the
@@ -129,6 +144,7 @@ private:
     };
 
     const RadChoice* m_rad = nullptr;
+    OrbitalCache m_orbit;
 
     // CSV / console diagnostics writer, created on the first advance() so its
     // header and duplicate-row state persist across calls.

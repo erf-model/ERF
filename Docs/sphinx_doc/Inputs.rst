@@ -3367,7 +3367,10 @@ reads (see the table above): ``erf.fixed_solar_zenith_angle`` (the cosine of the
 leave it unset and the sun follows ``start_datetime`` over each column, at ``erf.rad_cons_lat``
 and ``erf.rad_cons_lon`` or at the grid's own latitude and longitude fields),
 ``erf.fixed_total_solar_irradiance`` (leave it unset for 1360.9 W/m² scaled by the Earth-Sun
-distance factor of the date), ``erf.rad_t_sfc`` (required), ``start_datetime`` and the
+distance factor of the date, or the unscaled 1360.9 W/m² when the zenith angle is fixed and no
+start date is known), ``erf.rad_t_sfc`` (required; with a land-surface model or a surface layer
+present it is only the initial prognostic value, and the surface layer's potential temperature
+is converted with the Exner function of the lowest cell), ``start_datetime`` and the
 ``erf.rad_orbital_*`` overrides. A deck that still sets one of the former two-stream-only keys
 (``erf.radiation.solar_zenith``, ``erf.radiation.S0``, ``erf.radiation.surface_temp_k``,
 ``erf.radiation.latitude_deg``, ``erf.radiation.longitude_deg``, ``erf.radiation.day_of_year``,

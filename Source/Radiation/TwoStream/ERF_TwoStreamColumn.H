@@ -337,18 +337,33 @@ amrex::Real resolve_surface_temp_k (
     int i, int j,
     const amrex::Array4<const amrex::Real>* t_sfc,
     const TwoStreamParams& rad_choice,
-    bool has_t_sfc)
+    bool has_t_sfc,
+    bool& from_field)
 {
     amrex::Real t_surf = rad_choice.t_sfc_default;  // erf.rad_t_sfc (already validated)
+    from_field = false;
 
     if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
         amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
         if (is_finite_positive(hetero_val)) {
             t_surf = hetero_val;
+            from_field = true;
         }
     }
 
     return t_surf;
+}
+
+/** @brief Same, without reporting where the value came from. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real resolve_surface_temp_k (
+    int i, int j,
+    const amrex::Array4<const amrex::Real>* t_sfc,
+    const TwoStreamParams& rad_choice,
+    bool has_t_sfc)
+{
+    bool from_field = false;
+    return resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc, from_field);
 }
 
 /**
@@ -859,6 +874,9 @@ void diagnose_layer_optics (
  * @param[in] hetero_emiss_lw Optional per-column LW surface emissivity field
  * @param[in] has_t_sfc true if t_sfc is available
  * @param[in] t_sfc Optional per-column surface temperature field [K]
+ * @param[in] t_sfc_is_theta true when t_sfc holds a potential temperature (the surface
+ * layer's field: MOST works in theta); it is then converted with the Exner function of
+ * the lowest cell before the surface emission is formed
  * @param[in] has_latlon true if per-column latitude and longitude fields are available
  * @param[in] lat_arr Optional per-column latitude [degrees] (dynamic sun)
  * @param[in] lon_arr Optional per-column longitude [degrees, east positive] (dynamic sun)
@@ -891,6 +909,7 @@ void vertical_two_stream_sweep (
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw = nullptr,
     bool has_t_sfc = false,
     const amrex::Array4<const amrex::Real>* t_sfc = nullptr,
+    bool t_sfc_is_theta = false,
     bool has_latlon = false,
     const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
@@ -1121,7 +1140,14 @@ void vertical_two_stream_sweep (
         // and reflects the fraction (1 - eps) of the downwelling flux that
         // reaches it (gray surface, Kirchhoff's law).
         {
-            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc);
+            bool t_sfc_from_field = false;
+            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc, t_sfc_from_field);
+            // The surface layer carries a potential temperature (MOST works in
+            // theta); the emission needs the temperature, so convert with the
+            // Exner function of the lowest cell (p_surface ~ p of that cell).
+            if (t_sfc_from_field && t_sfc_is_theta) {
+                t_surface /= get_inverse_exner(i, j, kmin, state_arr);
+            }
             amrex::Real emiss_lw  = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
             F_lw_up_iface(0) = emiss_lw * compute_thermal_intensity(t_surface, sigma)
                              + (1.0 - emiss_lw) * F_lw_down_iface(0);
