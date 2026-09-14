@@ -4,6 +4,7 @@
 #include <Kokkos_Core.hpp>
 
 #include <AMReX_REAL.H>
+#include <AMReX_Print.H>
 
 #include <rrtmgp_const.h>
 #include <mo_gas_optics_rrtmgp.h>
