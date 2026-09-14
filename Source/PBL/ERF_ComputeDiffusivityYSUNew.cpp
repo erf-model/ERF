@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
 #include "ERF_Diffusion.H"
@@ -6,6 +8,8 @@
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
+
+#include <cmath>
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -132,6 +136,29 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
     pblh_mf.setVal(0.0);
 
+    // PBLH smoothing reads one column per pass outside the cells it writes, so the
+    // work arrays have to carry that many columns of halo and the PBLH passes have
+    // to fill them: otherwise the stencil reads off the end of the tile and the
+    // answer depends on the decomposition. With smoothing off this is the single
+    // column of halo the diffusivity kernels already use, so nothing changes.
+    const int ng_pblh = (turbChoice.enable_pblh_smoothing)
+                      ? std::max(1, turbChoice.pblh_smoothing_passes) : 1;
+    if (ng_pblh > 1) {
+        const int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
+                                       xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
+                                       yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
+                                       SurfLayer->get_u_star(level)->nGrowVect()[0],
+                                       SurfLayer->get_u_star(level)->nGrowVect()[1],
+                                       SurfLayer->get_olen(level)->nGrowVect()[0],
+                                       SurfLayer->get_olen(level)->nGrowVect()[1]});
+        if (ng_pblh > ng_avail) {
+            amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
+                       + " needs " + std::to_string(ng_pblh) + " halo columns, but the state and "
+                         "surface-layer arrays carry only " + std::to_string(ng_avail)
+                       + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
+        }
+    }
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -160,22 +187,34 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         // create flattened boxes to store PBL height and related quantities
         const Box xybx = PerpendicularBox<ZDir>(gbx, IntVect{0, 0, 0});
-        FArrayBox pbl_height_corrector(xybx, 1, The_Async_Arena());
-        IArrayBox pbl_index(xybx, 1, The_Async_Arena());
-        IArrayBox pbl_index_zero_ri(xybx, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
-        FArrayBox hgamt_fab(xybx, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
-        FArrayBox hgamq_fab(xybx, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
-        FArrayBox hgamu_fab(xybx, 1, The_Async_Arena());  // Store HGAMU (YSU u countergradient)
-        FArrayBox hgamv_fab(xybx, 1, The_Async_Arena());  // Store HGAMV (YSU v countergradient)
-        FArrayBox wstar_fab(xybx, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
-        FArrayBox vpert_fab(xybx, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
-        FArrayBox entr_fab(xybx, 1, The_Async_Arena());   // Per-column entrainment diffusivity
-        IArrayBox cloud_top_fab(xybx, 1, The_Async_Arena());  // Cloud-top cell index for top-down mixing
-        FArrayBox wstar3_down_fab(xybx, 1, The_Async_Arena());  // Top-down convective velocity scale cubed
-        FArrayBox sflux_fab(xybx, 1, The_Async_Arena());        // Virtual kinematic heat flux (sensible + latent)
-        FArrayBox wstar3_fab(xybx, 1, The_Async_Arena());       // Convective velocity scale cubed per column
-        FArrayBox zol1_fab(xybx, 1, The_Async_Arena());         // Monin-Obukhov stability parameter at first level
-        FArrayBox sfcflg_fab(xybx, 1, The_Async_Arena());       // Surface stability flag: 1=unstable/neutral, 0=stable
+
+        // The PBLH passes run on the region the smoothing stencil will consume
+        // (see ng_pblh above). growntilebox() is no use here: it does not grow at
+        // an interior tile edge, so a tile in the middle of a box gets no halo at
+        // all -- which is exactly how the stencil came to read off the end of the
+        // array. Grow the tile box explicitly instead, which costs a little
+        // duplicated work in the overlaps. With smoothing off these are gbx and
+        // xybx and nothing is duplicated.
+        const Box gbx_work  = (turbChoice.enable_pblh_smoothing)
+                            ? amrex::grow(mfi.tilebox(), IntVect(ng_pblh,ng_pblh,0)) : gbx;
+        const Box xybx_work = PerpendicularBox<ZDir>(gbx_work, IntVect{0, 0, 0});
+        const Box xybx_tile = PerpendicularBox<ZDir>(mfi.tilebox(), IntVect{0, 0, 0});
+        FArrayBox pbl_height_corrector(xybx_work, 1, The_Async_Arena());
+        IArrayBox pbl_index(xybx_work, 1, The_Async_Arena());
+        IArrayBox pbl_index_zero_ri(xybx_work, 1, The_Async_Arena());  // Index for zero-Ri diagnostic pass
+        FArrayBox hgamt_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMT/h (normalized countergradient)
+        FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
+        FArrayBox hgamu_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMU (YSU u countergradient)
+        FArrayBox hgamv_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMV (YSU v countergradient)
+        FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale computed with pblh_corr
+        FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT for Pass 3
+        FArrayBox entr_fab(xybx_work, 1, The_Async_Arena());   // Per-column entrainment diffusivity
+        IArrayBox cloud_top_fab(xybx_work, 1, The_Async_Arena());  // Cloud-top cell index for top-down mixing
+        FArrayBox wstar3_down_fab(xybx_work, 1, The_Async_Arena());  // Top-down convective velocity scale cubed
+        FArrayBox sflux_fab(xybx_work, 1, The_Async_Arena());        // Virtual kinematic heat flux (sensible + latent)
+        FArrayBox wstar3_fab(xybx_work, 1, The_Async_Arena());       // Convective velocity scale cubed per column
+        FArrayBox zol1_fab(xybx_work, 1, The_Async_Arena());         // Monin-Obukhov stability parameter at first level
+        FArrayBox sfcflg_fab(xybx_work, 1, The_Async_Arena());       // Surface stability flag: 1=unstable/neutral, 0=stable
         // REQUIRED: zero-initialize all FArrayBoxes before GPU kernels read them.
         // The_Async_Arena() does not zero memory; reading uninitialized data
         // corrupts rib_enhan_arr (via vpert_arr) and SFCFLG (via sflux_arr).
@@ -246,13 +285,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // array lookups during the three PBLH pass loops.
         //
         const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
-        FArrayBox rib_base_fab(gbx, 1, The_Async_Arena());    // Rib with base t_layer_v
-        FArrayBox rib_enhan_fab(gbx, 1, The_Async_Arena());   // Rib with enhanced t_layer_v+VPERT
+        FArrayBox rib_base_fab(gbx_work, 1, The_Async_Arena());    // Rib with base t_layer_v
+        FArrayBox rib_enhan_fab(gbx_work, 1, The_Async_Arena());   // Rib with enhanced t_layer_v+VPERT
         const auto& rib_base_arr  = rib_base_fab.array();
         const auto& rib_enhan_arr = rib_enhan_fab.array();
 
         BL_PROFILE_VAR("YSUNew_Rib_Precompute", prof_rib_precomp);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx_work, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
           const amrex::Real t_layer   = t10av_arr(i,j,0);
           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
@@ -297,7 +336,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Computing them once per column improves GPU performance and ensures consistency.
         //
         BL_PROFILE_VAR("YSUNew_SurfFlux_Precompute", prof_sflux_precomp);
-        ParallelFor(xybx, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=, zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real rho_sfc  = cell_data(i, j, klo, Rho_comp);
             const Real t_layer  = t10av_arr(i, j, 0);      // Dry potential temperature at z1
@@ -379,7 +418,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         //
 
         BL_PROFILE_VAR("YSUNew_PBLH_Passes", prof_pblh);
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number
             // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
@@ -502,7 +541,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         constexpr Real GAMCRQ = Real(2.e-3);  // WRF GAMCRQ: max moisture countergradient (kg/kg)
         const bool enable_ysu_countergradient = turbChoice.enable_ysu_countergradient;
         const bool enable_ysu_unbounded_vpert = turbChoice.enable_mrf_unbounded_vpert;
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as Pass 1)
             // Over land: Ribcr = 0.25; over water: Ribcr depends on Rossby number
@@ -623,6 +662,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Countergradient: HGAMT = min(CFAC * u* * θ*, GAMCRT), where CFAC=7.8, GAMCRT=3K
         // WRF Reference: module_bl_ysu.F lines 220-250
         const bool enable_ysu_sat_limiter = turbChoice.enable_ysu_sat_limiter;
+        const bool enable_ysu_rad_tend_limiter = turbChoice.enable_ysu_rad_tend_limiter;
+        const amrex::Real ysu_rad_tend_limiter_magnitude = turbChoice.ysu_rad_tend_limiter_magnitude;
 
         // ========================================================================
         // Cloud-top detection for top-down mixing (H10 Section 3b)
@@ -631,7 +672,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const amrex::Real ysu_qcloud_threshold = turbChoice.ysu_qcloud_threshold;
 
         if (enable_ysu_topdown && use_moisture) {
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 cloud_top_arr(i, j, 0) = -1;  // Initialize: no cloud found
 
@@ -652,13 +693,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             });
         } else {
             // Disable cloud-top detection
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
             {
                 cloud_top_arr(i, j, 0) = -1;
             });
         }
 
-        ParallelFor(xybx, [=, zero_d=zero, one_d=one, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=, zero_d=zero, one_d=one, CONST_GRAV_d=CONST_GRAV] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const Real t_layer  = t10av_arr(i, j, 0);
             Real obuk_val = l_obuk_arr(i, j, 0);
@@ -711,6 +752,26 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // LW component is at index 1
                         LRAD += -qheat_arr(i, j, kk, 1) * ldz;
                     }
+                }
+
+                // YSUNew radiative tendency limiter/smoothing
+                // Apply optional finite guards, bounds checking, and smoothing
+                amrex::Real LRAD_raw = LRAD;  // Store raw value for diagnostics
+                amrex::Real LRAD_limited = LRAD;
+
+                if (enable_ysu_rad_tend_limiter && has_qheating_rates) {
+                    // Guard against NaN/Inf in the raw heating rate
+                    if (!std::isfinite(LRAD_raw)) {
+                        LRAD_limited = zero;  // Safe fallback: no radiative forcing
+                    } else {
+                        // Apply the magnitude limiter/bounds
+                        // Clamp LRAD to [-limiter_magnitude, +limiter_magnitude]
+                        const amrex::Real lim_mag = ysu_rad_tend_limiter_magnitude;
+                        LRAD_limited = amrex::min(LRAD_raw,  lim_mag);
+                        LRAD_limited = amrex::max(LRAD_limited, -lim_mag);
+                    }
+                    // Use limited value for subsequent wstar computation
+                    LRAD = LRAD_limited;
                 }
 
                 // Top-down convective velocity (H10 Eq. 12):
@@ -865,7 +926,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // Reference: Hong et al. (2006) HND06, WRF module_bl_ysu.F lines 150-170
         //
         BL_PROFILE_VAR("YSUNew_Rib_Recompute", prof_rib_recomp);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx_work, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
           const amrex::Real t_layer   = t10av_arr(i,j,0);
           const amrex::Real q_frac    = use_moisture ? q10av_arr(i,j,0) : zero;
@@ -902,7 +963,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // we need to re-scan for the PBL height using the corrector Ribcr criterion.
         // This corrects the earlier Pass 2 which used zero-VPERT Rib values.
         //
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             // Determine surface-type-dependent critical Richardson number (same as before)
             Real Ribcr;
@@ -980,17 +1041,23 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // for the determination of the mixing height. Atmospheric Environment, 34, 1001-1027.
         // Spatial smoothing removes unphysical grid-to-grid noise from discrete Rib-crossing detection
         if (turbChoice.enable_pblh_smoothing) {
-        ApplyPBLHSmoothing(pbl_height_corrector, xybx,
+        // Smooth the tile's own columns, reading the halo the passes above filled.
+        // The result is the same however the domain is split.
+        ApplyPBLHSmoothing(pbl_height_corrector, xybx_tile,
                          turbChoice.pblh_smoothing_weight,
                          turbChoice.pblh_smoothing_passes,
-                         geom.Domain());
+                         geom.Domain(), geom.periodicity());
         }
 
-        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage
+        // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.
+        // pbl_height_corrector only covers this tile (grown by one), so loop over
+        // the tile, not the valid box: with tiling in x/y the valid box reaches
+        // past it. Under TileNoZ the tile spans the full column, and pblh_mf has
+        // no ghost cells, so the tiles together still fill every cell.
         {
             auto pblh_out = pblh_mf.array(mfi);
-            const Box& vbx = mfi.validbox();
-            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Box& tbx = mfi.tilebox();
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 pblh_out(i, j, k) = pblh_corr_arr(i, j, 0);
             });
         }

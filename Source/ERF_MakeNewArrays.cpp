@@ -7,6 +7,7 @@
 */
 
 #include <memory>
+#include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
 
@@ -333,6 +334,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     ba1d[lev]  = BoxArray(std::move(bl1d));
 
     // ********************************************************************************************
+    // Vertical extent of the grid column over each (i,j) -- needed by the implicit
+    //     vertical diffusion solves, which must treat a column as one tridiagonal system
+    // ********************************************************************************************
+    define_column_kextent(lev, ba, dm);
+
+    // ********************************************************************************************
     // Map factors
     // ********************************************************************************************
     mapfac[lev].resize(MapFacType::num);
@@ -497,12 +504,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
+    // Every radiation model (RRTMGP, Simple, TwoStream) writes the same
+    // 2-component (SW, LW) heating rates, so the arrays are shaped the same
+    // way whichever one erf.radiation_model selects.
     if (solverChoice.rad_type != RadiationType::None)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(zero);
         rad_fluxes[lev]->setVal(zero);
+    }
+
+    // Two-stream radiation: the model owns its 2D surface and SEB fields.
+    if (solverChoice.rad_type == RadiationType::TwoStream)
+    {
+        two_stream_rad.define_level(lev, solverChoice.radChoice, ba2d[lev], dm);
     }
 
     //*********************************************************
@@ -561,6 +577,86 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         build_fft_solvers(lev);
     }
 #endif
+}
+
+/**
+ * Is any (i,j) column of this BoxArray covered by more than one box?
+ *
+ * Projecting every box onto a common z index turns "two boxes stacked in z" into
+ * "two overlapping 2D boxes", so a non-disjoint projection is exactly the test for
+ * a grid that has been decomposed in the vertical.
+ *
+ * @param[in] ba BoxArray to test
+ */
+bool
+ERF::grids_are_split_in_z (const BoxArray& ba)
+{
+    BoxList bl(ba.ixType());
+    for (int i(0); i < ba.size(); ++i) {
+        Box b(ba[i]); b.setRange(2,0);
+        bl.push_back(b);
+    }
+    return !(BoxArray(std::move(bl)).isDisjoint());
+}
+
+/**
+ * Build the map of the vertical extent of the grid column over each (i,j).
+ *
+ * The implicit vertical diffusion solves invert one tridiagonal system per column, so
+ * they are only well posed if each column lives in a single box.  We enforce that here,
+ * then record each column's [klo,khi] on a z-slab with a one-cell halo in x and y; a box
+ * can then read the vertical extent of the column on the other side of any of its faces,
+ * which is what the staggered (u,v) solves need to agree with their neighbors.
+ *
+ * @param[in] lev level of refinement
+ * @param[in] ba  BoxArray at this level
+ * @param[in] dm  DistributionMapping at this level
+ */
+void
+ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMapping& dm)
+{
+    if (grids_are_split_in_z(ba))
+    {
+        bool implicit_var   = (solverChoice.implicit_thermal_diffusion ||
+                               solverChoice.implicit_momentum_diffusion);
+        bool implicit_stage = false;
+        if (lev < solverChoice.vert_implicit_fac.size()) {
+            for (int nrk(0); nrk < solverChoice.vert_implicit_fac[lev].size(); ++nrk) {
+                if (solverChoice.vert_implicit_fac[lev][nrk] > zero) { implicit_stage = true; }
+            }
+        }
+        if (implicit_var && implicit_stage) {
+            Abort("The grids at level " + std::to_string(lev) + " are decomposed in the vertical, "
+                  "which cannot be combined with implicit vertical diffusion: the solve inverts one "
+                  "tridiagonal system per column, and a column split across boxes would instead be "
+                  "solved piecewise with spurious internal boundaries, giving an answer that depends "
+                  "on the grid decomposition.  Either set erf.vert_implicit_fac = 0 0 0 (or turn off "
+                  "erf.implicit_thermal_diffusion and erf.implicit_momentum_diffusion), or choose "
+                  "grids that are not split in z.");
+        }
+    }
+
+    column_kextent[lev] = std::make_unique<iMultiFab>(ba2d[lev], dm, 2, IntVect(1,1,0));
+
+    // Columns that no box covers -- outside the level, or outside the domain -- keep these
+    // sentinels, which drop out of the max/min that defines the solve range below.
+    column_kextent[lev]->setVal(column_kextent_lo_sentinel, 0, 1, IntVect(1,1,0));
+    column_kextent[lev]->setVal(column_kextent_hi_sentinel, 1, 1, IntVect(1,1,0));
+
+    // NOTE: no ParallelFor here.  This is a private member function, and nvcc does not allow
+    //       an extended (__device__) lambda inside a member function with private or protected
+    //       access.  Each box contributes a single (klo,khi) pair over its whole footprint,
+    //       so BaseFab::setVal fills it on the device without needing a lambda at all.
+    for (MFIter mfi(*column_kextent[lev]); mfi.isValid(); ++mfi)
+    {
+        const Box& vbx  = mfi.validbox();
+        const Box& bx3d = ba[mfi.index()];
+        IArrayBox& kext_fab = (*column_kextent[lev])[mfi];
+        kext_fab.setVal<RunOn::Device>(bx3d.smallEnd(2), vbx, 0, 1);
+        kext_fab.setVal<RunOn::Device>(bx3d.bigEnd(2)  , vbx, 1, 1);
+    }
+
+    column_kextent[lev]->FillBoundary(geom[lev].periodicity());
 }
 
 void
@@ -1205,5 +1301,7 @@ ERF::make_physbcs (int lev)
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                               solverChoice.rdOcp, solverChoice.gravity);
 }

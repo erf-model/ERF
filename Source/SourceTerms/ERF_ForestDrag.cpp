@@ -2,7 +2,8 @@
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
 #endif
-#include <ERF_Constants.H>
+#include <cmath>
+#include <ERF_NumericalConstants.H>
 #include <ERF_ForestUtils.H>
 #include <ERF_GridUtils.H>
 #include <AMReX_Reduce.H>

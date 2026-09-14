@@ -1,4 +1,5 @@
 #include "ERF_Constants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_SuperDropletPC.H"
 #include "ERF_SuperDropletPCCoalescence.H"

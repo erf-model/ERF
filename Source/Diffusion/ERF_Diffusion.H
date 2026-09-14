@@ -8,7 +8,6 @@
 #include "AMReX_BCRec.H"
 
 #include "ERF_DataStruct.H"
-#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_EB.H"
@@ -531,12 +530,19 @@ void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const amrex::Real implicit_fac,
                                const bool use_mrf_countergradient = false);
 
-/** \brief Apply implicit vertical momentum diffusion on a uniform grid without terrain. */
+/**
+ * \brief Apply implicit vertical momentum diffusion on a uniform grid without terrain.
+ *
+ * col_kext holds, on a z-slab with one ghost cell in x and y, the [klo,khi] extent of the
+ * grid column over each (i,j); it is used to restrict each face column's tridiagonal solve
+ * to the range covered by both of the cell columns adjacent to it.  See ERF::define_column_kextent.
+ */
 template <int stagdir>
 void ImplicitDiffForMomLU_N (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,
@@ -555,6 +561,7 @@ void ImplicitDiffForMomLU_S (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,
@@ -573,6 +580,7 @@ void ImplicitDiffForMomLU_T (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,

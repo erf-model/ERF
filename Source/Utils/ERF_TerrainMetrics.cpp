@@ -321,31 +321,59 @@ make_terrain_fitted_coords (int lev,
         const auto& dom_lo = lbound(convert(domain,IntVect(1,1,1)));
         const auto& dom_hi = ubound(convert(domain,IntVect(1,1,1)));
 
+        //
+        // Mirror the whole ghost region, not just its first layer: the base state carries
+        // ComputeGhostCells+1 layers and the state stencils reach several cells past the
+        // boundary, so mirroring only the first would leave the rest of the ghost region
+        // holding whatever the terrain construction extrapolated into it.
+        //
+        const IntVect& ngv = z_phys_nd.nGrowVect();
+
         for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.growntilebox();
+            //
+            // Whether this tile reaches a domain boundary is a question about its valid
+            // nodes, so ask it of the tilebox.  The grown tilebox begins a ghost width short
+            // of the boundary and so never equals it -- asking it of the grown box is what
+            // kept this mirroring from ever running.  The grown box is still what we sweep,
+            // so that the ghost rows in the other two directions are covered as well.
+            //
+            const Box& vbx = mfi.tilebox();
+            const Box& bx  = mfi.growntilebox();
             const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
-            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(0) == dom_lo.x) {
+            if (phys_bc_type[Orientation(0,Orientation::low)] == ERF_BC::symmetry && vbx.smallEnd(0) == dom_lo.x) {
+                const int ng = ngv[0];
                 ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
                 {
-                    z_nd_arr(dom_lo.x-1,j,k) = z_nd_arr(dom_lo.x+1,j,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(dom_lo.x-n,j,k) = z_nd_arr(dom_lo.x+n,j,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(0) == dom_hi.x) {
+            if (phys_bc_type[Orientation(0,Orientation::high)] == ERF_BC::symmetry && vbx.bigEnd(0) == dom_hi.x) {
+                const int ng = ngv[0];
                 ParallelFor(makeSlab(bx,0,1), [=] AMREX_GPU_DEVICE (int , int j, int k)
                 {
-                    z_nd_arr(dom_hi.x+1,j,k) = z_nd_arr(dom_hi.x-1,j,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(dom_hi.x+n,j,k) = z_nd_arr(dom_hi.x-n,j,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && bx.smallEnd(1) == dom_lo.y) {
+            if (phys_bc_type[Orientation(1,Orientation::low)] == ERF_BC::symmetry && vbx.smallEnd(1) == dom_lo.y) {
+                const int ng = ngv[1];
                 ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
                 {
-                    z_nd_arr(i,dom_lo.y-1,k) = z_nd_arr(i,dom_lo.y+1,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(i,dom_lo.y-n,k) = z_nd_arr(i,dom_lo.y+n,k);
+                    }
                 });
             }
-            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && bx.bigEnd(1) == dom_hi.y) {
+            if (phys_bc_type[Orientation(1,Orientation::high)] == ERF_BC::symmetry && vbx.bigEnd(1) == dom_hi.y) {
+                const int ng = ngv[1];
                 ParallelFor(makeSlab(bx,1,1), [=] AMREX_GPU_DEVICE (int i, int  , int k)
                 {
-                    z_nd_arr(i,dom_hi.y+1,k) = z_nd_arr(i,dom_hi.y-1,k);
+                    for (int n = 1; n <= ng; ++n) {
+                        z_nd_arr(i,dom_hi.y+n,k) = z_nd_arr(i,dom_hi.y-n,k);
+                    }
                 });
             }
         }

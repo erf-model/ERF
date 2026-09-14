@@ -4,7 +4,7 @@
  */
 
 #include <ERF.H>
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_ProbCommon.H>
 

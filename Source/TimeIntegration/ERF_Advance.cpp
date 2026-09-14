@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include "ERF_Constants.H"
 #include <ERF_Utils.H>
 
 #ifdef ERF_USE_WINDFARM
@@ -437,6 +438,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // ***********************************************************************************************
+    // Two-stream radiation, post-dycore call: reports the cached flux
+    // diagnostics and advances the force-restore surface state by dt_lev.
+    // No column sweep runs here; that happened in advance_radiation above.
+    // ***********************************************************************************************
+    if (solverChoice.rad_type == RadiationType::TwoStream) {
+        two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
+                               vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
+                               lsm, qheating_rates[lev].get());
+    }
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before
         // accumulating the first sample whose step starts at or beyond the
