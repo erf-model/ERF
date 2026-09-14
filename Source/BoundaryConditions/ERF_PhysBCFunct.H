@@ -477,14 +477,24 @@ public:
      * @param[in] domain_bcs_type_d device boundary-condition records
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] moving_terrain whether moving terrain is active
+     * @param[in] use_terrain whether the mesh is terrain-fitted, so that the cell-centered
+     *            height of a lateral ghost cell differs from that of the cell it copies from
+     * @param[in] rdOcp ratio of R_d to c_p, used to close the EOS in the ghost cells
+     * @param[in] gravity magnitude of gravity, used to transfer the base state in height
      */
     ERFPhysBCFunct_base (const int lev,
                          const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                         bool moving_terrain)
+                         bool moving_terrain,
+                         bool use_terrain,
+                         amrex::Real rdOcp,
+                         amrex::Real gravity)
         : m_lev(lev), m_geom(geom),
           m_moving_terrain(moving_terrain),
+          m_use_terrain(use_terrain),
+          m_rdOcp(rdOcp),
+          m_gravity(gravity),
           m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_z_phys_nd(z_phys_nd.get())
@@ -509,12 +519,14 @@ public:
      * Impose lateral boundary conditions on base-state variables.
      *
      * @param[in,out] dest_arr base-state data to be filled
+     * @param[in]     z_nd     nodal physical height
      * @param[in]     bx       box holding data to be filled
      * @param[in]     domain   simulation domain
      * @param[in]     ncomp    number of components
      * @param[in]     nghost   number of ghost cells to be filled
      */
     void impose_lateral_basestate_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                       const amrex::Array4<amrex::Real const>& z_nd,
                                        const amrex::Box& bx, const amrex::Box& domain,
                                        int ncomp, const amrex::IntVect& nghost);
 
@@ -537,6 +549,9 @@ private:
     int                  m_lev;
     amrex::Geometry      m_geom;
     bool                 m_moving_terrain;
+    bool                 m_use_terrain;
+    amrex::Real          m_rdOcp;
+    amrex::Real          m_gravity;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     amrex::MultiFab*     m_z_phys_nd;

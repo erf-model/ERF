@@ -64,9 +64,7 @@ fill_interpolated_mesh (MultiFab& z_phys_nd, Vector<Real> const& z_levels)
     Gpu::copy(Gpu::hostToDevice, z_levels.begin(), z_levels.end(), z_levels_d.begin());
     const Real* z_lev = z_levels_d.data();
     const Real z_top = z_levels[nz];
-    // nvcc rejects the namespace-scope constexpr when a device lambda odr-uses it
-    // (amrex::min takes its arguments by reference), so hand the lambda a local copy.
-    const int k_top = nz;
+    const int k_top = nz;  // captured by value: nz itself is host-only in device code
 
     for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
         auto const z = z_phys_nd.array(mfi);

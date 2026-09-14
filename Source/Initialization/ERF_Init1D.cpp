@@ -146,7 +146,9 @@ ERF::initHSE (int lev)
         //
         ERFPhysBCFunct_base* temp_physbcs_base =
             new ERFPhysBCFunct_base(lev, geom[lev], domain_bcs_type, domain_bcs_type_d, new_z_phys_nd,
-                                    (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+                                    (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                    (solverChoice.mesh_type != MeshType::ConstantDz),
+                                    solverChoice.rdOcp, solverChoice.gravity);
         (*temp_physbcs_base)(new_base_state,0,new_base_state.nComp(),new_base_state.nGrowVect());
         delete temp_physbcs_base;
 

@@ -385,6 +385,34 @@ function(add_test_terrain_zsplit_parity TEST_NAME PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/full_columns/simulation.log;${CURRENT_TEST_BINARY_DIR}/split_in_z/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_terrain_zsplit_parity)
 
+# At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
+# outflow boundaries, where the mesh is extrapolated past the domain and the base state in
+# the ghost cells has to be built at the height the mesh puts them at rather than copied.
+function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLERANCE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFEXTREMA=${FEXTREMA_EXE}
+        -DPLTFILE=${PLTFILE}
+        -DTOLERANCE=${TOLERANCE}
+        -DGRADP_TOLERANCE=${GRADP_TOLERANCE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunAtRestTerrainOutflow.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/symmetry/simulation.log;${CURRENT_TEST_BINARY_DIR}/outflow/simulation.log;${CURRENT_TEST_BINARY_DIR}/at_rest.log")
+endfunction(add_test_at_rest_terrain_outflow)
+
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
 function(add_test_cloud_chamber_legacy_config TEST_NAME)
@@ -731,6 +759,7 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
+add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 endif()
 endif()
 

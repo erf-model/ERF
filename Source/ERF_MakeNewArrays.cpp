@@ -1301,5 +1301,7 @@ ERF::make_physbcs (int lev)
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                               solverChoice.rdOcp, solverChoice.gravity);
 }
