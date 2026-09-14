@@ -1,4 +1,5 @@
 #include <cmath>
+#include "ERF_Constants.H"
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_BoxList.H>
@@ -63,6 +64,7 @@ fill_interpolated_mesh (MultiFab& z_phys_nd, Vector<Real> const& z_levels)
     Gpu::copy(Gpu::hostToDevice, z_levels.begin(), z_levels.end(), z_levels_d.begin());
     const Real* z_lev = z_levels_d.data();
     const Real z_top = z_levels[nz];
+    const int k_top = nz;  // captured by value: nz itself is host-only in device code
 
     for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
         auto const z = z_phys_nd.array(mfi);
@@ -71,7 +73,7 @@ fill_interpolated_mesh (MultiFab& z_phys_nd, Vector<Real> const& z_levels)
             if (k == 0) {
                 z(i,j,k) = Real(25.) + Real(12.)*std::sin(Real(0.31)*i + Real(0.1))*std::cos(Real(0.23)*j);
             } else {
-                const int kk = amrex::max(0, amrex::min(k, nz));
+                const int kk = amrex::max(0, amrex::min(k, k_top));
                 const Real h_coarse = Real(20.) + Real(10.)*std::sin(Real(0.3)*i)*std::cos(Real(0.2)*j);
                 z(i,j,k) = z_lev[kk] + h_coarse * (z_top - z_lev[kk]) / z_top;
             }

@@ -5,7 +5,8 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <ERF_IndexDefines.H>
-#include <ERF_Constants.H>
+#include <cmath>
+#include <ERF_NumericalConstants.H>
 
 /**
  * Routine to define default z_phys_nd and z_phys_cc

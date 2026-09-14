@@ -4,6 +4,7 @@
 #include "ERF_Constants.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_PBLModels.H"
+#include "ERF_TileNoZ.H"
 
 using namespace amrex;
 
@@ -68,7 +69,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // TileNoZ, not TilingIfNotGPU: every iterate must span the full column (asserted
+    // below), and the CPU default tile size would split any box of 16+ cells in z.
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
         // Pull out the box we're working on, make sure it covers full domain in z-direction
         const Box &bx = mfi.growntilebox(1);

@@ -1,5 +1,6 @@
 
 #include <utility>
+#include "ERF_Constants.H"
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"
@@ -151,6 +152,8 @@ MOSTAverage::MOSTAverage (Orientation face,
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
 
+    m_planar_bndry.resize(m_maxlev);
+
     m_Vsg.resize(m_maxlev, zero);
 }
 
@@ -294,6 +297,17 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_fields[lev][3] = Theta_prim.get();
         m_fields[lev][4] = Qv_prim.get();
         m_fields[lev][5] = Qr_prim.get();
+
+        // Surface copies of the planar boxes (see fill_planar_boundary)
+        // PlanarBoundary handles duplicate boxes created by a z-split. The
+        // x/y layouts use ordinary tangential FillBoundary, while z-low and
+        // z-high select their respective surface boxes.
+        if (!use_eb && dir == 2) {
+            const int ksurface = m_face.isLow()
+                ? m_geom[lev].Domain().smallEnd(2)
+                : m_geom[lev].Domain().bigEnd(2);
+            m_planar_bndry[lev].define(ba, ba2d, dm, ksurface, m_face.isLow());
+        }
 
         // Initialize remaining multifabs
         for (int iavg(3); iavg < m_navg; ++iavg) {
@@ -1952,6 +1966,34 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 }
 
 /**
+ * Function to fill the ghost cells of one planar average.
+ *
+ * The averages hold one box per 3D box, so a 3D BoxArray split in z gives duplicate
+ * planar boxes of which only the surface copy is computed (compute_region_averages
+ * skips the boxes off the surface); a FillBoundary could then fill a ghost cell from
+ * an uncomputed copy (see PlanarBoundary).  With the split, the valid region of the
+ * uncomputed copies is filled as well.  With EB terrain the averages are computed on
+ * every box and FillBoundary is well defined.
+ *
+ * @param[in]     lev Current level
+ * @param[in,out] mf  Planar average to fill
+ */
+void
+MOSTAverage::fill_planar_boundary (const int& lev, MultiFab& mf)
+{
+    const int dir = m_face.coordDir();
+    const Periodicity period = tangential_periodicity(m_geom[lev], dir);
+
+    // PlanarBoundary handles both z-low and z-high z-collapsed arrays split
+    // in z. Lateral-wall arrays use ordinary tangential exchange.
+    if (m_terrain_type == TerrainType::EB || dir != 2) {
+        mf.FillBoundary(mf.nGrowVect(), period);
+    } else {
+        m_planar_bndry[lev].fill(mf, period);
+    }
+}
+
+/**
  * Function to compute average over local region.
  *
  * @param[in] lev Current level
@@ -1990,7 +2032,6 @@ MOSTAverage::compute_region_averages (const int& lev)
             "Region averaging requires a reference-index field.");
     }
     const int wall_normal_ref = use_spatial_indices ? 0 : m_k_indx[lev]->min(0);
-    const Periodicity average_periodicity = tangential_periodicity(geom, dir);
 
     // Set factors for time averaging
     Real d_fact_new, d_fact_old;
@@ -2137,7 +2178,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[imf]->FillBoundary(averages[imf]->nGrowVect(), average_periodicity);
+        fill_planar_boundary(lev, *averages[imf]);
     } // imf
 
     //
@@ -2276,7 +2317,7 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), average_periodicity);
+        fill_planar_boundary(lev, *averages[iavg]);
 
     }
     else // copy temperature
@@ -2435,10 +2476,10 @@ MOSTAverage::compute_region_averages (const int& lev)
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
         //***********************************************************************************
-        averages[iavg]->FillBoundary(averages[iavg]->nGrowVect(), average_periodicity);
+        fill_planar_boundary(lev, *averages[iavg]);
         if (dir < 2) {
-            averages[iavg_xz]->FillBoundary(averages[iavg_xz]->nGrowVect(), average_periodicity);
-            averages[iavg_yz]->FillBoundary(averages[iavg_yz]->nGrowVect(), average_periodicity);
+            fill_planar_boundary(lev, *averages[iavg_xz]);
+            fill_planar_boundary(lev, *averages[iavg_yz]);
         }
     }
 
@@ -2464,10 +2505,10 @@ MOSTAverage::compute_region_averages (const int& lev)
             //        levels do not have such a restriction.
             //        For now, use the bounding box of the boxArray.
 
-            // NOTE2: The fields and averages have different indexing.
-            //        The averages are: U/V/W/T/Qv/Tv/Umag_XY/Umag_XZ/Umag_YZ
-            //        The fields   are: U/V/W/T/Qv/Qr
-            //        We clip iavg at 3 since all the remaining data is CC
+            // NOTE: The fields and averages have different indexing.
+            //       The averages are: U/V/W/T/Qv/Tv/Umag_XY/Umag_XZ/Umag_YZ
+            //       The fields   are: U/V/W/T/Qv/Qr
+            //       We clip iavg at 3 since all the remaining data is CC
 
             // Bounded box of CC data used for normalization
             int imf = min(iavg,3);

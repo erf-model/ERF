@@ -8,6 +8,7 @@
 */
 
 #include <memory>
+#include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
 
@@ -258,7 +259,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -393,7 +394,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -908,7 +909,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -1090,6 +1091,9 @@ ERF::ClearLevel (int lev)
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
+
+    // Clears the map of the vertical extent of the grid column over each (i,j)
+    column_kextent[lev].reset();
 
     // Clears the physical boundary condition routines
     physbcs_cons[lev].reset();

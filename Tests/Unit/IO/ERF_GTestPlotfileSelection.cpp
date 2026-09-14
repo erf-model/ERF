@@ -483,6 +483,31 @@ TEST(Plotfile3DSelection, OptionalStorageGroupsAreExplicit)
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("walldist", caps));
 }
 
+// Motivation: qsrc_sw / qsrc_lw storage exists for every erf.radiation_model
+// other than None. The predicate ERF::setPlotVariables evaluates is
+// erf_plotfile::radiation_heating_storage_available, so drive that with the
+// selector enum rather than setting the capability flag by hand; the test
+// fails if the TwoStream value is dropped from the mapping.
+TEST(Plotfile3DSelection, RadiationHeatingStorageRecognizesEveryModel)
+{
+    EXPECT_FALSE(erf_plotfile::radiation_heating_storage_available(RadiationType::None));
+    auto caps_no_rad = make_capabilities(MoistureType::None);
+    caps_no_rad.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(RadiationType::None);
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_no_rad));
+    EXPECT_FALSE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_no_rad));
+
+    EXPECT_TRUE(erf_plotfile::radiation_heating_storage_available(RadiationType::RRTMGP));
+    EXPECT_TRUE(erf_plotfile::radiation_heating_storage_available(RadiationType::Simple));
+
+    EXPECT_TRUE(erf_plotfile::radiation_heating_storage_available(RadiationType::TwoStream));
+    auto caps_twostream = make_capabilities(MoistureType::None);
+    caps_twostream.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(RadiationType::TwoStream);
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_sw", caps_twostream));
+    EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("qsrc_lw", caps_twostream));
+}
+
 // Motivation: Every diagnostic that reads pressure must participate in the
 // same allocation predicate, including standalone VPD and conditional pp_err.
 TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)

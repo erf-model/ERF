@@ -18,6 +18,7 @@
 #include "ERF_SpongeStruct.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
 
 /**
@@ -148,7 +149,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP, Simple
+    None, RRTMGP, Simple, TwoStream
 );
 
 /**
@@ -972,6 +973,13 @@ struct SolverChoice {
         // *******************************************************************************
 
         pp.queryAdd("ncorr", ncorr);
+        // Wall distance on a terrain-fitted mesh (RANS): "poisson" (Tucker 2003
+        // differential-equation distance) or "terrain_height" (height above the
+        // local surface projected on its normal, no linear solve)
+        pp.queryAdd("wall_dist_type", wall_dist_type);
+        if (wall_dist_type != "poisson" && wall_dist_type != "terrain_height") {
+            amrex::Error("erf.wall_dist_type must be poisson or terrain_height");
+        }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
 #ifdef AMREX_USE_FLOAT
@@ -1153,6 +1161,10 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
+
+        // erf.radiation_model = TwoStream selects the two-stream model; its
+        // erf.radiation.* sub-options are read only then.
+        radChoice.init_params(rad_type == RadiationType::TwoStream, max_level, pp_prefix);
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1755,6 +1767,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
         } else if (rad_type == RadiationType::Simple) {
             amrex::Print() << "Radiation Model: Simple" << std::endl;
+        } else if (rad_type == RadiationType::TwoStream) {
+            amrex::Print() << "Radiation Model: TwoStream" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -1885,6 +1899,7 @@ struct SolverChoice {
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
+    RadChoice     radChoice;
 
     int         force_stage1_single_substep = 1;
 
@@ -1916,6 +1931,7 @@ struct SolverChoice {
     bool implicit_before_substep     = true;
 
     int         ncorr               = 1;
+    std::string wall_dist_type      = "poisson";
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2147,6 +2163,12 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
+
+    /** @brief True for the models that run through the IRadiation interface
+     *  (RRTMGP, Simple); the two-stream model has its own class. */
+    [[nodiscard]] bool rad_uses_interface () const {
+        return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
+    }
 
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;

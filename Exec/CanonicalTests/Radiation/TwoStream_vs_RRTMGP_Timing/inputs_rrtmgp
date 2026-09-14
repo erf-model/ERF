@@ -1,0 +1,27 @@
+# RRTMGP half of the timing comparison. See shared_settings for everything that
+# is deliberately shared with inputs_twostream; the only difference between the
+# two files is the solver selected below.
+#
+# Requires an ERF built with -DERF_ENABLE_RRTMGP=ON.
+erf.prob_name = "Radiation Timing Comparison"
+
+FILE = shared_settings
+
+amr.n_cell = 42 4 42
+
+# SOLVER UNDER TEST
+start_datetime             = "2010-01-01 18:00:00"
+erf.radiation_model        = "RRTMGP"
+erf.rad_freq_in_steps      = 1
+erf.rad_do_subcol_sampling = true
+erf.rad_write_fluxes       = false
+erf.rad_orbital_year       = 2010
+# Same surface temperature the two-stream side uses, so both solvers see
+# the same lower boundary.
+erf.rad_t_sfc              = 300.0
+# RRTMGP requires an ozone volume mixing ratio (length 1 or nlay).
+erf.o3vmr                  = 1.0e-7
+
+# No datalog: the two-stream diagnostics are off too, so neither solver pays
+# for I/O inside the measured region.
+erf.profile_rad_int        = -1

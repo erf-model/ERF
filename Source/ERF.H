@@ -39,6 +39,7 @@
 
 #include "ERF_ProbCommon.H"
 
+#include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_BaseStateParams.H>
@@ -65,6 +66,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#include "ERF_TwoStreamRadiation.H"
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -930,6 +932,9 @@ private:
     void initializeWindFarm (const int&);
 #endif
 
+    // Initialize embedded boundary geometries
+    void initializeEB ();
+
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
@@ -1193,6 +1198,12 @@ private:
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
+
+    // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
+    // surface and SEB state; every call from ERF is behind a test of
+    // solverChoice.rad_type == RadiationType::TwoStream.
+    TwoStreamRadiation two_stream_rad;
+
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
 #endif
@@ -1475,6 +1486,8 @@ private:
                                                     "Khv","Khh",
                                                     // turbulence lengthscale
                                                     "Lturb",
+                                                    // k-eqn RANS: smoothed turbulent Richardson number and stability functions
+                                                    "Rt", "cmu", "cmu_prime",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",
@@ -1604,6 +1617,24 @@ private:
 
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
+
+    // Vertical extent of the grid column over each (i,j), stored on ba2d (so the
+    // compressed z index is 0) with one ghost cell in x and y so that a box can also
+    // read the extent of the column on the other side of each of its faces.
+    //     component 0 : smallEnd(2) of the box covering this column
+    //     component 1 : bigEnd(2)   of the box covering this column
+    // Ghost entries that no box covers keep the "unconstraining" sentinels below.
+    // This is well defined only because grids may not be split in the vertical --
+    // see ERF::grids_are_split_in_z.  Used by the implicit vertical diffusion solves.
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
+
+    static constexpr int column_kextent_lo_sentinel = std::numeric_limits<int>::min()/2;
+    static constexpr int column_kextent_hi_sentinel = std::numeric_limits<int>::max()/2;
+
+    void define_column_kextent (int lev, const amrex::BoxArray& ba,
+                                const amrex::DistributionMapping& dm);
+
+    static bool grids_are_split_in_z (const amrex::BoxArray& ba);
 
     // The six parameters defining the WRF analytic reference profile, plus the layer
     // interfaces derived from them.  These are read from the LEVEL 0 wrfinput file only

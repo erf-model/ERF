@@ -261,6 +261,11 @@ namespace EddyDiff {
         HGAMQ_v,  // MRF/YSU countergradient for moisture (HGAMQ/h, units kg/kg/m), zero outside PBL
         HGAMU_v,  // YSU countergradient for x-momentum (HGAMU/h, units 1/s), zero outside PBL
         HGAMV_v,  // YSU countergradient for y-momentum (HGAMV/h, units 1/s), zero outside PBL
+        // k-eqn RANS diagnostics: smoothed turbulent Richardson number and the
+        // two stability functions (Axell & Liungman 2001, Eqs. 29-32)
+        RANS_Rt,
+        RANS_cmu,
+        RANS_cmu_prime,
         NumDiffs
     };
 }

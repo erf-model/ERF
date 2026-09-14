@@ -3,6 +3,8 @@
 
 #include "ERF_EOS.H"
 #include "ERF_MicrophysicsUtils.H"
+#include "ERF_MicrophysicsConstants.H"
+#include "ERF_Constants.H"
 
 // =============================================================================
 // MOIST TURBULENCE FUNCTIONS

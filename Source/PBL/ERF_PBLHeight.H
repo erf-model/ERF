@@ -2,6 +2,7 @@
 #define ERF_PBL_HEIGHT_H_
 
 #include <AMReX_MultiFabUtil.H>
+#include "ERF_Constants.H"
 #include <ERF_TileNoZ.H>
 #include <ERF_MoistUtils.H>
 

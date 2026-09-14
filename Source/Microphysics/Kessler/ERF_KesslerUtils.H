@@ -8,7 +8,8 @@
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
 
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
+#include <ERF_MicrophysicsConstants.H>
 #include <ERF_MicrophysicsUtils.H>
 
 struct KesslerSourceTerms {

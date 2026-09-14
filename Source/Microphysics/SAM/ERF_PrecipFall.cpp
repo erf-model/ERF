@@ -1,8 +1,10 @@
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_SAM.H"
 #include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
 #include <cmath>
+#include <limits>
 
 using namespace amrex;
 

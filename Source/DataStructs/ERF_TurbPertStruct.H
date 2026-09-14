@@ -2,6 +2,7 @@
 #define ERF_TURB_PERT_STRUCT_H_
 
 #include <ERF_DataStruct.H>
+#include "ERF_Constants.H"
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_TileNoZ.H>
 #include <time.h>

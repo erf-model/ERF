@@ -76,6 +76,15 @@ __pycache__
 
 # Development scratch and run artifacts
 Exec/.DevTests/
+Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md
+Exec/CanonicalTests/Radiation/RAD_MPI_SKILLS.md
+Exec/CanonicalTests/Radiation/**/radiation_*.dat
+Exec/CanonicalTests/Radiation/TwoStream_vs_RRTMGP_Timing/radiation_timing_comparison.png
+Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite/_runs/
+Exec/CanonicalTests/Radiation/**/*_hist.dat
+Exec/CanonicalTests/Radiation/**/*_profiles.dat
+Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite/benchmark_summary.json
+Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite/benchmark_summary.md
 *.log
 diffs_*/
 Backtrace.*

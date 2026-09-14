@@ -1,4 +1,5 @@
 #include <AMReX.H>
+#include "ERF_Constants.H"
 
 #include <ERF_TI_fast_headers.H>
 

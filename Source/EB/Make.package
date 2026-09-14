@@ -2,6 +2,7 @@ CEXE_sources += ERF_EB.cpp
 CEXE_sources += ERF_EBAdvectionSrcForState.cpp
 CEXE_sources += ERF_EBAux.cpp
 CEXE_sources += ERF_EBCutCell.cpp
+CEXE_sources += ERF_EBInit.cpp
 CEXE_sources += ERF_EBRedistribute.cpp
 
 CEXE_headers += ERF_EB.H
@@ -10,6 +11,7 @@ CEXE_headers += ERF_EBAdvectionSrcForMom.H
 CEXE_headers += ERF_EBAdvectionSrcForScalars.H
 CEXE_headers += ERF_EBAux.H
 CEXE_headers += ERF_EBCutCell.H
+CEXE_headers += ERF_EBIFBuildings.H
 CEXE_headers += ERF_EBIFTerrain.H
 CEXE_headers += ERF_EBMOSTStress.H
 CEXE_headers += ERF_EBPolygon.H
