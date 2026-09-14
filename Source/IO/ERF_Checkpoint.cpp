@@ -1358,49 +1358,51 @@ ERF::ReadCheckpointFile ()
     // override it here from the checkpoint. Older checkpoints without this file
     // restart with the legacy reset-to-zero behavior.
     if (solverChoice.lsm_type != LandSurfaceType::None) {
-        std::string LsmStepFileName(restart_chkfile + "/lsm_step");
-        if (amrex::FileExists(LsmStepFileName)) {
-            Vector<char> LsmStepCharPtr;
-            ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
-            std::string LsmStepStr(LsmStepCharPtr.dataPtr());
-            std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
-            int step_val = 0;
-            for (int lev = 0; lev <= finest_level; ++lev) {
-                if (lsm_is >> step_val) {
-                    lsm.Set_LSM_Step(lev, step_val);
-                    Print() << "Restored LSM step counter at level " << lev
-                            << " to " << step_val << std::endl;
+        if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
+            std::string LsmStepFileName(restart_chkfile + "/lsm_step");
+            if (amrex::FileExists(LsmStepFileName)) {
+                Vector<char> LsmStepCharPtr;
+                ParallelDescriptor::ReadAndBcastFile(LsmStepFileName, LsmStepCharPtr);
+                std::string LsmStepStr(LsmStepCharPtr.dataPtr());
+                std::istringstream lsm_is(LsmStepStr, std::istringstream::in);
+                int step_val = 0;
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    if (lsm_is >> step_val) {
+                        lsm.Set_LSM_Step(lev, step_val);
+                        Print() << "Restored LSM step counter at level " << lev
+                                << " to " << step_val << std::endl;
+                    }
                 }
-            }
-        } else {
-            Print() << "Warning: legacy checkpoint without lsm_step file; "
-                    << "LSM substep schedule will reset (may break bitwise reproducibility)."
-                    << std::endl;
-        }
-
-        // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
-        // from chk*/noahmp_restart. lsm.Init() during MakeNewLevelFromScratch
-        // has already cold-initialized this state from wrfinput/tables; this
-        // overwrites it with the checkpoint, and NoahMP's per-step In-transfer
-        // pulls it into the physics state on the first Advance (issue #3255).
-        // Legacy checkpoints without this directory fall back to cold-init.
-        std::string LsmRestartDir(restart_chkfile + "/noahmp_restart");
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            std::string LsmRestartFile = LsmRestartDir + "/Level_" + std::to_string(lev) + ".nc";
-            if (amrex::FileExists(LsmRestartFile)) {
-                lsm.Read_Lsm_Restart(lev, LsmRestartDir);
-                Print() << "Restored full NoahMP prognostic state from "
-                        << LsmRestartFile << " at level " << lev << std::endl;
             } else {
-                Print() << "NoahMP restart file " << LsmRestartFile << " is not present at level " << lev << std::endl;
-                if (lev == 0) {
-                    Print() << "WARNING: NoahMP will cold-initialize from wrfinput at level " << lev << std::endl;
-                } else {
-                    Print() << "NOTE: NoahMP will cold-initialize if a wrfinput file is present at level " << lev
-                            << " or it will interpolate from coarse if the file does not exist." << std::endl;
-                }
+                Print() << "Warning: legacy checkpoint without lsm_step file; "
+                        << "LSM substep schedule will reset (may break bitwise reproducibility)."
+                        << std::endl;
             }
-        } // lev
+
+            // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+            // from chk*/noahmp_restart. lsm.Init() during MakeNewLevelFromScratch
+            // has already cold-initialized this state from wrfinput/tables; this
+            // overwrites it with the checkpoint, and NoahMP's per-step In-transfer
+            // pulls it into the physics state on the first Advance (issue #3255).
+            // Legacy checkpoints without this directory fall back to cold-init.
+            std::string LsmRestartDir(restart_chkfile + "/noahmp_restart");
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                std::string LsmRestartFile = LsmRestartDir + "/Level_" + std::to_string(lev) + ".nc";
+                if (amrex::FileExists(LsmRestartFile)) {
+                    lsm.Read_Lsm_Restart(lev, LsmRestartDir);
+                    Print() << "Restored full NoahMP prognostic state from "
+                            << LsmRestartFile << " at level " << lev << std::endl;
+                } else {
+                    Print() << "NoahMP restart file " << LsmRestartFile << " is not present at level " << lev << std::endl;
+                    if (lev == 0) {
+                        Print() << "WARNING: NoahMP will cold-initialize from wrfinput at level " << lev << std::endl;
+                    } else {
+                        Print() << "NOTE: NoahMP will cold-initialize if a wrfinput file is present at level " << lev
+                                << " or it will interpolate from coarse if the file does not exist." << std::endl;
+                    }
+                }
+            } // lev
+        } // NoahMP
     } // has LSM
 
 #ifdef ERF_USE_PARTICLES
