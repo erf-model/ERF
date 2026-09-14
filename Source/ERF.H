@@ -66,6 +66,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#include "ERF_TwoStreamRadiation.H"
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -1197,6 +1198,12 @@ private:
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
+
+    // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
+    // surface and SEB state; every call from ERF is behind a test of
+    // solverChoice.rad_type == RadiationType::TwoStream.
+    TwoStreamRadiation two_stream_rad;
+
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
 #endif

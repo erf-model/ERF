@@ -2,11 +2,63 @@
 
 using namespace amrex;
 
+/**
+ * @brief Advance radiation diagnostics and heating rates for one time step.
+ *
+ * **Temporal semantics**
+ *
+ * This function is called exactly once per ERF::Advance() invocation, after
+ * the SurfaceLayer and LSM updates and before the dycore slow and fast
+ * substeps. It operates on the old state (t^n) at the beginning of the slow
+ * step.
+ *
+ * - RRTMGP / Simple path (erf.radiation_model = RRTMGP or Simple): a full
+ *   spectral model with its own time-centering and source-term semantics.
+ *   Produces qheating_rates[lev].
+ *
+ * - Two-stream path (erf.radiation_model = TwoStream): a
+ *   shortwave and longwave model that computes heating rates from the
+ *   old-state atmosphere (t^n) with clear-sky and cloudy column algorithms.
+ *   The heating rates go into qheating_rates[lev], a 2-component MultiFab
+ *   holding shortwave and longwave.
+ *
+ * **Source-term application**
+ *
+ * The computed qheating_rates are injected into the RhoTheta source term in
+ * ERF_MakeSources.cpp only while the slow RHS is being built (is_slow_step is
+ * true), which ensures:
+ * 1. Radiation tendencies are applied once per slow step, not per substep.
+ * 2. The tendencies represent the old-state atmosphere throughout all fast
+ *    substeps of the current slow step.
+ * 3. There is no temporal aliasing from repeated calls to advance_radiation()
+ *    within a slow step, since there is only one call per slow step.
+ *
+ * **Key contracts**
+ *
+ * - Radiation heating is an old-state forcing. The qheating_rates computed
+ *   here are the radiative heating of the old-state atmosphere (t^n), applied
+ *   as a source term while the slow RHS is built. That gives one radiative
+ *   increment per slow step, consistent with the old state across every fast
+ *   substep. Radiation does not adapt to the state within a slow step.
+ *
+ * - The two radiation paths are mutually exclusive. RRTMGP and two-stream
+ *   never both run in one simulation; the if/else below selects one. Both
+ *   produce qheating_rates in the same 2-component (SW, LW) format, and the
+ *   source-term gate in ERF_MakeSources.cpp tests both, so exactly one
+ *   matches in any given simulation.
+ *
+ * @param[in] lev Level of refinement (coarsest level is 0)
+ * @param[in,out] cons Conservative quantities (Rho, RhoTheta, RhoQ*, RhoRE)
+ * @param[in] dt_advance Time step for this slow-step stage [seconds]
+ */
 void ERF::advance_radiation (int lev,
                              MultiFab& cons,
                              const double& dt_advance)
 {
-    if (solverChoice.rad_type != RadiationType::None) {
+    BL_PROFILE("ERF::advance_radiation()");
+
+    if (solverChoice.rad_uses_interface()) {
+        BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
 #ifdef ERF_USE_NETCDF
         MultiFab *lat_ptr = lat_m[lev].get();
         MultiFab *lon_ptr = lon_m[lev].get();
@@ -45,5 +97,20 @@ void ERF::advance_radiation (int lev,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated);
+    }
+    // Two-stream radiation driver, a separate path from the IRadiation
+    // models above; erf.radiation_model selects exactly one of them.
+    //
+    // - The call happens exactly once per slow step (from ERF::Advance).
+    // - The heating rates computed here are old-state based (t^n).
+    // - They are injected into the RhoTheta source only on is_slow_step
+    //   (see ERF_MakeSources.cpp), so there is no duplicate forcing.
+    // - istep[lev] is the CSV row index, t_old[lev] the time logged with it,
+    //   and dt_advance the step size (used by the surface-energy-balance
+    //   update, which runs at the post-dycore call).
+    else if (solverChoice.rad_type == RadiationType::TwoStream) {
+        two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
+                               vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
+                               lsm, qheating_rates[lev].get());
     }
 }
