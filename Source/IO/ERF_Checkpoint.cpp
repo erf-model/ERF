@@ -1168,11 +1168,8 @@ ERF::ReadCheckpointFile ()
             two_stream_rad.read_checkpoint(lev, restart_chkfile);
         }
 
-        // Set path to level directory
-        std::string PathToChkfileData = restart_chkfile + "/Level_" + std::to_string(lev) + "/";
-
         // Read the radiation heating rates
-        std::string RadFileName(PathToChkfileData + "Qrad_H");
+        std::string RadFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Qrad_H");
         if ((solverChoice.rad_type != RadiationType::None) && amrex::FileExists(RadFileName)) {
             amrex::Print() << "Reading radiation heating rates" << std::endl;
             int nrad = qheating_rates[lev]->nComp();
@@ -1184,7 +1181,7 @@ ERF::ReadCheckpointFile ()
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
 
-        std::string MapFacMFileName(PathToChkfileData + "MapFactor_mx_H");
+        std::string MapFacMFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx_H");
         if (amrex::FileExists(MapFacMFileName)) {
             VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
         } else {
@@ -1202,7 +1199,7 @@ ERF::ReadCheckpointFile ()
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
         MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
 
-        std::string MapFacUFileName(PathToChkfileData + "MapFactor_ux_H");
+        std::string MapFacUFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux_H");
         if (amrex::FileExists(MapFacUFileName)) {
             VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
         } else {
@@ -1220,7 +1217,7 @@ ERF::ReadCheckpointFile ()
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
         MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
 
-        std::string MapFacVFileName(PathToChkfileData + "MapFactor_vx_H");
+        std::string MapFacVFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx_H");
         if (amrex::FileExists(MapFacVFileName)) {
             VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
         } else {
@@ -1239,7 +1236,7 @@ ERF::ReadCheckpointFile ()
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
 
         // See if we wrote out SST data
-        std::string FirstSSTFileName(PathToChkfileData + "SST_0_H");
+        std::string FirstSSTFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SST_0_H");
         if (amrex::FileExists(FirstSSTFileName))
         {
             amrex::Print() << "Reading SST data" << std::endl;
@@ -1255,7 +1252,7 @@ ERF::ReadCheckpointFile ()
         }
 
         // See if we wrote out TSK data
-        std::string FirstTSKFileName(PathToChkfileData + "TSK_0_H");
+        std::string FirstTSKFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TSK_0_H");
         if (amrex::FileExists(FirstTSKFileName))
         {
             amrex::Print() << "Reading TSK data" << std::endl;
@@ -1271,7 +1268,7 @@ ERF::ReadCheckpointFile ()
         }
 
         // See if we wrote out LMASK data
-        std::string LMaskFileName(PathToChkfileData + "LMASK_0_H");
+        std::string LMaskFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LMASK_0_H");
         if (amrex::FileExists(LMaskFileName))
         {
             amrex::Print() << "Reading LMASK data" << std::endl;
@@ -1299,7 +1296,7 @@ ERF::ReadCheckpointFile ()
         IntVect ngv = vars_new[lev][Vars::cons].nGrowVect(); ngv[2] = 0;
 
         // Read lat/lon if it exists
-        std::string LatFileName(PathToChkfileData + "LAT_H");
+        std::string LatFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LAT_H");
         if (amrex::FileExists(LatFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
@@ -1314,7 +1311,7 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        std::string VarCorFileName(PathToChkfileData + "SinPhi_H");
+        std::string VarCorFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SinPhi_H");
         if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
@@ -1371,14 +1368,14 @@ ERF::ReadCheckpointFile ()
             for (int lev = 0; lev <= finest_level; ++lev) {
                 if (lsm_is >> step_val) {
                     lsm.Set_LSM_Step(lev, step_val);
-                    amrex::Print() << "Restored LSM step counter at level " << lev
-                                   << " to " << step_val << std::endl;
+                    Print() << "Restored LSM step counter at level " << lev
+                            << " to " << step_val << std::endl;
                 }
             }
         } else {
-            amrex::Print() << "Warning: legacy checkpoint without lsm_step file; "
-                           << "LSM substep schedule will reset (may break bitwise reproducibility)."
-                           << std::endl;
+            Print() << "Warning: legacy checkpoint without lsm_step file; "
+                    << "LSM substep schedule will reset (may break bitwise reproducibility)."
+                    << std::endl;
         }
 
         // Restore the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
@@ -1388,21 +1385,23 @@ ERF::ReadCheckpointFile ()
         // pulls it into the physics state on the first Advance (issue #3255).
         // Legacy checkpoints without this directory fall back to cold-init.
         std::string LsmRestartDir(restart_chkfile + "/noahmp_restart");
-        if (amrex::FileExists(LsmRestartDir + "/Level_0.nc")) {
-            for (int lev = 0; lev <= finest_level; ++lev) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            std::string LsmRestartFile = LsmRestartDir + "/Level_" + std::to_string(lev) + ".nc";
+            if (amrex::FileExists(LsmRestartFile)) {
                 lsm.Read_Lsm_Restart(lev, LsmRestartDir);
+                Print() << "Restored full NoahMP prognostic state from "
+                        << LsmRestartFile << " at level " << lev << std::endl;
+            } else {
+                Print() << "NoahMP restart file " << LsmRestartFile << " is not present at level " << lev << std::endl;
+                if (lev == 0) {
+                    Print() << "WARNING: NoahMP will cold-initialize from wrfinput at level " << lev << std::endl;
+                } else {
+                    Print() << "NOTE: NoahMP will cold-initialize if a wrfinput file is present at level " << lev
+                            << " or it will interpolate from coarse if the file does not exist." << std::endl;
+                }
             }
-            amrex::Print() << "Restored full NoahMP prognostic state from "
-                           << LsmRestartDir << std::endl;
-        } else {
-            amrex::Print() << "Warning: legacy checkpoint without noahmp_restart; "
-                           << "NoahMP prognostic state cold-initialized from wrfinput "
-                           << "(land trajectory will differ from cold start)."
-                           << std::endl;
-        }
-    }
-
-
+        } // lev
+    } // has LSM
 
 #ifdef ERF_USE_PARTICLES
     restartTracers((ParGDBBase*)GetParGDB(),restart_chkfile);
