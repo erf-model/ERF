@@ -1168,8 +1168,11 @@ ERF::ReadCheckpointFile ()
             two_stream_rad.read_checkpoint(lev, restart_chkfile);
         }
 
+        // Set path to level directory
+        std::string PathToChkfileData = restart_chkfile + "/Level_" + std::to_string(lev) + "/";
+
         // Read the radiation heating rates
-        std::string RadFileName(restart_chkfile + "/Level_0/Qrad_H");
+        std::string RadFileName(PathToChkfileData + "Qrad_H");
         if ((solverChoice.rad_type != RadiationType::None) && amrex::FileExists(RadFileName)) {
             amrex::Print() << "Reading radiation heating rates" << std::endl;
             int nrad = qheating_rates[lev]->nComp();
@@ -1181,7 +1184,7 @@ ERF::ReadCheckpointFile ()
         IntVect ng = mapfac[lev][MapFacType::m_x]->nGrowVect();
         MultiFab mf_m(ba2d[lev],dmap[lev],1,ng);
 
-        std::string MapFacMFileName(restart_chkfile + "/Level_0/MapFactor_mx_H");
+        std::string MapFacMFileName(PathToChkfileData + "MapFactor_mx_H");
         if (amrex::FileExists(MapFacMFileName)) {
             VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_mx"));
         } else {
@@ -1199,7 +1202,7 @@ ERF::ReadCheckpointFile ()
         ng = mapfac[lev][MapFacType::u_x]->nGrowVect();
         MultiFab mf_u(convert(ba2d[lev],IntVect(1,0,0)),dmap[lev],1,ng);
 
-        std::string MapFacUFileName(restart_chkfile + "/Level_0/MapFactor_ux_H");
+        std::string MapFacUFileName(PathToChkfileData + "MapFactor_ux_H");
         if (amrex::FileExists(MapFacUFileName)) {
             VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_ux"));
         } else {
@@ -1217,7 +1220,7 @@ ERF::ReadCheckpointFile ()
         ng = mapfac[lev][MapFacType::v_x]->nGrowVect();
         MultiFab mf_v(convert(ba2d[lev],IntVect(0,1,0)),dmap[lev],1,ng);
 
-        std::string MapFacVFileName(restart_chkfile + "/Level_0/MapFactor_vx_H");
+        std::string MapFacVFileName(PathToChkfileData + "MapFactor_vx_H");
         if (amrex::FileExists(MapFacVFileName)) {
             VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_vx"));
         } else {
@@ -1236,7 +1239,7 @@ ERF::ReadCheckpointFile ()
         // NOTE: We read MOST data in ReadCheckpointFileMOST (see below)!
 
         // See if we wrote out SST data
-        std::string FirstSSTFileName(restart_chkfile + "/Level_0/SST_0_H");
+        std::string FirstSSTFileName(PathToChkfileData + "SST_0_H");
         if (amrex::FileExists(FirstSSTFileName))
         {
             amrex::Print() << "Reading SST data" << std::endl;
@@ -1252,7 +1255,7 @@ ERF::ReadCheckpointFile ()
         }
 
         // See if we wrote out TSK data
-        std::string FirstTSKFileName(restart_chkfile + "/Level_0/TSK_0_H");
+        std::string FirstTSKFileName(PathToChkfileData + "TSK_0_H");
         if (amrex::FileExists(FirstTSKFileName))
         {
             amrex::Print() << "Reading TSK data" << std::endl;
@@ -1267,7 +1270,8 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        std::string LMaskFileName(restart_chkfile + "/Level_0/LMASK_0_H");
+        // See if we wrote out LMASK data
+        std::string LMaskFileName(PathToChkfileData + "LMASK_0_H");
         if (amrex::FileExists(LMaskFileName))
         {
             amrex::Print() << "Reading LMASK data" << std::endl;
@@ -1292,10 +1296,10 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
-        IntVect ngv = ng; ngv[2] = 0;
+        IntVect ngv = vars_new[lev][Vars::cons].nGrowVect(); ngv[2] = 0;
 
         // Read lat/lon if it exists
-        std::string LatFileName(restart_chkfile + "/Level_0/LAT_H");
+        std::string LatFileName(PathToChkfileData + "LAT_H");
         if (amrex::FileExists(LatFileName)) {
             amrex::Print() << "Reading Lat/Lon variables" << std::endl;
             MultiFab lat(ba2d[lev],dmap[lev],1,ngv);
@@ -1310,7 +1314,7 @@ ERF::ReadCheckpointFile ()
 
 #ifdef ERF_USE_NETCDF
         // Read sinPhi and cosPhi if it exists
-        std::string VarCorFileName(restart_chkfile + "/Level_0/SinPhi_H");
+        std::string VarCorFileName(PathToChkfileData + "SinPhi_H");
         if (amrex::FileExists(VarCorFileName)) {
             amrex::Print() << "Reading Coriolis factors" << std::endl;
             MultiFab sphi(ba2d[lev],dmap[lev],1,ngv);
