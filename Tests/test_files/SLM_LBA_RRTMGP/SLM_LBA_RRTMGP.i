@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 21600 # 6 hours
 
+erf.prob_name = "SLM"
+
 start_datetime = "1999-02-23 11:30:00"
 
 amrex.fpe_trap_invalid = 0
@@ -21,6 +23,7 @@ erf.use_Ri_correction = 0
 
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
+erf.flat_terrain = true
 #erf.anelastic = 1
 #erf.use_fft = 1
 

@@ -6,6 +6,8 @@
 #max_step = 43200
 max_step = 34500
 
+erf.prob_name = "SLM"
+
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
@@ -159,7 +161,7 @@ prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 200.0
-prob.T_0_Pert_Mag    = 0.0
+prob.T_0_Pert_Mag    = 0.1
 prob.qv_0_Pert_Mag   = 0.0
 
 prob.custom_TKE      = false

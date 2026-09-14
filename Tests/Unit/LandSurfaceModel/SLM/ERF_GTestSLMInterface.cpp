@@ -70,6 +70,7 @@ struct SLMTestState {
 void configure_slm_parameters ()
 {
     amrex::ParmParse pp("slm");
+    pp.add("radiation_scheme", "SLM");
     pp.add("nsoil", 7);
     pp.addarr("soil_dz", std::vector<amrex::Real>{
         amrex::Real(0.1), amrex::Real(0.2), amrex::Real(0.3),
@@ -243,7 +244,8 @@ TEST_F(SLMInterfaceTest, ExposesCurrentStateAndFluxContract)
         "LW_dw", "cos_zenith", "ref_t", "ref_u", "ref_v", "ref_d", "ref_q",
         "ref_p", "node_z", "soilt_nudge", "soilw_nudge", "lai", "vegtype",
         "soiltype", "veg_frac", "veg_frac_min", "veg_frac_max", "emis_sfc",
-        "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"};
+        "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff",
+        "soil_transp_frac"};
     const std::vector<std::string> expected_flux_names{
         "t_flux", "q_flux", "tau13", "tau23", "olen"};
 

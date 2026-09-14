@@ -767,19 +767,18 @@ add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OP
 add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 
 # test w/out plotfile comparisons
-#add_test_lsm(SLM_CASS                        "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF")
-add_test_lsm(SLM_CASS_SAMRadiation            "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF"
+add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
                                               LABELS "slm"
-                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/sounding_cass_interpolated"
-                                                          "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/lsf_cass"
+                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
+                                                          "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
                                               PLTFILES "plt34500"
                                                        "plt_lsm_34500"
                                                        "plt_lsm_2D_34500")
 
-add_test_lsm(SLM_LBA_RRTMGP                   "DevTests/LandSurfaceModel_SLM_Coupled" "LandSurfaceModel_SLMERF"
+add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
                                               LABELS "slm" "manual"
-                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Exec/DevTests/LandSurfaceModel_SLM_Coupled/snd_lba"
+                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
