@@ -105,7 +105,7 @@ public:
    * @name Inputs shared with the RRTMGP interface
    * The two-stream model reads the sun, site and surface-temperature inputs
    * under the same keys, with the same meaning, as the RRTMGP interface
-   * (Source/PhysicsInterfaces/Radiation/ERF_Radiation.H), so a deck switches
+   * (Source/Radiation/RRTMGP/ERF_Radiation.H), so a deck switches
    * between the two models by changing erf.radiation_model alone.
    * @{
    */

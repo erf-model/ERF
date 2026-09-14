@@ -1,0 +1,8 @@
+ifeq ($(USE_RRTMGP), TRUE)
+    CEXE_headers += ERF_RRTMGP_Interface.H
+    CEXE_headers += ERF_RRTMGP_Utils.H
+    CEXE_headers += ERF_Radiation.H
+
+    CEXE_sources += ERF_RRTMGP_Interface.cpp
+    CEXE_sources += ERF_Radiation.cpp
+endif

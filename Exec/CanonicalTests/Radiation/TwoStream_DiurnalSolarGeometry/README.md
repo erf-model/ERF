@@ -73,4 +73,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- Solar geometry: RRTMGP's orbital routines in `Source/PhysicsInterfaces/Radiation/ERF_OrbCosZenith.H`
+- Solar geometry: RRTMGP's orbital routines in `Source/Radiation/ERF_OrbCosZenith.H`

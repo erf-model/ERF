@@ -69,7 +69,7 @@ constexpr amrex::Real iGamma       = one/Gamma;
 // convention, the s_kb / s_N_av / s_mol_weight_air statics on
 // MaterialPropertiesCore; consolidating them is left to a separate change.
 // Consumers: Particles/ERF_SuperDropletPCCoalescence.H and
-// PhysicsInterfaces/Radiation/ERF_Radiation.cpp.
+// Radiation/RRTMGP/ERF_Radiation.cpp.
 constexpr amrex::Real boltz    = amrex::Real(1.38065e-23);
 constexpr amrex::Real avogadro = amrex::Real(6.02214e26);
 constexpr amrex::Real mwdair   = amrex::Real(28.966);
