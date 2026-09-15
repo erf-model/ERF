@@ -788,13 +788,23 @@ List of Parameters
 |                                      | solver (per-level).  Forced to ``None`` at any level     |                    | anelastic)        |
 |                                      | where ``anelastic`` = 1                                  |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.anelastic_type**               | two-stage scheme used by the anelastic integrator        | RK2, MidPoint      | RK2               |
+|                                      | (per-level); ignored where ``anelastic`` = 0.  ``RK2``   |                    |                   |
+|                                      | is SSP (Heun): both stages advance a full timestep and   |                    |                   |
+|                                      | the second averages the two slow sources.  ``MidPoint``  |                    |                   |
+|                                      | advances a half timestep in the first stage, which is    |                    |                   |
+|                                      | what makes the implicit vertical diffusion second order  |                    |                   |
+|                                      | -- see ``vert_implicit_fac`` below                       |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.vert_implicit**                | Do vertical implicit solve for diffusion of u, v, theta, | Boolean            | true              |
 |                                      | KE, and qv with default time-centering in each stage     |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.vert_implicit_fac**            | time-centering factor for the vertical diffusive terms,  | 1 or 3 Reals in    | 1.0 1.0 0.0       |
 |                                      | where 0 is fully explicit and 1 is fully implicit.       | [0,1]              |                   |
 |                                      | Specify either one value used in all Runge-Kutta stages, |                    |                   |
-|                                      | or three values, one per stage                           |                    |                   |
+|                                      | or three values, one per stage.  Zeroed at any anelastic |                    |                   |
+|                                      | level with ``anelastic_type`` = ``RK2``; the second and  |                    |                   |
+|                                      | third entries are zeroed with ``MidPoint``               |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_thermal_diffusion**   | include the implicit contribution to vertical thermal    | Boolean            | true              |
 |                                      | diffusion                                                |                    |                   |
@@ -853,6 +863,12 @@ Notes
 -----------------
 
 -  | If **erf.anelastic** is true then **substepping_type** is internally set to "None".
+
+-  | The implicit vertical diffusion is only second-order in time in an anelastic run when the two
+     stages are the **midpoint method** and the tridiagonal solve is done in the first stage alone.
+     Solving again in the second stage would collapse to first-order, so **erf.vert_implicit_fac**
+     is zeroed for that midpoint stage; with **erf.anelastic_type = RK2** the implicit solve is
+     turned off entirely.
 
 -  | The implicit vertical diffusion solves invert one tridiagonal system per column, so a
      column of the domain must lie entirely within a single grid.  If the grids at any level
@@ -4181,13 +4197,15 @@ Equation Set
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.anelastic``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
   ``erf.transport_scalar``, ``erf.use_lagged_delta_rt``, ``erf.use_pert_pres_gradient``
+* :ref:`Time Step <inputs-time-step>` -- ``erf.anelastic_type``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.project_initial_velocity``
 
 Acoustic Substepping and the Poisson Solve
 ------------------------------------------
 
 * :ref:`Numerical Stability <inputs-numerical-stability>` -- ``erf.beta_s``
-* :ref:`Time Step <inputs-time-step>` -- ``erf.force_stage1_single_substep``, ``erf.ncorr``,
+* :ref:`Time Step <inputs-time-step>` -- ``erf.anelastic_type``,
+  ``erf.force_stage1_single_substep``, ``erf.ncorr``,
   ``erf.poisson_abstol``, ``erf.poisson_reltol``, ``erf.substepping_diag``,
   ``erf.substepping_type``
 

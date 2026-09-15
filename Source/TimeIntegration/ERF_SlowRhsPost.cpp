@@ -118,7 +118,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
-    const bool l_anelastic   = solverChoice.anelastic[level];
+    const bool l_anelastic     = solverChoice.anelastic[level];
+    const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
     // Only add to the flux registers on the final RK stage.  The anelastic integrator
     // takes two stages (nrk = 0,1) and the compressible one takes three (nrk = 0,1,2),
@@ -655,7 +656,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
+                } else if (l_anelastic && l_anelastic_rk2 && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -824,7 +825,8 @@ void erf_slow_rhs_post (int level, int finest_level,
             MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
             cloud_budget->capture_stage(
                 qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
-                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom);
+                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom,
+                0, l_anelastic_rk2);
         }
     }
 }
