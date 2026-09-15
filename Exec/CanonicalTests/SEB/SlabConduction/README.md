@@ -17,7 +17,8 @@ tridiagonal conduction with one change: the skin temperature is the top
 boundary instead of a flux, since that is what the balance holds, and the
 conduction into the slab, G, is what comes out. Layer centres sit half a
 layer below the skin and half a layer above the interior, so both boundary
-fluxes use 2k/dz. Unconditionally stable; up to 256 layers.
+fluxes use 2k/dz. Unconditionally stable; up to 32 layers (the kernels keep
+the layers on the stack).
 
 ## Materials
 
@@ -37,8 +38,8 @@ switched off so only the slab does anything and the runs are cheap.
 
 ## What is checked
 
-1. **Thick slab, semi-infinite response** (200 mm concrete in 1 mm layers,
-   50 s): the wave from the cold interior travels about 6 mm, so the flux
+1. **Thick slab, semi-infinite response** (32 mm concrete in 1 mm layers,
+   20 s): the wave from the cold interior travels about 4 mm, so the flux
    through the skin stays zero, the top layer stays at the skin temperature,
    and the bottom layer follows the erfc solution for a boundary step.
 2. **Thin slab, steady state** (20 mm, light, 100 s): G equals k dT / L on
@@ -57,9 +58,9 @@ switched off so only the slab does anything and the runs are cheap.
 ## Reference
 
 ```
-== thick slab, semi-infinite response (4 ranks, 50 s)
-  skin flux stays zero while the wave from the interior is far away: PASS (max |G| 0.00e+00 W/m2)
-  bottom layer vs semi-infinite erfc solution at t = 50.0 s: expected 300.921 K, got 300.925-300.925 K -> PASS
+== thick slab, semi-infinite response (4 ranks, 20 s)
+  skin flux stays zero while the wave from the interior is far away: PASS (max |G| 2.32e-03 W/m2)
+  bottom layer vs semi-infinite erfc solution at t = 20.0 s: expected 301.455 K, got 301.470-301.470 K -> PASS
   top layer still at the skin temperature: PASS
 == thin slab, steady linear profile (4 ranks, 100 s)
   thin slab at steady state: G = k dT / L = 1000.0 W/m2, got 1000.0-1000.0 -> PASS

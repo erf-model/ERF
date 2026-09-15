@@ -76,8 +76,8 @@ LW_net, H and G are rewritten at it.
 
 ```
 == closure under a fixed sun (4 ranks, 200 steps)
-[IBSEB] lev=0 step=199 t=100 faces=116 (x=40 y=40 z=36) buildings=1 area=11600 m2 T_skin_min=299.9582182 T_skin_max=305.548914 SW_abs_mean=238.4418689 SW_abs_max=477.5777772 shadow_frac=0.05172413793 LW_net_mean=-59.50764834 H_mean=19.23134446 G_mean=159.7028761 Q_ext_mean=0 resid_max=9.366431186e-09 H_total_W=223083.5957
-  200 dumps, steps 0-199, 116 faces
+[IBSEB] lev=0 step=200 t=100 faces=116 (x=40 y=40 z=36) buildings=1 area=11600 m2 T_skin_min=299.9582182 T_skin_max=305.548914 SW_abs_mean=238.4418689 SW_abs_max=477.5777772 shadow_frac=0.05172413793 LW_net_mean=-59.50764834 H_mean=19.23134446 G_mean=159.7028761 Q_ext_mean=0 resid_max=9.366431186e-09 w_star_max=0 H_total_W=223083.5957
+  201 dumps, steps 0-200, 116 faces
   balance residual on every face at every step: PASS (max 2.92e-08 W/m2, newton iterations at most 2)
   H, LW_net and G consistent with T_skin: PASS (max diff H 1.3e-08, LW 3.3e-09, G 8.0e-08 W/m2)
   slab energy change = dt (G - G_bottom) every step: PASS (max diff 2.0e-04 J/m2 (dump precision))
@@ -87,8 +87,8 @@ LW_net, H and G are rewritten at it.
   sunlit roof and south wall warm above the 300 K start, south warmer than north: PASS (roof 304.15 K, south 305.21 K, north 300.34 K)
 closure: PASS
 == external flux with the bound raised (4 ranks, 100 steps)
-[IBSEB] lev=0 step=99 t=50 faces=116 (x=40 y=40 z=36) buildings=1 area=11600 m2 T_skin_min=381.9245916 T_skin_max=443.7037765 SW_abs_mean=0 SW_abs_max=0 shadow_frac=0 LW_net_mean=-886.9144032 H_mean=667.7245681 G_mean=1145.361029 Q_ext_mean=3000 resid_max=4.996991265e-09 H_total_W=7745604.98966
-  100 dumps, steps 0-99, 116 faces
+[IBSEB] lev=0 step=100 t=50 faces=116 (x=40 y=40 z=36) buildings=1 area=11600 m2 T_skin_min=381.9245916 T_skin_max=443.7037765 SW_abs_mean=0 SW_abs_max=0 shadow_frac=0 LW_net_mean=-886.9144032 H_mean=667.7245681 G_mean=1145.361029 Q_ext_mean=3000 resid_max=4.996991265e-09 w_star_max=0 H_total_W=7745604.98966
+  101 dumps, steps 0-100, 116 faces
   balance residual on every face at every step: PASS (max 4.93e-08 W/m2, newton iterations at most 3)
   H, LW_net and G consistent with T_skin: PASS (max diff H 2.1e-08, LW 1.3e-08, G 1.6e-07 W/m2)
   slab energy change = dt (G - G_bottom) every step: PASS (max diff 3.0e-07 J/m2 (dump precision))
@@ -108,19 +108,19 @@ qext: PASS
 restart: PASS
 == sunrise over the cube (4 ranks, 10800 steps)
   step, mean T_skin east / roof / south / west / north [K]:
-         0  299.76  299.63  299.72  299.70  299.74
-      1200  299.99  299.55  299.65  299.62  299.80
+         0  300.00  300.00  300.00  300.00  300.00
+      1200  299.98  299.55  299.65  299.62  299.80
       2400  300.69  299.70  299.72  299.67  300.12
       3600  301.76  299.98  299.84  299.78  300.58
       4800  303.10  300.35  299.97  299.91  301.11
       6000  304.61  300.81  300.13  300.06  301.65
       7200  306.23  301.33  300.28  300.22  302.17
-      8400  307.89  301.96  300.43  300.37  302.67
+      8400  307.89  301.96  300.43  300.37  302.66
       9600  309.57  302.60  300.57  300.51  303.05
-     10680  311.06  303.22  300.69  300.64  303.36
-  east wall warms before the roof: PASS (onset east 1800, roof 4200, west 7200)
+     10800  311.22  303.28  300.71  300.65  303.38
+  east wall warms before the roof: PASS (onset east 2160, roof 5280, west 9600)
   east wall ends warmest, west wall coolest of the walls: PASS (final means above)
-  every face within the bounds: PASS (299.4-311.5 K)
+  every face within the bounds: PASS (299.4-311.7 K)
 solar: PASS
 ALL PASS
 ```

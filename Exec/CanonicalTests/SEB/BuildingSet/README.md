@@ -58,20 +58,20 @@ height-map set needs (`Exec/RegTests/ImmersedForcingTest/PartialCells`).
   rims, and are free of shadow after 10:30. The cube keeps a little
   self-shadow at 11:00 from its 20 m rim step.
 - **Materials.** The two timber blocks (light cladding, 15 cm) warm
-  fastest and end at 332.7 and 332.5 K on their roofs; the brick cube
-  (25 cm) reaches 324 K and the concrete slab (30 cm) 320.5 K. Their
+  fastest and end at 329.5 and 329.4 K on their roofs; the brick cube
+  (25 cm) reaches 321.8 K and the concrete slab (30 cm) 318.6 K. Their
   mean skin temperatures rise together at first and split by material
   after 06:00, the identical timber blocks tracking each other to within
   0.2 K although one sits north of the slab and one on its own.
 - **View fractions.** The slab's east wall sees 28 percent building, the
   cube's west wall 48 percent (the taller slab fills its view), the far
   block's walls 18 percent (their own rim and the periodic neighbours).
-- **The wall function.** The convective scale is 0.1 to 0.7 m/s on the 268
-  sunlit faces at 11:00, and 93 percent of the roofs are unstable with
-  their own Obukhov length; the shaded rim roofs run slightly stable.
-- **Cost.** 0.4 ms per step on the slowest rank for 157 faces, 6 ms to
+- **The wall function.** The convective scale is 0.13 to 0.75 m/s on the
+  268 sunlit faces at 11:00, and every roof is unstable with its own
+  Obukhov length by then.
+- **Cost.** 0.18 ms per step on the slowest rank for 157 faces, 2 ms to
   build the list and sample the view fractions; the balance is a
-  negligible part of the 126 minutes the six hours took on four ranks.
+  negligible part of the 63 minutes the six hours took on four ranks.
 - **The atmosphere.** The height-map set runs with the immersed forcing
   snapped to whole cells and the implicit drag; without the snap the slab
   drives the density negative at two minutes (see the plan file's
@@ -82,13 +82,13 @@ height-map set needs (`Exec/RegTests/ImmersedForcingTest/PartialCells`).
 ```
 == building set, 6 h from 05:00 (4 ranks)
   four buildings with their materials: PASS (building 1: 172 faces, material 1, building 2: 72 faces, material 3, building 3: 116 faces, material 2, building 4: 72 faces, material 3)
-  balance residual on every building all morning: PASS (max 3.4e-08 W/m2 over 1444 rows)
+  balance residual on every building all morning: PASS (max 3.5e-08 W/m2 over 1444 rows)
   at sunrise the slab is the most shaded building (the cube's shadow on its east wall) and clears by late morning: PASS (slab 0.168 at 05:30-06:10 vs 0.061 after 10:30; others early 0.108, 0.084, 0.112)
   the 20 m blocks are free of shadow by late morning: PASS (north block 0.000, far block 0.000 after 10:30)
   the facing walls of the slab and the cube see more building than the far block's walls: PASS (slab east 0.28, cube west 0.48, far block walls 0.179)
-  timber roofs end warmer than the concrete roof (light cladding warms faster): PASS (roof means at 11.0 h: slab 320.2, north block 332.2, cube 323.7, far block 332.1 K)
-  w* positive on the sunlit faces and most roofs unstable by the end (the shaded rim roofs may be stable): PASS (w* 0.10-0.73 m/s on 268 sunlit faces, 93 % of 140 roofs unstable)
-  cost line reported: PASS (lev=0 advance_ms_per_step_max=0.1376 faces_per_rank_max=157 ranks=4 init_s=0.002732)
+  timber roofs end warmer than the concrete roof (light cladding warms faster): PASS (roof means at 11.0 h: slab 318.6, north block 329.5, cube 321.8, far block 329.4 K)
+  w* positive on the sunlit faces and most roofs unstable by the end (the shaded rim roofs may be stable): PASS (w* 0.13-0.75 m/s on 268 sunlit faces, 100 % of 140 roofs unstable)
+  cost line reported: PASS (lev=0 advance_ms_per_step_max=0.177 faces_per_rank_max=157 ranks=4 init_s=0.001838)
 building set: PASS
 ALL PASS
 ```

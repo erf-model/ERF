@@ -8,7 +8,7 @@
 
 thick: the slab starts at the skin temperature (320 K) and the interior
     boundary is 20 K colder, so a thermal wave enters from the interior side.
-    Over 50 s it travels a few millimetres into a 200 mm slab of 1 mm layers:
+    Over 20 s it travels a few millimetres into a 32 mm slab of 1 mm layers:
     the flux through the skin must stay zero, the top layer must stay at the
     skin temperature, and the bottom layer must follow the semi-infinite
     erfc solution for a step at a boundary.
@@ -40,8 +40,9 @@ def check_thick_log(log, k, rho_cp, dT, dt):
     # The slab starts at the skin temperature; the interior boundary steps to
     # skin - dT at t = 0. Heat flows out of the bottom; the flux through the
     # skin stays zero until the wave crosses the slab. With the thick slab the
-    # wave (sqrt(alpha t) ~ 6 mm at 50 s) never reaches the skin, so G must
-    # stay near zero, and the bottom flux follows the semi-infinite solution.
+    # wave (sqrt(alpha t) ~ 4 mm at 20 s, the slab 32 mm) never reaches the
+    # skin, so G must stay near zero, and the bottom flux follows the
+    # semi-infinite solution.
     ok1 = np.all(np.abs(G[1:]) < 1.0e-3 * k * dT / 0.01)
     print(f"  skin flux stays zero while the wave from the interior is far away: {'PASS' if ok1 else 'FAIL'} (max |G| {np.abs(G[1:]).max():.2e} W/m2)")
     return ok1

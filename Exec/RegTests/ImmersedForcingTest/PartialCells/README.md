@@ -62,8 +62,8 @@ below 2 m/s, and the cube still throws a wake.
 ```
 == height-map cube, wall law snapped to half cells (4 ranks, 19000 steps)
   fluid temperature within 0.5 K of neutral: PASS (max |theta - 300| 0.000 K at t = 9500 s)
-  vertical velocity below 2 m/s: PASS (max |w| 0.48 m/s)
-  wake behind the cube: PASS (min u in the wake -0.33 m/s (inflow 3))
+  vertical velocity below 2 m/s: PASS (max |w| 0.49 m/s)
+  wake behind the cube: PASS (min u in the wake -0.47 m/s (inflow 3))
 partial cells: PASS
 ALL PASS
 ```
