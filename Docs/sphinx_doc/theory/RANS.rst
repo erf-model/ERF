@@ -74,6 +74,14 @@ the plotfile ``diss`` holds :math:`\rho \varepsilon` from the start of the
 last step. A floor ``erf.tke_floor`` (default: machine epsilon on
 :math:`\rho k`) bounds :math:`k` from below.
 
+The heat flux in :math:`P_b` is the one the closure computes at the start
+of the step, :math:`-\rho \nu_t' \, \partial \theta / \partial z` from the
+cell-centred gradient in every cell, with the surface-layer flux in the
+first cell when a surface layer is used. It does not depend on how
+:math:`\theta` is then advanced: the vertical diffusion of :math:`\theta`,
+explicit or implicit (``erf.vert_implicit``), leaves it unchanged. The
+Deardorff closure shares this source term.
+
 Length scale
 ------------
 

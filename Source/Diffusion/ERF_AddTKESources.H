@@ -2,18 +2,23 @@
     //    or k-eqn RANS (see Axell & Liungman 2001)
     //
     // Note: At this point, the thermal diffusivity ("Khv" field in ERF), the
-    //       subgrid heat flux ("hfx_z" here), and the subgrid dissipation
-    //       ("diss" here) have been updated by ComputeTurbulentViscosityLES --
+    //       cell-centred subgrid heat flux (EddyDiff::Theta_flux_v), and the
+    //       subgrid dissipation ("diss" here) have been updated by the closure
     //       at the beginning of each timestep.
     //       The strain rate magnitude is updated at the beginning of the first
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
-    //       The surface heat flux is stored at hfx_z(i,j,0) (the value the
-    //       turbulence model wrote there is overwritten by the surface layer
-    //       at each RK stage), so the buoyancy production of the first cell
-    //       uses the surface flux.
+    //       The buoyancy production reads the cell-centred flux, not hfx_z:
+    //       above the surface hfx_z holds the face fluxes of the theta diffusion
+    //       scaled by the explicit fraction, which is zero whenever the implicit
+    //       vertical solve is on and half a cell low otherwise. The surface heat
+    //       flux is stored at hfx_z at the bottom face (the value the turbulence
+    //       model wrote there is overwritten by the surface layer at each RK
+    //       stage), so with a surface layer the first cell uses the surface flux.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
+        const int  l_klo_dom       = domain.smallEnd(2);
+        const bool l_surf_flux_klo = use_SurfLayer;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
@@ -27,7 +32,10 @@
             // **should** be a function of the water vapor and total water
             // mixing ratios, depending on whether conditions are saturated or
             // not (see the WRF model description, Skamarock et al 2019).
-            amrex::Real buoyancy_src = l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
+            const bool l_surf_cell = l_surf_flux_klo && (k == l_klo_dom);
+            const amrex::Real hfx_cc = (l_surf_cell) ? hfx_z(i,j,k)
+                                                     : mu_turb(i,j,k,EddyDiff::Theta_flux_v);
+            amrex::Real buoyancy_src = l_abs_g * l_inv_theta0 * hfx_cc;
             if (!use_ref_theta) {
                 // l_inv_theta0 == 1, divide by actual theta
                 buoyancy_src /= cell_prim(i,j,k,PrimTheta_comp);
