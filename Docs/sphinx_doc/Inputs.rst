@@ -3173,14 +3173,14 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surf_temp**                | prescribed surface temperature [K]; a positive value     | Real > 0            | -1.0 (not set)   |
-|                                       | selects the surface-temperature formulation              |                     |                  |
+| **erf.most.surf_temp**                | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
+|                                       | value selects the surface-temperature formulation         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | temperature; may not be combined with                    |                     |                  |
+|                                       | potential temperature; may not be combined with          |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |

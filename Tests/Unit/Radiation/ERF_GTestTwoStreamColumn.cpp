@@ -704,18 +704,23 @@ TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
     EXPECT_EQ(cold.flux_lw_up[kNz], cold.lw_up_toa);
 }
 
+// Motivation: a SurfaceLayer value is potential temperature, while the
+// longwave boundary emits absolute temperature. The conversion must use the
+// physical surface pressure, not the uncorrected cell-centre pressure.
 TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
 {
     // The surface layer hands the sweep a potential temperature (MOST works in
-    // theta). The emission needs the temperature, T_s = theta_s * Exner of the
-    // lowest cell; using theta directly would overstate sigma T^4 by the fourth
-    // power of 1/Exner, several percent below 1000 hPa.
+    // theta). The emission needs the temperature at the physical surface;
+    // using theta directly would overstate sigma T^4 by the fourth power of
+    // 1/Exner, several percent below 1000 hPa.
     RadChoice rc = base_choice();
     rc.surface_emissivity_lw = 1.0;
     const amrex::Real rho = 1.0, T_air = 290.0;
     const amrex::Real theta_air = getThgivenRandT(rho, T_air, RdoCp);
-    const amrex::Real exner = T_air / theta_air;            // Exner function of the state
-    ASSERT_LT(exner, 0.999);                                // the state is not at p_0
+    const amrex::Real p_cell = getPgivenRTh(rho * theta_air);
+    const amrex::Real p_surface = p_cell + rho * CONST_GRAV * amrex::Real(0.5) * kDz;
+    const amrex::Real exner = std::pow(p_surface / p_0, RdoCp);
+    ASSERT_LT(exner, 0.999);                                // the surface is below p_0
     const amrex::Real theta_s = 300.0;
     const ColumnResult r = run_uniform_column(rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr, &theta_s);
     const amrex::Real T_s = theta_s * exner;
@@ -725,7 +730,8 @@ TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
     EXPECT_LT(r.flux_lw_up[0], 0.99 * B_theta);
     // Without a field the erf.rad_t_sfc value is a temperature and is used as is.
     const ColumnResult d = run_uniform_column(rc, rho, T_air);
-    const amrex::Real B_d = kSigma * std::pow(rc.rad_t_sfc, 4);
+    const amrex::Real B_d = kSigma * rc.rad_t_sfc * rc.rad_t_sfc
+                            * rc.rad_t_sfc * rc.rad_t_sfc;
     EXPECT_NEAR(d.flux_lw_up[0], B_d, 1.0e-9 * B_d);
 }
 
@@ -942,4 +948,3 @@ TEST(TwoStreamColumn, CloudFractionLiquidWaterTermIsAThreshold)
     // RH and qc terms add and saturate at 1
     EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.9, 5.0e-4, 0.8, 1.0, 1.0e-3), 1.0, 1.0e-12);
 }
-

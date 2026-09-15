@@ -94,3 +94,19 @@ TEST(RRTMGP_SurfaceTemperature, DefaultTemperatureIsAlreadyAbsolute)
 
     EXPECT_EQ(t_sfc, kDefaultTemperature);
 }
+
+// Motivation: a malformed lowest-cell state must not turn the SurfaceLayer
+// fallback into a NaN RRTMGP boundary condition. The absolute fallback remains
+// the only valid contract when Exner conversion cannot be evaluated.
+TEST(RRTMGP_SurfaceTemperature, InvalidSurfacePressureUsesAbsoluteFallback)
+{
+    amrex::Real t_sfc = -1.0;
+    amrex::Real lsm_t_sfc = lsm_undefined;
+    rrtmgp::resolve_surface_temperature(
+        true, true, false, lsm_undefined,
+        true, kSurfaceTheta, amrex::Real(-1.0), kDefaultTemperature,
+        t_sfc, &lsm_t_sfc);
+
+    EXPECT_EQ(t_sfc, kDefaultTemperature);
+    EXPECT_EQ(lsm_t_sfc, kDefaultTemperature);
+}

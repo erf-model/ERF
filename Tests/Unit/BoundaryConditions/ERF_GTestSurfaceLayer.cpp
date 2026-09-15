@@ -14,7 +14,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <initializer_list>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
@@ -255,6 +257,9 @@ struct SurfaceLayerFields
     MultiFab yvel;
     MultiFab zvel;
     std::unique_ptr<MultiFab> theta;
+    std::unique_ptr<MultiFab> lsm_tsurf;
+    std::unique_ptr<MultiFab> coupled_sst;
+    std::unique_ptr<iMultiFab> coupled_valid;
 
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -345,12 +350,25 @@ struct SurfaceLayerFields
         Gpu::streamSynchronize();
     }
 
+    void set_surface_cell_pressure (const Real pressure, const Real qv = Real(0.0))
+    {
+        const Real rho_theta = (p_0 / R_d) *
+            std::pow(pressure / p_0, Real(1.0) / Gamma) /
+            (Real(1.0) + RvoRd * qv);
+        cons.setVal(test_rho, Rho_comp, 1);
+        cons.setVal(rho_theta, RhoTheta_comp, 1);
+        cons.setVal(test_rho * qv, RhoQ1_comp, 1);
+    }
+
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active_faces,
                    const std::string& prefix,
                    const bool with_moisture = false,
-                   const bool update_fluxes = true)
+                   const bool update_fluxes = true,
+                   const std::string& lsm_name = "",
+                   const Real lsm_value = Real(0.0),
+                   const bool coupled_active = false)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
@@ -369,16 +387,40 @@ struct SurfaceLayerFields
             MeshType::ConstantDz, TerrainType::None, TurbChoice{},
             0.0, 0.0);
         layer->set_surface_layer_faces(active_faces);
+        if (coupled_active) {
+            layer->set_coupled_sst_active(true);
+            coupled_sst = std::make_unique<MultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+            coupled_sst->setVal(Real(290.0));
+            coupled_valid = std::make_unique<iMultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+            coupled_valid->setVal(0);
+        }
 
         std::unique_ptr<MultiFab> qr_prim;
         Vector<MultiFab*> empty_mfs;
         Vector<std::string> empty_names;
+        Vector<MultiFab*> lsm_data;
+        Vector<std::string> lsm_names;
+        if (!lsm_name.empty()) {
+            lsm_tsurf = std::make_unique<MultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+            lsm_tsurf->setVal(lsm_value);
+            lsm_data.push_back(lsm_tsurf.get());
+            lsm_names.push_back(lsm_name);
+        }
         Vector<std::unique_ptr<MultiFab>> sst;
         Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
-            nullptr, nullptr, nullptr, empty_mfs, empty_names,
+            nullptr, nullptr, nullptr, lsm_data, lsm_names,
             empty_mfs, empty_names, sst, tsk, lmask);
+        if (coupled_active) {
+            layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
+        }
         if (with_moisture) {
             layer->get_q_surf(0)->setVal(tau_sentinel);
         }
@@ -566,7 +608,11 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             face, active_faces({face}), "unit_surface_layer_qsurf_serial",
             true, false);
         fields.lmask[0]->setVal(0);
-        layer->get_t_surf(0)->setVal(test_surface_temperature);
+        const Real pressure = getPgivenRTh(test_rho_theta, test_qv) +
+            test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2);
+        const Real surface_theta = test_surface_temperature *
+            std::pow(p_0 / pressure, RdoCp);
+        layer->get_t_surf(0)->setVal(surface_theta);
         std::unique_ptr<MultiFab> z_phys_nd;
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
@@ -575,6 +621,149 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             fields, *qsurf, face, expected);
         EXPECT_GT(selected_count, 0);
     }
+}
+
+// Motivation: MOST's prescribed surface value is already potential
+// temperature. A pressure-dependent conversion at this producer would change
+// the long-standing MOST flux contract.
+TEST(SurfaceLayer, PrescribedMostSurfaceTemperatureRemainsPotentialTemperature)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_most_theta");
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_most_theta");
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: the prescribed MOST heating rate is a tendency of the stored
+// potential temperature, so it must not be Exner-converted either.
+TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
+{
+    const std::string prefix = "unit_surface_layer_most_heating";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.surf_heating_rate", Real(3600.0));
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+    layer->update_fluxes(0, 2.0, 2.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature + Real(2.0));
+    pp.remove("most.surf_heating_rate");
+}
+
+// Motivation: Noah-MP supplies absolute t_sfc to the surface layer. At a
+// reduced surface pressure that value must be normalized once to theta before
+// MOST consumes the canonical SurfaceLayer field.
+TEST(SurfaceLayer, AbsoluteLsmSurfaceTemperatureIsConvertedToTheta)
+{
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_lsm_absolute");
+    SurfaceLayerFields fields(geom);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_lsm_absolute",
+        false, true, "t_sfc", Real(290.0));
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+}
+
+// Motivation: SLM exposes its surface field as theta. The SurfaceLayer must
+// preserve that canonical value, rather than treating every LSM temperature
+// field as an absolute-temperature Noah-MP field.
+TEST(SurfaceLayer, PotentialTemperatureLsmFieldRemainsUnchanged)
+{
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_lsm_theta");
+    SurfaceLayerFields fields(geom);
+    fields.set_surface_cell_pressure(Real(0.9) * p_0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_lsm_theta",
+        false, true, "theta", Real(275.0));
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), Real(275.0));
+}
+
+// Motivation: the text-file SST contract is absolute temperature, while the
+// SurfaceLayer field consumed by MOST is theta. This exercises the actual
+// z-low forcing path at reduced pressure rather than only testing the EOS
+// helper in isolation.
+TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
+{
+    const std::string prefix = "unit_surface_layer_text_sst";
+    const std::string file = "/private/tmp/erf_surface_layer_text_sst_"
+                           + std::to_string(sizeof(Real)) + ".txt";
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file);
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+    std::remove(file.c_str());
+}
+
+// Motivation: coupled SST is an absolute-temperature producer with partial
+// water coverage. Only covered cells should be converted into theta; an
+// uncovered water cell must retain the existing SurfaceLayer fallback.
+TEST(SurfaceLayer, CoupledSstConvertsOnlyCoveredWaterCells)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+
+    const IntVect covered = face_point(fields.domain, face);
+    fields.coupled_valid->setVal(1, Box(covered, covered), 0, 1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), covered), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+    const IntVect uncovered(0, 0, 0);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), uncovered), test_surface_temperature);
 }
 
 // Motivation: tau31 and tau32 are optional away from their corresponding

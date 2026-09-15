@@ -475,7 +475,8 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Text-file driven surface forcing modes. The file always contains at
-      // least time(day) and sst(K); prescribed-flux mode also uses H, LE, USTAR.
+      // least time(day) and absolute sst(K); the value is normalized to the
+      // canonical SurfaceLayer theta field at the z-low surface.
       pp.queryAdd("most.use_sfc_fluxes", m_use_sfc_fluxes);
       pp.queryAdd("most.use_sfc_sst", m_use_sfc_sst);
       if (m_use_sfc_fluxes && m_use_sfc_sst) {
@@ -538,9 +539,10 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          if (lc_name == "theta" || lc_name == "t_surf") {
+          if (lc_name == "theta" || lc_name == "t_surf" || lc_name == "t_sfc") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              m_lsm_tsurf_is_theta = (lc_name == "theta");
           }
       }
       if (m_use_sfc_sst && m_use_coupled_sst) {
@@ -935,7 +937,9 @@ public:
    * @param[in] time interpolation time
    */
   void fill_tsurf_with_sfc_sst (const int& lev,
-                                const double& time);
+                                const double& time,
+                                const amrex::MultiFab& cons_in,
+                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Overwrite surface temperature with coupled ocean SST where the coupler
@@ -947,7 +951,9 @@ public:
    *
    * @param[in] lev level index
    */
-  void fill_tsurf_with_coupled_sst (const int& lev);
+  void fill_tsurf_with_coupled_sst (const int& lev,
+                                    const amrex::MultiFab& cons_in,
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Fill surface moisture from saturation specific humidity.
@@ -983,7 +989,9 @@ public:
    *
    * @param[in] lev level index
    */
-  void get_lsm_tsurf (const int& lev);
+  void get_lsm_tsurf (const int& lev,
+                      const amrex::MultiFab& cons_in,
+                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Wrapper around compute_pblh.
@@ -1434,6 +1442,7 @@ private:
   bool use_moisture;
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
+  bool m_lsm_tsurf_is_theta = false;
   int  m_lsm_tsurf_indx = -1;
 
   // variables for sfc/sst forcing from file

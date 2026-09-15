@@ -20,6 +20,7 @@
 #include "ERF_NCInterface.H"
 #include "ERF_Radiation.H"
 #include "ERF_RRTMGP_SurfaceTemperature.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -617,6 +618,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
         const int imin   = vbx.smallEnd(0);
         const int jmin   = vbx.smallEnd(1);
         const int offset = m_col_offsets[mfi.index()];
+        const int k_surface = vbx.smallEnd(2);
         const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};
@@ -741,6 +743,10 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const int imin   = vbx.smallEnd(0);
                 const int jmin   = vbx.smallEnd(1);
                 const int offset = m_col_offsets[mfi.index()];
+                const int k_surface = vbx.smallEnd(2);
+                const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
+                const Array4<const Real>& z_arr = (m_z_phys) ? m_z_phys->const_array(mfi) :
+                                                               Array4<const Real>{};
                 const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
                                                                    Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
@@ -764,7 +770,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                         const bool valid_lsm_t_sfc =
                             has_lsm_t_sfc && (lsm_in_arr(i,j,k) < lsm_undefined);
                         // Match TwoStream: convert SurfaceLayer theta with
-                        // the pressure in the lowest atmospheric cell.
+                        // the physical surface pressure diagnosed from the
+                        // lowest atmospheric cell.
                         rrtmgp::resolve_surface_temperature(
                             is_land,
                             has_lsm_t_sfc,
@@ -772,7 +779,12 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                             has_lsm_t_sfc ? lsm_in_arr(i,j,k) : Real(0.),
                             static_cast<bool>(tsurf_arr),
                             tsurf_arr ? tsurf_arr(i,j,k) : Real(0.),
-                            p_lay_tab(icol, 0),
+                            erf_surface_temperature::pressure_at_surface(
+                                cons_arr(i,j,k_surface,Rho_comp),
+                                cons_arr(i,j,k_surface,RhoTheta_comp),
+                                moist ? std::max(cons_arr(i,j,k_surface,RhoQ1_comp) /
+                                                 cons_arr(i,j,k_surface,Rho_comp), Real(0.)) : Real(0.),
+                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol),
                             has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);

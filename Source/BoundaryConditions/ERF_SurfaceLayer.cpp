@@ -1,6 +1,8 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
+#include "ERF_SurfaceTemperature.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -37,7 +39,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
     if (zlo && m_use_sfc_sst) {
         // Set tsurf to time varying SST from sfc file
-        fill_tsurf_with_sfc_sst(lev, elapsed_time);
+        fill_tsurf_with_sfc_sst(lev, elapsed_time, cons_in, z_phys_nd);
     }
 
     // Apply heating rate if needed
@@ -49,7 +51,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     // after update_surf_temp, which is a whole-domain setVal, and before
     // fill_qsurf_with_qsat, which derives sea-surface humidity from t_surf.
     if (zlo) {
-        fill_tsurf_with_coupled_sst(lev);
+        fill_tsurf_with_coupled_sst(lev, cons_in, z_phys_nd);
     }
 
     // Update qsurf with qsat over sea
@@ -58,7 +60,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update land surface temp if we have a valid pointer
-    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev);
+    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev, cons_in, z_phys_nd);
 
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
@@ -1743,11 +1745,15 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
 
 void
 SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
-                                       const double& elapsed_time)
+                                       const double& elapsed_time,
+                                       const MultiFab& cons_in,
+                                       const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     update_sfc_time_index(elapsed_time);
     const Real sfc_sst = interpolate_sfc_column(elapsed_time, 1);
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -1758,12 +1764,23 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
             if (!is_land) {
-                t_surf_arr(i,j,k) = sfc_sst;
+                const Real rho = cons_arr(i,j,klo,Rho_comp);
+                const Real qv = moist ? cons_arr(i,j,klo,RhoQ1_comp) / rho : Real(0.0);
+                const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(i,j,klo,z_arr) : myhalf*dz;
+                const Real pressure = erf_surface_temperature::pressure_at_surface(
+                    rho, cons_arr(i,j,klo,RhoTheta_comp), qv, delta_z);
+                Real theta = t_surf_arr(i,j,k);
+                if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, theta)) {
+                    t_surf_arr(i,j,k) = theta;
+                }
             }
         });
     }
@@ -1861,10 +1878,13 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                 auto Rho  = cons_arr(i,j,k,Rho_comp);
                 auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
                 auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
-                auto P_cc = getPgivenRTh(RTh, Qv);
-                P_cc += Rho*CONST_GRAV*deltaZ;
-                P_cc *= Real(0.01);
-                erf_qsatw(t_surf_arr(i,j,k), P_cc, q_surf_arr(i,j,k));
+                const auto P_cc = erf_surface_temperature::pressure_at_surface(
+                    Rho, RTh, Qv, deltaZ);
+                Real t_surface = t_surf_arr(i,j,k);
+                if (erf_surface_temperature::theta_to_temperature(
+                        t_surf_arr(i,j,k), P_cc, t_surface)) {
+                    erf_qsatw(t_surface, P_cc * Real(0.01), q_surf_arr(i,j,k));
+                }
             }
         });
     }
@@ -1877,9 +1897,14 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
  * @param[in] lev Current level
  */
 void
-SurfaceLayer::get_lsm_tsurf (const int& lev)
+SurfaceLayer::get_lsm_tsurf (const int& lev,
+                             const MultiFab& cons_in,
+                             const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
+    const bool lsm_tsurf_is_theta = m_lsm_tsurf_is_theta;
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -1898,6 +1923,9 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
         const auto lsm_arr = m_lsm_data_lev[lev][m_lsm_tsurf_indx]->const_array(mfi);
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -1905,7 +1933,20 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
             if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
+                const Real lsm_value = lsm_arr(li,lj,k);
+                if (lsm_tsurf_is_theta) {
+                    t_surf_arr(i,j,k) = lsm_value;
+                } else {
+                    const Real rho = cons_arr(li,lj,klo,Rho_comp);
+                    const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+                    const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(li,lj,klo,z_arr) : myhalf*dz;
+                    const Real pressure = erf_surface_temperature::pressure_at_surface(
+                        rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
+                    Real theta = t_surf_arr(i,j,k);
+                    if (erf_surface_temperature::temperature_to_theta(lsm_value, pressure, theta)) {
+                        t_surf_arr(i,j,k) = theta;
+                    }
+                }
             }
         });
     }
@@ -1917,7 +1958,9 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
  * @param[in] lev Current level
  */
 void
-SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
+SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
+                                           const MultiFab& cons_in,
+                                           const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     // No coupler has handed us anything yet. Whatever fill_tsurf_with_sst_and_tsk
     // wrote stands, which is the correct answer for one-way and uncoupled runs.
@@ -1935,6 +1978,8 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
         "Coupled SST layout does not match the surface-layer layout.");
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
@@ -1960,6 +2005,9 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
         const auto coupled_sst_arr = m_coupled_sst_lev[lev]->const_array(mfi);
         auto const& valid_arr = has_valid ? m_coupled_sst_valid_lev[lev]->const_array(mfi)
                                           : Array4<const int>{};
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -1971,7 +2019,16 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev)
 
             if (has_valid && valid_arr(li,lj,k) == 0) { return; }
 
-            t_surf_arr(i,j,k) = coupled_sst_arr(li,lj,k);
+            const Real rho = cons_arr(li,lj,klo,Rho_comp);
+            const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+            const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(li,lj,klo,z_arr) : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_surface(
+                rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
+            Real theta = t_surf_arr(i,j,k);
+            if (erf_surface_temperature::temperature_to_theta(
+                    coupled_sst_arr(li,lj,k), pressure, theta)) {
+                t_surf_arr(i,j,k) = theta;
+            }
         });
     }
 }

@@ -6,6 +6,7 @@
 #include "ERF_WriteERFBdy.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_NodalReconstruction.H"
+#include "ERF_EOS.H"
 
 #include <AMReX_Reduce.H>
 
@@ -62,6 +63,7 @@ void
 ERF::init_from_metgrid (int lev)
 {
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const Real l_rdOcp = solverChoice.rdOcp;
     if (use_moisture) {
         Print() << "Init with met_em with valid moisture model." << std::endl;
     } else {
@@ -404,6 +406,9 @@ ERF::init_from_metgrid (int lev)
         // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
 
         if (flag_sst) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !NC_psfc_fab.box().isEmpty(),
+                "Metgrid SST requires PSFC so it can be normalized to potential temperature.");
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(sst_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
@@ -411,11 +416,15 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_sst_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
+                const Array4<const Real>& psfc_arr = NC_psfc_fab.const_array();
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
-                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                    // Metgrid SST is absolute temperature; SurfaceLayer's
+                    // canonical field is potential temperature.
+                    dst_arr(i,j,0) = getThgivenTandP(
+                        src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
                 });
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
@@ -424,6 +433,9 @@ ERF::init_from_metgrid (int lev)
         }
 
         if (flag_tsk) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                !NC_psfc_fab.box().isEmpty(),
+                "Metgrid SKINTEMP requires PSFC so it can be normalized to potential temperature.");
             tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(tsk_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
@@ -431,11 +443,15 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_tsk_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
+                const Array4<const Real>& psfc_arr = NC_psfc_fab.const_array();
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
-                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                    // Metgrid SKINTEMP is absolute temperature; SurfaceLayer's
+                    // canonical field is potential temperature.
+                    dst_arr(i,j,0) = getThgivenTandP(
+                        src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
                 });
             }
             tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
@@ -527,7 +543,6 @@ ERF::init_from_metgrid (int lev)
             tmp_dst.define(ba_dst, dm, MetGridTmpDstVars::NumTypes, 0);
         }
 
-        const Real l_rdOcp = solverChoice.rdOcp;
         std::unique_ptr<iMultiFab> mask_c = OwnerMask(lev_new[Vars::cons], geom[lev].periodicity());//, lev_new[Vars::cons].nGrowVect());
         std::unique_ptr<iMultiFab> mask_u = OwnerMask(lev_new[Vars::xvel], geom[lev].periodicity());//, lev_new[Vars::xvel].nGrowVect());
         std::unique_ptr<iMultiFab> mask_v = OwnerMask(lev_new[Vars::yvel], geom[lev].periodicity());//, lev_new[Vars::yvel].nGrowVect());

@@ -20,6 +20,8 @@
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_OrbCosZenith.H>
+#include <ERF_SurfaceTemperature.H>
+#include <ERF_TerrainMetrics.H>
 
 /**
  * @file ERF_TwoStreamColumn.H
@@ -1144,9 +1146,20 @@ void vertical_two_stream_sweep (
             amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc, t_sfc_from_field);
             // The surface layer carries a potential temperature (MOST works in
             // theta); the emission needs the temperature, so convert with the
-            // Exner function of the lowest cell (p_surface ~ p of that cell).
+            // physical surface pressure diagnosed from the lowest cell.
             if (t_sfc_from_field && t_sfc_is_theta) {
-                t_surface /= get_inverse_exner(i, j, kmin, state_arr);
+                const amrex::Real rho = state_arr(i, j, kmin, Rho_comp);
+                const amrex::Real rho_theta = state_arr(i, j, kmin, RhoTheta_comp);
+                const amrex::Real qv = get_qv_from_state(i, j, kmin, state_arr);
+                const amrex::Real delta_z = z_phys_nd
+                    ? Compute_Zrel_AtCellCenter(i, j, kmin, z_phys_nd)
+                    : amrex::Real(0.5) * dz_uniform;
+                const amrex::Real pressure = erf_surface_temperature::pressure_at_surface(
+                    rho, rho_theta, qv, delta_z);
+                if (!erf_surface_temperature::theta_to_temperature(
+                        t_surface, pressure, t_surface)) {
+                    t_surface = rad_choice.t_sfc_default;
+                }
             }
             amrex::Real emiss_lw  = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
             F_lw_up_iface(0) = emiss_lw * compute_thermal_intensity(t_surface, sigma)
