@@ -784,6 +784,15 @@ add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
                                                           "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
 
+add_test_lsm(SLM_AWAKEN                       "" "erf_exec"
+                                              LABELS "slm" "manual"
+                                              EXTRA_FILES "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfinput_d01"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfbdy_d01"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+
 if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling.
     # Without those gold files they can still be run to completion as smoke tests, which is the

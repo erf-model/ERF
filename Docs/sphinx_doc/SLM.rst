@@ -46,8 +46,10 @@ Core soil and surface options
 +==================================+==========================================================+======================+==================+
 | **slm.nsoil**                    | number of soil layers                                    | Integer >= 1         | 7                |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.soil_dz**                  | thickness of each soil layer [m], from the surface       | Real values; exactly | must be set      |
-|                                  | downward; the number of values must equal ``nsoil``      | ``nsoil`` values     |                  |
+| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real values; exactly | must be set      |
+|                                  | from the surface downward; the number of values must     | ``nsoil`` values     |                  |
+|                                  | equal ``nsoil``. For WRFInput, per-cell thickness comes  |                      |                  |
+|                                  | from WRF ``DZS``.                                        |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.landtype0**                | initial land-use category applied over the domain        | Integer land type    | 16               |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
@@ -74,7 +76,8 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.tausoil**                  | soil nudging time scale [s]                              | Real > 0             | 86400.0          |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.tabs_s**                   | prescribed/initial surface temperature [K]               | Real                 | 0.0              |
+| **slm.tabs_s**                   | prescribed/fallback surface temperature [K]; WRFInput    | Real                 | 0.0              |
+|                                  | land-cell surface temperature comes from ``TSK``         |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.t00**                      | constant temperature offset used in the surface          | Real [K]             | 300.0            |
 |                                  | temperature field                                        |                      |                  |
@@ -99,7 +102,7 @@ Parameter tables and external forcing
 | **slm.use_parameter_file**       | initialize soil and vegetation parameters from the       | Boolean              | false            |
 |                                  | Noah-MP-format parameter file                            |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.radiation_scheme**         | radiation scheme used by SLM                             | ``SLM``, ``NoahMP``  | ``NoahMP``       |
+| **slm.radiation_scheme**         | internal SLM canopy/soil radiation treatment             | ``SLM``, ``NoahMP``  | ``NoahMP``       |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.parameter_file**           | parameter-table filename used when                       | String               | NoahmpTable.TBL  |
 |                                  | ``use_parameter_file`` is true                           |                      |                  |
@@ -129,7 +132,9 @@ Parameter tables and external forcing
 |                                  | cosine-zenith-angle fields; requires NetCDF support      |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
-``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  The
+``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  When
+``use_param_tbl`` is true, SLM reads the ``slm.vegparam`` table for
+WRF/Noah-style LAI and vegetation-fraction handling.  The
 parameter-file datasets must be ``usgs`` or ``modis`` for vegetation and
 ``stas`` or ``stas_ruc`` for soil.  The radiation file is expected to contain
 the variables ``SWVIS``, ``SWNIR``, ``SWVISD``, ``SWNIRD``, ``COSZRS``, and
@@ -143,6 +148,10 @@ from the WRF input data, including soil thickness and temperature/moisture,
 LAI, vegetation and soil type, skin temperature, and vegetation fractions.
 The uniform ``clay0``, ``sand0``, ``sw0``, and ``st0`` values are therefore not
 used in this mode; clay and sand are derived from the WRF soil type.
+
+``slm.soil_dz`` is still required to define the SLM layer layout and must contain
+exactly ``slm.nsoil`` values.  The per-cell soil thickness used by SLM is read
+from WRF ``DZS``.
 
 The active WRF-to-SLM field mapping is:
 
