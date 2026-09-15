@@ -3,11 +3,13 @@
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_GpuQualifiers.H>
 #include <AMReX_IndexType.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Periodicity.H>
 #include <AMReX_Vector.H>
 
+#include <algorithm>
 #include <memory>
 
 /**
@@ -72,6 +74,13 @@ public:
     //! Index of each surface copy in the planar BoxArray
     [[nodiscard]] const amrex::Vector<int>& surface_index () const { return m_src_index; }
 
+    //! Whether a planar-box index is the computed copy that touches the surface
+    [[nodiscard]] AMREX_GPU_HOST
+    bool is_surface_copy (const int planar_index) const
+    {
+        return std::binary_search(m_src_index.begin(), m_src_index.end(), planar_index);
+    }
+
 private:
     amrex::MultiFab& buffer (const amrex::MultiFab& mf);
 
@@ -81,6 +90,7 @@ private:
         int ncomp;
         amrex::BoxArray ba;
         amrex::DistributionMapping dm;
+        amrex::Vector<const amrex::MultiFab*> sources;
         std::unique_ptr<amrex::MultiFab> mf;
     };
 

@@ -442,25 +442,38 @@ SurfaceLayer::compute_fluxes (const int& lev,
         const Box tbx = mfi.tilebox();
         Box gtbx = mfi.growntilebox();
 
-        // Since lmask is used in the MFIter, the Z dimensions of the box is 0!
-        // X and Y faces need the entire domain Z range, so resize the box accordingly
-        vbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
-        vbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
-        gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
-        gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        // Since lmask is used in the MFIter, its z extent is collapsed.  The
+        // lateral kernels need the full z column; z-face ownership is instead
+        // determined from the original 3-D surface-copy mapping.
+        if (dir != 2 || l_use_eb) {
+            gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
+            gtbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
+        }
+
+        const bool owns_surface = l_use_eb || dir != 2 ||
+            m_planar_bndry[lev].is_surface_copy(mfi.index());
+        if (!owns_surface) {
+            continue;
+        }
+
+        if (dir != 2) {
+            if (m_face.isLow()) {
+                if (vbx.smallEnd(dir) != sm_index ||
+                    tbx.smallEnd(dir) != sm_index) {
+                    continue;
+                }
+            } else {
+                if (vbx.bigEnd(dir) != sm_index ||
+                    tbx.bigEnd(dir) != sm_index) {
+                    continue;
+                }
+            }
+        }
 
         if (m_face.isLow()) {
-            if (vbx.smallEnd(dir) != sm_index ||
-                (dir != 2 && tbx.smallEnd(dir) != sm_index)) {
-                continue;
-            }
             gtbx.setSmall(dir, sm_index);
             gtbx.setBig(dir, sm_index);
         } else {
-            if (vbx.bigEnd(dir) != sm_index ||
-                (dir != 2 && tbx.bigEnd(dir) != sm_index)) {
-                continue;
-            }
             gtbx.setSmall(dir, sm_index);
             gtbx.setBig(dir, sm_index);
         }
@@ -1792,9 +1805,9 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         Box tbx = mfi.validbox();
         const Box tilebx = mfi.tilebox();
 
-        // Since lmask is used in the MFIter, its Z dimension is 0.  These are
+        // Since lmask is used in the MFIter, its Z dimension is 0. These are
         // temporary geometry boxes, so use the physical domain's Z range for
-        // face selection and for indexing the 3-D surface/state arrays.
+        // indexing the 3-D surface/state arrays.
         tbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
         tbx.setBig(2, m_geom[lev].Domain().bigEnd(2));
         gtbx.setSmall(2, m_geom[lev].Domain().smallEnd(2));
@@ -1808,10 +1821,26 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
             gtbx.setBig(dir, sm_index);
         }
 
-        if (tbx[m_face] != sm_index ||
-            (dir != 2 && tilebx[m_face] != sm_index)) {
-            continue;
+        if (dir == 2) {
+            if (m_terrain_type != TerrainType::EB &&
+                !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+                continue;
+            }
+        } else {
+            if (tbx[m_face] != sm_index || tilebx[m_face] != sm_index) {
+                continue;
+            }
         }
+
+        // The mask iterator can have more ghosts than the surface fields.
+        // Limit every array accessed by the kernel to its corresponding FAB.
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        gtbx &= q_surf[lev]->fabbox(mfi.index());
+        gtbx &= cons_in.fabbox(mfi.index());
+        if (z_phys_nd) {
+            gtbx &= z_phys_nd->fabbox(mfi.index());
+        }
+        if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto q_surf_arr = q_surf[lev]->array(mfi);

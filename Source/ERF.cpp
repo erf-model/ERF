@@ -1257,6 +1257,34 @@ ERF::InitData_post ()
             surface_layer_faces[static_cast<int>(ori)] = 1;
         }
     }
+
+    // With multiple surface-layer faces, face-qualified prefixes are normally
+    // required.  Preserve the historical unqualified zlo inputs when a user
+    // adds another surface-layer face, but detect the inputs before any
+    // SurfaceLayer constructor can insert queryAdd defaults into the table.
+    bool use_legacy_zlo_prefix = false;
+    if (n_faces > 1 &&
+        phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) {
+        const bool has_legacy_inputs = has_surface_layer_inputs(pp_prefix);
+        const bool has_zlo_inputs = has_surface_layer_inputs(
+            pp_prefix + "." + BoundaryFaceName[Orientation::zlo()]);
+
+        if (has_legacy_inputs && has_zlo_inputs) {
+            Abort("Both legacy unqualified and zlo-qualified surface-layer inputs "
+                  "are present. Use only erf.zlo.most.* and/or "
+                  "erf.zlo.surface_layer.* when multiple surface-layer faces "
+                  "are enabled.");
+        }
+
+        if (has_legacy_inputs) {
+            use_legacy_zlo_prefix = true;
+            Warning("Multiple surface-layer faces are enabled while using legacy "
+                    "unqualified surface-layer inputs. Applying erf.most.* and "
+                    "erf.surface_layer.* to zlo; migrate them to erf.zlo.most.* "
+                    "and erf.zlo.surface_layer.*.");
+        }
+    }
+
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
@@ -1287,9 +1315,11 @@ ERF::InitData_post ()
                 }
             }
 
-            // If only one surface layer, assume it is on zlo and omit the face prefix to be backwards compatible
+            // Keep the historical unqualified prefix for a single zlo face,
+            // and for multiple faces when legacy zlo inputs were detected.
             std::string face_pp_prefix(pp_prefix + "." + BoundaryFaceName[ori]);
-            if (n_faces == 1 && static_cast<int>(ori) == Orientation::zlo()) {
+            if ((n_faces == 1 || use_legacy_zlo_prefix) &&
+                static_cast<int>(ori) == Orientation::zlo()) {
                 face_pp_prefix = pp_prefix;
             }
             m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, face_pp_prefix, Qv_prim,
@@ -3689,4 +3719,20 @@ ERF::check_mesh_type(int lev)
            }
        }
    }
+}
+
+bool
+ERF::has_surface_layer_inputs (const std::string& prefix)
+{
+    const auto entries = ParmParse::getEntries(prefix);
+    const std::string most_prefix = prefix + ".most.";
+    const std::string surface_layer_prefix = prefix + ".surface_layer.";
+
+    for (const auto& key : entries) {
+        if (key.compare(0, most_prefix.size(), most_prefix) == 0 ||
+            key.compare(0, surface_layer_prefix.size(), surface_layer_prefix) == 0) {
+            return true;
+        }
+    }
+    return false;
 }

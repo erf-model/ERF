@@ -151,6 +151,12 @@ public:
           amrex::Abort("Undefined PBLH calc type!");
       }
 
+      if (pblh_type != PBLHeightCalcType::None || m_include_wstar) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "MOST PBL-height calculation and wstar correction are supported only on the z-low face.");
+      }
+
       // The w* correction is computed from the PBL height, so it needs a scheme that
       // actually diagnoses one.  With pblh_calc = "none" the pblh MultiFab keeps the
       // bogus_large_value it was initialized with and calc_wstar turns that into a
@@ -245,6 +251,14 @@ public:
           }
       }
 
+      if (theta_type == ThetaCalcType::HEAT_FLUX ||
+          (theta_type == ThetaCalcType::ADIABATIC &&
+           moist_type == MoistCalcType::ADIABATIC)) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "HEAT_FLUX and ADIABATIC surface-layer fluxes are supported only on the z-low face.");
+      }
+
       if (flux_type == FluxCalcType::RICO)
       {
           pp.queryAdd("most.rico.theta_z0", rico_theta_z0);
@@ -316,6 +330,12 @@ public:
           rough_type_sea = RoughCalcType::CONSTANT;
       } else {
           amrex::Abort("Undefined MOST roughness type for sea!");
+      }
+
+      if (rough_type_sea != RoughCalcType::CONSTANT) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow(),
+              "Variable sea roughness surface-layer fluxes are supported only on the z-low face.");
       }
 
       // use skin temperature instead of sea-surface temperature
@@ -611,11 +631,15 @@ public:
             b.setRange(dir,sm_index);
           }
           ba_flux = amrex::BoxArray(std::move(bl2d));
-          // The selected wall-normal direction is collapsed. Retain ghosts in
-          // every tangential direction, including x/y ghosts on z faces and z
-          // ghosts on lateral faces, for the surface-layer stencil.
-          ng = mf.nGrowVect();
-          ng[dir] = 0;
+          // Lateral faces need state-width ghosts in the tangential z
+          // direction.  A z face only needs the original one-cell x/y halo;
+          // kernels using the wider state/mask boxes clip to the FAB bounds.
+          if (dir == 2) {
+              ng = amrex::IntVect{1,1,0};
+          } else {
+              ng = mf.nGrowVect();
+              ng[dir] = 0;
+          }
       }
 
       const amrex::DistributionMapping& dm = mf.DistributionMap();

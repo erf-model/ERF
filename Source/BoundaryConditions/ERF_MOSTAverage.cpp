@@ -1043,9 +1043,24 @@ MOSTAverage::set_k_indices_T (const int& lev)
             }
 
             const Box& z_phys_fab = m_z_phys_nd[lev]->fabbox(mfi.index());
+            // The z_phys FAB may cover only one slab of a vertically
+            // decomposed domain.  The zlo search starts at the bottom and
+            // normally finds the reference cell before leaving that FAB, so
+            // it must not require the domain-wide top node.  The zhi search
+            // does require the top node because that is its first interval.
+            if (!is_lo_face) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    z_phys_fab.bigEnd(2) >= top_node,
+                    "Terrain FAB does not contain the top nodal plane.");
+            }
+            const int search_last_cell = is_lo_face
+                ? min(zhi, z_phys_fab.bigEnd(2) - 1)
+                : max(zlo, z_phys_fab.smallEnd(2));
+            const int first_search_cell = is_lo_face ? zlo : zhi;
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                z_phys_fab.bigEnd(2) >= top_node,
-                "Terrain FAB does not contain the top nodal plane.");
+                (is_lo_face && search_last_cell >= first_search_cell) ||
+                (!is_lo_face && search_last_cell <= first_search_cell),
+                "Terrain FAB does not contain a complete search interval.");
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto k_arr = m_k_indx[lev]->array(mfi);
             auto zref_arr = m_zref[lev]->array(mfi);
@@ -1064,7 +1079,6 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 const Real z_face = z_at(i, j, face_node);
                 const Real z_target = z_face + (is_lo_face ? d_zref : -d_zref);
                 const int first_cell = is_lo_face ? zlo : zhi;
-                const int last_cell = is_lo_face ? zhi : zlo;
                 const int cell_step = is_lo_face ? 1 : -1;
                 k_arr(i,j,k) = first_cell;
 
@@ -1091,7 +1105,11 @@ MOSTAverage::set_k_indices_T (const int& lev)
                         found = true;
                         break;
                     }
-                    if (cell == last_cell) { break; }
+                    // z_at(cell) reads both cell nodes, so stop at the last
+                    // interval available in this FAB.  If the reference
+                    // height is not available locally, the assertion below
+                    // reports the problem instead of reading another slab.
+                    if (cell == search_last_cell) { break; }
                 }
 
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found,
@@ -1592,8 +1610,12 @@ MOSTAverage::compute_plane_averages (const int& lev)
                     ? k_indx->const_array(mfi) : Array4<const int>{};
                 auto j_arr  = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr  = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
+                // Spatial index fields are populated in their ghost cells
+                // for local averaging.  Clamp to the FAB extent, not just
+                // the valid box, so those terrain-dependent ghost indices
+                // remain available.
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
@@ -1710,7 +1732,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
@@ -1856,7 +1878,7 @@ MOSTAverage::compute_plane_averages (const int& lev)
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
@@ -2153,7 +2175,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const int ki = use_spatial_indices
@@ -2284,7 +2306,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const int ki = use_spatial_indices
@@ -2430,7 +2452,7 @@ MOSTAverage::compute_region_averages (const int& lev)
                 auto j_arr = j_indx ? j_indx->const_array(mfi) : Array4<const int> {};
                 auto i_arr = i_indx ? i_indx->const_array(mfi) : Array4<const int> {};
                 const Box k_box = use_spatial_indices
-                    ? k_indx->boxArray()[mfi.index()] : Box{};
+                    ? k_indx->fabbox(mfi.index()) : Box{};
                 ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     const int ki = use_spatial_indices

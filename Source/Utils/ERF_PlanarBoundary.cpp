@@ -3,6 +3,8 @@
  */
 #include <ERF_PlanarBoundary.H>
 
+#include <algorithm>
+
 using namespace amrex;
 
 /**
@@ -103,7 +105,7 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 
 /**
  * Gather buffer for one target layout, index type, and number of components, allocated on
- * first use.
+ * first use.  The source MultiFab list avoids rebuilding the layout key on every fill.
  *
  * @param[in] mf planar MultiFab to buffer
  */
@@ -112,6 +114,20 @@ PlanarBoundary::buffer (const MultiFab& mf)
 {
     const IndexType ixtype = mf.ixType();
     const int ncomp = mf.nComp();
+
+    // define() clears m_buffers whenever the underlying layout changes, so a
+    // source pointer is a stable per-field cache key for the lifetime of this
+    // PlanarBoundary definition.
+    for (auto& b : m_buffers) {
+        if (b.ixtype == ixtype && b.ncomp == ncomp &&
+            std::find(b.sources.begin(), b.sources.end(), &mf) != b.sources.end()) {
+            return *b.mf;
+        }
+    }
+
+    // Only an unfamiliar source field needs the more expensive derived-layout
+    // construction below.  Fields with the same layout continue to share one
+    // gather buffer.
     BoxList bl_sfc(ixtype);
     Vector<int> pmap;
     for (int src : m_src_index) {
@@ -123,10 +139,11 @@ PlanarBoundary::buffer (const MultiFab& mf)
 
     for (auto& b : m_buffers) {
         if (b.ixtype == ixtype && b.ncomp == ncomp && b.ba == ba && b.dm == dm) {
+            b.sources.push_back(&mf);
             return *b.mf;
         }
     }
-    m_buffers.push_back(Buffer{ixtype, ncomp, ba, dm,
+    m_buffers.push_back(Buffer{ixtype, ncomp, ba, dm, {&mf},
                                std::make_unique<MultiFab>(ba, dm, ncomp, 0)});
     return *m_buffers.back().mf;
 }
