@@ -21,7 +21,7 @@ Install the `armlive_getfiles` utility directly from GitHub:
 
 ### 3. Get the python script
 ```bash
-pip install git+[https://code.ornl.gov/ofg/armlive_getfiles.git](https://code.ornl.gov/ofg/armlive_getfiles.git)
+pip install git+https://code.ornl.gov/ofg/armlive_getfiles.git
 ```
 
 ### 4. Get data
@@ -29,9 +29,13 @@ Specify the username and token and the datastream (for eg. sgpmetE13.b1), and st
 ```bash
 getARMFiles -u <username>:<token> -ds <datastream> -s <start_date> -e <end_date>
 ```
-For eg.
+For eg. for the Southern Great Plains
 ```bash
 getARMFiles -u <username>:<token> -ds sgpmetE13.b1 -s 2025-04-02 -e 2025-04-07
+```
+or for eg., for Gunisson CO (SAIL)
+```
+getARMFiles -u <username>:<token> -ds gucwbpluvio2M1.a1  -s 2021-12-23 -e 2022-01-01
 ```
 
 ### 5. Plot the data

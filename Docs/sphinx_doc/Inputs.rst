@@ -2467,6 +2467,27 @@ hurricane eye through the run.
 |                                           | ``io_hurricane_eye_tracker`` is true                     |                    |                  |
 +-------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
+.. _inputs_weather_station_tracker:
+
+.. _sec:WeatherStationTrackerInputs:
+
+Weather Station Tracker
+------------------------
+
+Capability to output text files to produce line plots of quantities of interest vs time at a given weather station specified by the latitude and longitude. Currently only the rain accumulation at the ground is written into the output. More options will be made available soon. The options are the following:
+
++-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
+| Parameter                         | Definition                                                      | Acceptable Values  | Default    |
++===================================+=================================================================+====================+============+
+| **erf.io_station_tracker**        | required if the weather tracker output needs to be written out  | Boolean            | false      |
++-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
+| **erf.station_latitude**          | latitude of the weather station in deg N                        | Real               | must be set|
++-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
+| **erf.station_longitude**         | longitude of the weather station in deg W                       | Real               | must be set|
++-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
+| **erf.station_plot_freq**         | frequency in which to write the output                          | Integer            | must be set|
++-----------------------------------+-----------------------------------------------------------------+--------------------+------------+
+
 Boundary Plane I/O (Coupling Support)
 =====================================
 
@@ -4506,6 +4527,12 @@ Hindcast Forcing and Hurricane Tracking
   ``erf.hindcast_zhi_sponge_damping``, ``erf.hindcast_zhi_sponge_length``,
   ``erf.hindcast_zhi_sponge_strength``, ``erf.hurricane_eye_latitude``,
   ``erf.hurricane_eye_longitude``, ``erf.io_hurricane_eye_tracker``
+
+Weather Station Tracker
+------------------------
+
+* :ref:`Weather Station Tracker Inputs <inputs_weather_station_tracker>` -- ``erf.io_station_tracker``, ``erf.station_latitude``,
+  ``erf.station_longitude``, ``erf.station_plot_freq``
 
 Diagnostics and Testing
 -----------------------

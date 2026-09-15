@@ -139,3 +139,21 @@ ERF::WriteVTKPolyline(const std::string& filename,
 
     vtkfile.close();
 }
+
+void
+ERF::MakeStationTrackerDirectory(const std::string& station_tracker_dir) {
+    if (!fs::exists(station_tracker_dir)) {
+        fs::create_directory(station_tracker_dir);
+    }
+}
+
+std::string
+ERF::MakeStationTrackerFilename(const std::string& basename,
+                                const int nstep)
+{
+    std::ostringstream filename;
+    filename << "StationTracker/" << basename << "_"
+             << std::setw(6) << std::setfill('0') << nstep << ".txt";;
+
+    return filename.str();
+}
