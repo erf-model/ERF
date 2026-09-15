@@ -140,10 +140,14 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     const MultiFab* olen2d = nullptr;
     const MultiFab* pblh2d = nullptr;
     Real z_i_bulk = 0.0;
-    if (m_SurfaceLayer && ibseb_params.stability_correction) { olen2d = m_SurfaceLayer->get_olen(lev); }
+    // The surface layer now exists per domain face.  What the wall function wants
+    // here is the ground beneath the buildings, so take zlo; a surface layer on a
+    // lateral or upper wall says nothing about the stability of this column.
+    const auto& ground_sl = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+    if (ground_sl && ibseb_params.stability_correction) { olen2d = ground_sl->get_olen(lev); }
     if (ibseb_params.convective_velocity == "deardorff") {
-        if (m_SurfaceLayer && m_SurfaceLayer->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
-            pblh2d = m_SurfaceLayer->get_pblh(lev);
+        if (ground_sl && ground_sl->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
+            pblh2d = ground_sl->get_pblh(lev);
         }
         z_i_bulk = (ibseb_params.z_i_mode == "fixed") ? ibseb_params.z_i
                                                      : ibseb_bulk_richardson_height(lev, cons, xvel, yvel);
