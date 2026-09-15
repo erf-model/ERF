@@ -148,6 +148,18 @@ Radiation::Radiation (const int& lev,
     // Determine whether or not we are using a fixed solar zenith angle (positive value)
     pp.queryAdd("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
 
+    // The same checks the two-stream model applies to these shared inputs
+    // (RadChoice::init_params): the fixed zenith input is a cosine, and the
+    // surface temperature must be a temperature.
+    if (m_fixed_solar_zenith_angle > Real(1.0)) {
+        amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(m_fixed_solar_zenith_angle) +
+                     " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
+    }
+    if (!std::isfinite(m_rad_t_sfc) || m_rad_t_sfc <= Real(0.0)) {
+        amrex::Abort("erf.rad_t_sfc = " + std::to_string(m_rad_t_sfc) +
+                     " must be a positive temperature [K].");
+    }
+
     // Get prescribed surface values of greenhouse gases
     pp.queryAdd("co2vmr", m_co2vmr);
     pp.queryarr("o3vmr" , m_o3vmr );

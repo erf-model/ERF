@@ -90,19 +90,19 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
     // hundred series terms and six vectors, so once per year, not per step.
     if (orbit.year != year) {
         int  iyear = year;
-        real eccen = rc.rad_orbital_eccentricity;
-        real obliq = rc.rad_orbital_obliquity;
-        real mvelp = rc.rad_orbital_mvelp;
-        real obliqr = 0.0, lambm0 = 0.0, mvelpp = 0.0;
+        double eccen = rc.rad_orbital_eccentricity;
+        double obliq = rc.rad_orbital_obliquity;
+        double mvelp = rc.rad_orbital_mvelp;
+        double obliqr = 0.0, lambm0 = 0.0, mvelpp = 0.0;
         orbital_params(iyear, eccen, obliq, mvelp, obliqr, lambm0, mvelpp);
         orbit.year = year;
         orbit.eccen = eccen; orbit.obliqr = obliqr; orbit.lambm0 = lambm0; orbit.mvelpp = mvelpp;
     }
 
     // Declination and Earth-Sun distance factor of the day.
-    real calday = orbital_calday(year, mon, day, sec);
-    real eccen = orbit.eccen, mvelpp = orbit.mvelpp, lambm0 = orbit.lambm0, obliqr = orbit.obliqr;
-    real delta = 0.0, eccf = 1.0;
+    double calday = orbital_calday(year, mon, day, sec);
+    double eccen = orbit.eccen, mvelpp = orbit.mvelpp, lambm0 = orbit.lambm0, obliqr = orbit.obliqr;
+    double delta = 0.0, eccf = 1.0;
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     p.calday = static_cast<amrex::Real>(calday);
@@ -611,6 +611,8 @@ TwoStreamRadiation::advance (int lev,
             bool t_sfc_is_theta = false;   // the surface layer works in potential temperature
             Array4<const amrex::Real> t_sfc_arr;
             {
+                // Each source is tried in turn, so an LSM that lists the
+                // field but hands back no data falls through to the next one.
                 std::string varname_t_sfc = "t_sfc";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {
@@ -619,14 +621,17 @@ TwoStreamRadiation::advance (int lev,
                         t_sfc_arr = lsm_ptr->const_array(mfi);
                         has_t_sfc_field = true;
                     }
-                } else if (rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
+                }
+                if (!has_t_sfc_field && rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
                     t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
-                } else if (t_surf != nullptr) {
+                }
+                if (!has_t_sfc_field && t_surf != nullptr) {
                     t_sfc_arr = t_surf->const_array(mfi);
                     has_t_sfc_field = true;
                     t_sfc_is_theta = true;
-                } else if (m_t_sfc[lev]) {
+                }
+                if (!has_t_sfc_field && m_t_sfc[lev]) {
                     t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
                 }
