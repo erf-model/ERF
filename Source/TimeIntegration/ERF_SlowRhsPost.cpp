@@ -76,7 +76,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* Diss,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
-                        std::unique_ptr<SurfaceLayer>& SurfLayer,
+                        const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
@@ -112,13 +112,14 @@ void erf_slow_rhs_post (int level, int finest_level,
     TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab*  t_mean_mf = nullptr;
-    if (SurfLayer) { t_mean_mf = SurfLayer->get_mac_avg(level,2); }
+    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,3); }
 
     const bool l_use_terrain      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
-    const bool l_anelastic   = solverChoice.anelastic[level];
+    const bool l_anelastic     = solverChoice.anelastic[level];
+    const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
     // Only add to the flux registers on the final RK stage.  The anelastic integrator
     // takes two stages (nrk = 0,1) and the compressible one takes three (nrk = 0,1,2),
@@ -134,7 +135,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // writes AL01 Eq. 16 into the first cell of S_old at the start of the
     // step; keep that value through every RK stage.
     const bool l_dirichlet_k    = ( tc.rans_type == RANSType::kEqn && tc.dirichlet_k &&
-                                    (SurfLayer != nullptr) );
+                                    (SurfLayer[Orientation(Direction::z, Orientation::low)] != nullptr) );
     // Implicit TKE dissipation: eps = c * (rho k)_new with c = diss_old / (rho k)_old,
     // i.e. Cmu0^3 sqrt(k_old) / L; the source skips the explicit sink and the
     // update divides by (1 + dt c).
@@ -150,11 +151,19 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_do_scalar      = (solverChoice.transport_scalar);
     const bool l_use_eb         = (solverChoice.terrain_type == TerrainType::EB);
 
+    auto any_SurfLayer = [&SurfLayer_ = SurfLayer]() -> bool {
+        for (auto it = SurfLayer_.begin(); it != SurfLayer_.end(); it++)
+        {
+            if (*it != nullptr) { return true; }
+        }
+        return false;
+    };
+
     amrex::ignore_unused(m_r2d);
 
     const Box& domain = geom.Domain();
 
-    bool l_apply_surface_layer_fluxes_in_diffusion = (SurfLayer != nullptr);
+    bool l_apply_surface_layer_fluxes_in_diffusion = any_SurfLayer();
 #ifdef ERF_USE_EAMXX_SHOC
     if (tc.uses_eamxx_shoc()) {
         l_apply_surface_layer_fluxes_in_diffusion = false;
@@ -557,9 +566,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                stretched_dz_d, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_z, q1fx_z, q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
                                                new_cons, cur_prim, cell_rhs,
@@ -570,7 +579,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_eb) {
                         DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
@@ -580,16 +589,16 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                 dx, dxInv,
                                                 hfx_z, q1fx_z, q2fx_z, hfx_EB,
                                                 mu_turb, solverChoice, level,
-                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion);
+                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_z, q1fx_z, q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, l_vert_implicit_fac);
+                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     }
                     if (use_physical_chamber_wall_flux) {
                         // Apply the physical wall correction immediately to
@@ -655,7 +664,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else if (l_anelastic && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
+                } else if (l_anelastic && l_anelastic_rk2 && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
 
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -818,13 +827,15 @@ void erf_slow_rhs_post (int level, int finest_level,
       } // mfi
     } // OMP
     if (cloud_budget && l_use_diff && n_qstate > 0) {
+        bool use_trapezoidal = (!l_anelastic || l_anelastic_rk2);
         for (int qstate = 0; qstate < n_qstate; ++qstate) {
             MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
             MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
             MultiFab qflux_z(*dflux_z, make_alias, qstate, 1);
             cloud_budget->capture_stage(
                 qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
-                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom);
+                nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom,
+                0, use_trapezoidal);
         }
     }
 }

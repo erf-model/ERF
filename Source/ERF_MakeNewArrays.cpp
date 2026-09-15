@@ -296,19 +296,25 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Define Theta_prim storage if using surface_layer BC
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-        if (solverChoice.moisture_type != MoistureType::None) {
-            Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-            Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-        } else {
-            Qv_prim[lev]    = nullptr;
-            Qr_prim[lev]    = nullptr;
+    Theta_prim[lev] = nullptr;
+    Qv_prim[lev]    = nullptr;
+    Qr_prim[lev]    = nullptr;
+
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            amrex::Print() << " Found MOST at face " << ori << " : Constructing primitive vars for MOST.." << std::endl;
+            Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+            if (solverChoice.moisture_type != MoistureType::None) {
+                Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+                Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+            } else {
+                Qv_prim[lev]    = nullptr;
+                Qr_prim[lev]    = nullptr;
+            }
+            // these only need to be defined once
+            break;
         }
-    } else {
-        Theta_prim[lev] = nullptr;
-        Qv_prim[lev]    = nullptr;
-        Qr_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************
@@ -677,6 +683,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
+    bool l_Surf_X      = phys_bc_type[Orientation::xlo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::xhi()] == ERF_BC::surface_layer;
+    bool l_Surf_Y      = phys_bc_type[Orientation::ylo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::yhi()] == ERF_BC::surface_layer;
+
 
     bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
                             solverChoice.vert_implicit_fac[lev][1] > 0 ||
@@ -709,7 +718,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau12]->setVal(zero);
         Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau13]->setVal(zero);
         Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau23]->setVal(zero);
-        if (l_use_terrain) {
+        if (l_use_terrain || (l_Surf_X || l_Surf_Y)) {
             Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau21]->setVal(zero);
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
@@ -785,7 +794,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q1fx3_lev[lev]->setVal(zero);
             SFS_q2fx3_lev[lev]->setVal(zero);
-            if (l_rotate) {
+            if (l_rotate || (l_Surf_X || l_Surf_Y)) {
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx1_lev[lev]->setVal(zero);
@@ -805,6 +814,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][i] = nullptr;
         }
         SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+        SFS_q1fx1_lev[lev] = nullptr; SFS_q1fx2_lev[lev] = nullptr; SFS_q1fx3_lev[lev] = nullptr;
+        SFS_q2fx3_lev[lev] = nullptr;
         SFS_diss_lev[lev] = nullptr;
     }
 
@@ -1274,6 +1285,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping((solverChoice.substepping_type[lev] == SubsteppingType::None));
     mri_integrator_mem[lev]->setAnelastic(solverChoice.anelastic[lev]);
+    mri_integrator_mem[lev]->setAnelasticType(solverChoice.anelastic_type[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }

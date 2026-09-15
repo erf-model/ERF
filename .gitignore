@@ -75,6 +75,7 @@ build_*.log
 __pycache__
 
 # Development scratch and run artifacts
+Source/ImmersedBoundarySEB/IBSEB_DEVELOPMENT.md
 Exec/.DevTests/
 Exec/CanonicalTests/Radiation/RAD_DEVELOPMENT.md
 Exec/CanonicalTests/Radiation/RAD_MPI_SKILLS.md

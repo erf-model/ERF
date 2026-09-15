@@ -57,6 +57,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -695,6 +696,15 @@ public:
 
     void init_immersed_forcing (int lev);
 
+    // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
+    void init_ibseb ();
+    void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
+    void ibseb_report (int nstep, amrex::Real time);
+    amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
+                                              const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
+    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt, const amrex::MultiFab& cons,
+                        const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel);
+
     void input_sponge (int lev);
 
     void init_from_hse (int lev);
@@ -890,6 +900,8 @@ private:
     // read in some parameters from inputs file
     void ReadParameters ();
     void ParameterSanityChecks ();
+
+    static bool has_surface_layer_inputs (const std::string& prefix);
 
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();
@@ -1282,6 +1294,10 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
+    // Immersed-boundary surface energy balance: inputs and one face set per level
+    IBSEBParams ibseb_params;
+    amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
+
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
@@ -1509,13 +1525,18 @@ private:
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
+                                                    "ibseb_nfaces", "ibseb_tskin",
+                                                    "ibseb_sw_abs", "ibseb_shadow",
+                                                    "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G",
                                                     // EB variables
                                                     "volfrac"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-                                                    ,"qsrc_sw", "qsrc_lw"
+                                                    ,"qsrc_sw", "qsrc_lw",
+                                                    "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23", "Tau31", "Tau32", "Tau33",
+                                                    "hfx1", "hfx2", "hfx3", "q1fx1", "q1fx2", "q1fx3", "q2fx3"
                                                    };
 
     // **************************************************************************************
@@ -1728,7 +1749,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
+    amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //
