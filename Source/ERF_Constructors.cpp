@@ -343,6 +343,7 @@ ERF::ERF_shared ()
     th_bc_data.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
+    sbm_flux_reg.resize(nlevs_max);
 
     // Stresses
     Tau.resize(nlevs_max);

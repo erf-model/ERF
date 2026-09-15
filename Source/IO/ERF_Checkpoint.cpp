@@ -14,6 +14,7 @@
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
+#include "ERF_SBMRestart.H"
 
 using namespace amrex;
 
@@ -235,6 +236,14 @@ ERF::WriteCheckpointFile () const
         }
     }
 
+    if (solverChoice.moisture_type == MoistureType::SBM && sbm_layout != nullptr &&
+        sbm_auxiliary != nullptr && ParallelDescriptor::IOProcessor()) {
+        const auto schema = ::erf_sbm::make_checkpoint_schema(
+            *sbm_layout, "complete-groups-v1", solverChoice.sbm_transport_method,
+            "gamma-k-v1");
+        ::erf_sbm::write_checkpoint_schema(checkpointname + "/SBM_Schema", schema);
+    }
+
     // write the MultiFab data to, e.g., chk00010/Level_0/
     // Here we make copies of the MultiFab with no ghost cells
     for (int lev = 0; lev <= finest_level; ++lev)
@@ -242,6 +251,13 @@ ERF::WriteCheckpointFile () const
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,ncomp_cons,0);
         VisMF::Write(cons, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
+
+        if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
+            sbm_auxiliary->has_level(lev)) {
+            MultiFab sbm_aux(grids[lev], dmap[lev], sbm_layout->ncomp(), 0);
+            MultiFab::Copy(sbm_aux, sbm_auxiliary->output(lev), 0, 0, sbm_layout->ncomp(), 0);
+            VisMF::Write(sbm_aux, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SBMAux"));
+        }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         MultiFab::Copy(xvel,vars_new[lev][Vars::xvel],0,0,1,0);
@@ -668,6 +684,21 @@ ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
+    if (solverChoice.moisture_type == MoistureType::SBM) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_layout != nullptr && sbm_auxiliary != nullptr,
+                                         "SBM restart requires allocated layout and auxiliary manager");
+        const std::string schema_path = restart_chkfile + "/SBM_Schema";
+        if (!amrex::FileExists(schema_path)) {
+            amrex::Error("SBM restart requires the strict P2 auxiliary schema file: " + schema_path);
+        }
+        const auto expected = ::erf_sbm::make_checkpoint_schema(
+            *sbm_layout, "complete-groups-v1", solverChoice.sbm_transport_method,
+            "gamma-k-v1");
+        const auto actual = ::erf_sbm::read_checkpoint_schema(schema_path);
+        const auto mismatch = ::erf_sbm::compare_checkpoint_schema(expected, actual);
+        if (!mismatch.empty()) amrex::Error(mismatch);
+    }
+
     const auto provenance_result =
         erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
     if (provenance_result.valid() &&
@@ -952,6 +983,50 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
             vars_new[lev][Vars::cons].setBndry(bogus_large_value);
+        }
+
+        if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary->has_level(lev)) {
+            const std::string aux_name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SBMAux");
+            if (!amrex::FileExists(aux_name + "_H")) {
+                amrex::Error("SBM restart is missing authoritative auxiliary state: " + aux_name);
+            }
+            MultiFab aux(grids[lev], dmap[lev], sbm_layout->ncomp(), 0);
+            VisMF::Read(aux, aux_name);
+            MultiFab::Copy(sbm_auxiliary->output(lev), aux, 0, 0, sbm_layout->ncomp(), 0);
+            sbm_auxiliary->output(lev).FillBoundary(geom[lev].periodicity());
+            MultiFab::Copy(sbm_auxiliary->old(lev), sbm_auxiliary->output(lev), 0, 0,
+                           sbm_layout->ncomp(), sbm_auxiliary->output(lev).nGrowVect());
+            MultiFab::Copy(sbm_auxiliary->evaluation(lev), sbm_auxiliary->output(lev), 0, 0,
+                           sbm_layout->ncomp(), sbm_auxiliary->output(lev).nGrowVect());
+            const auto& liquid = sbm_layout->populations().front();
+            const int split = sbm_layout->liquid_projection().cloud_rain_split;
+            MultiFab projection(grids[lev], dmap[lev], 2, 0);
+            MultiFab error(grids[lev], dmap[lev], 1, 0);
+            for (MFIter mfi(projection); mfi.isValid(); ++mfi) {
+                const Box box = mfi.validbox();
+                const auto aux_arr = sbm_auxiliary->output(lev).const_array(mfi);
+                const auto projected = projection.array(mfi);
+                const auto core_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const auto error_arr = error.array(mfi);
+                const int mass_offset = liquid.mass_offset;
+                const int nbins = liquid.grid.nbins();
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real qc = 0.0; Real qr = 0.0;
+                    for (int b = 0; b < split; ++b) qc += aux_arr(i,j,k,mass_offset+b);
+                    for (int b = split; b < nbins; ++b) qr += aux_arr(i,j,k,mass_offset+b);
+                    projected(i,j,k,0) = qc; projected(i,j,k,1) = qr;
+                    error_arr(i,j,k) = amrex::max(amrex::Math::abs(qc-core_arr(i,j,k,RhoQ2_comp)),
+                                                  amrex::Math::abs(qr-core_arr(i,j,k,RhoQ3_comp)));
+                });
+            }
+            const Real projection_error = error.max(0);
+            const Real projection_scale = amrex::max(amrex::Real(1.0),
+                amrex::max(vars_new[lev][Vars::cons].norm0(RhoQ2_comp),
+                           vars_new[lev][Vars::cons].norm0(RhoQ3_comp)));
+            if (!::erf_sbm::compare_projection(projection_error, 0.0, projection_scale,
+                                               sbm_layout->ncomp())) {
+                amrex::Error("SBM restart auxiliary state disagrees with checkpointed compact projection before overwrite");
+            }
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);

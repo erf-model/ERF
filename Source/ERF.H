@@ -1151,8 +1151,8 @@ private:
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
     std::unique_ptr<::erf_auxiliary::AuxiliaryStateManager> sbm_auxiliary;
-    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> sbm_accepted_bulk_face_transfer;
-    std::unique_ptr<amrex::MultiFab> sbm_initial_bulk_state;
+    amrex::Vector<std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer>> sbm_accepted_bulk_face_transfer;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sbm_initial_bulk_state;
     int sbm_step_count{0};
     std::unique_ptr<::erf_sbm::OwnershipRegistry> sbm_ownership;
     std::unique_ptr<::erf_sbm::SBMLayout> sbm_layout;
@@ -1324,6 +1324,10 @@ private:
 
     // array of flux registers
     amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
+    // Provider-owned spectral flux registers.  These use the same physical
+    // per-area flux / dt contract as ERF's native registers, but remain
+    // separate from compact moisture storage.
+    amrex::Vector<amrex::YAFluxRegister*> sbm_flux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec

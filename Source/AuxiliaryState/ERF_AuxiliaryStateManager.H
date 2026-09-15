@@ -5,6 +5,7 @@
 #include "ERF_AuxiliaryFaceTransfer.H"
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_Geometry.H>
 
 #include <memory>
 #include <utility>
@@ -24,12 +25,27 @@ public:
 
     void define_level(int level, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm, int ngrow = 1);
+    void remake_level(int level, const amrex::BoxArray& ba,
+                      const amrex::DistributionMapping& dm, int ngrow = 1,
+                      const amrex::Periodicity& periodicity = amrex::Periodicity::NonPeriodic());
+    void destroy_level(int level);
+    void average_down_to(int coarse_level, int fine_level,
+                         const amrex::IntVect& ref_ratio);
+    void prolong_from_coarse(int coarse_level, int fine_level,
+                             const amrex::Geometry& coarse_geometry,
+                             const amrex::Geometry& fine_geometry,
+                             const amrex::IntVect& ref_ratio);
     void begin_step(int level);
     void accept_stage(int level);
     void record_stage_face_transfer(int level, const StageContext& context,
                                     const AuxiliaryFaceTransfer& stage_flux);
 
     [[nodiscard]] bool active() const noexcept { return !m_layout.schema_id().empty(); }
+    [[nodiscard]] bool has_level(const int level) const noexcept {
+        return level >= 0 && static_cast<std::size_t>(level) < m_output.size() &&
+               m_output[static_cast<std::size_t>(level)] != nullptr;
+    }
+    [[nodiscard]] int nlevels() const noexcept { return static_cast<int>(m_output.size()); }
     [[nodiscard]] const AuxiliaryStateLayout& layout() const noexcept { return m_layout; }
     [[nodiscard]] amrex::MultiFab& old(int level) { return *m_old.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] amrex::MultiFab& evaluation(int level) { return *m_evaluation.at(static_cast<std::size_t>(level)); }
@@ -51,6 +67,7 @@ public:
     }
 
 private:
+    void recompute_resident_bytes() noexcept;
     AuxiliaryStateLayout m_layout;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_old;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_evaluation;

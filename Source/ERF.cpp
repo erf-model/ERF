@@ -21,6 +21,8 @@
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_SrcHeaders.H"
+#include "ERF_SBMBulkProjection.H"
+#include "ERF_SBMTransportPrototype.H"
 //#include "ERF_BuoyancyUtils.H"
 
 #ifdef ERF_USE_NETCDF
@@ -430,6 +432,25 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 }
             } // mfi
 
+            if (solverChoice.moisture_type == MoistureType::SBM &&
+                sbm_auxiliary != nullptr && sbm_layout != nullptr &&
+                sbm_auxiliary->has_level(lev) && sbm_flux_reg[lev+1] != nullptr) {
+                // Reflux the provider-owned authoritative spectrum with the
+                // exact same YAFluxRegister physical-transfer convention used
+                // during stage registration.  Compact qc/qr are then
+                // overwritten from that spectrum, never independently
+                // refluxed as a second provider state.
+                sbm_flux_reg[lev+1]->Reflux(sbm_auxiliary->output(lev), 0);
+                ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
+                const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
+                for (MFIter mfi(sbm_auxiliary->output(lev)); mfi.isValid(); ++mfi) {
+                    projection.apply_to_core(mfi.validbox(),
+                                             sbm_auxiliary->output(lev).const_array(mfi),
+                                             vars_new[lev][Vars::cons].array(mfi));
+                }
+                vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
+            }
+
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
@@ -441,6 +462,18 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             }
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
+            if (solverChoice.moisture_type == MoistureType::SBM &&
+                sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev) &&
+                sbm_auxiliary->has_level(lev+1)) {
+                sbm_auxiliary->average_down_to(lev, lev+1, refRatio(lev));
+                const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
+                for (MFIter mfi(sbm_auxiliary->output(lev)); mfi.isValid(); ++mfi) {
+                    projection.apply_to_core(mfi.validbox(),
+                                             sbm_auxiliary->output(lev).const_array(mfi),
+                                             vars_new[lev][Vars::cons].array(mfi));
+                }
+                vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
+            }
         }
     }
 

@@ -284,12 +284,22 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.coupling_type == CouplingType::TwoWay) {
         if (lev == 0) {
             advflux_reg[0] = nullptr;
+            sbm_flux_reg[0] = nullptr;
         } else {
             int ncomp_reflux = vars_new[0][Vars::cons].nComp();
             advflux_reg[lev] = new YAFluxRegister(ba       , grids[lev-1],
                                                   dm       ,  dmap[lev-1],
                                                   geom[lev],  geom[lev-1],
                                                   ref_ratio[lev-1], lev, ncomp_reflux);
+            if (solverChoice.moisture_type == MoistureType::SBM && sbm_layout != nullptr) {
+                sbm_flux_reg[lev] = new YAFluxRegister(ba, grids[lev-1],
+                                                        dm, dmap[lev-1],
+                                                        geom[lev], geom[lev-1],
+                                                        ref_ratio[lev-1], lev,
+                                                        sbm_layout->ncomp());
+            } else {
+                sbm_flux_reg[lev] = nullptr;
+            }
         }
     }
 

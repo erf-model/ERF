@@ -163,49 +163,58 @@ void write_sbm_diagnostic(const std::string& path,
 void ERF::initialize_sbm_auxiliary(const int lev)
 {
     if (solverChoice.moisture_type != MoistureType::SBM) return;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0, "SBM P1 auxiliary state is level-0 only");
     AMREX_ALWAYS_ASSERT(sbm_layout != nullptr);
-    if (!restart_chkfile.empty()) {
-        amrex::Error("SBM P1 restart is unsupported: no auxiliary-state checkpoint/schema conversion is implemented");
-    }
-    sbm_step_count = 0;
+    if (lev < 0) amrex::Error("SBM level index must be nonnegative");
+    if (lev == 0) sbm_step_count = 0;
     if (!sbm_auxiliary) {
         sbm_auxiliary = std::make_unique<::erf_auxiliary::AuxiliaryStateManager>(sbm_layout->auxiliary_layout());
     }
-    if (!sbm_accepted_bulk_face_transfer) {
-        sbm_accepted_bulk_face_transfer = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
-        sbm_accepted_bulk_face_transfer->define(grids[0], dmap[0], 2, 0);
+    if (static_cast<int>(sbm_accepted_bulk_face_transfer.size()) <= lev) {
+        sbm_accepted_bulk_face_transfer.resize(static_cast<std::size_t>(lev + 1));
     }
-    if (!sbm_initial_bulk_state) {
-        sbm_initial_bulk_state = std::make_unique<amrex::MultiFab>(
-            grids[0], dmap[0], 2, 0);
-        sbm_initial_bulk_state->setVal(Real(0.0));
+    if (!sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]) {
+        sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)] =
+            std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
+        sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]->define(grids[lev], dmap[lev], 2, 0);
+    }
+    if (static_cast<int>(sbm_initial_bulk_state.size()) <= lev) {
+        sbm_initial_bulk_state.resize(static_cast<std::size_t>(lev + 1));
+    }
+    if (!sbm_initial_bulk_state[static_cast<std::size_t>(lev)]) {
+        sbm_initial_bulk_state[static_cast<std::size_t>(lev)] =
+            std::make_unique<amrex::MultiFab>(grids[lev], dmap[lev], 2, 0);
+        sbm_initial_bulk_state[static_cast<std::size_t>(lev)]->setVal(Real(0.0));
     }
     if (!sbm_ownership) {
         sbm_ownership = std::make_unique<::erf_sbm::OwnershipRegistry>(true);
     }
-    sbm_auxiliary->define_level(0, grids[0], dmap[0], 1);
-    auto& aux = sbm_auxiliary->output(0);
-    auto& core = vars_new[0][Vars::cons];
+    if (!sbm_auxiliary->has_level(lev)) sbm_auxiliary->define_level(lev, grids[lev], dmap[lev], 2);
+    auto& aux = sbm_auxiliary->output(lev);
+    auto& core = vars_new[lev][Vars::cons];
+    // On restart MakeNewLevel* is the allocation phase.  ReadCheckpointFile
+    // owns restoration and schema validation; never overwrite checkpointed
+    // auxiliary data with a manufactured or empty state here.
+    if (!restart_chkfile.empty()) return;
     const auto& projection = *sbm_layout;
-    const int nbins = projection.populations().front().grid.nbins();
-    const int offset = projection.populations().front().mass_offset;
+    const auto& population = projection.populations().front();
+    const int nbins = population.grid.nbins();
+    const int offset = population.mass_offset;
 
     // The manufactured regression supplies a nonzero ERF carrier field while
     // production inputs retain the ordinary initialized velocity/momentum.
     // These are the same face-centered fields later handed to the transport
     // kernel, so the qualification cannot pass through an independent donor
     // velocity reconstruction.
-    if (solverChoice.sbm_manufactured_velocity != Real(0.0)) {
-        vars_new[0][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
-        vars_old[0][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
-        vars_new[0][Vars::yvel].setVal(Real(0.0));
-        vars_old[0][Vars::yvel].setVal(Real(0.0));
-        vars_new[0][Vars::zvel].setVal(Real(0.0));
-        vars_old[0][Vars::zvel].setVal(Real(0.0));
-        avg_xmom[0].setVal(solverChoice.sbm_manufactured_velocity);
-        avg_ymom[0].setVal(Real(0.0));
-        avg_zmom[0].setVal(Real(0.0));
+    if (lev == 0 && solverChoice.sbm_manufactured_velocity != Real(0.0)) {
+        vars_new[lev][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
+        vars_old[lev][Vars::xvel].setVal(solverChoice.sbm_manufactured_velocity);
+        vars_new[lev][Vars::yvel].setVal(Real(0.0));
+        vars_old[lev][Vars::yvel].setVal(Real(0.0));
+        vars_new[lev][Vars::zvel].setVal(Real(0.0));
+        vars_old[lev][Vars::zvel].setVal(Real(0.0));
+        avg_xmom[lev].setVal(solverChoice.sbm_manufactured_velocity);
+        avg_ymom[lev].setVal(Real(0.0));
+        avg_zmom[lev].setVal(Real(0.0));
     }
 
     // There is intentionally no bulk-to-spectrum guess.  An empty spectrum is
@@ -227,39 +236,44 @@ void ERF::initialize_sbm_auxiliary(const int lev)
         const auto aux_arr = aux.array(mfi);
         const auto core_arr = core.array(mfi);
         const bool manufactured = solverChoice.sbm_manufactured_initialization;
-        const Real xlo = geom[0].ProbLo(0);
-        const Real xlen = geom[0].ProbHi(0) - xlo;
-        const Real dx = geom[0].CellSize(0);
-        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            const Real rho = core_arr(i,j,k,Rho_comp);
-            const Real x = xlo + (Real(i) + Real(0.5)) * dx;
-            const Real variation = Real(1.0) + Real(0.25) *
-                std::sin(Real(6.2831853071795864769) * (x - xlo) / xlen);
-            for (int b = 0; b < nbins; ++b) {
+        const Real xlo = geom[lev].ProbLo(0);
+        const Real xlen = geom[lev].ProbHi(0) - xlo;
+        const Real dx = geom[lev].CellSize(0);
+        for (int b = 0; b < nbins; ++b) {
+            const Real pivot = population.number_offset >= 0 ? population.grid.pivot(b) : Real(0.0);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real rho = core_arr(i,j,k,Rho_comp);
+                const Real x = xlo + (Real(i) + Real(0.5)) * dx;
+                const Real variation = Real(1.0) + Real(0.25) *
+                    std::sin(Real(6.2831853071795864769) * (x - xlo) / xlen);
                 // Small deterministic positive values on both sides of the
                 // projection split.  This is a transport manufactured field,
                 // not a physical droplet or aerosol distribution.
                 aux_arr(i,j,k,offset+b) = manufactured ?
                     rho * Real(1.0e-6) * Real(b+1) * variation : Real(0.0);
-            }
-        });
+                if (population.number_offset >= 0) {
+                    aux_arr(i,j,k,population.number_offset+b) =
+                        pivot > Real(0.0) ? aux_arr(i,j,k,offset+b) / pivot : Real(0.0);
+                }
+            });
+        }
     }
-    aux.FillBoundary(geom[0].periodicity());
+    aux.FillBoundary(geom[lev].periodicity());
     ::erf_sbm::SBMBulkProjection bulk_projection(*sbm_layout);
     for (MFIter mfi(aux); mfi.isValid(); ++mfi) {
         bulk_projection.apply_to_core(mfi.validbox(), aux.const_array(mfi), core.array(mfi));
     }
-    core.FillBoundary(geom[0].periodicity());
-    amrex::MultiFab::Copy(*sbm_initial_bulk_state, core, RhoQ2_comp, 0, 1, 0);
-    amrex::MultiFab::Copy(*sbm_initial_bulk_state, core, RhoQ3_comp, 1, 1, 0);
+    core.FillBoundary(geom[lev].periodicity());
+    amrex::MultiFab::Copy(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)], core, RhoQ2_comp, 0, 1, 0);
+    amrex::MultiFab::Copy(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)], core, RhoQ3_comp, 1, 1, 0);
 
     Print() << "SBM P1 auxiliary state: components=" << sbm_layout->ncomp()
             << ", bins=" << nbins
             << ", cell-state bytes=" << sbm_auxiliary->state_resident_bytes()
             << ", face-transfer bytes=" << sbm_auxiliary->face_transfer_resident_bytes() +
-               sbm_accepted_bulk_face_transfer->resident_bytes()
+               sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]->resident_bytes()
             << ", total auxiliary bytes=" << sbm_auxiliary->resident_bytes() +
-               sbm_accepted_bulk_face_transfer->resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state)
+               sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]->resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)])
             << (solverChoice.sbm_manufactured_initialization ? " (manufactured initialization)" : " (empty initialization)")
             << std::endl;
 }
@@ -267,17 +281,18 @@ void ERF::initialize_sbm_auxiliary(const int lev)
 void ERF::begin_sbm_step(const int lev, const amrex::MultiFab& core_old)
 {
     if (solverChoice.moisture_type == MoistureType::SBM) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0 && sbm_auxiliary != nullptr,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev),
                                          "SBM auxiliary state must be initialized before stepping");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_initial_bulk_state != nullptr,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<std::size_t>(lev) < sbm_initial_bulk_state.size() &&
+                                         sbm_initial_bulk_state[static_cast<std::size_t>(lev)] != nullptr,
                                          "SBM compact baseline must be initialized before stepping");
-        sbm_auxiliary->begin_step(0);
+        sbm_auxiliary->begin_step(lev);
         // ERF swaps vars_old/vars_new before entering advance_dycore.  The
         // explicit state_old argument is therefore the actual full-step old
         // compact state, even on the second and subsequent time steps.
-        amrex::MultiFab::Copy(*sbm_initial_bulk_state, core_old,
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)], core_old,
                               RhoQ2_comp, 0, 1, 0);
-        amrex::MultiFab::Copy(*sbm_initial_bulk_state, core_old,
+        amrex::MultiFab::Copy(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)], core_old,
                               RhoQ3_comp, 1, 1, 0);
         ++sbm_step_count;
     }
@@ -294,7 +309,7 @@ void ERF::advance_sbm_stage(const int lev,
                             const double full_step)
 {
     if (solverChoice.moisture_type != MoistureType::SBM) return;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0 && sbm_auxiliary != nullptr && sbm_layout != nullptr,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev) && sbm_layout != nullptr,
                                      "SBM auxiliary state is not ready");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         sbm_ownership != nullptr &&
@@ -316,19 +331,45 @@ void ERF::advance_sbm_stage(const int lev,
     ::erf_sbm::advance_stage(*sbm_auxiliary, *sbm_layout, context,
                             state_eval[IntVars::cons], state_new[IntVars::cons],
                             avg_xmom[lev], avg_ymom[lev], avg_zmom[lev], geom[lev],
-                            sbm_auxiliary->face_transfer_ledger(0).stage());
+                            sbm_auxiliary->face_transfer_ledger(lev).stage(),
+                            solverChoice.sbm_transport_method == "GroupedFCT_WENOZ3" ?
+                                ::erf_sbm::TransportMethod::GroupedFCT_WENOZ3 :
+                                ::erf_sbm::TransportMethod::DonorCell, lev,
+                            solverChoice.sbm_diffusion_coeff);
 
-    const auto& ledger = sbm_auxiliary->face_transfer_ledger(0);
+    const auto& ledger = sbm_auxiliary->face_transfer_ledger(lev);
+    // YAFluxRegister consumes instantaneous per-area fluxes and applies the
+    // supplied dt/dx factor.  Register the accepted spectral face flux at
+    // exactly the same stage weights as the auxiliary ledger; this is the
+    // physical I=A*integral(F dt) contract without a second area or time
+    // multiplication.
+    if (solverChoice.coupling_type == CouplingType::TwoWay &&
+        context.accepted_ledger_weight() != Real(0.0)) {
+        auto& stage_flux = ledger.stage();
+        const auto dx = geom[lev].CellSizeArray();
+        const Real register_dt = static_cast<Real>(full_step * context.accepted_ledger_weight());
+        for (MFIter mfi(state_new[IntVars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const std::array<FArrayBox const*, AMREX_SPACEDIM> fluxes{
+                AMREX_D_DECL(&stage_flux.x()[mfi], &stage_flux.y()[mfi], &stage_flux.z()[mfi])};
+            if (lev < finest_level && sbm_flux_reg[lev+1] != nullptr) {
+                sbm_flux_reg[lev+1]->CrseAdd(mfi, fluxes, dx.data(), register_dt, RunOn::Device);
+            }
+            if (lev > 0 && sbm_flux_reg[lev] != nullptr) {
+                sbm_flux_reg[lev]->FineAdd(mfi, fluxes, dx.data(), register_dt, RunOn::Device);
+            }
+        }
+        Gpu::streamSynchronize();
+    }
     const ::erf_sbm::SBMBulkProjection bulk_projection(*sbm_layout);
-    bulk_projection.apply_to_face_transfer(ledger.accepted(), *sbm_accepted_bulk_face_transfer);
+    bulk_projection.apply_to_face_transfer(ledger.accepted(), *sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]);
 
     if (context.completes_level_step && solverChoice.sbm_manufactured_initialization &&
         !solverChoice.sbm_diagnostic_file.empty()) {
-        auto& scratch = sbm_auxiliary->scratch(0);
-        const auto& old = sbm_auxiliary->old(0);
-        const auto& output = sbm_auxiliary->output(0);
+        auto& scratch = sbm_auxiliary->scratch(lev);
+        const auto& old = sbm_auxiliary->old(lev);
+        const auto& output = sbm_auxiliary->output(lev);
         const int ncomp = sbm_layout->ncomp();
-        const Real cell_volume = geom[0].CellSize(0) * geom[0].CellSize(1) * geom[0].CellSize(2);
+        const Real cell_volume = geom[lev].CellSize(0) * geom[lev].CellSize(1) * geom[lev].CellSize(2);
         Real initial_mass = sbm_total_mass(old, ncomp, cell_volume);
         Real final_mass = sbm_total_mass(output, ncomp, cell_volume);
         const Real initial_variation = old.max(0) - old.min(0);
@@ -336,12 +377,12 @@ void ERF::advance_sbm_stage(const int lev,
         const Real projection_error = sbm_max_projection_error(*sbm_layout, output,
                                                                state_new[IntVars::cons]);
         const Real face_projection_error = bulk_projection.max_face_projection_error(
-            ledger.accepted(), *sbm_accepted_bulk_face_transfer);
+            ledger.accepted(), *sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]);
         const auto closure = ::erf_sbm::evaluate_accepted_transfer_closure(
             *sbm_layout, old, output, ledger.accepted(),
-            *sbm_initial_bulk_state, 0, 1,
+            *sbm_initial_bulk_state[static_cast<std::size_t>(lev)], 0, 1,
             state_new[IntVars::cons], RhoQ2_comp, RhoQ3_comp,
-            *sbm_accepted_bulk_face_transfer, geom[0]);
+            *sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)], geom[lev]);
         const Real compact_mass = cell_volume *
             (state_new[IntVars::cons].sum(RhoQ2_comp) +
              state_new[IntVars::cons].sum(RhoQ3_comp));
@@ -351,11 +392,11 @@ void ERF::advance_sbm_stage(const int lev,
                              initial_mass, final_mass, initial_variation,
                              transport_change, projection_error,
                              face_projection_error, closure, compact_mass, cell_volume,
-                             sbm_auxiliary->state_resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state),
+                             sbm_auxiliary->state_resident_bytes() + sbm_cell_bytes(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)]),
                              sbm_auxiliary->face_transfer_resident_bytes() +
-                                 sbm_accepted_bulk_face_transfer->resident_bytes(),
+                                 sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]->resident_bytes(),
                              sbm_auxiliary->resident_bytes() +
-                                 sbm_accepted_bulk_face_transfer->resident_bytes() +
-                                 sbm_cell_bytes(*sbm_initial_bulk_state));
+                                 sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)]->resident_bytes() +
+                                 sbm_cell_bytes(*sbm_initial_bulk_state[static_cast<std::size_t>(lev)]));
     }
 }

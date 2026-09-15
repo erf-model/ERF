@@ -28,6 +28,15 @@ ERF::AverageDown ()
         }
         num_comp = vars_new[0][Vars::cons].nComp() - src_comp;
         AverageDownTo(lev,src_comp,num_comp);
+        // The spectral state is authoritative for SBM.  Reflux/average-down
+        // must therefore use the same volume-weighted conservative operation
+        // on every auxiliary time-level field, before any later projection of
+        // qc/qr back into the compact ERF state.
+        if (solverChoice.moisture_type == MoistureType::SBM &&
+            sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev) &&
+            sbm_auxiliary->has_level(lev+1)) {
+            sbm_auxiliary->average_down_to(lev, lev+1, refRatio(lev));
+        }
     }
 }
 

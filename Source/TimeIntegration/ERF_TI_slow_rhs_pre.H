@@ -42,6 +42,9 @@
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
                 fr_as_crse->reset();
+                if (solverChoice.moisture_type == MoistureType::SBM && sbm_flux_reg[level+1]) {
+                    sbm_flux_reg[level+1]->reset();
+                }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);

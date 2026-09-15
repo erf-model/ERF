@@ -438,6 +438,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
+    initialize_sbm_auxiliary(lev);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -499,6 +500,35 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Interpolate the solution data
     //
     FillCoarsePatch(lev, time);
+
+    // The compact state and the provider-owned spectral state have separate
+    // lifecycles.  Fill the newly-created fine spectrum with the same
+    // conservative piecewise-constant coarse injection used by the P2
+    // auxiliary contract; qc/qr remain projections of that authoritative
+    // spectrum and are not used as a reconstruction source.
+    if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
+        sbm_auxiliary->has_level(lev-1) && sbm_auxiliary->has_level(lev)) {
+        sbm_auxiliary->prolong_from_coarse(lev-1, lev, geom[lev-1], geom[lev], refRatio(lev-1));
+        const auto& aux = sbm_auxiliary->output(lev);
+        for (MFIter mfi(aux); mfi.isValid(); ++mfi) {
+            const Box box = mfi.validbox();
+            const auto aux_arr = aux.const_array(mfi);
+            auto core_arr = vars_new[lev][Vars::cons].array(mfi);
+            const auto& projection = sbm_layout->liquid_projection();
+            const auto& population = sbm_layout->populations().front();
+            const int split = projection.cloud_rain_split;
+            const int first = population.mass_offset;
+            const int nbins = population.grid.nbins();
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real qc = Real(0.0), qr = Real(0.0);
+                for (int b = 0; b < split; ++b) qc += aux_arr(i,j,k,first+b);
+                for (int b = split; b < nbins; ++b) qr += aux_arr(i,j,k,first+b);
+                core_arr(i,j,k,RhoQ2_comp) = qc;
+                core_arr(i,j,k,RhoQ3_comp) = qr;
+            });
+        }
+        vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
+    }
 
     //
     // Interpolate the 2D arrays at the lower boundary
@@ -1045,6 +1075,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         initRayleigh_at_level(lev);
     }
 
+    if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
+        sbm_auxiliary->has_level(lev)) {
+        sbm_auxiliary->remake_level(lev, grids[lev], dmap[lev], 2, geom[lev].periodicity());
+    }
+
     // Particle redistribute handled in timeStep() after regrid() completes.
     // Calling it here causes stale-grid crashes.
 }
@@ -1056,6 +1091,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr) {
+        sbm_auxiliary->destroy_level(lev);
+        if (lev >= 0 && static_cast<std::size_t>(lev) < sbm_accepted_bulk_face_transfer.size()) {
+            sbm_accepted_bulk_face_transfer[static_cast<std::size_t>(lev)].reset();
+        }
+        if (lev >= 0 && static_cast<std::size_t>(lev) < sbm_initial_bulk_state.size()) {
+            sbm_initial_bulk_state[static_cast<std::size_t>(lev)].reset();
+        }
+    }
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         vars_new[lev][var_idx].clear();
         vars_old[lev][var_idx].clear();
@@ -1097,6 +1141,9 @@ ERF::ClearLevel (int lev)
     // Clears the flux register array (only allocated for TwoWay coupling)
     if (advflux_reg[lev]) {
         advflux_reg[lev]->reset();
+    }
+    if (sbm_flux_reg[lev]) {
+        sbm_flux_reg[lev]->reset();
     }
 
     // Clears the 2D arrays
