@@ -307,8 +307,29 @@ For example,
     erf.ylo.most.radius = 0
 
 
+The face name is omitted when ``zlo`` is the only surface-layer face, so an input
+file written before this capability existed keeps working unchanged: with
+``zlo.type = "surface_layer"`` and no other surface-layer face, ``erf.most.*`` and
+``erf.surface_layer.*`` are read as before.
+
+As soon as a second surface-layer face is declared, every face is expected to
+qualify its inputs, ``zlo`` included.  Unqualified inputs are still honored in
+that case -- they are applied to ``zlo``, with a warning asking that they be
+migrated to ``erf.zlo.most.*`` and ``erf.zlo.surface_layer.*`` -- so that adding a
+wall to a working deck cannot silently fall back to the built-in defaults.  Giving
+both spellings at once (``erf.most.z0`` together with ``erf.zlo.most.z0``, say) is
+an error and aborts, since there is no way to tell which one was meant.
+
 Note that not all existing options are supported when using MOST on other faces (such as interpolation and time averaging).
-Currently the `MOENG` flux type is supported on all faces.
+Currently the `MOENG` flux type is supported on all faces; ``bulk_coeff``,
+``custom`` and ``rico`` abort anywhere else.  Of the surface thermodynamic
+pathways, only the prescribed surface temperature (``most.surf_temp``) carries the
+orientation through to the flux, so a prescribed surface heat flux
+(``most.surf_temp_flux``), the fully adiabatic case, and any variable sea
+roughness (``most.roughness_type_sea`` other than ``constant`` over water cells)
+abort on a face other than zlo rather than run with the zlo sign convention.  The
+MOST PBL-height diagnostic (``most.pblh_calc``) and the free-convection correction
+it feeds (``most.include_wstar``) are likewise zlo-only.
 Lateral (x/y) surface-layer boundaries currently require every grid on that
 level to span its full vertical extent.  Grids decomposed in z and
 partial-height refined grids are not supported; configure
