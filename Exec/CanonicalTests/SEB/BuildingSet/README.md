@@ -74,8 +74,9 @@ height-map set needs (`Exec/RegTests/ImmersedForcingTest/PartialCells`).
   negligible part of the 57 minutes the six hours took on four ranks.
 - **The atmosphere.** The height-map set runs with the immersed forcing
   snapped to whole cells and the implicit drag; without the snap the slab
-  drives the density negative at two minutes (see the plan file's
-  findings), and the balance's residual stays at 3e-8 W/m2 throughout.
+  drives the density negative at two minutes (see
+  `Exec/RegTests/ImmersedForcingTest/PartialCells`), and the balance's
+  residual stays at 3e-8 W/m2 throughout.
 
 ## Reference output (4 ranks)
 
