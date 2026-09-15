@@ -27,8 +27,8 @@
  * valid region of the uncomputed copies, so that any copy can be read afterwards.  Without
  * duplicates fill() is a plain FillBoundary.
  *
- * The buffer is kept for each index type and number of components, so only the first
- * fill of each kind allocates.  For a face-centered MultiFab (the MOST velocity averages)
+ * The buffer is kept for each target layout, index type, and number of components, so only
+ * the first fill of each kind allocates.  For a face-centered MultiFab (the MOST velocity averages)
  * neighbouring surface boxes share a face in the buffer.  Both should hold the same value
  * there, but nothing enforces it, so fill() gives the shared faces a single value before
  * it copies: the lowest global box index wins, which does not depend on the decomposition
@@ -73,12 +73,14 @@ public:
     [[nodiscard]] const amrex::Vector<int>& surface_index () const { return m_src_index; }
 
 private:
-    amrex::MultiFab& buffer (amrex::IndexType ixtype, int ncomp);
+    amrex::MultiFab& buffer (const amrex::MultiFab& mf);
 
     struct Buffer
     {
         amrex::IndexType ixtype;
         int ncomp;
+        amrex::BoxArray ba;
+        amrex::DistributionMapping dm;
         std::unique_ptr<amrex::MultiFab> mf;
     };
 
@@ -86,7 +88,7 @@ private:
     amrex::BoxArray m_ba_sfc;            // Surface copies
     amrex::DistributionMapping m_dm_sfc; // Ranks owning them
     amrex::Vector<int> m_src_index;      // Their index in the planar BoxArray
-    amrex::Vector<Buffer> m_buffers;     // Gather buffers, one per index type and ncomp
+    amrex::Vector<Buffer> m_buffers;     // Gather buffers
 };
 
 #endif

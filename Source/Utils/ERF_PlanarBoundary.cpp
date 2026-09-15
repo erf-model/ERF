@@ -78,7 +78,7 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
     if (nsfc == 0) { return; }
 
     const int ncomp = mf.nComp();
-    MultiFab& buf = buffer(mf.ixType(), ncomp);
+    MultiFab& buf = buffer(mf);
     for (MFIter mfi(buf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         const int src = m_src_index[mfi.index()];
@@ -102,18 +102,31 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 }
 
 /**
- * Gather buffer for one index type and number of components, allocated on first use.
+ * Gather buffer for one target layout, index type, and number of components, allocated on
+ * first use.
  *
- * @param[in] ixtype index type of the planar MultiFab
- * @param[in] ncomp  number of components of the planar MultiFab
+ * @param[in] mf planar MultiFab to buffer
  */
 MultiFab&
-PlanarBoundary::buffer (IndexType ixtype, int ncomp)
+PlanarBoundary::buffer (const MultiFab& mf)
 {
-    for (auto& b : m_buffers) {
-        if (b.ixtype == ixtype && b.ncomp == ncomp) { return *b.mf; }
+    const IndexType ixtype = mf.ixType();
+    const int ncomp = mf.nComp();
+    BoxList bl_sfc(ixtype);
+    Vector<int> pmap;
+    for (int src : m_src_index) {
+        bl_sfc.push_back(mf.boxArray()[src]);
+        pmap.push_back(mf.DistributionMap()[src]);
     }
-    m_buffers.push_back(Buffer{ixtype, ncomp,
-                               std::make_unique<MultiFab>(convert(m_ba_sfc, ixtype), m_dm_sfc, ncomp, 0)});
+    BoxArray ba(std::move(bl_sfc));
+    DistributionMapping dm(std::move(pmap));
+
+    for (auto& b : m_buffers) {
+        if (b.ixtype == ixtype && b.ncomp == ncomp && b.ba == ba && b.dm == dm) {
+            return *b.mf;
+        }
+    }
+    m_buffers.push_back(Buffer{ixtype, ncomp, ba, dm,
+                               std::make_unique<MultiFab>(ba, dm, ncomp, 0)});
     return *m_buffers.back().mf;
 }
