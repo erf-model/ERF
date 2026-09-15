@@ -11,11 +11,8 @@ amr.n_cell = 42 4 42
 erf.radiation_model   = "TwoStream"
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 0.05
-erf.radiation.surface_temp_k = 300.0
 
 # No diagnostic file: RRTMGP's log is off too, so neither solver pays for I/O.
 erf.radiation.v = 0

@@ -97,7 +97,7 @@ def check_lw_isothermal_accuracy():
         return False
 
     # Test parameters (must match inputs file and sounding)
-    T_iso_K = 300.0  # Isothermal temperature [K] (surface_temp_k and the sounding)
+    T_iso_K = 300.0  # Isothermal temperature [K] (erf.rad_t_sfc and the sounding)
     sigma = 5.670374419e-8  # Stefan-Boltzmann constant [W/(m^2·K^4)]
 
     # Expected upwelling/downwelling flux (same in isothermal mode)

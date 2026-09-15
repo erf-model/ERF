@@ -76,6 +76,24 @@ public:
      * @param lsm        land-surface model (queried for per-column fields)
      * @param qheating   2-component (SW, LW) heating-rate MultiFab of this
      *                   level, written at the pre-dycore call; may be nullptr
+     * @param rad_fluxes 4-component (SW up, SW down, LW up, LW down) interface
+     *                   fluxes of this level in RRTMGP's level layout (index k
+     *                   the lower interface of layer k, the top of the
+     *                   atmosphere in the z-ghost cell above the top layer),
+     *                   written at the pre-dycore call; may be nullptr
+     * @param t_surf     the surface layer's surface temperature, or nullptr;
+     *                   used as the longwave boundary condition where no
+     *                   land-surface field exists, as RRTMGP does
+     * @param lat_m      per-column latitude [degrees], or nullptr (then
+     *                   erf.rad_cons_lat); only the WRF/metgrid inits fill it
+     * @param lon_m      per-column longitude [degrees], likewise
+     * @param epoch_time seconds since 1970-01-01 00:00 UTC of this call
+     *                   (start_time + time), the RRTMGP time base; double, as
+     *                   RRTMGP keeps it, since a float cannot resolve a time
+     *                   of day at ~1.7e9 s
+     * @param have_datetime true when start_datetime (or a WRF/metgrid start
+     *                   date) fixed the calendar; without it a dynamic sun
+     *                   cannot be placed and the call aborts
      */
     void advance (int lev,
                   int nstep,
@@ -86,7 +104,13 @@ public:
                   const amrex::MultiFab* z_phys_nd,
                   const amrex::Geometry& geom,
                   LandSurface& lsm,
-                  amrex::MultiFab* qheating);
+                  amrex::MultiFab* qheating,
+                  amrex::MultiFab* rad_fluxes,
+                  const amrex::MultiFab* t_surf,
+                  const amrex::MultiFab* lat_m,
+                  const amrex::MultiFab* lon_m,
+                  double epoch_time,
+                  bool have_datetime);
 
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;
@@ -94,12 +118,25 @@ public:
     /** @brief Read it back when the checkpoint carries it; else keep defaults. */
     void read_checkpoint (int lev, const std::string& restart_chkfile);
 
+    // Orbital elements of the current year (Berger 1978, or the erf.rad_orbital_*
+    // overrides), computed once per year rather than every step, and the
+    // one-time note about an unscaled irradiance. Public so the file-local
+    // solar-state helper can fill it.
+    struct OrbitalCache {
+        int year = -9999;
+        double eccen = 0.0;
+        double obliqr = 0.0;
+        double lambm0 = 0.0;
+        double mvelpp = 0.0;
+        bool noted_unscaled = false;
+    };
+
 private:
     // Domain-mean flux diagnostics of the last column sweep, per level, so the
     // post-dycore call can report them without sweeping again.
     struct FluxDiag {
         amrex::Real SW_surface = 0.0;
-        amrex::Real SW_TOA = 0.0;
+        amrex::Real SW_TOA = 0.0;      // domain-mean incident SW at the top
         amrex::Real SW_up_TOA = 0.0;
         amrex::Real LW_net_surface = 0.0;
         amrex::Real LW_up_TOA = 0.0;
@@ -107,6 +144,7 @@ private:
     };
 
     const RadChoice* m_rad = nullptr;
+    OrbitalCache m_orbit;
 
     // CSV / console diagnostics writer, created on the first advance() so its
     // header and duplicate-row state persist across calls.

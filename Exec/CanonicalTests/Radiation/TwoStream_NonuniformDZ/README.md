@@ -68,4 +68,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- Grid geometry handling in `Source/Radiation/`
+- Grid geometry handling in `Source/Radiation/TwoStream/`

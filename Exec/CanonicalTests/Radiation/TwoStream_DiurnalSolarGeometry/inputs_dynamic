@@ -1,9 +1,9 @@
 # Two-Stream Radiation: Time-Varying Solar Geometry Test (Dynamic)
 #
 # This test validates dynamic solar geometry:
-# - With solar_geometry_dynamic_enable = true, solar zenith angle is computed
-#   dynamically from simulation time, latitude, longitude, and day-of-year
-#   using astronomical formulas.
+# - Without erf.fixed_solar_zenith_angle the sun follows start_datetime: the
+#   zenith angle is computed over each column from the calendar time, the
+#   latitude and the longitude with RRTMGP's orbital routines.
 # - Confirms that solar zenith angle varies plausibly across the diurnal cycle:
 #   - zenith angle should decrease (sun higher) as time approaches local solar noon
 # - SW surface flux should increase (up to a max) as sun rises higher
@@ -11,12 +11,11 @@
 #
 erf.prob_name = "ABL"
 
-# Quick canonical run: a 2-hour window (7200 s). The simulation clock starts at
-# 00:00 UTC, which is 18:00 local time for the UTC-6 site below, so this window
-# spans the late-afternoon decline of the sun through sunset. That exercises
-# both the time-varying zenith angle (SW flux decreasing toward zero) and the
-# sun-below-horizon branch (SW flux exactly zero). Raise stop_time to 86400 s
-# for a full diurnal cycle.
+# Quick canonical run: a 2-hour window (7200 s). start_datetime puts the start
+# at 12:00 UTC on the June solstice, which is 06:00 local solar time at the
+# 90 W site below, so this window spans sunrise: the SW flux starts at or near
+# zero and rises as the sun climbs. Raise stop_time to 86400 s for a full
+# diurnal cycle.
 stop_time = 7200.0
 amrex.fpe_trap_invalid = 0
 
@@ -100,13 +99,14 @@ erf.input_sounding_file = "input_sounding"
 
 # RADIATION - Two-Stream SW + LW
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 1.0
-# For dynamic solar geometry, solar_zenith_deg is not used (but still specified for reference)
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
+# No erf.fixed_solar_zenith_angle here: the sun follows the calendar. No
+# erf.fixed_total_solar_irradiance either, so the irradiance carries the
+# Earth-Sun distance factor of the date (about 0.967 near aphelion).
 
 # RADIATION - Cloud properties
 erf.radiation.tau_profile_type = "constant"
@@ -115,14 +115,10 @@ erf.radiation.cloud_top_height_m = 2000.0
 erf.radiation.cloud_tau_per_layer = 0.0  # No cloud
 erf.radiation.cloud_fraction = 0.0
 
-# RADIATION - Solar Geometry (ENABLED for feature test)
-# Note: time_utc_seconds = 0 at simulation start corresponds to 00:00 UTC (midnight)
-# Sunrise/sunset times depend on latitude, longitude, and day-of-year
-erf.radiation.solar_geometry_dynamic_enable = true
-erf.radiation.latitude_deg = 45.0          # Mid-latitude site (e.g., central US/Europe)
-erf.radiation.longitude_deg = -90.0        # Western hemisphere (e.g., central US: -90°)
-erf.radiation.day_of_year = 172.0          # June 21 (approx. summer solstice)
-erf.radiation.time_zone_offset_hours = -6.0  # UTC-6 (Central Daylight Time)
+# RADIATION - Sun and site (inputs shared with RRTMGP)
+erf.rad_cons_lat = 45.0          # Mid-latitude site (e.g., central US/Europe)
+erf.rad_cons_lon = -90.0        # Western hemisphere (e.g., central US: -90°)
+start_datetime = "2021-06-21 12:00:00"   # UTC; 06:00 local solar time at 90 W, so the two hours cover sunrise
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1

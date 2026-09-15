@@ -213,7 +213,7 @@ random-number stream. UUIDs identify records but do not authenticate their
 contents; they are not signatures or cryptographic evidence.
 
 What Provenance Covers
-=====================
+======================
 
 Provenance is available for native checkpoints and primary native 2D and 3D
 AMReX plotfiles. It is stored in each output's ``job_info`` file and helps

@@ -8,7 +8,7 @@
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_SimplifiedSEB.H>
-#include <ERF_SolarGeometry.H>
+#include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
@@ -16,9 +16,100 @@
 #include <ERF_EOS.H>
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <limits>
 
 using namespace amrex;
+
+namespace {
+// RRTMGP's reference total solar irradiance [W/m^2]; the date's Earth-Sun
+// distance factor scales it unless erf.fixed_total_solar_irradiance is set.
+constexpr amrex::Real tsi_reference = 1360.9;
+
+/**
+ * Set the sun of this call from the inputs shared with RRTMGP. A fixed
+ * cosine (erf.fixed_solar_zenith_angle > 0) with a fixed irradiance needs no
+ * calendar; a fixed cosine alone takes the date-scaled irradiance when a
+ * start date is known and the unscaled reference otherwise. A calendar sun
+ * needs the date: it comes from start_datetime (epoch_time = start_time + t,
+ * as RRTMGP forms it, in double so a time of day at ~1.7e9 s is resolved) and
+ * goes through the same orbital code (orbital_params once per year,
+ * orbital_decl per call, both of ERF_OrbCosZenith.H) for the declination and
+ * the Earth-Sun distance factor; the column sweep then evaluates the position
+ * over each column. Without a start date there is no sun to place, so the run
+ * stops and says what to set.
+ */
+void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
+                      TwoStreamRadiation::OrbitalCache& orbit,
+                      double epoch_time, bool have_datetime, int lev, int nstep)
+{
+    const bool fixed_sun = (rc.fixed_solar_zenith_angle > 0.0);
+    const bool fixed_tsi = (rc.fixed_total_solar_irradiance >= 0.0);
+    p.solar_dynamic    = !fixed_sun;
+    p.cos_zenith_fixed = rc.fixed_solar_zenith_angle;
+    p.lat_cons_rad     = rc.rad_cons_lat * PI / 180.0;
+    p.lon_cons_rad     = rc.rad_cons_lon * PI / 180.0;
+    p.S0               = fixed_tsi ? rc.fixed_total_solar_irradiance : tsi_reference;
+    if (!rc.sw_enabled || (fixed_sun && fixed_tsi)) { return; }
+
+    if (fixed_sun && !have_datetime) {
+        // A fixed sun with the default irradiance and no calendar to scale it
+        // by: the unscaled reference. Say so once.
+        if (!orbit.noted_unscaled) {
+            if (ParallelDescriptor::IOProcessor()) {
+                Print() << "NOTE: erf.fixed_solar_zenith_angle is set, erf.fixed_total_solar_irradiance "
+                           "is not, and no start_datetime is known: the two-stream model uses the "
+                           "unscaled reference irradiance of " << tsi_reference << " W/m^2.\n";
+            }
+            orbit.noted_unscaled = true;
+        }
+        return;
+    }
+    if (!have_datetime) {
+        amrex::Abort("TwoStreamRadiation (level " + std::to_string(lev) + ", step " +
+                     std::to_string(nstep) + "): the sun follows the calendar because "
+                     "erf.fixed_solar_zenith_angle is not set, and no start date is known. "
+                     "Set start_datetime = \"YYYY-MM-DD HH:MM:SS\" (UTC), as for RRTMGP, or fix "
+                     "the sun with erf.fixed_solar_zenith_angle (the cosine of the angle).");
+    }
+
+    // Calendar date of this call (UTC), as the RRTMGP interface forms it.
+    time_t timestamp = time_t(epoch_time);
+    struct tm timeinfo{};
+#if defined(_WIN32)
+    gmtime_s(&timeinfo, &timestamp);
+#else
+    gmtime_r(&timestamp, &timeinfo);
+#endif
+    const int year = (rc.rad_orbital_year >= 0) ? rc.rad_orbital_year : timeinfo.tm_year + 1900;
+    const int mon = timeinfo.tm_mon + 1;
+    const int day = timeinfo.tm_mday;
+    const int sec = timeinfo.tm_hour*3600 + timeinfo.tm_min*60 + timeinfo.tm_sec;
+
+    // Orbital parameters of the year (Berger 1978) unless overridden: a few
+    // hundred series terms and six vectors, so once per year, not per step.
+    if (orbit.year != year) {
+        int  iyear = year;
+        double eccen = rc.rad_orbital_eccentricity;
+        double obliq = rc.rad_orbital_obliquity;
+        double mvelp = rc.rad_orbital_mvelp;
+        double obliqr = 0.0, lambm0 = 0.0, mvelpp = 0.0;
+        orbital_params(iyear, eccen, obliq, mvelp, obliqr, lambm0, mvelpp);
+        orbit.year = year;
+        orbit.eccen = eccen; orbit.obliqr = obliqr; orbit.lambm0 = lambm0; orbit.mvelpp = mvelpp;
+    }
+
+    // Declination and Earth-Sun distance factor of the day.
+    double calday = orbital_calday(year, mon, day, sec);
+    double eccen = orbit.eccen, mvelpp = orbit.mvelpp, lambm0 = orbit.lambm0, obliqr = orbit.obliqr;
+    double delta = 0.0, eccf = 1.0;
+    orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
+
+    p.calday = static_cast<amrex::Real>(calday);
+    p.declin = static_cast<amrex::Real>(delta);
+    if (!fixed_tsi) { p.S0 = tsi_reference * static_cast<amrex::Real>(eccf); }
+}
+} // namespace
 
 
 namespace {
@@ -142,7 +233,7 @@ TwoStreamRadiation::define_level (int lev,
     m_t_sfc[lev]    = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
     m_alb_sw[lev]->setVal(rad_choice.surface_albedo_sw);
     m_emiss_lw[lev]->setVal(rad_choice.surface_emissivity_lw);
-    m_t_sfc[lev]->setVal(rad_choice.surface_temp_k);
+    m_t_sfc[lev]->setVal(rad_choice.rad_t_sfc);
 
     if (rad_choice.seb_enable) {
         m_sw_flux_sfc[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, ng_sfc);
@@ -209,7 +300,13 @@ TwoStreamRadiation::advance (int lev,
                              const MultiFab* z_phys_nd,
                              const Geometry& geom,
                              LandSurface& lsm,
-                             MultiFab* qheating)
+                             MultiFab* qheating,
+                            MultiFab* rad_fluxes,
+                            const MultiFab* t_surf,
+                            const MultiFab* lat_m,
+                            const MultiFab* lon_m,
+                            double epoch_time,
+                            bool have_datetime)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
 
@@ -336,28 +433,13 @@ TwoStreamRadiation::advance (int lev,
     // Only compute radiation if we have valid state data
     if (state_cons.nComp() > 0 ) {
 
-    // Prepare to compute TOA values (used for diagnostics output)
-    // Compute dynamic cos_zenith if enabled, otherwise use static value
-    amrex::Real cos_zenith;
-    if (rad_choice.solar_geometry_dynamic_enable) {
-        // Convert absolute simulation time to UTC seconds within the day [0, 86400)
-        amrex::Real time_utc_seconds = std::fmod(time, 86400.0);
-        if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
-        cos_zenith = compute_cos_zenith_angle(
-            time_utc_seconds,
-            rad_choice.latitude_deg,
-            rad_choice.longitude_deg,
-            rad_choice.day_of_year,
-            rad_choice.time_zone_offset_hours);
-    } else {
-        // and earlier: Use static solar zenith angle
-        amrex::Real zenith_rad = rad_choice.solar_zenith_deg * PI / 180.0;
-        cos_zenith = std::cos(zenith_rad);
-    }
-    const amrex::Real S0_eff = rad_choice.S0 *
-        (rad_choice.earth_sun_distance_enable
-             ? compute_earth_sun_distance_factor(rad_choice.day_of_year) : 1.0);
-    SW_TOA = rad_choice.sw_enabled ? (S0_eff * std::max(amrex::Real(0.0), cos_zenith)) : amrex::Real(0.0);
+    // Trivially copyable parameter set for the device lambdas below
+    // (RadChoice itself holds std::string members and cannot be captured),
+    // with the sun of this call from the inputs shared with RRTMGP. The
+    // incident SW at the top (SW_TOA) is a domain mean formed by the sweep,
+    // since with a calendar sun it varies across the columns.
+    TwoStreamParams ts_params = make_two_stream_params(rad_choice);
+    if (do_sweep) { set_solar_state(ts_params, rad_choice, m_orbit, epoch_time, have_datetime, lev, nstep); }
 
         // Host-side storage for reduction results (will be set by device-side reduction)
         amrex::Real max_heating_global = 0.0;
@@ -365,27 +447,17 @@ TwoStreamRadiation::advance (int lev,
         amrex::Real sw_up_toa_sum = 0.0;
         amrex::Real lw_net_sum = 0.0;
         amrex::Real lw_up_toa_sum = 0.0;
+        amrex::Real sw_toa_sum = 0.0;
         amrex::Long n_columns_total = 0;
 
         // SEB residual diagnostics
         amrex::Real seb_residual_sum = 0.0;
         amrex::Long n_seb_columns = 0;
 
-        // Trivially copyable parameter set for the device lambdas below
-        // (RadChoice itself holds std::string members and cannot be captured).
-        const TwoStreamParams ts_params = make_two_stream_params(rad_choice);
-
         // cloud fraction used to blend clear-sky and cloudy-column results.
         // cloud_fraction == 0.0 (default) means only the clear-sky column is
         // ever evaluated, and the blend below reduces to F = F_clear exactly.
         amrex::Real cloud_fraction = rad_choice.cloud_fraction;
-
-        // Compute UTC seconds within the day for dynamic solar geometry
-        amrex::Real time_utc_seconds = 0.0;
-        if (rad_choice.solar_geometry_dynamic_enable) {
-            time_utc_seconds = std::fmod(time, 86400.0);
-            if (time_utc_seconds < 0.0) time_utc_seconds += 86400.0;
-        }
 
         // qheating is ERF's 2-component (SW, LW) heating-rate MultiFab of this
         // level. If it is not allocated yet, the sweep still runs for the
@@ -412,7 +484,7 @@ TwoStreamRadiation::advance (int lev,
             // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
             // This prevents silently overwriting the prognostic state before the update reads it.
             if (!rad_choice.seb_prognostic_enable) {
-                fill_or_copy_seb_field(m_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.surface_temp_k);
+                fill_or_copy_seb_field(m_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.rad_t_sfc);
             }
 
             // Net absorbed shortwave: Noah-MP splits it into the canopy (sav)
@@ -527,10 +599,20 @@ TwoStreamRadiation::advance (int lev,
                 }
             }
 
-            // Surface temperature: Try LSM field "t_sfc"
+            // Surface temperature for the longwave boundary condition, in
+            // the order RRTMGP uses: the land-surface model's field, else the
+            // surface layer's temperature, else this model's own field (the
+            // erf.rad_t_sfc value, or the LSM copy). The prognostic surface
+            // energy balance owns the surface temperature when it is on, so
+            // its state comes before the surface layer's; the gate is the one
+            // the force-restore update itself uses (init_params turns
+            // seb_enable on with seb_prognostic_enable, so the two agree).
             bool has_t_sfc_field = false;
+            bool t_sfc_is_theta = false;   // the surface layer works in potential temperature
             Array4<const amrex::Real> t_sfc_arr;
             {
+                // Each source is tried in turn, so an LSM that lists the
+                // field but hands back no data falls through to the next one.
                 std::string varname_t_sfc = "t_sfc";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {
@@ -539,9 +621,47 @@ TwoStreamRadiation::advance (int lev,
                         t_sfc_arr = lsm_ptr->const_array(mfi);
                         has_t_sfc_field = true;
                     }
-                } else if (m_t_sfc[lev]) {
+                }
+                if (!has_t_sfc_field && rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
                     t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
                     has_t_sfc_field = true;
+                }
+                if (!has_t_sfc_field && t_surf != nullptr) {
+                    t_sfc_arr = t_surf->const_array(mfi);
+                    has_t_sfc_field = true;
+                    t_sfc_is_theta = true;
+                }
+                if (!has_t_sfc_field && m_t_sfc[lev]) {
+                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
+                    has_t_sfc_field = true;
+                }
+            }
+
+            // Per-column latitude and longitude for the calendar sun (only
+            // the WRF and metgrid initialisations fill them; otherwise the
+            // erf.rad_cons_lat/lon constants apply).
+            const bool has_latlon = (lat_m != nullptr) && (lon_m != nullptr);
+            Array4<const amrex::Real> lat_arr, lon_arr;
+            if (has_latlon) {
+                lat_arr = lat_m->const_array(mfi);
+                lon_arr = lon_m->const_array(mfi);
+            }
+
+            // Interface fluxes for ERF's rad_fluxes (SW up, SW down, LW up,
+            // LW down at each layer's lower interface, plus the top of the
+            // atmosphere in the z-ghost cell above the column), the level
+            // layout RRTMGP writes. The cloudy evaluation goes to a scratch
+            // FArrayBox on the same grown box and is blended like the
+            // heating rates.
+            const bool write_fluxes = (rad_fluxes != nullptr);
+            Array4<amrex::Real> rad_flux_clear_arr;
+            FArrayBox rad_flux_cloudy_fab;
+            Array4<amrex::Real> rad_flux_cloudy_arr;
+            if (write_fluxes) {
+                rad_flux_clear_arr = rad_fluxes->array(mfi);
+                if (cloud_fraction > 0.0) {
+                    rad_flux_cloudy_fab.resize(two_stream_scratch_box(bx), 4);
+                    rad_flux_cloudy_arr = rad_flux_cloudy_fab.array();
                 }
             }
 
@@ -591,10 +711,12 @@ TwoStreamRadiation::advance (int lev,
             amrex::Real sw_up_sum_box = 0.0;
             amrex::Real lw_sum_box = 0.0;
             amrex::Real lw_up_sum_box = 0.0;
+            amrex::Real sw_toa_sum_box = 0.0;
 
-            // Device-side reduction: compute max heating and sum of surface fluxes
-            ReduceOps<ReduceOpMax, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum> reduce_ops;
-            ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
+            // Device-side reduction: max heating, sums of the surface and
+            // top-of-atmosphere fluxes
+            ReduceOps<ReduceOpMax, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum, ReduceOpSum> reduce_ops;
+            ReduceData<amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Real, amrex::Real> reduce_data(reduce_ops);
 
             using ReduceTuple = typename decltype(reduce_data)::Type;
 
@@ -609,15 +731,18 @@ TwoStreamRadiation::advance (int lev,
                     amrex::Real sw_up_clear = 0.0;
                     amrex::Real lw_net_clear = 0.0;
                     amrex::Real lw_up_clear = 0.0;
+                    amrex::Real sw_toa_clear = 0.0;
                     vertical_two_stream_sweep(
                         i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/false,
                         qheating_clear_arr,
                         max_heating_clear, sw_flux_clear, sw_up_clear, lw_net_clear, lw_up_clear,
+                        sw_toa_clear,
                         z_phys_nd_arr, scratch_arr,
-                        time_utc_seconds,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                        has_t_sfc_field, &t_sfc_arr);
+                        has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                        has_latlon, &lat_arr, &lon_arr,
+                        write_fluxes ? &rad_flux_clear_arr : nullptr);
 
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
@@ -634,15 +759,18 @@ TwoStreamRadiation::advance (int lev,
                          amrex::Real sw_up_cloudy = 0.0;
                          amrex::Real lw_net_cloudy = 0.0;
                          amrex::Real lw_up_cloudy = 0.0;
+                         amrex::Real sw_toa_cloudy = 0.0;
                          vertical_two_stream_sweep(
                             i, j, bx, dz_uniform_lev, state_arr, ts_params, /*cloudy=*/true,
                             qheating_cloudy_arr,
                             max_heating_cloudy, sw_flux_cloudy, sw_up_cloudy, lw_net_cloudy, lw_up_cloudy,
-                             z_phys_nd_arr, scratch_arr,
-                             time_utc_seconds,
-                             has_hetero_alb_sw, &hetero_alb_sw_arr,
-                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                             has_t_sfc_field, &t_sfc_arr);
+                            sw_toa_cloudy,
+                            z_phys_nd_arr, scratch_arr,
+                            has_hetero_alb_sw, &hetero_alb_sw_arr,
+                            has_hetero_emiss_lw, &hetero_emiss_lw_arr,
+                            has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                            has_latlon, &lat_arr, &lon_arr,
+                            write_fluxes ? &rad_flux_cloudy_arr : nullptr);
 
                         // Blend clear-sky and cloudy-column results
                         sw_flux_col = (1.0 - cloud_fraction) * sw_flux_clear +
@@ -669,6 +797,16 @@ TwoStreamRadiation::advance (int lev,
                                     cloud_fraction * q_cloudy_val;
                             }
                         }
+                        if (write_fluxes) {
+                            // nlev + 1 levels: the top interface sits at kmax + 1
+                            for (int k = kmin; k <= kmax + 1; ++k) {
+                                for (int comp = 0; comp < 4; ++comp) {
+                                    rad_flux_clear_arr(i, j, k, comp) =
+                                        (1.0 - cloud_fraction) * rad_flux_clear_arr(i, j, k, comp) +
+                                        cloud_fraction * rad_flux_cloudy_arr(i, j, k, comp);
+                                }
+                            }
+                        }
                     }
 
                     // Surface fluxes for the SEB: absorbed shortwave, and the
@@ -676,8 +814,9 @@ TwoStreamRadiation::advance (int lev,
                     if (sw_flux_from_rad) sw_sfc_out(i, j, 0) = sw_flux_col;
                     if (lw_flux_from_rad) lw_sfc_out(i, j, 0) = -lw_net_col;
 
+                    // The incident TOA flux is the same for both evaluations.
                     // Return tuple for reduction
-                    return {max_heating_col, sw_flux_col, sw_up_col, lw_net_col, lw_up_col};
+                    return {max_heating_col, sw_flux_col, sw_up_col, lw_net_col, lw_up_col, sw_toa_clear};
                 }
             );
 
@@ -689,6 +828,7 @@ TwoStreamRadiation::advance (int lev,
             sw_up_sum_box = amrex::get<2>(reduce_tuple);
             lw_sum_box = amrex::get<3>(reduce_tuple);
             lw_up_sum_box = amrex::get<4>(reduce_tuple);
+            sw_toa_sum_box = amrex::get<5>(reduce_tuple);
 
             // Accumulate box results into global results
             max_heating_global = std::max(max_heating_global, max_heating_box);
@@ -696,16 +836,18 @@ TwoStreamRadiation::advance (int lev,
             sw_up_toa_sum += sw_up_sum_box;
             lw_net_sum += lw_sum_box;
             lw_up_toa_sum += lw_up_sum_box;
+            sw_toa_sum += sw_toa_sum_box;
         }
         // Every accumulator above is rank-local. Reduce before forming means
         // and maxima, so the diagnostics describe the whole domain and do
         // not change with the decomposition. These are collective calls; the
         // conditions around them are input-driven and identical on all ranks.
         if (do_sweep) {
-            amrex::Real sums[4] = {sw_surface_sum, sw_up_toa_sum, lw_net_sum, lw_up_toa_sum};
-            ParallelDescriptor::ReduceRealSum(sums, 4);
+            amrex::Real sums[5] = {sw_surface_sum, sw_up_toa_sum, lw_net_sum, lw_up_toa_sum, sw_toa_sum};
+            ParallelDescriptor::ReduceRealSum(sums, 5);
             sw_surface_sum = sums[0]; sw_up_toa_sum = sums[1];
             lw_net_sum = sums[2];     lw_up_toa_sum = sums[3];
+            sw_toa_sum = sums[4];
             ParallelDescriptor::ReduceLongSum(n_columns_total);
             ParallelDescriptor::ReduceRealMax(max_heating_global);
         }
@@ -961,6 +1103,7 @@ TwoStreamRadiation::advance (int lev,
             if (n_columns_total > 0) {
                 const amrex::Real inv_n = 1.0 / static_cast<amrex::Real>(n_columns_total);
                 SW_surface     = sw_surface_sum * inv_n;
+                SW_TOA         = sw_toa_sum * inv_n;
                 SW_up_TOA      = sw_up_toa_sum * inv_n;
                 LW_net_surface = lw_net_sum * inv_n;
                 LW_up_TOA      = lw_up_toa_sum * inv_n;

@@ -1207,7 +1207,12 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
+    // Radiation fluxes (SW up, SW down, LW up, LW down) [W/m^2] at the
+    // interfaces (OUTPUT ONLY). Index k holds the lower interface of layer k
+    // (k = klo is the surface); the top-of-atmosphere interface is stored in
+    // the z-ghost cell k = khi + 1, so the array has one ghost cell in z.
+    // Both RRTMGP and the two-stream model fill all nz + 1 levels.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;
 
     // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
     // surface and SEB state; every call from ERF is behind a test of

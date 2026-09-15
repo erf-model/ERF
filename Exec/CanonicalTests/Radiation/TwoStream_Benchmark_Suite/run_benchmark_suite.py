@@ -160,9 +160,11 @@ def load_case_spec(key: str, case_dir: Path) -> CaseSpec:
     if diag_enable_s is not None and diag_enable_s.lower() == "false":
         mode = "off"
 
-    s0 = parse_float(txt, ["erf.radiation.S0"], 1361.0)
-    zen = parse_float(txt, ["erf.radiation.solar_zenith"], 60.0)
-    expected_sw_toa = s0 * math.cos(math.radians(zen))
+    # The sun is set with the inputs shared with RRTMGP: the fixed cosine of
+    # the zenith angle and the fixed irradiance (every benchmark case fixes both).
+    s0 = parse_float(txt, ["erf.fixed_total_solar_irradiance"], 1360.9)
+    mu0 = parse_float(txt, ["erf.fixed_solar_zenith_angle"], 0.5)
+    expected_sw_toa = s0 * mu0
 
     # Expected rows:
     # If steps>0: cadence scales with steps

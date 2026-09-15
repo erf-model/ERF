@@ -72,4 +72,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- Aerosol optical-depth formulation in `Source/Radiation/`
+- Aerosol optical-depth formulation in `Source/Radiation/TwoStream/`

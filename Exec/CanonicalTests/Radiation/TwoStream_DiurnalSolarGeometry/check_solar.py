@@ -91,8 +91,9 @@ def check_diurnal_pattern(data):
 
 def check_backward_compatibility(baseline_file, dynamic_file=None):
     """
-    Baseline test: when solar_geometry_dynamic_enable=false, behavior should match
-    the static solar_zenith_deg computation.
+    Baseline test: with erf.fixed_solar_zenith_angle set (a cosine, 0.5 here) and
+    erf.fixed_total_solar_irradiance = 1361, the incident TOA flux is the fixed
+    product and does not move.
     """
     data = read_radiation_diagnostics(baseline_file)
     if data is None:
@@ -103,8 +104,8 @@ def check_backward_compatibility(baseline_file, dynamic_file=None):
     # Check for finite values
     errors.extend(check_finite_values(data, ['SW_surface', 'SW_TOA', 'SW_up_TOA', 'LW_net_surface', 'LW_up_TOA', 'heating_rate_max']))
 
-    # For baseline (fixed zenith at 60°), SW_TOA should be relatively constant
-    # cos(60°) = 0.5, so SW_TOA = 1361 * 0.5 = ~680.5 W/m^2
+    # For the baseline (fixed cosine 0.5, i.e. 60 degrees), SW_TOA should be constant:
+    # SW_TOA = 1361 * 0.5 = 680.5 W/m^2
     sw_toa = data['SW_TOA']
     valid_mask = np.isfinite(sw_toa) & (sw_toa > 0)
     if np.any(valid_mask):
@@ -119,7 +120,8 @@ def check_backward_compatibility(baseline_file, dynamic_file=None):
 
 def check_dynamic_behavior(dynamic_file):
     """
-    Dynamic test: solar geometry should vary throughout the day.
+    Dynamic test: with no fixed zenith angle the sun follows start_datetime
+    (2021-06-21 12:00 UTC, sunrise at 45 N, 90 W), so the fluxes must vary.
     """
     data = read_radiation_diagnostics(dynamic_file)
     if data is None:
