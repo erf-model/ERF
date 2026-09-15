@@ -63,6 +63,14 @@ public:
         return empty;
     }
 
+    // Check if this is a nested patch (doesn't reach model top)
+    virtual
+    bool
+    is_nested_patch () const
+    {
+        return false;  // Default: not a nested patch
+    }
+
     void
     setupDataLog ()
     {

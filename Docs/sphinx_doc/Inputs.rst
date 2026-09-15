@@ -2597,6 +2597,16 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.interp_atmos_from_coarse**  | for fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
+|                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
+|                                   | theta, density, moisture) from coarse level via          |                              |                    |
+|                                   | ``FillCoarsePatch`` instead of reading from file.        |                              |                    |
+|                                   | Terrain, surface fields (SST, TSK, land masks), and LSM  |                              |                    |
+|                                   | variables are still read from the fine-level wrfinput    |                              |                    |
+|                                   | file. Useful when nested WRF domains have different      |                              |                    |
+|                                   | initialization times. Only applies to lev > 0 with       |                              |                    |
+|                                   | WRFInput; level 0 always reads full atmospheric state.   |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.real_extrap_w**             | First-order extrapolation of vertical velocities on      | Boolean                      | true               |
 |                                   | lateral boundaries (instead of setting to 0) if          |                              |                    |
 |                                   | use_real_bcs is true                                     |                              |                    |
@@ -2763,8 +2773,15 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.amr_terrain_refinement**   | terrain refinement strategy for AMR with STF/Sullivan    | "interpolate",     | "interpolate"    |
-|                                  |                                                          | "transform"        |                  |
+| **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
+|                                  | ``terrain_smoothing`` = 1 or 2. "interpolate" uses      | "transform"        |                  |
+|                                  | coarse-interpolated mesh as-is. "transform" reads fine   |                    |                  |
+|                                  | terrain from wrfinput and blends with interpolated mesh  |                    |                  |
+|                                  | using height-dependent decay. When ``terrain_smoothing`` |                    |                  |
+|                                  | = 1 or 2 with WRFInput initialization on multilevel      |                    |                  |
+|                                  | grids, "transform" is **required** (code will abort if   |                    |                  |
+|                                  | "interpolate" is used). Ignored when                     |                    |                  |
+|                                  | ``terrain_smoothing`` = 0.                               |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name**        | filename                                                 | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2819,10 +2836,14 @@ Examples of Usage
 **erf.amr_terrain_refinement** is read only on levels finer than level 0 and only when
 ``erf.terrain_smoothing`` is 1 or 2; it is ignored otherwise. Any value other than
 ``"interpolate"`` or ``"transform"`` is an error, so that a misspelled mode cannot
-silently leave the fine mesh untransformed. Both modes are currently supported only for
-the idealized initialization types: with ``erf.init_type`` = ``WRFInput`` or ``Metgrid``,
-using ``erf.terrain_smoothing`` = 1 or 2 together with refinement still aborts, and
-support for those is planned for future work.
+silently leave the fine mesh untransformed.
+
+**For WRFInput initialization with multilevel AMR:**
+When using ``erf.init_type`` = ``WRFInput`` with ``terrain_smoothing`` = 1 or 2 on multilevel
+grids, "transform" mode is **required**. Using "interpolate" mode will cause the code to abort
+with an error. This requirement ensures fine-scale terrain features from the wrfinput file are
+properly blended with the smoothed coarse mesh while maintaining C0 continuity at coarse-fine
+interfaces.
 
 -  **erf.amr_terrain_refinement**  = "interpolate"
     Default mode for AMR with STF/Sullivan terrain smoothing (``terrain_smoothing=1`` or ``2``).

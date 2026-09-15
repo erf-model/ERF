@@ -803,6 +803,7 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
+    void init_from_wrfinput_surface_only (int lev, amrex::MultiFab& mf_PSFC);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 

@@ -467,16 +467,65 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         vars_new[lev][Vars::zvel].setVal(0.0); vars_old[lev][Vars::zvel].setVal(0.0);
 
         AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
+
+        //
+        // CHOOSE INITIALIZATION PATH:
+        // If interp_atmos_from_coarse is enabled for a finer level,
+        // read only surface fields from wrfinput and interpolate atmospheric state from coarse.
+        // Otherwise use the standard path of reading all fields from wrfinput.
+        //
+        bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0);
+
         if (solverChoice.init_type == InitType::Metgrid) {
             init_from_metgrid(lev);
         } else if (solverChoice.init_type == InitType::WRFInput) {
-            init_from_wrfinput(lev, *mf_PSFC[lev]);
+            if (use_surface_only) {
+                amrex::Print() << "Using interp_atmos_from_coarse mode at level " << lev << ":\n";
+                amrex::Print() << "  - Reading surface fields from wrfinput\n";
+                amrex::Print() << "  - Atmospheric state will be interpolated from level " << lev-1 << "\n";
+                init_from_wrfinput_surface_only(lev, *mf_PSFC[lev]);
+            } else {
+                init_from_wrfinput(lev, *mf_PSFC[lev]);
+            }
         }
         init_zphys(lev, time);
         update_terrain_arrays(lev);
         make_physbcs(lev);
 
         dz_min[lev] = (*detJ_cc[lev]).min(0) * geom[lev].CellSize(2);
+
+        //
+        // If we used surface-only init, we need to rebuild the base state and
+        // interpolate the atmospheric state from coarse (just like a level with no init file)
+        //
+        if (use_surface_only) {
+            rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+            (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+            FillCoarsePatch(lev, time);
+
+            // Now initialize LSM with the properly filled atmospheric state
+            if (solverChoice.lsm_type != LandSurfaceType::None) {
+                amrex::Print() << "Initializing LSM at level " << lev << " after FillCoarsePatch\n";
+                IntVect RefRatio(1);
+                for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
+                lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
+                         domain_bcs_type, RefRatio, zero, nc_init_file);
+
+                // Now set up the LSM data/flux pointers (same as in make_lsm_at_level)
+                for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+                    lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+                    lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+                }
+                for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+                    lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+                    lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+                }
+                if (lev>0) {
+                    lsm.Set_Lev0_Data_Ptr(lev);
+                    lsm.Set_Lev0_Flux_Ptr(lev);
+                }
+            }
+        }
 
     } else {
 #endif
@@ -543,7 +592,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     //********************************************************************************************
-    // Land Surface Model
+    // Land Surface Model - setup data structures
+    // NOTE: Actual LSM initialization (lsm.Init) is deferred if using interp_atmos_from_coarse
+    //       because it needs valid atmospheric state from FillCoarsePatch
     // *******************************************************************************************
     make_lsm_at_level(lev);
 
@@ -1155,7 +1206,20 @@ ERF::make_lsm_at_level (int lev)
     lsm_flux[lev].resize(lsm_flux_size);
     lsm_flux_name.resize(lsm_flux_size);
     lsm.Define(lev, solverChoice);
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
+
+    // Check if we'll be using surface-only init (atmospheric state comes later from FillCoarsePatch)
+    // Only applies to fine levels (lev > 0); level 0 always initializes normally
+    bool will_use_surface_only = false;
+#ifdef ERF_USE_NETCDF
+    if (lev > 0 && !nc_init_file[lev].empty() &&
+        (solverChoice.init_type == InitType::WRFInput || solverChoice.init_type == InitType::Metgrid)) {
+        will_use_surface_only = solverChoice.interp_atmos_from_coarse;
+    }
+#endif
+
+    // Only initialize LSM now if we're NOT using surface-only init
+    // (for surface-only, LSM init must wait until after FillCoarsePatch provides atmospheric state)
+    if (solverChoice.lsm_type != LandSurfaceType::None && !will_use_surface_only) {
         //
         // A level with no land file of its own takes its LSM state from level 0 rather
         // than from its parent (see NOAHMP::interp_from_lev0, which is handed Geom(0)
@@ -1168,17 +1232,22 @@ ERF::make_lsm_at_level (int lev)
         lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                  domain_bcs_type, RefRatio, zero, nc_init_file); // dummy dt value
     }
-    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
-        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
-        lsm_data_name[mvar] = lsm.Get_DataName(mvar);
-    }
-    for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
-        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
-        lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
-    }
-    if (lev>0) {
-        lsm.Set_Lev0_Data_Ptr(lev);
-        lsm.Set_Lev0_Flux_Ptr(lev);
+
+    // Only access LSM data pointers if LSM has been initialized
+    // (if using surface-only init, this will be done later after FillCoarsePatch)
+    if (solverChoice.lsm_type != LandSurfaceType::None && !will_use_surface_only) {
+        for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+            lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+            lsm_data_name[mvar] = lsm.Get_DataName(mvar);
+        }
+        for (int mvar(0); mvar<lsm_flux[lev].size(); ++mvar) {
+            lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+            lsm_flux_name[mvar] = lsm.Get_FluxName(mvar);
+        }
+        if (lev>0) {
+            lsm.Set_Lev0_Data_Ptr(lev);
+            lsm.Set_Lev0_Flux_Ptr(lev);
+        }
     }
 }
 

@@ -509,7 +509,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // way whichever one erf.radiation_model selects.
     if (solverChoice.rad_type != RadiationType::None)
     {
-        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
+        // Allocate with 1 ghost cell for interpolation stencil (cell_cons_interp)
+        // and FillBoundary operations (needed for nested patches)
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 1);
         rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
         qheating_rates[lev]->setVal(zero);
         rad_fluxes[lev]->setVal(zero);

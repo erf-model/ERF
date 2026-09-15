@@ -876,6 +876,10 @@ struct SolverChoice {
                          "onto the nodes rather than reconstructing them).");
         }
 
+        // Interpolate atmospheric state from coarse level instead of reading from wrfinput
+        // when creating a finer level from coarse at a later time?
+        pp.queryAdd("interp_atmos_from_coarse", interp_atmos_from_coarse);
+
         // Rebalance wrf state?
         pp.queryAdd("rebalance_wrf_input", rebalance_wrf_input);
 
@@ -2210,6 +2214,9 @@ struct SolverChoice {
 
     // Average the input z-face heights onto the nodes rather than reconstructing them?
     bool avg_grid_faces_to_nodes {false};
+
+    // Interpolate atmospheric state from coarse when creating finer level at later time?
+    bool interp_atmos_from_coarse {false};
 
     // Use forest canopy model?
     bool do_forest_drag {false};

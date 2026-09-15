@@ -97,6 +97,61 @@ void ERF::advance_radiation (int lev,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated);
+
+        // Fill ghost cells after radiation computes (needed for interpolation to finer levels)
+        // This should be fast since it only fills this level's own ghost cells
+        if (solverChoice.rad_type != RadiationType::None && !rad[lev]->is_nested_patch()) {
+            qheating_rates[lev]->FillBoundary(geom[lev].periodicity());
+        }
+
+        // For nested patches (fine levels that don't reach model top), radiation
+        // was skipped. Interpolate heating rates from parent level.
+        if (lev > 0 && rad[lev]->is_nested_patch()) {
+            // Ensure parent level's ghost cells are filled before interpolation
+            // This is needed even when radiation doesn't run this step, especially
+            // with two-way coupling where the grid structure may have changed
+            if (!rad[lev-1]->is_nested_patch()) {
+                qheating_rates[lev-1]->FillBoundary(geom[lev-1].periodicity());
+            }
+
+            InterpFromCoarseLevel(*qheating_rates[lev], qheating_rates[lev]->nGrowVect(),
+                                  IntVect(0,0,0),
+                                  *qheating_rates[lev-1], 0, 0, 2,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+
+            // Also interpolate LSM radiation output fields (surface fluxes needed by NoahMP)
+            // These are 2D surface fields (k=0 only) that may have no ghost cells
+            if (solverChoice.lsm_type != LandSurfaceType::None) {
+                Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
+
+                for (int i = 0; i < lsm_output_names.size(); ++i) {
+                    int varIdx_fine = lsm.Get_DataIdx(lev, lsm_output_names[i]);
+                    int varIdx_coarse = lsm.Get_DataIdx(lev-1, lsm_output_names[i]);
+                    if (varIdx_fine >= 0 && varIdx_coarse >= 0) {
+                        MultiFab* lsm_fine = lsm.Get_Data_Ptr(lev, varIdx_fine);
+                        MultiFab* lsm_coarse = lsm.Get_Data_Ptr(lev-1, varIdx_coarse);
+                        if (lsm_fine && lsm_coarse && lsm_coarse->nComp() > 0) {
+                            // Create temporary coarse MultiFab with 1 ghost cell for safe interpolation
+                            MultiFab tmp_coarse(lsm_coarse->boxArray(), lsm_coarse->DistributionMap(),
+                                                lsm_coarse->nComp(), 1);
+                            MultiFab::Copy(tmp_coarse, *lsm_coarse, 0, 0, lsm_coarse->nComp(), 0);
+                            tmp_coarse.FillBoundary(geom[lev-1].periodicity());
+
+                            // Now interpolate from tmp_coarse (with ghost) to lsm_fine (no ghost needed)
+                            InterpFromCoarseLevel(*lsm_fine, IntVect(0,0,0),
+                                                  IntVect(0,0,0),
+                                                  tmp_coarse, 0, 0, lsm_coarse->nComp(),
+                                                  geom[lev-1], geom[lev],
+                                                  refRatio(lev-1), &cell_cons_interp,
+                                                  domain_bcs_type, BCVars::cons_bc);
+                        }
+                    }
+                }
+            }
+
+        }
     }
     // Two-stream radiation driver, a separate path from the IRadiation
     // models above; erf.radiation_model selects exactly one of them.

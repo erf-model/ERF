@@ -8,6 +8,7 @@
 #include "ERF_Utils.H"
 #include "ERF_ProbCommon.H"
 #include "ERF_DataStruct.H"
+#include "ERF_TerrainMetrics.H"
 
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
@@ -1324,6 +1325,43 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         // **************************************************************************
         // Initialize the terrain itself
         // **************************************************************************
+
+        // Determine if we need the fine terrain pathway for STF/Sullivan on lev > 0
+        ParmParse pp("erf");
+        int terrain_smoothing = 0;
+        pp.query("terrain_smoothing", terrain_smoothing);
+
+        FineTerrain fine_terrain = FineTerrain::None;
+        MultiFab z_phys_interp;
+
+        if (lev > 0 && terrain_smoothing != 0) {
+            // Determine fine terrain mode
+            fine_terrain = which_fine_terrain();
+
+            // When reading terrain from wrfinput files, we must use Transform mode to blend
+            // the fine terrain detail onto the interpolated coarse mesh. Interpolate mode
+            // would leave a mismatch between the fine terrain surface (from wrfinput_d0N) and
+            // the interpolated coarse mesh above it, causing grid inconsistencies and NaNs.
+            if (fine_terrain != FineTerrain::Transform) {
+                Abort("terrain_smoothing = " + std::to_string(terrain_smoothing) +
+                      " with wrfinput initialization on level > 0 requires "
+                      "erf.amr_terrain_refinement = transform (not interpolate)");
+            }
+
+            // Interpolate coarse mesh to fine level first
+            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
+                                  IntVect(0,0,0),
+                                  *z_phys_nd[lev-1], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &node_bilinear_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+
+            // Save interpolated mesh before terrain overwrites k=0 slab
+            z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
+                                 1, z_phys_nd[lev]->nGrowVect());
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0);
+        }
+
         Real dz0_max;
         init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
                                    mf_PH, *mf_PHB, dz0_max, solverChoice.avg_grid_faces_to_nodes);
@@ -1372,7 +1410,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
             // Update stretched dz and build terrain fitted coords
             update_stretched_dz(lev, zlevels_stag, stretched_dz_h, stretched_dz_d);
-            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type);
+            make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
+                                       fine_terrain,
+                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
         }
 
         // **************************************************************************

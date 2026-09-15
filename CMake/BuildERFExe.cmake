@@ -209,6 +209,7 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitFromWRFInput_SurfaceOnly.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
