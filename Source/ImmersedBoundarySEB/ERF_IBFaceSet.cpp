@@ -285,7 +285,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_col_top_max = plo[2];
     for (size_t c = 0; c < ncol; ++c) {
         if (coltop_k[c] >= 0) {
-            m_col_top_max = std::max(m_col_top_max, plo[2] + (coltop_k[c] + 1.0) * dx[2]);
+            m_col_top_max = std::max(m_col_top_max, Real(plo[2] + (coltop_k[c] + 1.0) * dx[2]));
         }
     }
     // Height of each face's building column, for the wall-function depth.
