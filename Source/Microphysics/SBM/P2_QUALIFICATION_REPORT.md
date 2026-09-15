@@ -18,7 +18,7 @@ geometry/boundary combinations.
 |---|---|
 | Branch | `sbm-p2-fct-amr-lifecycle` |
 | Base SHA | `f7dd387dfa148bb2cd2d5a58f15f7aab88ba7ab5` (`sbm-p1-qualification`) |
-| Final SHA | recorded after the final docs/evidence commit |
+| Final implementation SHA | `da35e21aa` (completed code, test, and evidence commit) |
 | Remote | `https://github.com/pressel/ERF.git` |
 | Policy | Push this branch only; do not merge into `development` |
 
