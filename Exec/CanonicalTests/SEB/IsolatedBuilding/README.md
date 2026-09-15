@@ -73,9 +73,10 @@ hour   air    roof   east   south  west   north
 - **A caveat.** The sensible flux off the 340 K roof is only 10 to 30
   W/m2 because the wall function is neutral with a fixed roughness and the
   roof wind is light in the separation zone; the roof is hot mostly
-  because it cannot convect. The stability functions and a convective
-  velocity scale at low wind are the first items of the next PR (see the
-  plan file); the day will be rerun with them on.
+  because it cannot convect. `erf.ibseb.stability_correction` and
+  `erf.ibseb.convective_velocity = deardorff` add the stability functions
+  and a convective velocity scale at low wind; this deck keeps both off,
+  `SEB/BuildingSet` runs with them on.
 
 ## What is checked
 
