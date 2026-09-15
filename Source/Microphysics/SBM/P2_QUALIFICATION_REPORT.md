@@ -5,12 +5,13 @@ distinguishes exercised evidence from capabilities that remain fail-closed.
 The attached implementation prompt is the specification; this report does
 not authorize P3 physics.
 
-Overall qualification status: **P2 PARTIAL**.  The qualified single-level
-transport/diffusion path and the auxiliary AMR/restart service contracts pass;
-G4/G5 remain `STRONGLY_SUPPORTED` because this repository has no dedicated
-full ERF two-level continuous-vs-restart fixture.  The production capability
-gate remains fail-closed for that missing qualification and for unsupported
-geometry/boundary combinations.
+Overall qualification status: **P2 PARTIAL**.  The grouped cell-budget FCT,
+combined low-order admissibility check, stage-time auxiliary AMR lifecycle,
+strict restart path, and a real two-rank continuous-vs-restart AMR fixture are
+implemented and exercised.  Production chunk-bounded WENO/FCT work is not yet
+implemented, and the broader quantitative composite AMR/MPI oracle set is not
+complete.  The production capability gate remains fail-closed for those
+limitations and for unsupported geometry/boundary combinations.
 
 ## Git
 
@@ -18,7 +19,8 @@ geometry/boundary combinations.
 |---|---|
 | Branch | `sbm-p2-fct-amr-lifecycle` |
 | Base SHA | `f7dd387dfa148bb2cd2d5a58f15f7aab88ba7ab5` (`sbm-p1-qualification`) |
-| Final implementation SHA | `da35e21aa` (completed code, test, and evidence commit) |
+| Starting reviewed SHA | `208ae4aea` (existing P2 implementation before this remainder pass) |
+| Final implementation SHA | `1b081fb44` (`sbm: complete P2 remainder lifecycle and qualification`) |
 | Remote | `https://github.com/pressel/ERF.git` |
 | Policy | Push this branch only; do not merge into `development` |
 
@@ -28,11 +30,11 @@ geometry/boundary combinations.
 |---|---|---|
 | G0 source archaeology | PASS | `P2_SOURCE_TRACE.md`; ERF WENO-Z3 and pinned YAFluxRegister semantics traced from source |
 | G1 constraint groups | PASS | `SBMP2.ConstraintGroupsCoverOneAndTwoMomentLayouts`, endpoint and synthetic-property tests |
-| G2 grouped FCT | PASS | host reference, production `GroupedFCT_WENOZ3`, 15-test MPI suite |
-| G3 diffusion/boundaries | PASS | density-weighted diffusion and boundary budget tests; production explicit timestep bound |
-| G4 AMR lifecycle/reflux | STRONGLY_SUPPORTED | per-level manager lifecycle, provider register wiring, reflux validation, host AMR tests, and the two-rank two-level 2M production fixture pass; full subcycling/restart equivalence evidence remains limited |
-| G5 regrid/restart | STRONGLY_SUPPORTED | remake/destroy lifecycle and strict schema/projection services pass; full continuous-vs-restart AMR fixture is not present |
-| G6 qualification/docs | PASS | focused MPI suite, P1 regression suite, CTest/build/doc checks recorded below |
+| G2 grouped FCT | STRONGLY_SUPPORTED | true production cell-wide descriptor budgets, complete-group lambda, multi-face host adversarial regression, and two-rank production AMR path; a dedicated production active-face decomposition oracle remains limited |
+| G3 diffusion/boundaries | STRONGLY_SUPPORTED | density-weighted diffusion, combined low-order diagnostic, and boundary service tests; production qualification remains periodic/static and the positive-diffusion end-to-end case is limited |
+| G4 AMR lifecycle/reflux | PARTIAL / NOT P2-QUALIFIED | time-aware auxiliary lifecycle, provider register wiring, complete post-reflux validation, and two-rank two-level 2M fixture pass; composite conservation and flux-register quantitative oracles are not yet complete |
+| G5 regrid/restart | PASS | authoritative coarse-filled remake, strict schema/projection checks, and automated two-rank continuous-vs-restart AMR payload equivalence pass |
+| G6 qualification/docs | PARTIAL / NOT P2-QUALIFIED | focused MPI suite, SBM CTest, builds, convergence table, and catalog checks pass; production chunk equivalence/memory bound and full Sphinx/Doxygen remain incomplete |
 
 ## Supported capability matrix
 
@@ -47,8 +49,9 @@ Actually qualified in this branch:
 * compressible RK3 and anelastic Heun stage contracts;
 * explicit orthogonal density-weighted two-point diffusion with an explicit
   timestep bound;
-* periodic and generic prescribed-inflow/advective-outflow/impermeable-wall
-  transfer-budget descriptors;
+* periodic transfer handling in the production gate; prescribed-inflow,
+  advective-outflow, and impermeable-wall transfer-budget descriptors are
+  reference/service infrastructure only;
 * static Cartesian auxiliary level creation, conservative coarse/fine service
   views, provider-owned accepted-transfer register wiring, post-reflux
   validation, remake, and destruction;
@@ -64,7 +67,7 @@ combinations rather than guessing a boundary spectrum.
 
 | Claim ID | Requirement | Implementation path | Test/reproducer | Result | Evidence | Remaining limitation |
 |---|---|---|---|---|---|---|
-| P2-FCT-01 | Conservative grouped FCT | `ERF_SBMFCT.cpp`, `ERF_SBMTransportPrototype.cpp` | `GroupedFCTUsesOneFaceLimiterAndConservesEveryComponent`; production WENO test | accepted transfer is conservative and common-limited | VERIFIED | Production limiter uses local FAB face budgets; host reference carries global deterministic budgets |
+| P2-FCT-01 | Conservative grouped FCT | `ERF_SBMFCT.cpp`, `ERF_SBMTransportPrototype.cpp` | `GroupedFCTUsesOneFaceLimiterAndConservesEveryComponent`; `GroupedFCTUsesCellWideConstraintBudgets`; production WENO/AMR tests | accepted transfer is conservative and common-limited from cell-wide per-constraint budgets | VERIFIED | Dedicated production active-face 1-rank/2-rank oracle remains limited |
 | P2-INV-02 | 1M positivity | constraint groups and post-state checks | `ConstraintGroupsCoverOneAndTwoMomentLayouts`; P1 manufactured runs | pass | VERIFIED | Physical warm-cloud source terms are P3+ |
 | P2-INV-03 | 2M realizability | physical `(M,C)` plus bounded `(L,H)` scratch | endpoint, two-moment FCT, production build | pass | VERIFIED | Multi-population production transport remains intentionally outside the current single-population host adapter |
 | P2-PROP-04 | Property constraints | `make_constraint_groups`, POD production descriptors | subset and synthetic population tests | `0 <= subset <= carrier` | VERIFIED | No physical ice process |
@@ -72,12 +75,14 @@ combinations rather than guessing a boundary spectrum.
 | P2-TIME-06 | Compressible old baseline | `AuxiliaryStateManager`, production stage recurrence | P1 stage/transport regressions and production WENO test | pass | STRONGLY_SUPPORTED | Existing real regression is donor-focused |
 | P2-DIFF-07 | Diffuse `X/rho` | `ERF_SBMDiffusion`, production face flux | `DensityWeightedDiffusionUsesIntensiveRatioAndPhysicalGeometry` | pass | VERIFIED | Coefficient is explicit SBM input, not automatic PBL diffusivity |
 | P2-PROJ-08 | Accepted bulk projection | `SBMBulkProjection`, accepted ledger | P1 transfer-closure tests; production build | pass | VERIFIED | Compact projection is liquid-population only by design |
-| P2-OWN-09 | Unique face ownership | face-centered ledger and host duplicate rejection | duplicate ownership negative control; 2-rank production test | pass | STRONGLY_SUPPORTED | Full AMR shared-interface multi-rank fixture remains limited |
-| P2-CHUNK-10 | Chunk-safe semantics | runtime layout, atomic groups, chunk policy | chunk-size invariance assertion | pass to roundoff | STRONGLY_SUPPORTED | Production FAB path currently keeps descriptor groups resident rather than implementing a multi-pass chunk kernel |
+| P2-OWN-09 | Unique face ownership | face-centered ledger and host duplicate rejection | duplicate ownership negative control; 2-rank production tests | pass | STRONGLY_SUPPORTED | Dedicated active-limiter face-on-rank-boundary production oracle remains limited |
+| P2-CHUNK-10 | Chunk-safe semantics | runtime layout, atomic groups, chunk policy | host chunk policy plus runtime `sbm_chunk_size` fixture | policy is accepted and deterministic, but production temporary buffers remain full-layout | PARTIAL / NOT P2-QUALIFIED | A multi-pass production candidate path and measured scratch scaling are still required |
 | P2-AMR-11 | Restriction/prolongation | manager and `ERF_SBMAMR` | manager lifecycle plus volume/register tests and `SBM_P2_AMR_2M` | pass | STRONGLY_SUPPORTED | Full subcycling and hierarchy scientific diagnostics remain limited |
 | P2-AMR-12 | Reflux fail closed | `validate_post_reflux`, `ERF::post_timestep` | inadmissible correction negative control | collective diagnostic failure/no clip | VERIFIED | Full hierarchy negative control is service-level |
-| P2-RESTART-13 | Strict restart schema | `ERF_SBMRestart`, checkpoint hooks | schema mismatch/projection negative controls | pass | STRONGLY_SUPPORTED | Full continuous-vs-restart hierarchy fixture remains to be added |
+| P2-RESTART-13 | Strict restart schema | `ERF_SBMRestart`, checkpoint hooks | schema mismatch/projection/missing-field controls; `SBM_P2_AMR_RESTART_2M` | pass | VERIFIED | Comparison is exact for the same two-rank deterministic decomposition; broader restart/regrid matrices remain limited |
 | P2-NONSBM-14 | Ordinary ERF unchanged | provider allocation/gates conditional on SBM | existing full CTest and non-SBM regressions | pass on existing suite | STRONGLY_SUPPORTED | No binary-diff claim is made |
+| P2-CONV-15 | WENO-Z3 qualification | `ERF_SBMTransportPrototype.cpp`, ERF `WENO_Z3` helper | `SBMP2.WENOZ3ConvergenceBeatsDonorOnPeriodicSmoothOperator` | WENO error beats donor and measured order approaches 2 for the implemented face operator | VERIFIED | This is an operator result, not a universal third-order whole-model claim |
+| P2-RESTART-16 | Continuous/restart AMR equivalence | `Tests/RunSBMP2Restart.cmake` | `SBM_P2_AMR_RESTART_2M` | final per-level `SBMAux`, compact `Cell`, and schema payloads match exactly | VERIFIED | Same decomposition and deterministic fixture; floating-point cross-platform equivalence is not claimed |
 
 ## Numerical evidence
 
@@ -97,7 +102,9 @@ reported tolerances and the directly measured values are:
 * post-reflux negative control: rejected with level `2`, cell `0`, and a
   populated group/constraint diagnostic;
 * restart projection comparison: `1` versus `1+1e-14` accepted, `1` versus
-  `1+1e-4` rejected under the scale-aware comparison.
+  `1+1e-4` rejected under the scale-aware comparison;
+* continuous/restart production AMR: exact hashes match for all level-0 and
+  level-1 `SBMAux_*` and `Cell_*` payloads and `SBM_Schema` at coarse step 2.
 
 The six real ERF P1 manufactured cases additionally enforce finite scaled
 mass, projection, face-projection, and transfer-closure tolerances through
@@ -106,11 +113,20 @@ in the generated `BuildTests/Tests/test_files/SBM_P1_*` directories.
 
 ## Convergence evidence
 
-No universal third-order end-to-end ERF claim is made.  The production P2
-regression demonstrates WENO-Z3 reuse and materially different smooth
-transport from donor transport while the existing P1 cases remain the donor
-reference.  A formal grid-refinement order table is not generated by the
-current routine fixture and is therefore not marked verified.
+No universal third-order end-to-end ERF claim is made.  The measured smooth
+periodic face-operator table is:
+
+| N | WENO error | Donor error | WENO order | Donor order |
+|---:|---:|---:|---:|---:|
+| 8 | `2.167727513247395e-1` | `3.826834323650905e-1` | -- | -- |
+| 16 | `5.690574787189391e-2` | `1.950903220161287e-1` | `1.9295371` | `0.9720092` |
+| 32 | `1.439944626897672e-2` | `9.801714032405588e-2` | `1.9825610` | `0.9930362` |
+| 64 | `3.610729532975476e-3` | `4.906767432756010e-2` | `1.9956511` | `0.9982612` |
+
+The test writes the same values to
+`/private/tmp/erf_sbm_p2_weno_convergence.csv`.  WENO materially improves the
+smooth operator over donor transport, but the table qualifies only that
+operator.
 
 ## MPI/AMR evidence
 
@@ -123,9 +139,10 @@ current routine fixture and is therefore not marked verified.
   `(2,2,2)`, `TwoWay` coupling, grouped WENO/FCT, 2M physical storage, and two
   MPI ranks through coarse step 2; the CTest checker verifies layout identity,
   2M component count, and successful completion after reflux.
-* True level-subcycling and full continuous-vs-restart equivalence are not yet
-  covered by a dedicated production fixture, so G4 remains
-  `STRONGLY_SUPPORTED` and G5 remains `STRONGLY_SUPPORTED`.
+* `SBM_P2_AMR_RESTART_2M` runs uninterrupted and checkpoint/restart trajectories
+  at two ranks and compares every final spectral/compact payload and the
+  schema exactly.  It does not replace a broader subcycling, decomposition,
+  or cross-platform numerical oracle, so G4 remains partial.
 
 ## Memory policy
 
@@ -144,10 +161,12 @@ logical payloads are approximately:
 The table is a component-count scaling ledger, not a claim of allocator-level
 performance.  For the existing 4-cell qualification tile, the corresponding
 authoritative cell-state payloads are 512/2048/8192 bytes for 1M and
-1024/4096/16384 bytes for 2M at 4/16/64 bins.  The production diagnostic also
-records grown-box and face-ledger bytes for the six inherited P1 cases.  There
-is no `MAX_BINS` production constant and no permanent duplicate full 2M
-endpoint state.
+1024/4096/16384 bytes for 2M at 4/16/64 bins.  The production grouped-FCT
+path additionally allocates full-layout temporary high-order, low-advection,
+and low-diffusion face FABs while a stage is active; the configured chunk value
+does not yet reduce those temporary payloads.  This is why P2-CHUNK-10 remains
+`PARTIAL / NOT P2-QUALIFIED`.  There is no `MAX_BINS` production constant and
+no permanent duplicate full 2M endpoint state.
 
 ## Tests/builds
 
@@ -169,13 +188,13 @@ Results at the current evidence checkpoint:
 
 | Check | Result |
 |---|---|
-| Focused P2 unit tests | 15/15 at 1 MPI rank and 2 MPI ranks |
+| Focused P2 unit tests | 21/21 at 1 MPI rank and 2 MPI ranks |
 | P1 focused SBM unit subset | 13/13 on 2 MPI ranks |
 | Real single-level P1 qualification | 6/6 |
-| AMR qualification | 5/5: four targeted service/lifecycle tests plus `SBM_P2_AMR_2M` two-rank two-level production fixture |
-| Restart/regrid qualification | 2/2 targeted schema/remake service tests; full continuous/restart fixture absent |
-| SBM CTest subset | 8/8 |
-| Full CTest | 779/779 |
+| AMR qualification | `SBM_P2_AMR_2M` and `SBM_P2_AMR_RESTART_2M` pass; service lifecycle and register tests pass in the 21-test focused suite |
+| Restart/regrid qualification | strict service tests plus automated two-rank continuous/restart payload equivalence pass |
+| SBM CTest subset | 9/9 |
+| Full CTest | PASS: 786/786 |
 | CMake production build | PASS with Spack `mpicxx`, `-j8` |
 | GNUmake build | PASS with Spack `mpicxx`, `-j8` |
 | Docs/catalog checks | 15/15 |
@@ -191,6 +210,8 @@ The following remain explicitly unsupported or unqualified:
 * collision/coalescence;
 * sedimentation;
 * physical ice processes;
+* production chunk-bounded WENO/FCT work and scratch-memory qualification;
+* quantitative composite AMR conservation/flux-register oracle matrix;
 * implicit moisture diffusion;
 * SHOC/macrophysics condensate coupling;
 * moving terrain;
@@ -199,6 +220,14 @@ The following remain explicitly unsupported or unqualified:
 * dynamic spectral-grid conversion;
 * GPU performance qualification;
 * cloud-chamber/LES physical validation.
+
+## Final disposition
+
+**P2 PARTIAL — DO NOT BEGIN P3**
+
+The implemented and evidenced remainder is useful as a fail-closed P2
+foundation, but production chunk-bounded memory and the broader composite
+AMR/MPI quantitative oracle set are not complete enough to authorize P3.
 
 ## Review link
 
