@@ -39,14 +39,41 @@ void restrict_constraint (const amrex::Real delta_form,
                           const amrex::Real scale,
                           amrex::Real& lambda) noexcept
 {
-    const amrex::Real left_demand = -scale * delta_form;
-    const amrex::Real right_demand = scale * delta_form;
+    // A positive face correction form decreases the left-cell constraint and
+    // increases the right-cell constraint.  The signs here must match the
+    // conservative divergence update below.
+    const amrex::Real left_demand = scale * delta_form;
+    const amrex::Real right_demand = -scale * delta_form;
     if (left_demand > amrex::Real(0.0)) {
         lambda = amrex::min(lambda, amrex::max(amrex::Real(0.0), left_margin / left_demand));
     }
     if (right_demand > amrex::Real(0.0)) {
         lambda = amrex::min(lambda, amrex::max(amrex::Real(0.0), right_margin / right_demand));
     }
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real descriptor_form(const ConstraintDescriptor& descriptor,
+                            const amrex::Array4<const amrex::Real>& state,
+                            const int i, const int j, const int k) noexcept
+{
+    amrex::Real value = descriptor.coefficient0 * state(i,j,k,descriptor.component0);
+    if (descriptor.term_count == 2) {
+        value += descriptor.coefficient1 * state(i,j,k,descriptor.component1);
+    }
+    return value;
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real descriptor_face_form(const ConstraintDescriptor& descriptor,
+                                 const amrex::Array4<const amrex::Real>& flux,
+                                 const int i, const int j, const int k) noexcept
+{
+    amrex::Real value = descriptor.coefficient0 * flux(i,j,k,descriptor.component0);
+    if (descriptor.term_count == 2) {
+        value += descriptor.coefficient1 * flux(i,j,k,descriptor.component1);
+    }
+    return value;
 }
 
 struct ProductionProperty {
@@ -162,46 +189,78 @@ void validate_admissible_state(::erf_auxiliary::AuxiliaryStateManager& manager,
                                const SBMLayout& layout, const int level)
 {
     if (!manager.has_level(level)) throw std::invalid_argument("SBM admissibility check references an undefined level");
-    validate_nonnegative_state(manager.output(level), layout.ncomp(), "SBM post-reflux physical state");
-    if (layout.populations().size() != 1) {
-        throw std::invalid_argument("SBM admissibility check requires the current single-population P2 production contract");
-    }
-    const auto& population = layout.populations().front();
-    if (population.moment_mode != MomentMode::TwoMoment) return;
-    auto& scratch = manager.scratch(level);
     const auto& source = manager.output(level);
-    amrex::MultiFab::Copy(scratch, source, 0, 0, layout.ncomp(), source.nGrowVect());
-    const int first = population.mass_offset;
-    const int nbins = population.grid.nbins();
-    for (amrex::MFIter mfi(scratch); mfi.isValid(); ++mfi) {
-        const amrex::Box box = mfi.validbox();
-        const auto state = source.const_array(mfi);
-        const auto endpoints = scratch.array(mfi);
-        for (int b = 0; b < nbins; ++b) {
-            const int mass = first + b;
-            const int number = population.number_offset + b;
-            const Real lower = population.grid.edges()[static_cast<std::size_t>(b)];
-            const Real upper = population.grid.edges()[static_cast<std::size_t>(b+1)];
-            const Real denominator = upper - lower;
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                const Real M = state(i,j,k,mass);
-                const Real C = state(i,j,k,number);
-                const Real scale = amrex::Math::abs(M) + upper*amrex::Math::abs(C) + lower*amrex::Math::abs(C);
+    validate_nonnegative_state(source, layout.ncomp(), "SBM post-reflux physical state");
+
+    const auto groups = make_constraint_groups(layout);
+    const auto descriptors = make_constraint_descriptors(layout);
+    amrex::Gpu::ManagedVector<ConstraintDescriptor> device_descriptors;
+    for (const auto& descriptor : descriptors) device_descriptors.push_back(descriptor);
+    const auto* descriptor_data = device_descriptors.data();
+    const int nconstraints = static_cast<int>(descriptors.size());
+    const auto states = source.const_arrays();
+    const auto summary = amrex::ParReduce(
+        amrex::TypeList<amrex::ReduceOpLogicalOr, amrex::ReduceOpMax,
+                        amrex::ReduceOpMax, amrex::ReduceOpMax>{},
+        amrex::TypeList<int, int, int, int>{}, source, amrex::IntVect(0),
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+            -> amrex::GpuTuple<int, int, int, int> {
+            int bad = 0;
+            int bad_i = -1, bad_j = -1, bad_k = -1;
+            for (int d = 0; d < nconstraints; ++d) {
+                const auto descriptor = descriptor_data[d];
+                const Real value = descriptor_form(descriptor, states[box_no], i, j, k);
+                const Real scale = descriptor.term_count == 2 ?
+                    amrex::Math::abs(descriptor.coefficient0 * states[box_no](i,j,k,descriptor.component0)) +
+                    amrex::Math::abs(descriptor.coefficient1 * states[box_no](i,j,k,descriptor.component1)) :
+                    amrex::Math::abs(descriptor.coefficient0 * states[box_no](i,j,k,descriptor.component0));
                 const Real tolerance = Real(128.0) * std::numeric_limits<Real>::epsilon() * scale;
-                Real L = (upper*C-M)/denominator;
-                Real H = (M-lower*C)/denominator;
-                if (L < Real(0.0) && L >= -tolerance) L = Real(0.0);
-                if (H < Real(0.0) && H >= -tolerance) H = Real(0.0);
-                endpoints(i,j,k,mass) = L;
-                endpoints(i,j,k,number) = H;
-                if (L < Real(0.0) || H < Real(0.0)) {
-                    endpoints(i,j,k,mass) = -Real(1.0);
-                    endpoints(i,j,k,number) = -Real(1.0);
+                if (amrex::isnan(value) || amrex::isinf(value) || value < -tolerance) {
+                    bad = 1; bad_i = i; bad_j = j; bad_k = k;
                 }
+            }
+            return {bad, bad_i, bad_j, bad_k};
+        });
+    int bad = amrex::get<0>(summary);
+    int bad_i = amrex::get<1>(summary), bad_j = amrex::get<2>(summary), bad_k = amrex::get<3>(summary);
+    amrex::ParallelDescriptor::ReduceIntMax(bad);
+    amrex::ParallelDescriptor::ReduceIntMax(bad_i);
+    amrex::ParallelDescriptor::ReduceIntMax(bad_j);
+    amrex::ParallelDescriptor::ReduceIntMax(bad_k);
+    if (bad == 0) return;
+
+    int failed_descriptor = -1;
+    Real failed_margin = Real(0.0);
+    for (int d = 0; d < nconstraints; ++d) {
+        const auto descriptor = descriptors[static_cast<std::size_t>(d)];
+        const auto detail = amrex::ParReduce(
+            amrex::TypeList<amrex::ReduceOpLogicalOr, amrex::ReduceOpMin>{},
+            amrex::TypeList<int, Real>{}, source, amrex::IntVect(0),
+            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+                -> amrex::GpuTuple<int, Real> {
+                const Real value = descriptor_form(descriptor, states[box_no], i, j, k);
+                const Real scale = descriptor.term_count == 2 ?
+                    amrex::Math::abs(descriptor.coefficient0 * states[box_no](i,j,k,descriptor.component0)) +
+                    amrex::Math::abs(descriptor.coefficient1 * states[box_no](i,j,k,descriptor.component1)) :
+                    amrex::Math::abs(descriptor.coefficient0 * states[box_no](i,j,k,descriptor.component0));
+                const Real tolerance = Real(128.0) * std::numeric_limits<Real>::epsilon() * scale;
+                return {(amrex::isnan(value) || amrex::isinf(value) || value < -tolerance) ? 1 : 0, value};
             });
-        }
+        int descriptor_bad = amrex::get<0>(detail);
+        failed_margin = amrex::get<1>(detail);
+        amrex::ParallelDescriptor::ReduceIntMax(descriptor_bad);
+        amrex::ParallelDescriptor::ReduceRealMin(failed_margin);
+        if (failed_descriptor < 0 && descriptor_bad != 0) failed_descriptor = d;
     }
-    validate_nonnegative_state(scratch, layout.ncomp(), "SBM post-reflux endpoint state");
+    if (failed_descriptor < 0) failed_descriptor = 0;
+    const auto& descriptor = descriptors[static_cast<std::size_t>(failed_descriptor)];
+    const auto& group = groups[static_cast<std::size_t>(descriptor.group_index)];
+    const auto& constraint = group.constraints[static_cast<std::size_t>(descriptor.constraint_index)];
+    std::ostringstream message;
+    message << "SBM complete constraint validation failed after reflux/regrid/restart: level=" << level
+            << " cell=(" << bad_i << "," << bad_j << "," << bad_k << ") group=" << group.semantic_id
+            << " constraint=" << constraint.semantic_id << " margin=" << failed_margin;
+    throw std::domain_error(message.str());
 }
 
 void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
@@ -216,7 +275,8 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux,
                    const TransportMethod method,
                    const int level,
-                   const amrex::Real diffusion_coefficient)
+                   const amrex::Real diffusion_coefficient,
+                   const int chunk_size)
 {
     if (layout.populations().size() != 1 || !manager.has_level(level)) {
         throw std::invalid_argument("ERF SBM transport requires one initialized runtime population and level");
@@ -229,6 +289,9 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
     }
     if (!std::isfinite(diffusion_coefficient) || diffusion_coefficient < amrex::Real(0.0)) {
         throw std::invalid_argument("SBM explicit diffusion coefficient must be finite and nonnegative");
+    }
+    if (method == TransportMethod::GroupedFCT_WENOZ3 && chunk_size < 0) {
+        throw std::invalid_argument("SBM grouped-FCT chunk size must be nonnegative");
     }
     if (method == TransportMethod::GroupedFCT_WENOZ3 && manager.scratch(level).nGrowVect().min() < 2) {
         throw std::invalid_argument("GroupedFCT_WENOZ3 requires two ghost cells for ERF WENO_Z3");
@@ -265,6 +328,19 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
     }
 
     stage_flux.setVal(amrex::Real(0.0));
+
+    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> high_flux;
+    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> low_advection_flux;
+    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> low_diffusion_flux;
+    if (method == TransportMethod::GroupedFCT_WENOZ3) {
+        high_flux = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
+        high_flux->define(stage_flux.x().boxArray(), stage_flux.x().DistributionMap(), layout.ncomp(), 0);
+        low_advection_flux = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
+        low_advection_flux->define(stage_flux.x().boxArray(), stage_flux.x().DistributionMap(), layout.ncomp(), 0);
+        low_diffusion_flux = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
+        low_diffusion_flux->define(stage_flux.x().boxArray(), stage_flux.x().DistributionMap(), layout.ncomp(), 0);
+    }
+    const bool split_low_flux = high_flux != nullptr;
 
     // Two-moment storage is (M,C), while transport uses nonnegative endpoint
     // variables (L,H).  The existing per-level scratch FAB holds endpoint
@@ -318,12 +394,6 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
         transport_scratch.FillBoundary(geometry.periodicity());
     }
 
-    std::unique_ptr<::erf_auxiliary::AuxiliaryFaceTransfer> high_flux;
-    if (method == TransportMethod::GroupedFCT_WENOZ3) {
-        high_flux = std::make_unique<::erf_auxiliary::AuxiliaryFaceTransfer>();
-        high_flux->define(stage_flux.x().boxArray(), stage_flux.x().DistributionMap(), layout.ncomp(), 0);
-    }
-
     // Construct each numerical face flux exactly once on its face-centered
     // MultiFab.  The same arrays feed the divergence below and the accepted
     // full-step ledger; no cell-centered or independently reconstructed bulk
@@ -338,6 +408,12 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
             const auto physical = evaluation.const_array(mfi);
             const auto rho = rho_evaluation.const_array(mfi);
             const auto out = flux.array(mfi);
+            amrex::Array4<Real> low_adv;
+            amrex::Array4<Real> low_diff;
+            if (split_low_flux) {
+                low_adv = low_advection_flux->direction(dir).array(mfi);
+                low_diff = low_diffusion_flux->direction(dir).array(mfi);
+            }
             const Real inverse_distance = geometry.InvCellSize(dir);
             for (int b = 0; b < nbins; ++b) {
                 const int mass = first + b;
@@ -354,9 +430,19 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                         const Real right_endpoint = face_mass_flux * eval(donor_i,donor_j,donor_k,number);
                         out(i,j,k,mass) = lower*left_endpoint + upper*right_endpoint;
                         out(i,j,k,number) = left_endpoint + right_endpoint;
+                        if (split_low_flux) {
+                            low_adv(i,j,k,mass) = out(i,j,k,mass);
+                            low_adv(i,j,k,number) = out(i,j,k,number);
+                            low_diff(i,j,k,mass) = Real(0.0);
+                            low_diff(i,j,k,number) = Real(0.0);
+                        }
                     } else {
                         out(i,j,k,mass) = face_mass_flux *
                             donor_ratio(eval, rho, donor_i, donor_j, donor_k, mass);
+                        if (split_low_flux) {
+                            low_adv(i,j,k,mass) = out(i,j,k,mass);
+                            low_diff(i,j,k,mass) = Real(0.0);
+                        }
                     }
                     if (diffusion_coefficient > Real(0.0)) {
                         const int left_i = dir == 0 ? i-1 : i;
@@ -374,10 +460,16 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                                     (eval(right_i,right_j,right_k,number) - eval(left_i,left_j,left_k,number)) * inverse_distance;
                                 out(i,j,k,mass) += lower*ldiff + upper*hdiff;
                                 out(i,j,k,number) += ldiff + hdiff;
+                                if (split_low_flux) {
+                                    low_diff(i,j,k,mass) = lower*ldiff + upper*hdiff;
+                                    low_diff(i,j,k,number) = ldiff + hdiff;
+                                }
                             } else {
-                                out(i,j,k,mass) += -rho_face * diffusion_coefficient *
+                                const Real mdiff = -rho_face * diffusion_coefficient *
                                     (donor_ratio(physical, rho, right_i,right_j,right_k,mass) -
                                      donor_ratio(physical, rho, left_i,left_j,left_k,mass)) * inverse_distance;
+                                out(i,j,k,mass) += mdiff;
+                                if (split_low_flux) low_diff(i,j,k,mass) = mdiff;
                             }
                         }
                     }
@@ -399,15 +491,22 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                                               dir == 1 ? j-1 : j,
                                               dir == 2 ? k-1 : k);
                     const Real rho_right = rho(i,j,k);
-                    out(i,j,k,c) = face_mass_flux * donor_ratio(physical, rho, donor_i, donor_j, donor_k, c);
+                    const Real advection = face_mass_flux * donor_ratio(physical, rho, donor_i, donor_j, donor_k, c);
+                    out(i,j,k,c) = advection;
+                    if (split_low_flux) {
+                        low_adv(i,j,k,c) = advection;
+                        low_diff(i,j,k,c) = Real(0.0);
+                    }
                     if (diffusion_coefficient > Real(0.0) && rho_left > Real(0.0) && rho_right > Real(0.0)) {
                         const Real rho_face = Real(0.5) * (rho_left + rho_right);
                         const int left_i = dir == 0 ? i-1 : i;
                         const int left_j = dir == 1 ? j-1 : j;
                         const int left_k = dir == 2 ? k-1 : k;
-                        out(i,j,k,c) += -rho_face * diffusion_coefficient *
+                        const Real pdiff = -rho_face * diffusion_coefficient *
                             (physical(i,j,k,c)/rho_right - physical(left_i,left_j,left_k,c)/rho_left) *
                             inverse_distance;
+                        out(i,j,k,c) += pdiff;
+                        if (split_low_flux) low_diff(i,j,k,c) = pdiff;
                     }
                 });
             }
@@ -550,13 +649,20 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
     output.FillBoundary(geometry.periodicity());
 
     if (high_flux) {
-        // Apply one lambda per shared face to the complete population/bin
-        // group.  All group constraints are evaluated in physical storage;
-        // two-moment endpoint constraints are expanded algebraically so the
-        // device path never captures runtime STL containers.
+        // The production path uses the exact flattened semantic group
+        // definitions.  Pass one accumulates a complete cell-wide adverse
+        // budget for every atomic constraint; pass two applies one common
+        // lambda to every member of the affected population/bin group.
         const Real anelastic_weight =
             (context.method == ::erf_auxiliary::IntegrationMethod::AnelasticHeun && context.stage_index > 0)
             ? Real(0.5) : Real(1.0);
+        const auto groups = make_constraint_groups(layout);
+        const auto descriptors = make_constraint_descriptors(layout);
+        const int nconstraints = static_cast<int>(descriptors.size());
+        amrex::Gpu::ManagedVector<ConstraintDescriptor> device_descriptors;
+        for (const auto& descriptor : descriptors) device_descriptors.push_back(descriptor);
+        const auto* descriptor_data = device_descriptors.data();
+
         amrex::Gpu::ManagedVector<ProductionProperty> properties;
         for (std::size_t p = 0; p < layout.attached_properties().size(); ++p) {
             const auto& property = layout.attached_properties()[p];
@@ -572,6 +678,192 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
         const ProductionProperty* property_data = properties.data();
         const int nproperties = static_cast<int>(properties.size());
         const int ncomp = layout.ncomp();
+
+        auto accumulate_budget = [&](const ::erf_auxiliary::AuxiliaryFaceTransfer& transfer,
+                                     amrex::MultiFab& budget) {
+            budget.setVal(Real(0.0));
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                const auto& face = transfer.direction(dir);
+                const Real scale = dt * anelastic_weight * geometry.InvCellSize(dir);
+                for (amrex::MFIter mfi(face); mfi.isValid(); ++mfi) {
+                    const amrex::Box box = mfi.validbox();
+                    const auto flux = face.const_array(mfi);
+                    const auto cell_budget = budget.array(mfi);
+                    for (int descriptor_index = 0; descriptor_index < nconstraints; ++descriptor_index) {
+                        const auto descriptor = descriptor_data[descriptor_index];
+                        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            const int li = dir == 0 ? i-1 : i;
+                            const int lj = dir == 1 ? j-1 : j;
+                            const int lk = dir == 2 ? k-1 : k;
+                            const Real form = descriptor_face_form(descriptor, flux, i, j, k);
+                            const Real left_demand = scale * form;
+                            const Real right_demand = -scale * form;
+                            if (left_demand > Real(0.0)) {
+                                amrex::Gpu::Atomic::Add(&cell_budget(li,lj,lk,descriptor_index), left_demand);
+                            }
+                            if (right_demand > Real(0.0)) {
+                                amrex::Gpu::Atomic::Add(&cell_budget(i,j,k,descriptor_index), right_demand);
+                            }
+                        });
+                    }
+                }
+            }
+            // Face-centered FABs may share physical boundary faces.  Collapse
+            // those contributions to the owning cell before any limiter reads
+            // them, then publish the complete cell budget into one-cell ghosts.
+            budget.SumBoundary(geometry.periodicity(), true);
+            budget.FillBoundary(geometry.periodicity());
+        };
+
+        amrex::MultiFab advection_budget(output.boxArray(), output.DistributionMap(), nconstraints, 1);
+        amrex::MultiFab diffusion_budget(output.boxArray(), output.DistributionMap(), nconstraints, 1);
+        accumulate_budget(*low_advection_flux, advection_budget);
+        accumulate_budget(*low_diffusion_flux, diffusion_budget);
+
+        // Reject a low-order state that is inadmissible under the combined
+        // advection-plus-diffusion demand.  This diagnostic is intentionally
+        // before the high-order correction: FCT is not allowed to hide a
+        // violated explicit low-order CFL/admissibility contract.
+        const auto state_arrays = output.const_arrays();
+        const auto advection_arrays = advection_budget.const_arrays();
+        const auto diffusion_arrays = diffusion_budget.const_arrays();
+        const amrex::Box domain = geometry.Domain();
+        const int nx = domain.length(0);
+        const int ny = domain.length(1);
+        const int nz = domain.length(2);
+        const auto low_summary = amrex::ParReduce(
+            amrex::TypeList<amrex::ReduceOpMax, amrex::ReduceOpMax>{},
+            amrex::TypeList<Real, Real>{}, output, amrex::IntVect(0),
+            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+                -> amrex::GpuTuple<Real, Real> {
+                Real max_excess = Real(0.0);
+                Real cell_key = Real(0.0);
+                for (int d = 0; d < nconstraints; ++d) {
+                    const auto descriptor = descriptor_data[d];
+                    const Real value = descriptor_form(descriptor, state_arrays[box_no], i, j, k);
+                    const Real scale = descriptor.term_count == 2 ?
+                        amrex::Math::abs(descriptor.coefficient0 * state_arrays[box_no](i,j,k,descriptor.component0)) +
+                        amrex::Math::abs(descriptor.coefficient1 * state_arrays[box_no](i,j,k,descriptor.component1)) :
+                        amrex::Math::abs(descriptor.coefficient0 * state_arrays[box_no](i,j,k,descriptor.component0));
+                    const Real tolerance = Real(128.0) * std::numeric_limits<Real>::epsilon() * scale;
+                    const Real excess = advection_arrays[box_no](i,j,k,d) +
+                        diffusion_arrays[box_no](i,j,k,d) - value - tolerance;
+                    if (excess > max_excess) {
+                        max_excess = excess;
+                        cell_key = static_cast<Real>(i-domain.smallEnd(0)) +
+                            static_cast<Real>(nx) * (static_cast<Real>(j-domain.smallEnd(1)) +
+                            static_cast<Real>(ny) * static_cast<Real>(k-domain.smallEnd(2)));
+                    }
+                }
+                return {max_excess, cell_key};
+            });
+        Real max_excess = amrex::get<0>(low_summary);
+        Real cell_key = amrex::get<1>(low_summary);
+        amrex::ParallelDescriptor::ReduceRealMax(max_excess);
+        amrex::ParallelDescriptor::ReduceRealMax(cell_key);
+        if (max_excess > Real(0.0)) {
+            int failed_descriptor = -1;
+            Real available_margin = Real(0.0), advection_demand = Real(0.0), diffusion_demand = Real(0.0);
+            for (int d = 0; d < nconstraints; ++d) {
+                const auto descriptor = descriptor_data[d];
+                const auto detail = amrex::ParReduce(
+                    amrex::TypeList<amrex::ReduceOpMax, amrex::ReduceOpMin,
+                                    amrex::ReduceOpMax, amrex::ReduceOpMax>{},
+                    amrex::TypeList<Real, Real, Real, Real>{}, output, amrex::IntVect(0),
+                    [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
+                        -> amrex::GpuTuple<Real, Real, Real, Real> {
+                        const Real value = descriptor_form(descriptor, state_arrays[box_no], i, j, k);
+                        const Real scale = descriptor.term_count == 2 ?
+                            amrex::Math::abs(descriptor.coefficient0 * state_arrays[box_no](i,j,k,descriptor.component0)) +
+                            amrex::Math::abs(descriptor.coefficient1 * state_arrays[box_no](i,j,k,descriptor.component1)) :
+                            amrex::Math::abs(descriptor.coefficient0 * state_arrays[box_no](i,j,k,descriptor.component0));
+                        const Real tolerance = Real(128.0) * std::numeric_limits<Real>::epsilon() * scale;
+                        const Real combined = advection_arrays[box_no](i,j,k,d) + diffusion_arrays[box_no](i,j,k,d);
+                        return {amrex::max(Real(0.0), combined - value - tolerance), value,
+                                advection_arrays[box_no](i,j,k,d), diffusion_arrays[box_no](i,j,k,d)};
+                    });
+                Real violation = amrex::get<0>(detail);
+                Real margin = amrex::get<1>(detail);
+                Real advection = amrex::get<2>(detail);
+                Real diffusion = amrex::get<3>(detail);
+                amrex::ParallelDescriptor::ReduceRealMax(violation);
+                amrex::ParallelDescriptor::ReduceRealMin(margin);
+                amrex::ParallelDescriptor::ReduceRealMax(advection);
+                amrex::ParallelDescriptor::ReduceRealMax(diffusion);
+                if (failed_descriptor < 0 && violation > Real(0.0)) {
+                    failed_descriptor = d;
+                    available_margin = margin;
+                    advection_demand = advection;
+                    diffusion_demand = diffusion;
+                }
+            }
+            const int cell_nx = nx > 0 ? nx : 1;
+            const int cell_ny = ny > 0 ? ny : 1;
+            const long long packed = static_cast<long long>(cell_key + Real(0.5));
+            const int ck = static_cast<int>(packed / (static_cast<long long>(cell_nx) * cell_ny));
+            const int cj = static_cast<int>((packed / cell_nx) % cell_ny);
+            const int ci = static_cast<int>(packed % cell_nx);
+            const auto& descriptor = descriptors[static_cast<std::size_t>(amrex::max(0, failed_descriptor))];
+            const auto& group = groups[static_cast<std::size_t>(descriptor.group_index)];
+            const auto& constraint = group.constraints[static_cast<std::size_t>(descriptor.constraint_index)];
+            std::ostringstream message;
+            message << "SBM combined low-order advection+diffusion admissibility failure: level=" << level
+                    << " cell=(" << (domain.smallEnd(0)+ci) << "," << (domain.smallEnd(1)+cj)
+                    << "," << (domain.smallEnd(2)+ck) << ") group=" << group.semantic_id
+                    << " constraint=" << constraint.semantic_id
+                    << " available_margin=" << available_margin
+                    << " advection_demand=" << advection_demand
+                    << " diffusion_demand=" << diffusion_demand
+                    << " combined_demand=" << (advection_demand + diffusion_demand)
+                    << " dt=" << dt
+                    << " diffusion_admissible_dt=" << (diffusion_coefficient > Real(0.0) ?
+                        Real(0.5)/(diffusion_coefficient*(dxi*dxi + dyi*dyi + dzi*dzi)) :
+                        std::numeric_limits<Real>::infinity());
+            throw std::domain_error(message.str());
+        }
+
+        // The low-order state is itself part of the invariant-domain
+        // contract.  Validate it after the combined demand diagnostic (so a
+        // timestep violation receives the more specific advection/diffusion
+        // report) and before any antidiffusive correction is considered.
+        validate_admissible_state(manager, layout, level);
+
+        amrex::MultiFab constraint_budget(output.boxArray(), output.DistributionMap(), nconstraints, 1);
+        // Accumulate the high-minus-low antidiffusive demand with the same
+        // cell/constraint ownership rule used for the low-order diagnostic.
+        constraint_budget.setVal(Real(0.0));
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const auto& low = stage_flux.direction(dir);
+            const auto& candidate = high_flux->direction(dir);
+            const Real scale = dt * anelastic_weight * geometry.InvCellSize(dir);
+            for (amrex::MFIter mfi(low); mfi.isValid(); ++mfi) {
+                const amrex::Box box = mfi.validbox();
+                const auto low_arr = low.const_array(mfi);
+                const auto high_arr = candidate.const_array(mfi);
+                const auto budget = constraint_budget.array(mfi);
+                for (int d = 0; d < nconstraints; ++d) {
+                    const auto descriptor = descriptor_data[d];
+                    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        const int li = dir == 0 ? i-1 : i;
+                        const int lj = dir == 1 ? j-1 : j;
+                        const int lk = dir == 2 ? k-1 : k;
+                        const Real form = descriptor_face_form(descriptor, high_arr, i, j, k) -
+                            descriptor_face_form(descriptor, low_arr, i, j, k);
+                        const Real left_demand = scale * form;
+                        const Real right_demand = -scale * form;
+                        if (left_demand > Real(0.0)) {
+                            amrex::Gpu::Atomic::Add(&budget(li,lj,lk,d), left_demand);
+                        }
+                        if (right_demand > Real(0.0)) {
+                            amrex::Gpu::Atomic::Add(&budget(i,j,k,d), right_demand);
+                        }
+                    });
+                }
+            }
+        }
+        constraint_budget.SumBoundary(geometry.periodicity(), true);
+        constraint_budget.FillBoundary(geometry.periodicity());
+
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             auto& low = stage_flux.direction(dir);
             const auto& candidate = high_flux->direction(dir);
@@ -581,82 +873,50 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                 const auto low_arr = low.const_array(mfi);
                 const auto high_arr = candidate.const_array(mfi);
                 const auto state = output.const_array(mfi);
+                const auto budget = constraint_budget.const_array(mfi);
                 const auto result = high_flux->direction(dir).array(mfi);
                 const Real scale = dt * anelastic_weight * inverse_length;
                 for (int b = 0; b < nbins; ++b) {
                     const int mass = first + b;
                     const int number = two_moment ? population.number_offset + b : -1;
-                    const Real lower = two_moment ? population.grid.edges()[static_cast<std::size_t>(b)] : Real(0.0);
-                    const Real upper = two_moment ? population.grid.edges()[static_cast<std::size_t>(b+1)] : Real(0.0);
-                    const Real denominator = two_moment ? upper - lower : Real(1.0);
-                    const Real pivot = two_moment ? Real(1.0) : population.grid.pivot(b);
+                    const int group_index = b;
+                    int first_descriptor = 0;
+                    for (int d = 0; d < nconstraints; ++d) {
+                        if (descriptor_data[d].group_index == group_index) { first_descriptor = d; break; }
+                    }
+                    int last_descriptor = first_descriptor;
+                    while (last_descriptor < nconstraints && descriptor_data[last_descriptor].group_index == group_index) ++last_descriptor;
                     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         const int li = dir == 0 ? i-1 : i;
                         const int lj = dir == 1 ? j-1 : j;
                         const int lk = dir == 2 ? k-1 : k;
-                        const int ri = i, rj = j, rk = k;
                         Real lambda = Real(1.0);
-                        const Real delta_mass = high_arr(i,j,k,mass) - low_arr(i,j,k,mass);
-                        const Real delta_number = two_moment ?
-                            high_arr(i,j,k,number) - low_arr(i,j,k,number) : Real(0.0);
-                        if (two_moment) {
-                            const Real delta_low = (upper*delta_number - delta_mass) / denominator;
-                            const Real delta_high = (delta_mass - lower*delta_number) / denominator;
-                            const Real left_low = (upper*state(li,lj,lk,number)-state(li,lj,lk,mass))/denominator;
-                            const Real left_high = (state(li,lj,lk,mass)-lower*state(li,lj,lk,number))/denominator;
-                            const Real right_low = (upper*state(ri,rj,rk,number)-state(ri,rj,rk,mass))/denominator;
-                            const Real right_high = (state(ri,rj,rk,mass)-lower*state(ri,rj,rk,number))/denominator;
-                            restrict_constraint(delta_low, left_low, right_low, scale, lambda);
-                            restrict_constraint(delta_high, left_high, right_high, scale, lambda);
-                        } else {
-                            restrict_constraint(delta_mass, state(li,lj,lk,mass), state(ri,rj,rk,mass), scale, lambda);
-                        }
-                        for (int p = 0; p < nproperties; ++p) {
-                            const auto property = property_data[p];
-                            const int component = property.component + b;
-                            const Real delta_property = high_arr(i,j,k,component) - low_arr(i,j,k,component);
-                            restrict_constraint(delta_property, state(li,lj,lk,component),
-                                                state(ri,rj,rk,component), scale, lambda);
-                            if (property.has_upper) {
-                                if (two_moment) {
-                                    const Real delta_upper = property.support_max*delta_number - delta_property;
-                                    const Real left_upper = property.support_max*state(li,lj,lk,number) - state(li,lj,lk,component);
-                                    const Real right_upper = property.support_max*state(ri,rj,rk,number) - state(ri,rj,rk,component);
-                                    restrict_constraint(delta_upper, left_upper, right_upper, scale, lambda);
-                                    if (property.support_min > Real(0.0)) {
-                                        const Real delta_lower = delta_property - property.support_min*delta_number;
-                                        const Real left_lower = state(li,lj,lk,component) - property.support_min*state(li,lj,lk,number);
-                                        const Real right_lower = state(ri,rj,rk,component) - property.support_min*state(ri,rj,rk,number);
-                                        restrict_constraint(delta_lower, left_lower, right_lower, scale, lambda);
-                                    }
-                                } else {
-                                    const Real delta_upper = property.support_max/pivot*delta_mass - delta_property;
-                                    const Real left_upper = property.support_max/pivot*state(li,lj,lk,mass) - state(li,lj,lk,component);
-                                    const Real right_upper = property.support_max/pivot*state(ri,rj,rk,mass) - state(ri,rj,rk,component);
-                                    restrict_constraint(delta_upper, left_upper, right_upper, scale, lambda);
-                                    if (property.support_min > Real(0.0)) {
-                                        const Real delta_lower = delta_property - property.support_min/pivot*delta_mass;
-                                        const Real left_lower = state(li,lj,lk,component) - property.support_min/pivot*state(li,lj,lk,mass);
-                                        const Real right_lower = state(ri,rj,rk,component) - property.support_min/pivot*state(ri,rj,rk,mass);
-                                        restrict_constraint(delta_lower, left_lower, right_lower, scale, lambda);
-                                    }
-                                }
+                        for (int d = first_descriptor; d < last_descriptor; ++d) {
+                            const auto descriptor = descriptor_data[d];
+                            const Real delta_form = descriptor_face_form(descriptor, high_arr, i, j, k) -
+                                descriptor_face_form(descriptor, low_arr, i, j, k);
+                            const Real left_demand = scale * delta_form;
+                            const Real right_demand = -scale * delta_form;
+                            if (left_demand > Real(0.0) && budget(li,lj,lk,d) > Real(0.0)) {
+                                lambda = amrex::min(lambda,
+                                    descriptor_form(descriptor, state, li, lj, lk) /
+                                    budget(li,lj,lk,d));
                             }
-                            if (property.kind == static_cast<int>(PropertyKind::MassBoundedSubset)) {
-                                const Real delta_bound = delta_mass - delta_property;
-                                const Real left_bound = state(li,lj,lk,mass) - state(li,lj,lk,component);
-                                const Real right_bound = state(ri,rj,rk,mass) - state(ri,rj,rk,component);
-                                restrict_constraint(delta_bound, left_bound, right_bound, scale, lambda);
+                            if (right_demand > Real(0.0) && budget(i,j,k,d) > Real(0.0)) {
+                                lambda = amrex::min(lambda, descriptor_form(descriptor, state, i, j, k) / budget(i,j,k,d));
                             }
                         }
                         lambda = amrex::max(Real(0.0), amrex::min(Real(1.0), lambda));
+                        const Real delta_mass = high_arr(i,j,k,mass) - low_arr(i,j,k,mass);
                         result(i,j,k,mass) = low_arr(i,j,k,mass) + lambda*delta_mass;
                         if (two_moment) {
+                            const Real delta_number = high_arr(i,j,k,number) - low_arr(i,j,k,number);
                             result(i,j,k,number) = low_arr(i,j,k,number) + lambda*delta_number;
                         }
                         for (int p = 0; p < nproperties; ++p) {
                             const int component = property_data[p].component + b;
-                            result(i,j,k,component) = low_arr(i,j,k,component) + lambda*(high_arr(i,j,k,component)-low_arr(i,j,k,component));
+                            result(i,j,k,component) = low_arr(i,j,k,component) +
+                                lambda*(high_arr(i,j,k,component)-low_arr(i,j,k,component));
                         }
                     });
                 }
@@ -730,7 +990,7 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
     }
 
     validate_nonnegative_state(output, layout.ncomp());
-    manager.accept_stage(level);
+    manager.accept_stage(level, context.output_time);
     manager.record_stage_face_transfer(level, context, stage_flux);
     core_state.FillBoundary(geometry.periodicity());
 }

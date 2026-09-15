@@ -15,6 +15,8 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_ProbCommon.H"
+#include "ERF_SBMBulkProjection.H"
+#include "ERF_SBMTransportPrototype.H"
 
 using namespace amrex;
 
@@ -508,7 +510,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // spectrum and are not used as a reconstruction source.
     if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
         sbm_auxiliary->has_level(lev-1) && sbm_auxiliary->has_level(lev)) {
-        sbm_auxiliary->prolong_from_coarse(lev-1, lev, geom[lev-1], geom[lev], refRatio(lev-1));
+        sbm_auxiliary->prolong_from_coarse(lev-1, lev, geom[lev-1], geom[lev], refRatio(lev-1), time);
         const auto& aux = sbm_auxiliary->output(lev);
         for (MFIter mfi(aux); mfi.isValid(); ++mfi) {
             const Box box = mfi.validbox();
@@ -1077,7 +1079,20 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
         sbm_auxiliary->has_level(lev)) {
-        sbm_auxiliary->remake_level(lev, grids[lev], dmap[lev], 2, geom[lev].periodicity());
+        if (lev > 0 && sbm_auxiliary->has_level(lev-1)) {
+            sbm_auxiliary->remake_level_from_coarse(
+                lev, grids[lev], dmap[lev], 2, geom[lev].periodicity(), lev-1,
+                geom[lev-1], geom[lev], refRatio(lev-1), time);
+        } else {
+            sbm_auxiliary->remake_level(lev, grids[lev], dmap[lev], 2, geom[lev].periodicity());
+        }
+        ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
+        const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
+        for (MFIter mfi(sbm_auxiliary->output(lev)); mfi.isValid(); ++mfi) {
+            projection.apply_to_core(mfi.validbox(), sbm_auxiliary->output(lev).const_array(mfi),
+                                     vars_new[lev][Vars::cons].array(mfi));
+        }
+        vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
     }
 
     // Particle redistribute handled in timeStep() after regrid() completes.

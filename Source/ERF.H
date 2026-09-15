@@ -418,7 +418,7 @@ public:
     // Experimental SBM P0/P1 auxiliary-state lifecycle.  The manager is
     // generic; these ERF methods are the provider-specific integration seam.
     void initialize_sbm_auxiliary (int lev);
-    void begin_sbm_step (int lev, const amrex::MultiFab& core_old);
+    void begin_sbm_step (int lev, const amrex::MultiFab& core_old, double old_time);
     void advance_sbm_stage (int lev,
                             amrex::Vector<amrex::MultiFab>& state_old,
                             amrex::Vector<amrex::MultiFab>& state_new,

@@ -466,6 +466,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev) &&
                 sbm_auxiliary->has_level(lev+1)) {
                 sbm_auxiliary->average_down_to(lev, lev+1, refRatio(lev));
+                ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
                 const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
                 for (MFIter mfi(sbm_auxiliary->output(lev)); mfi.isValid(); ++mfi) {
                     projection.apply_to_core(mfi.validbox(),

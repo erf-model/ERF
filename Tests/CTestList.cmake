@@ -874,6 +874,37 @@ function(add_test_sbm_p2_amr TEST_NAME NRANKS)
         ATTACHED_FILES_ON_FAIL "${_log}")
 endfunction(add_test_sbm_p2_amr)
 
+# Continuous versus checkpoint/restart equivalence on the same two-level AMR
+# fixture.  The checker compares exact authoritative SBMAux and compact Cell
+# payloads at the final coarse step, together with the strict schema file.
+function(add_test_sbm_p2_restart TEST_NAME NRANKS)
+    set(_source_input
+        "${PROJECT_SOURCE_DIR}/Tests/Unit/Microphysics/SBM/inputs_sbm_p2_amr")
+    set(_test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    file(MAKE_DIRECTORY "${_test_dir}")
+    file(COPY "${_source_input}" DESTINATION "${_test_dir}")
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_input "${_test_dir}/inputs_sbm_p2_amr")
+    set(_log "${_test_dir}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NRANKS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${_input}
+        -DWORKING_DIRECTORY=${_test_dir}
+        -DLOG=${_log}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunSBMP2Restart.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NRANKS}
+        WORKING_DIRECTORY "${_test_dir}/"
+        LABELS "regression;sbm;sbm-p2;amr;restart"
+        ATTACHED_FILES_ON_FAIL "${_log};${_test_dir}/restart_equivalence/continuous.log;${_test_dir}/restart_equivalence/restart.log")
+endfunction(add_test_sbm_p2_restart)
+
 #=============================================================================
 # Regression tests
 #=============================================================================
@@ -886,6 +917,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     add_test_sbm_prototype(SBM_P1_Anelastic_16 anelastic 16 2)
     add_test_sbm_prototype(SBM_P1_Anelastic_64 anelastic 64 2)
     add_test_sbm_p2_amr(SBM_P2_AMR_2M 2)
+    add_test_sbm_p2_restart(SBM_P2_AMR_RESTART_2M 2)
 
     # The checker is a small AMReX PlotFileData consumer and is built only
     # when regression tests are enabled.  All SHOC cases use explicit

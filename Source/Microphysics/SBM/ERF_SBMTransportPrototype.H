@@ -45,7 +45,8 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux,
                    TransportMethod method = TransportMethod::DonorCell,
                    int level = 0,
-                   amrex::Real diffusion_coefficient = amrex::Real(0.0));
+                   amrex::Real diffusion_coefficient = amrex::Real(0.0),
+                   int chunk_size = 0);
 
 /** Fail-closed finite/nonnegative check for authoritative spectral state. */
 void validate_nonnegative_state(const amrex::MultiFab& state, int ncomp,

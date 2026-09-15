@@ -28,15 +28,28 @@ public:
     void remake_level(int level, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm, int ngrow = 1,
                       const amrex::Periodicity& periodicity = amrex::Periodicity::NonPeriodic());
+    void remake_level_from_coarse(int level, const amrex::BoxArray& ba,
+                                  const amrex::DistributionMapping& dm, int ngrow,
+                                  const amrex::Periodicity& periodicity,
+                                  int coarse_level,
+                                  const amrex::Geometry& coarse_geometry,
+                                  const amrex::Geometry& fine_geometry,
+                                  const amrex::IntVect& ref_ratio,
+                                  double time);
     void destroy_level(int level);
     void average_down_to(int coarse_level, int fine_level,
                          const amrex::IntVect& ref_ratio);
     void prolong_from_coarse(int coarse_level, int fine_level,
                              const amrex::Geometry& coarse_geometry,
                              const amrex::Geometry& fine_geometry,
-                             const amrex::IntVect& ref_ratio);
-    void begin_step(int level);
-    void accept_stage(int level);
+                             const amrex::IntVect& ref_ratio,
+                             double time = -1.0);
+    void fill_stage_from_coarse(int coarse_level, int fine_level, double time,
+                                const amrex::Geometry& coarse_geometry,
+                                const amrex::Geometry& fine_geometry,
+                                const amrex::IntVect& ref_ratio);
+    void begin_step(int level, double old_time = 0.0);
+    void accept_stage(int level, double stage_time = 0.0);
     void record_stage_face_transfer(int level, const StageContext& context,
                                     const AuxiliaryFaceTransfer& stage_flux);
 
@@ -54,6 +67,9 @@ public:
     [[nodiscard]] const amrex::MultiFab& old(int level) const { return *m_old.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] const amrex::MultiFab& evaluation(int level) const { return *m_evaluation.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] const amrex::MultiFab& output(int level) const { return *m_output.at(static_cast<std::size_t>(level)); }
+    [[nodiscard]] double old_time(int level) const { return m_old_time.at(static_cast<std::size_t>(level)); }
+    [[nodiscard]] double evaluation_time(int level) const { return m_evaluation_time.at(static_cast<std::size_t>(level)); }
+    [[nodiscard]] double output_time(int level) const { return m_output_time.at(static_cast<std::size_t>(level)); }
     [[nodiscard]] std::size_t state_resident_bytes() const noexcept { return m_state_resident_bytes; }
     [[nodiscard]] std::size_t face_transfer_resident_bytes() const noexcept {
         return m_face_transfer_resident_bytes;
@@ -74,6 +90,9 @@ private:
     std::vector<std::unique_ptr<amrex::MultiFab>> m_output;
     std::vector<std::unique_ptr<amrex::MultiFab>> m_scratch;
     std::vector<std::unique_ptr<AuxiliaryFaceTransferLedger>> m_face_ledgers;
+    std::vector<double> m_old_time;
+    std::vector<double> m_evaluation_time;
+    std::vector<double> m_output_time;
     std::size_t m_state_resident_bytes{0};
     std::size_t m_face_transfer_resident_bytes{0};
     std::size_t m_resident_bytes{0};

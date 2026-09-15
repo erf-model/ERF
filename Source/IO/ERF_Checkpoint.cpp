@@ -15,6 +15,7 @@
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_SBMRestart.H"
+#include "ERF_SBMTransportPrototype.H"
 
 using namespace amrex;
 
@@ -685,8 +686,12 @@ ERF::ReadCheckpointFile ()
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
     if (solverChoice.moisture_type == MoistureType::SBM) {
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_layout != nullptr && sbm_auxiliary != nullptr,
-                                         "SBM restart requires allocated layout and auxiliary manager");
+        // MakeNewLevelFromScratch allocates the auxiliary manager after the
+        // checkpoint Header has supplied the level BoxArrays.  At this point
+        // only the layout is guaranteed to exist; requiring the manager here
+        // rejects valid restarts before the level-allocation phase runs.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_layout != nullptr,
+                                         "SBM restart requires an allocated layout");
         const std::string schema_path = restart_chkfile + "/SBM_Schema";
         if (!amrex::FileExists(schema_path)) {
             amrex::Error("SBM restart requires the strict P2 auxiliary schema file: " + schema_path);
@@ -1020,13 +1025,14 @@ ERF::ReadCheckpointFile ()
                 });
             }
             const Real projection_error = error.max(0);
-            const Real projection_scale = amrex::max(amrex::Real(1.0),
-                amrex::max(vars_new[lev][Vars::cons].norm0(RhoQ2_comp),
-                           vars_new[lev][Vars::cons].norm0(RhoQ3_comp)));
+            const Real projection_scale = amrex::max(
+                vars_new[lev][Vars::cons].norm0(RhoQ2_comp),
+                vars_new[lev][Vars::cons].norm0(RhoQ3_comp));
             if (!::erf_sbm::compare_projection(projection_error, 0.0, projection_scale,
                                                sbm_layout->ncomp())) {
                 amrex::Error("SBM restart auxiliary state disagrees with checkpointed compact projection before overwrite");
             }
+            ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);

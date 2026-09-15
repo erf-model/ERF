@@ -58,9 +58,11 @@ Model overview and transported quantities in ERF
 | transport          |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 
-The experimental SBM implementation now includes P2 grouped FCT, explicit
+The experimental SBM infrastructure includes P2 grouped FCT, explicit
 density-weighted diffusion, conservative auxiliary AMR lifecycle hooks, and
-strict restart schema validation; see :ref:`spectral-bin-microphysics`.
+strict restart schema validation.  It is not a complete warm-cloud physics
+scheme and production chunk qualification remains pending; see
+:ref:`spectral-bin-microphysics`.
 
 .. note::
 

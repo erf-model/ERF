@@ -111,7 +111,11 @@ bool compare_projection(const amrex::Real checkpointed, const amrex::Real recons
     const amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
     const amrex::Real k = static_cast<amrex::Real>(std::max(1, operation_count));
     const amrex::Real gamma = (k*eps < 0.5) ? (k*eps/(1.0-k*eps)) : 1.0;
-    return error <= 128.0 * (eps + gamma) * std::max(amrex::Real(1.0), scale);
+    // The scale is supplied by the actual checkpointed/reconstructed
+    // quantity.  An order-one floor would make a zero or tiny spectrum pass
+    // a materially inconsistent projection.
+    const amrex::Real tolerance = 128.0 * (eps + gamma) * scale;
+    return error <= tolerance;
 }
 
 } // namespace erf_sbm

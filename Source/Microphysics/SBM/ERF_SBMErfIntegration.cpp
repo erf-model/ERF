@@ -278,7 +278,7 @@ void ERF::initialize_sbm_auxiliary(const int lev)
             << std::endl;
 }
 
-void ERF::begin_sbm_step(const int lev, const amrex::MultiFab& core_old)
+void ERF::begin_sbm_step(const int lev, const amrex::MultiFab& core_old, const double old_time)
 {
     if (solverChoice.moisture_type == MoistureType::SBM) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sbm_auxiliary != nullptr && sbm_auxiliary->has_level(lev),
@@ -286,7 +286,7 @@ void ERF::begin_sbm_step(const int lev, const amrex::MultiFab& core_old)
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<std::size_t>(lev) < sbm_initial_bulk_state.size() &&
                                          sbm_initial_bulk_state[static_cast<std::size_t>(lev)] != nullptr,
                                          "SBM compact baseline must be initialized before stepping");
-        sbm_auxiliary->begin_step(lev);
+        sbm_auxiliary->begin_step(lev, old_time);
         // ERF swaps vars_old/vars_new before entering advance_dycore.  The
         // explicit state_old argument is therefore the actual full-step old
         // compact state, even on the second and subsequent time steps.
@@ -325,6 +325,16 @@ void ERF::advance_sbm_stage(const int lev,
                                                 new_stage_time, full_step,
                                                 &state_old[IntVars::cons], &state_eval[IntVars::cons]);
 
+    // A fine-level WENO stencil must see the coarse spectrum at the actual
+    // stage time.  The manager owns the coarse old/output bracket produced by
+    // the completed coarse step and performs the temporal FillPatch before
+    // this level constructs any face flux.
+    if (lev > 0 && solverChoice.sbm_transport_method == "GroupedFCT_WENOZ3") {
+        sbm_auxiliary->fill_stage_from_coarse(lev-1, lev,
+                                              sbm_auxiliary->evaluation_time(lev),
+                                              geom[lev-1], geom[lev], refRatio(lev-1));
+    }
+
     // avg_*mom are ERF's actual dry-air carrier mass flux fields.  The
     // transport helper consumes them directly and never rebuilds rho*u from
     // the velocity MultiFabs.
@@ -335,7 +345,7 @@ void ERF::advance_sbm_stage(const int lev,
                             solverChoice.sbm_transport_method == "GroupedFCT_WENOZ3" ?
                                 ::erf_sbm::TransportMethod::GroupedFCT_WENOZ3 :
                                 ::erf_sbm::TransportMethod::DonorCell, lev,
-                            solverChoice.sbm_diffusion_coeff);
+                            solverChoice.sbm_diffusion_coeff, solverChoice.sbm_chunk_size);
 
     const auto& ledger = sbm_auxiliary->face_transfer_ledger(lev);
     // YAFluxRegister consumes instantaneous per-area fluxes and applies the

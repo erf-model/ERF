@@ -3138,7 +3138,7 @@ List of Parameters
 |                                   |                                                          | SuperDroplets,       |                  |
 |                                   |                                                          | MoistNoCondensation, |                  |
 |                                   |                                                          | SBM (experimental    |                  |
-|                                   |                                                          | P0/P1 transport)     |                  |
+|                                   |                                                          | P0/P1/P2 transport)   |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
 |                                   | the dycore; otherwise, update after the dycore has been  |                      |                  |
@@ -3202,8 +3202,11 @@ ownership, units, qualification tests, and current limitations.
    value uses the P2 auxiliary diffusion path; ERF native moisture diffusion
    is rejected for SBM-owned components.
 ``erf.sbm_chunk_size``
-   Positive bounded scratch/chunk policy value.  Runtime bins are not capped
-   by a compile-time ``MAX_BINS`` constant.
+   Positive chunk-policy value.  Runtime bins are not capped by a compile-time
+   ``MAX_BINS`` constant.  The host/reference limiter honors this value, but
+   the current production WENO/FCT implementation retains full-layout
+   temporary face buffers, so production chunk-bounded memory remains
+   ``PARTIAL / NOT P2-QUALIFIED``.
 ``erf.sbm_manufactured_initialization``
    Boolean.  When true, install the deterministic nonuniform spectrum used by
    the real P1 ERF regression.  Ordinary nonzero ``qc``/``qr`` without an

@@ -160,6 +160,37 @@ std::vector<ConstraintGroup> make_constraint_groups(const SBMLayout& layout)
     return groups;
 }
 
+std::vector<ConstraintDescriptor> make_constraint_descriptors(const SBMLayout& layout)
+{
+    const auto groups = make_constraint_groups(layout);
+    std::vector<ConstraintDescriptor> descriptors;
+    for (std::size_t gi = 0; gi < groups.size(); ++gi) {
+        const auto& group = groups[gi];
+        for (std::size_t ci = 0; ci < group.constraints.size(); ++ci) {
+            const auto& constraint = group.constraints[ci];
+            if (constraint.terms.empty() || constraint.terms.size() > 2) {
+                throw std::invalid_argument(
+                    "SBM production constraints must have one or two linear terms: " +
+                    constraint.semantic_id);
+            }
+            ConstraintDescriptor descriptor;
+            descriptor.group_index = static_cast<int>(gi);
+            descriptor.population_id = group.population_id;
+            descriptor.bin = group.bin;
+            descriptor.constraint_index = static_cast<int>(ci);
+            descriptor.term_count = static_cast<int>(constraint.terms.size());
+            descriptor.component0 = constraint.terms[0].component;
+            descriptor.coefficient0 = constraint.terms[0].coefficient;
+            if (constraint.terms.size() == 2) {
+                descriptor.component1 = constraint.terms[1].component;
+                descriptor.coefficient1 = constraint.terms[1].coefficient;
+            }
+            descriptors.push_back(descriptor);
+        }
+    }
+    return descriptors;
+}
+
 EndpointTransform transform_two_moment(const amrex::Real C, const amrex::Real M,
                                        const amrex::Real lower, const amrex::Real upper)
 {

@@ -40,10 +40,22 @@ and attached-property nonnegativity, support, and mass-bounded-subset
 constraints.  Only cancellation-sized negative endpoints are normalized;
 materially inadmissible states fail collectively with a diagnostic.
 
+The production grouped limiter first accumulates the adverse demand of every
+incident face for every cell/group/constraint, communicates those cell-wide
+budgets across periodic FAB boundaries, and then applies one common coefficient
+to the complete group.  A multi-face counterexample therefore consumes the
+combined margin rather than giving every face an independent copy of it.  The
+same resolved constraint descriptors are used by the low-order diagnostic,
+post-stage validation, post-reflux validation, regrid validation, and restart
+validation.
+
 Two-moment checkpoint/storage remains physical ``(M,C)``.  ``(L,H)`` uses the
-same bounded per-level scratch allocation only while constructing transport
-fluxes, so memory is proportional to the runtime layout and local FAB tiling,
-not to a compile-time ``MAX_BINS`` constant.
+same per-level scratch allocation only while constructing transport fluxes;
+there is no compile-time ``MAX_BINS`` constant.  The current production FCT
+remainder still allocates full-layout temporary face candidates and split
+low-order fluxes, however.  ``erf.sbm_chunk_size`` is therefore recorded and
+validated but is **not yet a P2-qualified peak-memory bound**; see the
+qualification report.
 
 When ``erf.sbm_diffusion_coeff`` is positive, the production face flux adds
 orthogonal density-weighted diffusion,
@@ -57,11 +69,13 @@ not permit ERF's native moisture diffusion path to write provider-owned SBM
 components.
 
 The P2 auxiliary lifecycle is attached to ERF's level creation, coarse-to-fine
-creation, remake, clear, average-down, and checkpoint read/write callbacks.
-Restriction is volume weighted and new fine levels use conservative
-piecewise-constant injection.  Checkpoint restart requires an exact SBM schema
-match and compares checkpointed ``qc``/``qr`` projections before restoring the
-authoritative compact fields.
+creation, stage-time coarse/fine FillPatch, remake, clear, average-down, and
+checkpoint read/write callbacks.  Restriction is volume weighted; new fine
+levels and newly covered fine cells use the authoritative coarse spectrum at
+the requested time.  Checkpoint restart requires an exact SBM schema match,
+compares checkpointed ``qc``/``qr`` projections before restoring the
+authoritative compact fields, and is exercised by a two-rank continuous versus
+restart AMR equivalence test.
 
 The compact ERF moisture fields have the following ownership when SBM is
 active:
@@ -140,8 +154,10 @@ These ``erf`` inputs are read only when ``erf.moisture_model = SBM``:
    density-weighted face conductance; implicit/native moisture diffusion is
    not part of P2.
 ``erf.sbm_chunk_size``
-   Positive bounded scratch/chunk policy value recorded in capability and
-   restart identities.  It does not create a compile-time bin-count limit.
+   Positive chunk-policy value recorded in capability and restart identities.
+   The host/reference limiter honors it.  The current production WENO/FCT
+   path still retains full-layout temporary face buffers, so this input does
+   not yet establish a qualified production peak-memory bound.
 ``erf.sbm_manufactured_initialization``
    Installs a deterministic positive nonuniform liquid spectrum for the
    qualification case.  Without it, nonzero compact condensate is rejected;
@@ -200,21 +216,67 @@ it does not replace the nonuniform transport regression.
 Supported P2 matrix
 -------------------
 
-The qualified P2 path extends the baseline to runtime-sized one- and
+The P2 implementation extends the baseline to runtime-sized one- and
 two-moment auxiliary populations, ``DonorCell`` or ``GroupedFCT_WENOZ3``
 transport, complete grouped constraints, explicit orthogonal two-point
-diffusion, and the auxiliary AMR/restart lifecycle.  The supported hierarchy
-is static Cartesian AMR with the refinement and periodic-boundary contracts
-covered by the P2 qualification tests.  Restriction is physical-volume
-weighted and prolongation is conservative piecewise constant.  Accepted
-spectral transfers—not independently reconstructed compact fields—drive
-``qc``/``qr`` projections, boundary budgets, and AMR registers.
+diffusion, and the auxiliary AMR/restart lifecycle.  Direct production
+qualification covers static fully periodic Cartesian hierarchy cases, including
+the two-level 2M fixture and continuous/restart comparison.  Restriction is
+physical-volume weighted and prolongation is conservative piecewise constant.
+Accepted spectral transfers—not independently reconstructed compact fields—drive
+``qc``/``qr`` projections, boundary budgets, and AMR registers.  Full P2
+completion remains pending production chunk-bounded work and broader numerical
+AMR/MPI oracles.
+
+WENO qualification evidence
+----------------------------
+
+The focused smooth periodic operator test measures the implemented WENO-Z3
+face reconstruction against the analytic periodic face value and compares it
+with the donor reconstruction.  The machine-readable output is written to
+``/private/tmp/erf_sbm_p2_weno_convergence.csv`` by
+``SBMP2.WENOZ3ConvergenceBeatsDonorOnPeriodicSmoothOperator``.  The current
+double-precision measurements are:
+
+.. list-table:: Smooth periodic reconstruction errors
+   :header-rows: 1
+
+   * - N
+     - WENO error
+     - Donor error
+     - WENO order
+     - Donor order
+   * - 8
+     - 2.1677e-1
+     - 3.8268e-1
+     - --
+     - --
+   * - 16
+     - 5.6906e-2
+     - 1.9509e-1
+     - 1.9295
+     - 0.9720
+   * - 32
+     - 1.4400e-2
+     - 9.8018e-2
+     - 1.9826
+     - 0.9930
+   * - 64
+     - 3.6107e-3
+     - 4.9068e-2
+     - 1.9957
+     - 0.9983
+
+This qualifies the measured smooth operator and donor comparison only; it is
+not a universal third-order claim for the nonlinear ERF time integrator.
 
 The first physical boundary descriptor layer provides periodic,
 prescribed-spectral-inflow, advective-outflow, and impermeable-wall semantics
-at the generic transfer-service level.  A prescribed inflow must contain a
-complete realizable group state; an impermeable wall has zero resolved
-spectral transfer and does not imply deposition.
+at the generic transfer-service level.  These nonperiodic descriptors are
+reference/service infrastructure, not production-qualified ERF SBM boundary
+handling.  The production gate is periodic Cartesian only.  A prescribed
+inflow must contain a complete realizable group state; an impermeable wall has
+zero resolved spectral transfer and does not imply deposition.
 
 Post-reflux admissibility is checked explicitly.  If a conservative hierarchy
 correction leaves the invariant domain, P2 fails collectively with diagnostic

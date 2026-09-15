@@ -47,9 +47,32 @@ struct ConstraintGroup {
                                   std::string* failed_constraint = nullptr) const;
 };
 
+/**
+ * Device-ready flattened form of one semantic constraint.  P2 constraint
+ * groups are deliberately linear and currently have at most two terms; this
+ * representation lets the production limiter and validation path consume the
+ * exact same group definition without capturing host strings or vectors in a
+ * GPU kernel.
+ */
+struct ConstraintDescriptor {
+    int group_index{0};
+    int population_id{0};
+    int bin{0};
+    int constraint_index{0};
+    int term_count{0};
+    int component0{-1};
+    int component1{-1};
+    amrex::Real coefficient0{0.0};
+    amrex::Real coefficient1{0.0};
+};
+
 /** Build deterministic groups from the immutable runtime layout. */
 [[nodiscard]] std::vector<ConstraintGroup>
 make_constraint_groups(const SBMLayout& layout);
+
+/** Flatten complete semantic groups into bounded device descriptors. */
+[[nodiscard]] std::vector<ConstraintDescriptor>
+make_constraint_descriptors(const SBMLayout& layout);
 
 struct EndpointTransform {
     amrex::Real L{0.0};

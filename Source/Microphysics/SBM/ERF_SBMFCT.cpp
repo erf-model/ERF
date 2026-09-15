@@ -49,10 +49,6 @@ FCTResult limit_grouped(const std::vector<amrex::Real>& low_state,
         throw std::invalid_argument("invalid flattened FCT state");
     }
     if (chunk_size < 0) throw std::invalid_argument("FCT chunk size must be nonnegative");
-    // Host reference groups are evaluated atomically.  A positive chunk size
-    // is a tuning policy for callers that split descriptor storage; it cannot
-    // change the group/face ordering or limiter semantics here.
-    (void) chunk_size;
     std::set<std::pair<int,int>> owned_faces;
     for (const auto& face : faces) {
         if (face.left_cell < 0 || face.left_cell >= ncell || face.right_cell < 0 ||
@@ -76,20 +72,30 @@ FCTResult limit_grouped(const std::vector<amrex::Real>& low_state,
         }
     }
 
-    // The budgets are accumulated in a fixed cell/face/group/constraint order.
-    // That order is part of the deterministic reference implementation and is
-    // also the order used by the chunk-equivalence tests.
-    std::vector<amrex::Real> budgets(static_cast<std::size_t>(ncell * groups.size()), 0.0);
-    std::vector<amrex::Real> margins(static_cast<std::size_t>(ncell * groups.size()),
+    // The budgets are per cell, per complete group, per atomic constraint.
+    // A single budget per group is insufficient: different constraints can
+    // have different available margins and adverse face demands.
+    std::vector<std::size_t> constraint_offsets(groups.size() + 1, 0);
+    for (std::size_t gi = 0; gi < groups.size(); ++gi) {
+        constraint_offsets[gi + 1] = constraint_offsets[gi] + groups[gi].constraints.size();
+    }
+    const std::size_t nconstraints = constraint_offsets.back();
+    std::vector<amrex::Real> budgets(static_cast<std::size_t>(ncell) * nconstraints, 0.0);
+    std::vector<amrex::Real> margins(static_cast<std::size_t>(ncell) * nconstraints,
                                      std::numeric_limits<amrex::Real>::infinity());
     for (int cell = 0; cell < ncell; ++cell) {
         std::vector<amrex::Real> state(low_state.begin() + cell * ncomp,
                                        low_state.begin() + (cell + 1) * ncomp);
         for (std::size_t gi = 0; gi < groups.size(); ++gi) {
             std::string failed;
-            if (!groups[gi].admissible(state, &margins[static_cast<std::size_t>(cell * groups.size() + gi)], &failed)) {
+            if (!groups[gi].admissible(state, nullptr, &failed)) {
                 throw std::domain_error("FCT low-order state is inadmissible in " + groups[gi].semantic_id +
                                         " constraint " + failed);
+            }
+            for (std::size_t ci = 0; ci < groups[gi].constraints.size(); ++ci) {
+                margins[(static_cast<std::size_t>(cell) * nconstraints) +
+                        constraint_offsets[gi] + ci] =
+                    form_value(groups[gi].constraints[ci], state);
             }
         }
     }
@@ -103,13 +109,19 @@ FCTResult limit_grouped(const std::vector<amrex::Real>& low_state,
         }
         for (std::size_t gi = 0; gi < groups.size(); ++gi) {
             const auto& group = groups[gi];
-            for (const auto& constraint : group.constraints) {
+            const std::size_t first_constraint = constraint_offsets[gi];
+            const std::size_t group_chunk = chunk_size > 0 ? static_cast<std::size_t>(chunk_size) : group.constraints.size();
+            for (std::size_t chunk_begin = 0; chunk_begin < group.constraints.size(); chunk_begin += group_chunk) {
+                const std::size_t chunk_end = std::min(group.constraints.size(), chunk_begin + group_chunk);
+                for (std::size_t ci = chunk_begin; ci < chunk_end; ++ci) {
+                const auto& constraint = group.constraints[ci];
                 const amrex::Real left_change = form_delta(constraint, delta, -1.0, face.left_volume);
                 const amrex::Real right_change = form_delta(constraint, delta, 1.0, face.right_volume);
-                budgets[static_cast<std::size_t>(face.left_cell * groups.size() + gi)] +=
+                budgets[static_cast<std::size_t>(face.left_cell) * nconstraints + first_constraint + ci] +=
                     std::max(amrex::Real(0.0), -left_change);
-                budgets[static_cast<std::size_t>(face.right_cell * groups.size() + gi)] +=
+                budgets[static_cast<std::size_t>(face.right_cell) * nconstraints + first_constraint + ci] +=
                     std::max(amrex::Real(0.0), -right_change);
+                }
             }
         }
     }
@@ -125,7 +137,12 @@ FCTResult limit_grouped(const std::vector<amrex::Real>& low_state,
         amrex::Real lambda = amrex::Real(1.0);
         for (std::size_t gi = 0; gi < groups.size(); ++gi) {
             const auto& group = groups[gi];
-            for (const auto& constraint : group.constraints) {
+            const std::size_t first_constraint = constraint_offsets[gi];
+            const std::size_t group_chunk = chunk_size > 0 ? static_cast<std::size_t>(chunk_size) : group.constraints.size();
+            for (std::size_t chunk_begin = 0; chunk_begin < group.constraints.size(); chunk_begin += group_chunk) {
+                const std::size_t chunk_end = std::min(group.constraints.size(), chunk_begin + group_chunk);
+                for (std::size_t ci = chunk_begin; ci < chunk_end; ++ci) {
+                const auto& constraint = group.constraints[ci];
                 // The limiter acts on the antidiffusive correction only.
                 // `high - low` is the correction because low_state already
                 // contains the complete low-order update.
@@ -133,15 +150,16 @@ FCTResult limit_grouped(const std::vector<amrex::Real>& low_state,
                     form_delta(constraint, face.low, -1.0, face.left_volume);
                 const amrex::Real right_change = form_delta(constraint, face.high, 1.0, face.right_volume) -
                     form_delta(constraint, face.low, 1.0, face.right_volume);
-                const auto budget_left = budgets[static_cast<std::size_t>(face.left_cell * groups.size() + gi)];
-                const auto budget_right = budgets[static_cast<std::size_t>(face.right_cell * groups.size() + gi)];
-                const amrex::Real margin_left = margins[static_cast<std::size_t>(face.left_cell * groups.size() + gi)];
-                const amrex::Real margin_right = margins[static_cast<std::size_t>(face.right_cell * groups.size() + gi)];
+                const auto budget_left = budgets[static_cast<std::size_t>(face.left_cell) * nconstraints + first_constraint + ci];
+                const auto budget_right = budgets[static_cast<std::size_t>(face.right_cell) * nconstraints + first_constraint + ci];
+                const amrex::Real margin_left = margins[static_cast<std::size_t>(face.left_cell) * nconstraints + first_constraint + ci];
+                const amrex::Real margin_right = margins[static_cast<std::size_t>(face.right_cell) * nconstraints + first_constraint + ci];
                 if (left_change < amrex::Real(0.0) && budget_left > amrex::Real(0.0)) {
                     lambda = std::min(lambda, std::min(amrex::Real(1.0), margin_left / budget_left));
                 }
                 if (right_change < amrex::Real(0.0) && budget_right > amrex::Real(0.0)) {
                     lambda = std::min(lambda, std::min(amrex::Real(1.0), margin_right / budget_right));
+                }
                 }
             }
         }
