@@ -491,6 +491,10 @@ List of Parameters
 | **amr.refine_grid_layout_z**                     | chop in z when refining the grid layout                  | 0 if false, 1 if   | 0                    |
 |                                                  |                                                          | true               |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.refine_whole_domain_dir**                  | direction (0 for x, 1 for y, 2 for z) in which every     | -1, 0, 1 or 2      | -1                   |
+|                                                  | level greater than 0 covers the entire domain, no matter |                    |                      |
+|                                                  | where cells are tagged; -1 disables this                 |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.regrid_level_0_on_restart**                | allow the level-0 grids to be re-made when restarting    | Boolean            | false                |
 |                                                  | from a checkpoint                                        |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
@@ -572,6 +576,11 @@ Notes
 -  **amr.n_error_buf**, **amr.max_grid_size** and
    **amr.blocking_factor** can be read in as a single value which is
    assigned to every level, or as multiple values, one for each level
+
+-  **amr.refine_whole_domain_dir** makes every level greater than 0 cover the
+   entire domain in the specified direction, whatever the refinement indicators
+   tagged; setting it to 2 is the simplest way to guarantee full-depth refined
+   grids.  See :ref:`subsec:refine-whole-domain-dir`.
 
 -  **amr.n_error_buf**, **amr.max_grid_size** and **amr.blocking_factor** apply
    to all coordinate directions; the per-direction forms
@@ -677,6 +686,15 @@ per-direction forms, e.g.
 
 and leave **amr.max_grid_size_z** at its (large) default.  The same holds for
 **amr.blocking_factor** versus **amr.blocking_factor_x/_y**.
+
+Note that this is a different question from *how much of the depth* a refined
+level covers.  Whether the grids at levels greater than 0 reach from the bottom
+of the domain to the top is decided by the refinement indicators, or in one step
+by **amr.refine_whole_domain_dir** = 2; see
+:ref:`subsec:refine-whole-domain-dir`.  The two are complementary: that parameter
+makes the refined region cover the full depth, and the defaults described here
+keep the region from being chopped into several boxes in z, so that each box
+spans the depth by itself.
 
 .. _subsec:grid-generation:
 
