@@ -1,6 +1,7 @@
 #include "ERF_SBMLayout.H"
 
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <stdexcept>
 
@@ -50,6 +51,13 @@ LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
         }
         if (!property.transported) {
             return {false, "P1 attached properties must be transported when registered"};
+        }
+        if (!std::isfinite(property.support_min) || property.support_min < amrex::Real(0.0)) {
+            return {false, "attached-property support_min must be finite and nonnegative"};
+        }
+        if (!std::isnan(property.support_max) &&
+            (!std::isfinite(property.support_max) || property.support_max < property.support_min)) {
+            return {false, "attached-property support_max must be NaN or finite and >= support_min"};
         }
     }
     return {true, {}};
@@ -125,6 +133,8 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
         schema << "property=" << p.name << ':' << p.semantic_id << ':' << p.units
                << ':' << p.carrier_population << ':' << static_cast<int>(p.kind)
                << ":remap=" << static_cast<int>(p.remap_policy)
+               << ":support_min=" << p.support_min
+               << ":support_max=" << p.support_max
                << ":offset=" << m_property_offsets[i] << '|';
     }
     m_schema_identity = schema.str();

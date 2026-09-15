@@ -6,6 +6,7 @@
 #include "ERF_AuxiliaryProjection.H"
 
 #include <string>
+#include <limits>
 #include <vector>
 
 namespace erf_sbm {
@@ -19,7 +20,7 @@ namespace erf_sbm {
  * when that future physics is implemented.
  */
 enum class PropertyKind { ExtensiveMass, NumberCarried, MassBoundedSubset };
-/** P1 remap contract; independent remapping is reserved for future work. */
+/** P1/P2 remap contract; independent remapping is reserved for future work. */
 enum class PropertyRemapPolicy { CarrierBinConservative, Independent };
 enum class SupportRequirement { None, PositiveMass, PositiveNumber };
 enum class PopulationPhase { Liquid, Ice, Aerosol, Generic };
@@ -48,12 +49,17 @@ struct AttachedPropertyDescriptor {
     int carrier_population{0};
     PropertyKind kind{PropertyKind::NumberCarried};
     SupportRequirement support{SupportRequirement::None};
-    // All P1 property kinds are aligned to carrier bins and conservatively
+    // All P1/P2 property kinds are aligned to carrier bins and conservatively
     // remapped with the carrier. The kind, not this policy, distinguishes
     // additional mass from count-like or mass-bounded semantics.
     PropertyRemapPolicy remap_policy{PropertyRemapPolicy::CarrierBinConservative};
     bool transported{true};
     bool may_overlap_mass{false};
+    // Optional finite per-carrier support bounds.  NaN means that the
+    // descriptor only requests nonnegativity; no arbitrary carrier floor is
+    // manufactured by the generic transport layer.
+    amrex::Real support_min{0.0};
+    amrex::Real support_max{std::numeric_limits<amrex::Real>::quiet_NaN()};
 };
 
 struct PopulationLayout {

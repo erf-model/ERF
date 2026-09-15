@@ -43,6 +43,43 @@ CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input)
     return report;
 }
 
+CapabilityReport evaluate_p2_capabilities(const CapabilityInput& input)
+{
+    CapabilityReport report;
+    report.flags = {"multi_level", "static_cartesian", "runtime_bins", "complete_groups",
+                    "two_moment_endpoints", "explicit_density_weighted_diffusion",
+                    "weno_z3_fct", "conservative_amr", "strict_restart_schema", "double"};
+    report.invariant_ids = {"SBM-P2-GROUP-COMPLETE", "SBM-P2-ENDPOINT-REALIZABLE",
+                            "SBM-P2-PHYSICAL-TRANSFER", "SBM-P2-BOUNDARY-BUDGET",
+                            "SBM-P2-AMR-CONSERVATIVE", "SBM-P2-RESTART-STRICT"};
+    auto reject = [&report](const bool condition, const char* reason) {
+        if (condition) report.rejected_reasons.emplace_back(reason);
+    };
+    reject(!input.p2_requested, "P2 capability evaluation requires a P2 transport request");
+    reject(input.shoc_or_macrophysics, "SHOC/macrophysics is unsupported by the P2 SBM hook");
+    reject(!input.static_cartesian, "P2 auxiliary transfer currently requires static Cartesian geometry");
+    reject(input.moving_terrain, "moving terrain is unsupported by P2 auxiliary transfer");
+    reject(input.embedded_boundary, "embedded boundaries are unsupported by P2 auxiliary transfer");
+    reject(input.sedimentation, "sedimentation is reserved for P3+");
+    reject(input.condensation, "condensation/evaporation is reserved for P3+");
+    reject(input.activation, "activation/regeneration is reserved for P3+");
+    reject(input.collision, "collision/coalescence is reserved for P3+");
+    reject(input.dynamic_grid, "dynamic spectral grids are unsupported by P2");
+    reject(input.restart_schema_conversion, "restart schema conversion is unsupported by P2");
+    reject(input.custom_moisture_forcing, "custom moisture forcing is unsupported by P2");
+    reject(input.large_scale_forcing, "large-scale forcing is unsupported by P2");
+    reject(input.sounding_nudging, "sounding nudging is unsupported by P2");
+    reject(input.sponge_or_wall_modification, "sponge/wall modification is unsupported by P2");
+    reject(input.diffusion && !input.explicit_sbm_diffusion,
+           "native moisture diffusion must not write provider-owned SBM components");
+    reject(input.implicit_moisture_diffusion, "implicit moisture diffusion is unsupported by P2");
+    reject(!input.periodic_cartesian, "P2 production transport currently requires periodic Cartesian boundaries");
+    reject(!input.double_precision, "P2 manufactured transport is currently double precision only");
+    reject(input.chunk_size <= 0, "P2 scratch chunk size must be positive");
+    report.supported = report.rejected_reasons.empty();
+    return report;
+}
+
 std::string validate_runtime_bin_count(const int nbins)
 {
     if (nbins < 2 || nbins > 1000000) {
@@ -69,7 +106,8 @@ std::string stable_inspection(const SBMLayout& layout,
                               const std::string& amrex_identity,
                               const std::string& design_identity)
 {
-    const auto report = evaluate_p1_capabilities(input);
+    const auto report = input.p2_requested ?
+        evaluate_p2_capabilities(input) : evaluate_p1_capabilities(input);
     std::ostringstream out;
     out << "format=erf-sbm-inspection-v1\n";
     out << layout.inspection();

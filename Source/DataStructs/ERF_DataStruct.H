@@ -716,6 +716,16 @@ struct SolverChoice {
             pp.queryAdd("sbm_manufactured_initialization", sbm_manufactured_initialization);
             pp.queryAdd("sbm_manufactured_velocity", sbm_manufactured_velocity);
             pp.queryAdd("sbm_diagnostic_file", sbm_diagnostic_file);
+            pp.queryAdd("sbm_transport_method", sbm_transport_method);
+            if (sbm_transport_method != "DonorCell" && sbm_transport_method != "GroupedFCT_WENOZ3") {
+                amrex::Error("SBM sbm_transport_method must be DonorCell or GroupedFCT_WENOZ3");
+            }
+            pp.queryAdd("sbm_diffusion_coeff", sbm_diffusion_coeff);
+            if (!std::isfinite(sbm_diffusion_coeff) || sbm_diffusion_coeff < amrex::Real(0.0)) {
+                amrex::Error("SBM sbm_diffusion_coeff must be finite and nonnegative");
+            }
+            pp.queryAdd("sbm_chunk_size", sbm_chunk_size);
+            if (sbm_chunk_size <= 0) amrex::Error("SBM sbm_chunk_size must be positive");
 
             const int edge_count = pp.countval("sbm_edges");
             const int pivot_count = pp.countval("sbm_pivots");
@@ -1624,9 +1634,19 @@ struct SolverChoice {
             for (int lev = 0; lev <= max_level; ++lev) {
                 capability.periodic_cartesian = capability.periodic_cartesian && geom_vect[lev].isAllPeriodic();
             }
-            const auto report = ::erf_sbm::evaluate_p1_capabilities(capability);
+            // AMR is a P2 lifecycle feature even when the numerical reference
+            // method remains DonorCell; otherwise a multi-level donor run
+            // would incorrectly enter the frozen P1 single-level gate.
+            capability.p2_requested = max_level > 0 ||
+                                      sbm_transport_method == "GroupedFCT_WENOZ3" ||
+                                      sbm_moment_mode == 2 || sbm_diffusion_coeff > amrex::Real(0.0);
+            capability.explicit_sbm_diffusion = sbm_diffusion_coeff > amrex::Real(0.0);
+            capability.chunk_size = sbm_chunk_size;
+            const auto report = capability.p2_requested ?
+                ::erf_sbm::evaluate_p2_capabilities(capability) :
+                ::erf_sbm::evaluate_p1_capabilities(capability);
             if (!report.supported) {
-                amrex::Error("SBM P1 capability contract rejected this configuration:\n" +
+                amrex::Error(std::string("SBM capability contract rejected this configuration:\n") +
                              report.stable_description());
             }
         }
@@ -2286,6 +2306,9 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{2};
+    std::string sbm_transport_method{"DonorCell"};
+    amrex::Real sbm_diffusion_coeff{0.0};
+    int sbm_chunk_size{256};
     bool sbm_manufactured_initialization{false};
     amrex::Real sbm_manufactured_velocity{0.0};
     std::string sbm_diagnostic_file;

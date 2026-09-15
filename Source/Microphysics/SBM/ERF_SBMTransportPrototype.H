@@ -5,6 +5,7 @@
 #include "ERF_AuxiliaryFaceTransfer.H"
 #include "ERF_AuxiliaryStateManager.H"
 #include "ERF_SBMLayout.H"
+#include "ERF_SBMFCT.H"
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
@@ -29,7 +30,8 @@ HostState accepted_ledger(const ::erf_auxiliary::StageContext& context,
 
 /**
  * First-order donor transport using ERF's already-constructed dry-air carrier
- * mass fluxes.  This is intentionally restricted to static Cartesian P1.
+ * mass fluxes.  This is intentionally restricted to the qualified static
+ * Cartesian P1/P2 auxiliary contract.
  */
 void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    const SBMLayout& layout,
@@ -40,11 +42,18 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    const amrex::MultiFab& carrier_y,
                    const amrex::MultiFab& carrier_z,
                    const amrex::Geometry& geometry,
-                   ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux);
+                   ::erf_auxiliary::AuxiliaryFaceTransfer& stage_flux,
+                   TransportMethod method = TransportMethod::DonorCell,
+                   int level = 0,
+                   amrex::Real diffusion_coefficient = amrex::Real(0.0));
 
-/** Fail-closed finite/nonnegative check for authoritative P1 spectral mass. */
+/** Fail-closed finite/nonnegative check for authoritative spectral state. */
 void validate_nonnegative_state(const amrex::MultiFab& state, int ncomp,
                                 const char* context = "SBM auxiliary state");
+
+/** Validate physical storage and two-moment endpoint realizability. */
+void validate_admissible_state(::erf_auxiliary::AuxiliaryStateManager& manager,
+                               const SBMLayout& layout, int level);
 
 } // namespace erf_sbm
 

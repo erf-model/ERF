@@ -30,6 +30,9 @@ struct CapabilityInput {
     bool sponge_or_wall_modification{false};
     bool periodic_cartesian{true};
     bool double_precision{true};
+    bool p2_requested{false};
+    bool explicit_sbm_diffusion{false};
+    int chunk_size{256};
 };
 
 struct CapabilityReport {
@@ -41,6 +44,7 @@ struct CapabilityReport {
 };
 
 CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input);
+CapabilityReport evaluate_p2_capabilities(const CapabilityInput& input);
 
 /** Validate a runtime bin count before it can reach a vector resize. */
 [[nodiscard]] std::string validate_runtime_bin_count(int nbins);
