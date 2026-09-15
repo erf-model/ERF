@@ -152,17 +152,22 @@ amrex::Real clear_sky_diffuse_h (amrex::Real cos_zenith, amrex::Real S0, amrex::
 }
 
 /**
- * Top height of a column of the level: the column map covers the bounding
- * box of the built columns only (origin ``i0, j0`` in 0-based domain columns,
+ * Top height of a column of the level. The column map covers the bounding box
+ * of the built columns only (origin ``i0, j0`` in 0-based domain columns,
  * ``bw x bh`` values indexed ``(ci - i0) * bh + (cj - j0)``); every other
- * column is open ground.
+ * column is open ground. An entry is the domain-relative k of the highest
+ * solid cell of its column, or -1 where the column is fluid, so the top is
+ * one cell above that index and a fluid column sits at the ground.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real column_top (const amrex::Real* col_top, int ci, int cj,
-                        int i0, int j0, int bw, int bh, amrex::Real z_ground)
+amrex::Real column_top (const int* col_top, int ci, int cj,
+                        int i0, int j0, int bw, int bh,
+                        amrex::Real z_ground, amrex::Real dz)
 {
     ci -= i0; cj -= j0;
-    return (ci < 0 || ci >= bw || cj < 0 || cj >= bh) ? z_ground : col_top[ci * bh + cj];
+    if (ci < 0 || ci >= bw || cj < 0 || cj >= bh) { return z_ground; }
+    const int kt = col_top[ci * bh + cj];
+    return (kt < 0) ? z_ground : z_ground + (kt + 1) * dz;
 }
 
 /**
@@ -188,8 +193,8 @@ amrex::Real column_top (const amrex::Real* col_top, int ci, int cj,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
                   amrex::Real sx, amrex::Real sy, amrex::Real sz,
-                  const amrex::Real* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
-                  amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy,
+                  const int* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
+                  amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy, amrex::Real dz,
                   bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max, amrex::Real max_path)
 {
     if (sz <= 0.0) return true;              // sun at or below the horizon
@@ -222,7 +227,7 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
             if (!per_y) return false;
             cj = (cj % ny + ny) % ny;
         }
-        if (z + eps < column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground)) return true;
+        if (z + eps < column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground, dz)) return true;
         // Step to the next column.
         if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
         else           { t = tmy; tmy += tdy; cj += stepy; }
@@ -255,8 +260,8 @@ enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
              amrex::Real sx, amrex::Real sy, amrex::Real sz,
-             const amrex::Real* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
-             amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy,
+             const int* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
+             amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy, amrex::Real dz,
              bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max,
              amrex::Real max_path)
 {
@@ -293,7 +298,7 @@ int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
             if (!per_y) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
             cj = (cj % ny + ny) % ny;
         }
-        const amrex::Real top = column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground);
+        const amrex::Real top = column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground, dz);
         const bool solid = (top > z_ground + eps);
         const amrex::Real t_next = amrex::min(tmx, tmy);
         const amrex::Real z_out  = z0 + t0 * sz + t_next * sz;

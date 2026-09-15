@@ -72,16 +72,19 @@ ERF::init_ibseb ()
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
             if (FileExists(name + "_H")) {
-                // The field's width is 6 x (2 + n_slab_layers) and its boxes
-                // follow the buildings; a checkpoint written with another
-                // layer count or another building set cannot be unpacked.
+                // The field's width is n_slots x (2 + n_slab_layers) and its
+                // boxes follow the buildings; a checkpoint written with
+                // another layer count or another building set cannot be
+                // unpacked.
                 const VisMF header(name);
                 const int ncomp_chk = header.nComp();
                 if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
                     Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
-                          + " components, written with erf.ibseb.n_slab_layers = " + std::to_string(ncomp_chk / 6 - 2)
-                          + "; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
-                          + ". Restart with the checkpoint's value.");
+                          + " components; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
+                          + ", which with the " + std::to_string(m_ibseb[lev]->n_slots())
+                          + " face slots per cell of this blanking needs " + std::to_string(m_ibseb[lev]->state_ncomp())
+                          + ". The checkpoint was written with another erf.ibseb.n_slab_layers (restart with the"
+                            " checkpoint's value) or for another building set.");
                 }
                 if (header.boxArray() != m_ibseb[lev]->state_boxarray()) {
                     Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " was written for a different building layout ("
@@ -160,10 +163,11 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
 
 /**
  * Write the face state of one level into the checkpoint as ``IBSEBState``, a
- * field on the column blocks around the buildings (IBFaceSet::state_boxarray()),
- * so it scales with the built volume rather than the level. Called inside the
- * level loop of ERF::WriteCheckpointFile(); a no-op unless the balance is on
- * and the level has faces.
+ * field on the blocks around the buildings (IBFaceSet::state_boxarray())
+ * clipped to the cells that own faces, so it scales with the shell of the
+ * buildings rather than with the level. Called inside the level loop of
+ * ERF::WriteCheckpointFile(); a no-op unless the balance is on and the level
+ * has faces.
  */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const

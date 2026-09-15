@@ -49,10 +49,10 @@
  * the number of faces and their mean skin temperature into cell-centred
  * fields for the plotfile; save_state() / load_state() move the skin
  * temperature, the sensible flux and the slab temperatures through a
- * cell-centred field with six slots per cell
- * (one per direction and side) for the checkpoint. On restart the list is
- * rebuilt from the blanking and refilled from that field, so a restart does
- * not depend on the rank count or on the order the faces were found in.
+ * cell-centred field with one slot per face of a cell (see state_ncomp())
+ * for the checkpoint. On restart the list is rebuilt from the blanking and
+ * refilled from that field, so a restart does not depend on the rank count
+ * or on the order the faces were found in.
  *
  * **Per-step order.** build() detects and stores the faces and
  * compute_view_fractions() fills ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg``
@@ -102,22 +102,34 @@ public:
     /**
      * Number of components of the checkpoint state field.
      *
-     * A fluid cell can carry up to six faces (two per direction), so the field
-     * has six slots of ``2 + n_layers()`` values: component
-     * ``(dir*2 + (side>0)) * (2 + n_layers())`` is the skin temperature of that
+     * The field carries n_slots() slots of ``2 + n_layers()`` values per cell:
+     * component ``slot * (2 + n_layers())`` is the skin temperature of that
      * slot, the next its sensible flux (read as the previous step's by the
      * convective velocity scale), and the following ``n_layers()`` components
      * are its slab layers.
+     *
+     * A cell carries one slot per face it owns, numbered in the ``(dir, side)``
+     * order in which build() finds them, so the width is the largest face
+     * count on any one cell of the level rather than the six a cell could hold
+     * in principle. Around ordinary buildings that maximum is two or three (an
+     * outside edge or corner); six needs a one-cell slot. build() rebuilds the
+     * numbering from the same blanking on restart, so the slots line up
+     * whatever the rank count.
      */
-    int state_ncomp () const { return 6 * (2 + n_layers()); }
+    int state_ncomp () const { return m_nslots * (2 + n_layers()); }
+
+    /** Slots per cell of the checkpoint field: the largest face count on a cell of the level. */
+    int n_slots () const { return m_nslots; }
 
     /**
-     * Boxes of the checkpoint field: 8 x 8 column blocks that reach up to the
-     * highest face-owning cell of the block, so the field scales with the
-     * built volume, not the domain. Built identically on every rank by
-     * build() from a reduced block-height map; the same buildings give the
-     * same boxes on restart, whatever the rank count. Empty when the level
-     * has no faces.
+     * Boxes of the checkpoint field: 4 x 4 column blocks clipped to the
+     * k-range that actually owns faces, so the field follows the shell of
+     * face-owning cells rather than the built volume. A block over the
+     * interior of a wide footprint keeps only the layer above the roof, while
+     * a block on a wall still spans its height. Built identically on every
+     * rank by build() from a reduced block k-range map; the same buildings
+     * give the same boxes on restart, whatever the rank count. Empty when the
+     * level has no faces.
      */
     const amrex::BoxArray& state_boxarray () const { return m_state_ba; }
     /** Whether the level has a checkpoint field to write (any faces at all). */
@@ -308,6 +320,7 @@ public:
     amrex::Gpu::DeviceVector<int>         d_i, d_j, d_k;   ///< Fluid cell of the face
     amrex::Gpu::DeviceVector<int>         d_dir;           ///< Face direction: 0 x, 1 y, 2 z
     amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbour at -1 (low) or +1 (high) side
+    amrex::Gpu::DeviceVector<int>         d_slot;          ///< Slot of the face within its cell's checkpoint record
     amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
     amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (0 = uniform inputs)
     amrex::Gpu::DeviceVector<amrex::Real> d_albedo, d_emis;///< Optical properties of the face
@@ -345,12 +358,14 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
     amrex::Gpu::DeviceVector<int>         d_niter;        ///< Newton iterations of the last solve
-    // Column tops [m] over the bounding box of the built columns (origin
+    // Column tops over the bounding box of the built columns (origin
     // m_col_i0, m_col_j0 in 0-based domain columns, m_col_nx x m_col_ny
     // values, index (ci - i0) * m_col_ny + (cj - j0)), replicated on every
-    // rank for the ray cast: 8 bytes per built column per rank. Columns
-    // outside the box are open ground (see ibseb::column_top()).
-    amrex::Gpu::DeviceVector<amrex::Real> d_col_top;
+    // rank for the ray cast: 4 bytes per built column per rank. Each entry is
+    // the domain-relative k of the highest solid cell of its column, -1 where
+    // the column is fluid; ibseb::column_top() turns it into a height, and
+    // columns outside the box are open ground.
+    amrex::Gpu::DeviceVector<int> d_col_top;
     int m_col_i0 = 0, m_col_j0 = 0, m_col_nx = 0, m_col_ny = 0;
 
     // Checkpoint layout (see state_boxarray()) and the transfer layer of
@@ -396,6 +411,7 @@ private:
     IBSEBParams m_params;          ///< Copy of the inputs
     int m_lev   = 0;               ///< AMR level, for reports
     int m_nface = 0;               ///< Faces owned by this rank
+    int m_nslots = 0;              ///< Slots per cell of the checkpoint field (largest face count on a cell)
     int m_nbld  = 0;               ///< Buildings of the level (global)
     std::vector<int> m_fab_start;  ///< See fab_start()
 

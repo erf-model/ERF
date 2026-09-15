@@ -45,13 +45,23 @@ every dump), which is what the regtests and the canonical cases read.
 
 For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
 and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
-which holds the skin temperature, sensible flux and slab temperatures of up
-to six faces per fluid cell on 8 x 8 column blocks that reach up to the
-highest face-owning cell around the buildings, so it scales with the built
-volume rather than the level. On restart the list is rebuilt from the blanking and refilled from
-that field, so a restart does not depend on the number of ranks.
-``Exec/CanonicalTests/SEB/FaceStorage`` checks the face counts against the
-mask, the rank independence and the checkpoint round trip.
+which holds the skin temperature, sensible flux and slab temperatures of the
+faces of each cell. Its boxes are 4 x 4 column blocks clipped to the k-range
+that owns faces, and it carries one slot per face rather than the six a cell
+could hold in principle, so its width is the largest face count on any cell
+of the level (two or three around ordinary buildings). Face-owning cells are
+the fluid cells against solid, a one-cell shell, so a block over the interior
+of a wide footprint keeps only the layer above the roof while a block on a
+wall still spans its height. On restart the list is rebuilt from the blanking
+and refilled from that field, so a restart does not depend on the number of
+ranks. ``Exec/CanonicalTests/SEB/FaceStorage`` checks the face counts against
+the mask, the rank independence and the checkpoint round trip.
+
+The field still carries whole boxes rather than the faces alone, so its size
+grows with the surface of the buildings and, through the wall blocks, with
+their height. A city-scale deck should expect the checkpoint to grow with the
+built area; storing the faces themselves, rather than a cell field that
+covers them, would be needed to make it proportional to the face count.
 
 Shortwave and shadow
 --------------------
@@ -74,9 +84,15 @@ against the height of every column of the level, a two-dimensional walk over
 the columns the ray crosses: buildings stand on the ground and the ray only
 rises, so the ray is blocked wherever its height on entering a column is
 below that column's top. The column tops are an array over the bounding
-box of the built columns, replicated on every rank (8 bytes per built
+box of the built columns, replicated on every rank, holding the index of the
+highest solid cell of each column rather than its height (4 bytes per built
 column per rank; every column outside the box is open ground), so the test
-needs no communication and costs a few operations per column crossed. The diffuse light on a face is the sky view fraction
+needs no communication and costs a few operations per column crossed. That
+replication is still proportional to the built area rather than to this
+rank's share of it, which is the limit to watch on a city-scale deck; the
+walk itself is already bounded, since a rising ray stops once it passes the
+tallest column and a descending one stops at the ground, so a ray reaches no
+further than the tallest building divided by the tangent of its elevation. The diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
 albedo times the total horizontal irradiance, with the fractions from the
 hemisphere sampling below. The absorbed shortwave is one minus the face
