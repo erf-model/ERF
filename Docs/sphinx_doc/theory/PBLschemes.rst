@@ -272,8 +272,11 @@ in the vertical direction is rejected at runtime.
 
 When setting vector-valued AMR grid-size controls, choose a vertical grid size
 large enough to keep each SHOC box full height. With mesh refinement,
-SHOC-active refined grids must also consist of full vertical columns. See
-:ref:`MeshRefinement` for the general ERF refinement rules.
+SHOC-active refined grids must also consist of full vertical columns; setting
+``amr.refine_whole_domain_dir = 2`` makes every refined level cover the full
+depth of the domain regardless of where cells are tagged. See
+:ref:`MeshRefinement` for the general ERF refinement rules and
+:ref:`subsec:refine-whole-domain-dir` for that parameter.
 
 Surface fluxes and moisture coupling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
