@@ -1,0 +1,36 @@
+HyperCLaw-V1.1
+8
+theta
+terrain_IB_mask
+ibseb_nfaces
+ibseb_tskin
+ibseb_sw_abs
+ibseb_lw_net
+ibseb_H
+ibseb_G
+3
+20
+0
+0 0 0 
+320 320 160 
+
+((0,0,0) (31,31,15) (0,0,0)) 
+40 
+10 10 10 
+0
+0
+0 4 20
+40
+0 160
+0 160
+0 160
+160 320
+0 160
+0 160
+0 160
+160 320
+0 160
+160 320
+160 320
+0 160
+Level_0/Cell
