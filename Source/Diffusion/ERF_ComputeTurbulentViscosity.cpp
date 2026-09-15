@@ -278,9 +278,14 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 // - heat flux
                 //   (Note: If using SurfaceLayer, the value at k=0 will
                 //    be overwritten)
+                //   The diffusion of theta later replaces hfx_z with its face
+                //   fluxes, so the TKE buoyancy source reads the cell-centred
+                //   copy kept in EddyDiff::Theta_flux_v.
+                const Real hfx_cc = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
                 hfx_x(i,j,k) = zero;
                 hfx_y(i,j,k) = zero;
-                hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+                hfx_z(i,j,k) = hfx_cc;
+                mu_turb(i,j,k,EddyDiff::Theta_flux_v) = hfx_cc;
             });
         }
     }
@@ -720,7 +725,12 @@ void ComputeTurbulentViscosityRANS (int level,
                 //                  ==> hfx = nut_prime * dtheta/dz
                 //   Our convention is such that dtheta/dz < 0 gives a positive
                 //   (upward) heat flux.
-                hfx_z(i, j, k) = -mu_turb(i, j, k, EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+                //   The diffusion of theta later replaces hfx_z with its face
+                //   fluxes, so the TKE buoyancy source reads the cell-centred
+                //   copy kept in EddyDiff::Theta_flux_v.
+                const Real hfx_cc = -mu_turb(i, j, k, EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+                hfx_z(i, j, k) = hfx_cc;
+                mu_turb(i, j, k, EddyDiff::Theta_flux_v) = hfx_cc;
             });
         }
     }

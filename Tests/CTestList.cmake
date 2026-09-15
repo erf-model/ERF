@@ -1282,6 +1282,79 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+
+# Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
+# and passes both final plotfiles to the check script.
+function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
+    set(options )
+    set(oneValueArgs "RUNTIME_OPTIONS" "OPTIONS_A" "OPTIONS_B" "CHECK_OPTIONS" "NRANKS")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_RANS_PAIR "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(GLOB _rans_py "${_rans_root}/*.py")
+    file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        if("${ADD_TEST_RANS_PAIR_NRANKS}" STREQUAL "")
+            set(NP ${ERF_TEST_NRANKS})
+        else()
+            set(NP ${ADD_TEST_RANS_PAIR_NRANKS})
+        endif()
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_dir ${CURRENT_TEST_BINARY_DIR})
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1 ${ADD_TEST_RANS_PAIR_RUNTIME_OPTIONS}")
+    set(log_a "${_dir}/${TEST_NAME}.a.log")
+    set(log_b "${_dir}/${TEST_NAME}.b.log")
+    set(check_log "${_dir}/${TEST_NAME}.check.log")
+    # Either run's log tail is echoed if it exits non-zero; the check script's
+    # exit code is the verdict and its table is echoed into the ctest output.
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} ${ADD_TEST_RANS_PAIR_OPTIONS_A} erf.plot_file_1=${_dir}/a_plt > ${log_a} 2>&1 || ( tail -n 60 ${log_a} && false ) && ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} ${ADD_TEST_RANS_PAIR_OPTIONS_B} erf.plot_file_1=${_dir}/b_plt > ${log_b} 2>&1 || ( tail -n 60 ${log_b} && false ) && rm -f ${_dir}/CHECK_FAILED && ( ${ERF_RANS_PYTHON} ${_dir}/${CHECK_SCRIPT} ${ADD_TEST_RANS_PAIR_CHECK_OPTIONS} ${_dir}/a_plt${_step} ${_dir}/b_plt${_step} > ${check_log} 2>&1 || touch ${_dir}/CHECK_FAILED ) && cat ${check_log} && test ! -f ${_dir}/CHECK_FAILED")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${_dir}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${log_a};${log_b};${check_log}"
+    )
+endfunction(add_test_rans_pair)
+
+# The buoyancy production of k must not depend on how theta is diffused: the
+# convective case, run compressible with the implicit vertical solve (A) and
+# with explicit vertical diffusion (B), must give the same KE to within the
+# time-discretisation difference. The command runs through sh, so not on Windows.
+if(NOT WIN32)
+    add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
+        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
+        OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
+        CHECK_OPTIONS "--tol 1.0e-4")
+    add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_Deardorff Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
+        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false erf.rans_type=None erf.les_type=Deardorff erf.plot_vars_1=density theta KE Kmv Khv"
+        OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
+        CHECK_OPTIONS "--tol 3.0e-4")
+endif()
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
