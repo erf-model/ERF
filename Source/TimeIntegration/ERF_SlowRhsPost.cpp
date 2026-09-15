@@ -819,6 +819,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       } // mfi
     } // OMP
     if (cloud_budget && l_use_diff && n_qstate > 0) {
+        bool use_trapezoidal = (!l_anelastic || l_anelastic_rk2);
         for (int qstate = 0; qstate < n_qstate; ++qstate) {
             MultiFab qflux_x(*dflux_x, make_alias, qstate, 1);
             MultiFab qflux_y(*dflux_y, make_alias, qstate, 1);
@@ -826,7 +827,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             cloud_budget->capture_stage(
                 qstate == 0 ? CloudChamberBudget::RhoQv : CloudChamberBudget::RhoQc,
                 nrk, static_cast<Real>(dt_d), qflux_x, qflux_y, qflux_z, geom,
-                0, l_anelastic_rk2);
+                0, use_trapezoidal);
         }
     }
 }

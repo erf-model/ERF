@@ -968,6 +968,7 @@ struct SolverChoice {
 
         if (pp.contains("anelastic_type") && !any_anelastic) {
             amrex::Print() << "Ignoring erf.anelastic_type because no level is anelastic" << std::endl;
+            for (int i = 0; i <= max_level; i++) { anelastic_type[i] = AnelasticType::RK2; }
         }
 
         // *******************************************************************************
@@ -1399,6 +1400,10 @@ struct SolverChoice {
                     vert_implicit_fac[lev][1] = zero;
                     vert_implicit_fac[lev][2] = zero;
                 } else if (anelastic_type[lev] == AnelasticType::MidPoint) {
+                    if (do_vert_implicit && vert_implicit_fac[lev][0] != one) {
+                        amrex::Print() << "Forcing implicit factor 1 in first stage of MidPoint to ensure second-order accuracy." << std::endl;
+                        vert_implicit_fac[lev][0] = one;
+                    }
                     if (vert_implicit_fac[lev][1] > zero) {
                         amrex::Print() << "Turning off the second-stage vertical implicit solve at level " << lev
                                        << " because anelastic with MidPoint solves in the first stage only."

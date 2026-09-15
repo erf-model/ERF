@@ -566,6 +566,9 @@ endfunction(add_test_cloud_chamber_most)
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
         -DLOG=${test_log}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)

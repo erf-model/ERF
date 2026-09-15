@@ -985,8 +985,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     } // mfi
     } // OMP
     if (cloud_budget && l_use_diff) {
-            cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
-                                        static_cast<Real>(dt), *dflux_x, *dflux_y,
-                                        *dflux_z, geom, 0, l_anelastic_rk2);
+        bool use_trapezoidal = (!l_anelastic || l_anelastic_rk2);
+        cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
+                                    static_cast<Real>(dt), *dflux_x, *dflux_y,
+                                    *dflux_z, geom, 0, use_trapezoidal);
     }
 }

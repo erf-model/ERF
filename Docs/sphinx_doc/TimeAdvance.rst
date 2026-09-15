@@ -62,7 +62,7 @@ The midpoint stages are given by:
 
   \mathbf{S}^{*}   &=& \mathbf{S}^n + \frac{\Delta t}{2} f(\mathbf{S}^n)
 
-  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta f(\mathbf{S}^{*})
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^{*})
 
 .. _AcousticSubstep:
 
