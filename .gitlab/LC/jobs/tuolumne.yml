@@ -20,6 +20,8 @@ tuolumne_hip_6.4.0:
     # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
     BUILD_TYPE: "RelWithDebInfo"
 
+    ERF_ENABLE_FFT: "ON"
+
     # RRTMGP/Kokkos options:
     #ERF_ENABLE_EKAT=ON
     #ERF_ENABLE_KOKKOS=ON

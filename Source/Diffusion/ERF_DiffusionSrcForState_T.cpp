@@ -92,6 +92,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
+                        const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Real implicit_fac)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
@@ -132,7 +133,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
 
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
@@ -140,13 +143,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k) = hfx_x(i,j,k);
+            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k) = qfx1_x(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 xflux(i,j,k) = hfx_x(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
+
         });
         ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -163,7 +171,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
@@ -171,13 +181,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k) = hfx_y(i,j,k);
+            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k) = qfx1_y(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 yflux(i,j,k) = hfx_y(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * ( GradCy - met_h_eta*GradCz );
             }
+
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -199,7 +214,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim) )
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -234,11 +250,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo) {
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
                 if (qty_index == RhoTheta_comp) {
-                    zflux(i,j,k) = hfx_z(i,j,0);
+                    zflux(i,j,k) = hfx_z(i,j,k);
                 } else if (qty_index == RhoQ1_comp) {
-                    zflux(i,j,k) = qfx1_z(i,j,0);
+                    zflux(i,j,k) = qfx1_z(i,j,k);
                 } else {
                     zflux(i,j,k) = zero;
                 }
@@ -247,11 +263,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -273,7 +289,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
@@ -281,13 +299,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k) = hfx_x(i,j,k);
+            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k) = qfx1_x(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 xflux(i,j,k) = hfx_x(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
+
         });
         ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -302,7 +325,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
@@ -310,13 +335,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k) = hfx_y(i,j,k);
+            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k) = qfx1_y(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 yflux(i,j,k) = hfx_y(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * ( GradCy - met_h_eta*GradCz );
             }
+
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -336,7 +366,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -371,11 +402,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo) {
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
                 if (qty_index == RhoTheta_comp) {
-                    zflux(i,j,k) = hfx_z(i,j,0);
+                    zflux(i,j,k) = hfx_z(i,j,k);
                 } else if (qty_index == RhoQ1_comp) {
-                    zflux(i,j,k) = qfx1_z(i,j,0);
+                    zflux(i,j,k) = qfx1_z(i,j,k);
                 } else {
                     zflux(i,j,k) = zero;
                 }
@@ -384,17 +415,16 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
             }
-
         });
     // Constant alpha & no LES/PBL model
     } else if(l_consA) {
@@ -410,7 +440,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
@@ -418,13 +450,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k) = hfx_x(i,j,k);
+            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k) = qfx1_x(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 xflux(i,j,k) = hfx_x(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
+
         });
         ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -438,7 +475,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
@@ -446,13 +485,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k) = hfx_y(i,j,k);
+            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k) = qfx1_y(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 yflux(i,j,k) = hfx_y(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * ( GradCy - met_h_eta*GradCz );
             }
+
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -471,7 +515,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -506,11 +551,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo) {
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
                 if (qty_index == RhoTheta_comp) {
-                    zflux(i,j,k) = hfx_z(i,j,0);
+                    zflux(i,j,k) = hfx_z(i,j,k);
                 } else if (qty_index == RhoQ1_comp) {
-                    zflux(i,j,k) = qfx1_z(i,j,0);
+                    zflux(i,j,k) = qfx1_z(i,j,k);
                 } else {
                     zflux(i,j,k) = zero;
                 }
@@ -519,11 +564,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
-            } else if (qty_index == RhoQ1_comp) {
-                if (!SurfLayer_on_zlo) {
+            } else  if (qty_index == RhoQ1_comp) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else if (qty_index == RhoQ2_comp) {
@@ -543,7 +588,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
+            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i  ,j,k+1) - z_cc(i  ,j,k-1));
             Real idz_lo = one / (z_cc(i-1,j,k+1) - z_cc(i-1,j,k-1));
@@ -551,13 +598,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i-1, j, k-1, prim_index)*idz_lo );
             Real GradCx = dx_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i-1, j, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoTheta_comp)) {
+                xflux(i,j,k) = hfx_x(i,j,k);
+            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (qty_index == RhoQ1_comp)) {
+                xflux(i,j,k) = qfx1_x(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 xflux(i,j,k) = hfx_x(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 xflux(i,j,k) = qfx1_x(i,j,0);
             } else {
                 xflux(i,j,k) = -rhoAlpha * mf_ux(i,j,0) * ( GradCx - met_h_xi*GradCz );
             }
+
         });
         ParallelFor(ybx_g1, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -570,7 +622,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                            BCVars::RhoScalar_bc_comp : qty_index;
             if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && rotate && k == dom_lo.z);
+            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
+            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && rotate && k == dom_lo.z);
 
             Real idz_hi = one / (z_cc(i,j  ,k+1) - z_cc(i,j  ,k-1));
             Real idz_lo = one / (z_cc(i,j-1,k+1) - z_cc(i,j-1,k-1));
@@ -578,13 +632,18 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                                    - cell_prim(i, j, k-1, prim_index)*idz_hi - cell_prim(i, j-1, k-1, prim_index)*idz_lo );
             Real GradCy = dy_inv * ( cell_prim(i, j, k  , prim_index)        - cell_prim(i, j-1, k  , prim_index) );
 
-            if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
+            if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoTheta_comp)) {
+                yflux(i,j,k) = hfx_y(i,j,k);
+            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (qty_index == RhoQ1_comp)) {
+                yflux(i,j,k) = qfx1_y(i,j,k);
+            } else if (SurfLayer_on_zlo && (qty_index == RhoTheta_comp)) {
                 yflux(i,j,k) = hfx_y(i,j,0);
             } else if (SurfLayer_on_zlo && (qty_index == RhoQ1_comp)) {
                 yflux(i,j,k) = qfx1_y(i,j,0);
             } else {
                 yflux(i,j,k) = -rhoAlpha * mf_vy(i,j,0) * ( GradCy - met_h_eta*GradCz );
             }
+
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -603,7 +662,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             bool ext_dir_on_zhi = ( ((bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir) ||
                                      (bc_ptr[bc_comp].hi(2) == ERFBCType::ext_dir_prim))
                                     && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( use_SurfLayer && k == dom_lo.z);
+            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
+            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
 
             if (ext_dir_on_zlo) {
                 // Third order stencil with variable dz
@@ -638,11 +698,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 GradCz = (dz_inv/met_h_zeta) * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
             }
 
-            if (SurfLayer_on_zlo) {
+            if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
                 if (qty_index == RhoTheta_comp) {
-                    zflux(i,j,k) = hfx_z(i,j,0);
+                    zflux(i,j,k) = hfx_z(i,j,k);
                 } else if (qty_index == RhoQ1_comp) {
-                    zflux(i,j,k) = qfx1_z(i,j,0);
+                    zflux(i,j,k) = qfx1_z(i,j,k);
                 } else {
                     zflux(i,j,k) = zero;
                 }
@@ -651,11 +711,11 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ1_comp) {
-                if (!SurfLayer_on_zlo) {
+                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
                     qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
                 }
             } else  if (qty_index == RhoQ2_comp) {
@@ -722,7 +782,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         // Allow semi-implicit discretization of the vertical diffusive terms
         Real zflux_lo;
-        if ( use_SurfLayer &&
+        if ( SurfLayer_zlo &&
              k == dom_lo.z &&
              qty_index != RhoTheta_comp &&
              qty_index != RhoQ1_comp ) {

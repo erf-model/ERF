@@ -66,7 +66,8 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                         const SolverChoice &solverChoice,
                         const int level,
                         const BCRec* bc_ptr,
-                        const bool use_SurfLayer)
+                        const bool use_SurfLayer,
+                        const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_EB()",DiffusionSrcForState_EB);
 

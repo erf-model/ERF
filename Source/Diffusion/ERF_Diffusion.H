@@ -87,7 +87,11 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_my,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
+                                   amrex::Array4<      amrex::Real>& hfx_x,
+                                   amrex::Array4<      amrex::Real>& hfx_y,
                                    amrex::Array4<      amrex::Real>& hfx_z,
+                                   amrex::Array4<      amrex::Real>& qfx1_x,
+                                   amrex::Array4<      amrex::Real>& qfx1_y,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
@@ -98,6 +102,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms on a vertically stretched grid. */
@@ -120,7 +125,11 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_my,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
+                                   amrex::Array4<      amrex::Real>& hfx_x,
+                                   amrex::Array4<      amrex::Real>& hfx_y,
                                    amrex::Array4<      amrex::Real>& hfx_z,
+                                   amrex::Array4<      amrex::Real>& qfx1_x,
+                                   amrex::Array4<      amrex::Real>& qfx1_y,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
@@ -131,6 +140,7 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms on terrain-following coordinates. */
@@ -174,6 +184,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms for embedded-boundary cells. */
@@ -204,7 +215,8 @@ void DiffusionSrcForState_EB (const amrex::Box& bx, const amrex::Box& domain,
                              const SolverChoice& solverChoice,
                              const int level,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer);
 
 /** \brief Compute embedded-boundary stress components for constant viscosity. */
 void ComputeStressConsVisc_EB (amrex::Box bxcc,
