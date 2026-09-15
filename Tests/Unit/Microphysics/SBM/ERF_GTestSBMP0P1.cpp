@@ -259,7 +259,7 @@ TEST (SBMP0, GenericManagerPreservesBaselineAndPublishesAcceptedState)
     const Box domain(IntVect(0, 0, 0), IntVect(1, 0, 0));
     const BoxArray boxes(domain);
     const DistributionMapping dm(boxes);
-    manager.define_level(0, boxes, dm, 1);
+    manager.define_level(0, boxes, dm, 2);
     manager.output(0).setVal(Real(2.0));
     manager.begin_step(0);
     manager.output(0).setVal(Real(5.0));
@@ -579,9 +579,11 @@ TEST (SBMP1, FiniteAndMaterialNegativityChecksAreFailClosed)
     EXPECT_THROW(erf_sbm::validate_nonnegative_state(state, 2, "-Inf"), std::runtime_error);
 }
 
-void run_manufactured_transport (const int nbins, const bool anelastic)
+void run_manufactured_transport (const int nbins, const bool anelastic,
+                                 const erf_sbm::TransportMethod method = erf_sbm::TransportMethod::DonorCell,
+                                 const erf_sbm::MomentMode mode = erf_sbm::MomentMode::OneMoment)
 {
-    const auto layout = make_layout(nbins);
+    const auto layout = make_layout(nbins, mode);
     const Box domain(IntVect(0, 0, 0), IntVect(3, 1, 1));
     const BoxArray boxes(domain);
     const DistributionMapping dm(boxes);
@@ -611,8 +613,11 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
     carrier_z.FillBoundary(geometry.periodicity());
 
     erf_auxiliary::AuxiliaryStateManager manager(layout.auxiliary_layout());
-    manager.define_level(0, boxes, dm, 1);
+    manager.define_level(0, boxes, dm, 2);
     auto& initial = manager.output(0);
+    const auto& population = layout.populations().front();
+    const int mass_offset = population.mass_offset;
+    const int number_offset = population.number_offset;
     for (MFIter mfi(initial); mfi.isValid(); ++mfi) {
         const auto aux = initial.array(mfi);
         const auto density = rho.const_array(mfi);
@@ -620,7 +625,12 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
             const Real variation = Real(1.0) + Real(0.25) *
                 std::sin(Real(6.2831853071795864769) * (Real(i) + Real(0.5)) / Real(4.0));
             for (int b = 0; b < nbins; ++b) {
-                aux(i,j,k,b) = density(i,j,k,0) * Real(1.e-3) * Real(b + 1) * variation;
+                const Real mass = density(i,j,k,0) * Real(1.e-3) * Real(b + 1) * variation;
+                aux(i,j,k,mass_offset+b) = mass;
+                if (mode == erf_sbm::MomentMode::TwoMoment) {
+                    const Real pivot = Real(b) + Real(0.5);
+                    aux(i,j,k,number_offset+b) = mass / pivot;
+                }
             }
         });
     }
@@ -636,14 +646,30 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
                 for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
                     for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
                         const Real ratio = aux(i,j,k,0) / density(i,j,k,0);
-                        for (int b = 1; b < nbins; ++b) {
-                            EXPECT_NEAR(aux(i,j,k,b) / density(i,j,k,0),
-                                        ratio * Real(b + 1), 2.e-14);
+                        if (mode == erf_sbm::MomentMode::OneMoment) {
+                            for (int b = 1; b < nbins; ++b) {
+                                EXPECT_NEAR(aux(i,j,k,b) / density(i,j,k,0),
+                                            ratio * Real(b + 1), 2.e-14);
+                            }
+                        } else {
+                            for (int b = 0; b < nbins; ++b) {
+                                const Real mass = aux(i,j,k,population.mass_offset+b);
+                                const Real number = aux(i,j,k,population.number_offset+b);
+                                const Real lower = population.grid.edges()[static_cast<std::size_t>(b)];
+                                const Real upper = population.grid.edges()[static_cast<std::size_t>(b+1)];
+                                EXPECT_GE(number, -2.e-14);
+                                EXPECT_GE(mass - lower*number, -2.e-14);
+                                EXPECT_GE(upper*number - mass, -2.e-14);
+                            }
                         }
                         Real qc = 0.0;
                         Real qr = 0.0;
-                        for (int b = 0; b < nbins / 2; ++b) qc += aux(i,j,k,b);
-                        for (int b = nbins / 2; b < nbins; ++b) qr += aux(i,j,k,b);
+                        for (int b = 0; b < nbins / 2; ++b) {
+                            qc += aux(i,j,k,population.mass_offset+b);
+                        }
+                        for (int b = nbins / 2; b < nbins; ++b) {
+                            qr += aux(i,j,k,population.mass_offset+b);
+                        }
                         EXPECT_NEAR(compact(i,j,k,RhoQ2_comp), qc, 2.e-14);
                         EXPECT_NEAR(compact(i,j,k,RhoQ3_comp), qr, 2.e-14);
                     }
@@ -662,24 +688,24 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
     }();
     erf_sbm::advance_stage(manager, layout, c0, rho, core,
                            carrier_x, carrier_y, carrier_z, geometry,
-                           manager.face_transfer_ledger(0).stage());
+                           manager.face_transfer_ledger(0).stage(), method);
     check_stage_invariants();
     if (anelastic) {
         const auto c1 = erf_auxiliary::make_anelastic_stage(1, 0.0, 1.0, 1.0, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c1, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage());
+                               manager.face_transfer_ledger(0).stage(), method);
         check_stage_invariants();
     } else {
         const auto c1 = erf_auxiliary::make_compressible_stage(1, 0.0, 1.0/3.0, 0.5, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c1, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage());
+                               manager.face_transfer_ledger(0).stage(), method);
         check_stage_invariants();
         const auto c2 = erf_auxiliary::make_compressible_stage(2, 0.0, 0.5, 1.0, 1.0, nullptr, nullptr);
         erf_sbm::advance_stage(manager, layout, c2, rho, core,
                                carrier_x, carrier_y, carrier_z, geometry,
-                               manager.face_transfer_ledger(0).stage());
+                               manager.face_transfer_ledger(0).stage(), method);
         check_stage_invariants();
     }
 
@@ -689,6 +715,20 @@ void run_manufactured_transport (const int nbins, const bool anelastic)
         return total;
     }();
     EXPECT_NEAR(final_mass, initial_mass, 2.e-12 * std::max(Real(1.0), std::abs(initial_mass)));
+    if (mode == erf_sbm::MomentMode::TwoMoment) {
+        const Real initial_number = [&]() {
+            Real total = 0.0;
+            for (int b = 0; b < nbins; ++b) total += manager.old(0).sum(population.number_offset+b);
+            return total;
+        }();
+        const Real final_number = [&]() {
+            Real total = 0.0;
+            for (int b = 0; b < nbins; ++b) total += manager.output(0).sum(population.number_offset+b);
+            return total;
+        }();
+        EXPECT_NEAR(final_number, initial_number,
+                    2.e-12 * std::max(Real(1.0), std::abs(initial_number)));
+    }
     EXPECT_GT(manager.output(0).max(0) - manager.output(0).min(0), Real(0.0));
 
     erf_auxiliary::AuxiliaryFaceTransfer bulk_transfer;
@@ -710,6 +750,21 @@ TEST (SBMP1, ManufacturedVariableDensityFreeStreamCompressibleRuntimeBins)
 TEST (SBMP1, ManufacturedVariableDensityFreeStreamAnelasticRuntimeBins)
 {
     for (const int nbins : {4, 16, 64}) run_manufactured_transport(nbins, true);
+}
+
+TEST (SBMP2, ProductionGroupedFCTWENOZ3RuntimeBins)
+{
+    for (const int nbins : {4, 16, 64}) {
+        run_manufactured_transport(nbins, false, erf_sbm::TransportMethod::GroupedFCT_WENOZ3);
+    }
+}
+
+TEST (SBMP2, ProductionGroupedFCTWENOZ3TwoMomentRuntimeBins)
+{
+    for (const int nbins : {4, 16, 64}) {
+        run_manufactured_transport(nbins, false, erf_sbm::TransportMethod::GroupedFCT_WENOZ3,
+                                   erf_sbm::MomentMode::TwoMoment);
+    }
 }
 
 } // namespace

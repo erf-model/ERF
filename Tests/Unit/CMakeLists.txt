@@ -168,6 +168,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMP0P1.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMP2.cpp
 )
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
@@ -221,6 +222,17 @@ erf_register_gtest_suite(${erf_exe_name}
   DISCOVERY_TIMEOUT 60
   EXECUTION_TIMEOUT 900
 )
+
+# Keep the P2 invariant suite in routine CTest while exercising the provider
+# with the same two-rank MPI decomposition used by the qualification command.
+if(ERF_ENABLE_MPI)
+  add_test(NAME erf_sbm_p2_mpi
+    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+            $<TARGET_FILE:${erf_exe_name}>
+            --gtest_filter=SBMP2.* --gtest_color=no)
+  set_tests_properties(erf_sbm_p2_mpi
+    PROPERTIES LABELS "unit;sbm;sbm-p2" TIMEOUT 900 PROCESSORS 2)
+endif()
 
 add_test(NAME erf_unit_tests_shuffle_repeat
   COMMAND ${erf_exe_name}

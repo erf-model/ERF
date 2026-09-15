@@ -842,6 +842,38 @@ function(add_test_sbm_prototype TEST_NAME METHOD NBINS NRANKS)
         ATTACHED_FILES_ON_FAIL "${_log};${_diagnostic}")
 endfunction(add_test_sbm_prototype)
 
+# Two-level production qualification for the P2 grouped-FCT path.  This is a
+# deliberately small 2M case: it exercises fine-level allocation/prolongation,
+# accepted SBM flux-register reflux, post-reflux admissibility, and coarse
+# average-down through two coarse steps on two MPI ranks.
+function(add_test_sbm_p2_amr TEST_NAME NRANKS)
+    set(_source_input
+        "${PROJECT_SOURCE_DIR}/Tests/Unit/Microphysics/SBM/inputs_sbm_p2_amr")
+    set(_test_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    file(MAKE_DIRECTORY "${_test_dir}")
+    file(COPY "${_source_input}" DESTINATION "${_test_dir}")
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_input "${_test_dir}/inputs_sbm_p2_amr")
+    set(_log "${_test_dir}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NRANKS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${_input}
+        -DWORKING_DIRECTORY=${_test_dir}
+        -DLOG=${_log}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunSBMP2AMR.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 900
+        PROCESSORS ${NRANKS}
+        WORKING_DIRECTORY "${_test_dir}/"
+        LABELS "regression;sbm;sbm-p2;amr"
+        ATTACHED_FILES_ON_FAIL "${_log}")
+endfunction(add_test_sbm_p2_amr)
+
 #=============================================================================
 # Regression tests
 #=============================================================================
@@ -853,6 +885,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
     add_test_sbm_prototype(SBM_P1_Anelastic_4 anelastic 4 2)
     add_test_sbm_prototype(SBM_P1_Anelastic_16 anelastic 16 2)
     add_test_sbm_prototype(SBM_P1_Anelastic_64 anelastic 64 2)
+    add_test_sbm_p2_amr(SBM_P2_AMR_2M 2)
 
     # The checker is a small AMReX PlotFileData consumer and is built only
     # when regression tests are enabled.  All SHOC cases use explicit
