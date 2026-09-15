@@ -11,13 +11,15 @@
 #include <memory>
 
 /**
- * Ghost-cell fill for planar (2D) MultiFabs built on the z-collapse of a 3D BoxArray.
+ * Ghost-cell fill for planar (2D) MultiFabs built on the collapse of a 3D BoxArray
+ * along a surface-normal direction.
  *
  * The surface-layer fields and the MOST averages are defined on one 2D box per 3D box.
- * When the 3D BoxArray is split in z, several 3D boxes collapse onto the same 2D box, so
- * the planar BoxArray holds duplicate boxes with overlapping valid regions, and only the
- * copy that belongs to the 3D box touching the surface is ever computed.  A FillBoundary
- * on such a MultiFab may fill a ghost cell from an uncomputed copy.
+ * When the 3D BoxArray is split in the normal direction, several 3D boxes collapse onto
+ * the same 2D box, so the planar BoxArray holds duplicate boxes with overlapping valid
+ * regions, and only the copy that belongs to the 3D box touching the surface is ever
+ * computed.  A FillBoundary on such a MultiFab may fill a ghost cell from an
+ * uncomputed copy.
  *
  * define() records which planar boxes are those surface copies.  fill() copies them into
  * a buffer without duplicates and ParallelCopies the buffer onto every planar box, valid
@@ -32,8 +34,8 @@
  * it copies: the lowest global box index wins, which does not depend on the decomposition
  * or the rank count, and every copy of the field then agrees.
  *
- * A level none of whose boxes reaches the surface (a fine level aloft) has no computed
- * copy to fill from, and fill() leaves the MultiFab as it is.
+ * A level none of whose boxes reaches the surface (a fine level away from the surface) has
+ * no computed copy to fill from, and fill() leaves the MultiFab as it is.
  */
 class PlanarBoundary
 {
@@ -41,17 +43,19 @@ public:
     /**
      * Record the surface copies of a planar BoxArray.
      *
-     * @param[in] ba3d 3D BoxArray the planar BoxArray was collapsed from
-     * @param[in] ba2d planar BoxArray, one box per box of ba3d and in the same order
-     * @param[in] dm   DistributionMapping shared by ba3d and ba2d
-     * @param[in] ksurface k index of the surface cell
-     * @param[in] is_low   whether the surface is the low side of the domain
+     * @param[in] ba3d          3D BoxArray the planar BoxArray was collapsed from
+     * @param[in] ba2d          planar BoxArray, one box per box of ba3d and in the same order
+     * @param[in] dm            DistributionMapping shared by ba3d and ba2d
+     * @param[in] surface_index index of the surface cell in the normal direction
+     * @param[in] is_low        whether the surface is the low side of the domain
+     * @param[in] normal_dir    normal direction of the surface
      */
     void define (const amrex::BoxArray& ba3d,
                  const amrex::BoxArray& ba2d,
                  const amrex::DistributionMapping& dm,
-                 int ksurface,
-                 bool is_low = true);
+                 int surface_index,
+                 bool is_low = true,
+                 int normal_dir = 2);
 
     /**
      * Fill every copy of a planar MultiFab, valid region and ghost cells, from the

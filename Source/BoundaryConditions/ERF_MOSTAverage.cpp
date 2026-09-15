@@ -298,15 +298,11 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
         m_fields[lev][4] = Qv_prim.get();
         m_fields[lev][5] = Qr_prim.get();
 
-        // Surface copies of the planar boxes (see fill_planar_boundary)
-        // PlanarBoundary handles duplicate boxes created by a z-split. The
-        // x/y layouts use ordinary tangential FillBoundary, while z-low and
-        // z-high select their respective surface boxes.
-        if (!use_eb && dir == 2) {
-            const int ksurface = m_face.isLow()
-                ? m_geom[lev].Domain().smallEnd(2)
-                : m_geom[lev].Domain().bigEnd(2);
-            m_planar_bndry[lev].define(ba, ba2d, dm, ksurface, m_face.isLow());
+        if (!use_eb) {
+            const int surface_index = m_face.isLow()
+                ? m_geom[lev].Domain().smallEnd(dir)
+                : m_geom[lev].Domain().bigEnd(dir);
+            m_planar_bndry[lev].define(ba, ba2d, dm, surface_index, m_face.isLow(), dir);
         }
 
         // Initialize remaining multifabs
@@ -782,7 +778,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= target_min && zref_tmp <= target_max,
                                          "Query point must remain inside the stretched mesh!");
         const int lk = k_index_below(zlevels, target);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lk >= m_radius,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((zlo ? lk : nz - 1 - lk) >= m_radius,
                                          "K index must be larger than averaging radius!");
         m_k_indx[lev]->setVal(lk);
         m_zref[lev]->setVal(zlo ? cell_center_height(zlevels, lk)
@@ -1990,9 +1986,9 @@ MOSTAverage::extrap_ghost_cells (const int& lev,
 /**
  * Function to fill the ghost cells of one planar average.
  *
- * The averages hold one box per 3D box, so a 3D BoxArray split in z gives duplicate
- * planar boxes of which only the surface copy is computed (compute_region_averages
- * skips the boxes off the surface); a FillBoundary could then fill a ghost cell from
+ * The averages hold one box per 3D box, so a 3D BoxArray split in the face-normal
+ * direction gives duplicate planar boxes, of which only the surface copy is computed
+ * by compute_region_averages; a FillBoundary could then fill a ghost cell from
  * an uncomputed copy (see PlanarBoundary).  With the split, the valid region of the
  * uncomputed copies is filled as well.  With EB terrain the averages are computed on
  * every box and FillBoundary is well defined.
@@ -2006,9 +2002,7 @@ MOSTAverage::fill_planar_boundary (const int& lev, MultiFab& mf)
     const int dir = m_face.coordDir();
     const Periodicity period = tangential_periodicity(m_geom[lev], dir);
 
-    // PlanarBoundary handles both z-low and z-high z-collapsed arrays split
-    // in z. Lateral-wall arrays use ordinary tangential exchange.
-    if (m_terrain_type == TerrainType::EB || dir != 2) {
+    if (m_terrain_type == TerrainType::EB) {
         mf.FillBoundary(mf.nGrowVect(), period);
     } else {
         m_planar_bndry[lev].fill(mf, period);

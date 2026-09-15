@@ -74,6 +74,7 @@ public:
                          double low_time_interval = 0.0,
                          const amrex::Vector<const eb_*>& eb_vec = {})
   : m_face(face),
+    m_pp_prefix(a_pp_prefix),
     m_geom(geom),
     m_rotate(use_rot_surface_flux),
     m_start_low_time(start_low_time),
@@ -387,7 +388,7 @@ public:
       // Get CC vars
       amrex::MultiFab& mf = *(mfv[0]);
 
-      amrex::ParmParse pp("erf");
+      amrex::ParmParse pp(m_pp_prefix);
 
       // Do we have a time-varying surface roughness that needs to be saved?
       if (lev == 0) {
@@ -1372,6 +1373,7 @@ public:
 private:
   // Set in constructor
   amrex::Orientation m_face;
+  std::string m_pp_prefix;
   amrex::Vector<amrex::Geometry> m_geom;
   bool m_rotate = false;
   amrex::GpuArray<int, AMREX_SPACEDIM*2> m_surface_layer_faces{};

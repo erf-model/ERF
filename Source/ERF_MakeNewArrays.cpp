@@ -679,8 +679,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
-    bool l_Surf_X      = phys_bc_type[0] == ERF_BC::surface_layer || phys_bc_type[3] == ERF_BC::surface_layer;
-    bool l_Surf_Y      = phys_bc_type[1] == ERF_BC::surface_layer || phys_bc_type[4] == ERF_BC::surface_layer;
+    bool l_Surf_X      = phys_bc_type[Orientation::xlo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::xhi()] == ERF_BC::surface_layer;
+    bool l_Surf_Y      = phys_bc_type[Orientation::ylo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::yhi()] == ERF_BC::surface_layer;
 
 
     bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||

@@ -8,18 +8,20 @@ using namespace amrex;
 /**
  * Record the surface copies of a planar BoxArray (see ERF_PlanarBoundary.H).
  *
- * @param[in] ba3d 3D BoxArray the planar BoxArray was collapsed from
- * @param[in] ba2d planar BoxArray, one box per box of ba3d and in the same order
- * @param[in] dm   DistributionMapping shared by ba3d and ba2d
- * @param[in] ksurface k index of the surface cell
- * @param[in] is_low   whether the surface is the low side of the domain
+ * @param[in] ba3d          3D BoxArray the planar BoxArray was collapsed from
+ * @param[in] ba2d          planar BoxArray, one box per box of ba3d and in the same order
+ * @param[in] dm            DistributionMapping shared by ba3d and ba2d
+ * @param[in] surface_index index of the surface cell in the normal direction
+ * @param[in] is_low        whether the surface is the low side of the domain
+ * @param[in] normal_dir    normal direction of the surface
  */
 void
 PlanarBoundary::define (const BoxArray& ba3d,
                         const BoxArray& ba2d,
                         const DistributionMapping& dm,
-                        int ksurface,
-                        bool is_low)
+                        int surface_index,
+                        bool is_low,
+                        int normal_dir)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.size() == ba3d.size(),
         "PlanarBoundary::define: the planar BoxArray must hold one box per 3D box");
@@ -28,13 +30,13 @@ PlanarBoundary::define (const BoxArray& ba3d,
     m_src_index.clear();
     m_buffers.clear();
 
-    // The planar boxes are taken as they are, whatever k they were collapsed to
+    // The planar boxes are taken as they are, whatever index they were collapsed to
     BoxList bl_sfc(IndexType::TheCellType());
     Vector<int> pmap;
     for (int ib = 0; ib < m_nplanar; ++ib) {
         const bool touches_surface = is_low
-            ? (ba3d[ib].smallEnd(2) == ksurface)
-            : (ba3d[ib].bigEnd(2) == ksurface);
+            ? (ba3d[ib].smallEnd(normal_dir) == surface_index)
+            : (ba3d[ib].bigEnd(normal_dir) == surface_index);
         if (touches_surface) {
             bl_sfc.push_back(enclosedCells(ba2d[ib]));
             pmap.push_back(dm[ib]);
