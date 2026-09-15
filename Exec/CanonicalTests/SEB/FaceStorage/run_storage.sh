@@ -47,7 +47,25 @@ for h, x, y in zip(hdr, a, b):
 print("restart CSV row matches straight (exact, atmosphere columns to 1e-3): " + ("PASS" if ok else "FAIL"))
 raise SystemExit(0 if ok else 1)
 PY
+echo "== the same restart on 1 rank (the state field is redistributed from the $NP-rank checkpoint)"
+"$EXE" inputs_restart erf.ibseb.csv_file=ibseb_restart_np1.csv > run_restart_np1.log 2>&1 || { echo "restart run failed"; exit 1; }
+python3 - <<'PY' || exit 1
+s = open("ibseb_restart.csv").read().strip().splitlines()[-1]; r = open("ibseb_restart_np1.csv").read().strip().splitlines()[-1]
+ok = s == r
+print("restart on 1 rank equals the restart on the checkpoint's rank count: " + ("PASS" if ok else "FAIL"))
+if not ok: print(" " + s); print(" " + r)
+raise SystemExit(0 if ok else 1)
+PY
 echo "== restart with erf.ibseb.n_slab_layers = 6 against the 4-layer checkpoint (must abort)"
 mpirun -np $NP "$EXE" inputs_restart_layers > run_restart_layers.log 2>&1
 if grep -q "the deck sets erf.ibseb.n_slab_layers = 6" run_restart_layers.log; then echo "mismatched slab layers rejected: PASS"; else echo "mismatched slab layers rejected: FAIL (see run_restart_layers.log)"; exit 1; fi
+echo "== restart against a checkpoint of other buildings (must abort): the height map rotated by 16 rows"
+python3 - <<'PY'
+lines = open("skyscraper_5m_128x128.txt").read().rstrip("\n").split("\n")
+n = 128 * 128; head, heights = lines[:-n], lines[-n:]
+shift = 16 * 128
+open("skyscraper_rotated.txt", "w").write("\n".join(head + heights[-shift:] + heights[:-shift]) + "\n")
+PY
+mpirun -np $NP "$EXE" inputs_restart erf.buildings_file_name=skyscraper_rotated.txt erf.ibseb.csv_file=ibseb_restart_rotated.csv > run_restart_rotated.log 2>&1
+if grep -q "was written for a different building layout" run_restart_rotated.log; then echo "checkpoint of other buildings rejected: PASS"; else echo "checkpoint of other buildings rejected: FAIL (see run_restart_rotated.log)"; exit 1; fi
 echo "ALL PASS"

@@ -2367,8 +2367,9 @@ struct SolverChoice {
  * the staircase is the same with and without the face-centred blanking of
  * the build; a face between a solid and a fluid cell is wall-normal and gets
  * the interior drag toward zero (no penetration) whichever row it lies in,
- * and a face between two solid cells the roof or wall law of its row or the
- * interior drag. Buildings only (erf.buildings_type = ImmersedForcing): the
+ * and a face between two solid cells the roof or wall law of its row (with
+ * the full log-law target; the partial-cell weight of the target is not
+ * applied) or the interior drag. Buildings only (erf.buildings_type = ImmersedForcing): the
  * terrain kernels keep the raw fractions, whose wall law is weighted by the
  * fluid fraction of the face. Default false, the raw fractions, for backward
  * compatibility (on an exact box a boundary cell then carries the wall law

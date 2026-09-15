@@ -55,15 +55,21 @@ and the interior drag together, and the roof only the drag).
 
 The run with the switch completes 2.64 hours (the original traps), the
 fluid temperature stays within 0.5 K of neutral, the vertical velocity
-below 2 m/s, and the cube still throws a wake.
+below 2 m/s, and the cube still throws a wake. Then two 400-step runs with
+`erf.if_z0` 0.01 and 0.1 must differ: the wall law is live on the snapped
+faces (they take the full log-law target; the partial-cell weight
+`1 - fraction` of the target, which a snapped face has not, would make the
+staircase no-slip and the two runs identical).
 
 ## Reference output (4 ranks)
 
 ```
 == height-map cube, wall law snapped to half cells (4 ranks, 19000 steps)
   fluid temperature within 0.5 K of neutral: PASS (max |theta - 300| 0.000 K at t = 9500 s)
-  vertical velocity below 2 m/s: PASS (max |w| 0.49 m/s)
-  wake behind the cube: PASS (min u in the wake -0.47 m/s (inflow 3))
+  vertical velocity below 2 m/s: PASS (max |w| 0.57 m/s)
+  wake behind the cube: PASS (min u in the wake -0.41 m/s (inflow 3))
 partial cells: PASS
+== the wall law is live under the snap: z0 must change the flow (400 steps, 4 ranks)
+  z0 = 0.01 vs 0.1 after 400 steps: max |du| 1.997e-01 m/s -> PASS (a no-slip staircase gives 0)
 ALL PASS
 ```

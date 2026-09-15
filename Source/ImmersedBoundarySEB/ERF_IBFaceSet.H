@@ -2,6 +2,8 @@
 #define ERF_IB_FACE_SET_H
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuContainers.H>
 #include <vector>
@@ -108,6 +110,20 @@ public:
      * are its slab layers.
      */
     int state_ncomp () const { return 6 * (2 + n_layers()); }
+
+    /**
+     * Boxes of the checkpoint field: 8 x 8 column blocks that reach up to the
+     * highest face-owning cell of the block, so the field scales with the
+     * built volume, not the domain. Built identically on every rank by
+     * build() from a reduced block-height map; the same buildings give the
+     * same boxes on restart, whatever the rank count. Empty when the level
+     * has no faces.
+     */
+    const amrex::BoxArray& state_boxarray () const { return m_state_ba; }
+    /** Whether the level has a checkpoint field to write (any faces at all). */
+    bool has_state () const { return !m_state_ba.empty(); }
+    /** A field on state_boxarray() with state_ncomp() components, for the checkpoint. */
+    amrex::MultiFab make_state () const;
 
     /**
      * View fractions: sample a cosine-weighted hemisphere around
@@ -248,19 +264,23 @@ public:
     void scatter_diagnostics (amrex::MultiFab& nfaces, amrex::MultiFab& tskin) const;
 
     /**
-     * Write the face state (skin temperature, sensible flux and slab temperatures) into a cell-centred
-     * field with state_ncomp() components, for the checkpoint.
+     * Write the face state (skin temperature, sensible flux and slab
+     * temperatures) into a field from make_state(), for the checkpoint.
      *
-     * Each face writes its own slot (see state_ncomp()), so no two faces
-     * touch the same component of the same cell and no atomics are needed.
-     * Cells without a face in a slot keep zero there.
+     * The faces of this rank are written into a transfer field on this
+     * rank's grids cut by the state boxes, which a ParallelCopy moves onto
+     * the state's own distribution. Each face writes its own slot (see
+     * state_ncomp()), so no two faces touch the same component of the same
+     * cell and no atomics are needed; cells without a face in a slot keep
+     * zero there.
      */
     void save_state (amrex::MultiFab& state) const;
 
     /**
-     * Read the face state (skin, flux, slab) back from a field written by save_state(), after
-     * build() has recreated the list from the blanking. Only the slots that
-     * correspond to a face of this list are read.
+     * Read the face state (skin, flux, slab) back from a field written by
+     * save_state(), after build() has recreated the list from the blanking:
+     * the reverse ParallelCopy onto the transfer field, then each face reads
+     * its slot. Only the slots that correspond to a face of this list are read.
      */
     void load_state (const amrex::MultiFab& state);
 
@@ -325,9 +345,23 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
     amrex::Gpu::DeviceVector<int>         d_niter;        ///< Newton iterations of the last solve
-    // Column tops of the whole level [m], replicated on every rank for the
-    // ray cast: index ci * ny + cj over the domain's columns.
+    // Column tops [m] over the bounding box of the built columns (origin
+    // m_col_i0, m_col_j0 in 0-based domain columns, m_col_nx x m_col_ny
+    // values, index (ci - i0) * m_col_ny + (cj - j0)), replicated on every
+    // rank for the ray cast: 8 bytes per built column per rank. Columns
+    // outside the box are open ground (see ibseb::column_top()).
     amrex::Gpu::DeviceVector<amrex::Real> d_col_top;
+    int m_col_i0 = 0, m_col_j0 = 0, m_col_nx = 0, m_col_ny = 0;
+
+    // Checkpoint layout (see state_boxarray()) and the transfer layer of
+    // save_state() / load_state(): this rank's grids cut by the state boxes,
+    // gathered into one global BoxArray owned box by box by the rank whose
+    // grid it came from, with the local grid index each box came from.
+    amrex::BoxArray m_state_ba;
+    amrex::BoxArray m_xfer_ba;
+    amrex::DistributionMapping m_xfer_dm;
+    std::vector<int> m_xfer_src;
+    amrex::Long m_domain_cells = 0;            ///< Cells of the level, for the debug summary of the field
 
     /// Sun and irradiances of the last compute_shortwave() call, for reports.
     struct SunState {

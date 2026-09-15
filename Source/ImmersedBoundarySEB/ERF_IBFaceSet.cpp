@@ -18,6 +18,8 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
+#include <limits>
+#include <AMReX_ParallelReduce.H>
 
 using namespace amrex;
 
@@ -102,11 +104,39 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
 
     std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj;
     std::vector<Real> h_area, h_xf, h_yf, h_zf;
-    // Largest blanking in each column of this rank; reduced below so every
-    // rank labels the same solid columns. The highest solid cell of each
-    // column gives the column top for the ray cast.
-    std::vector<Real> colmax(static_cast<size_t>(nx) * ny, 0.0);
-    std::vector<Real> colk(static_cast<size_t>(nx) * ny, -1.0);
+    m_domain_cells = domain.numPts();
+
+    // Bounding box of the solid columns (global), so the column arrays below
+    // cover the built area only: 8 bytes per built column per rank.
+    int bi0 = std::numeric_limits<int>::max(), bi1 = std::numeric_limits<int>::min();
+    int bj0 = bi0, bj1 = bi1;
+    for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const HostFab hf(blanking[mfi]);
+        auto const& b = hf.array();
+        const auto lo = lbound(bx);
+        const auto hi = ubound(bx);
+        for (int k = lo.z; k <= hi.z; ++k) {
+        for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+            if (b(i, j, k) >= 0.5) {
+                bi0 = std::min(bi0, i); bi1 = std::max(bi1, i);
+                bj0 = std::min(bj0, j); bj1 = std::max(bj1, j);
+            }
+        }}}
+    }
+    ParallelDescriptor::ReduceIntMin(bi0); ParallelDescriptor::ReduceIntMin(bj0);
+    ParallelDescriptor::ReduceIntMax(bi1); ParallelDescriptor::ReduceIntMax(bj1);
+    const bool any_solid = (bi1 >= bi0) && (bj1 >= bj0);
+    m_col_i0 = any_solid ? bi0 - ilo : 0;  m_col_j0 = any_solid ? bj0 - jlo : 0;
+    m_col_nx = any_solid ? bi1 - bi0 + 1 : 0;  m_col_ny = any_solid ? bj1 - bj0 + 1 : 0;
+    const int bw = m_col_nx, bh = m_col_ny;
+    const size_t ncol = static_cast<size_t>(bw) * bh;
+    // Largest blanking in each built column of this rank; reduced below so
+    // every rank labels the same solid columns. The highest solid cell of
+    // each column gives the column top for the ray cast.
+    std::vector<Real> colmax(ncol, 0.0);
+    std::vector<Real> colk(ncol, -1.0);
 
     m_fab_start.clear();
     for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
@@ -121,7 +151,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         for (int j = lo.y; j <= hi.y; ++j) {
         for (int i = lo.x; i <= hi.x; ++i) {
             if (b(i, j, k) >= 0.5) {
-                const size_t c = static_cast<size_t>(i - ilo) * ny + (j - jlo);
+                const size_t c = static_cast<size_t>(i - bi0) * bh + (j - bj0);
                 colmax[c] = std::max(colmax[c], b(i, j, k));
                 colk[c]   = std::max(colk[c], static_cast<Real>(k - domain.smallEnd(2)));
                 continue;
@@ -152,14 +182,74 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_fab_start.push_back(static_cast<int>(h_i.size()));
     m_nface = static_cast<int>(h_i.size());
 
+    // Checkpoint layout: 8 x 8 column blocks up to the highest face-owning
+    // cell of each block (see state_boxarray()), the same on every rank from
+    // a reduced block-height map; and the transfer layer, this rank's grids
+    // cut by those blocks, gathered into one global BoxArray owned by the
+    // rank whose grid each piece came from.
+    {
+        constexpr int BS = 8;
+        const int klo = domain.smallEnd(2);
+        const int nbx = (nx + BS - 1) / BS, nby = (ny + BS - 1) / BS;
+        std::vector<int> blk(static_cast<size_t>(nbx) * nby, -1);
+        for (int n = 0; n < m_nface; ++n) {
+            const size_t p = static_cast<size_t>((h_i[n] - ilo) / BS) * nby + (h_j[n] - jlo) / BS;
+            blk[p] = std::max(blk[p], h_k[n] - klo);
+        }
+        ParallelDescriptor::ReduceIntMax(blk.data(), static_cast<int>(blk.size()));
+        BoxList bl;
+        for (int bi = 0; bi < nbx; ++bi) {
+            for (int bj = 0; bj < nby; ++bj) {
+                const int kmax = blk[static_cast<size_t>(bi) * nby + bj];
+                if (kmax < 0) { continue; }
+                const IntVect blo(ilo + bi * BS, jlo + bj * BS, klo);
+                const IntVect bhi(std::min(ilo + (bi + 1) * BS - 1, domain.bigEnd(0)),
+                                  std::min(jlo + (bj + 1) * BS - 1, domain.bigEnd(1)), klo + kmax);
+                bl.push_back(Box(blo, bhi));
+            }
+        }
+        m_state_ba = BoxArray(bl);
+        Vector<Box> mybx;
+        m_xfer_src.clear();
+        for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
+            for (const auto& pr : m_state_ba.intersections(mfi.validbox())) {
+                mybx.push_back(pr.second);
+                m_xfer_src.push_back(mfi.LocalIndex());
+            }
+        }
+        const int nranks = ParallelDescriptor::NProcs();
+        const int nmine = static_cast<int>(mybx.size());
+        Vector<int> counts(nranks, 0);
+        ParallelAllGather::AllGather(nmine, counts.data(), ParallelDescriptor::Communicator());
+        Vector<Box> allbx(mybx);
+        AllGatherBoxes(allbx);
+        Vector<int> owner;
+        owner.reserve(allbx.size());
+        for (int r = 0; r < nranks; ++r) { for (int n = 0; n < counts[r]; ++n) { owner.push_back(r); } }
+        AMREX_ALWAYS_ASSERT(owner.size() == allbx.size());
+        BoxList xl;
+        for (const Box& b : allbx) { xl.push_back(b); }
+        m_xfer_ba = BoxArray(xl);
+        m_xfer_dm = DistributionMapping(owner);
+    }
+
     // Buildings: 4-connected solid columns, numbered in scan order. The column
     // mask is reduced so every rank labels the same columns with the same ids;
     // the labelling itself is a plain depth-first flood fill on the host.
-    ParallelDescriptor::ReduceRealMax(colmax.data(), nx * ny);
-    ParallelDescriptor::ReduceRealMax(colk.data(), nx * ny);
+    if (ncol > 0) {
+        ParallelDescriptor::ReduceRealMax(colmax.data(), static_cast<int>(ncol));
+        ParallelDescriptor::ReduceRealMax(colk.data(), static_cast<int>(ncol));
+    }
+    // Column index in the built box of a face's solid neighbour (a 0-based,
+    // wrapped domain column; the neighbour is solid, so it lies in the box).
+    auto col_index = [&] (int n) {
+        const size_t c = static_cast<size_t>(h_nbi[n] - m_col_i0) * bh + (h_nbj[n] - m_col_j0);
+        AMREX_ALWAYS_ASSERT(h_nbi[n] >= m_col_i0 && h_nbi[n] < m_col_i0 + bw && h_nbj[n] >= m_col_j0 && h_nbj[n] < m_col_j0 + bh);
+        return c;
+    };
     // Column tops for the ray cast: one cell above the highest solid cell,
     // the ground where the column is fluid.
-    std::vector<Real> h_col_top(static_cast<size_t>(nx) * ny, plo[2]);
+    std::vector<Real> h_col_top(ncol, plo[2]);
     m_col_top_max = plo[2];
     for (size_t c = 0; c < h_col_top.size(); ++c) {
         if (colk[c] >= 0.0) { h_col_top[c] = plo[2] + (colk[c] + 1.0) * dx[2]; }
@@ -170,16 +260,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     {
         std::vector<Real> h_hb(h_i.size());
         for (size_t n = 0; n < h_i.size(); ++n) {
-            h_hb[n] = h_col_top[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]] - plo[2];
+            h_hb[n] = h_col_top[col_index(n)] - plo[2];
         }
         upload(d_hbld, h_hb);
     }
-    std::vector<int> label(static_cast<size_t>(nx) * ny, 0);
+    std::vector<int> label(ncol, 0);
     std::vector<int> stack;
     m_nbld = 0;
-    for (int ci = 0; ci < nx; ++ci) {
-        for (int cj = 0; cj < ny; ++cj) {
-            const size_t p = static_cast<size_t>(ci) * ny + cj;
+    for (int ci = 0; ci < bw; ++ci) {
+        for (int cj = 0; cj < bh; ++cj) {
+            const size_t p = static_cast<size_t>(ci) * bh + cj;
             if (colmax[p] < 0.5 || label[p] > 0) { continue; }
             ++m_nbld;
             label[p] = m_nbld;
@@ -187,12 +277,12 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             stack.push_back(static_cast<int>(p));
             while (!stack.empty()) {
                 const int q = stack.back(); stack.pop_back();
-                const int qi = q / ny, qj = q % ny;
+                const int qi = q / bh, qj = q % bh;
                 const int ni[4] = {qi - 1, qi + 1, qi, qi};
                 const int nj[4] = {qj, qj, qj - 1, qj + 1};
                 for (int n = 0; n < 4; ++n) {
-                    if (ni[n] < 0 || ni[n] >= nx || nj[n] < 0 || nj[n] >= ny) { continue; }
-                    const size_t r = static_cast<size_t>(ni[n]) * ny + nj[n];
+                    if (ni[n] < 0 || ni[n] >= bw || nj[n] < 0 || nj[n] >= bh) { continue; }
+                    const size_t r = static_cast<size_t>(ni[n]) * bh + nj[n];
                     if (colmax[r] >= 0.5 && label[r] == 0) {
                         label[r] = m_nbld;
                         stack.push_back(static_cast<int>(r));
@@ -203,19 +293,20 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     }
     std::vector<int> h_bid(m_nface);
     for (int n = 0; n < m_nface; ++n) {
-        h_bid[n] = label[static_cast<size_t>(h_nbi[n]) * ny + h_nbj[n]];
+        h_bid[n] = label[col_index(n)];
     }
     // Footprints, for the debug summary: columns and bounding box per building.
     m_bld_ncol.assign(m_nbld + 1, 0);
     m_bld_ilo.assign(m_nbld + 1, nx); m_bld_ihi.assign(m_nbld + 1, -1);
     m_bld_jlo.assign(m_nbld + 1, ny); m_bld_jhi.assign(m_nbld + 1, -1);
-    for (int ci = 0; ci < nx; ++ci) {
-        for (int cj = 0; cj < ny; ++cj) {
-            const int b = label[static_cast<size_t>(ci) * ny + cj];
+    for (int ci = 0; ci < bw; ++ci) {
+        for (int cj = 0; cj < bh; ++cj) {
+            const int b = label[static_cast<size_t>(ci) * bh + cj];
             if (b == 0) { continue; }
+            const int gi = ci + m_col_i0 + ilo, gj = cj + m_col_j0 + jlo;
             m_bld_ncol[b] += 1;
-            m_bld_ilo[b] = std::min(m_bld_ilo[b], ci + ilo); m_bld_ihi[b] = std::max(m_bld_ihi[b], ci + ilo);
-            m_bld_jlo[b] = std::min(m_bld_jlo[b], cj + jlo); m_bld_jhi[b] = std::max(m_bld_jhi[b], cj + jlo);
+            m_bld_ilo[b] = std::min(m_bld_ilo[b], gi); m_bld_ihi[b] = std::max(m_bld_ihi[b], gi);
+            m_bld_jlo[b] = std::min(m_bld_jlo[b], gj); m_bld_jhi[b] = std::max(m_bld_jhi[b], gj);
         }
     }
 
@@ -307,6 +398,7 @@ IBFaceSet::compute_view_fractions ()
     const int n_az = m_params.view_n_az, n_el = m_params.view_n_el;
     const Real* col_top = d_col_top.data();
     const int   nx = m_nx, ny = m_ny;
+    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
     const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
     const bool  per_x = m_per_x, per_y = m_per_y;
     const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
@@ -319,7 +411,7 @@ IBFaceSet::compute_view_fractions ()
             for (int ia = 0; ia < n_az; ++ia) {
                 Real sx, sy, sz;
                 ibseb::hemisphere_direction(pd[f], -ps[f], ia, ie, n_az, n_el, sx, sy, sz);
-                const int hit = ibseb::ray_hit(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny,
+                const int hit = ibseb::ray_hit(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
                                                x_lo, y_lo, dx, dy, per_x, per_y, z_ground, z_max, max_path);
                 if (hit == ibseb::RAY_SKY) ++n_sky; else if (hit == ibseb::RAY_GROUND) ++n_gnd; else ++n_bld;
             }
@@ -744,9 +836,10 @@ IBFaceSet::compute_shortwave (Real time)
     const Real* palb = d_albedo.data();
     const Real* col_top = d_col_top.data();
     const int   nx = m_nx, ny = m_ny;
+    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
     const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
     const bool  per_x = m_per_x, per_y = m_per_y;
-    const Real  z_max = m_col_top_max, max_path = m_max_path;
+    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
     const int*  pd  = d_dir.data();  const int* ps = d_side.data();
     const Real* pxf = d_xf.data();   const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
     const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data();
@@ -759,8 +852,8 @@ IBFaceSet::compute_shortwave (Real time)
         const Real cosi = n[0] * sx + n[1] * sy + n[2] * sz;
         Real shadow = 0.0, direct = 0.0;
         if (sz > 0.0 && cosi > 0.0 && dni > 0.0) {
-            shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny,
-                                        x_lo, y_lo, dx, dy, per_x, per_y, z_max, max_path) ? 1.0 : 0.0;
+            shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
+                                        x_lo, y_lo, dx, dy, per_x, per_y, z_ground, z_max, max_path) ? 1.0 : 0.0;
             direct = dni * cosi * (1.0 - shadow);
         }
         const Real diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h);
@@ -935,21 +1028,32 @@ IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
  * ``(dir*2 + (side>0)) * (2 + n_layers)``; no two faces of a cell share a
  * slot, so the writes are plain stores.
  */
+MultiFab
+IBFaceSet::make_state () const
+{
+    if (m_state_ba.empty()) { return MultiFab(); }
+    return MultiFab(m_state_ba, DistributionMapping(m_state_ba), state_ncomp(), 0);
+}
+
 void
 IBFaceSet::save_state (MultiFab& state) const
 {
-    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp());
-    state.setVal(0.0);
+    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp() && state.boxArray() == m_state_ba);
     const int nl = n_layers();
     const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int* pd = d_dir.data(); const int* ps = d_side.data();
     const Real* pT = d_T_skin.data(); const Real* pS = d_T_slab.data(); const Real* pH = d_H.data();
-    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
-        const int f0 = m_fab_start[mfi.LocalIndex()];
-        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
-        auto const& st = state.array(mfi);
+    MultiFab mine(m_xfer_ba, m_xfer_dm, state_ncomp(), 0);
+    mine.setVal(0.0);
+    for (MFIter mfi(mine); mfi.isValid(); ++mfi) {
+        const int li = m_xfer_src[mfi.LocalIndex()];
+        const int f0 = m_fab_start[li];
+        const int f1 = m_fab_start[li + 1];
+        const Box bx = mfi.validbox();
+        auto const& st = mine.array(mfi);
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f  = f0 + m;
+            if (!bx.contains(IntVect(pi[f], pj[f], pk[f]))) { return; }
             const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (2 + nl);
             st(pi[f], pj[f], pk[f], c0)     = pT[f];
             st(pi[f], pj[f], pk[f], c0 + 1) = pH[f];
@@ -957,9 +1061,12 @@ IBFaceSet::save_state (MultiFab& state) const
         });
     }
     Gpu::streamSynchronize();
+    state.setVal(0.0);
+    state.ParallelCopy(mine);
     if (m_params.debug) {
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << state_ncomp()
-                << " components (6 slots x " << (2 + n_layers()) << ")\n";
+                << " components (6 slots x " << (2 + n_layers()) << ") on " << m_state_ba.size()
+                << " boxes, " << m_state_ba.numPts() << " of the level's " << m_domain_cells << " cells\n";
     }
 }
 
@@ -971,17 +1078,22 @@ IBFaceSet::save_state (MultiFab& state) const
 void
 IBFaceSet::load_state (const MultiFab& state)
 {
-    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp());
+    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp() && state.boxArray() == m_state_ba);
     const int nl = n_layers();
     const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int* pd = d_dir.data(); const int* ps = d_side.data();
     Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data(); Real* pH = d_H.data();
-    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
-        const int f0 = m_fab_start[mfi.LocalIndex()];
-        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
-        auto const& st = state.const_array(mfi);
+    MultiFab mine(m_xfer_ba, m_xfer_dm, state_ncomp(), 0);
+    mine.ParallelCopy(state);
+    for (MFIter mfi(mine); mfi.isValid(); ++mfi) {
+        const int li = m_xfer_src[mfi.LocalIndex()];
+        const int f0 = m_fab_start[li];
+        const int f1 = m_fab_start[li + 1];
+        const Box bx = mfi.validbox();
+        auto const& st = mine.const_array(mfi);
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f  = f0 + m;
+            if (!bx.contains(IntVect(pi[f], pj[f], pk[f]))) { return; }
             const int c0 = (pd[f] * 2 + (ps[f] > 0 ? 1 : 0)) * (2 + nl);
             pT[f] = st(pi[f], pj[f], pk[f], c0);
             pH[f] = st(pi[f], pj[f], pk[f], c0 + 1);

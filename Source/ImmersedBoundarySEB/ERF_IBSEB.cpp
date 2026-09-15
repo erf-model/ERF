@@ -72,16 +72,23 @@ ERF::init_ibseb ()
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
             if (FileExists(name + "_H")) {
-                // The field's width is 6 x (2 + n_slab_layers); a checkpoint
-                // written with another layer count cannot be unpacked.
-                const int ncomp_chk = VisMF(name).nComp();
+                // The field's width is 6 x (2 + n_slab_layers) and its boxes
+                // follow the buildings; a checkpoint written with another
+                // layer count or another building set cannot be unpacked.
+                const VisMF header(name);
+                const int ncomp_chk = header.nComp();
                 if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
                     Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
                           + " components, written with erf.ibseb.n_slab_layers = " + std::to_string(ncomp_chk / 6 - 2)
                           + "; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
                           + ". Restart with the checkpoint's value.");
                 }
-                restored = std::make_unique<MultiFab>(grids[lev], dmap[lev], m_ibseb[lev]->state_ncomp(), 0);
+                if (header.boxArray() != m_ibseb[lev]->state_boxarray()) {
+                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " was written for a different building layout ("
+                          + std::to_string(header.boxArray().size()) + " boxes against the "
+                          + std::to_string(m_ibseb[lev]->state_boxarray().size()) + " the blanking gives); restart from a checkpoint of the same buildings");
+                }
+                restored = std::make_unique<MultiFab>(m_ibseb[lev]->make_state());
                 VisMF::Read(*restored, name);
                 m_ibseb[lev]->load_state(*restored);
                 Print() << "[IBSEB] Face state restored from " << restart_chkfile << "\n";
@@ -152,15 +159,19 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
 }
 
 /**
- * Write the face state of one level into the checkpoint as ``IBSEBState``.
- * Called inside the level loop of ERF::WriteCheckpointFile(); a no-op unless
- * the balance is on and the level has a face set.
+ * Write the face state of one level into the checkpoint as ``IBSEBState``, a
+ * field on the column blocks around the buildings (IBFaceSet::state_boxarray()),
+ * so it scales with the built volume rather than the level. Called inside the
+ * level loop of ERF::WriteCheckpointFile(); a no-op unless the balance is on
+ * and the level has faces.
  */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
-    MultiFab state(grids[lev], dmap[lev], m_ibseb[lev]->state_ncomp(), 0);
+    // A level without faces has no field to write (and nothing to restore).
+    if (!m_ibseb[lev]->has_state()) { return; }
+    MultiFab state = m_ibseb[lev]->make_state();
     m_ibseb[lev]->save_state(state);
     VisMF::Write(state, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBState"));
 }
@@ -217,14 +228,14 @@ ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab
     const Real dz = geom[lev].CellSize(2);
     const Real z_top = geom[lev].ProbHi(2) - geom[lev].ProbLo(2);   // depth of the domain
     const Real th1 = rth[0] / rho[0];
-    const Real U1  = std::sqrt(uu[0] * uu[0] + vv[0] * vv[0]);
     const Real ustar_floor2 = 100.0 * 0.1 * 0.1;
     Real z_i = z_top;
     for (int k = 1; k < nz; ++k) {
         const Real th = rth[k] / rho[k];
-        const Real U  = std::sqrt(uu[k] * uu[k] + vv[k] * vv[k]);
-        const Real dU = U - U1;
-        const Real rib = CONST_GRAV * (k * dz) * (th - th1) / (th1 * (dU * dU + ustar_floor2));
+        // |U(z) - U_1|^2 of the wind vector, so a veering wind of constant speed
+        // still counts as shear.
+        const Real dU2 = (uu[k] - uu[0]) * (uu[k] - uu[0]) + (vv[k] - vv[0]) * (vv[k] - vv[0]);
+        const Real rib = CONST_GRAV * (k * dz) * (th - th1) / (th1 * (dU2 + ustar_floor2));
         if (rib > ibseb_params.ri_crit) { z_i = (k + 0.5) * dz; break; }
     }
     return z_i;

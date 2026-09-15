@@ -152,11 +152,25 @@ amrex::Real clear_sky_diffuse_h (amrex::Real cos_zenith, amrex::Real S0, amrex::
 }
 
 /**
+ * Top height of a column of the level: the column map covers the bounding
+ * box of the built columns only (origin ``i0, j0`` in 0-based domain columns,
+ * ``bw x bh`` values indexed ``(ci - i0) * bh + (cj - j0)``); every other
+ * column is open ground.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real column_top (const amrex::Real* col_top, int ci, int cj,
+                        int i0, int j0, int bw, int bh, amrex::Real z_ground)
+{
+    ci -= i0; cj -= j0;
+    return (ci < 0 || ci >= bw || cj < 0 || cj >= bh) ? z_ground : col_top[ci * bh + cj];
+}
+
+/**
  * Whether the ray from a face toward the sun hits a building.
  *
- * Buildings are represented by the top height of every column of the level
- * (``col_top``, replicated on every rank, ``nx * ny`` values indexed
- * ``ci * ny + cj``), so a ray is blocked wherever its height on entering a
+ * Buildings are represented by the top height of the columns of the level
+ * (``col_top`` over the built bounding box, see column_top(), replicated on
+ * every rank), so a ray is blocked wherever its height on entering a
  * column is below that column's top: buildings stand on the ground, so the
  * lowest point of the ray inside a column is at its entry, and the height
  * only grows along a ray toward a sun above the horizon. The walk over the
@@ -174,9 +188,9 @@ amrex::Real clear_sky_diffuse_h (amrex::Real cos_zenith, amrex::Real S0, amrex::
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
                   amrex::Real sx, amrex::Real sy, amrex::Real sz,
-                  const amrex::Real* col_top, int nx, int ny,
+                  const amrex::Real* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
                   amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy,
-                  bool per_x, bool per_y, amrex::Real z_max, amrex::Real max_path)
+                  bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max, amrex::Real max_path)
 {
     if (sz <= 0.0) return true;              // sun at or below the horizon
     if (z0 >= z_max) return false;           // nothing stands this high
@@ -208,7 +222,7 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
             if (!per_y) return false;
             cj = (cj % ny + ny) % ny;
         }
-        if (z + eps < col_top[ci * ny + cj]) return true;
+        if (z + eps < column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground)) return true;
         // Step to the next column.
         if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
         else           { t = tmy; tmy += tdy; cj += stepy; }
@@ -241,7 +255,7 @@ enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
              amrex::Real sx, amrex::Real sy, amrex::Real sz,
-             const amrex::Real* col_top, int nx, int ny,
+             const amrex::Real* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
              amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy,
              bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max,
              amrex::Real max_path)
@@ -279,7 +293,7 @@ int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
             if (!per_y) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
             cj = (cj % ny + ny) % ny;
         }
-        const amrex::Real top = col_top[ci * ny + cj];
+        const amrex::Real top = column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground);
         const bool solid = (top > z_ground + eps);
         const amrex::Real t_next = amrex::min(tmx, tmy);
         const amrex::Real z_out  = z0 + t0 * sz + t_next * sz;

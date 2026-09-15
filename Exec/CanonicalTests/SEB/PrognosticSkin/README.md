@@ -81,7 +81,7 @@ LW_net, H and G are rewritten at it.
   balance residual on every face at every step: PASS (max 2.92e-08 W/m2, newton iterations at most 2)
   H, LW_net and G consistent with T_skin: PASS (max diff H 1.3e-08, LW 3.3e-09, G 8.0e-08 W/m2)
   slab energy change = dt (G - G_bottom) every step: PASS (max diff 2.0e-04 J/m2 (dump precision))
-  closure: radiation in = convected + stored + conducted out: PASS (in 2.0749e+08, to air 2.2579e+07, stored -4.0224e+08, to interior 5.8714e+08 J; gap 2.84e-01, summed residual 2.57e-03)
+  closure: radiation in = convected + stored + conducted out: PASS (in 2.0854e+08, to air 2.2709e+07, stored -4.0456e+08, to interior 5.9039e+08 J; gap 1.18e-01, summed residual 2.57e-03)
   independent Newton + dense slab reproduces T_skin: PASS (max |dT| 1.17e-09 K over 199 steps)
   mean T_skin by orientation, first -> last dump: roof 303.39->304.15 K, east 300.34->300.39 K, west 300.34->300.39 K, north 300.28->300.34 K, south 304.40->305.21 K
   sunlit roof and south wall warm above the 300 K start, south warmer than north: PASS (roof 304.15 K, south 305.21 K, north 300.34 K)
@@ -92,7 +92,7 @@ closure: PASS
   balance residual on every face at every step: PASS (max 4.93e-08 W/m2, newton iterations at most 3)
   H, LW_net and G consistent with T_skin: PASS (max diff H 2.1e-08, LW 1.3e-08, G 1.6e-07 W/m2)
   slab energy change = dt (G - G_bottom) every step: PASS (max diff 3.0e-07 J/m2 (dump precision))
-  closure: radiation in = convected + stored + conducted out: PASS (in 1.1172e+09, to air 3.5891e+08, stored 2.7431e+08, to interior 4.8400e+08 J; gap -1.04e-03, summed residual 1.49e-03)
+  closure: radiation in = convected + stored + conducted out: PASS (in 1.1317e+09, to air 3.6003e+08, stored 2.8426e+08, to interior 4.8744e+08 J; gap -1.07e-03, summed residual 1.49e-03)
   independent Newton + dense slab reproduces T_skin: PASS (max |dT| 9.94e-10 K over 99 steps)
   mean T_skin by orientation, first -> last dump: roof 326.13->406.03 K, east 329.34->419.64 K, west 329.34->417.32 K, north 326.14->392.53 K, south 326.14->392.09 K
   external flux on every face equals the input: PASS (3000.0 W/m2)

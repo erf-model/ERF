@@ -387,7 +387,10 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // cell it joins is; a face between a solid and a fluid cell is
     // wall-normal and gets the interior drag toward zero (no penetration); a
     // face between two solid cells carries the roof or wall law of its row
-    // or the interior drag, never both. Off (the default), the raw fractions
+    // (the full log-law target, not the partial-cell weighted one) or the
+    // interior drag, never both; the partial-cell branches (wall_mask,
+    // east_west_mask and the like, faces with 0 < t_blank < 1) do not arise
+    // under the snap. Off (the default), the raw fractions
     // are used and nothing below changes: a boundary face of an exact box
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
@@ -421,6 +424,11 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
         Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // With the snap the boundary solid face stands for the wall layer and
+        // takes the full log-law target; the partial-cell weight (1 - t_blank)
+        // of compute_if_most_target_vel() would make it zero (a no-slip
+        // staircase), so the snap path passes a zero blanking to it.
+        const Real t_blank_law = l_snap ? zero : t_blank;
 
         Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
         const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
@@ -468,7 +476,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + v(i, j+1, k+1) + v(i-1, j+1, k+1) ) ;
             rho_xface_inside    =  myhalf * (cell_data(i,j,k-1,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp));
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i-1,j,k-1, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * roof_mask * rho_xface * CdM * U_s;
         }
@@ -480,7 +488,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j-1, k+1) + w(i-1, j-1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i-1,j+1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i-1,j+1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * south_mask * rho_xface * CdM * U_s;
         }
@@ -492,7 +500,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                            + w(i, j+1, k+1) + w(i-1, j+1, k+1) ) ;
             rho_xface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i-1,j-1,k, RhoTheta_comp))) / rho_xface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_xface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_x        = -(u_target - ux); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_x * north_mask * rho_xface * CdM * U_s;
         }
@@ -576,7 +584,10 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // cell it joins is; a face between a solid and a fluid cell is
     // wall-normal and gets the interior drag toward zero (no penetration); a
     // face between two solid cells carries the roof or wall law of its row
-    // or the interior drag, never both. Off (the default), the raw fractions
+    // (the full log-law target, not the partial-cell weighted one) or the
+    // interior drag, never both; the partial-cell branches (wall_mask,
+    // east_west_mask and the like, faces with 0 < t_blank < 1) do not arise
+    // under the snap. Off (the default), the raw fractions
     // are used and nothing below changes: a boundary face of an exact box
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
@@ -610,6 +621,11 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
         Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // With the snap the boundary solid face stands for the wall layer and
+        // takes the full log-law target; the partial-cell weight (1 - t_blank)
+        // of compute_if_most_target_vel() would make it zero (a no-slip
+        // staircase), so the snap path passes a zero blanking to it.
+        const Real t_blank_law = l_snap ? zero : t_blank;
 
         Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
         const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
@@ -656,7 +672,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
             u2_cellaway         = v(i, j, k+1);
             rho_yface_inside    = myhalf * ( cell_data(i,j,k-1,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j,k-1,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_z, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * roof_mask * rho_yface * CdM * U_s;
         }
@@ -668,7 +684,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i-1, j  , k+1) + w(i-1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * west_mask * rho_yface * CdM * U_s;
         }
@@ -680,7 +696,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                            + w(i+1, j  , k+1) + w(i+1, j-1, k+1) );
             rho_yface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j-1,k,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j-1,k,RhoTheta_comp))) / rho_yface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_yface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_y        = -(u_target - uy); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_y * east_mask * rho_yface * CdM * U_s;
         }
@@ -764,7 +780,10 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // cell it joins is; a face between a solid and a fluid cell is
     // wall-normal and gets the interior drag toward zero (no penetration); a
     // face between two solid cells carries the roof or wall law of its row
-    // or the interior drag, never both. Off (the default), the raw fractions
+    // (the full log-law target, not the partial-cell weighted one) or the
+    // interior drag, never both; the partial-cell branches (wall_mask,
+    // east_west_mask and the like, faces with 0 < t_blank < 1) do not arise
+    // under the snap. Off (the default), the raw fractions
     // are used and nothing below changes: a boundary face of an exact box
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
@@ -798,6 +817,11 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
         Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // With the snap the boundary solid face stands for the wall layer and
+        // takes the full log-law target; the partial-cell weight (1 - t_blank)
+        // of compute_if_most_target_vel() would make it zero (a no-slip
+        // staircase), so the snap path passes a zero blanking to it.
+        const Real t_blank_law = l_snap ? zero : t_blank;
 
         Real t_blank_above_raw = fb(i, j, k+1);
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
@@ -847,7 +871,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j-1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j+1,k,Rho_comp) + cell_data(i,j+1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j+1,k,RhoTheta_comp) + cell_data(i,j+1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * south_mask * rho_zface * CdM * U_s;
         }
@@ -859,7 +883,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i, j+1, k);
             rho_zface_inside    = myhalf * ( cell_data(i,j-1,k,Rho_comp) + cell_data(i,j-1,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i,j-1,k,RhoTheta_comp) + cell_data(i,j-1,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_y, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * north_mask * rho_zface * CdM * U_s;
         }
@@ -871,7 +895,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i-1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i+1,j,k,Rho_comp) + cell_data(i+1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i+1,j,k,RhoTheta_comp) + cell_data(i+1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * west_mask * rho_zface * CdM * U_s;
         }
@@ -883,7 +907,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
             u2_cellaway         = w(i+1, j, k);
             rho_zface_inside    = myhalf * ( cell_data(i-1,j,k,Rho_comp) + cell_data(i-1,j,k-1,Rho_comp) );
             theta_surf          = (myhalf * (cell_data(i-1,j,k,RhoTheta_comp) + cell_data(i-1,j,k-1,RhoTheta_comp))) / rho_zface_inside;
-            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
+            u_target            = compute_if_most_target_vel(u1_cellaway, u2_cellaway, dx_x, z0, t_blank_law, theta_zface, theta_surf, tflux_in, Olen_in, l_stability_correction);
             bc_forcing_z        = -(u_target - uz); // BC forcing pushes nonrelative velocity toward target velocity
             drag               += bc_forcing_z * east_mask * rho_zface * CdM * U_s;
         }

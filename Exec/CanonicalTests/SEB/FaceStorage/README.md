@@ -28,10 +28,17 @@ initial skin temperature; a report row every step.
 3. **Checkpoint round trip.** A run to step 2 writes `IBSEBState`; the
    restart to step 4 reports that it restored the face state, and its last
    CSV row equals the straight run's.
+   The `IBSEBState` field lives on 8 x 8 column blocks up to the highest
+   face-owning cell around the buildings, not on the whole level, and is
+   redistributed on restart: the same restart on one rank gives the same
+   last CSV row as the restart on the checkpoint's rank count.
 4. **Mismatched slab layers.** A restart from that checkpoint with
    `erf.ibseb.n_slab_layers = 6` must abort naming the checkpoint's layer
    count and the deck's, since the `IBSEBState` field is `6 x (2 + layers)`
    wide and cannot be unpacked otherwise.
+5. **Other buildings.** A restart from that checkpoint with the height map
+   rotated by 16 rows must abort: the field's boxes follow the buildings,
+   and a checkpoint of another layout cannot be unpacked.
 
 ## Plotting
 
@@ -58,8 +65,12 @@ rank independence: PASS (faces=2056 (x=900 y=900 z=256) buildings=1 area=51400 m
 == checkpoint at step 2, restart to step 4 (4 ranks)
 state restored: yes
 restart CSV row matches straight (exact, atmosphere columns to 1e-3): PASS
+== the same restart on 1 rank (the state field is redistributed from the 4-rank checkpoint)
+restart on 1 rank equals the restart on the checkpoint's rank count: PASS
 == restart with erf.ibseb.n_slab_layers = 6 against the 4-layer checkpoint (must abort)
 mismatched slab layers rejected: PASS
+== restart against a checkpoint of other buildings (must abort): the height map rotated by 16 rows
+checkpoint of other buildings rejected: PASS
 ALL PASS
 ```
 
