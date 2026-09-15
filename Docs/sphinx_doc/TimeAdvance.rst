@@ -39,10 +39,10 @@ where :math:`\mathbf{S}` is the solution vector, in the following three steps:
 Anelastic Advance
 ---------------------
 
-When solving the anelastic rather than fully compressible equations, ERF uses a 2nd order Runge-Kutta method
-(with no substepping):
+When solving the anelastic rather than fully compressible equations, ERF supports
+a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping):
 
-Specifically, the 2nd order Runge-Kutta method solves
+The 2nd order Runge-Kutta method solves
 
 .. math::
 
@@ -55,6 +55,14 @@ where :math:`\mathbf{S}` is the solution vector, in the following two steps:
   \mathbf{S}^{*}   &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n + \frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )
+
+The midpoint stages are given by:
+
+.. math::
+
+  \mathbf{S}^{*}   &=& \mathbf{S}^n + \frac{\Delta t}{2} f(\mathbf{S}^n)
+
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^{*})
 
 .. _AcousticSubstep:
 

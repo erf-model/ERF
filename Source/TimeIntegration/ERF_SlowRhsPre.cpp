@@ -168,6 +168,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_anelastic = (solverChoice.anelastic[level]     == 1);
     const bool l_fixed_rho = (solverChoice.fixed_density[level] == 1);
 
+    const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
+
     const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
                             ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
 
@@ -439,6 +441,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
+        const Array4<Real>& rho_w_old = S_old[IntVars::zmom].array(mfi);
 
         if (l_anelastic) {
             // When anelastic we must reset these to 0 each RK step
@@ -457,6 +460,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_mx  = mapfac[MapFacType::m_x]->const_array(mfi);
@@ -738,7 +742,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Real half_dt = static_cast<Real>(myhalf/dt);
 
         // If anelastic and in second RK stage, take average of old-time and new-time source
-        if ( l_anelastic && (nrk == 1) )
+        if ( l_anelastic && l_anelastic_rk2 && (nrk == 1) )
         {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -826,7 +830,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 rho_u_rhs(i, j, k) *= h_zeta;
             }
 
-            if ( l_anelastic && (nrk == 1) ) {
+            if ( l_anelastic && l_anelastic_rk2 && (nrk == 1) ) {
                 rho_u_rhs(i,j,k) *= myhalf;
                 rho_u_rhs(i,j,k) += half_dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
             }
@@ -845,7 +849,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 rho_v_rhs(i, j, k) *= h_zeta;
             }
 
-            if ( l_anelastic && (nrk == 1) ) {
+            if ( l_anelastic && l_anelastic_rk2 && (nrk == 1) ) {
                 rho_v_rhs(i,j,k) *= myhalf;
                 rho_v_rhs(i,j,k) += half_dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
@@ -925,6 +929,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= myhalf * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
             }
+
+            if ( l_anelastic && l_anelastic_rk2 && (nrk == 1) ) {
+                rho_w_rhs(i,j,k) *= myhalf;
+                rho_w_rhs(i,j,k) += half_dt * (rho_w(i,j,k) - rho_w_old(i,j,k));
+            }
         });
 
         auto const lo = lbound(bx);
@@ -976,8 +985,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     } // mfi
     } // OMP
     if (cloud_budget && l_use_diff) {
-            cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
-                                        static_cast<Real>(dt), *dflux_x, *dflux_y,
-                                        *dflux_z, geom, 0);
+        bool use_trapezoidal = (!l_anelastic || l_anelastic_rk2);
+        cloud_budget->capture_stage(CloudChamberBudget::RhoTheta, nrk,
+                                    static_cast<Real>(dt), *dflux_x, *dflux_y,
+                                    *dflux_z, geom, 0, use_trapezoidal);
     }
 }
