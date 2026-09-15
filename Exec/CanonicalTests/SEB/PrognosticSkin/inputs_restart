@@ -1,0 +1,8 @@
+FILE = inputs_base
+
+# Restart from chk00100 to step 200; must reproduce inputs_closure at step 200.
+erf.ibseb.csv_file = "ibseb_restart.csv"
+erf.ibseb.dump_faces_file = "faces_restart"
+erf.ibseb.dump_faces_tag_step = true
+erf.restart = chk00100
+max_step = 200
