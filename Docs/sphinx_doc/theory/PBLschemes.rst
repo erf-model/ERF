@@ -774,6 +774,7 @@ Enabling unbounded VPERT preserves the combined heating effect while preventing 
 The correction produces physically more accurate PBL heights in moist environments.
 
 **References:**
+
 - Original error identified during ERF development
 - See ERF_ComputeDiffusivityMRF.cpp source comments for detailed physics explanation
 
@@ -822,22 +823,25 @@ based on cloud water/ice content.
   * Better captures cumulus-capped boundary layers
 
 **Parameters:**
+
 - Enabled via: ``enable_mrf_countergradient`` flag (default: false)
 - Adjustment strength: 15-20% reduction in stable, 5% boost in unstable
 - Can be customized via ``pbl_mrf_cloud_adjustment_factor`` parameter
 
 **Physical Justification:**
+
 - Clouds modify vertical buoyancy structure through radiative cooling/warming
 - Latent heat release enhances convective mixing
 - Cloud-top entrainment zones are qualitatively different from clear-air turbulence
 - Conceptually similar to WRF's IMVDIF cloud-aware parameterization (Bretherton & Park 2009)
 
 **References:**
+
 - Bretherton, C. S., and S. Park, 2009: A new moist turbulence parameterization in the WRF
   Advanced Research WRF (ARW) model. In *Proceedings of the 9th Annual WRF Users' Workshop*.
 
 4. Virtual Potential Temperature Treatment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Enhancement:** Proper handling of moisture effects on buoyancy throughout the scheme.
 
@@ -861,6 +865,7 @@ stable boundary layer tests (GABLS cases).
 - Detailed equations and references provided in source code comments
 
 **References:**
+
 - Hong, S. Y., Y. Noh, and J. Dudhia, 2006: A new vertical diffusion package with an explicit
   treatment of entrainment processes. *Monthly Weather Review*, 134, 2318-2341.
   https://doi.org/10.1175/MWR3250.1

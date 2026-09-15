@@ -3252,7 +3252,8 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_nvar**                      | Size of block memory allocation                          | Integer > 0        | 12                                 |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_t_sfc**                     | Surface temperature if no LSM                            | Real               | Must be set without LSM            |
+| **erf.rad_t_sfc**                     | Surface temperature [K] where no land-surface model or   | Real > 0           | Required (RRTMGP and TwoStream)    |
+|                                       | surface layer supplies one                               |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_freq_in_steps**             | Radiation update frequency (steps)                       | Integer >= 1       | 1                                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -3272,13 +3273,17 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_mvelp**             | Override mean longitude of perihelion                    | Real               | < 0 uses computed value            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_cons_lat**                  | Constant latitude for idealized cases                    | Real               | 39.809860                          |
+| **erf.rad_cons_lat**                  | Constant latitude for idealized cases (RRTMGP and        | Real               | 39.809860                          |
+|                                       | TwoStream)                                               |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_cons_lon**                  | Constant longitude for idealized cases                   | Real               | -98.555183                         |
+| **erf.rad_cons_lon**                  | Constant longitude for idealized cases (RRTMGP and       | Real               | -98.555183                         |
+|                                       | TwoStream)                                               |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.fixed_total_solar_irradiance**  | Fixed total solar irradiance (TOA)                       | Real               | < 0 disables                       |
+| **erf.fixed_total_solar_irradiance**  | Fixed total solar irradiance (TOA) [W/m^2] (RRTMGP and   | Real >= 0          | < 0 disables: 1360.9 W/m^2 times   |
+|                                       | TwoStream)                                               |                    | the Earth-Sun factor of the date   |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.fixed_solar_zenith_angle**      | Fixed solar zenith (passed as ``mu0``)                   | Real               | <= 0 disables                      |
+| **erf.fixed_solar_zenith_angle**      | Cosine of the solar zenith angle (``mu0``), applied to   | Real in (0, 1]     | <= 0 disables: the sun follows     |
+|                                       | every column (RRTMGP and TwoStream)                      |                    | start_datetime                     |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.co2vmr**                        | CO2 volume mixing ratio                                  | Real               | 388.717e-6                         |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
@@ -3357,6 +3362,23 @@ the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiati
 Two-Stream Radiation Model Parameters
 -------------------------------------
 
+The sun, the site and the surface temperature are set with the inputs the RRTMGP interface
+reads (see the table above): ``erf.fixed_solar_zenith_angle`` (the cosine of the zenith angle;
+leave it unset and the sun follows ``start_datetime`` over each column, at ``erf.rad_cons_lat``
+and ``erf.rad_cons_lon`` or at the grid's own latitude and longitude fields),
+``erf.fixed_total_solar_irradiance`` (leave it unset for 1360.9 W/m² scaled by the Earth-Sun
+distance factor of the date, or the unscaled 1360.9 W/m² when the zenith angle is fixed and no
+start date is known), ``erf.rad_t_sfc`` (required; with a land-surface model or a surface layer
+present it is the initial value of the prognostic surface temperature when the surface energy
+balance evolves one and unused otherwise, and the surface layer's potential temperature is
+converted with the Exner function of the lowest cell), ``start_datetime`` and the
+``erf.rad_orbital_*`` overrides. A deck that still sets one of the former two-stream-only keys
+(``erf.radiation.solar_zenith``, ``erf.radiation.S0``, ``erf.radiation.surface_temp_k``,
+``erf.radiation.latitude_deg``, ``erf.radiation.longitude_deg``, ``erf.radiation.day_of_year``,
+``erf.radiation.time_zone_offset_hours``, ``erf.radiation.solar_geometry_dynamic_enable``,
+``erf.radiation.earth_sun_distance_enable``) stops at start-up with the replacement named.
+``erf.rad_freq_in_steps`` is not read: the two-stream model runs every step.
+
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | Parameter                                          | Definition                                                 | Acceptable Values  | Default          |
 +====================================================+============================================================+====================+==================+
@@ -3371,14 +3393,6 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.tau_lw_per_layer**                 | Longwave optical depth per layer (gray-gas two-stream);    | Real >= 0          | 1.0              |
 |                                                    | uniform for all layers                                     |                    |                  |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.solar_zenith**                     | Solar zenith angle [degrees]; used if dynamic solar        | Real [0,180]       | 45.0             |
-|                                                    | geometry disabled                                          |                    |                  |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.S0**                               | Solar constant (top-of-atmosphere irradiance) [W/m²]       | Real > 0           | 1361.0           |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.earth_sun_distance_enable**        | Scale S0 by the Earth-Sun distance factor (d0/d)^2 for     | Boolean            | false            |
-|                                                    | day_of_year (Spencer 1971)                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.tau_model**                        | Optical depth model: ``per_layer`` (fixed tau per layer)   | "per_layer" or     | "per_layer"      |
 |                                                    | or ``mass`` (from the layer mass path in both bands;       | "mass"             |                  |
@@ -3449,8 +3463,6 @@ Two-Stream Radiation Model Parameters
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.surface_emissivity_lw**            | Longwave surface emissivity [0,1] fallback                 | Real [0,1]         | 0.99             |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.surface_temp_k**                   | Surface temperature [K] fallback (LW boundary condition)   | Real               | 300.0            |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Dynamic Optical Depth Parameters**               |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.tau_sw_dynamic_enable**            | Enable dynamic SW optical depth diagnosis from qv/qc       | Boolean            | false            |
@@ -3492,18 +3504,6 @@ Two-Stream Radiation Model Parameters
 |                                                    | Exponential profile)                                       |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.aerosol_scale_height_m**           | Scale height for exponential aerosol decay [m]             | Real               | 2000.0           |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **Solar Geometry (Dynamic) Parameters**            |                                                            |                    |                  |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.solar_geometry_dynamic_enable**    | Enable time-varying solar geometry from diurnal cycle      | Boolean            | false            |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.latitude_deg**                     | Site latitude [degrees]; -90 (south) to +90 (north)        | Real [-90,90]      | 0.0              |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.longitude_deg**                    | Site longitude [degrees]; -180 (west) to +180 (east)       | Real [-180,180]    | 0.0              |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.day_of_year**                      | Reference day-of-year at simulation start [1-366]          | Real [1,366]       | 172.0            |
-+----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.time_zone_offset_hours**           | Time zone offset from UTC [hours]                          | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Simplified Surface Energy Balance (SEB) Params** |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

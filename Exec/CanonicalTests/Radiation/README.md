@@ -2,7 +2,7 @@
 
 This directory collects canonical regression, verification, and benchmark cases for ERF's radiation capabilities. The cases are organized to validate both isolated radiative physics and coupled pathways such as thermodynamic forcing, surface-property wiring, boundary-layer interaction, and simplified surface energy balance workflows.
 
-Use these cases as the primary index for manual verification, regression maintenance, and documentation cross-reference when extending the TwoStream implementation in `Source/Radiation/`.
+Use these cases as the primary index for manual verification, regression maintenance, and documentation cross-reference when extending the TwoStream implementation in `Source/Radiation/TwoStream/`.
 
 ## Test Cases
 

@@ -404,8 +404,11 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         } // z0
 
         if (containerHasElement(plot_var_names, "OLR")) {
+            // Outgoing longwave: the upward LW at the top-of-atmosphere
+            // interface, which rad_fluxes keeps in the z-ghost cell above the
+            // top layer (index khi holds the lower interface of the top layer).
             plotfile2d::fill_component_from_klevel_or_value(
-                mf[lev], mf_comp, rad_fluxes[lev].get(), khi, -999, 2);
+                mf[lev], mf_comp, rad_fluxes[lev].get(), khi + 1, -999, 2);
             mf_comp++;
         } // OLR
 

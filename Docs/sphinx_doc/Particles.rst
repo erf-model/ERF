@@ -144,7 +144,7 @@ instabilities at coarse-fine boundaries.
    The refined region tracks the particles as they move through the domain.
 
 Particle-count-based refinement
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Particles can drive dynamic AMR by tagging cells for refinement based on the
 deposited particle count. This is configured through the standard refinement

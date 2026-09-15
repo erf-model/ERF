@@ -10,6 +10,9 @@
 #     different physics configurations;
 #   - radiation called on every slow step for both, so the comparison is
 #     per call and not an artifact of update frequency;
+#   - the same sun and surface temperature, through the inputs the two
+#     solvers share (erf.fixed_solar_zenith_angle, erf.fixed_total_solar_irradiance,
+#     erf.rad_t_sfc);
 #   - plotfiles and per-solver diagnostic logs switched off, so file I/O
 #     does not land in the measured region;
 #   - MFIter tiling pinned, so neither solver is measured with a different
@@ -51,3 +54,9 @@ erf.input_sounding_file = "input_sounding_moist"
 erf.sounding_type = Ideal
 
 amrex.tiny_profile = 1
+
+# Sun and surface temperature: both solvers read these same inputs, so the
+# lower boundary and the incident shortwave are identical by construction.
+erf.rad_t_sfc                    = 300.0
+erf.fixed_solar_zenith_angle     = 0.5      # cos(60 deg)
+erf.fixed_total_solar_irradiance = 1361.0

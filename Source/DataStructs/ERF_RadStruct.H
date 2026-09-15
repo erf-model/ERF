@@ -102,23 +102,51 @@ public:
   amrex::Real tau_lw_per_layer = 1.0;
 
   /**
-   * @brief Solar zenith angle in degrees.
-   * Only used by the two-stream model and sw_enabled == true.
+   * @name Inputs shared with the RRTMGP interface
+   * The two-stream model reads the sun, site and surface-temperature inputs
+   * under the same keys, with the same meaning, as the RRTMGP interface
+   * (Source/Radiation/RRTMGP/ERF_Radiation.H), so a deck switches
+   * between the two models by changing erf.radiation_model alone.
+   * @{
    */
-  amrex::Real solar_zenith_deg = 45.0;
 
   /**
-   * @brief Solar constant (top-of-atmosphere irradiance) in W/m^2.
-   * Only used by the two-stream model and sw_enabled == true.
+   * @brief erf.fixed_solar_zenith_angle: the COSINE of the solar zenith
+   * angle (mu0), as RRTMGP takes it, applied to every column when > 0.
+   * Otherwise (default) the sun follows the calendar: start_datetime sets
+   * the date and time, the position is evaluated at rad_cons_lat/lon or at
+   * the per-column latitude and longitude when the grid carries them.
    */
-  amrex::Real S0 = 1361.0;
+  amrex::Real fixed_solar_zenith_angle = -9999.0;
 
   /**
-   * @brief Scale the solar constant by the Earth-Sun distance factor
-   * (d0/d)^2 for day_of_year (Spencer 1971). About +3.4% in early January
-   * and -3.3% in early July. Default false keeps S0 fixed.
+   * @brief erf.fixed_total_solar_irradiance: top-of-atmosphere irradiance
+   * [W/m^2] when >= 0. Otherwise (default) 1360.9 W/m^2 scaled by the
+   * Earth-Sun distance factor of the date, as RRTMGP does.
    */
-  bool earth_sun_distance_enable = false;
+  amrex::Real fixed_total_solar_irradiance = -9999.0;
+
+  /**
+   * @brief erf.rad_t_sfc: surface temperature [K] used as the longwave
+   * boundary condition wherever no land-surface model, surface layer or
+   * prognostic surface energy balance supplies one; also the initial value
+   * of the prognostic surface temperature. Required, as for RRTMGP.
+   */
+  amrex::Real rad_t_sfc = -1.0;
+
+  /** @brief erf.rad_cons_lat / erf.rad_cons_lon: site latitude and longitude [degrees] when the grid has no lat/lon fields (RRTMGP defaults). */
+  amrex::Real rad_cons_lat = 39.809860;
+  amrex::Real rad_cons_lon = -98.555183;
+
+  /**
+   * @brief erf.rad_orbital_year and the orbital overrides: negative means
+   * the year of the timestamp and the Berger (1978) values for that year.
+   */
+  int rad_orbital_year = -9999;
+  amrex::Real rad_orbital_eccentricity = -9999.0;
+  amrex::Real rad_orbital_obliquity = -9999.0;
+  amrex::Real rad_orbital_mvelp = -9999.0;
+  /** @} */
 
   /**
    * @brief Optical depth model: "per_layer" (default, fixed tau per layer)
@@ -325,15 +353,6 @@ public:
    * surface fields not present or disabled.
    */
   amrex::Real surface_emissivity_lw = 0.99;
-
-  /**
-   * @brief Surface temperature fallback [K] for per-column heterogeneous
-   * -surface-property resolution. Used as LW boundary condition when per-column
-   * LSM/radiation interface surface-temperature field is unavailable or invalid.
-   * Default 300.0 K (typical surface temp). Only used when hetero t_sfc field
-   * not present or disabled.
-   */
-  amrex::Real surface_temp_k = 300.0;
 
   /**
    * @brief Master switch for simplified SEB infrastructure.
@@ -590,49 +609,6 @@ public:
   amrex::Real aerosol_tau_surface = 0.0;
 
   /**
-   * @brief Enable time-varying solar geometry from diurnal cycle.
-   * When true, solar zenith angle is computed dynamically from simulation time,
-   * latitude, longitude, and day-of-year using astronomical formulas.
-   * When false (default), uses the static solar_zenith_deg.
-   * Only used by the two-stream model and sw_enabled == true.
-   */
-  bool solar_geometry_dynamic_enable = false;
-
-  /**
-   * @brief Site latitude [degrees, -90 to 90, positive north].
-   * Used to compute solar zenith angle when solar_geometry_dynamic_enable == true.
-   * Clamped to [-90, 90] in init_params().
-   * Default 0.0 (equator). Only used when solar_geometry_dynamic_enable == true.
-   */
-  amrex::Real latitude_deg = 0.0;
-
-  /**
-   * @brief Site longitude [degrees, -180 to 180, positive east].
-   * Used to compute solar hour angle when solar_geometry_dynamic_enable == true.
-   * Clamped to [-180, 180] in init_params().
-   * Default 0.0 (prime meridian). Only used when solar_geometry_dynamic_enable == true.
-   */
-  amrex::Real longitude_deg = 0.0;
-
-  /**
-   * @brief Reference day-of-year at simulation start [1-366].
-   * Used to compute solar declination and equation-of-time correction.
-   * Default 172 (approx. June 21, summer solstice in Northern Hemisphere).
-   * Clamped to [1, 366] in init_params().
-   * Only used when solar_geometry_dynamic_enable == true.
-   */
-  amrex::Real day_of_year = 172.0;
-
-  /**
-   * @brief Time zone offset from UTC [hours].
-   * Used to convert UTC simulation time to local solar time.
-   * Positive east of Greenwich, negative west. Default 0.0 (UTC).
-   * No explicit bounds; values outside ±12 hours are allowed (e.g., for
-   * dateline regions). Only used when solar_geometry_dynamic_enable == true.
-   */
-  amrex::Real time_zone_offset_hours = 0.0;
-
-  /**
    * @brief Read radiation options from the input parameter database.
    *
    * @param[in] lev AMR level index.
@@ -645,9 +621,10 @@ public:
    * - erf.radiation.lw_enabled (bool, optional, default true)
    * - erf.radiation.tau_per_layer (real, optional)
    * - erf.radiation.tau_lw_per_layer (real, optional)
-   * - erf.radiation.solar_zenith (real, optional)
-   * - erf.radiation.S0 (real, optional)
-   * - erf.radiation.earth_sun_distance_enable (bool, optional, default false)
+   * - erf.fixed_solar_zenith_angle, erf.fixed_total_solar_irradiance, erf.rad_t_sfc
+   *   (required), erf.rad_cons_lat, erf.rad_cons_lon, erf.rad_orbital_year,
+   *   erf.rad_orbital_eccentricity, erf.rad_orbital_obliquity, erf.rad_orbital_mvelp:
+   *   the RRTMGP interface's keys, with its meanings (see the members above)
    * - erf.radiation.tau_model (string "per_layer"|"mass", optional, default "per_layer")
    * - erf.radiation.sw_kabs_dry, sw_kscat_dry, sw_kabs_vapor, sw_kext_cloud (real, optional, mass model)
    * - erf.radiation.sw_cloud_omega, sw_cloud_g (real, optional, mass model)
@@ -667,7 +644,7 @@ public:
    * - erf.radiation.asymmetry_factor (real, optional)
    * - erf.radiation.cloud_single_scattering_albedo (real, optional)
    * - erf.radiation.cloud_asymmetry_factor (real, optional)
-   * - erf.radiation.diag_enable (bool, optional, default true)
+   * - erf.radiation.diag_enable (bool, optional, default false)
    * - erf.radiation.diag_stdout_enable (bool, optional, default true)
    * - erf.radiation.diag_tagged_enable (bool, optional, default true)
    * - erf.radiation.diag_regtest_line_enable (bool, optional, default true)
@@ -689,11 +666,6 @@ public:
    * - erf.radiation.aerosol_tau_per_layer (real, optional, default 0.0)
    * - erf.radiation.aerosol_scale_height_m (real, optional, default 2000.0)
    * - erf.radiation.aerosol_tau_surface (real, optional, default 0.0)
-   * - erf.radiation.solar_geometry_dynamic_enable (bool, optional, default false)
-   * - erf.radiation.latitude_deg (real, optional, default 0.0, clamped to [-90, 90])
-   * - erf.radiation.longitude_deg (real, optional, default 0.0, clamped to [-180, 180])
-   * - erf.radiation.day_of_year (real, optional, default 172.0, clamped to [1, 366])
-   * - erf.radiation.time_zone_offset_hours (real, optional, default 0.0)
    * - erf.radiation.seb_enable (bool, optional, default false)
    * - erf.radiation.seb_sw_flux_default (real, optional, default 0.0)
    * - erf.radiation.seb_lw_flux_default (real, optional, default 0.0)
@@ -772,9 +744,66 @@ public:
       pp.query("radiation.lw_enabled", lw_enabled);
       pp.query("radiation.tau_per_layer", tau_per_layer);
       pp.query("radiation.tau_lw_per_layer", tau_lw_per_layer);
-      pp.query("radiation.solar_zenith", solar_zenith_deg);
-      pp.query("radiation.S0", S0);
-      pp.query("radiation.earth_sun_distance_enable", earth_sun_distance_enable);
+
+      // The sun, the site and the surface temperature come from the keys the
+      // RRTMGP interface reads, so the two models share one set of inputs.
+      // ParmParse ignores a key nobody reads, so a deck still carrying one of
+      // the earlier two-stream-only keys would run with silently different
+      // settings: stop and name the replacement instead.
+      static const char* retired_keys[][2] = {
+          {"radiation.solar_zenith",
+           "erf.fixed_solar_zenith_angle, which is the cosine of the angle (60 degrees is 0.5)"},
+          {"radiation.solar_zenith_deg",
+           "erf.fixed_solar_zenith_angle, which is the cosine of the angle (60 degrees is 0.5)"},
+          {"radiation.S0", "erf.fixed_total_solar_irradiance"},
+          {"radiation.earth_sun_distance_enable",
+           "nothing: leave erf.fixed_total_solar_irradiance unset and the irradiance follows the date"},
+          {"radiation.surface_temp_k", "erf.rad_t_sfc"},
+          {"radiation.solar_geometry_dynamic_enable",
+           "nothing: leave erf.fixed_solar_zenith_angle unset and the sun follows start_datetime"},
+          {"radiation.latitude_deg", "erf.rad_cons_lat"},
+          {"radiation.longitude_deg", "erf.rad_cons_lon"},
+          {"radiation.day_of_year", "start_datetime"},
+          {"radiation.time_zone_offset_hours",
+           "nothing: start_datetime is UTC and the longitude sets the local solar time"},
+      };
+      for (const auto& entry : retired_keys) {
+          if (pp.contains(entry[0])) {
+              amrex::Abort(std::string("erf.") + entry[0] + " is no longer read by the "
+                           "two-stream model; use " + entry[1] + ".");
+          }
+      }
+      pp.query("fixed_solar_zenith_angle", fixed_solar_zenith_angle);
+      if (fixed_solar_zenith_angle > 1.0) {
+          amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(fixed_solar_zenith_angle) +
+                       " is the cosine of the solar zenith angle (as for RRTMGP) and cannot "
+                       "exceed 1; 60 degrees is 0.5.");
+      }
+      pp.query("fixed_total_solar_irradiance", fixed_total_solar_irradiance);
+      if (!pp.query("rad_t_sfc", rad_t_sfc)) {
+          amrex::Abort("erf.radiation_model = TwoStream needs erf.rad_t_sfc, the surface "
+                       "temperature [K] used where no land-surface model or surface layer "
+                       "supplies one (the same input RRTMGP requires).");
+      }
+      if (!std::isfinite(rad_t_sfc) || rad_t_sfc <= 0.0) {
+          amrex::Abort("erf.rad_t_sfc = " + std::to_string(rad_t_sfc) + " must be a positive temperature [K].");
+      }
+      pp.query("rad_cons_lat", rad_cons_lat);
+      pp.query("rad_cons_lon", rad_cons_lon);
+      if (!std::isfinite(rad_cons_lat) || rad_cons_lat < -90.0 || rad_cons_lat > 90.0) {
+          amrex::Abort("erf.rad_cons_lat = " + std::to_string(rad_cons_lat) + " must lie in [-90, 90] degrees.");
+      }
+      if (!std::isfinite(rad_cons_lon) || rad_cons_lon < -180.0 || rad_cons_lon > 180.0) {
+          amrex::Abort("erf.rad_cons_lon = " + std::to_string(rad_cons_lon) + " must lie in [-180, 180] degrees.");
+      }
+      pp.query("rad_orbital_year", rad_orbital_year);
+      pp.query("rad_orbital_eccentricity", rad_orbital_eccentricity);
+      pp.query("rad_orbital_obliquity", rad_orbital_obliquity);
+      pp.query("rad_orbital_mvelp", rad_orbital_mvelp);
+      if (pp.contains("rad_freq_in_steps") && amrex::ParallelDescriptor::IOProcessor()) {
+          amrex::Print() << "WARNING: erf.rad_freq_in_steps is not read by the two-stream model, "
+                            "which runs every step.\n";
+      }
       std::string tau_model_str = "per_layer";
       pp.query("radiation.tau_model", tau_model_str);
       if (tau_model_str == "per_layer") {
@@ -893,18 +922,14 @@ public:
       // LSM/radiation interface fields are absent or invalid)
       pp.query("radiation.surface_albedo_sw", surface_albedo_sw);
       pp.query("radiation.surface_emissivity_lw", surface_emissivity_lw);
-      pp.query("radiation.surface_temp_k", surface_temp_k);
       pp.query("radiation.surface_albedo_sw_diffuse", surface_albedo_sw_diffuse);
       clamp_high("surface_albedo_sw_diffuse", surface_albedo_sw_diffuse, 1.0);
 
-      // Clamp albedo/emissivity to [0, 1],
-      // ensure surface temp is positive and finite
+      // Clamp albedo/emissivity to [0, 1]
       clamp_low("surface_albedo_sw", surface_albedo_sw, 0.0);
       clamp_high("surface_albedo_sw", surface_albedo_sw, 1.0);
       clamp_low("surface_emissivity_lw", surface_emissivity_lw, 0.0);
       clamp_high("surface_emissivity_lw", surface_emissivity_lw, 1.0);
-      reset_nonpositive("surface_temp_k", surface_temp_k, 300.0);
-      if (!std::isfinite(surface_temp_k)) surface_temp_k = 300.0;  // Ensure finite
 
       // Dynamic optical depth diagnosis from moisture/clouds
       // (all optional; disabled by default)
@@ -980,33 +1005,6 @@ public:
       clamp_low("aerosol_tau_per_layer", aerosol_tau_per_layer, 0.0);
       clamp_low("aerosol_tau_surface", aerosol_tau_surface, 0.0);
       reset_nonpositive("aerosol_scale_height_m", aerosol_scale_height_m, 2000.0);
-
-      // Time-varying solar geometry from the diurnal cycle
-      // (all optional; disabled by default)
-      pp.query("radiation.solar_geometry_dynamic_enable", solar_geometry_dynamic_enable);
-      pp.query("radiation.latitude_deg", latitude_deg);
-      pp.query("radiation.longitude_deg", longitude_deg);
-      pp.query("radiation.day_of_year", day_of_year);
-      pp.query("radiation.time_zone_offset_hours", time_zone_offset_hours);
-
-      // Clamp latitude/longitude/day-of-year to valid ranges
-      // Latitude must be in [-90, 90]
-      if (!std::isfinite(latitude_deg)) latitude_deg = 0.0;
-      clamp_low("latitude_deg", latitude_deg, -90.0);
-      clamp_high("latitude_deg", latitude_deg, 90.0);
-
-      // Longitude must be in [-180, 180]; wrap if outside
-      if (!std::isfinite(longitude_deg)) longitude_deg = 0.0;
-      while (longitude_deg > 180.0) longitude_deg -= 360.0;
-      while (longitude_deg < -180.0) longitude_deg += 360.0;
-
-      // Day-of-year must be in [1, 366]
-      if (!std::isfinite(day_of_year)) day_of_year = 172.0;
-      clamp_low("day_of_year", day_of_year, 1.0);
-      clamp_high("day_of_year", day_of_year, 366.0);
-
-      // Time zone offset: no strict bounds, but ensure finite
-      if (!std::isfinite(time_zone_offset_hours)) time_zone_offset_hours = 0.0;
 
       // Simplified SEB infrastructure fallback parameters
       pp.query("radiation.seb_enable", seb_enable);

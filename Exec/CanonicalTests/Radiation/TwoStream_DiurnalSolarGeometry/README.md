@@ -18,7 +18,7 @@ This test confirms that:
 ### Configuration
 
 - **Domain**: 1000 m × 1000 m horizontal, 10 km vertical (20 layers)
-- **Time**: `inputs_dynamic` runs a 2-hour window (stop_time = 7200 s) starting at 00:00 UTC, i.e. 18:00 local time for the UTC-6 site, so it spans the late-afternoon decline of the sun through sunset (SW flux decreasing to exactly zero). Raise `stop_time` to 86400 s for a full diurnal cycle.
+- **Time**: `inputs_dynamic` runs a 2-hour window (stop_time = 7200 s) from `start_datetime = "2021-06-21 12:00:00"` (UTC), i.e. 06:00 local solar time at the 45 N, 90 W site, so it spans sunrise (SW flux rising from zero). Raise `stop_time` to 86400 s for a full diurnal cycle.
 - **Location**: Latitude 40°N, Longitude 105°W (Example: Boulder, CO)
 - **Day of Year**: Summer solstice (June 21) or equinox (March 21) for symmetry
 - **Solar Constant**: S₀ = 1361 W/m²
@@ -66,11 +66,11 @@ The checker script verifies:
 
 ## Expected Output
 
-- Radiation diagnostics with a time-varying solar zenith angle: in the default 2-hour window the SW flux decreases toward sunset and is exactly zero once the sun is below the horizon (a full-day run shows low flux at dawn/dusk and a peak at noon)
+- Radiation diagnostics with a time-varying solar zenith angle: in the default 2-hour window the SW flux rises from zero at sunrise (a full-day run shows low flux at dawn/dusk and a peak at noon)
 - CHECK PASS message confirming solar geometry computation
 - Smooth temporal evolution of surface flux
 - Zenith angle within physical bounds (0–180°)
 
 ## Related Documentation
 
-- Solar geometry routines in `Source/Radiation/ERF_SolarGeometry.H`
+- Solar geometry: RRTMGP's orbital routines in `Source/Radiation/ERF_OrbCosZenith.H`

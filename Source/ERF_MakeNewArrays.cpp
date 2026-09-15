@@ -510,7 +510,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.rad_type != RadiationType::None)
     {
         qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
-        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
+        // Level layout (RRTMGP's): index k holds the fluxes at the lower
+        // interface of layer k, and the top-of-atmosphere interface sits in
+        // the z-ghost cell above the top layer (k = khi + 1), which is why
+        // the array carries one ghost cell in z. See ERF.H.
+        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, IntVect(0,0,1));
         qheating_rates[lev]->setVal(zero);
         rad_fluxes[lev]->setVal(zero);
     }

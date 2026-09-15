@@ -108,9 +108,22 @@ void ERF::advance_radiation (int lev,
     // - istep[lev] is the CSV row index, t_old[lev] the time logged with it,
     //   and dt_advance the step size (used by the surface-energy-balance
     //   update, which runs at the post-dycore call).
+    // - The sun, the site and the surface temperature come from the same
+    //   sources RRTMGP uses: start_time + t for the calendar, the lat_m/lon_m
+    //   fields of a WRF or metgrid grid, and the surface layer's temperature.
     else if (solverChoice.rad_type == RadiationType::TwoStream) {
+#ifdef ERF_USE_NETCDF
+        const MultiFab* lat_ptr = lat_m[lev].get();
+        const MultiFab* lon_ptr = lon_m[lev].get();
+#else
+        const MultiFab* lat_ptr = nullptr;
+        const MultiFab* lon_ptr = nullptr;
+#endif
+        const MultiFab* t_surf = (m_SurfaceLayer) ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
-                               lsm, qheating_rates[lev].get());
+                               lsm, qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                               t_surf, lat_ptr, lon_ptr,
+                               t_old[lev] + start_time, use_datetime);
     }
 }
