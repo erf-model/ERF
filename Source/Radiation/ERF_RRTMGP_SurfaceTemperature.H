@@ -23,7 +23,6 @@ namespace rrtmgp {
  * @param[in]  surface_pressure        pressure in the lowest atmospheric cell
  * @param[in]  default_t_sfc           configured absolute-temperature fallback
  * @param[out] t_sfc                   resolved absolute temperature for RRTMGP
- * @param[out] t_lev_bottom            bottom RRTMGP level temperature
  * @param[in,out] lsm_t_sfc_out        optional LSM fallback/writeback field
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -37,7 +36,6 @@ resolve_surface_temperature (const bool is_land,
                               const amrex::Real surface_pressure,
                               const amrex::Real default_t_sfc,
                               amrex::Real& t_sfc,
-                              amrex::Real& t_lev_bottom,
                               amrex::Real* lsm_t_sfc_out)
 {
     // A valid land-model value is already absolute temperature.  A valid LSM
@@ -52,9 +50,6 @@ resolve_surface_temperature (const bool is_land,
     } else {
         t_sfc = default_t_sfc;
     }
-
-    // RRTMGP's bottom interface is the surface boundary value.
-    t_lev_bottom = t_sfc;
 
     // Preserve the existing fallback/writeback behavior, but write the value
     // in the LSM contract: absolute temperature.

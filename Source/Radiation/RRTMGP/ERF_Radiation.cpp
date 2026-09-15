@@ -775,7 +775,6 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                             p_lay_tab(icol, 0),
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol),
-                            t_lev_tab(icol, 0),
                             has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);
                     } else {
                         // Have LSM and are over land.

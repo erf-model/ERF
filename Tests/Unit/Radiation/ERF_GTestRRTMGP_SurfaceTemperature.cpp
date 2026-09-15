@@ -19,7 +19,7 @@ constexpr amrex::Real kDefaultTemperature = amrex::Real(280.0);
 // using theta directly changes both the surface emission and the bottom
 // layer boundary. The fallback and its LSM writeback must use the same
 // Exner-converted temperature.
-TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaForAllBoundaryOutputs)
+TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaAndWritesLsmAbsoluteTemperature)
 {
     const amrex::Real expected_temperature =
         kSurfaceTheta * std::pow(kSurfacePressure / p_0, RdoCp);
@@ -29,15 +29,38 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaForAllBoundaryO
     ASSERT_NE(expected_temperature, kSurfaceTheta);
 
     amrex::Real t_sfc = -1.0;
-    amrex::Real t_lev_bottom = -2.0;
     amrex::Real lsm_t_sfc = lsm_undefined;
     rrtmgp::resolve_surface_temperature(
         true, true, false, lsm_t_sfc,
         true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
-        t_sfc, t_lev_bottom, &lsm_t_sfc);
+        t_sfc, &lsm_t_sfc);
 
     EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
-    EXPECT_EQ(t_lev_bottom, t_sfc);
+    EXPECT_NEAR(lsm_t_sfc, expected_temperature, expected_tolerance);
+}
+
+// Motivation: water columns do not use an available LSM surface temperature
+// in this fallback chain. SurfaceLayer theta must take precedence, be
+// converted at the lowest-cell pressure, and write back absolute temperature
+// to the available LSM field.
+TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackTakesPrecedenceOverWaterLsmTemperature)
+{
+    const amrex::Real expected_temperature =
+        kSurfaceTheta * std::pow(kSurfacePressure / p_0, RdoCp);
+    const amrex::Real valid_lsm_temperature = amrex::Real(282.0);
+    const amrex::Real expected_tolerance =
+        amrex::Real(64.0) * std::numeric_limits<amrex::Real>::epsilon() *
+        expected_temperature;
+
+    amrex::Real t_sfc = -1.0;
+    amrex::Real lsm_t_sfc = valid_lsm_temperature;
+    rrtmgp::resolve_surface_temperature(
+        false, true, true, valid_lsm_temperature,
+        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        t_sfc, &lsm_t_sfc);
+
+    EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
+    EXPECT_NE(t_sfc, valid_lsm_temperature);
     EXPECT_NEAR(lsm_t_sfc, expected_temperature, expected_tolerance);
 }
 
@@ -48,15 +71,13 @@ TEST(RRTMGP_SurfaceTemperature, ValidLsmTemperatureIsNotExnerConverted)
 {
     const amrex::Real valid_lsm_temperature = amrex::Real(282.0);
     amrex::Real t_sfc = -1.0;
-    amrex::Real t_lev_bottom = -2.0;
     amrex::Real lsm_t_sfc = valid_lsm_temperature;
     rrtmgp::resolve_surface_temperature(
         true, true, true, valid_lsm_temperature,
         true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
-        t_sfc, t_lev_bottom, &lsm_t_sfc);
+        t_sfc, &lsm_t_sfc);
 
     EXPECT_EQ(t_sfc, valid_lsm_temperature);
-    EXPECT_EQ(t_lev_bottom, valid_lsm_temperature);
     EXPECT_EQ(lsm_t_sfc, valid_lsm_temperature);
 }
 
@@ -66,12 +87,10 @@ TEST(RRTMGP_SurfaceTemperature, ValidLsmTemperatureIsNotExnerConverted)
 TEST(RRTMGP_SurfaceTemperature, DefaultTemperatureIsAlreadyAbsolute)
 {
     amrex::Real t_sfc = -1.0;
-    amrex::Real t_lev_bottom = -2.0;
     rrtmgp::resolve_surface_temperature(
         true, false, false, 0.0,
         false, 0.0, kSurfacePressure, kDefaultTemperature,
-        t_sfc, t_lev_bottom, nullptr);
+        t_sfc, nullptr);
 
     EXPECT_EQ(t_sfc, kDefaultTemperature);
-    EXPECT_EQ(t_lev_bottom, kDefaultTemperature);
 }
