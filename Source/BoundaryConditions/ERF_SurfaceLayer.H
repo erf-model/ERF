@@ -332,12 +332,6 @@ public:
           amrex::Abort("Undefined MOST roughness type for sea!");
       }
 
-      if (rough_type_sea != RoughCalcType::CONSTANT) {
-          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-              m_face.coordDir() == 2 && m_face.isLow(),
-              "Variable sea roughness surface-layer fluxes are supported only on the z-low face.");
-      }
-
       // use skin temperature instead of sea-surface temperature
       // (wrfinput data may have lower resolution SST data)
       pp.queryAdd("most.ignore_sst", m_ignore_sst);
@@ -418,6 +412,10 @@ public:
 
           m_var_z0 = (lmask_min < 1) & (rough_type_sea != RoughCalcType::CONSTANT);
           if (m_var_z0) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                  m_face.coordDir() == 2 && m_face.isLow(),
+                  "Variable sea roughness surface-layer fluxes are supported only on the z-low face.");
+
               std::string rough_sea_string{"charnock"};
               pp.queryAdd("most.roughness_type_sea", rough_sea_string);
               amrex::Print() << "Variable sea roughness (type " << rough_sea_string

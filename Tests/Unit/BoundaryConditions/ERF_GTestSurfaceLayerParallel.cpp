@@ -269,9 +269,13 @@ TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
 
     for (const auto& face : all_faces()) {
         SurfaceLayerFields fields;
-        fields.lmask[0]->setVal(0);
         auto layer = fields.prepare_layer(
-            face, active_face(face), "unit_surface_layer_parallel_qsurf", true);
+            face, active_face(face), "unit_surface_layer_parallel_qsurf",
+            true, false, false, false);
+        fields.lmask[0]->setVal(0);
+        layer->get_t_surf(0)->setVal(test_surface_temperature);
+        std::unique_ptr<MultiFab> z_phys_nd;
+        layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const auto* qsurf = layer->get_q_surf(0);
         const auto counts = value_counts(*qsurf);
 

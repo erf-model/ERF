@@ -71,12 +71,14 @@ public:
     {
         m_pp.add("most.average_policy", 0);
         m_pp.add("most.z0", Real(0.1));
+        m_pp.add("most.surf_temp", Real(300.0));
     }
 
     ~ScopedSurfaceLayerParams ()
     {
         m_pp.remove("most.average_policy");
         m_pp.remove("most.z0");
+        m_pp.remove("most.surf_temp");
     }
 
 private:
@@ -269,7 +271,8 @@ struct SurfaceLayerFields
                    const std::string& prefix,
                    const bool with_moisture = false,
                    const bool varying_inputs = false,
-                   const bool seed_outputs = false)
+                   const bool seed_outputs = false,
+                   const bool update_fluxes = true)
     {
         Vector<Geometry> geoms{geom};
         Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
@@ -308,8 +311,10 @@ struct SurfaceLayerFields
             set_fab_values(*layer->get_olen(0), olen_seed);
         }
         if (with_moisture) { layer->get_q_surf(0)->setVal(tau_sentinel); }
-        layer->update_fluxes(0, 0.0, 0.0, cons, z_phys_nd[0],
-                             no_walldist, 20);
+        if (update_fluxes) {
+            layer->update_fluxes(0, 0.0, 0.0, cons, z_phys_nd[0],
+                                 no_walldist, 20);
+        }
         return layer;
     }
 
