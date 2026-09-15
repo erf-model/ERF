@@ -83,8 +83,13 @@ void expect_all_region_values (const MOSTAverage& averages,
         const Real initial = comp == 2
             ? Real(1.e34)
             : (comp == 4 ? Real(0.0) : bogus_large_value);
+        // These nonselected lateral FABs should not be touched and should retain
+        // their initialization sentinel, but PlanarBoundary fills the duplicate
+        // planar copies from the selected wall FABs.
+        const Real nonselected_value = face.coordDir() < 2
+            ? expected[comp] : initial;
         const auto range = region_range(
-            *average, *source_ba[comp], fields.domain, face, initial);
+            *average, *source_ba[comp], fields.domain, face, nonselected_value);
         ASSERT_GT(range.selected_count, 0);
         EXPECT_NEAR(range.selected_lo, expected[comp], tolerance(expected[comp]));
         EXPECT_NEAR(range.selected_hi, expected[comp], tolerance(expected[comp]));
@@ -304,15 +309,16 @@ TEST(MOSTAverageParallel, DistributedAndTiledRegionAverageMatchesReference)
                 const Real initial = comp == 2
                     ? Real(1.e34)
                     : (comp == 4 ? Real(0.0) : bogus_large_value);
+                const Real nonselected_value = distributed && face.coordDir() < 2
+                    ? expected[comp] : initial;
                 const auto range = region_range(
-                    *average, *source_ba[comp], fields.domain, face, initial);
+                    *average, *source_ba[comp], fields.domain, face, nonselected_value);
                 EXPECT_GT(range.selected_count, 0);
                 EXPECT_NEAR(range.selected_lo, expected[comp], tolerance(expected[comp]));
                 EXPECT_NEAR(range.selected_hi, expected[comp], tolerance(expected[comp]));
-                // The distributed layout is split laterally but spans the
-                // full vertical domain, so every source box belongs to both
-                // Z faces.  Only lateral distributed faces have untouched
-                // source boxes.
+                // Regional computation leaves nonselected lateral FABs at their
+                // initialization sentinel, but PlanarBoundary fills those
+                // duplicate planar copies from the selected wall FABs.
                 if (distributed && face.coordDir() < 2) {
                     EXPECT_GT(range.nonselected_count, 0);
                 } else {
