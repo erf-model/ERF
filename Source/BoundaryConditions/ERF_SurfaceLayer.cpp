@@ -1838,7 +1838,9 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         gtbx &= q_surf[lev]->fabbox(mfi.index());
         gtbx &= cons_in.fabbox(mfi.index());
         if (z_phys_nd) {
-            gtbx &= z_phys_nd->fabbox(mfi.index());
+            // z_phys_nd is nodal; the cell box whose corner nodes all lie in its FAB
+            // is the nodal box converted to cells (one fewer cell on the high side).
+            gtbx &= amrex::convert(z_phys_nd->fabbox(mfi.index()), IntVect::TheCellVector());
         }
         if (gtbx.isEmpty()) { continue; }
 
