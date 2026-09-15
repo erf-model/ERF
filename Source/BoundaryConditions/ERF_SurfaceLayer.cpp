@@ -274,6 +274,9 @@ SurfaceLayer::update_fluxes (const int& lev,
             if (gpbx.smallEnd(2) != klo) { continue; }
 
             gpbx.makeSlab(2,klo);
+            gpbx &= cons_in.fabbox(mfi.index());
+            gpbx &= walldist->fabbox(mfi.index());
+            if (gpbx.isEmpty()) { continue; }
 
             auto cons_arr = cons_in.array(mfi);
             const auto& u_star_arr = u_star[lev]->const_array(mfi);
