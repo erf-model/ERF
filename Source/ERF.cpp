@@ -1266,9 +1266,10 @@ ERF::InitData_post ()
     }
 
     // With multiple surface-layer faces, face-qualified prefixes are normally
-    // required.  Preserve the historical unqualified zlo inputs when a user
-    // adds another surface-layer face, but detect the inputs before any
-    // SurfaceLayer constructor can insert queryAdd defaults into the table.
+    // required.  Preserve the historical unqualified zlo inputs when a user adds
+    // another surface-layer face.  What the user actually wrote is read from the
+    // snapshot taken in ReadParameters; see has_surface_layer_inputs for why the
+    // live ParmParse table cannot be asked this question here.
     bool use_legacy_zlo_prefix = false;
     if (n_faces > 1 &&
         phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) {
@@ -2560,6 +2561,12 @@ ERF::init_only (int lev, double elapsed_time)
 void
 ERF::ReadParameters ()
 {
+    // Record the inputs table before anything below can modify it.  Every query
+    // here and in the classes built afterwards is a queryAdd, which inserts the
+    // default it was handed when the key is absent, so this is the only point at
+    // which "the key is in the table" still means "the user wrote it".
+    user_specified_inputs = ParmParse::getEntries(pp_prefix);
+
     std::string prob_name = "Undefined";
     ParmParse pp_pn("erf");
     pp_pn.queryAdd("prob_name", prob_name);
@@ -3729,14 +3736,26 @@ ERF::check_mesh_type(int lev)
    }
 }
 
+/**
+ * Whether the user wrote any surface-layer input under the given prefix.
+ *
+ * This asks the snapshot taken in ReadParameters, not the live ParmParse table.
+ * The live table cannot answer the question: ERF_InputSoundingData.H queries
+ * erf.most.surf_temp and erf.most.surf_moist with queryAdd while reading the
+ * sounding, which runs during InitData_pre and leaves both keys in the table
+ * holding their negative sentinels.  Testing the live table would therefore
+ * report unqualified MOST inputs for every input_sounding run, whether or not
+ * the user wrote any.
+ *
+ * @param[in] prefix the prefix to test, e.g. "erf" or "erf.zlo"
+ */
 bool
-ERF::has_surface_layer_inputs (const std::string& prefix)
+ERF::has_surface_layer_inputs (const std::string& prefix) const
 {
-    const auto entries = ParmParse::getEntries(prefix);
     const std::string most_prefix = prefix + ".most.";
     const std::string surface_layer_prefix = prefix + ".surface_layer.";
 
-    for (const auto& key : entries) {
+    for (const auto& key : user_specified_inputs) {
         if (key.compare(0, most_prefix.size(), most_prefix) == 0 ||
             key.compare(0, surface_layer_prefix.size(), surface_layer_prefix) == 0) {
             return true;
