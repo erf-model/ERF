@@ -2362,10 +2362,18 @@ struct SolverChoice {
  * checkerboard over hours. The staircase puts full-strength forcing on every
  * wall face, so the switch also selects the point-implicit drag form
  * (if_implicit_drag), without which the explicit rate at rims and corners
- * drives the density negative within seconds. Default false, the raw
- * fractions, for backward compatibility (on an exact box a boundary cell
- * then carries the wall law and the interior drag together, and the roof
- * only the drag); set it for height-map buildings.
+ * drives the density negative within seconds. The momentum kernels take the
+ * blanking of a face from the two cells it joins (solid if either is), so
+ * the staircase is the same with and without the face-centred blanking of
+ * the build; a face between a solid and a fluid cell is wall-normal and gets
+ * the interior drag toward zero (no penetration) whichever row it lies in,
+ * and a face between two solid cells the roof or wall law of its row or the
+ * interior drag. Buildings only (erf.buildings_type = ImmersedForcing): the
+ * terrain kernels keep the raw fractions, whose wall law is weighted by the
+ * fluid fraction of the face. Default false, the raw fractions, for backward
+ * compatibility (on an exact box a boundary cell then carries the wall law
+ * and the interior drag together, and the roof only the drag); set it for
+ * height-map buildings.
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor

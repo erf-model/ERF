@@ -28,9 +28,19 @@ python3 - <<'PY' || status=1
 import numpy as np
 def load(fn):
     a = np.loadtxt(fn, delimiter=",", skiprows=1); return a[np.lexsort((a[:,4], a[:,3], a[:,2], a[:,1], a[:,0]))]
+hdr = open("faces_fixed_np.csv").readline().strip().split(",")
 a = load("faces_fixed_np.csv"); b = load("faces_fixed.rank0.csv")
-ok = a.shape == b.shape and np.allclose(a, b, rtol=0, atol=1e-9)
-print(f"  rank independence of the face dump: {'PASS' if ok else 'FAIL'} ({a.shape[0]} vs {b.shape[0]} faces)")
+# Geometry, view fractions, shadow, shortwave and materials must agree exactly;
+# the columns read from the atmosphere (temperatures, wind, fluxes, skin) may
+# differ by the round-off of the decomposition, about 1e-12 relative after
+# two steps, which the dump's tenth digit shows.
+exact = {"i", "j", "k", "dir", "side", "bid", "x_m", "y_m", "z_m", "area_m2", "f_sky", "f_ground", "f_bldg", "shadow",
+         "SW_direct_in", "SW_diffuse_in", "SW_abs", "mat", "albedo", "emissivity", "k_therm", "rho_cp", "thickness", "h_bld"}
+bad = [] if a.shape == b.shape else ["shape"]
+for n, h in enumerate(hdr):
+    if a.shape == b.shape and not np.allclose(a[:, n], b[:, n], rtol=0 if h in exact else 1e-9, atol=0 if h in exact else 1e-9): bad.append(h)
+ok = not bad
+print(f"  rank independence of the face dump: {'PASS' if ok else 'FAIL'} ({a.shape[0]} vs {b.shape[0]} faces; geometry, view, shadow, shortwave exact, atmosphere columns to 1e-9{', differing: ' + ' '.join(bad) if bad else ''})")
 raise SystemExit(0 if ok else 1)
 PY
 [ $status -eq 0 ] && echo "ALL PASS" || echo "SOME CHECKS FAILED"

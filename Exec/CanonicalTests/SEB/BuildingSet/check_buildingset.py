@@ -44,7 +44,7 @@ def report(name, ok, detail):
 def main():
     csv, prefix, log = sys.argv[1:4]
     c = np.genfromtxt(csv, delimiter=",", names=True)
-    steps, files = load_steps(prefix); th = 5.0 + (steps + 1) * 0.5 / 3600.0   # solar time [h], run starts at 05:00
+    steps, files = load_steps(prefix); th = 5.0 + steps * 0.5 / 3600.0   # solar time [h] of each dump (the state after that many steps), run starts at 05:00
     d0 = load(files[0]); dl = load(files[-1])
     ok = True
     # 1. buildings and materials

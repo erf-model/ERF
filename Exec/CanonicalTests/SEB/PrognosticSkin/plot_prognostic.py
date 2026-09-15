@@ -37,7 +37,7 @@ def main():
     for f in files:
         d = load(f)
         for k, fn in sel.items(): series[k].append(d["T_skin"][fn(d)].mean())
-    t = (steps + 1) * a.dt / 60.0
+    t = steps * a.dt / 60.0
     fig, ax = plt.subplots(figsize=(6.5, 4))
     for k in sel: ax.plot(t, series[k], label=k)
     ax.set_xlabel("time [min]"); ax.set_ylabel("mean skin temperature [K]"); ax.legend(); ax.grid(alpha=0.3)

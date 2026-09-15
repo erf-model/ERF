@@ -140,7 +140,7 @@ def main():
     fig, ax = plt.subplots(figsize=(6.5, 6))
     sc = ax.scatter(d["x_m"], d["y_m"], c=d["T_skin"], s=14, cmap="inferno", marker="s")
     ax.set_aspect("equal"); ax.set_xlabel("x [m]"); ax.set_ylabel("y [m]")
-    ax.set_title(f"face skin temperature at {5 + (step + 1) * a.dt / 3600:.1f} h solar time (all faces, from above)")
+    ax.set_title(f"face skin temperature at {5 + step * a.dt / 3600:.1f} h solar time (all faces, from above)")
     fig.colorbar(sc, label="T_skin [K]"); fig.tight_layout(); fig.savefig(os.path.join(a.out, "faces_map.png"), dpi=130)
     print(f"wrote {a.out}/tskin_buildings.png shadow_buildings.png faces_map.png")
     shading_maps(files, c, a.dt, a.out)

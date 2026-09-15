@@ -72,6 +72,15 @@ ERF::init_ibseb ()
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
             if (FileExists(name + "_H")) {
+                // The field's width is 6 x (2 + n_slab_layers); a checkpoint
+                // written with another layer count cannot be unpacked.
+                const int ncomp_chk = VisMF(name).nComp();
+                if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
+                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
+                          + " components, written with erf.ibseb.n_slab_layers = " + std::to_string(ncomp_chk / 6 - 2)
+                          + "; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
+                          + ". Restart with the checkpoint's value.");
+                }
                 restored = std::make_unique<MultiFab>(grids[lev], dmap[lev], m_ibseb[lev]->state_ncomp(), 0);
                 VisMF::Read(*restored, name);
                 m_ibseb[lev]->load_state(*restored);
@@ -157,9 +166,11 @@ ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 }
 
 /**
- * Periodic report from ERF::post_timestep(): every ``erf.ibseb.csv_int``
- * steps, print the summary of each level and append its CSV rows. A
- * non-positive interval disables both.
+ * Periodic report from ERF::post_timestep(), with ``nstep`` the number of
+ * completed steps (the plotfiles' numbering; the initial state is the step-0
+ * report of init_ibseb()): after every ``erf.ibseb.csv_int``-th step, print
+ * the summary of each level and append its CSV rows. A non-positive interval
+ * disables both.
  */
 void
 ERF::ibseb_report (int nstep, Real time)

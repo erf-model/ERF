@@ -369,7 +369,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
-    ibseb_report(nstep, time);
+    // nstep is the 0-based index of the step just completed; the balance
+    // reports by the number of completed steps, the plotfiles' numbering.
+    ibseb_report(nstep + 1, time);
 
     if (cloud_chamber_budget) {
         cloud_chamber_budget->report(

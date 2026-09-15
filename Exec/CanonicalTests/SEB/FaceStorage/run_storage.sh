@@ -47,4 +47,7 @@ for h, x, y in zip(hdr, a, b):
 print("restart CSV row matches straight (exact, atmosphere columns to 1e-3): " + ("PASS" if ok else "FAIL"))
 raise SystemExit(0 if ok else 1)
 PY
+echo "== restart with erf.ibseb.n_slab_layers = 6 against the 4-layer checkpoint (must abort)"
+mpirun -np $NP "$EXE" inputs_restart_layers > run_restart_layers.log 2>&1
+if grep -q "the deck sets erf.ibseb.n_slab_layers = 6" run_restart_layers.log; then echo "mismatched slab layers rejected: PASS"; else echo "mismatched slab layers rejected: FAIL (see run_restart_layers.log)"; exit 1; fi
 echo "ALL PASS"

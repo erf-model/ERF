@@ -1352,6 +1352,7 @@ add_test_most_zref(MOST_Zref_Stretched)
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
 # Performance tests

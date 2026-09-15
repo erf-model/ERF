@@ -83,6 +83,6 @@ walls; it reads the geometry from the face dump.
   solar noon Boulder: zenith 16.60 (expected 16.60), azimuth 181.0 (expected 180) -> PASS
   clear-sky beam on roofs: max direct 870 W/m2 (> 500) -> PASS
 == zen60 on 1 rank against 4 ranks
-  rank independence of the face dump: PASS (2616 vs 2616 faces)
+  rank independence of the face dump: PASS (2616 vs 2616 faces; geometry, view, shadow, shortwave exact, atmosphere columns to 1e-9)
 ALL PASS
 ```

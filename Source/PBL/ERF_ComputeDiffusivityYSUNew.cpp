@@ -287,12 +287,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const Array4<Real const> blank_arr = l_ib ? terrain_blank->const_array(mfi) : Array4<Real const>{};
         IArrayBox ksurf_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox zib_fab(xybx_work, 1, The_Async_Arena());
+        FArrayBox pblh_floor_fab(xybx_work, 1, The_Async_Arena());   // floor of the corrected height per column, reapplied after the smoothing
         FArrayBox us_eff_fab(xybx_work, 1, The_Async_Arena()), ts_eff_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox qs_eff_fab(xybx_work, 1, The_Async_Arena()), ol_eff_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox t10_eff_fab(xybx_work, 1, The_Async_Arena()), q10_eff_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox ws10_eff_fab(xybx_work, 1, The_Async_Arena()), z0_eff_fab(xybx_work, 1, The_Async_Arena());
         const auto& ksurf_arr = ksurf_fab.array();
         const auto& zib_arr   = zib_fab.array();
+        const auto& pblh_floor_arr = pblh_floor_fab.array();
         const auto& us_eff_arr = us_eff_fab.array();  const auto& ts_eff_arr = ts_eff_fab.array();
         const auto& qs_eff_arr = qs_eff_fab.array();  const auto& ol_eff_arr = ol_eff_fab.array();
         const auto& t10_eff_arr = t10_eff_fab.array(); const auto& q10_eff_arr = q10_eff_fab.array();
@@ -1100,6 +1102,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             } else {
                 pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
             }
+            pblh_floor_arr(i, j, 0) = pblh_min;
 
             // Update PBL height with the enhanced Rib values
             if (kpbl < khi && rib_enhan_arr(i,j,kpbl) >= Ribcr) {
@@ -1126,6 +1129,13 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                          turbChoice.pblh_smoothing_weight,
                          turbChoice.pblh_smoothing_passes,
                          geom.Domain(), geom.periodicity());
+        // The smoothed height stays at or above the column's own floor (half
+        // a cell above its surface, at least 10 m): beside lower neighbours a
+        // column over a building (erf.pbl_ib_aware) would otherwise be handed
+        // a height below its first cell, and the K profile a negative depth.
+        ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0), pblh_floor_arr(i, j, 0));
+        });
         }
 
         // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.

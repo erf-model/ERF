@@ -28,12 +28,18 @@ at step 14); halving the step only delays it.
 
 ## The switch
 
-`erf.if_snap_partial_cells = true` makes the six forcing functions read the
-blanking snapped to solid or fluid at half: a height-map building becomes
-the same staircase of whole cells an exact box is, the wall law (with
-`erf.if_use_most`) and the thermal conditions sit on the boundary solid
-cells, roofs included, the drag on the interior cells, and the sliver cells
-carry nothing. The 24 h day of `SEB/IsolatedBuilding`
+`erf.if_snap_partial_cells = true` makes the buildings forcing functions
+read the blanking snapped to solid or fluid at half: a height-map building
+becomes the same staircase of whole cells an exact box is. The momentum
+kernels take a face's blanking from the two cells it joins (solid when
+either is), so the staircase is the same with and without the build's
+face-centred blanking; a face between a solid and a fluid cell is
+wall-normal and gets the drag toward zero (no penetration), a face between
+two solid cells the roof or wall law of its row (with `erf.if_use_most`) or
+the interior drag, never both; the thermal conditions sit on the boundary
+solid cells, roofs included, and the sliver cells carry nothing. The
+terrain kernels keep the raw fractions (their wall law is weighted by the
+fluid fraction of the face). The 24 h day of `SEB/IsolatedBuilding`
 on an exact box is the evidence that this configuration is stable. (A
 first version that kept the fractions and only moved the selection
 threshold to half left faces between a solid core and a half-solid rim

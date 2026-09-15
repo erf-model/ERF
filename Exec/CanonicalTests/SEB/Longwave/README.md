@@ -68,6 +68,6 @@ above the western horizon so the shortwave is also exercised.
   LW_net = eps (LW_in - sigma Ts^4)                        PASS 
   gray sky: T_air read from the fluid cells is plausible (250-320 K) PASS 289.3-290.6 K
 == fixed on 1 rank against 4 ranks
-  rank independence of the face dump: PASS (2616 vs 2616 faces)
+  rank independence of the face dump: PASS (2616 vs 2616 faces; geometry, view, shadow, shortwave exact, atmosphere columns to 1e-9)
 ALL PASS
 ```

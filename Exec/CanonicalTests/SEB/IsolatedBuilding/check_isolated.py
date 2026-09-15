@@ -70,7 +70,7 @@ def main():
     ok = report("balance residual all day", c["resid_max_Wm2"].max() < 1e-3, f"max {c['resid_max_Wm2'].max():.1e} W/m2 over {len(c)} rows")
 
     steps, dumps = load_steps(prefix)
-    th = (steps + 1) * dt / 3600.0
+    th = steps * dt / 3600.0   # a dump tagged s is the state after s steps
     sel = orientation(dumps[0])
     T = {k: np.array([d["T_skin"][m].mean() for d in dumps]) for k, m in sel.items()}
     Ta = np.array([d["T_air"][sel["roof"]].mean() for d in dumps])
@@ -114,7 +114,7 @@ def main():
     E_erf = sum(d["SW_abs"][core].mean() for d in dumps) * dt * (steps[1] - steps[0])
     E_py = 0.0
     for s in steps:
-        t = 25200.0 + (s + 1) * dt
+        t = 25200.0 + max(s - 1, 0) * dt   # the shortwave of a dump is the one computed at the start of its last step
         cz, dni, dif = solar(t, 40.0, -105.0, -7.0, 172, 1361.0, 0.7, 0.5)
         direct = dni * max(cz, 0.0)
         diffuse = (fs * dif + fg * 0.2 * (direct + dif)).mean()

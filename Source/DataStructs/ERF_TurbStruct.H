@@ -1049,8 +1049,11 @@ public:
  * inside the solid, and the surface scales of such a column are a neutral
  * log law at its top (u* from the wind there and pbl_ib_z0, theta* = 0). The
  * boundary-layer height both schemes store (pblh, Lturb) stays the absolute
- * height above the domain bottom. Off by default; without immersed cells the
- * results are identical. Not supported with terrain-fitted coordinates.
+ * height above the domain bottom; with enable_pblh_smoothing the stencil runs
+ * on that absolute height, and the smoothed value is kept at or above each
+ * column's own floor (half a cell above its surface, at least 10 m). Off by
+ * default; without immersed cells the results are identical. Not supported
+ * with terrain-fitted coordinates.
  * @var TurbChoice::pbl_ib_z0
  * Roughness length [m] of that log law.
  * @var TurbChoice::enable_mrf_cloud_adjustment

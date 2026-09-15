@@ -4,7 +4,7 @@
     python3 check_prognostic.py closure faces_closure 0.5 293.0 [--resid 1e-3]
     python3 check_prognostic.py qext    faces_qext    0.5 293.0 3000.0 380.0
     python3 check_prognostic.py solar   faces_solar
-    python3 check_prognostic.py restart faces_closure.step000199 faces_restart.step000199
+    python3 check_prognostic.py restart faces_closure.step000200 faces_restart.step000200
 
 closure: from the per-step dumps <prefix>.step<N>.rank*.csv,
   1. the residual of the balance on every face at every step is below the
@@ -26,7 +26,7 @@ qext: the closure checks on the external-flux run, the flux on every face
   raised bound took effect).
 solar: from the periodic dumps, the east wall warms before the roof and
   the west wall, and every face stays within the bounds.
-restart: the last dump (step 199, t = 100 s) after a restart at step 100 against the
+restart: the last dump (step 200, t = 100 s) after a restart at step 100 against the
   straight run: geometry exact, skin and slab to 1e-3 K (the atmosphere of
   the immersed forcing is not bit-exact through a restart, see SlabConduction).
 """

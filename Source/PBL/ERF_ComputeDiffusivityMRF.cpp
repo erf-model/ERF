@@ -267,8 +267,10 @@ if (ng_pblh > 1) {
         FArrayBox hgamq_fab(xybx_work, 1, The_Async_Arena());  // Store HGAMQ/h (normalized countergradient)
         FArrayBox wstar_fab(xybx_work, 1, The_Async_Arena());  // Convective velocity scale
         FArrayBox vpert_fab(xybx_work, 1, The_Async_Arena());  // Virtual temperature perturbation VPERT
+        FArrayBox pblh_floor_fab(xybx_work, 1, The_Async_Arena());  // Floor of the corrected height per column, reapplied after the smoothing
         const auto& pblh_pred_arr   = pbl_height_predictor.array();  // predictor (base t_layer_v)
         const auto& pblh_corr_arr   = pbl_height_corrector.array();  // corrector (VPERT-enhanced)
+        const auto& pblh_floor_arr  = pblh_floor_fab.array();
         const auto& pbli_arr        = pbl_index.array();
         const auto& pbli_zero_arr   = pbl_index_zero_ri.array();  // Zero-Ri diagnostic PBL index
         const auto& hgamt_arr       = hgamt_fab.array();
@@ -660,6 +662,7 @@ if (ng_pblh > 1) {
                 pblh_corr_arr(i, j, 0) = pblh_min;
                 pbli_arr(i, j, 0) = ksrf + 1;
             }
+            pblh_floor_arr(i, j, 0) = pblh_min;
         });
 
 
@@ -670,10 +673,21 @@ if (ng_pblh > 1) {
         if (turbChoice.enable_pblh_smoothing) {
             // Smooth the tile's own columns, reading the halo the passes above
             // filled. The result is the same however the domain is split.
+            // The stencil mixes neighbouring columns, so it runs on the
+            // absolute height (the stored convention): the column's surface
+            // height zib goes on over the work box first and comes off
+            // after, and the result is kept at or above the column's floor.
+            // zib is zero without erf.pbl_ib_aware.
+            ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                pblh_corr_arr(i, j, 0) += zib_arr(i, j, 0);
+            });
             ApplyPBLHSmoothing(pbl_height_corrector, xybx_tile,
                              turbChoice.pblh_smoothing_weight,
                              turbChoice.pblh_smoothing_passes,
                              geom.Domain(), geom.periodicity());
+            ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                pblh_corr_arr(i, j, 0) = amrex::max(pblh_corr_arr(i, j, 0) - zib_arr(i, j, 0), pblh_floor_arr(i, j, 0));
+            });
         }
 
         // Copy corrected PBL height into pblh_mf for SurfaceLayer storage.

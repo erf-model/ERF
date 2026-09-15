@@ -1794,8 +1794,10 @@ List of Parameters
 |                                          | Richardson depth and the K profile measured from it,     |                    |                  |
 |                                          | zero diffusivity inside the solid, a neutral log law at  |                    |                  |
 |                                          | the top for the surface scales; identical without        |                    |                  |
-|                                          | immersed cells; not with terrain-fitted coordinates      |                    |                  |
-|                                          | (the stored PBL height stays the absolute height)        |                    |                  |
+|                                          | immersed cells; not with terrain-fitted coordinates (the |                    |                  |
+|                                          | stored PBL height stays the absolute height; the PBL     |                    |                  |
+|                                          | height smoothing runs on it and keeps every column at or |                    |                  |
+|                                          | above its own floor)                                     |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ib_z0**                        | roughness length [m] of that log law                     | Real > 0           | 0.01             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2932,9 +2934,12 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | a height-map building becomes a staircase of whole cells |                    |                  |
 |                                   | with no sliver cells: the wall law sits on the boundary  |                    |                  |
 |                                   | solid cells (roofs included) and the drag on the         |                    |                  |
-|                                   | interior cells, the thermal conditions on the same       |                    |                  |
-|                                   | boundary cells; false keeps the raw fractions, on which  |                    |                  |
-|                                   | the wall law and the drag disagree at the corners of the |                    |                  |
+|                                   | interior cells, a momentum face between a solid and a    |                    |                  |
+|                                   | fluid cell gets the drag toward zero (no penetration),   |                    |                  |
+|                                   | the thermal conditions sit on the same boundary cells;   |                    |                  |
+|                                   | buildings only, terrain by immersed forcing keeps its    |                    |                  |
+|                                   | fractions; false keeps the raw fractions, on which the   |                    |                  |
+|                                   | wall law and the drag disagree at the corners of the     |                    |                  |
 |                                   | reader's one-cell ramp and grow a checkerboard over      |                    |                  |
 |                                   | hours; set it for buildings from height maps (see        |                    |                  |
 |                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |

@@ -724,7 +724,7 @@ IBFaceSet::compute_shortwave (Real time)
         const Real t_utc = m_params.time_zero_utc_s + time;
         const Real decl  = ibseb::solar_declination(m_params.day_of_year);
         // Hour angle from UTC and the longitude (a time-zone offset would cancel).
-        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, Real(0.0), m_params.day_of_year);
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, m_params.day_of_year);
         s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
         s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
         const Real cz = std::cos(s.zenith);

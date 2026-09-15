@@ -102,20 +102,9 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const bool l_use_most         = solverChoice.if_use_most;
 
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
-    // SolverChoice::if_snap_partial_cells.
-    const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
+    // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
+    // applies to the buildings kernels only (the wall law below is weighted
+    // by the fluid fraction of the face, which a snapped face has not).
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -126,13 +115,13 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                                  + w(i, j  , k+1) + w(i-1, j  , k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        Real t_blank_raw = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j, k)) :
-                           myhalf * (snapb(t_blank_arr(i, j, k)) + snapb(t_blank_arr(i-1, j, k)));
+        Real t_blank_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
         // Threshold: if averaged value is below small_volfrac, set to zero
         const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_above_raw = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j, k+1)) :
-                                 myhalf * (snapb(t_blank_arr(i, j, k+1)) + snapb(t_blank_arr(i-1, j, k+1)));
+        Real t_blank_above_raw = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k+1) :
+                                 myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i-1, j, k+1));
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
@@ -223,20 +212,9 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const bool l_use_most         = solverChoice.if_use_most;
 
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
-    // SolverChoice::if_snap_partial_cells.
-    const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
+    // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
+    // applies to the buildings kernels only (the wall law below is weighted
+    // by the fluid fraction of the face, which a snapped face has not).
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -247,12 +225,12 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                + w(i  , j  , k+1) + w(i  , j-1, k+1) );
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        Real t_blank_raw = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i, j, k)) :
-                           myhalf * (snapb(t_blank_arr(i, j, k)) + snapb(t_blank_arr(i, j-1, k)));
+        Real t_blank_raw = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
         const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_above_raw = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i, j, k+1)) :
-                                 myhalf * (snapb(t_blank_arr(i, j, k+1)) + snapb(t_blank_arr(i, j-1, k+1)));
+        Real t_blank_above_raw = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k+1) :
+                                 myhalf * (t_blank_arr(i, j, k+1) + t_blank_arr(i, j-1, k+1));
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
@@ -333,20 +311,9 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
 
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
-    // SolverChoice::if_snap_partial_cells.
-    const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
+    // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
+    // applies to the buildings kernels only (the wall law below is weighted
+    // by the fluid fraction of the face, which a snapped face has not).
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -357,8 +324,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real uz = w(i, j, k);
         const Real windspeed = std::sqrt(ux * ux + uy * uy + uz * uz);
         // Use face-centered terrain_blanking if available, otherwise average from cell centers
-        Real t_blank_raw = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i, j, k)) :
-                           myhalf * (snapb(t_blank_arr(i, j, k)) + snapb(t_blank_arr(i, j, k-1)));
+        Real t_blank_raw = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
+                           myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
         const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
@@ -414,20 +381,30 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
+    // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
+    // or fluid (0) at half, so a height-map building becomes the same
+    // staircase of whole cells an exact box is. A face is solid when either
+    // cell it joins is; a face between a solid and a fluid cell is
+    // wall-normal and gets the interior drag toward zero (no penetration); a
+    // face between two solid cells carries the roof or wall law of its row
+    // or the interior drag, never both. Off (the default), the raw fractions
+    // are used and nothing below changes: a boundary face of an exact box
+    // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
     auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
         return l_snap ? ((b >= myhalf) ? one : zero) : b;
     };
+    // Blanking of an x-face (i, j, k): with the snap, from the two cells it
+    // joins (solid when either is), so both builds give the same staircase;
+    // otherwise the face-centred fraction when the build has it, else the
+    // mean of the two cells.
+    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
+        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i-1, j, k))); }
+        return (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k)
+                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
+    };
+
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -442,36 +419,35 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i, j  , k  )) + snapb(t_blank_arr(i-1, j  , k  )));
+        Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j  , k-1)) :
-                                 myhalf * (snapb(t_blank_arr(i, j  , k-1)) + snapb(t_blank_arr(i-1, j  , k-1)));
+        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
         const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
 
-        Real t_blank_above_raw = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j  , k+1)) :
-                                 myhalf * (snapb(t_blank_arr(i, j  , k+1)) + snapb(t_blank_arr(i-1, j  , k+1)));
+        Real t_blank_above_raw = fb(i, j, k+1);
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
-        Real t_blank_north_raw = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j+1, k  )) :
-                                 myhalf * (snapb(t_blank_arr(i, j+1, k  )) + snapb(t_blank_arr(i-1, j+1, k  )));
+        Real t_blank_north_raw = fb(i, j+1, k);
         const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
 
-        Real t_blank_south_raw = (t_blank_xface_arr) ? snapb(t_blank_xface_arr(i, j-1, k  )) :
-                                 myhalf * (snapb(t_blank_arr(i, j-1, k  )) + snapb(t_blank_arr(i-1, j-1, k  )));
+        Real t_blank_south_raw = fb(i, j-1, k);
         const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+        // With the snap a face joining a solid and a fluid cell is wall-normal:
+        // it gets the interior drag (no penetration), not a wall law, whatever
+        // row it lies in.
+        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i-1, j, k)));
 
-        // With the snap every solid cell has t_blank = 1, so a roof cell is
-        // the top solid cell (t_blank <= t_blank_below) and a cell carrying a
-        // wall law is not also an interior cell.
-        const Real roof_mask     = (t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
-        const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
+        // With the snap every solid face has t_blank = 1: a roof face lies in
+        // the top solid row (t_blank <= t_blank_below, the face above fluid),
+        // and a face carrying a wall law is not also an interior face.
+        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
+        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
+        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
         const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
         const Real most_mask     = roof_mask + south_mask + north_mask; // cells getting MOST treatment
         const Real east_west_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (east/west walls)
@@ -594,20 +570,30 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
+    // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
+    // or fluid (0) at half, so a height-map building becomes the same
+    // staircase of whole cells an exact box is. A face is solid when either
+    // cell it joins is; a face between a solid and a fluid cell is
+    // wall-normal and gets the interior drag toward zero (no penetration); a
+    // face between two solid cells carries the roof or wall law of its row
+    // or the interior drag, never both. Off (the default), the raw fractions
+    // are used and nothing below changes: a boundary face of an exact box
+    // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
     auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
         return l_snap ? ((b >= myhalf) ? one : zero) : b;
     };
+    // Blanking of a y-face (i, j, k): with the snap, from the two cells it
+    // joins (solid when either is), so both builds give the same staircase;
+    // otherwise the face-centred fraction when the build has it, else the
+    // mean of the two cells.
+    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
+        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j-1, k))); }
+        return (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k)
+                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
+    };
+
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -622,35 +608,34 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i  , j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i  , j  , k  )) + snapb(t_blank_arr(i  , j-1, k  )));
+        Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_below_raw = (k == 0) ? zero : (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i  , j  , k-1)) :
-                                 myhalf * (snapb(t_blank_arr(i  , j  , k-1)) + snapb(t_blank_arr(i  , j-1, k-1)));
+        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
         const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
 
-        Real t_blank_above_raw = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i  , j  , k+1)) :
-                                 myhalf * (snapb(t_blank_arr(i  , j  , k+1)) + snapb(t_blank_arr(i  , j-1, k+1)));
+        Real t_blank_above_raw = fb(i, j, k+1);
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
-        Real t_blank_east_raw  = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i+1, j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i+1, j  , k  )) + snapb(t_blank_arr(i+1, j-1, k  )));
+        Real t_blank_east_raw  = fb(i+1, j, k);
         const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
 
-        Real t_blank_west_raw  = (t_blank_yface_arr) ? snapb(t_blank_yface_arr(i-1, j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i-1, j  , k  )) + snapb(t_blank_arr(i-1, j-1, k  )));
+        Real t_blank_west_raw  = fb(i-1, j, k);
         const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+        // With the snap a face joining a solid and a fluid cell is wall-normal:
+        // it gets the interior drag (no penetration), not a wall law, whatever
+        // row it lies in.
+        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j-1, k)));
 
-        // As in the x-momentum: with the snap the roof is the top solid cell
-        // and a wall-law cell is not also an interior cell.
-        const Real roof_mask     = (t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
-        const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
+        // As in the x-momentum: with the snap a roof face lies in the top
+        // solid row and a wall-law face is not also an interior face.
+        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
+        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
+        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
         const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
         const Real most_mask     = roof_mask + west_mask + east_mask; // cells getting MOST treatment
         const Real north_south_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (north/south walls)
@@ -773,20 +758,30 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
     const Real small_volfrac = 0.005;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
+    // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
+    // or fluid (0) at half, so a height-map building becomes the same
+    // staircase of whole cells an exact box is. A face is solid when either
+    // cell it joins is; a face between a solid and a fluid cell is
+    // wall-normal and gets the interior drag toward zero (no penetration); a
+    // face between two solid cells carries the roof or wall law of its row
+    // or the interior drag, never both. Off (the default), the raw fractions
+    // are used and nothing below changes: a boundary face of an exact box
+    // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
     auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
         return l_snap ? ((b >= myhalf) ? one : zero) : b;
     };
+    // Blanking of a z-face (i, j, k): with the snap, from the two cells it
+    // joins (solid when either is), so both builds give the same staircase;
+    // otherwise the face-centred fraction when the build has it, else the
+    // mean of the two cells.
+    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
+        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j, k-1))); }
+        return (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k)
+                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
+    };
+
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -801,41 +796,39 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
         // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i  ,j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i  ,j  , k))   + snapb(t_blank_arr(i  , j  , k-1)));
+        Real t_blank_raw       = fb(i, j, k);
         const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
-        Real t_blank_above_raw = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i  ,j  , k+1)) :
-                                 myhalf * (snapb(t_blank_arr(i  ,j  , k))   + snapb(t_blank_arr(i  , j  , k+1)));
+        Real t_blank_above_raw = fb(i, j, k+1);
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
-        Real t_blank_north_raw = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i  , j+1, k  )) :
-                                 myhalf * (snapb(t_blank_arr(i  ,j+1, k))   + snapb(t_blank_arr(i  , j+1, k-1)));
+        Real t_blank_north_raw = fb(i, j+1, k);
         const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
 
-        Real t_blank_south_raw = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i  , j-1, k  )) :
-                                 myhalf * (snapb(t_blank_arr(i  ,j-1, k))   + snapb(t_blank_arr(i  , j-1, k-1)));
+        Real t_blank_south_raw = fb(i, j-1, k);
         const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
 
-        Real t_blank_east_raw  = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i+1, j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i+1,j  , k))   + snapb(t_blank_arr(i+1, j  , k-1)));
+        Real t_blank_east_raw  = fb(i+1, j, k);
         const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
 
-        Real t_blank_west_raw  = (t_blank_zface_arr) ? snapb(t_blank_zface_arr(i-1, j  , k  )) :
-                                 myhalf * (snapb(t_blank_arr(i-1,j  , k))   + snapb(t_blank_arr(i-1, j  , k-1)));
+        Real t_blank_west_raw  = fb(i-1, j, k);
         const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+        // With the snap a face joining a solid and a fluid cell is wall-normal:
+        // it gets the interior drag (no penetration), not a wall law, whatever
+        // row it lies in.
+        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j, k-1)));
 
-        const Real south_mask    = (t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most && k >= 1) ? one : zero; // south wall cell
-        const Real north_mask    = (t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
-        const Real west_mask     = (t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
-        const Real east_mask     = (t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
+        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most && k >= 1) ? one : zero; // south wall cell
+        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
+        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
+        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
         const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real roof_mask     = (t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
-        // With the snap a cell carrying a wall law or the roof drag is not also an interior cell.
+        const Real roof_mask     = (!normal_face && t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
+        // With the snap a face carrying a wall law or the roof drag is not also an interior face.
         const Real most_mask     = south_mask + north_mask + west_mask + east_mask + roof_mask;
         const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
 
@@ -948,20 +941,9 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
     const Real dx_y = dx_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
-    // SolverChoice::if_snap_partial_cells.
-    const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
+    // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
+    // applies to the buildings kernels only (the wall law below is weighted
+    // by the fluid fraction of the face, which a snapped face has not).
     const Real tiny             = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s              = one; // unit velocity scale
 
@@ -984,8 +966,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
 
-        const Real t_blank       = snapb(t_blank_arr(i, j, k));
-        const Real t_blank_above = snapb(t_blank_arr(i, j, k+1));
+        const Real t_blank       = t_blank_arr(i, j, k);
+        const Real t_blank_above = t_blank_arr(i, j, k+1);
         const Real ux_cc_2r = myhalf * (u(i  ,j  ,k+1) + u(i+1,j  ,k+1));
         const Real uy_cc_2r = myhalf * (v(i  ,j  ,k+1) + v(i  ,j+1,k+1));
         const Real h_windspeed2r  = std::sqrt(ux_cc_2r * ux_cc_2r + uy_cc_2r * uy_cc_2r);
@@ -1095,16 +1077,12 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real dx_y = dx_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
-    // erf.if_snap_partial_cells: read the cell and face blanking snapped to
-    // solid (1) or fluid (0) at half, so a height-map building becomes the
-    // same staircase of whole cells an exact box is: wall faces fully
-    // blanked (no penetration), interiors damped, no sliver cells for the
-    // wall law and the drag to disagree on. With the snap the wall law sits
-    // on the boundary solid cells alone and the drag on the interior cells;
-    // off (the default), the raw fractions are used and nothing below
-    // changes, and a boundary cell of an exact box carries the wall law and
-    // the interior drag together as before. See
-    // SolverChoice::if_snap_partial_cells.
+    // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
+    // or fluid (0) at half, so a height-map building becomes the same
+    // staircase of whole cells an exact box is: the thermal conditions sit
+    // on the boundary solid cells, roofs included, found from the neighbour
+    // blanking. Off (the default), the raw fractions are used and nothing
+    // below changes. See SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
     auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
         return l_snap ? ((b >= myhalf) ? one : zero) : b;

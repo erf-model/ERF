@@ -27,7 +27,7 @@ def main():
     ap.add_argument("--plotfile"); ap.add_argument("--out", default="plots"); ap.add_argument("--dt", type=float, default=0.5)
     a = ap.parse_args(); os.makedirs(a.out, exist_ok=True)
     files = sorted(set(re.sub(r"\.rank\d+\.csv$", "", fn) for fn in glob.glob(a.prefix + ".step*.rank*.csv")))
-    steps = np.array([int(re.search(r"\.step(\d+)$", f).group(1)) for f in files]); th = (steps + 1) * a.dt / 3600.0
+    steps = np.array([int(re.search(r"\.step(\d+)$", f).group(1)) for f in files]); th = steps * a.dt / 3600.0
     sel = None; T = {}; Ta = []; roof = {k: [] for k in ("SW_abs", "LW_net", "H", "G")}; slab = []
     for f in files:
         d = load(f)
