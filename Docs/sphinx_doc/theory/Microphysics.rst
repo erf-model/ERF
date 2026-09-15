@@ -54,9 +54,13 @@ Model overview and transported quantities in ERF
 | Method (SDM)       |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Spectral-bin       | ``SBM``                 | :math:`q_r` | --          | --              | --          |
-| warm-cloud         | (experimental P0/P1)   |             |             |                 |             |
+| warm-cloud         | (experimental P0/P1/P2)|             |             |                 |             |
 | transport          |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+
+The experimental SBM implementation now includes P2 grouped FCT, explicit
+density-weighted diffusion, conservative auxiliary AMR lifecycle hooks, and
+strict restart schema validation; see :ref:`spectral-bin-microphysics`.
 
 .. note::
 

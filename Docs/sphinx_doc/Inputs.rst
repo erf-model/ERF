@@ -3171,7 +3171,7 @@ List of Parameters
 | **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
-Experimental SBM P0/P1 inputs
+Experimental SBM P0/P1/P2 inputs
 -----------------------------
 
 When ``erf.moisture_model = SBM``, ERF reads the following runtime-sized
@@ -3192,8 +3192,18 @@ ownership, units, qualification tests, and current limitations.
    Interior liquid-population bin index separating ``qc`` and ``qr``.  The
    default is ``sbm_nbins/2``.  This is projection metadata, not grid metadata.
 ``erf.sbm_moment_mode``
-   ``1`` for the qualified one-moment P1 mass state; ``2`` describes a P0
-   two-moment schema and is rejected by P1 transport.
+   ``1`` for the one-moment mass state; ``2`` selects physical two-moment
+   ``(M,C)`` storage and endpoint-constrained P2 transport.
+``erf.sbm_transport_method``
+   ``DonorCell`` or ``GroupedFCT_WENOZ3``.  The latter reuses ERF's WENO-Z3
+   reconstruction and applies a complete grouped invariant-domain limiter.
+``erf.sbm_diffusion_coeff``
+   Nonnegative explicit density-weighted diffusion coefficient.  A positive
+   value uses the P2 auxiliary diffusion path; ERF native moisture diffusion
+   is rejected for SBM-owned components.
+``erf.sbm_chunk_size``
+   Positive bounded scratch/chunk policy value.  Runtime bins are not capped
+   by a compile-time ``MAX_BINS`` constant.
 ``erf.sbm_manufactured_initialization``
    Boolean.  When true, install the deterministic nonuniform spectrum used by
    the real P1 ERF regression.  Ordinary nonzero ``qc``/``qr`` without an
