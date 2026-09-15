@@ -340,10 +340,25 @@ ifeq ($(USE_NOAHMP), TRUE)
   LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
 endif
 
-ERF_RAD_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Radiation
+ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
 include $(ERF_RAD_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_RAD_DIR)
 INCLUDE_LOCATIONS += $(ERF_RAD_DIR)
+
+ERF_RAD_RRTMGP_DIR = $(ERF_SOURCE_DIR)/Radiation/RRTMGP
+include $(ERF_RAD_RRTMGP_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_RRTMGP_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_RRTMGP_DIR)
+
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
+
+ERF_RADIATION_DIR = $(ERF_SOURCE_DIR)/Radiation/TwoStream
+include $(ERF_RADIATION_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RADIATION_DIR)
+INCLUDE_LOCATIONS += $(ERF_RADIATION_DIR)
 
 # If using RRTMGP Radiation, compile relevant source and headers
 ifeq ($(USE_RRTMGP), TRUE)

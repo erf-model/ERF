@@ -16,9 +16,6 @@ erf.rad_freq_in_steps      = 1
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false
 erf.rad_orbital_year       = 2010
-# Same surface temperature the two-stream side uses, so both solvers see
-# the same lower boundary.
-erf.rad_t_sfc              = 300.0
 # RRTMGP requires an ozone volume mixing ratio (length 1 or nlay).
 erf.o3vmr                  = 1.0e-7
 

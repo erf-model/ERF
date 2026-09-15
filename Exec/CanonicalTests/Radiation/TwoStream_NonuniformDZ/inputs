@@ -100,12 +100,13 @@ erf.input_sounding_file = "input_sounding_nonuniform_dz"
 # RADIATION - Two-Stream SW + LW, both enabled
 # Key difference from uses nonuniform dz(k) from z_phys_cc heights
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 1.0
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
+erf.fixed_solar_zenith_angle = 0.5    # cos(60 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 erf.radiation.v = 1
 erf.radiation.diag_enable = true
 erf.radiation.diag_file = "radiation_nonuniform_dz_diag.dat"

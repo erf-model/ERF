@@ -12,6 +12,7 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
+#include <cmath>
 #include <filesystem>
 #include "ERF_Constants.H"
 #include <sstream>
@@ -141,12 +142,35 @@ Radiation::Radiation (const int& lev,
     pp.queryAdd("rad_cons_lat", m_lat_cons);
     pp.queryAdd("rad_cons_lon", m_lon_cons);
 
+    // Both models read these keys and feed them to the same cos-zenith formula in the
+    // same units, so apply the range checks RadChoice::init_params already applies.
+    if (!std::isfinite(m_lat_cons) || m_lat_cons < Real(-90.0) || m_lat_cons > Real(90.0)) {
+        amrex::Abort("erf.rad_cons_lat = " + std::to_string(m_lat_cons) +
+                     " must lie in [-90, 90] degrees.");
+    }
+    if (!std::isfinite(m_lon_cons) || m_lon_cons < Real(-180.0) || m_lon_cons > Real(180.0)) {
+        amrex::Abort("erf.rad_cons_lon = " + std::to_string(m_lon_cons) +
+                     " must lie in [-180, 180] degrees.");
+    }
+
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than zero
     pp.queryAdd("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
 
     // Determine whether or not we are using a fixed solar zenith angle (positive value)
     pp.queryAdd("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
+
+    // The same checks the two-stream model applies to these shared inputs
+    // (RadChoice::init_params): the fixed zenith input is a cosine, and the
+    // surface temperature must be a temperature.
+    if (m_fixed_solar_zenith_angle > Real(1.0)) {
+        amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(m_fixed_solar_zenith_angle) +
+                     " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
+    }
+    if (!std::isfinite(m_rad_t_sfc) || m_rad_t_sfc <= Real(0.0)) {
+        amrex::Abort("erf.rad_t_sfc = " + std::to_string(m_rad_t_sfc) +
+                     " must be a positive temperature [K].");
+    }
 
     // Get prescribed surface values of greenhouse gases
     pp.queryAdd("co2vmr", m_co2vmr);
@@ -795,6 +819,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
         const int nx         = vbx.length(0);
         const int imin       = vbx.smallEnd(0);
         const int jmin       = vbx.smallEnd(1);
+        const int ktop       = vbx.bigEnd(2);
         const int offset     = m_col_offsets[mfi.index()];
         const Array4<Real>& q_arr = m_qheating_rates->array(mfi);
         const Array4<Real>& f_arr = m_rad_fluxes->array(mfi);
@@ -814,11 +839,19 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
 
-            // Populate the fluxes
+            // Populate the fluxes: level ilay is the lower interface of
+            // layer k, and the top-of-atmosphere level nlay goes into the
+            // z-ghost cell above the top layer (rad_fluxes has one).
             f_arr(i,j,k,0) = sw_flux_up_tab(icol,ilay);
             f_arr(i,j,k,1) = sw_flux_dn_tab(icol,ilay);
             f_arr(i,j,k,2) = lw_flux_up_tab(icol,ilay);
             f_arr(i,j,k,3) = lw_flux_dn_tab(icol,ilay);
+            if (k == ktop) {
+                f_arr(i,j,k+1,0) = sw_flux_up_tab(icol,ilay+1);
+                f_arr(i,j,k+1,1) = sw_flux_dn_tab(icol,ilay+1);
+                f_arr(i,j,k+1,2) = lw_flux_up_tab(icol,ilay+1);
+                f_arr(i,j,k+1,3) = lw_flux_dn_tab(icol,ilay+1);
+            }
 
             if (k==0) {
                 sfc_flux_sw_dn_tab(icol) = sw_flux_dn_tab(icol,ilay);
@@ -1176,13 +1209,8 @@ Radiation::run_impl ()
 
     // Use the orbital parameters to calculate the solar declination and eccentricity factor
     double delta, eccf;
-    // Want day + fraction; calday 1 == Jan 1 0Z
-    static constexpr double dpy[] = {zero  ,  Real(31.0),  Real(59.0),  Real(90.0), Real(120.0), Real(151.0),
-                                     Real(181.0), Real(212.0), Real(243.0), Real(273.0), Real(304.0), Real(334.0)};
-    bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-    double calday = one + dpy[m_orbital_mon-1] + (m_orbital_day-one) + m_orbital_sec/Real(86400.0);
-    // add extra day if leap year and past February
-    if (leap && m_orbital_mon>2) { calday += one; }
+    // Day of the year plus fraction, calday 1 == Jan 1 0Z (leap-aware)
+    double calday = orbital_calday(m_orbital_year, m_orbital_mon, m_orbital_day, m_orbital_sec);
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
     // Overwrite eccf if using a fixed solar constant.

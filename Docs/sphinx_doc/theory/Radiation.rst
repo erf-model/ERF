@@ -27,10 +27,11 @@ Beer-Lambert law:
 
    I_{sw,\text{direct}}(z) = I_0 \mu_0 e^{-\tau_{\text{sw}} \sec(\theta_z)}
 
-where :math:`I_0` is the solar constant at the top of the atmosphere (:math:`S_0 \approx 1361 \, \text{W/m}^2`,
-optionally scaled by the Earth-Sun distance factor :math:`(d_0/d)^2` of Spencer (1971) when
-``earth_sun_distance_enable`` is set),
-:math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle, :math:`\tau_{\text{sw}}` is the
+where :math:`I_0` is the top-of-atmosphere irradiance (``erf.fixed_total_solar_irradiance``, or
+1360.9 W/m² scaled by the Earth-Sun distance factor of the date from the same orbital code RRTMGP
+uses), :math:`\mu_0 = \cos(\theta_z)` is the cosine of the solar zenith angle
+(``erf.fixed_solar_zenith_angle``, or the sun's position over each column at the calendar time
+given by ``start_datetime``), :math:`\tau_{\text{sw}}` is the
 vertically integrated shortwave optical depth above height :math:`z`, and :math:`\sec(\theta_z)` accounts
 for the path-length modification. The optical depth may be spatially uniform (static :math:`\tau_{\text{per\_layer}}`)
 or dynamically diagnosed from water vapor and cloud liquid water content, parameterized as:
@@ -254,9 +255,19 @@ Limitations
 - **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
   never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
   ``amr.max_level = 0``. The run stops at start-up with a message saying so.
-- **Solar time base.** With ``solar_geometry_dynamic_enable`` the hour angle is formed from the
-  simulation time modulo 86400 s, i.e. the run is taken to start at 00:00 UTC on
-  ``day_of_year``; ``start_datetime`` is not read by this model.
+- **Sun and site.** The sun, the site and the surface temperature come from the inputs the
+  RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
+  ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
+  and the position of the sun is the instantaneous value of RRTMGP's ``orbital_cos_zenith``
+  over each column, not its average over the radiation interval. Without a fixed zenith angle
+  and irradiance the run needs ``start_datetime``, and stops at the first sweep otherwise. The
+  surface temperature of the longwave boundary is, in RRTMGP's order, the land-surface model's
+  field, else the surface layer's temperature, else ``erf.rad_t_sfc``; the prognostic surface
+  energy balance, when on, supplies its own state ahead of the surface layer. The surface
+  layer works in potential temperature, so its value is converted to temperature with the
+  Exner function of the lowest cell before it enters the :math:`\sigma T_s^4` emission; with a
+  surface layer present, ``erf.rad_t_sfc`` is the initial value of the prognostic surface
+  temperature when the surface energy balance evolves one, and unused otherwise.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
   call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
   cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
@@ -368,27 +379,33 @@ where :math:`\alpha` is the blending parameter.
 Solar Geometry and Diurnal Cycle
 --------------------------------
 
-When ``solar_geometry_dynamic_enable = true``, the solar zenith angle is computed dynamically from
-astronomical formulas based on the simulation time, latitude, longitude, day-of-year, and time-zone offset.
-
-The solar declination :math:`\delta` (angle of the sun relative to the Earth's equatorial plane) is
-computed from the day-of-year :math:`D`:
-
-.. math::
-
-   \delta = 23.45° \sin \left( \frac{2\pi (D - 81)}{365} \right)
-
-where the 81st day is the spring equinox.
-
-The hour angle :math:`h` (solar time in degrees, 0 at solar noon, 15° per hour) is computed from the
-local solar time. The solar zenith angle is then:
+The position of the sun comes from the same orbital code the RRTMGP interface uses
+(``ERF_OrbCosZenith.H``). When ``erf.fixed_solar_zenith_angle`` is not set, the calendar time of
+each call is ``start_datetime`` plus the simulation time (UTC). The year gives the orbital
+parameters of Berger (1978) unless ``erf.rad_orbital_year``, ``erf.rad_orbital_eccentricity``,
+``erf.rad_orbital_obliquity`` or ``erf.rad_orbital_mvelp`` override them, and the day of the year
+:math:`D` (with its fraction, leap years included) gives the solar declination :math:`\delta` and
+the Earth-Sun distance factor :math:`e` from the orbital elements. The cosine of the solar zenith
+angle over a column at latitude :math:`\phi` and east longitude :math:`\lambda` is the
+instantaneous value
 
 .. math::
 
-   \cos(\theta_z) = \sin(\phi) \sin(\delta) + \cos(\phi) \cos(\delta) \cos(h)
+   \cos(\theta_z) = \sin(\phi) \sin(\delta) - \cos(\phi) \cos(\delta) \cos\left(2\pi\, f + \lambda\right)
 
-where :math:`\phi` is the latitude. When :math:`\cos(\theta_z) \le 0`, the sun is below the horizon
-and the direct-beam contribution is zero.
+where :math:`f` is the fraction of the UTC day elapsed, so that solar noon at a site falls at
+:math:`2\pi f + \lambda = \pi`. The latitude and longitude are the grid's own ``lat_m`` and
+``lon_m`` fields when a WRF or metgrid initialisation filled them, and ``erf.rad_cons_lat`` and
+``erf.rad_cons_lon`` otherwise. When :math:`\cos(\theta_z) \le 0` the sun is below the horizon and
+the direct-beam contribution is zero. The top-of-atmosphere irradiance is
+``erf.fixed_total_solar_irradiance`` when set, else :math:`1360.9\, e` W/m² (RRTMGP's reference
+value scaled by the distance factor of the date). RRTMGP averages :math:`\cos(\theta_z)` over its
+radiation interval; the two-stream model runs every step and uses the instantaneous value.
+
+With ``erf.fixed_solar_zenith_angle`` set (a cosine, applied to every column) no calendar is
+needed: the irradiance is then ``erf.fixed_total_solar_irradiance``, or, when that is not set
+either, :math:`1360.9\, e` W/m² if ``start_datetime`` is known and the unscaled 1360.9 W/m² if
+not.
 
 References
 --------------------------------------
@@ -400,8 +417,6 @@ Bhumralkar, C. M. (1974). Numerical experiments on the computation of ground sur
 Kirchhoff, G. R. (1860). Über die Beziehung zwischen den Emissionsvermögen und den Absorptionsvermögen der Körper für Wärmestrahlung. *Annalen der Physik und Chemie*, 109(3), 275–301.
 
 Meador, W. E., & Weaver, W. R. (1980). Two-stream approximations to radiative transfer in planetary atmospheres: A unified description of existing methods and a new improvement. *Journal of the Atmospheric Sciences*, 37(3), 630–643.
-
-Spencer, J. W. (1971). Fourier series representation of the position of the sun. *Search*, 2(5), 172.
 
 Stephens, G. L. (1978). Radiation profiles in extended water clouds. II: Parameterization schemes. *Journal of the Atmospheric Sciences*, 35, 2123–2132.
 

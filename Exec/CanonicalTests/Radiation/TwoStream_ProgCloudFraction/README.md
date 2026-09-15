@@ -76,4 +76,4 @@ The checker script verifies:
 
 ## Related Documentation
 
-- Cloud optical-depth formulation in `Source/Radiation/`
+- Cloud optical-depth formulation in `Source/Radiation/TwoStream/`

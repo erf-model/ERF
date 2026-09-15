@@ -4,30 +4,33 @@
 #include <vector>
 #include <cmath>
 
+#include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
 #include <ERF_Constants.H>
 
-typedef double real;
+// The orbital routines work in double regardless of amrex::Real: a calendar
+// day at ~1e2 with a fraction and the trig series need the precision.
 
 
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-orbital_decl (real& calday,
-              real& eccen,
-              real& mvelpp,
-              real& lambm0,
-              real& obliqr,
-              real& delta,
-              real& eccf)
+orbital_decl (double& calday,
+              double& eccen,
+              double& mvelpp,
+              double& lambm0,
+              double& obliqr,
+              double& delta,
+              double& eccf)
 {
 
-    real lambm;  // Lambda m, mean long of perihelion (rad)
-    real lmm;    // Intermediate argument involving lambm
-    real lamb;   // Lambda, the earths long of perihelion
-    real invrho; // Inverse normalized sun/earth distance
-    real sinl;   // Sine of lmm
-    static constexpr real dayspy = real(amrex::Real(365.0)); // Day per year
-    static constexpr real ve     = real( amrex::Real(80.5)); // Calday of vernal equinox
+    double lambm;  // Lambda m, mean long of perihelion (rad)
+    double lmm;    // Intermediate argument involving lambm
+    double lamb;   // Lambda, the earths long of perihelion
+    double invrho; // Inverse normalized sun/earth distance
+    double sinl;   // Sine of lmm
+    static constexpr double dayspy = double(amrex::Real(365.0)); // Day per year
+    static constexpr double ve     = double( amrex::Real(80.5)); // Calday of vernal equinox
 
     /*
      Compute eccentricity factor and solar declination using
@@ -79,12 +82,12 @@ AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 orbital_params (int& iyear_AD,
-                real& eccen,
-                real& obliq,
-                real& mvelp,
-                real& obliqr,
-                real& lambm0,
-                real& mvelpp)
+                double& eccen,
+                double& obliq,
+                double& mvelp,
+                double& obliqr,
+                double& lambm0,
+                double& mvelpp)
 {
     /*
     !-------------------------------------------------------------------------------
@@ -100,13 +103,13 @@ orbital_params (int& iyear_AD,
     int poblen  = 47; // # of elements in series wrt obliquity
     int pecclen = 19; // # of elements in series wrt eccentricity
     int pmvelen = 78; // # of elements in series wrt vernal equinox
-    static constexpr real psecdeg = real(one)/real(amrex::Real(3600.0)); // arc sec to deg conversion
-    static constexpr real degrad = PI/real(amrex::Real(180.)); // degree to radian conversion factor
+    static constexpr double psecdeg = double(one)/double(amrex::Real(3600.0)); // arc sec to deg conversion
+    static constexpr double degrad = PI/double(amrex::Real(180.)); // degree to radian conversion factor
 
     // Cosine series data for computation of obliquity: amplitude (arc seconds),
     // rate (arc seconds/year), phase (degrees).
     // amplitudes for obliquity cos series
-    std::vector<real> obamp =  {-amrex::Real(2462.2214466), -amrex::Real(857.3232075), -amrex::Real(629.3231835),
+    std::vector<double> obamp =  {-amrex::Real(2462.2214466), -amrex::Real(857.3232075), -amrex::Real(629.3231835),
                                  -amrex::Real(414.2804924), -amrex::Real(311.7632587),  amrex::Real(308.9408604),
                                  -amrex::Real(162.5533601), -amrex::Real(116.1077911),  amrex::Real(101.1189923),
                                   -amrex::Real(67.6856209),   amrex::Real(24.9079067),   amrex::Real(22.5811241),
@@ -123,7 +126,7 @@ orbital_params (int& iyear_AD,
                                     amrex::Real(1.4192259),   -amrex::Real(1.1818980),    amrex::Real(1.1756474),
                                    -amrex::Real(1.1316126),    amrex::Real(1.0896928)};
     // rates for obliquity cosine series
-    std::vector<real> obrate = {amrex::Real(31.609974), amrex::Real(32.620504), amrex::Real(24.172203),
+    std::vector<double> obrate = {amrex::Real(31.609974), amrex::Real(32.620504), amrex::Real(24.172203),
                                 amrex::Real(31.983787), amrex::Real(44.828336), amrex::Real(30.973257),
                                 amrex::Real(43.668246), amrex::Real(32.246691), amrex::Real(30.599444),
                                 amrex::Real(42.681324), amrex::Real(43.836462), amrex::Real(47.439436),
@@ -141,7 +144,7 @@ orbital_params (int& iyear_AD,
                                  amrex::Real(0.636717), amrex::Real(12.844549)};
 
     // phases for obliquity cosine series
-    std::vector<real> obphas = {amrex::Real(251.9025), amrex::Real(280.8325), amrex::Real(128.3057),
+    std::vector<double> obphas = {amrex::Real(251.9025), amrex::Real(280.8325), amrex::Real(128.3057),
                                 amrex::Real(292.7252),  amrex::Real(15.3747), amrex::Real(263.7951),
                                 amrex::Real(308.4258), amrex::Real(240.0099), amrex::Real(222.9725),
                                 amrex::Real(268.7809), amrex::Real(316.7998), amrex::Real(319.6024),
@@ -163,7 +166,7 @@ orbital_params (int& iyear_AD,
     // rate (arc seconds/year), phase (degrees).
 
     // ampl for eccen/fvelp cos/sin series
-    std::vector<real> ecamp = { amrex::Real(0.01860798),  amrex::Real(0.01627522), -amrex::Real(0.01300660),
+    std::vector<double> ecamp = { amrex::Real(0.01860798),  amrex::Real(0.01627522), -amrex::Real(0.01300660),
                                 amrex::Real(0.00988829), -amrex::Real(0.00336700),  amrex::Real(0.00333077),
                                -amrex::Real(0.00235400),  amrex::Real(0.00140015),  amrex::Real(0.00100700),
                                 amrex::Real(0.00085700),  amrex::Real(0.00064990),  amrex::Real(0.00059900),
@@ -172,7 +175,7 @@ orbital_params (int& iyear_AD,
                                 amrex::Real(0.00001250)};
 
     // rates for eccen/fvelp cos/sin series
-    std::vector<real> ecrate = { amrex::Real(4.2072050),  amrex::Real(7.3460910), amrex::Real(17.8572630),
+    std::vector<double> ecrate = { amrex::Real(4.2072050),  amrex::Real(7.3460910), amrex::Real(17.8572630),
                                 amrex::Real(17.2205460), amrex::Real(16.8467330),  amrex::Real(5.1990790),
                                 amrex::Real(18.2310760), amrex::Real(26.2167580),  amrex::Real(6.3591690),
                                 amrex::Real(16.2100160),  amrex::Real(3.0651810), amrex::Real(16.5838290),
@@ -181,7 +184,7 @@ orbital_params (int& iyear_AD,
                                  amrex::Real(0.6678630)};
 
     // phases for eccen/fvelp cos/sin series
-    std::vector<real> ecphas = { amrex::Real(28.620089), amrex::Real(193.788772), amrex::Real(308.307024),
+    std::vector<double> ecphas = { amrex::Real(28.620089), amrex::Real(193.788772), amrex::Real(308.307024),
                                 amrex::Real(320.199637), amrex::Real(279.376984),  amrex::Real(87.195000),
                                 amrex::Real(349.129677), amrex::Real(128.443387), amrex::Real(154.143880),
                                 amrex::Real(291.269597), amrex::Real(114.860583), amrex::Real(332.092251),
@@ -193,7 +196,7 @@ orbital_params (int& iyear_AD,
     // perihelion: amplitude (arc seconds), rate (arc sec/year), phase (degrees).
 
     // amplitudes for mvelp sine series
-    std::vector<real> mvamp = { amrex::Real(7391.0225890), amrex::Real(2555.1526947), amrex::Real(2022.7629188),
+    std::vector<double> mvamp = { amrex::Real(7391.0225890), amrex::Real(2555.1526947), amrex::Real(2022.7629188),
                                -amrex::Real(1973.6517951), amrex::Real(1240.2321818),  amrex::Real(953.8679112),
                                 -amrex::Real(931.7537108),  amrex::Real(872.3795383),  amrex::Real(606.3544732),
                                 -amrex::Real(496.0274038),  amrex::Real(456.9608039),  amrex::Real(346.9462320),
@@ -221,7 +224,7 @@ orbital_params (int& iyear_AD,
                                  -amrex::Real(10.1280191),   amrex::Real(10.0289441),  -amrex::Real(10.0034259)};
 
     // rates for mvelp sine series
-    std::vector<real> mvrate = {amrex::Real(31.609974), amrex::Real(32.620504), amrex::Real(24.172203),
+    std::vector<double> mvrate = {amrex::Real(31.609974), amrex::Real(32.620504), amrex::Real(24.172203),
                                  amrex::Real(0.636717), amrex::Real(31.983787),  amrex::Real(3.138886),
                                 amrex::Real(30.973257), amrex::Real(44.828336),  amrex::Real(0.991874),
                                  amrex::Real(0.373813), amrex::Real(43.668246), amrex::Real(32.246691),
@@ -249,7 +252,7 @@ orbital_params (int& iyear_AD,
                                  amrex::Real(1.196895),  amrex::Real(2.133898),  amrex::Real(0.173168)};
 
     // phases for mvelp sine series
-    std::vector<real> mvphas = {amrex::Real(251.9025), amrex::Real(280.8325), amrex::Real(128.3057),
+    std::vector<double> mvphas = {amrex::Real(251.9025), amrex::Real(280.8325), amrex::Real(128.3057),
                                 amrex::Real(348.1074), amrex::Real(292.7252), amrex::Real(165.1686),
                                 amrex::Real(263.7951),  amrex::Real(15.3747),  amrex::Real(58.5749),
                                  amrex::Real(40.8226), amrex::Real(308.4258), amrex::Real(240.0099),
@@ -277,23 +280,23 @@ orbital_params (int& iyear_AD,
                                 amrex::Real(250.4676), amrex::Real(332.3345),  amrex::Real(27.3039)};
 
     //---------------------------Local variables----------------------------------
-    real obsum;   // Obliquity series summation
-    real cossum;  // Cos series summation for eccentricity/fvelp
-    real sinsum;  // Sin series summation for eccentricity/fvelp
-    real fvelp;   // Fixed vernal equinox long of perihelion
-    real mvsum;   // mvelp series summation
-    real beta;    // Intermediate argument for lambm0
-    real years;   // Years to time of interest ( pos <=> future)
-    real eccen2;  // eccentricity squared
-    real eccen3;  // eccentricity cubed
-    real yb4_1950AD; // number of years before 1950 AD
+    double obsum;   // Obliquity series summation
+    double cossum;  // Cos series summation for eccentricity/fvelp
+    double sinsum;  // Sin series summation for eccentricity/fvelp
+    double fvelp;   // Fixed vernal equinox long of perihelion
+    double mvsum;   // mvelp series summation
+    double beta;    // Intermediate argument for lambm0
+    double years;   // Years to time of interest ( pos <=> future)
+    double eccen2;  // eccentricity squared
+    double eccen3;  // eccentricity cubed
+    double yb4_1950AD; // number of years before 1950 AD
 
     // Any of obliq/eccen/mvelp that is non-negative on entry was supplied by the
     // user and must survive this routine; the negative ones are the ones we fill
     // in below, either from the Berger series or from the AMIP II defaults.
-    real obliq_in = obliq;
-    real eccen_in = eccen;
-    real mvelp_in = mvelp;
+    double obliq_in = obliq;
+    double eccen_in = eccen;
+    double mvelp_in = mvelp;
 
     // Check for flag to use input orbit parameters
     if ( iyear_AD == ORB_UNDEF_INT ) {
@@ -333,7 +336,7 @@ orbital_params (int& iyear_AD,
           (1950) in formulas that follow.
         */
 
-        yb4_1950AD = real(amrex::Real(1950.0)) - real(iyear_AD);
+        yb4_1950AD = double(amrex::Real(1950.0)) - double(iyear_AD);
         years = - yb4_1950AD;
 
         /*
@@ -351,7 +354,7 @@ orbital_params (int& iyear_AD,
         for (int i(0); i<poblen; ++i) {
             obsum = obsum + obamp[i]*psecdeg*std::cos( (obrate[i]*psecdeg*years + obphas[i]) * degrad );
         }
-        obliq = real(amrex::Real(23.320556)) + obsum;
+        obliq = double(amrex::Real(23.320556)) + obsum;
 
         /*
           Summation of cosine and sine series for computation of eccentricity
@@ -410,7 +413,7 @@ orbital_params (int& iyear_AD,
         for (int i(0); i<pmvelen; ++i) {
             mvsum = mvsum + mvamp[i]*psecdeg*std::sin( (mvrate[i]*psecdeg*years + mvphas[i]) * degrad);
         }
-        mvelp = fvelp/degrad + real(amrex::Real(50.439273))*psecdeg*years + real(amrex::Real(3.392506)) + mvsum;
+        mvelp = fvelp/degrad + double(amrex::Real(50.439273))*psecdeg*years + double(amrex::Real(3.392506)) + mvsum;
 
     }  // end of test on whether to calculate or use input orbital params
 
@@ -471,39 +474,76 @@ orbital_params (int& iyear_AD,
 }
 
 
+/**
+ * Day of the year plus fraction of the day, with calday 1.0 at 00:00 UTC on
+ * 1 January, from a UTC calendar date: the form orbital_decl takes. Leap
+ * years add a day after February, as in the RRTMGP interface.
+ */
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
-real
-orbital_avg_cos_zenith (real& jday,
-                        real& lat,
-                        real& lon,
-                        real& declin,
-                        real& dt_avg)
+double
+orbital_calday (int year, int mon, int day, int sec)
+{
+    static constexpr double dpy[] = {zero, double(amrex::Real(31.0)), double(amrex::Real(59.0)),
+                                   double(amrex::Real(90.0)), double(amrex::Real(120.0)), double(amrex::Real(151.0)),
+                                   double(amrex::Real(181.0)), double(amrex::Real(212.0)), double(amrex::Real(243.0)),
+                                   double(amrex::Real(273.0)), double(amrex::Real(304.0)), double(amrex::Real(334.0))};
+    const bool leap = (year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0));
+    double calday = one + dpy[mon-1] + double(day - 1) + double(sec) / double(amrex::Real(86400.0));
+    if (leap && mon > 2) { calday += one; }
+    return calday;
+}
+
+/**
+ * Instantaneous cosine of the solar zenith angle at latitude lat and
+ * longitude lon (radians, east positive) at calday for declination declin
+ * (radians). This is the formula orbital_cos_zenith uses when it is not
+ * asked to average over an interval; it is callable from device code so a
+ * per-column kernel can evaluate it.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+double
+orbital_cos_zenith_instant (double jday, double lat, double lon, double declin)
+{
+    return std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
+           std::cos((jday - std::floor(jday))*double(two)*PI + lon);
+}
+
+
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+double
+orbital_avg_cos_zenith (double& jday,
+                        double& lat,
+                        double& lon,
+                        double& declin,
+                        double& dt_avg)
 {
     // adjust latitude so that its tangent will be defined
-    real del;
+    double del;
     if (lat == PIoTwo) {
-        del = lat - real(amrex::Real(1.0e-05));
+        del = lat - double(amrex::Real(1.0e-05));
     } else if (lat == -PIoTwo) {
-        del = lat + real(amrex::Real(1.0e-05));
+        del = lat + double(amrex::Real(1.0e-05));
     } else {
         del = lat;
     }
 
     // adjust declination so that its tangent will be defined
-    real phi;
+    double phi;
     if (declin == PIoTwo) {
-        phi = declin - real(amrex::Real(1.0e-05));
+        phi = declin - double(amrex::Real(1.0e-05));
     } else if (declin == -PIoTwo) {
-        phi = declin + real(amrex::Real(1.0e-05));
+        phi = declin + double(amrex::Real(1.0e-05));
     } else {
         phi = declin;
     }
 
     // define the cosine of the myhalf-day length
     // adjust for cases of all daylight or all night
-    real h;
-    real cos_h = - std::tan(del) * std::tan(phi);
+    double h;
+    double cos_h = - std::tan(del) * std::tan(phi);
     if (cos_h <= -one) {
         h = PI;
     } else if (cos_h >= one) {
@@ -514,25 +554,25 @@ orbital_avg_cos_zenith (real& jday,
 
     // Define Local Time t and t + dt
     // adjust t to be between -pi and pi
-    real t1 = (jday - int(jday)) * two*PI + lon - PI;
+    double t1 = (jday - int(jday)) * two*PI + lon - PI;
     if (t1 >= PI) {
         t1 = t1 - two*PI;
     } else if (t1 < -PI) {
         t1 = t1 + two*PI;
     }
 
-    real dt = dt_avg / real(amrex::Real(86400.0)) * two*PI;
-    real t2 = t1 + dt;
+    double dt = dt_avg / double(amrex::Real(86400.0)) * two*PI;
+    double t2 = t1 + dt;
 
     // Compute Cosine Solar Zenith angle
     // define terms needed in the cosine zenith angle equation
-    real aa = std::sin(lat) * std::sin(declin);
-    real bb = std::cos(lat) * std::cos(declin);
+    double aa = std::sin(lat) * std::sin(declin);
+    double bb = std::cos(lat) * std::cos(declin);
 
     // define the hour angle
     // force it to be between -h and h
     // consider the situation when the night period is too short
-    real tt1,tt2,tt3,tt4;
+    double tt1,tt2,tt3,tt4;
     if ( (t2 >= PI) && (t1 <= PI) && ((PI - h) <= dt) ) {
         tt2 = h;
         tt1 = std::min(std::max(t1,         -h),          h);
@@ -576,14 +616,14 @@ orbital_avg_cos_zenith (real& jday,
 
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
-real
-orbital_cos_zenith (real& jday,
-                    real& lat,
-                    real& lon,
-                    real& declin,
-                    real dt_avg = -one,
-                    real uniform_angle = -one,
-                    real constant_zenith_angle_deg = -one)
+double
+orbital_cos_zenith (double& jday,
+                    double& lat,
+                    double& lon,
+                    double& declin,
+                    double dt_avg = -one,
+                    double uniform_angle = -one,
+                    double constant_zenith_angle_deg = -one)
 {
     // Constant zenith angle is true
     if ( constant_zenith_angle_deg >= zero ) {
@@ -604,8 +644,7 @@ orbital_cos_zenith (real& jday,
     if (use_dt_avg) {
         return orbital_avg_cos_zenith(jday, lat, lon, declin, dt_avg);
     } else {
-        return  std::sin(lat)*std::sin(declin) - std::cos(lat)*std::cos(declin) *
-                std::cos((jday-floor(jday))*real(two)*PI + lon);
+        return orbital_cos_zenith_instant(jday, lat, lon, declin);
     }
 }
 #endif

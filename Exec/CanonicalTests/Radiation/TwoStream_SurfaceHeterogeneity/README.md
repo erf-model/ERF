@@ -25,7 +25,7 @@ This feature extends TwoStream to:
 - **Surface Properties**:
   - `surface_albedo_sw = 0.3` (typical land/water)
   - `surface_emissivity_lw = 0.99` (blackbody-like)
-  - `surface_temp_k = 300.0` (typical surface)
+  - `erf.rad_t_sfc = 300.0` (typical surface)
 - **Duration**: 2.5 seconds (5 timesteps at 0.5s each)
 
 ### Sounding File: `input_sounding_hetero`
@@ -50,7 +50,7 @@ In this test scenario:
 - **Surface Properties Used**: RadChoice scalar parameters
   - `surface_albedo_sw = 0.3`
   - `surface_emissivity_lw = 0.99`
-  - `surface_temp_k = 300.0`
+  - `erf.rad_t_sfc = 300.0`
 - **Expected Behavior**: 
   - SW flux = (incident flux) × (1 - 0.3) [i.e., 70% absorbed]
   - LW flux = 0.99 × σ × (300)^4 ≈ 450 W/m²

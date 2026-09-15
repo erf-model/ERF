@@ -112,7 +112,7 @@ def main():
     print(" Note: test runs in fallback mode (hetero fields all nullptr)")
     print("  - surface_albedo_sw = 0.3 (from inputs)")
     print("  - surface_emissivity_lw = 0.99 (from inputs)")
-    print("  - surface_temp_k = 300.0 K (from inputs)")
+    print("  - erf.rad_t_sfc = 300.0 K (from inputs)")
     print("  ✓ Fallback path being exercised (no hetero LSM fields available)")
 
     print("\n" + "="*70)

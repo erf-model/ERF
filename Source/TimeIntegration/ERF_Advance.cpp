@@ -450,9 +450,19 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // No column sweep runs here; that happened in advance_radiation above.
     // ***********************************************************************************************
     if (solverChoice.rad_type == RadiationType::TwoStream) {
+#ifdef ERF_USE_NETCDF
+        const MultiFab* lat_ptr = lat_m[lev].get();
+        const MultiFab* lon_ptr = lon_m[lev].get();
+#else
+        const MultiFab* lat_ptr = nullptr;
+        const MultiFab* lon_ptr = nullptr;
+#endif
+        const MultiFab* t_surf = (m_SurfaceLayer) ? m_SurfaceLayer->get_t_surf(lev) : nullptr;
         two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
-                               lsm, qheating_rates[lev].get());
+                               lsm, qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                               t_surf, lat_ptr, lon_ptr,
+                               time + dt_lev + start_time, use_datetime);
     }
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before
