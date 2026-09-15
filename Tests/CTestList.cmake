@@ -566,6 +566,9 @@ endfunction(add_test_cloud_chamber_most)
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
         -DLOG=${test_log}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
@@ -729,6 +732,9 @@ if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
+# Same stationary state as the _X case, but with erf.anelastic_type = MidPoint so the
+# vertical implicit diffusion stays on (the _X/_Y/_Z cases opt out with vert_implicit).
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X_MidPoint 0)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
@@ -1031,6 +1037,9 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
+if(ERF_ENABLE_FFT)
+    add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
+endif()
 add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
@@ -1061,6 +1070,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
+  # per-column surface and work arrays on the tile work box; a cube by
+  # immersed forcing makes them differ from column to column.
+  add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
+      VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      VARYING_3D "Kmv" VARYING_2D "pblh u_star")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -1340,6 +1357,11 @@ function(add_test_most_zref TEST_NAME)
 endfunction(add_test_most_zref)
 
 add_test_most_zref(MOST_Zref_Stretched)
+
+# Immersed-boundary surface energy balance on the faces of a height-map cube
+# (prognostic skin, slab conduction, heat flux into the air), 40 steps.
+add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
 # Performance tests

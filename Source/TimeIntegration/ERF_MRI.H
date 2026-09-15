@@ -49,6 +49,11 @@ private:
     */
     int anelastic;
 
+    /**
+    * \brief Which two-stage scheme the anelastic integrator uses
+    */
+    AnelasticType anelastic_type = AnelasticType::RK2;
+
    /**
     * \brief How many components in the cell-centered MultiFab
     */
@@ -108,7 +113,7 @@ public:
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    MRISplitIntegrator(MRISplitIntegrator&&)  noexcept = default;
+    MRISplitIntegrator (MRISplitIntegrator&&)  noexcept = default;
 
     // Declare a default move assignment operator
     MRISplitIntegrator& operator=(MRISplitIntegrator&& other)  noexcept = default;
@@ -118,7 +123,7 @@ public:
     // from scratch when needed instead of making a copy.
 
     // Delete the copy constructor
-    MRISplitIntegrator(const MRISplitIntegrator& other) = delete;
+    MRISplitIntegrator (const MRISplitIntegrator& other) = delete;
     //
     // Delete the copy assignment operator
     MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
@@ -127,7 +132,7 @@ public:
      * @brief Set the number of conservative components.
      * @param[in] _ncomp_cons Number of conservative components.
      */
-    void setNcompCons(int _ncomp_cons)
+    void setNcompCons (int _ncomp_cons)
     {
         ncomp_cons = _ncomp_cons;
     }
@@ -136,16 +141,25 @@ public:
      * @brief Set whether to use the anelastic integrator.
      * @param[in] _anelastic Integer flag (1 for anelastic, 0 for compressible).
      */
-    void setAnelastic(int _anelastic)
+    void setAnelastic (int _anelastic)
     {
         anelastic = _anelastic;
+    }
+
+    /**
+     * @brief Set which two-stage scheme the anelastic integrator uses.
+     * @param[in] _anelastic_type AnelasticType::RK2 or AnelasticType::MidPoint.
+     */
+    void setAnelasticType (AnelasticType _anelastic_type = AnelasticType::RK2)
+    {
+        anelastic_type = _anelastic_type;
     }
 
     /**
      * @brief Set whether acoustic substepping is disabled.
      * @param[in] _no_substepping Integer flag (1 to disable substepping).
      */
-    void setNoSubstepping(int _no_substepping)
+    void setNoSubstepping (int _no_substepping)
     {
         no_substepping = _no_substepping;
     }
@@ -154,7 +168,7 @@ public:
      * @brief Force the first RK stage to perform only a single substep.
      * @param[in] _force_stage1_single_substep Integer flag to enable this behavior.
      */
-    void setForceFirstStageSingleSubstep(int _force_stage1_single_substep)
+    void setForceFirstStageSingleSubstep (int _force_stage1_single_substep)
     {
         force_stage1_single_substep = _force_stage1_single_substep;
     }
@@ -359,28 +373,43 @@ public:
           } // nrk
 
         } else {
-          // RK2 for anelastic integrator
-          for (int nrk = 0; nrk < 2; nrk++)
-          {
-            // Capture the time we got to in the previous RK step
-            old_time_stage = time_stage;
+            // Two-stage integrator for the anelastic equations.
+            //
+            // SSP-RK2 (Heun): both stages advance a full timestep from S^n, and the
+            //     second stage averages the slow source with the one from the first,
+            //     which erf_slow_rhs_{pre,post} do when (anelastic_type == RK2 && nrk == 1).
+            //
+            // MidPoint: the first stage advances only a half timestep,
+            //     S^*   = S^n + (dt/2) F(S^n)
+            //     S^n+1 = S^n +  dt    F(S^*)
+            //     and the second stage takes no average. The vertical diffusion
+            //     is second order in time with a tridiagonal solve in the first
+            //     stage only and none in the second.
+            const bool l_midpoint = (anelastic_type == AnelasticType::MidPoint);
 
-            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
-            if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
+            for (int nrk = 0; nrk < 2; nrk++)
+            {
+                // Capture the time we got to in the previous RK step
+                old_time_stage = time_stage;
 
-            slow_rhs_pre(*F_slow, S_old, S_new, time, old_time_stage, time_stage, nrk);
+                // Set the timestep for this stage -- both stages advance from the old time
+                nsubsteps  = 1;
+                dtau       = (l_midpoint && (nrk == 0)) ? myhalf * timestep : timestep;
+                time_stage = time + nsubsteps * dtau;
 
-            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
+                slow_rhs_pre(*F_slow, S_old, S_new, time, old_time_stage, time_stage, nrk);
 
-            // ****************************************************
-            // Evaluate F_slow(S_stage) only for the slow variables
-            // Note that we are using the current stage versions (in S_new) of the slow variables
-            //      (because we didn't update the slow variables in the substepping)
-            //       but we are using the "new" versions (in S_sum) of the velocities
-            //      (because we did    update the fast variables in the substepping)
-            // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
-          } // nrk
+                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
+
+                // ****************************************************
+                // Evaluate F_slow(S_stage) only for the slow variables
+                // Note that we are using the current stage versions (in S_new) of the slow variables
+                //      (because we didn't update the slow variables in the substepping)
+                //       but we are using the "new" versions (in S_sum) of the velocities
+                //      (because we did    update the fast variables in the substepping)
+                // ****************************************************
+                slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
+            } // nrk
         }
 
         // Return timestep

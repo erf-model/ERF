@@ -4,6 +4,7 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <set>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -57,6 +58,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -715,6 +717,15 @@ public:
 
     void init_immersed_forcing (int lev);
 
+    // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
+    void init_ibseb ();
+    void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
+    void ibseb_report (int nstep, amrex::Real time);
+    amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
+                                              const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
+    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt, const amrex::MultiFab& cons,
+                        const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel);
+
     void input_sponge (int lev);
 
     void init_from_hse (int lev);
@@ -806,6 +817,14 @@ public:
 #endif
 
     std::string pp_prefix {"erf"};
+
+    // The inputs table as the user wrote it, captured at the top of
+    // ReadParameters before anything in ERF can add to it.  ParmParse::queryAdd
+    // inserts the default it was handed whenever a key is absent, so by the time
+    // initialization is under way the table no longer distinguishes a key the
+    // user typed from a key some other query defaulted (see
+    // has_surface_layer_inputs).
+    std::set<std::string> user_specified_inputs;
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               double time);
@@ -910,6 +929,8 @@ private:
     // read in some parameters from inputs file
     void ReadParameters ();
     void ParameterSanityChecks ();
+
+    [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
 
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();
@@ -1217,7 +1238,12 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
+    // Radiation fluxes (SW up, SW down, LW up, LW down) [W/m^2] at the
+    // interfaces (OUTPUT ONLY). Index k holds the lower interface of layer k
+    // (k = klo is the surface); the top-of-atmosphere interface is stored in
+    // the z-ghost cell k = khi + 1, so the array has one ghost cell in z.
+    // Both RRTMGP and the two-stream model fill all nz + 1 levels.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;
 
     // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
     // surface and SEB state; every call from ERF is behind a test of
@@ -1296,6 +1322,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
+
+    // Immersed-boundary surface energy balance: inputs and one face set per level
+    IBSEBParams ibseb_params;
+    amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
@@ -1524,13 +1554,18 @@ private:
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
+                                                    "ibseb_nfaces", "ibseb_tskin",
+                                                    "ibseb_sw_abs", "ibseb_shadow",
+                                                    "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G",
                                                     // EB variables
                                                     "volfrac"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-                                                    ,"qsrc_sw", "qsrc_lw"
+                                                    ,"qsrc_sw", "qsrc_lw",
+                                                    "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23", "Tau31", "Tau32", "Tau33",
+                                                    "hfx1", "hfx2", "hfx3", "q1fx1", "q1fx2", "q1fx3", "q2fx3"
                                                    };
 
     // **************************************************************************************
@@ -1743,7 +1778,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
+    amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

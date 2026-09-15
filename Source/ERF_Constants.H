@@ -4,11 +4,6 @@
 #include <cmath>
 #include <limits>
 #include <AMReX_REAL.H>
-
-// Dimensionless numeric literals (zero, one, myhalf, ...) and the pure
-// mathematical constants (PI, PIoTwo, four_thirds_pi) live here.  This header
-// is included so that every existing consumer of ERF_Constants.H keeps seeing
-// them; code that needs only numeric literals should include it directly.
 #include "ERF_NumericalConstants.H"
 
 // Safe overly large value to fill data so that it is not uninitialized
@@ -65,19 +60,10 @@ constexpr amrex::Real ip_0         = one/p_0;
 constexpr amrex::Real iR_d         = one/R_d;
 constexpr amrex::Real iGamma       = one/Gamma;
 
-// Molecular / kinetic-theory constants.  These duplicate, in a different unit
-// convention, the s_kb / s_N_av / s_mol_weight_air statics on
-// MaterialPropertiesCore; consolidating them is left to a separate change.
-// Consumers: Particles/ERF_SuperDropletPCCoalescence.H and
-// PhysicsInterfaces/Radiation/ERF_Radiation.cpp.
+// Molecular / kinetic-theory constants.
 constexpr amrex::Real boltz    = amrex::Real(1.38065e-23);
 constexpr amrex::Real avogadro = amrex::Real(6.02214e26);
 constexpr amrex::Real mwdair   = amrex::Real(28.966);
-
-// Constants used solely by the moisture and cloud-physics code -- hydrometeor
-// densities, phase-partition temperature thresholds, fall speeds,
-// autoconversion and collection coefficients, size-distribution intercepts and
-// latent heats -- now live in Source/Microphysics/ERF_MicrophysicsConstants.H.
 
 static constexpr int  ORB_UNDEF_INT  = 2000000000;  // undefined int
 #endif

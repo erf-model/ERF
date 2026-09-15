@@ -1,7 +1,7 @@
 # Two-Stream Radiation: Time-Varying Solar Geometry Test (Baseline)
 #
 # This test validates backward compatibility:
-# - With solar_geometry_dynamic_enable = false (default), code behavior is
+# - With erf.fixed_solar_zenith_angle set the sun is fixed and the behavior is
 # bitwise-identical to the feature-off baseline (fixed solar_zenith_deg).
 # - Confirms no regressions in existing TwoStream functionality.
 #
@@ -89,14 +89,15 @@ erf.abl_geo_wind = 15.0 0.0 0.0
 erf.input_sounding_file = "input_sounding"
 
 # RADIATION - Two-Stream SW + LW
-# Baseline: solar_geometry_dynamic_enable = false (the baseline behavior)
+# Baseline: fixed sun (erf.fixed_solar_zenith_angle set above)
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 1.0
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
+erf.fixed_solar_zenith_angle = 0.5    # cos(60 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 
 # RADIATION - Cloud properties
 erf.radiation.tau_profile_type = "constant"
@@ -106,12 +107,9 @@ erf.radiation.cloud_tau_per_layer = 0.0  # No cloud
 erf.radiation.cloud_fraction = 0.0
 
 # RADIATION - Solar Geometry (disabled for backward compat baseline)
-erf.radiation.solar_geometry_dynamic_enable = false
 # Parameters below are ignored when disabled, but specified for completeness:
-erf.radiation.latitude_deg = 45.0
-erf.radiation.longitude_deg = 0.0
-erf.radiation.day_of_year = 172.0
-erf.radiation.time_zone_offset_hours = 0.0
+erf.rad_cons_lat = 45.0
+erf.rad_cons_lon = 0.0
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1

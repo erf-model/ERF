@@ -69,7 +69,10 @@ that region, i.e. the grids are not decomposed in the z direction; see
    of the refinement ratio.  It is set by the refinement box for static
    refinement (see :ref:`subsec:full-depth-refinement`) and by the tagging
    criterion, optionally buffered in z, for dynamic refinement (see
-   :ref:`subsec:dynamic-full-depth`).
+   :ref:`subsec:dynamic-full-depth`).  It can also be set once and for all with
+   ``amr.refine_whole_domain_dir``, which makes every level greater than 0 cover
+   the entire domain in a chosen direction regardless of how the cells were
+   tagged; see :ref:`subsec:refine-whole-domain-dir`.
 
    **The vertical decomposition of that region into individual grids** -- whether
    the region is chopped in z into several boxes so that they can be distributed
@@ -212,6 +215,10 @@ the number of cells in z is changed.  Each of ``in_box_lo`` and ``in_box_hi``
 and the lo and hi specifications for a given indicator must have the same number
 of values.
 
+``amr.refine_whole_domain_dir = 2`` achieves the same thing from the other end:
+it makes every fine level span the full depth no matter how the boxes are
+specified.  See :ref:`subsec:refine-whole-domain-dir`.
+
 Some options **require** a refinement region that spans the full depth of the
 domain.  The PBL models -- MYJ, MYNN2.5, MYNN-EDMF, YSU and MRF -- compute the
 height of the boundary layer by working up each column, so every box must go from
@@ -265,6 +272,10 @@ Two things to watch, both specific to how the box is specified:
 -  All three components must be given.  The two-value form described above fills the
    vertical extent with the full depth of the domain, which is the opposite of what is
    wanted here.
+
+-  ``amr.refine_whole_domain_dir`` must not be set to 2, since that overrides the
+   vertical extent of every refinement box and gives the full depth of the domain;
+   see :ref:`subsec:refine-whole-domain-dir`.
 
 -  The z values are located on the nominal (undeformed) vertical grid -- that is, on
    ``zlevels_stag`` -- and not on the terrain-following heights, so the box may not reach
@@ -374,28 +385,76 @@ cells may be tagged; it does not force the resulting fine grids to fill that
 region.  Left to itself, the vertical extent of a dynamically created grid simply
 follows the cells that satisfy the criterion.
 
-The full depth of the domain can nonetheless be enforced by using the vertical
-buffer ``amr.n_error_buf_z``.  Before the grids are generated, the set of tagged
-cells is grown by ``amr.n_error_buf`` cells in each direction, and that buffer
-may be set per direction.  If the vertical buffer is at least as large as the
-number of cells in the z direction at the level being tagged, then every tagged
-cell is grown into a full column and the resulting boxes reach from the bottom of
-the domain to the top.  For a domain with 64 cells in the vertical, for example,
+The full depth of the domain can nonetheless be enforced, and the simplest way to
+do so is ``amr.refine_whole_domain_dir = 2``, which makes the fine grids span the
+domain in z wherever the criterion fires; see
+:ref:`subsec:refine-whole-domain-dir`.
+
+.. _subsec:refine-whole-domain-dir:
+
+Refining the Whole Domain in One Direction
+------------------------------------------
+
+The mechanisms above shape the refined region one indicator at a time.  There is
+also a single switch, ``amr.refine_whole_domain_dir``, which requires *every*
+level greater than 0 to cover the entire domain in one coordinate direction, no
+matter where the cells are tagged.  It takes the index of that direction -- 0 for
+x, 1 for y, 2 for z -- and defaults to -1, which disables it.  The setting of
+interest to almost every ERF workflow is
 
 ::
 
-          amr.n_error_buf_x = 2
-          amr.n_error_buf_y = 2
-          amr.n_error_buf_z = 64
+          amr.refine_whole_domain_dir = 2
 
-This is not the most efficient way to obtain full-depth refinement -- the tag
-arrays are allocated with ``n_error_buf`` ghost cells and the buffering is redone
-at every regrid, so a large vertical buffer costs both memory and time -- but it
-requires no advance knowledge of where the criterion will trigger, which is
-exactly the situation in which dynamic refinement is used.
+With this set, tagging a cell behaves as if the entire column of cells through it
+had been tagged, so the finer level runs from the bottom of the domain to the top
+wherever it appears.  This holds for both ways of tagging:
 
-This technique applies only to dynamic refinement: ERF aborts with
-``Don't use n_error_buf > 0 when setting the box explicitly`` if a nonzero
-``n_error_buf`` is combined with an explicitly specified refinement box.  For
-static refinement, use the two-value form described in
-:ref:`subsec:full-depth-refinement` instead.
+-  with a **static** refinement box, the box still selects the region in x and y,
+   but its vertical extent no longer matters -- the fine grids span the full depth
+   even if ``in_box_lo`` / ``in_box_hi`` asked for only part of it;
+
+-  with **dynamic** tagging, the fine grids span the full depth wherever the
+   criterion fires, with no need to know in advance where that will be.
+
+Because the clustering is then carried out in one fewer dimension,
+``amr.grid_eff`` refers to the fraction of tagged cells in the plane
+perpendicular to that direction -- here, the fraction of tagged columns in the
+x-y plane.
+
+The region covering the domain in z may still be *chopped* in z into several
+boxes by ``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``: their union
+always covers the full depth, but an individual box then does not.  With the ERF
+defaults for those two parameters (see :ref:`subsec:no-vertical-decomposition`)
+no such chopping occurs, so each box by itself reaches from the bottom of the
+domain to the top, which is what the PBL models and the column-integral
+diagnostics require.
+
+A few things to know:
+
+-  The option applies only to levels greater than 0, i.e. the levels created by
+   tagging; level 0 covers the domain in all three directions in any case.
+
+-  It is a global setting: it applies to every refinement indicator and every
+   level, so it cannot give one nest the full depth and another only part of it.
+   In particular, do not set it when a partial-depth nest is wanted (see
+   :ref:`subsec:partial-depth-refinement`).
+
+-  The check that aborts when a PBL model is used with a refinement box that does
+   not span the domain in z (see :ref:`subsec:full-depth-refinement`) tests the
+   box as specified in the inputs file, and does not know that
+   ``amr.refine_whole_domain_dir`` would have extended the grids.  For the same
+   reason, initialization of a nest from a wrfinput file fills the box registered
+   by the indicator (the one ERF echoes as ``Saving in 'boxes at level'``), not
+   the grids that tagging finally produced.  In both cases the box itself should
+   still be given the full depth, which the two-value form of
+   :ref:`subsec:full-depth-refinement` does automatically.
+
+-  On each level, the number of cells in that direction must be divisible by the
+   next finer level's ``amr.blocking_factor`` in that direction divided by the
+   refinement ratio, since that is the factor by which the tags are coarsened
+   before they are clustered.  The ERF default ``amr.blocking_factor`` of 1 makes
+   this automatic; AMReX otherwise aborts with ``Domain size not divisible by
+   blocking_factor/ref_ratio in refine_whole_domain_dir``.
+
+-  The option is not supported in builds that use bittree.
