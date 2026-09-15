@@ -390,32 +390,6 @@ do so is ``amr.refine_whole_domain_dir = 2``, which makes the fine grids span th
 domain in z wherever the criterion fires; see
 :ref:`subsec:refine-whole-domain-dir`.
 
-The same effect can be obtained with the vertical buffer ``amr.n_error_buf_z``,
-which predates that option.  Before the grids are generated, the set of tagged
-cells is grown by ``amr.n_error_buf`` cells in each direction, and that buffer
-may be set per direction.  If the vertical buffer is at least as large as the
-number of cells in the z direction at the level being tagged, then every tagged
-cell is grown into a full column and the resulting boxes reach from the bottom of
-the domain to the top.  For a domain with 64 cells in the vertical, for example,
-
-::
-
-          amr.n_error_buf_x = 2
-          amr.n_error_buf_y = 2
-          amr.n_error_buf_z = 64
-
-This is the more expensive of the two mechanisms -- the tag arrays are allocated
-with ``n_error_buf`` ghost cells and the buffering is redone at every regrid, so a
-large vertical buffer costs both memory and time -- and the value has to be
-revisited whenever the number of cells in the vertical changes, so
-``amr.refine_whole_domain_dir`` is preferred for new inputs files.
-
-This technique applies only to dynamic refinement: ERF aborts with
-``Don't use n_error_buf > 0 when setting the box explicitly`` if a nonzero
-``n_error_buf`` is combined with an explicitly specified refinement box.  For
-static refinement, use the two-value form described in
-:ref:`subsec:full-depth-refinement` instead.
-
 .. _subsec:refine-whole-domain-dir:
 
 Refining the Whole Domain in One Direction
