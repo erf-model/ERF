@@ -1,0 +1,7 @@
+FILE = inputs_deardorff
+
+# The Deardorff run checkpointed at step 300, for the restart check.
+erf.check_int = 300
+max_step = 300
+erf.ibseb.csv_file = "ibseb_deardorff_chk.csv"
+erf.ibseb.dump_faces_file = "faces_deardorff_chk"

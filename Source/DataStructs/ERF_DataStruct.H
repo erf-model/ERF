@@ -1035,6 +1035,15 @@ struct SolverChoice {
 
         pp.queryAdd("if_Olen", if_Olen_in);
         pp.queryAdd("if_use_most",if_use_most);
+        pp.queryAdd("if_snap_partial_cells",if_snap_partial_cells);
+        // The snapped staircase puts full-strength forcing on every wall face,
+        // whose explicit relaxation rate (Cd / dx per substep) sits at the
+        // stability limit and fails where faces stack at rims and corners; the
+        // point-implicit form holds at any rate, so the snap uses it.
+        if (if_snap_partial_cells && !if_implicit_drag) {
+            amrex::Print() << "erf.if_snap_partial_cells: using the point-implicit drag (erf.if_implicit_drag = true)\n";
+            if_implicit_drag = true;
+        }
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
@@ -1968,6 +1977,7 @@ struct SolverChoice {
     amrex::Real if_surf_heating_rate     = zero;               // [K/hr]
     amrex::Real if_Olen_in               = amrex::Real(1e-8);  // [m]
     bool        if_use_most              = false;
+    bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
@@ -2341,6 +2351,30 @@ struct SolverChoice {
  * @brief Input Obukhov length for immersed-forcing MOST [m].
  * @var SolverChoice::if_use_most
  * @brief Whether immersed-forcing MOST is enabled.
+ * @var SolverChoice::if_snap_partial_cells
+ * When true, the immersed forcing reads the blanking snapped to solid (1) or
+ * fluid (0) at half, so a building from a height map becomes the same
+ * staircase of whole cells an exact box is: the wall law (and the thermal
+ * conditions) sit on the boundary solid cells, roofs included, the drag on
+ * the interior cells, and nothing on the sliver cells of the reader's
+ * one-cell ramp (1-20 percent solid at the corners), on which the raw
+ * fractions make the wall law and the drag disagree and grow a vertical
+ * checkerboard over hours. The staircase puts full-strength forcing on every
+ * wall face, so the switch also selects the point-implicit drag form
+ * (if_implicit_drag), without which the explicit rate at rims and corners
+ * drives the density negative within seconds. The momentum kernels take the
+ * blanking of a face from the two cells it joins (solid if either is), so
+ * the staircase is the same with and without the face-centred blanking of
+ * the build; a face between a solid and a fluid cell is wall-normal and gets
+ * the interior drag toward zero (no penetration) whichever row it lies in,
+ * and a face between two solid cells the roof or wall law of its row (with
+ * the full log-law target; the partial-cell weight of the target is not
+ * applied) or the interior drag. Buildings only (erf.buildings_type = ImmersedForcing): the
+ * terrain kernels keep the raw fractions, whose wall law is weighted by the
+ * fluid fraction of the face. Default false, the raw fractions, for backward
+ * compatibility (on an exact box a boundary cell then carries the wall law
+ * and the interior drag together, and the roof only the drag); set it for
+ * height-map buildings.
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor
