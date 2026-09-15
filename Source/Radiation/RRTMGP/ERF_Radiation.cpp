@@ -12,6 +12,7 @@
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 
+#include <cmath>
 #include <filesystem>
 #include "ERF_Constants.H"
 #include <sstream>
@@ -140,6 +141,17 @@ Radiation::Radiation (const int& lev,
     // Get a constant lat/lon for idealized simulations
     pp.queryAdd("rad_cons_lat", m_lat_cons);
     pp.queryAdd("rad_cons_lon", m_lon_cons);
+
+    // Both models read these keys and feed them to the same cos-zenith formula in the
+    // same units, so apply the range checks RadChoice::init_params already applies.
+    if (!std::isfinite(m_lat_cons) || m_lat_cons < Real(-90.0) || m_lat_cons > Real(90.0)) {
+        amrex::Abort("erf.rad_cons_lat = " + std::to_string(m_lat_cons) +
+                     " must lie in [-90, 90] degrees.");
+    }
+    if (!std::isfinite(m_lon_cons) || m_lon_cons < Real(-180.0) || m_lon_cons > Real(180.0)) {
+        amrex::Abort("erf.rad_cons_lon = " + std::to_string(m_lon_cons) +
+                     " must lie in [-180, 180] degrees.");
+    }
 
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than zero
