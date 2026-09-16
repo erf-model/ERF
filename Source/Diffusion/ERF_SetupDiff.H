@@ -5,6 +5,13 @@
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
 
+    [[maybe_unused]] const bool SurfLayer_xlo = use_SurfLayer && SurfLayer[amrex::Orientation::xlo()] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_ylo = use_SurfLayer && SurfLayer[amrex::Orientation::ylo()] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zlo = use_SurfLayer && SurfLayer[amrex::Orientation::zlo()] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_xhi = use_SurfLayer && SurfLayer[amrex::Orientation::xhi()] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_yhi = use_SurfLayer && SurfLayer[amrex::Orientation::yhi()] != nullptr;
+    [[maybe_unused]] const bool SurfLayer_zhi = use_SurfLayer && SurfLayer[amrex::Orientation::zhi()] != nullptr;
+
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
