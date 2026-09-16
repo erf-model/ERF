@@ -32,7 +32,7 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaAndWritesLsmAbs
     amrex::Real lsm_t_sfc = lsm_undefined;
     rrtmgp::resolve_surface_temperature(
         true, true, false, lsm_t_sfc,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
@@ -56,7 +56,7 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackTakesPrecedenceOverWaterLsmT
     amrex::Real lsm_t_sfc = valid_lsm_temperature;
     rrtmgp::resolve_surface_temperature(
         false, true, true, valid_lsm_temperature,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
@@ -74,7 +74,7 @@ TEST(RRTMGP_SurfaceTemperature, ValidLsmTemperatureIsNotExnerConverted)
     amrex::Real lsm_t_sfc = valid_lsm_temperature;
     rrtmgp::resolve_surface_temperature(
         true, true, true, valid_lsm_temperature,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_EQ(t_sfc, valid_lsm_temperature);
@@ -89,7 +89,7 @@ TEST(RRTMGP_SurfaceTemperature, DefaultTemperatureIsAlreadyAbsolute)
     amrex::Real t_sfc = -1.0;
     rrtmgp::resolve_surface_temperature(
         true, false, false, 0.0,
-        false, 0.0, kSurfacePressure, kDefaultTemperature,
+        false, 0.0, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, nullptr);
 
     EXPECT_EQ(t_sfc, kDefaultTemperature);
@@ -104,7 +104,7 @@ TEST(RRTMGP_SurfaceTemperature, InvalidSurfacePressureUsesAbsoluteFallback)
     amrex::Real lsm_t_sfc = lsm_undefined;
     rrtmgp::resolve_surface_temperature(
         true, true, false, lsm_undefined,
-        true, kSurfaceTheta, amrex::Real(-1.0), kDefaultTemperature,
+        true, kSurfaceTheta, amrex::Real(-1.0), RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_EQ(t_sfc, kDefaultTemperature);

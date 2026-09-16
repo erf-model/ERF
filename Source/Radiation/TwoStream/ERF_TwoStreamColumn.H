@@ -73,6 +73,7 @@ struct TwoStreamParams
     amrex::Real surface_albedo_sw_diffuse = -1.0;
     amrex::Real surface_emissivity_lw = 0.99;
     amrex::Real t_sfc_default = 300.0;   // erf.rad_t_sfc
+    amrex::Real rdOcp = RdoCp;
 
     bool tau_sw_dynamic_enable = false;
     bool tau_lw_dynamic_enable = false;
@@ -122,7 +123,8 @@ static_assert(std::is_trivially_copyable<TwoStreamParams>::value,
 /**
  * @brief Copy the column-kernel parameters out of a RadChoice.
  */
-inline TwoStreamParams make_two_stream_params (const RadChoice& rc)
+inline TwoStreamParams make_two_stream_params (const RadChoice& rc,
+                                                const amrex::Real rdOcp)
 {
     TwoStreamParams p;
     p.sw_enabled = rc.sw_enabled;
@@ -141,6 +143,7 @@ inline TwoStreamParams make_two_stream_params (const RadChoice& rc)
     p.surface_albedo_sw_diffuse = rc.surface_albedo_sw_diffuse;
     p.surface_emissivity_lw = rc.surface_emissivity_lw;
     p.t_sfc_default = rc.rad_t_sfc;
+    p.rdOcp = rdOcp;
     p.tau_sw_dynamic_enable = rc.tau_sw_dynamic_enable;
     p.tau_lw_dynamic_enable = rc.tau_lw_dynamic_enable;
     p.tau_sw_coeff_qv = rc.tau_sw_coeff_qv;
@@ -216,42 +219,11 @@ amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
     return T;
 }
 
-/**
- * @brief Clamp a real value to [min, max], with fallback for invalid (NaN/Inf).
- *
- * If the value is not finite (NaN, Inf), returns fallback. Otherwise returns
- * value clamped to [min, max].
- *
- * @param[in] value Input value to clamp
- * @param[in] min Lower bound
- * @param[in] max Upper bound
- * @param[in] fallback Value to use if input is not finite
- * @return Clamped finite value in [min, max]
- */
+/** @brief Check whether a heterogeneous absolute surface temperature is valid. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real clamp_finite (amrex::Real value,
-                          amrex::Real min,
-                          amrex::Real max,
-                          amrex::Real fallback)
+bool valid_surface_temperature (amrex::Real value)
 {
-    if (!std::isfinite(value)) {
-        value = fallback;
-    }
-    if (value < min) value = min;
-    if (value > max) value = max;
-    return value;
-}
-
-/**
- * @brief Check if a real value is finite and positive.
- *
- * @param[in] value Value to check
- * @return true if finite and > 0, false otherwise
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool is_finite_positive (amrex::Real value)
-{
-    return std::isfinite(value) && value > 0.0;
+    return std::isfinite(value) && value > 0.0 && value < lsm_undefined;
 }
 
 /**
@@ -279,8 +251,8 @@ amrex::Real resolve_surface_albedo_sw (
 
     if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
-        if (std::isfinite(hetero_val)) {
-            alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
+        if (std::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+            alb = hetero_val;
         }
     }
 
@@ -312,8 +284,8 @@ amrex::Real resolve_surface_emissivity_lw (
 
     if (has_hetero_emiss && hetero_emiss_lw != nullptr && hetero_emiss_lw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_emiss_lw)(i, j, 0, 0);  // Assume single component
-        if (std::isfinite(hetero_val)) {
-            emiss = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_emissivity_lw);
+        if (std::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+            emiss = hetero_val;
         }
     }
 
@@ -347,7 +319,7 @@ amrex::Real resolve_surface_temp_k (
 
     if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
         amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
-        if (is_finite_positive(hetero_val)) {
+        if (valid_surface_temperature(hetero_val)) {
             t_surf = hetero_val;
             from_field = true;
         }
@@ -1157,7 +1129,7 @@ void vertical_two_stream_sweep (
                 const amrex::Real pressure = erf_surface_temperature::pressure_at_surface(
                     rho, rho_theta, qv, delta_z);
                 if (!erf_surface_temperature::theta_to_temperature(
-                        t_surface, pressure, t_surface)) {
+                        t_surface, pressure, rad_choice.rdOcp, t_surface)) {
                     t_surface = rad_choice.t_sfc_default;
                 }
             }

@@ -54,6 +54,7 @@ public:
    * @param[in]     a_mesh_type         mesh type
    * @param[in]     a_terrain_type      terrain representation
    * @param[in]     a_turb_choice       turbulence-model options
+   * @param[in]     a_rdOcp             configured Rd/cp exponent for T-theta conversions
    * @param[in]     start_low_time      first available low-boundary-data time
    * @param[in]     final_low_time      final available low-boundary-data time
    * @param[in]     low_time_interval   low-boundary-data time interval
@@ -69,6 +70,7 @@ public:
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
+                         amrex::Real a_rdOcp,
                          double start_low_time,
                          double final_low_time,
                          double low_time_interval = 0.0,
@@ -82,6 +84,7 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
+    m_rdOcp(a_rdOcp),
     m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
          zlevels_stag, eb_vec)
   {
@@ -539,10 +542,9 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          if (lc_name == "theta" || lc_name == "t_surf" || lc_name == "t_sfc") {
+          if (lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
-              m_lsm_tsurf_is_theta = (lc_name == "theta");
           }
       }
       if (m_use_sfc_sst && m_use_coupled_sst) {
@@ -1442,7 +1444,6 @@ private:
   bool use_moisture;
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
-  bool m_lsm_tsurf_is_theta = false;
   int  m_lsm_tsurf_indx = -1;
 
   // variables for sfc/sst forcing from file
@@ -1462,11 +1463,11 @@ private:
   amrex::Real m_Cd = zero;
   amrex::Real m_Ch = zero;
   amrex::Real m_Cq = zero;
-
   bool m_ignore_sst = false;
 
   amrex::Vector<const eb_*> m_eb_vec;
   TerrainType m_terrain_type;
+  amrex::Real m_rdOcp = RdoCp;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;

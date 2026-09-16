@@ -387,8 +387,9 @@ physical surface pressure diagnosed from the lowest atmospheric cell. In
 contrast, ``erf.most.surf_temp`` and ``erf.most.surf_heating_rate`` are already
 specified in the SurfaceLayer potential-temperature convention. SST and
 skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
-that same convention at ingestion; coupled SST and absolute LSM ``t_sfc``
-values are converted when they enter the SurfaceLayer.
+that same convention at ingestion; coupled SST is converted when it enters
+the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
+radiation path and is not adopted as the SurfaceLayer field.
 
 Notes
 ^^^^^

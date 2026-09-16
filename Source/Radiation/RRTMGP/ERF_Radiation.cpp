@@ -86,6 +86,7 @@ Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
     // Note that Kokkos is now initialized in main.cpp
+    m_rdOcp = sc.rdOcp;
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
@@ -611,6 +612,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
     Real cons_lat = m_lat_cons;
     Real cons_lon = m_lon_cons;
     Real rad_t_sfc = m_rad_t_sfc;
+    Real rdOcp = m_rdOcp;
 
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
@@ -785,6 +787,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                 moist ? std::max(cons_arr(i,j,k_surface,RhoQ1_comp) /
                                                  cons_arr(i,j,k_surface,Rho_comp), Real(0.)) : Real(0.),
                                 z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
+                            rdOcp,
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol),
                             has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);

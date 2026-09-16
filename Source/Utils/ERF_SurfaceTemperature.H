@@ -41,12 +41,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 theta_to_temperature (const amrex::Real theta,
                       const amrex::Real pressure,
+                      const amrex::Real rdOcp,
                       amrex::Real& temperature)
 {
-    if (!valid_pressure(pressure) || !valid_temperature(theta)) {
+    if (!valid_pressure(pressure) || !valid_temperature(theta) ||
+        !std::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
         return false;
     }
-    const amrex::Real result = getTgivenPandTh(pressure, theta, RdoCp);
+    const amrex::Real result = getTgivenPandTh(pressure, theta, rdOcp);
     if (!valid_temperature(result)) {
         return false;
     }
@@ -58,12 +60,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 temperature_to_theta (const amrex::Real temperature,
                       const amrex::Real pressure,
+                      const amrex::Real rdOcp,
                       amrex::Real& theta)
 {
-    if (!valid_pressure(pressure) || !valid_temperature(temperature)) {
+    if (!valid_pressure(pressure) || !valid_temperature(temperature) ||
+        !std::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
         return false;
     }
-    const amrex::Real result = getThgivenTandP(temperature, pressure, RdoCp);
+    const amrex::Real result = getThgivenTandP(temperature, pressure, rdOcp);
     if (!valid_temperature(result)) {
         return false;
     }

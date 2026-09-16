@@ -91,7 +91,7 @@ namespace {
                                      const amrex::Real* t_sfc_theta = nullptr)
     {
         const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
-                                                                        : make_two_stream_params(rad_choice_in);
+                                                                        : make_two_stream_params(rad_choice_in, RdoCp);
         const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
         const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
         const int is_periodic[3] = {1, 1, 0};
@@ -269,6 +269,83 @@ TEST(TwoStreamColumn, TemperatureComesFromExnerFunction)
     EXPECT_EQ(get_temperature_from_rhotheta(rho * theta, 0.0), 288.15);
 }
 
+// Motivation: an uninitialized heterogeneous t_sfc uses ERF's undefined
+// sentinel, which is positive and therefore passed the old positivity-only
+// check. The resolver must retain the configured absolute fallback and mark
+// that it did not come from the field.
+TEST(TwoStreamColumn, UndefinedHeterogeneousSurfaceTemperatureUsesFallback)
+{
+    const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox t_sfc(box, 1, amrex::The_Pinned_Arena());
+    t_sfc.setVal<amrex::RunOn::Host>(lsm_undefined);
+
+    RadChoice rc = base_choice();
+    rc.rad_t_sfc = 301.0;
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
+    const auto t_sfc_arr = t_sfc.const_array();
+    bool from_field = true;
+    const amrex::Real result = resolve_surface_temp_k(
+        0, 0, &t_sfc_arr, p, true, from_field);
+
+    EXPECT_EQ(result, rc.rad_t_sfc);
+    EXPECT_FALSE(from_field);
+}
+
+// Motivation: the surface longwave boundary must remain finite when a
+// heterogeneous t_sfc field contains its undefined sentinel. This checks the
+// fallback in the full column emission calculation, including reflected
+// downwelling flux at a gray surface.
+TEST(TwoStreamColumn, UndefinedSurfaceTemperatureProducesFiniteFallbackFlux)
+{
+    RadChoice rc = base_choice();
+    rc.surface_emissivity_lw = 0.8;
+    rc.rad_t_sfc = 300.0;
+    const amrex::Real undefined_temperature = lsm_undefined;
+    const ColumnResult result = run_uniform_column(
+        rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, nullptr,
+        nullptr, &undefined_temperature);
+
+    const amrex::Real B = kSigma * rc.rad_t_sfc * rc.rad_t_sfc *
+        rc.rad_t_sfc * rc.rad_t_sfc;
+    const amrex::Real expected_up = rc.surface_emissivity_lw * B +
+        (1.0 - rc.surface_emissivity_lw) * result.flux_lw_dn[0];
+    EXPECT_TRUE(std::isfinite(result.flux_lw_up[0]));
+    EXPECT_NEAR(result.flux_lw_up[0], expected_up, 1.0e-9 * B);
+}
+
+// Motivation: heterogeneous surface albedo and emissivity are physical
+// fractions, not values to clamp. An undefined sentinel or an out-of-range
+// value must leave the configured fallback intact rather than becoming 1.
+TEST(TwoStreamColumn, InvalidHeterogeneousSurfaceFractionsUseFallback)
+{
+    const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox fraction(box, 1, amrex::The_Pinned_Arena());
+    const auto fraction_arr = fraction.const_array();
+
+    RadChoice rc = base_choice();
+    rc.surface_albedo_sw = 0.25;
+    rc.surface_emissivity_lw = 0.85;
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
+
+    fraction.setVal<amrex::RunOn::Host>(lsm_undefined);
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              rc.surface_albedo_sw);
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              rc.surface_emissivity_lw);
+
+    fraction.setVal<amrex::RunOn::Host>(amrex::Real(-0.1));
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              rc.surface_albedo_sw);
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              rc.surface_emissivity_lw);
+
+    fraction.setVal<amrex::RunOn::Host>(amrex::Real(0.7));
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              amrex::Real(0.7));
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              amrex::Real(0.7));
+}
+
 TEST(TwoStreamColumn, ShortwaveHeatingDecreasesFromTopToSurface)
 {
     const RadChoice rc = base_choice();
@@ -417,7 +494,7 @@ TEST(TwoStreamColumn, NightHasNoShortwave)
     // A non-positive cosine cannot be given through erf.fixed_solar_zenith_angle
     // (that means "follow the calendar"), so set the kernel's sun directly.
     const RadChoice rc = base_choice();
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     p.solar_dynamic = false;
     p.cos_zenith_fixed = -0.5;   // sun below the horizon
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
@@ -455,7 +532,7 @@ TEST(TwoStreamColumn, CloudBandIsLocatedByLayerCenterHeight)
     rc.cloud_top_height_m = 700.0;
     rc.cloud_tau_per_layer = 0.5;
     rc.tau_per_layer = 0.05;
-    auto P = [&]() { return make_two_stream_params(rc); };
+    auto P = [&]() { return make_two_stream_params(rc, RdoCp); };
 
     // Inside the band: base + cloud enhancement for the cloudy column only.
     EXPECT_TRUE(is_cloud_level(500.0, P()));
@@ -563,7 +640,7 @@ TEST(TwoStreamColumn, MassBasedLongwaveOpticalDepthFollowsTheMassPath)
     rc.lw_kabs_dry = 2.0e-4;
     rc.lw_kabs_vapor = 0.05;
     rc.lw_kabs_cloud = 158.0;
-    const TwoStreamParams p = make_two_stream_params(rc);
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
 
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
@@ -589,7 +666,7 @@ TEST(TwoStreamColumn, MassBasedLongwaveOpticalDepthFollowsTheMassPath)
     // Disabled: the fixed per-layer value is returned.
     rc.lw_mass_absorption_enable = false;
     EXPECT_EQ(diagnose_layer_tau(0, 0, 0, dz, 25.0, state.const_array(), 1.0, false, false,
-                                 make_two_stream_params(rc)), 1.0);
+                                 make_two_stream_params(rc, RdoCp)), 1.0);
 }
 
 TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
@@ -629,7 +706,7 @@ TEST(TwoStreamColumn, TopOfAtmosphereIrradianceScalesTheShortwave)
     // shortwave flux is linear in it.
     const RadChoice rc = base_choice();
     const ColumnResult ref = run_uniform_column(rc, 1.0, 290.0);
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     const amrex::Real f = 1.034;   // perihelion
     p.S0 = f * rc.fixed_total_solar_irradiance;
     const ColumnResult on = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
@@ -646,7 +723,7 @@ TEST(TwoStreamColumn, CalendarSunFollowsTheColumnLatitude)
     // sun stands at the declination over longitude 0: cos(zenith) is
     // cos(declination) on the equator and cos(60 - declination) at 60N.
     const RadChoice rc = base_choice();
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     p.solar_dynamic = true;
     p.calday = 172.5;
     p.declin = 23.44 * PI / 180.0;
@@ -774,7 +851,7 @@ TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
     rc.sw_kext_cloud = 150.0;
     rc.sw_cloud_omega = 0.9999;
     rc.sw_cloud_g = 0.85;
-    const TwoStreamParams p = make_two_stream_params(rc);
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
 
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
@@ -807,7 +884,7 @@ TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
     rc.single_scattering_albedo = 0.3;
     rc.asymmetry_factor = 0.5;
     diagnose_layer_optics(0, 0, 0, dz, 25.0, state.const_array(), 0.05, true, false,
-                          make_two_stream_params(rc), tau, omega, g);
+                          make_two_stream_params(rc, RdoCp), tau, omega, g);
     EXPECT_EQ(tau, 0.05);
     EXPECT_EQ(omega, 0.3);
     EXPECT_EQ(g, 0.5);
@@ -915,11 +992,11 @@ TEST(TwoStreamColumn, DynamicOpticalDepthSurvivesPrognosticCloudFraction)
     const auto state_arr = state.const_array();
 
     rc.tau_sw_dynamic_enable = false;
-    const TwoStreamParams p_static = make_two_stream_params(rc);
+    const TwoStreamParams p_static = make_two_stream_params(rc, RdoCp);
     rc.tau_sw_dynamic_enable = true;
-    const TwoStreamParams p_dynamic = make_two_stream_params(rc);
+    const TwoStreamParams p_dynamic = make_two_stream_params(rc, RdoCp);
     rc.cloud_fraction_prog_enable = false;
-    const TwoStreamParams p_dynamic_fixed_cf = make_two_stream_params(rc);
+    const TwoStreamParams p_dynamic_fixed_cf = make_two_stream_params(rc, RdoCp);
 
     amrex::Gpu::DeviceVector<amrex::Real> out(3, 0.0);
     amrex::Real* out_ptr = out.data();

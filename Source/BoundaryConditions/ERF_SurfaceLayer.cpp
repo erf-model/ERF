@@ -1754,6 +1754,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
+    const Real rdOcp = m_rdOcp;
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -1778,7 +1779,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                 const Real pressure = erf_surface_temperature::pressure_at_surface(
                     rho, cons_arr(i,j,klo,RhoTheta_comp), qv, delta_z);
                 Real theta = t_surf_arr(i,j,k);
-                if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, theta)) {
+                if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
                 }
             }
@@ -1814,6 +1815,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
     const int ng_z = amrex::min(cons_in.nGrowVect()[2],
                                 amrex::min(t_surf[lev]->nGrowVect()[2],
                                            q_surf[lev]->nGrowVect()[2]));
+    const Real rdOcp = m_rdOcp;
     // Use the 2-D surface mask as the iterator so ranks participate only when
     // their grids coincide with the selected face.
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
@@ -1882,7 +1884,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                     Rho, RTh, Qv, deltaZ);
                 Real t_surface = t_surf_arr(i,j,k);
                 if (erf_surface_temperature::theta_to_temperature(
-                        t_surf_arr(i,j,k), P_cc, t_surface)) {
+                        t_surf_arr(i,j,k), P_cc, rdOcp, t_surface)) {
                     erf_qsatw(t_surface, P_cc * Real(0.01), q_surf_arr(i,j,k));
                 }
             }
@@ -1898,13 +1900,10 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
  */
 void
 SurfaceLayer::get_lsm_tsurf (const int& lev,
-                             const MultiFab& cons_in,
-                             const std::unique_ptr<MultiFab>& z_phys_nd)
+                             const MultiFab& /*cons_in*/,
+                             const std::unique_ptr<MultiFab>& /*z_phys_nd*/)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const Real dz = m_geom[lev].CellSize(2);
-    const bool moist = use_moisture;
-    const bool lsm_tsurf_is_theta = m_lsm_tsurf_is_theta;
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
         Box gtbx = mfi.growntilebox();
@@ -1923,9 +1922,6 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
         const auto lsm_arr = m_lsm_data_lev[lev][m_lsm_tsurf_indx]->const_array(mfi);
-        const auto cons_arr = cons_in.const_array(mfi);
-        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
-                                            Array4<const Real> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -1934,18 +1930,9 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 const Real lsm_value = lsm_arr(li,lj,k);
-                if (lsm_tsurf_is_theta) {
+                if (std::isfinite(lsm_value) && lsm_value > Real(0.0) &&
+                    lsm_value < lsm_undefined) {
                     t_surf_arr(i,j,k) = lsm_value;
-                } else {
-                    const Real rho = cons_arr(li,lj,klo,Rho_comp);
-                    const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
-                    const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(li,lj,klo,z_arr) : myhalf*dz;
-                    const Real pressure = erf_surface_temperature::pressure_at_surface(
-                        rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
-                    Real theta = t_surf_arr(i,j,k);
-                    if (erf_surface_temperature::temperature_to_theta(lsm_value, pressure, theta)) {
-                        t_surf_arr(i,j,k) = theta;
-                    }
                 }
             }
         });
@@ -1980,6 +1967,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
+    const Real rdOcp = m_rdOcp;
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
@@ -2017,7 +2005,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
 
-            if (has_valid && valid_arr(li,lj,k) == 0) { return; }
+            if (!has_valid || valid_arr(li,lj,k) == 0) { return; }
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
@@ -2026,7 +2014,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                 rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
             Real theta = t_surf_arr(i,j,k);
             if (erf_surface_temperature::temperature_to_theta(
-                    coupled_sst_arr(li,lj,k), pressure, theta)) {
+                    coupled_sst_arr(li,lj,k), pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             }
         });

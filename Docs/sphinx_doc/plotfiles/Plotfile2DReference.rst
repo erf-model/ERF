@@ -110,7 +110,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``SurfaceLayer``
      - ``K``
      - ``FillMinus999WhenUnavailable``
-     - Surface temperature from the surface layer
+     - Surface potential temperature from the surface layer
    * - ``q_surf``
      - ``SurfaceLayer``
      - ``kg/kg``

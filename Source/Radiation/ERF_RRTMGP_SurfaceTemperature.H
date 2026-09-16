@@ -23,6 +23,7 @@ namespace rrtmgp {
  * @param[in]  surface_layer_theta     SurfaceLayer potential temperature
  * @param[in]  surface_pressure        physical surface pressure diagnosed from
  *                                     the lowest atmospheric cell
+ * @param[in]  rdOcp                   configured Rd/cp exponent
  * @param[in]  default_t_sfc           configured absolute-temperature fallback
  * @param[out] t_sfc                   resolved absolute temperature for RRTMGP
  * @param[in,out] lsm_t_sfc_out        optional LSM fallback/writeback field
@@ -36,6 +37,7 @@ resolve_surface_temperature (const bool is_land,
                               const bool has_surface_layer,
                               const amrex::Real surface_layer_theta,
                               const amrex::Real surface_pressure,
+                              const amrex::Real rdOcp,
                               const amrex::Real default_t_sfc,
                               amrex::Real& t_sfc,
                               amrex::Real* lsm_t_sfc_out)
@@ -48,7 +50,7 @@ resolve_surface_temperature (const bool is_land,
         t_sfc = lsm_t_sfc;
     } else if (has_surface_layer &&
                erf_surface_temperature::theta_to_temperature(
-                   surface_layer_theta, surface_pressure, t_sfc)) {
+                   surface_layer_theta, surface_pressure, rdOcp, t_sfc)) {
         // SurfaceLayer::get_t_surf() returns theta.  RRTMGP requires T.
         // The helper also rejects an invalid pressure or nonphysical theta.
     } else {

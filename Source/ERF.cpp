@@ -1336,6 +1336,7 @@ ERF::InitData_post ()
                                                                  solverChoice.mesh_type,
                                                                  solverChoice.terrain_type,
                                                                  solverChoice.turbChoice[finest_level],
+                                                                 solverChoice.rdOcp,
 #ifdef ERF_USE_NETCDF
                                                                  start_low_time, final_low_time, low_time_interval,
 #else

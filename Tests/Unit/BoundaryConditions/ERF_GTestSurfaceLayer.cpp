@@ -15,11 +15,13 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <initializer_list>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 using namespace amrex;
 using erf_surface_layer_test::expected_qsat;
@@ -131,6 +133,20 @@ single_value (const MultiFab& mf, const Box& box, int comp)
     Gpu::streamSynchronize();
     return get<0>(reduce_data.value());
 }
+
+struct ScopedTestFile
+{
+    explicit ScopedTestFile (std::filesystem::path path_in)
+        : path(std::move(path_in)) {}
+
+    ~ScopedTestFile ()
+    {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+    }
+
+    std::filesystem::path path;
+};
 
 bool
 is_changed (const Real value)
@@ -368,7 +384,8 @@ struct SurfaceLayerFields
                    const bool update_fluxes = true,
                    const std::string& lsm_name = "",
                    const Real lsm_value = Real(0.0),
-                   const bool coupled_active = false)
+                   const bool coupled_active = false,
+                   const Real rdOcp = RdoCp)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
@@ -384,7 +401,7 @@ struct SurfaceLayerFields
         auto layer = std::make_unique<SurfaceLayer>(
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             Vector<Vector<Real>>{},
-            MeshType::ConstantDz, TerrainType::None, TurbChoice{},
+            MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
             0.0, 0.0);
         layer->set_surface_layer_faces(active_faces);
         if (coupled_active) {
@@ -658,26 +675,21 @@ TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
     pp.remove("most.surf_heating_rate");
 }
 
-// Motivation: Noah-MP supplies absolute t_sfc to the surface layer. At a
-// reduced surface pressure that value must be normalized once to theta before
-// MOST consumes the canonical SurfaceLayer field.
-TEST(SurfaceLayer, AbsoluteLsmSurfaceTemperatureIsConvertedToTheta)
+// Motivation: Noah-MP's t_sfc is an absolute radiative temperature owned by
+// the radiation path, not a SurfaceLayer theta-like input. It must not be
+// adopted as MOST's thermal boundary; the configured MOST theta remains the
+// fallback when no recognized theta-like LSM field is present.
+TEST(SurfaceLayer, NoahRadiativeSurfaceTemperatureIsNotAdoptedBySurfaceLayer)
 {
-    const Geometry geom = make_qsurf_geometry();
     const Orientation face(Direction::z, Orientation::low);
-    ScopedSurfaceLayerParams params("unit_surface_layer_lsm_absolute");
-    SurfaceLayerFields fields(geom);
-    const Real pressure = Real(0.9) * p_0;
-    fields.set_surface_cell_pressure(
-        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    ScopedSurfaceLayerParams params("unit_surface_layer_noah_t_sfc");
+    SurfaceLayerFields fields;
     auto layer = fields.prepare_layer(
-        face, active_faces({face}), "unit_surface_layer_lsm_absolute",
+        face, active_faces({face}), "unit_surface_layer_noah_t_sfc",
         false, true, "t_sfc", Real(290.0));
 
-    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
     const IntVect point = face_point(fields.domain, face);
-    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
-                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
 }
 
 // Motivation: SLM exposes its surface field as theta. The SurfaceLayer must
@@ -705,8 +717,9 @@ TEST(SurfaceLayer, PotentialTemperatureLsmFieldRemainsUnchanged)
 TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 {
     const std::string prefix = "unit_surface_layer_text_sst";
-    const std::string file = "/private/tmp/erf_surface_layer_text_sst_"
-                           + std::to_string(sizeof(Real)) + ".txt";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
         ASSERT_TRUE(out.good());
@@ -716,7 +729,7 @@ TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
     ScopedSurfaceLayerParams params(prefix.c_str());
     ParmParse pp(prefix);
     pp.add("most.use_sfc_sst", true);
-    pp.add("most.sfc_file", file);
+    pp.add("most.sfc_file", file.string());
 
     const Geometry geom = make_qsurf_geometry();
     const Orientation face(Direction::z, Orientation::low);
@@ -734,7 +747,6 @@ TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 
     pp.remove("most.use_sfc_sst");
     pp.remove("most.sfc_file");
-    std::remove(file.c_str());
 }
 
 // Motivation: coupled SST is an absolute-temperature producer with partial
@@ -764,6 +776,65 @@ TEST(SurfaceLayer, CoupledSstConvertsOnlyCoveredWaterCells)
                 Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
     const IntVect uncovered(0, 0, 0);
     EXPECT_EQ(mf_value(*layer->get_t_surf(0), uncovered), test_surface_temperature);
+}
+
+// Motivation: a coupled SST pointer without a coverage mask carries no
+// evidence that any cell has an ocean donor. The SurfaceLayer fallback must
+// therefore remain untouched instead of treating the null mask as all-valid.
+TEST(SurfaceLayer, CoupledSstWithoutCoverageMaskLeavesFallbackUnchanged)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst_no_mask";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+
+    layer->update_coupled_sst_ptr(0, fields.coupled_sst.get(), nullptr);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: the atmospheric thermodynamic exponent is solver configuration,
+// so the actual text-SST producer path must use a non-default cp rather than
+// silently reverting to the hard-coded dry-air exponent.
+TEST(SurfaceLayer, ConfiguredRdOcpControlsTextSstConversion)
+{
+    const std::string prefix = "unit_surface_layer_text_sst_custom_rdOcp";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    const Real rdOcp = R_d / Real(1100.0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, true, "", Real(0.0), false, rdOcp);
+
+    const Real expected_theta = Real(290.0) * std::pow(pressure / p_0, -rdOcp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
 }
 
 // Motivation: tau31 and tau32 are optional away from their corresponding

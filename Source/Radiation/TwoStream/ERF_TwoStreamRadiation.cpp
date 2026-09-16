@@ -220,11 +220,13 @@ TwoStreamRadiation::resize (int nlevs_max)
 void
 TwoStreamRadiation::define_level (int lev,
                                   const RadChoice& rad_choice,
+                                  const amrex::Real rdOcp,
                                   const BoxArray& ba2d,
                                   const DistributionMapping& dm)
 {
     if (!rad_choice.enabled) { return; }
     m_rad = &rad_choice;
+    m_rdOcp = rdOcp;
 
     // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y
     const IntVect ng_sfc{1,1,0};
@@ -438,7 +440,7 @@ TwoStreamRadiation::advance (int lev,
     // with the sun of this call from the inputs shared with RRTMGP. The
     // incident SW at the top (SW_TOA) is a domain mean formed by the sweep,
     // since with a calendar sun it varies across the columns.
-    TwoStreamParams ts_params = make_two_stream_params(rad_choice);
+    TwoStreamParams ts_params = make_two_stream_params(rad_choice, m_rdOcp);
     if (do_sweep) { set_solar_state(ts_params, rad_choice, m_orbit, epoch_time, have_datetime, lev, nstep); }
 
         // Host-side storage for reduction results (will be set by device-side reduction)

@@ -44,7 +44,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, i
 }
 
 void
-read_from_metgrid (int lev, int itime,
+read_from_metgrid (int lev, int /*itime*/,
                    const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, double& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
@@ -145,9 +145,7 @@ read_from_metgrid (int lev, int itime,
     NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_M");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_hgt_fab);       NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
-    if (itime == 0) {
-        NC_fabs.push_back(&NC_psfc_fab);  NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    }
+    NC_fabs.push_back(&NC_psfc_fab);  NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -184,6 +182,9 @@ read_from_metgrid (int lev, int itime,
 
     if (!flag_hgt) {
         Abort("HGT_M was not found in " + fname + "; it is required to build the terrain.");
+    }
+    if ((flag_sst || flag_tsk) && !flag_psfc) {
+        Abort("Metgrid SST/SKINTEMP requires PSFC in each forcing file so it can be normalized to potential temperature: " + fname);
     }
 
     // Read the netcdf file and fill these IABs

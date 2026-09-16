@@ -407,8 +407,8 @@ ERF::init_from_metgrid (int lev)
 
         if (flag_sst) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                !NC_psfc_fab.box().isEmpty(),
-                "Metgrid SST requires PSFC so it can be normalized to potential temperature.");
+                flag_psfc,
+                "Metgrid SST requires PSFC in each forcing file so it can be normalized to potential temperature.");
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(sst_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
@@ -434,8 +434,8 @@ ERF::init_from_metgrid (int lev)
 
         if (flag_tsk) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                !NC_psfc_fab.box().isEmpty(),
-                "Metgrid SKINTEMP requires PSFC so it can be normalized to potential temperature.");
+                flag_psfc,
+                "Metgrid SKINTEMP requires PSFC in each forcing file so it can be normalized to potential temperature.");
             tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(tsk_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
