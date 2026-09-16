@@ -1140,15 +1140,21 @@ ERF::ReadCheckpointFile ()
             MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
             update_terrain_arrays(lev);
 
-            // Compute the min dz and pass to the micro model
-            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
-            micro->Set_dzmin(lev, dzmin);
-
 #if 0
             if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
                 check_mesh_type(lev);
             }
 #endif
+        }
+
+        // The min dz the microphysics sizes its sedimentation substeps with, for
+        // every mesh type as init_zphys does on a fresh start. Set only on fitted
+        // meshes before, so a restart on a constant-dz mesh left Kessler's (and
+        // SAM's, Morrison's) dzmin uninitialised and the substep count unbounded:
+        // the first restarted step of a raining run never finished.
+        {
+            Real dzmin = get_dzmin_terrain(*z_phys_nd[lev]);
+            micro->Set_dzmin(lev, dzmin);
         }
 
         // Read in the moisture model restart variables

@@ -89,6 +89,8 @@ void SAM::IceFall (const SolverChoice& sc) {
     // needs one global substep count across ranks, matching PrecipFall.
     ParallelDescriptor::ReduceRealMax(wt_max);
     wt_max += std::numeric_limits<Real>::epsilon();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
+        "SAM::IceFall: the minimum cell height was never set (Set_dzmin), so the fall substeps cannot be sized");
     n_substep = sam_substep_count_from_reduced_flux(wt_max, dtn, m_dzmin);
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);
