@@ -3203,10 +3203,14 @@ ownership, units, qualification tests, and current limitations.
    is rejected for SBM-owned components.
 ``erf.sbm_chunk_size``
    Positive chunk-policy value.  Runtime bins are not capped by a compile-time
-   ``MAX_BINS`` constant.  The host/reference limiter honors this value, but
-   the current production WENO/FCT implementation retains full-layout
-   temporary face buffers, so production chunk-bounded memory remains
-   ``PARTIAL / NOT P2-QUALIFIED``.
+   ``MAX_BINS`` constant.  Production ``GroupedFCT_WENOZ3`` treats the value
+   as a maximum number of complete constraint groups in each temporary-work
+   chunk; coupled two-moment and attached-property members remain atomic.  The
+   ratio, low advection, low diffusion, high candidate, and limiter-budget
+   FABs are released before the next chunk.  A policy smaller than one atomic
+   group is rejected.  The P2 diagnostic reports the resulting logical peak
+   temporary payload separately from persistent state and accepted-ledger
+   storage.
 ``erf.sbm_manufactured_initialization``
    Boolean.  When true, install the deterministic nonuniform spectrum used by
    the real P1 ERF regression.  Ordinary nonzero ``qc``/``qr`` without an
@@ -3220,6 +3224,24 @@ ownership, units, qualification tests, and current limitations.
    number of completed level-0 steps and the qualification cases require
    ``step_count >= 2``.  Its memory fields count grown-FAB data payloads,
    including ghost cells, rather than only valid-cell entries.
+``erf.sbm_composite_diagnostic_file``
+   Optional output path for the P2 production diagnostic.  It reports
+   leaf/composite per-component totals with covered coarse cells masked,
+   compact projection errors, accepted spectral/bulk transfer norms, the
+   active limiter minimum, persistent/temporary memory payloads, and the
+   coarse/fine accepted-transfer mismatch versus the actual authoritative
+   reflux correction.  A two-level run fails closed if any of these checks
+   exceeds its scale-aware tolerance.
+``erf.sbm_test_dynamic_regrid``
+   Qualification-only boolean.  When enabled in the P2 fixture, the real ERF
+   tagging path changes the fine refinement footprint after the first step,
+   forcing a changed BoxArray/DistributionMapping remake and a subsequent
+   production transport step.  It is not a physical model option.
+``erf.sbm_test_active_limiter``
+   Qualification-only boolean.  When enabled in the MPI fixture, the
+   manufactured carrier/state pattern creates a nonzero, active grouped
+   limiter used to compare one-rank and two-rank accepted transfers.  It is
+   not a physical model option.
 
 The particle-mass coordinate is in ``kg``.  Transported spectral mass
 components are density-weighted state variables in ``kg m^-3``; these units

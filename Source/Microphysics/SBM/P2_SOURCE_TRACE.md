@@ -41,13 +41,17 @@ synthetic ice-like subset property.  No ice process is present.
 ## G2 — accepted grouped transport
 
 `ERF_SBMTransportPrototype::advance_stage` constructs donor fluxes once from
-the existing ERF carrier mass flux.  The grouped path fills bounded scratch
+the existing ERF carrier mass flux.  The grouped path processes complete
+constraint-group chunks and fills chunk-sized scratch
 with `X/rho`, calls the shared ERF `WENO_Z3` helper, accumulates complete
 cell-wide per-constraint adverse budgets (including all incident faces), and
 applies one face limiter across the complete bin group.  The host
 `limit_grouped` implementation and production FAB path both use the resolved
 constraint descriptors; final accepted physical `(M,C)` transfers are recorded
-and projected, and no compact field has an independent transport path.
+and projected, and no compact field has an independent transport path.  Each
+chunk's high/low candidates and budget are released before the next chunk;
+the authoritative state and accepted ledger remain the only full-layout
+transport objects.
 
 The P2 test executable exercises positive/negative transfer signs, common
 limiting, duplicate face-ownership rejection, chunk-policy invariance, the
@@ -76,8 +80,9 @@ reported by `validate_post_reflux` and fails closed; no repair/clipping path
 exists.  The manager lifecycle test covers create, time-consistent prolong/fill,
 average-down, remake with a changed box decomposition, and destroy.  The
 `SBM_P2_AMR_2M` production fixture runs the grouped-FCT 2M path on two levels
-and two MPI ranks through coarse step 2.  Quantitative composite conservation
-and rank-boundary active-limiter oracles remain an explicit qualification gap.
+and two MPI ranks through coarse step 2, while the composite diagnostic checks
+per-component volume-weighted conservation, compact projection, accepted
+spectral/bulk transfer norms, and the provider reflux path.
 
 ## G5 — restart and regrid
 
@@ -89,18 +94,29 @@ the compact projection in scratch, compares it against checkpointed compact
 `qc/qr`, and validates all constraints before continuing.  Changed schema
 fields are not converted automatically.  `RunSBMP2Restart.cmake` compares the
 final `SBMAux_*`, `Cell_*`, and schema payloads of uninterrupted and restarted
-two-rank AMR trajectories exactly.
+two-rank AMR trajectories exactly.  The final evidence repeats this fixture
+ten times; explicit zero initialization of uncovered endpoint-ratio ghosts
+makes the same-decomposition comparison deterministic.
 
 ## G6 — qualification boundary
 
 The P2 capability gate is selected by `sbm_transport_method`, 2M mode, or a
-positive explicit SBM diffusion coefficient.  It fails closed for SHOC,
-implicit moisture diffusion, moving terrain, EB, nonperiodic production
-geometry/boundaries, dynamic grids, schema conversion, and P3+ physical
-processes.  WENO-Z3 convergence is measured for the implemented smooth face
-operator and donor comparison, but no universal third-order claim is made.
-The host/reference chunk policy is tested; production temporary face buffers
-remain full-layout, so chunk-bounded production memory is
-`PARTIAL / NOT P2-QUALIFIED`.  Ordinary ERF paths remain unmodified when SBM
-is disabled.  Qualification counts and environment limitations are recorded in
-`P2_QUALIFICATION_REPORT.md`.
+positive explicit SBM diffusion coefficient.  A supported report is
+machine-readable as `qualification_status=qualified`, with implementation
+`flags`, `qualified_flags`, and `qualification_limitations` kept separate.
+The production chunk-equivalence qualification exercises the actual grouped
+transport path for 4, 16, and 64 bins, both moment modes, and chunk policies
+1, 2, 4, and all groups.  It compares the final authoritative spectrum,
+compact projection, and accepted face-transfer ledger against the all-groups
+reference and records the logical temporary bound in
+`/private/tmp/erf_sbm_p2_chunk_equivalence_memory.csv`; the measured bound is
+independent of total bin count for fixed chunk size and grows with the number
+of groups processed in one chunk.
+It fails closed for SHOC, implicit moisture diffusion, moving terrain, EB,
+nonperiodic production geometry/boundaries, dynamic grids, schema conversion,
+and P3+ physical processes.  WENO-Z3 convergence is measured for the
+implemented smooth face operator and donor comparison, but no universal
+third-order claim is made.  The production chunk path's local scratch bound is
+verified by the estimator and runtime 1M/2M chunk-policy tests.  Ordinary ERF
+paths remain unmodified when SBM is disabled.  Qualification counts and
+environment limitations are recorded in `P2_QUALIFICATION_REPORT.md`.

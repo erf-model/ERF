@@ -17,7 +17,10 @@ Authoritative state and projections
 The authoritative state is a separate ERF-managed auxiliary ``MultiFab`` with
 runtime-sized components.  A one-moment population stores ``M`` per bin; a
 two-moment population stores physical ``(M,C)`` blocks.  The generic auxiliary
-manager owns old, evaluation, output, and bounded scratch states.  Its
+manager owns old, evaluation, and output states.  ``DonorCell`` may use the
+manager's legacy full-layout scratch, while production
+``GroupedFCT_WENOZ3`` disables that optional allocation and creates only
+chunk-local transport scratch for complete constraint groups.  Its
 face-transfer ledger retains one reusable stage scratch and one accepted
 face-transfer accumulator; it does not retain a full three-stage history.  The
 runtime component count is resolved from the input grid; spectral components
@@ -49,13 +52,15 @@ same resolved constraint descriptors are used by the low-order diagnostic,
 post-stage validation, post-reflux validation, regrid validation, and restart
 validation.
 
-Two-moment checkpoint/storage remains physical ``(M,C)``.  ``(L,H)`` uses the
-same per-level scratch allocation only while constructing transport fluxes;
-there is no compile-time ``MAX_BINS`` constant.  The current production FCT
-remainder still allocates full-layout temporary face candidates and split
-low-order fluxes, however.  ``erf.sbm_chunk_size`` is therefore recorded and
-validated but is **not yet a P2-qualified peak-memory bound**; see the
-qualification report.
+Two-moment checkpoint/storage remains physical ``(M,C)``.  ``(L,H)`` is a
+derived representation in chunk-local scratch only while constructing
+transport fluxes; there is no compile-time ``MAX_BINS`` constant.  Production
+``GroupedFCT_WENOZ3`` allocates the ratio, low advection, low diffusion, high
+candidate, and constraint-budget FABs for one complete constraint-group chunk,
+releases them before the next chunk, and publishes only the accepted result to
+the authoritative state and ledger.  ``erf.sbm_chunk_size`` is therefore a
+real production working-memory bound, with complete groups kept atomic; a
+request smaller than one atomic group is rejected.
 
 When ``erf.sbm_diffusion_coeff`` is positive, the production face flux adds
 orthogonal density-weighted diffusion,
@@ -75,7 +80,9 @@ levels and newly covered fine cells use the authoritative coarse spectrum at
 the requested time.  Checkpoint restart requires an exact SBM schema match,
 compares checkpointed ``qc``/``qr`` projections before restoring the
 authoritative compact fields, and is exercised by a two-rank continuous versus
-restart AMR equivalence test.
+restart AMR equivalence test.  The production AMR qualification also reports
+the accepted coarse/fine interface transfer mismatch and compares it with the
+actual authoritative spectral reflux correction before average-down.
 
 The compact ERF moisture fields have the following ownership when SBM is
 active:
@@ -118,9 +125,12 @@ number of scalar MPI reductions.  Its negative tolerance is
 tolerance.  This avoids one global ``min`` collective per spectral bin.
 
 The memory fields in the qualification diagnostic are logical allocated data
-payloads, including ghost cells in every grown FAB, for the four auxiliary
-cell states, reusable/accepted face transfers, and compact baseline snapshot.
-Allocator metadata is not included.
+payloads, including ghost cells in every grown FAB.  They report persistent
+cell-state bytes, persistent accepted/stage-ledger bytes, and the peak
+chunk-local P2 working estimate separately.  Allocator metadata is not
+included.  The temporary estimate includes grown ratio/budget FABs and the
+three chunk-local face candidates; it excludes the persistent authoritative
+state and accepted ledger.
 
 Runtime inputs
 --------------
@@ -155,9 +165,12 @@ These ``erf`` inputs are read only when ``erf.moisture_model = SBM``:
    not part of P2.
 ``erf.sbm_chunk_size``
    Positive chunk-policy value recorded in capability and restart identities.
-   The host/reference limiter honors it.  The current production WENO/FCT
-   path still retains full-layout temporary face buffers, so this input does
-   not yet establish a qualified production peak-memory bound.
+   Production ``GroupedFCT_WENOZ3`` honors it by processing complete atomic
+   constraint-group chunks.  A request smaller than one complete group is
+   rejected.  The chunk-local ratio, low-order advection/diffusion, high-order
+   candidate, and limiter-budget FABs are released before the next chunk; the
+   qualification diagnostic reports this temporary bound separately from
+   persistent state and accepted-transfer ledgers.
 ``erf.sbm_manufactured_initialization``
    Installs a deterministic positive nonuniform liquid spectrum for the
    qualification case.  Without it, nonzero compact condensate is rejected;
@@ -224,9 +237,17 @@ qualification covers static fully periodic Cartesian hierarchy cases, including
 the two-level 2M fixture and continuous/restart comparison.  Restriction is
 physical-volume weighted and prolongation is conservative piecewise constant.
 Accepted spectral transfers—not independently reconstructed compact fields—drive
-``qc``/``qr`` projections, boundary budgets, and AMR registers.  Full P2
-completion remains pending production chunk-bounded work and broader numerical
-AMR/MPI oracles.
+``qc``/``qr`` projections, boundary budgets, and provider-owned AMR registers.
+The production qualification gate is explicit: static Cartesian, fully
+periodic, double precision, explicit SBM diffusion only, no embedded
+boundaries or moving terrain, and no P3 physics.  Unsupported combinations
+fail closed.
+
+The machine-readable inspection reports ``flags`` as the implementation
+inventory and ``qualified_flags`` plus ``qualification_status=qualified`` for
+the exercised supported runtime configuration.  ``rejected`` records
+unsupported requests; these fields are not inferred from compact ``qc``/``qr``
+state and do not authorize P3 physics.
 
 WENO qualification evidence
 ----------------------------
@@ -246,16 +267,11 @@ double-precision measurements are:
      - Donor error
      - WENO order
      - Donor order
-   * - 8
-     - 2.1677e-1
-     - 3.8268e-1
-     - --
-     - --
    * - 16
      - 5.6906e-2
      - 1.9509e-1
-     - 1.9295
-     - 0.9720
+     - --
+     - --
    * - 32
      - 1.4400e-2
      - 9.8018e-2
@@ -266,9 +282,22 @@ double-precision measurements are:
      - 4.9068e-2
      - 1.9957
      - 0.9983
+   * - 128
+     - 9.0336e-4
+     - 2.4541e-2
+     - 1.9989
+     - 0.9996
 
 This qualifies the measured smooth operator and donor comparison only; it is
 not a universal third-order claim for the nonlinear ERF time integrator.
+
+The ERF ``WENO_Z3`` helper consumes pointwise cell-center data.  The oracle
+therefore initializes point values at cell centers and compares the
+reconstructed face value with the analytic point value at the face.  A separate
+full grouped-transport manufactured test exercises the same production
+divergence/update path; its WENO error is second order over ``N=16,32,64,128``
+while the donor reference is approximately first order.  The qualification
+report records both raw tables and the generated CSV paths.
 
 The first physical boundary descriptor layer provides periodic,
 prescribed-spectral-inflow, advective-outflow, and impermeable-wall semantics
