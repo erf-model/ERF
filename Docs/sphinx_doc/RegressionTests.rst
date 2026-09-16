@@ -563,9 +563,38 @@ Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
 projection and are registered only when the build enables FFT
 (``ERF_ENABLE_FFT``).
 
+``RANS_Checks_SelfTest`` tests the check scripts' own verdict logic rather
+than any physics: it states, for each kind of comparison the shared
+``rans_checks.py`` offers, what the check must decide for values inside and
+just outside the stated tolerance or band, and fails when a check disagrees.
+It runs no ERF executable; labels ``rans`` and ``unit``. It is registered
+only when CMake finds a Python 3 interpreter, so a configuration without
+one simply does not have the test rather than failing the unit stage.
+
 Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
 
 .. _`Exec/CanonicalTests/Canonical_RANS`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/Canonical_RANS
+
+Restart parity
+--------------
+``MoistBubble_Kessler_Restart`` (MPI builds, not Windows) runs the moist bubble
+deck with Kessler rain (``erf.moisture_model=Kessler``, the rain fields in the
+plotfile) straight to step 8,
+again to a checkpoint at step 4, and from that checkpoint to step 8, and
+requires the two plotfiles at step 8 to be identical (``Tests/RunRestartParity.cmake``,
+no gold file; label ``restart-parity``). Every run has a time limit of its own,
+so a restart whose first step never finishes fails with a message. Until
+September 2026 the restart path handed the microphysics its minimum cell
+height only on terrain-fitted meshes; on a constant-dz mesh the sedimentation
+substep count of the first restarted step was computed from an uninitialised
+value and the step never finished. Only the schemes that size their
+sedimentation substeps from that height are affected, namely Kessler
+(``ERF_Kessler.cpp``) and SAM (``ERF_PrecipFall.cpp``, ``ERF_IceFall.cpp``);
+Morrison, WSM6 and WDM6 store the minimum cell height but never read it.
+
+Test Location: `Tests/test_files/MoistBubble_Kessler_Restart`_
+
+.. _`Tests/test_files/MoistBubble_Kessler_Restart`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistBubble_Kessler_Restart
 
 Ekman Spiral
 ---------------------------

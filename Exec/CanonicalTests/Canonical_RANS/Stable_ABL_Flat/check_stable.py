@@ -40,9 +40,13 @@ def main(argv):
         ustar = sh["u_star"]
         rep.check("u_star [m/s]", ustar, (0.20, 0.35), 0.0, "range")
 
-        # surface cooling reaches the first cell
+        # surface cooling reaches the first cell. The band is now enforced with
+        # no slack, so the lower edge is held just off the hard physical zero:
+        # the first cell should sit above the imposed surface value, and -0.05 K
+        # absorbs round-off and a marginal transient without admitting any
+        # unstable surface layer worth the name.
         theta_sfc = THETA_SURF_0 - COOLING * t / 3600.0
-        rep.check("theta(k=0) - imposed surface theta [K]", p["theta"][0] - theta_sfc, (0.0, 1.5), 0.0, "range")
+        rep.check("theta(k=0) - imposed surface theta [K]", p["theta"][0] - theta_sfc, (-0.05, 1.5), 0.0, "range")
 
         # stable stratification through the boundary layer (dtheta/dz >= 0 below 200 m)
         dth = min((p["theta"][k + 1] - p["theta"][k]) / (z[k + 1] - z[k]) for k in range(len(z) - 1) if z[k] < 200.0)

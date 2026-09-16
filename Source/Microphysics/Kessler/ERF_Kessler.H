@@ -222,7 +222,7 @@ private:
     amrex::Real dt;
 
     // Minimum dz at this level
-    amrex::Real m_dzmin;
+    amrex::Real m_dzmin{0.0};   // set by Set_dzmin; the advance asserts it is positive
 
     // number of vertical levels
     int nlev, zlo, zhi;

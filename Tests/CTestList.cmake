@@ -294,6 +294,58 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
+# Restart parity: run one deck straight, then to a checkpoint and on from it, and
+# require the plotfile at the end to be identical (no gold file). Every run has a
+# time limit, so a restart whose first step never finishes fails with a message.
+function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_RP_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_RP_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_RP_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_RP_FCOMPARE_ATOL}")
+    endif()
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_RP_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_RP_RUN_TIMEOUT}")
+    endif()
+    # Three runs, each capped at _run_timeout by RunRestartParity.cmake, plus the
+    # fcompare calls and process startup, which sit outside that budget. CTest's
+    # own limit must exceed the sum, or it kills the script before the script can
+    # report which of the three legs stalled.
+    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DSTEP_CHK=${STEP_CHK}
+        -DSTEP_END=${STEP_END}
+        -DRTOL=${_fcompare_rtol}
+        -DATOL=${_fcompare_atol}
+        -DRUN_TIMEOUT=${_run_timeout}
+        "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;restart-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_restart_parity)
+
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
 # while indexing per-tile work arrays. VARYING_3D / VARYING_2D list fields (space
@@ -1081,6 +1133,16 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
+# and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
+# mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
+# sedimentation substep count of the first restarted step came from an uninitialised
+# value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
+    COMMON_OPTIONS "erf.vert_implicit=false"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1299,6 +1361,27 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+
+# The check scripts' own pass/fail logic: kind = "range" accepted half a band
+# width outside the band, so every band check was looser than it reads.
+# Pure Python, no ERF run.
+#
+# Registered only when CMake actually found an interpreter: this is the one
+# test with the "unit" label that is not a built binary, and "ctest -L unit"
+# runs in the gcc, macos, ci and windows workflows. Without the guard,
+# ERF_RANS_PYTHON falls back to the bare name "python3" and a configuration
+# that has no such executable on PATH fails the whole unit stage on a test
+# that exercises no ERF code.
+if(Python3_Interpreter_FOUND)
+    add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
+        ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
+    set_tests_properties(RANS_Checks_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
+        LABELS "rans;unit")
+endif()
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
