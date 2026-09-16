@@ -37,11 +37,12 @@ Implicit against explicit (`check_implicit_explicit_ke.py`, CTest entries
 `RANS_Convective_ABL_Flat_Buoyancy_kEqn` and `_Deardorff`): the deck is run
 compressible for 40 steps twice, with the implicit vertical diffusion solve
 and with explicit vertical diffusion, once with the k-eqn closure and once
-with Deardorff. The buoyancy production of k is taken from the subgrid heat
-flux the closure computes at the cell centre, so the two runs differ only by
-the time discretisation of the diffusion. The largest planar-mean KE
+with Deardorff. The buoyancy production of k averages the fluxes of the
+theta diffusion at the two faces of each cell, which are the full fluxes
+whether that diffusion is explicit or implicit, so the two runs differ only
+by the time discretisation of the diffusion. The largest planar-mean KE
 difference, relative to the largest KE, must stay below 1e-4 (k-eqn) and
-3e-4 (Deardorff); it is about 1.3e-5 and 5.7e-5. When the buoyancy term read
+3e-4 (Deardorff); it is about 1.1e-5 and 5.1e-5. When the buoyancy term read
 the face flux scaled by the explicit fraction instead, which vanishes with
 the implicit solve, the differences were 7.1e-4 and 2.1e-3. The script also
 checks that both runs are finite, that turbulence is present, and that the
