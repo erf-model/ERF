@@ -128,7 +128,7 @@ ERF::init_ibseb ()
  * usual coupling of a land-surface model.
  */
 void
-ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
+ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
                     const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel)
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
@@ -158,9 +158,9 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     }
     m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p, olen2d, pblh2d, z_i_bulk);
     if (ibseb_params.prognostic) {
-        m_ibseb[lev]->solve_balance(dt);
+        m_ibseb[lev]->solve_balance(dt_lev);
     } else {
-        m_ibseb[lev]->compute_ground(dt);
+        m_ibseb[lev]->compute_ground(dt_lev);
     }
     m_ibseb[lev]->add_cost(ParallelDescriptor::second() - t_wall0);
 }
