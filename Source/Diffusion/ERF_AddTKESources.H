@@ -10,13 +10,22 @@
     //       hfx_z holds the face fluxes of the theta diffusion of this stage
     //       (the full flux, independent of the implicit/explicit split), so
     //       the buoyancy production averages the two faces of the cell for the
-    //       cell-centred vertical heat flux. The surface heat flux is stored at
+    //       cell-centred vertical heat flux.
+    //       REQUIRED WRITER: the RhoTheta call of DiffusionSrcForState_{N,S,T}
+    //       in erf_slow_rhs_pre, on the same RK stage, which writes every z-face
+    //       of each valid box (zbx = surroundingNodes(bx,2), top face included).
+    //       The closures (ComputeTurbulentViscosityLES/RANS) loop over cell
+    //       boxes and never write the top face of a box, so running the RhoKE
+    //       source without that same-stage theta pass would read a stale face. The surface heat flux is stored at
     //       hfx_z at the bottom face (overwritten by the surface layer at each
     //       RK stage), so with a surface layer the first cell uses that flux.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
         const int  l_klo_dom       = domain.smallEnd(2);
         const bool l_surf_flux_klo = SurfLayer_zlo;
+        // The source reads hfx_z at k+1: the z-faces of bx must be in hfx_z
+        AMREX_ASSERT(hfx_z.contains(bx.smallEnd(0), bx.smallEnd(1), bx.smallEnd(2)) &&
+                     hfx_z.contains(bx.bigEnd(0),   bx.bigEnd(1),   bx.bigEnd(2)+1));
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source

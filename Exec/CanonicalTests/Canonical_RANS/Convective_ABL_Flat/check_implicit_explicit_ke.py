@@ -39,7 +39,11 @@ def main(argv):
     it = iter(argv)
     for a in it:
         if a == "--tol":
-            tol = float(next(it))
+            try:
+                tol = float(next(it))
+            except (StopIteration, ValueError):
+                print(__doc__)
+                return 2
         else:
             args.append(a)
     if tol is None or len(args) != 2:

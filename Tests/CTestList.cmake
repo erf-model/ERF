@@ -1029,6 +1029,17 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSu
     COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
     REFERENCE_OPTIONS "amr.max_grid_size=64"
     FCOMPARE_RTOL "1.0e-9")
+# The TKE buoyancy source reads the theta-diffusion flux at both z-faces of each
+# cell, so the top cell of every box reads a box-boundary face: one box against
+# boxes split in z (x at 4, z at 24), for the k-eqn and Deardorff closures.
+add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn RANS_Convective_Buoyancy_ZSplit "plt00040"
+    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+    FCOMPARE_RTOL "1.0e-9")
+add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff RANS_Convective_Buoyancy_ZSplit "plt00040"
+    COMMON_OPTIONS "erf.rans_type=None erf.les_type=Deardorff erf.dirichlet_k=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+    FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
@@ -1362,6 +1373,7 @@ endfunction(add_test_rans_pair)
 # convective case, run compressible with the implicit vertical solve (A) and
 # with explicit vertical diffusion (B), must give the same KE to within the
 # time-discretisation difference. The command runs through sh, so not on Windows.
+# The z box boundaries are covered by RANS_Convective_Buoyancy_ZSplit_BoxParity_*.
 if(NOT WIN32)
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
         RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
