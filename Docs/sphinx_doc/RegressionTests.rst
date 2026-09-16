@@ -567,7 +567,9 @@ projection and are registered only when the build enables FFT
 than any physics: it states, for each kind of comparison the shared
 ``rans_checks.py`` offers, what the check must decide for values inside and
 just outside the stated tolerance or band, and fails when a check disagrees.
-It runs no ERF executable; labels ``rans`` and ``unit``.
+It runs no ERF executable; labels ``rans`` and ``unit``. It is registered
+only when CMake finds a Python 3 interpreter, so a configuration without
+one simply does not have the test rather than failing the unit stage.
 
 Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
 

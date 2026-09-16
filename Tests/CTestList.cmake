@@ -1365,14 +1365,23 @@ add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  
 # The check scripts' own pass/fail logic: kind = "range" accepted half a band
 # width outside the band, so every band check was looser than it reads.
 # Pure Python, no ERF run.
-add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
-    ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
-set_tests_properties(RANS_Checks_SelfTest
-    PROPERTIES
-    TIMEOUT 60
-    PROCESSORS 1
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
-    LABELS "rans;unit")
+#
+# Registered only when CMake actually found an interpreter: this is the one
+# test with the "unit" label that is not a built binary, and "ctest -L unit"
+# runs in the gcc, macos, ci and windows workflows. Without the guard,
+# ERF_RANS_PYTHON falls back to the bare name "python3" and a configuration
+# that has no such executable on PATH fails the whole unit stage on a test
+# that exercises no ERF code.
+if(Python3_Interpreter_FOUND)
+    add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
+        ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
+    set_tests_properties(RANS_Checks_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
+        LABELS "rans;unit")
+endif()
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
