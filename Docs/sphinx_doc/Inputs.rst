@@ -3489,8 +3489,8 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_nvar**                      | Size of block memory allocation                          | Integer > 0        | 12                                 |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_t_sfc**                     | Surface temperature [K] where no land-surface model or   | Real > 0           | Required (RRTMGP and TwoStream)    |
-|                                       | surface layer supplies one                               |                    |                                    |
+| **erf.rad_t_sfc**                     | Absolute surface temperature [K] where no land-surface   | Real > 0           | Required (RRTMGP and TwoStream)    |
+|                                       | model or surface layer supplies one                      |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_freq_in_steps**             | Radiation update frequency (steps)                       | Integer >= 1       | 1                                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
