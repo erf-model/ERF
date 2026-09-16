@@ -1066,7 +1066,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         "RemakeLevel at level 0 would cold-start the Noah-MP soil state: "
         "NoahmpIO_type redistribution onto a new DistributionMapping is not implemented");
 
-    make_lsm_at_level(lev);
+    make_lsm_at_level(lev, true); // from_regrid=true: always initialize LSM during regrid
 
     //
     // A level-0 remake replaces the MultiFabs that every finer level's model caches for
@@ -1207,7 +1207,7 @@ ERF::ClearLevel (int lev)
 // This must be called after vars_new[lev][Vars::cons] has been (re)defined on the new grids.
 //
 void
-ERF::make_lsm_at_level (int lev)
+ERF::make_lsm_at_level (int lev, bool from_regrid)
 {
     int lsm_data_size  = lsm.Get_Data_Size();
     int lsm_flux_size  = lsm.Get_Flux_Size();
@@ -1218,10 +1218,11 @@ ERF::make_lsm_at_level (int lev)
     lsm.Define(lev, solverChoice);
 
     // Check if we'll be using surface-only init (atmospheric state comes later from FillCoarsePatch)
-    // Only applies to fine levels (lev > 0); level 0 always initializes normally
+    // Only applies to fine levels (lev > 0) during initial level creation; level 0 always initializes normally
+    // During regrid (from_regrid=true), always initialize LSM immediately to avoid losing LSM state
     bool will_use_surface_only = false;
 #ifdef ERF_USE_NETCDF
-    if (lev > 0 && !nc_init_file[lev].empty() &&
+    if (!from_regrid && lev > 0 && !nc_init_file[lev].empty() &&
         (solverChoice.init_type == InitType::WRFInput || solverChoice.init_type == InitType::Metgrid)) {
         will_use_surface_only = solverChoice.interp_atmos_from_coarse;
     }
