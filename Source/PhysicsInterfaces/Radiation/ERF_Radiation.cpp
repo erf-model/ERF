@@ -283,7 +283,9 @@ Radiation::set_grids (int& level,
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay
-        // Note: alloc_buffers() was already called by Init(), no need to allocate again
+
+        // Allocate the buffer arrays
+        alloc_buffers();
 
         // Fill the KOKKOS Views from AMReX MFs
         mf_to_kokkos_buffers(lmask, t_surf, lsm_input_ptrs);
