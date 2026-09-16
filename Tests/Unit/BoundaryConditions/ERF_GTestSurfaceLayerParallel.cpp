@@ -259,9 +259,13 @@ TEST(SurfaceLayerParallel, LateralSurfaceParameterGhostsAreFaceOwned)
     }
 }
 
-// Motivation: qsat must be written only by tiles that contain the selected
-// boundary plane.  The distributed layout deliberately leaves other FABs on
-// each rank, so a valid result cannot be established from one local FAB.
+// Motivation: SurfaceLayer stores potential temperature theta, but this test
+// wants an independent qsat oracle at physical temperature 300 K. Convert
+// that physical temperature to theta before populating t_surf, so production
+// must convert theta back before calling erf_qsatw. The distributed layout
+// also deliberately leaves other FABs on each rank, so a valid result cannot
+// be established from one local FAB. This catches accidental direct use of
+// theta as physical temperature.
 TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
 {
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
@@ -273,7 +277,12 @@ TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
             face, active_face(face), "unit_surface_layer_parallel_qsurf",
             true, false, false, false);
         fields.lmask[0]->setVal(0);
-        layer->get_t_surf(0)->setVal(test_surface_temperature);
+        const Real pressure =
+            getPgivenRTh(test_rho_theta, test_qv)
+            + test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2);
+        const Real surface_theta =
+            test_surface_temperature * std::pow(p_0 / pressure, RdoCp);
+        layer->get_t_surf(0)->setVal(surface_theta);
         std::unique_ptr<MultiFab> z_phys_nd;
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const auto* qsurf = layer->get_q_surf(0);
