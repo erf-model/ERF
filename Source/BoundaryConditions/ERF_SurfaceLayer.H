@@ -813,16 +813,16 @@ public:
    *
    * On a level whose grids are split in the surface-normal direction the planar BoxArray holds
    * one duplicate box per stacked 3D box (see PlanarBoundary), so a plain sum over the planar
-   * MultiFab counts every surface cell once per stacked box.  Only the surface copies are summed
-   * here.  The field must have been synchronized with fill_planar_boundary.  On EB terrain the
-   * fields are 3D without duplicates, and the lowest plane of the domain is summed.  Only for a
-   * surface layer on a z face.
+   * MultiFab counts every surface cell once per stacked box.  Only the computed surface copies
+   * are read here, so the duplicates need not have been filled by fill_planar_boundary, and the
+   * gather needs no communication.  On EB terrain the fields are 3D without duplicates, and the
+   * lowest plane of the domain is summed.  Only for a surface layer on a z face.
    *
    * @param[in] lev  level index
-   * @param[in] mf   planar MultiFab on this surface's planar BoxArray
+   * @param[in] mf   cell-centered planar MultiFab on this surface's planar BoxArray
    * @param[in] comp component to sum
    */
-  amrex::Real surface_sum (const int& lev, const amrex::MultiFab& mf, int comp = 0);
+  amrex::Real surface_sum (const int& lev, const amrex::MultiFab& mf, int comp = 0) const;
 
   /**
    * Impose surface-layer boundary conditions for planar terrain.

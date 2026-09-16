@@ -295,6 +295,18 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
+# The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
+# accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
+# no ERF run, hence the "unit" label.
+add_test(CompareDataLogs_SelfTest ${CMAKE_COMMAND}
+    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/CompareDataLogs_SelfTest
+    -P ${PROJECT_SOURCE_DIR}/Tests/CompareDataLogsSelfTest.cmake)
+set_tests_properties(CompareDataLogs_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit;box-parity")
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit, so a restart whose first step never finishes fails with a message.
