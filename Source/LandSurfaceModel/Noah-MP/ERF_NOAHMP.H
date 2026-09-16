@@ -230,8 +230,8 @@ public:
                       amrex::MultiFab& cons_in,
                       const int& nstep);
 
-    // Subcycling gate: true if the model fires this ERF step (advances the lockstep
-    // counter + sets m_updated). Identical on every rank.
+    // Subcycling gate: true if the model fires this ERF step (sets m_updated). The
+    // lockstep counter is retired after the block loop, not here. Same on every rank.
     bool
     time_to_fire (const amrex::Real& elapsed_time);
 
