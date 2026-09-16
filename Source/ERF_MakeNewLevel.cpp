@@ -102,7 +102,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
-    make_lsm_at_level(lev);
+    // If time > 0, this is a regrid, so pass from_regrid=true to avoid incorrectly
+    // deferring LSM initialization (deferred init only applies during initial level creation)
+    bool is_regrid = (time > 0.0);
+    make_lsm_at_level(lev, is_regrid);
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
