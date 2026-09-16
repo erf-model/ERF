@@ -126,9 +126,23 @@ ERF::init_ibseb ()
  * the air receives exactly the H of the closed balance. The atmosphere is
  * seen at the start of the step and the skin is implicit within it, the
  * usual coupling of a land-surface model.
+ *
+ * @param[in] lev     AMR level to update; a no-op if it has no face set.
+ * @param[in] time    Time at the start of the step [s], at which the sun
+ *                    position of the shortwave is taken.
+ * @param[in] dt_lev  Length of the level's step [s], over which the slab is
+ *                    advanced and within which the skin is implicit.
+ * @param[in] cons    Conserved state at the start of the step: the air
+ *                    temperature of the longwave and the wall function, and
+ *                    the profile of the bulk Richardson depth.
+ * @param[in] xvel    Face-centred x velocity at the start of the step.
+ * @param[in] yvel    Face-centred y velocity at the start of the step.
+ * @param[in] zvel    Face-centred z velocity at the start of the step; the
+ *                    three together drive the wall function of the sensible
+ *                    flux.
  */
 void
-ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
+ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
                     const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel)
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
@@ -158,9 +172,9 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
     }
     m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p, olen2d, pblh2d, z_i_bulk);
     if (ibseb_params.prognostic) {
-        m_ibseb[lev]->solve_balance(dt);
+        m_ibseb[lev]->solve_balance(dt_lev);
     } else {
-        m_ibseb[lev]->compute_ground(dt);
+        m_ibseb[lev]->compute_ground(dt_lev);
     }
     m_ibseb[lev]->add_cost(ParallelDescriptor::second() - t_wall0);
 }
@@ -172,6 +186,10 @@ ERF::ibseb_advance (int lev, Real time, Real dt, const MultiFab& cons,
  * buildings rather than with the level. Called inside the level loop of
  * ERF::WriteCheckpointFile(); a no-op unless the balance is on and the level
  * has faces.
+ *
+ * @param[in] checkpointname  Path of the checkpoint directory being written.
+ * @param[in] lev             AMR level whose face state is written, as the
+ *                            ``IBSEBState`` field of its ``Level_`` group.
  */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
@@ -190,6 +208,11 @@ ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
  * report of init_ibseb()): after every ``erf.ibseb.csv_int``-th step, print
  * the summary of each level and append its CSV rows. A non-positive interval
  * disables both.
+ *
+ * @param[in] nstep  Number of completed steps, tested against
+ *                   ``erf.ibseb.csv_int`` and written to the CSV rows.
+ * @param[in] time   Simulation time at the end of the step [s], written to
+ *                   the summary and the CSV rows.
  */
 void
 ERF::ibseb_report (int nstep, Real time)
@@ -216,6 +239,15 @@ ERF::ibseb_report (int nstep, Real time)
  * face velocities, uniform vertical spacing assumed as elsewhere in the
  * balance; called once per step and level when the convective velocity
  * scale is on and z_i is not fixed, also as the fallback of the pblh mode.
+ *
+ * @param[in] lev   AMR level whose horizontal-mean profile is taken.
+ * @param[in] cons  Conserved state of the level; the ``Rho_comp`` and
+ *                  ``RhoTheta_comp`` averages give the mean potential
+ *                  temperature.
+ * @param[in] xvel  Face-centred x velocity, for the mean wind profile.
+ * @param[in] yvel  Face-centred y velocity, for the mean wind profile.
+ * @return Mixed-layer depth above the domain bottom [m]; the depth of the
+ *         domain when ``Ri_b`` never exceeds ``erf.ibseb.ri_crit``.
  */
 Real
 ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab& xvel, const MultiFab& yvel)
