@@ -578,9 +578,11 @@ no gold file; label ``restart-parity``). Every run has a time limit of its own,
 so a restart whose first step never finishes fails with a message. Until
 September 2026 the restart path handed the microphysics its minimum cell
 height only on terrain-fitted meshes; on a constant-dz mesh the sedimentation
-substep count of the first restarted step of any precipitating scheme
-(Kessler, SAM, Morrison) was computed from an uninitialised value and the
-step never finished.
+substep count of the first restarted step was computed from an uninitialised
+value and the step never finished. Only the schemes that size their
+sedimentation substeps from that height are affected, namely Kessler
+(``ERF_Kessler.cpp``) and SAM (``ERF_PrecipFall.cpp``, ``ERF_IceFall.cpp``);
+Morrison, WSM6 and WDM6 store the minimum cell height but never read it.
 
 Test Location: `Tests/test_files/MoistBubble_Kessler_Restart`_
 
