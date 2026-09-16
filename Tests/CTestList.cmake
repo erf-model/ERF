@@ -1299,6 +1299,18 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+
+# The check scripts' own pass/fail logic: kind = "range" accepted half a band
+# width outside the band, so every band check was looser than it reads.
+# Pure Python, no ERF run.
+add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
+    ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
+set_tests_properties(RANS_Checks_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
+    LABELS "rans;unit")
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)

@@ -563,6 +563,12 @@ Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
 projection and are registered only when the build enables FFT
 (``ERF_ENABLE_FFT``).
 
+``RANS_Checks_SelfTest`` tests the check scripts' own verdict logic rather
+than any physics: it states, for each kind of comparison the shared
+``rans_checks.py`` offers, what the check must decide for values inside and
+just outside the stated tolerance or band, and fails when a check disagrees.
+It runs no ERF executable; labels ``rans`` and ``unit``.
+
 Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
 
 .. _`Exec/CanonicalTests/Canonical_RANS`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/Canonical_RANS
