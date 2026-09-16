@@ -135,9 +135,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
 
             //
             // Check if this level should use surface-only init (atmospheric state from coarse level)
-            // This applies when interp_atmos_from_coarse is enabled for fine levels with init files
+            // This applies when interp_atmos_from_coarse is enabled for fine levels with WRFInput files.
+            // Metgrid files only contain surface data anyway, so use_surface_only doesn't apply to Metgrid.
             //
-            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) && !nc_init_file[lev].empty();
+            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
+                                    !nc_init_file[lev].empty() &&
+                                    (solverChoice.init_type == InitType::WRFInput);
 
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
@@ -157,19 +160,16 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             } else if (use_surface_only) {
                 //
                 // Level has a file but is using surface-only init (interp_atmos_from_coarse):
-                // Read only surface fields from the file now, and atmospheric state will
+                // Read only surface fields from the WRFInput file now, and atmospheric state will
                 // be interpolated from coarse later in InitData_post via FillCoarsePatch.
                 // LSM initialization must also be deferred until after FillCoarsePatch.
+                // Note: use_surface_only is only true for WRFInput (checked above), not Metgrid.
                 //
                 amrex::Print() << "Using interp_atmos_from_coarse mode at level " << lev << " (from scratch):\n";
                 amrex::Print() << "  - Reading surface fields from wrfinput\n";
                 amrex::Print() << "  - Atmospheric state will be interpolated from level " << lev-1 << "\n";
 
-                if (solverChoice.init_type == InitType::WRFInput) {
-                    init_from_wrfinput_surface_only(lev, *mf_PSFC[lev]);
-                } else {
-                    init_from_metgrid(lev); // Metgrid always reads surface only
-                }
+                init_from_wrfinput_surface_only(lev, *mf_PSFC[lev]);
                 init_zphys(lev, time);
                 update_terrain_arrays(lev);
                 make_physbcs(lev);
@@ -246,8 +246,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (restart_chkfile.empty()) {
         // Starting from scratch (not a restart)
         if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
-            // use_surface_only was computed above; it's only true for lev > 0 with interp_atmos_from_coarse
-            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) && !nc_init_file[lev].empty();
+            // use_surface_only only applies to WRFInput with interp_atmos_from_coarse
+            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
+                                    !nc_init_file[lev].empty() &&
+                                    (solverChoice.init_type == InitType::WRFInput);
             if (!use_surface_only) {
                 // Initialize LSM normally; if use_surface_only=true, LSM init is deferred
                 // until after FillCoarsePatch in InitData_post
@@ -517,11 +519,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
         //
         // CHOOSE INITIALIZATION PATH:
-        // If interp_atmos_from_coarse is enabled for a finer level,
+        // If interp_atmos_from_coarse is enabled for a finer level with WRFInput,
         // read only surface fields from wrfinput and interpolate atmospheric state from coarse.
-        // Otherwise use the standard path of reading all fields from wrfinput.
+        // Metgrid files only contain surface data anyway, so use_surface_only doesn't apply.
         //
-        bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0);
+        bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
+                                (solverChoice.init_type == InitType::WRFInput);
 
         if (solverChoice.init_type == InitType::Metgrid) {
             init_from_metgrid(lev);
@@ -1265,12 +1268,13 @@ ERF::make_lsm_at_level (int lev, bool from_regrid)
     lsm.Define(lev, solverChoice);
 
     // Check if we'll be using surface-only init (atmospheric state comes later from FillCoarsePatch)
-    // Only applies to fine levels (lev > 0) during initial level creation; level 0 always initializes normally
+    // Only applies to fine levels (lev > 0) with WRFInput during initial level creation.
+    // Metgrid files only contain surface data anyway, so this doesn't apply to Metgrid.
     // During regrid (from_regrid=true), always initialize LSM immediately to avoid losing LSM state
     bool will_use_surface_only = false;
 #ifdef ERF_USE_NETCDF
     if (!from_regrid && lev > 0 && !nc_init_file[lev].empty() &&
-        (solverChoice.init_type == InitType::WRFInput || solverChoice.init_type == InitType::Metgrid)) {
+        solverChoice.init_type == InitType::WRFInput) {
         will_use_surface_only = solverChoice.interp_atmos_from_coarse;
     }
 #endif
