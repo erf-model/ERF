@@ -585,9 +585,7 @@ init_which_terrain_grid (int lev,
     if (lev > 0 && terrain_smoothing != 0) {
         if (fine_terrain == FineTerrain::None) {
             Abort("terrain_smoothing = " + std::to_string(terrain_smoothing) +
-                  " on level > 0 requires setting erf.amr_terrain_refinement = transform "
-                  "(use 'transform' for wrfinput initialization or ERF-generated refinement; "
-                  "'interpolate' only works with analytic/ideal terrain)");
+                  " on level > 0 requires setting erf.amr_terrain_refinement (transform or interpolate)");
         }
         init_fine_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
         return;
