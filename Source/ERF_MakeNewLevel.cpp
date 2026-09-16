@@ -259,7 +259,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -394,7 +394,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -550,15 +550,18 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Create the SurfaceLayer arrays at this (new) level
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                     &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-        m_SurfaceLayer->make_SurfaceLayer_at_level(lev,lev+1,
-                                                   mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                   Qr_prim[lev], z_phys_nd[lev],
-                                                   Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
-                                                   lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                   sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+            m_SurfaceLayer[ori]->make_SurfaceLayer_at_level(lev,lev+1,
+                                                            mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                            Qr_prim[lev], z_phys_nd[lev],
+                                                            Hwave[lev].get(), Lwave[lev].get(), eddyDiffs_lev[lev].get(),
+                                                            lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                            sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+        }
     }
 
     // ********************************************************************************************
@@ -906,7 +909,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Radiation
     // *******************************************************************************************
-    if (solverChoice.rad_type != RadiationType::None)
+    if (solverChoice.rad_uses_interface())
     {
         rad[lev]->Init(geom[lev], ba, &vars_new[lev][Vars::cons]);
     }
@@ -1021,17 +1024,20 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Update the SurfaceLayer arrays at this level
     // ********************************************************************************************
-    if (m_SurfaceLayer != nullptr) {
-        if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-            int nlevs = finest_level+1;
-            Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                                         &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
-            m_SurfaceLayer->make_SurfaceLayer_at_level(lev,nlevs,
-                                                       mfv_old, Theta_prim[lev], Qv_prim[lev],
-                                                       Qr_prim[lev], z_phys_nd[lev],
-                                                       Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
-                                                       lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                       sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (m_SurfaceLayer[ori] != nullptr) {
+            if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+                int nlevs = finest_level+1;
+                Vector<MultiFab*> mfv_old = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                                             &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]};
+                m_SurfaceLayer[ori]->make_SurfaceLayer_at_level(lev,nlevs,
+                                                                mfv_old, Theta_prim[lev], Qv_prim[lev],
+                                                                Qr_prim[lev], z_phys_nd[lev],
+                                                                Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
+                                                                lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
+                                                                sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+            }
         }
     }
 
@@ -1085,6 +1091,9 @@ ERF::ClearLevel (int lev)
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
+
+    // Clears the map of the vertical extent of the grid column over each (i,j)
+    column_kextent[lev].reset();
 
     // Clears the physical boundary condition routines
     physbcs_cons[lev].reset();

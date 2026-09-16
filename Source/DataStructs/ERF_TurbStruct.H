@@ -1,6 +1,7 @@
 #ifndef ERF_TURB_STRUCT_H_
 #define ERF_TURB_STRUCT_H_
 
+#include <AMReX_ParallelDescriptor.H>
 #include <ERF_MYNNStruct.H>
 
 /**
@@ -125,6 +126,14 @@ public:
 
     // Which LES closure?
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
+    // Immersed-boundary awareness of the MRF and YSUNew schemes (off by default):
+    // the surface of a column with immersed solid cells is the first fluid cell
+    // above them, heights and the boundary-layer depth are measured from it,
+    // the eddy diffusivities are zero inside the solid, and the surface
+    // scales over such a column come from a neutral log law at its top with
+    // the roughness pbl_ib_z0. Only MRF and YSUNew honour it.
+    query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
+    query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
     // Handle 2-D Smag
     if (les_type == LESType::Smagorinsky2D) {
@@ -233,6 +242,19 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
+        // Radiative tendency limiter (YSUNew-only)
+        query_one_or_per_level(
+          pp, "enable_ysu_rad_tend_limiter", enable_ysu_rad_tend_limiter, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_rad_tend_limiter_magnitude", ysu_rad_tend_limiter_magnitude, lev, max_level);
+        if (!(ysu_rad_tend_limiter_magnitude > 0.0)) {
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "WARNING: erf.ysu_rad_tend_limiter_magnitude = "
+                               << ysu_rad_tend_limiter_magnitude
+                               << " is not positive; using the default of 1.0 K/s\n";
+            }
+            ysu_rad_tend_limiter_magnitude = amrex::Real(1.0);
+        }
         // Vogelezang & Holtslag (1996) shear correction
         query_one_or_per_level(
           pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
@@ -607,6 +629,11 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
+      // Radiative tendency limiter/smoothing (YSUNew-only)
+      amrex::Print() << "    enable_ysu_rad_tend_limiter        : "
+                     << enable_ysu_rad_tend_limiter << std::endl;
+      amrex::Print() << "    ysu_rad_tend_limiter_magnitude     : "
+                     << ysu_rad_tend_limiter_magnitude << std::endl;
       amrex::Print() << "    enable_vh96_shear_correction       : "
                      << enable_vh96_shear_correction << std::endl;
       amrex::Print() << "    vh96_shear_const_b                 : "
@@ -850,6 +877,9 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
+  // Radiative tendency limiter (YSUNew-only)
+  bool enable_ysu_rad_tend_limiter = false; // if true, guard and bound the qheating_rates top-down forcing
+  amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on the limited radiative tendency (K/s)
   // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
   bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
   amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b
@@ -870,6 +900,8 @@ public:
   bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
   bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
+  bool        pbl_ib_aware = false;              // MRF / YSUNew: measure heights from the top of immersed solid columns
+  amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
@@ -1009,6 +1041,21 @@ public:
  * @brief Whether MRF applies turbulence to moisture variables.
  * @var TurbChoice::enable_mrf_countergradient
  * @brief Whether MRF countergradient corrections are enabled.
+ * @var TurbChoice::pbl_ib_aware
+ * When true, the MRF and YSUNew schemes treat the first fluid cell above the
+ * immersed solid of a column (buildings or terrain by immersed forcing) as
+ * that column's surface: the bulk Richardson heights, the boundary-layer
+ * depth and the K profile are measured from it, the diffusivities vanish
+ * inside the solid, and the surface scales of such a column are a neutral
+ * log law at its top (u* from the wind there and pbl_ib_z0, theta* = 0). The
+ * boundary-layer height both schemes store (pblh, Lturb) stays the absolute
+ * height above the domain bottom; with enable_pblh_smoothing the stencil runs
+ * on that absolute height, and the smoothed value is kept at or above each
+ * column's own floor (half a cell above its surface, at least 10 m). Off by
+ * default; without immersed cells the results are identical. Not supported
+ * with terrain-fitted coordinates.
+ * @var TurbChoice::pbl_ib_z0
+ * Roughness length [m] of that log law.
  * @var TurbChoice::enable_mrf_cloud_adjustment
  * @brief Whether MRF cloud-aware stability adjustments are enabled.
  * @var TurbChoice::pbl_mrf_highres_bounds

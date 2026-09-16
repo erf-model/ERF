@@ -1,0 +1,10 @@
+CEXE_sources += ERF_IBFaceSet.cpp
+CEXE_sources += ERF_IBSEB.cpp
+CEXE_sources += ERF_IBSEBMaterials.cpp
+
+CEXE_headers += ERF_IBFaceSet.H
+CEXE_headers += ERF_IBSEBBalance.H
+CEXE_headers += ERF_IBSEBMaterials.H
+CEXE_headers += ERF_IBSEBParams.H
+CEXE_headers += ERF_IBSEBSlab.H
+CEXE_headers += ERF_IBSEBSolar.H

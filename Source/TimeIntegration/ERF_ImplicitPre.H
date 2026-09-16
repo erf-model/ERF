@@ -28,7 +28,7 @@
                 for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
                     l_bc_neumann_vals_d[ori] = m_bc_neumann_vals[RhoTheta_comp][ori];
                 }
-                const bool l_use_SurfLayer = (m_SurfaceLayer != nullptr);
+                const bool l_use_SurfLayer = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
 
                 const bool l_use_turb       = solverChoice.turbChoice[level].use_kturb;
 
@@ -58,6 +58,10 @@
 
                     const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
+                    // Vertical extent of the grid column over each (i,j), with a one-cell halo
+                    // so a box can also see the column on the other side of each of its faces
+                    const Array4<const int>& col_kext = column_kextent[level]->const_array(mfi);
+
                     const Array4<const Real> tau13  = Tau[level][TauType::tau13]->array(mfi);
                     const Array4<const Real> tau23  = Tau[level][TauType::tau23]->array(mfi);
                     [[maybe_unused]] const Array4<const Real> tau33  = Tau[level][TauType::tau33]->array(mfi);
@@ -82,6 +86,7 @@
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_S<0>(tbx, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
@@ -89,6 +94,7 @@
                                                       l_use_ysu_mom_cg);
 
                             ImplicitDiffForMomLU_S<1>(tby, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
@@ -96,6 +102,7 @@
                                                       l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
                             ImplicitDiffForMomLU_S<2>(tbz, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       stretched_dz_d[level],
                                                       mu_turb, solverChoice,
@@ -114,6 +121,7 @@
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_T<0>(tbx, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
@@ -121,6 +129,7 @@
                                                       l_use_ysu_mom_cg);
 
                             ImplicitDiffForMomLU_T<1>(tby, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
@@ -128,6 +137,7 @@
                                                       l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
                             ImplicitDiffForMomLU_T<2>(tbz, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
@@ -145,6 +155,7 @@
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
@@ -152,6 +163,7 @@
                                                       l_use_ysu_mom_cg);
 
                             ImplicitDiffForMomLU_N<1>(tby, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_v, tau23, tau23_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
@@ -159,6 +171,7 @@
                                                       l_use_ysu_mom_cg);
 #ifdef ERF_IMPLICIT_W
                             ImplicitDiffForMomLU_N<2>(tbz, fine_geom.Domain(), level, stage_dt,
+                                                      col_kext,
                                                       cell_data, rho_w, tau33, tau33_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,

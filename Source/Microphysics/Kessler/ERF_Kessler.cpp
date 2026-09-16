@@ -146,6 +146,10 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         //
         ParallelDescriptor::ReduceRealMax(max_vt);
 
+        // A zero minimum dz means Set_dzmin was never called (a restart path that
+        // skipped it): the substep count would be unbounded and the step never end.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
+            "Kessler: the minimum cell height was never set (Set_dzmin), so the sedimentation substeps cannot be sized");
         int n_substep = kessler_num_sedimentation_substeps(max_vt, dt, m_dzmin);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(n_substep >= 1,
                                          "Kessler: Number of precipitation substeps must be greater than 0!");

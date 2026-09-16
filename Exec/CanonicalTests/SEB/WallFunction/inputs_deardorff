@@ -1,0 +1,8 @@
+FILE = inputs_base
+
+# The convective velocity scale with a fixed 1000 m depth.
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "fixed"
+erf.ibseb.z_i = 1000.0
+erf.ibseb.csv_file = "ibseb_deardorff.csv"
+erf.ibseb.dump_faces_file = "faces_deardorff"
