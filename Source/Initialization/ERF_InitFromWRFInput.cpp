@@ -1334,7 +1334,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         FineTerrain fine_terrain = FineTerrain::None;
         MultiFab z_phys_interp;
 
-        if (lev > 0 && terrain_smoothing != 0) {
+        if (lev > 0 && terrain_smoothing != 0 && !solverChoice.avg_grid_faces_to_nodes) {
             // Determine fine terrain mode
             fine_terrain = which_fine_terrain();
 
@@ -1342,6 +1342,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
             // the fine terrain detail onto the interpolated coarse mesh. Interpolate mode
             // would leave a mismatch between the fine terrain surface (from wrfinput_d0N) and
             // the interpolated coarse mesh above it, causing grid inconsistencies and NaNs.
+            // NOTE: This transform requirement does not apply when avg_grid_faces_to_nodes = true,
+            //       which uses a different terrain handling path.
             if (fine_terrain != FineTerrain::Transform) {
                 Abort("terrain_smoothing = " + std::to_string(terrain_smoothing) +
                       " with wrfinput initialization on level > 0 requires "
