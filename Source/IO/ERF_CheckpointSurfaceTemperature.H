@@ -5,6 +5,9 @@
 #include <ostream>
 #include <string>
 
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_Utility.H>
+
 namespace erf_checkpoint_surface_temperature {
 
 constexpr int contract_version = 1;
@@ -13,6 +16,28 @@ inline void
 write_contract_version (std::ostream& output)
 {
     output << contract_version << "\n";
+}
+
+/**
+ * Return the first AMR level containing a legacy SST or TSK surface array.
+ *
+ * The arrays are identified by their AMReX header files.  A return value of
+ * -1 means that neither legacy array is present on any level.
+ */
+inline int
+first_legacy_surface_temperature_level (const std::string& checkpointname,
+                                         const int finest_level)
+{
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        const bool has_sst = amrex::FileExists(
+            amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SST_0_H"));
+        const bool has_tsk = amrex::FileExists(
+            amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TSK_0_H"));
+        if (has_sst || has_tsk) {
+            return lev;
+        }
+    }
+    return -1;
 }
 
 enum class ContractReadStatus {

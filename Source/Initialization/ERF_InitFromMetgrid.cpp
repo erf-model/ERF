@@ -426,13 +426,11 @@ ERF::init_from_metgrid (int lev)
                         (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
                          z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
                     const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
-                    const Real surface_pressure = metgrid_surface_pressure(
-                        debug_psfc, flag_psfc, file_psfc, z_sfc,
-                        bsp.P00, bsp.T00, bsp.TLP);
                     // Metgrid SST is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
-                    dst_arr(i,j,0) = getThgivenTandP(
-                        src_arr(li,lj,0), surface_pressure, l_rdOcp);
+                    dst_arr(i,j,0) = metgrid_surface_theta(
+                        src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
+                        bsp.P00, bsp.T00, bsp.TLP, l_rdOcp);
                 });
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
@@ -459,13 +457,11 @@ ERF::init_from_metgrid (int lev)
                         (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
                          z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
                     const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
-                    const Real surface_pressure = metgrid_surface_pressure(
-                        debug_psfc, flag_psfc, file_psfc, z_sfc,
-                        bsp.P00, bsp.T00, bsp.TLP);
                     // Metgrid SKINTEMP is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
-                    dst_arr(i,j,0) = getThgivenTandP(
-                        src_arr(li,lj,0), surface_pressure, l_rdOcp);
+                    dst_arr(i,j,0) = metgrid_surface_theta(
+                        src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
+                        bsp.P00, bsp.T00, bsp.TLP, l_rdOcp);
                 });
             }
             tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());

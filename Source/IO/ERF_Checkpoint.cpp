@@ -42,7 +42,8 @@ write_surface_temperature_contract (const std::string& checkpointname)
 
 void
 validate_surface_temperature_contract (const std::string& checkpointname,
-                                       const bool is_metgrid)
+                                       const bool is_metgrid,
+                                       const int finest_level)
 {
     const std::string marker_name = checkpointname + "/" + surface_temperature_contract_file;
     const bool marker_present = amrex::FileExists(marker_name);
@@ -65,14 +66,16 @@ validate_surface_temperature_contract (const std::string& checkpointname,
         return;
     }
 
-    const bool has_sst = amrex::FileExists(
-        amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "SST_0_H"));
-    const bool has_tsk = amrex::FileExists(
-        amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "TSK_0_H"));
-    if (erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-            marker_present, is_metgrid, has_sst, has_tsk)) {
+    if (!is_metgrid) {
+        return;
+    }
+
+    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
+        checkpointname, finest_level);
+    if (legacy_level >= 0) {
         amrex::Abort("Legacy Metgrid checkpoint '" + checkpointname +
-                     "' contains SST_0/TSK_0 without a surface-temperature contract marker; "
+                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
+                     " without a surface-temperature contract marker; "
                      "the legacy absolute-temperature arrays cannot be safely restored.");
     }
 }
@@ -767,9 +770,6 @@ ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
-    validate_surface_temperature_contract(
-        restart_chkfile, solverChoice.init_type == InitType::Metgrid);
-
     const auto provenance_result =
         erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
     if (provenance_result.valid() &&
@@ -818,6 +818,9 @@ ERF::ReadCheckpointFile ()
     // read in finest_level
     is >> finest_level;
     GotoNextLine(is);
+
+    validate_surface_temperature_contract(
+        restart_chkfile, solverChoice.init_type == InitType::Metgrid, finest_level);
 
     // read the number of components
     // for each variable we store

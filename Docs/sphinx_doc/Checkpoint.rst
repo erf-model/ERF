@@ -16,12 +16,12 @@ records the checkpoint artifact, the ERF execution that wrote it, and the
 known restart ancestry. See :ref:`sec:Provenance`.
 New native checkpoints also contain a small ``surface_temperature_contract``
 marker with value ``1``. This records that Metgrid SST and skin temperature
-arrays use the current SurfaceLayer potential-temperature convention and that
-the reader may apply the corresponding pressure conversion. A checkpoint
-without this marker remains compatible unless it is a legacy Metgrid
-checkpoint containing ``SST_0`` or ``TSK_0``; those arrays were stored as
-absolute temperature and are rejected because a restart checkpoint does not
-carry enough pressure information to reinterpret them safely.
+arrays already use the current SurfaceLayer potential-temperature convention
+and can be restored directly. A checkpoint without this marker remains
+compatible unless it is a legacy Metgrid checkpoint containing ``SST_0`` or
+``TSK_0`` at any AMR level; those arrays were stored as absolute temperature
+and are rejected because a restart checkpoint does not carry enough pressure
+information to reinterpret them safely.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
