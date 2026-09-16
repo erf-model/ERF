@@ -991,9 +991,7 @@ public:
    *
    * @param[in] lev level index
    */
-  void get_lsm_tsurf (const int& lev,
-                      const amrex::MultiFab& cons_in,
-                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+  void get_lsm_tsurf (const int& lev);
 
   /**
    * Wrapper around compute_pblh.

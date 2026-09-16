@@ -41,7 +41,8 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaAndWritesLsmAbs
 
 // Motivation: water columns do not use an available LSM surface temperature
 // in this fallback chain. SurfaceLayer theta must take precedence, be
-// converted at the lowest-cell pressure, and write back absolute temperature
+// converted at the physical surface pressure diagnosed from the lowest
+// atmospheric cell, and write back absolute temperature
 // to the available LSM field.
 TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackTakesPrecedenceOverWaterLsmTemperature)
 {

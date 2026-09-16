@@ -144,7 +144,8 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
-    # SurfaceLayer fallback must convert theta at the lowest-cell pressure,
+    # SurfaceLayer fallback must convert theta at the physical surface
+    # pressure diagnosed from the lowest atmospheric cell,
     # respect land/water precedence, and preserve valid land LSM temperatures.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestRRTMGP_SurfaceTemperature.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestOrbitalGeometry.cpp

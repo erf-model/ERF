@@ -7,7 +7,7 @@
 namespace erf_surface_temperature {
 
 /**
- * Pressure at the physical surface from the lowest cell state.
+ * Pressure at the physical surface from the lowest atmospheric cell state.
  *
  * The state pressure is diagnosed at the cell centre. Adding rho*g*delta_z
  * gives the pressure at the physical surface, where delta_z is the

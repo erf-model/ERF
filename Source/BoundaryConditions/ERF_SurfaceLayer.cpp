@@ -60,7 +60,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update land surface temp if we have a valid pointer
-    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev, cons_in, z_phys_nd);
+    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
@@ -1899,9 +1899,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
  * @param[in] lev Current level
  */
 void
-SurfaceLayer::get_lsm_tsurf (const int& lev,
-                             const MultiFab& /*cons_in*/,
-                             const std::unique_ptr<MultiFab>& /*z_phys_nd*/)
+SurfaceLayer::get_lsm_tsurf (const int& lev)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)

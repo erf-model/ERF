@@ -601,41 +601,37 @@ TwoStreamRadiation::advance (int lev,
                 }
             }
 
-            // Surface temperature for the longwave boundary condition, in
-            // the order RRTMGP uses: the land-surface model's field, else the
-            // surface layer's temperature, else this model's own field (the
-            // erf.rad_t_sfc value, or the LSM copy). The prognostic surface
-            // energy balance owns the surface temperature when it is on, so
-            // its state comes before the surface layer's; the gate is the one
-            // the force-restore update itself uses (init_params turns
-            // seb_enable on with seb_prognostic_enable, so the two agree).
-            bool has_t_sfc_field = false;
-            bool t_sfc_is_theta = false;   // the surface layer works in potential temperature
-            Array4<const amrex::Real> t_sfc_arr;
+            // Keep the surface-temperature sources separate until the column
+            // kernel resolves them per cell. An LSM field can exist globally
+            // while carrying an undefined sentinel in an individual column;
+            // that column must still fall through to SurfaceLayer theta.
+            // The kernel's precedence is valid LSM absolute temperature,
+            // valid prognostic SEB absolute temperature, SurfaceLayer theta,
+            // then the scalar absolute-temperature fallback.
+            bool has_lsm_t_sfc = false;
+            Array4<const amrex::Real> lsm_t_sfc_arr;
+            bool has_seb_t_sfc = false;
+            Array4<const amrex::Real> seb_t_sfc_arr;
+            bool has_surface_layer = false;
+            Array4<const amrex::Real> surface_layer_theta_arr;
             {
-                // Each source is tried in turn, so an LSM that lists the
-                // field but hands back no data falls through to the next one.
                 std::string varname_t_sfc = "t_sfc";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
-                        t_sfc_arr = lsm_ptr->const_array(mfi);
-                        has_t_sfc_field = true;
+                        lsm_t_sfc_arr = lsm_ptr->const_array(mfi);
+                        has_lsm_t_sfc = true;
                     }
                 }
-                if (!has_t_sfc_field && rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
-                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
-                    has_t_sfc_field = true;
+                if (!has_lsm_t_sfc && rad_choice.seb_prognostic_enable &&
+                    rad_choice.seb_enable && m_t_sfc[lev]) {
+                    seb_t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
+                    has_seb_t_sfc = true;
                 }
-                if (!has_t_sfc_field && t_surf != nullptr) {
-                    t_sfc_arr = t_surf->const_array(mfi);
-                    has_t_sfc_field = true;
-                    t_sfc_is_theta = true;
-                }
-                if (!has_t_sfc_field && m_t_sfc[lev]) {
-                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
-                    has_t_sfc_field = true;
+                if (t_surf != nullptr) {
+                    surface_layer_theta_arr = t_surf->const_array(mfi);
+                    has_surface_layer = true;
                 }
             }
 
@@ -742,7 +738,9 @@ TwoStreamRadiation::advance (int lev,
                         z_phys_nd_arr, scratch_arr,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                        has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                        has_lsm_t_sfc, &lsm_t_sfc_arr,
+                        has_seb_t_sfc, &seb_t_sfc_arr,
+                        has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr);
 
@@ -770,7 +768,9 @@ TwoStreamRadiation::advance (int lev,
                             z_phys_nd_arr, scratch_arr,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                            has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                            has_lsm_t_sfc, &lsm_t_sfc_arr,
+                            has_seb_t_sfc, &seb_t_sfc_arr,
+                            has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
                             write_fluxes ? &rad_flux_cloudy_arr : nullptr);
 

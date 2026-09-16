@@ -266,7 +266,7 @@ Limitations
   ``erf.rad_t_sfc``; the prognostic surface
   energy balance, when on, supplies its own state ahead of the surface layer. The surface
   layer works in potential temperature, so its value is converted to temperature with the
-  Exner function evaluated at the physical surface pressure diagnosed from the lowest cell
+  Exner function evaluated at the physical surface pressure diagnosed from the lowest atmospheric cell
   before it enters the :math:`\sigma T_s^4` emission; with a
   surface layer present, ``erf.rad_t_sfc`` is the initial value of the prognostic surface
   temperature when the surface energy balance evolves one, and unused otherwise.
