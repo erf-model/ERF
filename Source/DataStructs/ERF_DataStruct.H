@@ -19,6 +19,7 @@
 #include "ERF_SpongeStruct.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
+#include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
 #include "ERF_SBMContracts.H"
 
@@ -75,6 +76,18 @@ AMREX_ENUM(CouplingType,
  */
 AMREX_ENUM(SubsteppingType,
     None, Implicit
+);
+
+/**
+ * @brief Two-stage scheme used by the anelastic time integrator.
+ *
+ * RK2 is the SSP (Heun) scheme: both stages advance a full timestep from the old
+ * state and the second averages the two slow sources.  MidPoint advances only a
+ * half timestep in the first stage, which makes the vertical diffusion second
+ * order in time with an implicit solve in the first stage alone.
+ */
+AMREX_ENUM(AnelasticType,
+    RK2, MidPoint
 );
 
 /**
@@ -150,7 +163,7 @@ AMREX_ENUM(LandSurfaceType,
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
-    None, RRTMGP, Simple
+    None, RRTMGP, Simple, TwoStream
 );
 
 /**
@@ -175,6 +188,8 @@ enum Rayleigh {
 enum Sponge {
     ubar_sponge, vbar_sponge, nvars_sponge
 };
+
+static const std::string BoundaryFaceName[] = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 /**
  * @brief The moisture data carried by the active microphysics scheme.
@@ -1028,6 +1043,25 @@ struct SolverChoice {
         }
 
         // *******************************************************************************
+        // Read anelastic_type and allow for different values at each level
+        // *******************************************************************************
+        anelastic_type.resize(max_level+1);
+
+        for (int i = 0; i <= max_level; i++) {
+            anelastic_type[i] = AnelasticType::RK2;
+        }
+
+        for (int i = 0; i <= max_level; i++) {
+            query_one_or_per_level_enum_case_insensitive(
+                pp, "anelastic_type", anelastic_type[i], i, max_level);
+        }
+
+        if (pp.contains("anelastic_type") && !any_anelastic) {
+            amrex::Print() << "Ignoring erf.anelastic_type because no level is anelastic" << std::endl;
+            for (int i = 0; i <= max_level; i++) { anelastic_type[i] = AnelasticType::RK2; }
+        }
+
+        // *******************************************************************************
         // Read substepping_type and allow for different values at each level
         // *******************************************************************************
         substepping_type.resize(max_level+1);
@@ -1045,8 +1079,6 @@ struct SolverChoice {
 
         pp.queryAdd("beta_s", beta_s);
 
-
-
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -1054,8 +1086,6 @@ struct SolverChoice {
         if (nvals_old > 0) {
             amrex::Error("The no_substepping flag is deprecated -- set substepping_type instead");
         }
-
-        // *******************************************************************************
 
         pp.queryAdd("ncorr", ncorr);
         // Wall distance on a terrain-fitted mesh (RANS): "poisson" (Tucker 2003
@@ -1122,6 +1152,15 @@ struct SolverChoice {
 
         pp.queryAdd("if_Olen", if_Olen_in);
         pp.queryAdd("if_use_most",if_use_most);
+        pp.queryAdd("if_snap_partial_cells",if_snap_partial_cells);
+        // The snapped staircase puts full-strength forcing on every wall face,
+        // whose explicit relaxation rate (Cd / dx per substep) sits at the
+        // stability limit and fails where faces stack at rims and corners; the
+        // point-implicit form holds at any rate, so the snap uses it.
+        if (if_snap_partial_cells && !if_implicit_drag) {
+            amrex::Print() << "erf.if_snap_partial_cells: using the point-implicit drag (erf.if_implicit_drag = true)\n";
+            if_implicit_drag = true;
+        }
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
@@ -1246,6 +1285,10 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
+
+        // erf.radiation_model = TwoStream selects the two-stream model; its
+        // erf.radiation.* sub-options are read only then.
+        radChoice.init_params(rad_type == RadiationType::TwoStream, max_level, pp_prefix);
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1432,13 +1475,34 @@ struct SolverChoice {
             }
         }
 
-        // Do not allow implicit vertical diff with anelastic
+        // The implicit vertical diffusion is only second order in an anelastic run when
+        // the two stages are the midpoint method and the solve is done in the first stage
+        // alone: S^* = S^n + (dt/2) F(S^*) and S^{n+1} = S^n + dt F(S^*) give
+        // S^* = (S^n + S^{n+1})/2, i.e. the implicit midpoint rule.  Solving again in the
+        // second stage would reduce the pair to backward Euler, and with the RK2 (Heun)
+        // stages there is no stage that plays the role of the midpoint at all.
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev]) {
-                amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev << std::endl;
-                vert_implicit_fac[lev][0] = zero;
-                vert_implicit_fac[lev][1] = zero;
-                vert_implicit_fac[lev][2] = zero;
+                if (anelastic_type[lev] == AnelasticType::RK2) {
+                    amrex::Print() << "Turning off native vertical implicit solve flag because anelastic at level " << lev
+                                   << " with RK2 scheme." << std::endl;
+                    vert_implicit_fac[lev][0] = zero;
+                    vert_implicit_fac[lev][1] = zero;
+                    vert_implicit_fac[lev][2] = zero;
+                } else if (anelastic_type[lev] == AnelasticType::MidPoint) {
+                    if (do_vert_implicit && vert_implicit_fac[lev][0] != one) {
+                        amrex::Print() << "Forcing implicit factor 1 in first stage of MidPoint to ensure second-order accuracy." << std::endl;
+                        vert_implicit_fac[lev][0] = one;
+                    }
+                    if (vert_implicit_fac[lev][1] > zero) {
+                        amrex::Print() << "Turning off the second-stage vertical implicit solve at level " << lev
+                                       << " because anelastic with MidPoint solves in the first stage only."
+                                       << std::endl;
+                    }
+                    // The anelastic integrator only takes two stages, so [2] is never used
+                    vert_implicit_fac[lev][1] = zero;
+                    vert_implicit_fac[lev][2] = zero;
+                }
             }
         }
 
@@ -1772,7 +1836,9 @@ struct SolverChoice {
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "At level " << lev << " : " << std::endl;
             if (anelastic[lev]) {
-                amrex::Print() << "   anelastic with no substepping" << std::endl;
+                amrex::Print() << "   anelastic with no substepping, using the "
+                               << ((anelastic_type[lev] == AnelasticType::MidPoint) ? "MidPoint" : "RK2")
+                               << " integrator" << std::endl;
             } else {
                if (substepping_type[lev] == SubsteppingType::None) {
                    amrex::Print() << "   compressible with no substepping" << std::endl;
@@ -1893,6 +1959,8 @@ struct SolverChoice {
             amrex::Print() << "Radiation Model: RRTMGP" << std::endl;
         } else if (rad_type == RadiationType::Simple) {
             amrex::Print() << "Radiation Model: Simple" << std::endl;
+        } else if (rad_type == RadiationType::TwoStream) {
+            amrex::Print() << "Radiation Model: TwoStream" << std::endl;
         } else {
             amrex::Print() << "Radiation Model: None" << std::endl;
         }
@@ -2023,11 +2091,13 @@ struct SolverChoice {
     SpongeChoice  spongeChoice;
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
+    RadChoice     radChoice;
 
     int         force_stage1_single_substep = 1;
 
     amrex::Vector<SubsteppingType> substepping_type;
     amrex::Vector<int> anelastic;
+    amrex::Vector<AnelasticType> anelastic_type;
     amrex::Vector<int> fixed_density;
     amrex::Vector<int> project_initial_velocity;
     amrex::Vector<int> buoyancy_type;
@@ -2093,6 +2163,7 @@ struct SolverChoice {
     amrex::Real if_surf_heating_rate     = zero;               // [K/hr]
     amrex::Real if_Olen_in               = amrex::Real(1e-8);  // [m]
     bool        if_use_most              = false;
+    bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
@@ -2287,6 +2358,12 @@ struct SolverChoice {
     LandSurfaceType lsm_type;
     RadiationType rad_type;
 
+    /** @brief True for the models that run through the IRadiation interface
+     *  (RRTMGP, Simple); the two-stream model has its own class. */
+    [[nodiscard]] bool rad_uses_interface () const {
+        return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
+    }
+
     // Does an external ocean coupler supply SST? See the query in init_params.
     bool use_coupled_sst = false;
 
@@ -2414,6 +2491,8 @@ struct SolverChoice {
  * @brief Acoustic substepping type for each AMR level.
  * @var SolverChoice::anelastic
  * @brief Per-level flag selecting anelastic dynamics.
+ * @var SolverChoice::anelastic_type
+ * @brief Per-level two-stage scheme used by the anelastic integrator.
  * @var SolverChoice::fixed_density
  * @brief Per-level flag selecting fixed-density treatment.
  * @var SolverChoice::project_initial_velocity
@@ -2478,6 +2557,30 @@ struct SolverChoice {
  * @brief Input Obukhov length for immersed-forcing MOST [m].
  * @var SolverChoice::if_use_most
  * @brief Whether immersed-forcing MOST is enabled.
+ * @var SolverChoice::if_snap_partial_cells
+ * When true, the immersed forcing reads the blanking snapped to solid (1) or
+ * fluid (0) at half, so a building from a height map becomes the same
+ * staircase of whole cells an exact box is: the wall law (and the thermal
+ * conditions) sit on the boundary solid cells, roofs included, the drag on
+ * the interior cells, and nothing on the sliver cells of the reader's
+ * one-cell ramp (1-20 percent solid at the corners), on which the raw
+ * fractions make the wall law and the drag disagree and grow a vertical
+ * checkerboard over hours. The staircase puts full-strength forcing on every
+ * wall face, so the switch also selects the point-implicit drag form
+ * (if_implicit_drag), without which the explicit rate at rims and corners
+ * drives the density negative within seconds. The momentum kernels take the
+ * blanking of a face from the two cells it joins (solid if either is), so
+ * the staircase is the same with and without the face-centred blanking of
+ * the build; a face between a solid and a fluid cell is wall-normal and gets
+ * the interior drag toward zero (no penetration) whichever row it lies in,
+ * and a face between two solid cells the roof or wall law of its row (with
+ * the full log-law target; the partial-cell weight of the target is not
+ * applied) or the interior drag. Buildings only (erf.buildings_type = ImmersedForcing): the
+ * terrain kernels keep the raw fractions, whose wall law is weighted by the
+ * fluid fraction of the face. Default false, the raw fractions, for backward
+ * compatibility (on an exact box a boundary cell then carries the wall law
+ * and the interior drag together, and the roof only the drag); set it for
+ * height-map buildings.
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor

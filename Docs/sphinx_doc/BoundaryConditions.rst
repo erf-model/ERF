@@ -285,7 +285,7 @@ For turbulent inflow perturbations, including the ``erf.perturbation_type`` opti
 their placement on level subdomains, see :doc:`InflowTurbulenceGeneration`.
 
 ERF Boundary Data Files
-----------------------
+-----------------------
 
 For real lateral boundary conditions, ``init_type`` of ``metgrid`` or ``wrfinput``, ERF can
 write lateral boundary data to an AMReX-native file during initialization. The file name is

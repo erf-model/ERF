@@ -1,0 +1,5 @@
+FILE = inputs_base
+
+erf.pbl_type = "YSUNew"
+erf.pbl_ib_aware = false
+erf.plot_file_1 = plt_ysunew_off

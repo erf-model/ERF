@@ -190,6 +190,40 @@ function(add_test_cloud_chamber TEST_NAME MODE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_cloud_chamber)
 
+# Gold-free TwoStream radiation regression: run a short SW + LW column case
+# and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
+# (surface at k = 0, cooling to space from the top layer).
+function(add_test_two_stream_radiation TEST_NAME PLTFILE)
+    set(oneValueArgs "RUNTIME_OPTIONS")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${test_input}
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DSIMULATION_LOG=${test_simulation_log}
+        -DCHECKER_LOG=${test_checker_log}
+        -DCHECKER=${TWO_STREAM_RADIATION_CHECKER}
+        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        "-DRUNTIME_OPTIONS=${ADD_TEST_TSR_RUNTIME_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_two_stream_radiation)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -259,6 +293,58 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         LABELS "regression;box-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
+
+# Restart parity: run one deck straight, then to a checkpoint and on from it, and
+# require the plotfile at the end to be identical (no gold file). Every run has a
+# time limit, so a restart whose first step never finishes fails with a message.
+function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_RP_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_RP_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_RP_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_RP_FCOMPARE_ATOL}")
+    endif()
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_RP_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_RP_RUN_TIMEOUT}")
+    endif()
+    # Three runs, each capped at _run_timeout by RunRestartParity.cmake, plus the
+    # fcompare calls and process startup, which sit outside that budget. CTest's
+    # own limit must exceed the sum, or it kills the script before the script can
+    # report which of the three legs stalled.
+    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DSTEP_CHK=${STEP_CHK}
+        -DSTEP_END=${STEP_END}
+        -DRTOL=${_fcompare_rtol}
+        -DATOL=${_fcompare_atol}
+        -DRUN_TIMEOUT=${_run_timeout}
+        "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;restart-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_restart_parity)
 
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
@@ -350,6 +436,34 @@ function(add_test_terrain_zsplit_parity TEST_NAME PLTFILE)
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/full_columns/simulation.log;${CURRENT_TEST_BINARY_DIR}/split_in_z/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_terrain_zsplit_parity)
+
+# At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
+# outflow boundaries, where the mesh is extrapolated past the domain and the base state in
+# the ghost cells has to be built at the height the mesh puts them at rather than copied.
+function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLERANCE)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFEXTREMA=${FEXTREMA_EXE}
+        -DPLTFILE=${PLTFILE}
+        -DTOLERANCE=${TOLERANCE}
+        -DGRADP_TOLERANCE=${GRADP_TOLERANCE}
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunAtRestTerrainOutflow.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/symmetry/simulation.log;${CURRENT_TEST_BINARY_DIR}/outflow/simulation.log;${CURRENT_TEST_BINARY_DIR}/at_rest.log")
+endfunction(add_test_at_rest_terrain_outflow)
 
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
@@ -504,6 +618,9 @@ endfunction(add_test_cloud_chamber_most)
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
         "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
         -DLOG=${test_log}
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
@@ -667,6 +784,9 @@ if(ERF_ENABLE_MPI)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X 0)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Y 1)
 add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_Z 2)
+# Same stationary state as the _X case, but with erf.anelastic_type = MidPoint so the
+# vertical implicit diffusion stays on (the _X/_Y/_Z cases opt out with vert_implicit).
+add_test_anelastic_wall_diffusion(AnelasticWallDiffusion_X_MidPoint 0)
 add_test_cloud_chamber(CloudChamber_Dry dry)
 add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
@@ -697,6 +817,7 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
+add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 endif()
 endif()
 
@@ -1115,6 +1236,9 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
+if(ERF_ENABLE_FFT)
+    add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
+endif()
 add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
@@ -1145,9 +1269,27 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_YSUNew_Tiling_Smooth ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU erf.enable_pblh_smoothing=true"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
+  # The immersed-boundary-aware MRF and YSUNew (erf.pbl_ib_aware) build their
+  # per-column surface and work arrays on the tile work box; a cube by
+  # immersed forcing makes them differ from column to column.
+  add_test_tiling_parity(PBL_IBAware_MRF_Tiling    PBL_IBAware_Tiling "00010" "00010"
+      VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
+      VARYING_3D "Kmv" VARYING_2D "pblh u_star")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
+# and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
+# mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
+# sedimentation substep count of the first restarted step came from an uninitialised
+# value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
+    COMMON_OPTIONS "erf.vert_implicit=false"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1170,9 +1312,29 @@ if(ERF_ENABLE_PARTICLES)
     add_test_sdm(ParticleAdvect_AMR2_pcount    ""  "erf_exec" "plt00050" 1e-7 5e-9 RUNTIME_OPTIONS "erf.vert_implicit=false ")
   endif()
 endif( )
-if(ERF_ENABLE_RRGMTP)
+# The option name used to be misspelled (ERF_ENABLE_RRGMTP), which kept this
+# test unregistered; Tests/test_files/Radiation has never existed, so it is
+# registered only once someone adds the inputs.
+if(ERF_ENABLE_RRTMGP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_files/Radiation")
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
+
+# TwoStream radiation needs no external library and no gold plotfiles: the
+# column-physics checker verifies the vertical structure of the heating
+# rates, and the header test verifies that qsrc_sw/qsrc_lw are written.
+# The column test runs through cmake -P and execute_process, which needs a
+# launcher and a resolved executable path; the Windows job builds without
+# MPI and resolves test executables through sh -c globs, so it is skipped
+# there like the other script-driven tests.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  add_test_two_stream_radiation(TwoStream_ColumnHeating "plt00002")
+  # Same column over a Witch-of-Agnesi hill on a terrain-fitted mesh: the
+  # layer thicknesses come from the nodal heights, every column differs, and
+  # the runner's 1-rank vs NRANKS comparison of the diagnostics CSV has a
+  # real signal (rank-local means fail it).
+  add_test_two_stream_radiation(TwoStream_ColumnHeating_Terrain "plt00002")
+endif()
+add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -1346,6 +1508,27 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+
+# The check scripts' own pass/fail logic: kind = "range" accepted half a band
+# width outside the band, so every band check was looser than it reads.
+# Pure Python, no ERF run.
+#
+# Registered only when CMake actually found an interpreter: this is the one
+# test with the "unit" label that is not a built binary, and "ctest -L unit"
+# runs in the gcc, macos, ci and windows workflows. Without the guard,
+# ERF_RANS_PYTHON falls back to the bare name "python3" and a configuration
+# that has no such executable on PATH fails the whole unit stage on a test
+# that exercises no ERF code.
+if(Python3_Interpreter_FOUND)
+    add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
+        ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
+    set_tests_properties(RANS_Checks_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
+        LABELS "rans;unit")
+endif()
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)
@@ -1404,6 +1587,11 @@ function(add_test_most_zref TEST_NAME)
 endfunction(add_test_most_zref)
 
 add_test_most_zref(MOST_Zref_Stretched)
+
+# Immersed-boundary surface energy balance on the faces of a height-map cube
+# (prognostic skin, slab conduction, heat flux into the air), 40 steps.
+add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
 # Performance tests

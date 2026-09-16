@@ -33,23 +33,12 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
 
     int comp = 0;
 
-    // Use this region to take max/min of gpx without including xlo,xhi if using real_bcs
+    // The lateral boundary faces are included here.  The base state in the ghost cells
+    // outside them is built at the height the mesh puts those cells at, rather than copied
+    // outward at constant index, so the gradient across a lateral domain face is a gradient
+    // of the reference atmosphere like any other and belongs in these extrema.
     Box xface_domain = surroundingNodes(geom[lev].Domain(), 0);
-    int ilo = xface_domain.smallEnd(0);
-    int ihi = xface_domain.bigEnd(0);
-    if (solverChoice.use_real_bcs) {
-        xface_domain.growLo(0,-1);
-        xface_domain.growHi(0,-1);
-    }
-
-    // Use this region to take max/min of gpy without including ylo,yhi if using real_bcs
     Box yface_domain = surroundingNodes(geom[lev].Domain(), 1);
-    int jlo = yface_domain.smallEnd(1);
-    int jhi = yface_domain.bigEnd(1);
-    if (solverChoice.use_real_bcs) {
-        yface_domain.growLo(1,-1);
-        yface_domain.growHi(1,-1);
-    }
 
 
     // Use this region to take max/min of gpz without including top and bottom faces
@@ -137,8 +126,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         Print() << "Min/max value of dp0/dx            are " << min_gpx << " " << max_gpx << std::endl;
         IntVect min_loc = gradp_temp[0].minIndex(comp);
         IntVect max_loc = gradp_temp[0].maxIndex(comp);
-        if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
-        if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
+        amrex::Print() << " with min at face " << min_loc;
+        amrex::Print() << " with max at face " << max_loc;
         Print() << std::endl;
     } else {
         Print() << "Min/max value of dp0/dx            are zero " << std::endl;
@@ -150,8 +139,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
         Print() << "Min/max value of dp0/dy            are " << min_gpy << " " << max_gpy << std::endl;
         IntVect min_loc = gradp_temp[1].minIndex(comp);
         IntVect max_loc = gradp_temp[1].maxIndex(comp);
-        if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
-        if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
+        amrex::Print() << " with min at face " << min_loc;
+        amrex::Print() << " with max at face " << max_loc;
         Print() << std::endl;
     } else {
         Print() << "Min/max value of dp0/dy            are zero " << std::endl;
@@ -259,8 +248,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Print() << "Min/Max value of x-gradient of full (moist) pressure are " << min_gpx << " " << max_gpx;
                 IntVect min_loc = gradp_temp[0].minIndex(comp);
                 IntVect max_loc = gradp_temp[0].maxIndex(comp);
-                if (min_loc[0] != ilo && min_loc[0] != ihi) amrex::Print() << " with min at face " << min_loc;
-                if (max_loc[0] != ilo && max_loc[0] != ihi) amrex::Print() << " with max at face " << max_loc;
+                amrex::Print() << " with min at face " << min_loc;
+                amrex::Print() << " with max at face " << max_loc;
                 Print() << std::endl;
             } else {
                 Print() << "Min/max value of x-gradient of full (moist) pressure are zero " << std::endl;
@@ -272,8 +261,8 @@ ERF::compute_max_pressure_gradient_diagnostic(int lev)
                 Print() << "Min/Max value of y-gradient of full (moist) pressure are " << min_gpy << " " << max_gpy;
                 IntVect min_loc = gradp_temp[1].minIndex(comp);
                 IntVect max_loc = gradp_temp[1].maxIndex(comp);
-                if (min_loc[1] != jlo && min_loc[1] != jhi) amrex::Print() << " with min at face " << min_loc;
-                if (max_loc[1] != jlo && max_loc[1] != jhi) amrex::Print() << " with max at face " << max_loc;
+                amrex::Print() << " with min at face " << min_loc;
+                amrex::Print() << " with max at face " << max_loc;
                 Print() << std::endl;
             } else {
                 Print() << "Min/max value of y-gradient of full (moist) pressure are zero " << std::endl;

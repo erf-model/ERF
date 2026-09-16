@@ -374,7 +374,7 @@ private:
     MoistureType m_moisture_type = MoistureType::None;
 
     // Minimum dz at this level
-    amrex::Real m_dzmin;
+    amrex::Real m_dzmin{0.0};   // set by Set_dzmin; the fall routines assert it is positive
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

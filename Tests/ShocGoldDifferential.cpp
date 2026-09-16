@@ -99,6 +99,20 @@ struct FieldTolerance {
     return profile;
 }
 
+// Stable-cloud SINGLE output has a wider compiler-dependent envelope than
+// the unstable cloudy cases for rhoKE and shear_prod. Keep those overrides
+// isolated so the existing cloudy profile remains unchanged elsewhere.
+[[maybe_unused]] const std::map<std::string, FieldTolerance>& single_stable_cloud_tolerance_profile ()
+{
+    static const std::map<std::string, FieldTolerance> profile = [] {
+        auto stable_cloud = single_cloudy_tolerance_profile();
+        stable_cloud.at("rhoKE") = {1.0e-8, 2.5e-4};
+        stable_cloud.at("shear_prod") = {1.0e-11, 4.0e-3};
+        return stable_cloud;
+    }();
+    return profile;
+}
+
 [[maybe_unused]] const std::map<std::string, FieldTolerance>& single_stable_clear_tolerance_profile ()
 {
     static const std::map<std::string, FieldTolerance> profile {
@@ -341,6 +355,9 @@ const std::map<std::string, FieldTolerance>& tolerance_profile (const std::strin
     }
     if (mode == "unstable_clear") {
         return single_unstable_clear_tolerance_profile();
+    }
+    if (mode == "stable_cloud") {
+        return single_stable_cloud_tolerance_profile();
     }
     return single_cloudy_tolerance_profile();
 #else

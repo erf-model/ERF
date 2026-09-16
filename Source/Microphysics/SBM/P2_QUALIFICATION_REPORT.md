@@ -243,6 +243,27 @@ All compiler/MPI build and run commands use the pinned Spack environment above.
 | Docs catalog check | 15/15 |
 | GNUmake build (`make -j8`) | PASS with Spack `mpicc`/`mpicxx` |
 
+### Development-branch integration evidence
+
+The branch was subsequently updated from `origin/development` at
+`7ed1a98f91bac26b557e2f3bc0071a8af91935f7`. The merge base was
+`33ce039e87f309592609098792dff06d0762438c`; the branch carried 20 commits
+not on development and development carried 333 commits not on this branch.
+The merge had one textual conflict, in `Tests/CMakeLists.txt`; it was resolved
+by retaining both `erf_two_stream_radiation_check` and
+`erf_sbm_qualification_check` in the CUDA test list. A one-character padding
+correction was also made in the expanded moisture-model table in
+`Docs/sphinx_doc/Inputs.rst` after Sphinx reported the malformed table.
+
+| Post-merge check | Result |
+|---|---:|
+| Fresh CMake configure with Spack MPI wrappers | PASS |
+| Fresh CMake build (`cmake --build ... --parallel 8`) | PASS |
+| P2 CTest label | 4/4 |
+| Full CTest matrix | 873/873 |
+| GNUmake (`make -j8`) with Spack `mpicc`/`mpicxx` | PASS |
+| Documentation build after table correction | PASS; 4 warning-level tool/environment messages |
+
 Executed representative commands:
 
 ```text
@@ -288,11 +309,12 @@ Docs/doxygen_output/html/index.html
 Docs/doxygen_output/xml/index.xml
 ```
 
-The build emitted 33 warnings from pre-existing repository documentation
-issues (including malformed legacy tables, heading underline/style issues,
-missing legacy prompt-file references, and unavailable Graphviz `dot` for
-some Doxygen graphs). No P2 documentation error prevented generation, and the
-warnings are preserved as a documented limitation rather than hidden.
+The original P2 qualification build emitted 33 warnings from pre-existing
+repository documentation issues. After the development merge, the corrected
+documentation build generated the same HTML/XML artifacts successfully and
+reported four warning-level Doxygen configuration messages; Graphviz `dot`
+was unavailable in the local environment for some optional graphs. No P2
+documentation error prevented generation.
 
 ## Gate table
 

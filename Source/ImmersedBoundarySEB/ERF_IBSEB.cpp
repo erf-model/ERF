@@ -1,0 +1,282 @@
+/**
+ * \file ERF_IBSEB.cpp
+ * \brief ERF-side hooks of the immersed-boundary surface energy balance.
+ *
+ * The balance lives in IBFaceSet (one per level, ``ERF::m_ibseb``); this file
+ * holds the three places ERF calls into it:
+ *  - init_ibseb() from ERF::InitData_post(), after the immersed forcing has
+ *    built the blanking on a fresh start or a restart;
+ *  - ibseb_write_checkpoint() from ERF::WriteCheckpointFile(), per level;
+ *  - ibseb_report() from ERF::post_timestep().
+ * The inputs are parsed in ERF::ReadParameters() into ``ERF::ibseb_params``.
+ * Every function is a no-op unless ``erf.ibseb.enable`` is set.
+ */
+#include <ERF.H>
+#include <ERF_PlaneAverage.H>
+#include <ERF_DirectionSelector.H>
+#include <AMReX_VisMF.H>
+
+using namespace amrex;
+
+/**
+ * Build the face set of every level from the blanking and, on a restart,
+ * refill its state from the checkpoint.
+ *
+ * Called from ERF::InitData_post() after restart(), which is the first point
+ * where both paths (fresh start and restart) have the blanking of every
+ * level built and ghost-filled. The face list is always rebuilt from the
+ * blanking rather than read back, so the checkpoint carries only the state
+ * (``IBSEBState``, see IBFaceSet::state_ncomp()) and a restart on a different
+ * number of ranks works. A checkpoint from a run without the balance has no
+ * such field; the initial state is kept and a note is printed.
+ */
+void
+ERF::init_ibseb ()
+{
+    if (!ibseb_params.enable) { return; }
+    if (solverChoice.buildings_type != BuildingsType::ImmersedForcing) {
+        Abort("erf.ibseb.enable needs erf.buildings_type = ImmersedForcing");
+    }
+    // The face detection takes every solid column of the blanking for a
+    // building, so terrain by immersed forcing would be put under the
+    // balance as well; it is not supported.
+    if (solverChoice.terrain_type == TerrainType::ImmersedForcing) {
+        Abort("erf.ibseb.enable does not support erf.terrain_type = ImmersedForcing: "
+              "the balance runs on building faces only");
+    }
+    // The face areas, the face heights, the wall-function distance and the
+    // ray cast all take the level's constant cell sizes.
+    if (solverChoice.mesh_type != MeshType::ConstantDz) {
+        Abort("erf.ibseb.enable needs a uniform vertical grid (no erf.terrain_z_levels or stretched mesh): "
+              "the face geometry and the ray cast assume constant dz");
+    }
+    // The face list is built once here from the blanking; a regrid would
+    // leave it indexing the old boxes.
+    if (regrid_int > 0) {
+        Abort("erf.ibseb.enable does not support regridding (erf.regrid_int > 0): the face list is built once at initialisation");
+    }
+    // The immersed forcing's own surface-temperature conditions would fight
+    // the face balance for the same cells.
+    if (solverChoice.if_init_surf_temp > 0.0 ||
+        solverChoice.if_surf_temp_flux != Real(1.e-8) ||
+        solverChoice.if_Olen_in != Real(1.e-8)) {
+        Abort("erf.ibseb.enable: remove erf.if_init_surf_temp, erf.if_surf_temp_flux and erf.if_Olen; "
+              "the face balance sets the temperature condition at the buildings");
+    }
+    m_ibseb.resize(finest_level + 1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev);
+        const double t_init0 = ParallelDescriptor::second();
+        m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
+        std::unique_ptr<MultiFab> restored;
+        if (!restart_chkfile.empty()) {
+            const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
+            if (FileExists(name + "_H")) {
+                // The field's width is n_slots x (2 + n_slab_layers) and its
+                // boxes follow the buildings; a checkpoint written with
+                // another layer count or another building set cannot be
+                // unpacked.
+                const VisMF header(name);
+                const int ncomp_chk = header.nComp();
+                if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
+                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
+                          + " components; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
+                          + ", which with the " + std::to_string(m_ibseb[lev]->n_slots())
+                          + " face slots per cell of this blanking needs " + std::to_string(m_ibseb[lev]->state_ncomp())
+                          + ". The checkpoint was written with another erf.ibseb.n_slab_layers (restart with the"
+                            " checkpoint's value) or for another building set.");
+                }
+                if (header.boxArray() != m_ibseb[lev]->state_boxarray()) {
+                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " was written for a different building layout ("
+                          + std::to_string(header.boxArray().size()) + " boxes against the "
+                          + std::to_string(m_ibseb[lev]->state_boxarray().size()) + " the blanking gives); restart from a checkpoint of the same buildings");
+                }
+                restored = std::make_unique<MultiFab>(m_ibseb[lev]->make_state());
+                VisMF::Read(*restored, name);
+                m_ibseb[lev]->load_state(*restored);
+                Print() << "[IBSEB] Face state restored from " << restart_chkfile << "\n";
+            } else {
+                Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
+            }
+        }
+        m_ibseb[lev]->assign_materials();
+        m_ibseb[lev]->compute_view_fractions();
+        m_ibseb[lev]->set_init_cost(ParallelDescriptor::second() - t_init0);
+        // Initial diagnostics for the first report. On a restart they
+        // overwrite the sensible flux with a diagnostic value, so the
+        // checkpointed flux (which the convective velocity scale of the next
+        // step reads as the previous step's) is put back afterwards.
+        m_ibseb[lev]->compute_shortwave(t_new[lev]);
+        m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
+        m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                                       vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
+        if (restored) { m_ibseb[lev]->load_state(*restored); }
+        m_ibseb[lev]->report(t_new[lev], istep[lev], ibseb_params.csv_int > 0);
+    }
+}
+
+/**
+ * Per-step update of one level, called at the start of ERF::Advance() with
+ * the state at the start of the step: shortwave, longwave and the wall
+ * function on the faces, then either the prognostic balance (which finds
+ * the skin temperature at the end of the step and advances the slab with
+ * it) or, with ``erf.ibseb.prognostic = false``, the slab alone under the
+ * fixed skin. The sensible flux left in the set is what
+ * add_heat_flux_to_source() deposits at every slow stage of the step, so
+ * the air receives exactly the H of the closed balance. The atmosphere is
+ * seen at the start of the step and the skin is implicit within it, the
+ * usual coupling of a land-surface model.
+ *
+ * @param[in] lev     AMR level to update; a no-op if it has no face set.
+ * @param[in] time    Time at the start of the step [s], at which the sun
+ *                    position of the shortwave is taken.
+ * @param[in] dt_lev  Length of the level's step [s], over which the slab is
+ *                    advanced and within which the skin is implicit.
+ * @param[in] cons    Conserved state at the start of the step: the air
+ *                    temperature of the longwave and the wall function, and
+ *                    the profile of the bulk Richardson depth.
+ * @param[in] xvel    Face-centred x velocity at the start of the step.
+ * @param[in] yvel    Face-centred y velocity at the start of the step.
+ * @param[in] zvel    Face-centred z velocity at the start of the step; the
+ *                    three together drive the wall function of the sensible
+ *                    flux.
+ */
+void
+ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
+                    const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel)
+{
+    if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
+    const double t_wall0 = ParallelDescriptor::second();
+    m_ibseb[lev]->compute_shortwave(time);
+    m_ibseb[lev]->compute_longwave(cons);
+    // The ground surface layer's fields and the mixed-layer depth
+    // for the wall function beyond neutral (all null / zero unless asked).
+    const MultiFab* olen2d = nullptr;
+    const MultiFab* pblh2d = nullptr;
+    Real z_i_bulk = 0.0;
+    // The surface layer now exists per domain face.  What the wall function wants
+    // here is the ground beneath the buildings, so take zlo; a surface layer on a
+    // lateral or upper wall says nothing about the stability of this column.
+    const auto& ground_sl = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+    if (ground_sl && ibseb_params.stability_correction) { olen2d = ground_sl->get_olen(lev); }
+    if (ibseb_params.convective_velocity == "deardorff") {
+        if (ground_sl && ground_sl->computes_pblh() && ibseb_params.z_i_mode == "pblh") {
+            pblh2d = ground_sl->get_pblh(lev);
+        }
+        z_i_bulk = (ibseb_params.z_i_mode == "fixed") ? ibseb_params.z_i
+                                                     : ibseb_bulk_richardson_height(lev, cons, xvel, yvel);
+        if (ibseb_params.debug) {
+            Print() << "[IBSEB DEBUG] lev=" << lev << " mixed-layer depth for w*: " << z_i_bulk << " m ("
+                    << ibseb_params.z_i_mode << (pblh2d ? ", pblh per column" : "") << ")\n";
+        }
+    }
+    m_ibseb[lev]->compute_sensible(cons, xvel, yvel, zvel, solverChoice.c_p, olen2d, pblh2d, z_i_bulk);
+    if (ibseb_params.prognostic) {
+        m_ibseb[lev]->solve_balance(dt_lev);
+    } else {
+        m_ibseb[lev]->compute_ground(dt_lev);
+    }
+    m_ibseb[lev]->add_cost(ParallelDescriptor::second() - t_wall0);
+}
+
+/**
+ * Write the face state of one level into the checkpoint as ``IBSEBState``, a
+ * field on the blocks around the buildings (IBFaceSet::state_boxarray())
+ * clipped to the cells that own faces, so it scales with the shell of the
+ * buildings rather than with the level. Called inside the level loop of
+ * ERF::WriteCheckpointFile(); a no-op unless the balance is on and the level
+ * has faces.
+ *
+ * @param[in] checkpointname  Path of the checkpoint directory being written.
+ * @param[in] lev             AMR level whose face state is written, as the
+ *                            ``IBSEBState`` field of its ``Level_`` group.
+ */
+void
+ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
+{
+    if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
+    // A level without faces has no field to write (and nothing to restore).
+    if (!m_ibseb[lev]->has_state()) { return; }
+    MultiFab state = m_ibseb[lev]->make_state();
+    m_ibseb[lev]->save_state(state);
+    VisMF::Write(state, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBState"));
+}
+
+/**
+ * Periodic report from ERF::post_timestep(), with ``nstep`` the number of
+ * completed steps (the plotfiles' numbering; the initial state is the step-0
+ * report of init_ibseb()): after every ``erf.ibseb.csv_int``-th step, print
+ * the summary of each level and append its CSV rows. A non-positive interval
+ * disables both.
+ *
+ * @param[in] nstep  Number of completed steps, tested against
+ *                   ``erf.ibseb.csv_int`` and written to the CSV rows.
+ * @param[in] time   Simulation time at the end of the step [s], written to
+ *                   the summary and the CSV rows.
+ */
+void
+ERF::ibseb_report (int nstep, Real time)
+{
+    if (!ibseb_params.enable) { return; }
+    // With debug on the summary is printed every step, as the fire module
+    // does; the CSV rows keep their interval.
+    const bool csv_now = (ibseb_params.csv_int > 0) && (nstep % ibseb_params.csv_int == 0);
+    if (!csv_now && !ibseb_params.debug) { return; }
+    for (int lev = 0; lev <= finest_level && lev < static_cast<int>(m_ibseb.size()); ++lev) {
+        if (m_ibseb[lev]) { m_ibseb[lev]->report(time, nstep, csv_now); }
+    }
+}
+
+/**
+ * Mixed-layer depth of a level by the bulk Richardson method on the
+ * horizontal-mean profile (Troen and Mahrt; Vogelezang and Holtslag).
+ *
+ * With the first level as the reference, ``Ri_b(z) = g (z - z_1) (theta(z)
+ * - theta_1) / (theta_1 (|U(z) - U_1|^2 + 100 u*^2))`` with u* = 0.1 m/s,
+ * and the depth is the first cell centre where it exceeds
+ * ``erf.ibseb.ri_crit``, or the domain depth when it never does (a neutral
+ * profile); both are heights above the domain bottom. The profile is the plane average of the conserved state and the
+ * face velocities, uniform vertical spacing assumed as elsewhere in the
+ * balance; called once per step and level when the convective velocity
+ * scale is on and z_i is not fixed, also as the fallback of the pblh mode.
+ *
+ * @param[in] lev   AMR level whose horizontal-mean profile is taken.
+ * @param[in] cons  Conserved state of the level; the ``Rho_comp`` and
+ *                  ``RhoTheta_comp`` averages give the mean potential
+ *                  temperature.
+ * @param[in] xvel  Face-centred x velocity, for the mean wind profile.
+ * @param[in] yvel  Face-centred y velocity, for the mean wind profile.
+ * @return Mixed-layer depth above the domain bottom [m]; the depth of the
+ *         domain when ``Ri_b`` never exceeds ``erf.ibseb.ri_crit``.
+ */
+Real
+ERF::ibseb_bulk_richardson_height (int lev, const MultiFab& cons, const MultiFab& xvel, const MultiFab& yvel)
+{
+    MultiFab c2(cons, make_alias, Rho_comp, 2);   // rho and rho theta are the first two components
+    PlaneAverage r_ave(&c2, geom[lev], 2);
+    r_ave.compute_averages(ZDir(), r_ave.field());
+    PlaneAverage u_ave(&xvel, geom[lev], 2);
+    u_ave.compute_averages(ZDir(), u_ave.field());
+    PlaneAverage v_ave(&yvel, geom[lev], 2);
+    v_ave.compute_averages(ZDir(), v_ave.field());
+    const int nz = r_ave.ncell_line();
+    Gpu::HostVector<Real> rho(nz), rth(nz), uu(u_ave.ncell_line()), vv(v_ave.ncell_line());
+    r_ave.line_average(0, rho);
+    r_ave.line_average(1, rth);
+    u_ave.line_average(0, uu);
+    v_ave.line_average(0, vv);
+    const Real dz = geom[lev].CellSize(2);
+    const Real z_top = geom[lev].ProbHi(2) - geom[lev].ProbLo(2);   // depth of the domain
+    const Real th1 = rth[0] / rho[0];
+    const Real ustar_floor2 = 100.0 * 0.1 * 0.1;
+    Real z_i = z_top;
+    for (int k = 1; k < nz; ++k) {
+        const Real th = rth[k] / rho[k];
+        // |U(z) - U_1|^2 of the wind vector, so a veering wind of constant speed
+        // still counts as shear.
+        const Real dU2 = (uu[k] - uu[0]) * (uu[k] - uu[0]) + (vv[k] - vv[0]) * (vv[k] - vv[0]);
+        const Real rib = CONST_GRAV * (k * dz) * (th - th1) / (th1 * (dU2 + ustar_floor2));
+        if (rib > ibseb_params.ri_crit) { z_i = (k + 0.5) * dz; break; }
+    }
+    return z_i;
+}

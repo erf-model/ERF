@@ -180,7 +180,7 @@ While the MOST methods relevant to air-sea interfaces (``charnock``, ``modified_
 
 in the inputs file and ERF will populate the 2D :math:`z_{0}` array with values contained in the text file.
 
-When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fitted coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
+When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified distance :math:`z_{ref}` inward from the selected boundary, specified :math:`k_{index}`, or (when employing terrain-fitted coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
 ::
 
@@ -198,6 +198,10 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
    erf.most.radius            = INT    #SPECIFIED REGION RADIUS [grid cells]
    erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG [s]
+
+On the surface-temperature moisture path, when no positive
+``most.surf_moist`` is available, the surface moisture used in the
+thermodynamic MOST state falls back to the atmospheric value.
 
 When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``).
 
@@ -272,6 +276,68 @@ boundary layer depth would ever be diagnosed. The subgrid velocity scale
 
 which vanishes for grid spacings of :math:`\Delta x < 5` km.
 
+Surface Layer boundary on all faces
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+While the surface layer boundary condition is primarily used on the bottom z face (zlo), it can also be applied to all other domain sides.
+This can allow MOST theory to be used on faces for simulating closed environments (e.g, cloud chamber).
+
+To use the surface layer boundary on different faces, all existing MOST options are prefixed with the corresponding face name (`xlo`, `ylo`, `zlo`, `xhi`, `yhi` `zhi`).
+For example,
+
+::
+
+    xlo.type = "surface_layer"
+    ylo.type = "surface_layer"
+
+    erf.xlo.surface_layer.flux_type = MOENG
+    erf.xlo.most.surf_temp = 289.5
+    erf.xlo.most.surf_moist = 0.00765
+    erf.xlo.most.z0 = 0.000035
+    erf.xlo.most.zref = 0.03125
+    erf.xlo.most.average_policy = 1
+    erf.xlo.most.radius = 0
+
+    erf.ylo.surface_layer.flux_type = MOENG
+    erf.ylo.most.surf_temp = 289.5
+    erf.ylo.most.surf_moist = 0.00765
+    erf.ylo.most.z0 = 0.000035
+    erf.ylo.most.zref = 0.03125
+    erf.ylo.most.average_policy = 1
+    erf.ylo.most.radius = 0
+
+
+The face name is omitted when ``zlo`` is the only surface-layer face, so an input
+file written before this capability existed keeps working unchanged: with
+``zlo.type = "surface_layer"`` and no other surface-layer face, ``erf.most.*`` and
+``erf.surface_layer.*`` are read as before.
+
+As soon as a second surface-layer face is declared, every face is expected to
+qualify its inputs, ``zlo`` included.  Unqualified inputs are still honored in
+that case -- they are applied to ``zlo``, with a warning asking that they be
+migrated to ``erf.zlo.most.*`` and ``erf.zlo.surface_layer.*`` -- so that adding a
+wall to a working deck cannot silently fall back to the built-in defaults.  Giving
+both spellings at once (``erf.most.z0`` together with ``erf.zlo.most.z0``, say) is
+an error and aborts, since there is no way to tell which one was meant.
+
+Note that not all existing options are supported when using MOST on other faces (such as interpolation and time averaging).
+Currently the `MOENG` flux type is supported on all faces; ``bulk_coeff``,
+``custom`` and ``rico`` abort anywhere else.  Of the surface thermodynamic
+pathways, only the prescribed surface temperature (``most.surf_temp``) carries the
+orientation through to the flux, so a prescribed surface heat flux
+(``most.surf_temp_flux``), the fully adiabatic case, and any variable sea
+roughness (``most.roughness_type_sea`` other than ``constant`` over water cells)
+abort on a face other than zlo rather than run with the zlo sign convention.  The
+MOST PBL-height diagnostic (``most.pblh_calc``) and the free-convection correction
+it feeds (``most.include_wstar``) are likewise zlo-only.
+Lateral (x/y) surface-layer boundaries currently require every grid on that
+level to span its full vertical extent.  Grids decomposed in z and
+partial-height refined grids are not supported; configure
+``erf.max_grid_size_z`` accordingly.
+Deardorff LES, RANS, and PBL models, including SHOC, support SurfaceLayer
+only at zlo; they cannot be combined with lateral or upper surface-layer
+boundaries.  Smagorinsky LES, including its 2-D variant, uses the generic
+all-face diffusion path and is supported.
 
 Prescribed time-varying surface forcing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

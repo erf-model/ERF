@@ -100,6 +100,7 @@ ERF::ERF_shared ()
 
     qheating_rates.resize(nlevs_max);
     rad_fluxes.resize(nlevs_max);
+    two_stream_rad.resize(nlevs_max);
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);
@@ -115,6 +116,9 @@ ERF::ERF_shared ()
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
     for (int lev = 0; lev <= max_level; ++lev) { m_forest_drag[lev] = nullptr;}
+
+    // Surface layer object for each possible face
+    m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
     if (solverChoice.moisture_type == MoistureType::SBM) {
@@ -175,6 +179,8 @@ ERF::ERF_shared ()
         } else if (solverChoice.rad_type == RadiationType::Simple) {
             rad[lev] = std::make_unique<RadiationSimple>(lev, solverChoice);
             rad[lev]->setDataLogFrequency(rad_datalog_int);
+        } else if (solverChoice.rad_type == RadiationType::TwoStream) {
+            // Runs through TwoStreamRadiation (two_stream_rad), not IRadiation.
         } else if (solverChoice.rad_type != RadiationType::None) {
             Abort("Don't know this radiation model!");
         }
@@ -398,6 +404,7 @@ ERF::ERF_shared ()
     // BoxArrays to make MultiFabs needed to convert WRFBdy data
     ba1d.resize(nlevs_max);
     ba2d.resize(nlevs_max);
+    column_kextent.resize(nlevs_max);
 
     // MultiFabs needed to convert WRFBdy data
     mf_PSFC.resize(nlevs_max);
