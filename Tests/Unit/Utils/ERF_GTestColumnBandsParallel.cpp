@@ -204,7 +204,7 @@ void init_dens_hse (Column& c)
     const amrex::Geometry geom = make_geom();
     Problem prob(geom.ProbLo(), geom.ProbHi());
     std::unique_ptr<amrex::MultiFab> z_nd; // unused on this path
-    const amrex::Vector<amrex::Real> stretched_dz;
+    const amrex::Vector<amrex::Real> stretched_dz{}; // empty: no grid stretching on this path
     prob.erf_init_dens_hse_dry(c.rho, z_nd, c.z_cc, geom, stretched_dz, false, false);
 }
 
