@@ -418,6 +418,9 @@ public:
     // Experimental SBM P0/P1 auxiliary-state lifecycle.  The manager is
     // generic; these ERF methods are the provider-specific integration seam.
     void initialize_sbm_auxiliary (int lev);
+    void synchronize_sbm_level_companions (int lev, const amrex::BoxArray& ba,
+                                           const amrex::DistributionMapping& dm,
+                                           bool preserve_overlap);
     void begin_sbm_step (int lev, const amrex::MultiFab& core_old, double old_time);
     void advance_sbm_stage (int lev,
                             amrex::Vector<amrex::MultiFab>& state_old,
@@ -426,6 +429,9 @@ public:
                             double old_step_time, double old_stage_time,
                             double new_stage_time, int stage,
                             double full_step);
+    void begin_sbm_reflux_oracle (int lev);
+    void finish_sbm_reflux_oracle (int lev);
+    void write_sbm_composite_diagnostic (int nstep, double time, double dt_lev0);
 
     // Restart
     void restart ();
@@ -1156,6 +1162,16 @@ private:
     int sbm_step_count{0};
     std::unique_ptr<::erf_sbm::OwnershipRegistry> sbm_ownership;
     std::unique_ptr<::erf_sbm::SBMLayout> sbm_layout;
+    amrex::Vector<amrex::Real> sbm_composite_initial_totals;
+    bool sbm_composite_snapshot_valid{false};
+    amrex::Real sbm_minimum_accepted_limiter{amrex::Real(1.0)};
+    std::unique_ptr<amrex::MultiFab> sbm_reflux_pre_state;
+    int sbm_reflux_level{-1};
+    amrex::Vector<amrex::Real> sbm_interface_coarse_transfer;
+    amrex::Vector<amrex::Real> sbm_interface_fine_transfer;
+    amrex::Vector<amrex::Real> sbm_interface_reflux_correction;
+    amrex::Vector<amrex::Real> sbm_interface_oracle_error;
+    bool sbm_interface_oracle_available{false};
 
     // Used for anelastic or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;

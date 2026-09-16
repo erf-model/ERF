@@ -11,6 +11,7 @@
 #include "ERF_SBMLayout.H"
 #include "ERF_SBMTransportPrototype.H"
 #include "ERF_Interpolation_WENO_Z.H"
+#include "ERF_IndexDefines.H"
 
 #include <AMReX_MFParallelFor.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -20,6 +21,7 @@
 #include <limits>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -58,6 +60,126 @@ erf_sbm::SBMLayout make_layout(const int nbins, const MomentMode mode,
             true, false, 0.0, 1.0});
     }
     return erf_sbm::SBMLayout(std::move(spec));
+}
+
+struct ProductionChunkRun {
+    std::unique_ptr<amrex::MultiFab> spectral;
+    std::unique_ptr<amrex::MultiFab> compact;
+    std::unique_ptr<erf_auxiliary::AuxiliaryFaceTransfer> accepted;
+    std::size_t temporary_bytes{0};
+};
+
+ProductionChunkRun run_production_chunk_case(const int nbins, const MomentMode mode,
+                                             const int chunk_size)
+{
+    const auto layout = make_layout(nbins, mode);
+    const Box domain(IntVect(0, 0, 0), IntVect(15, 1, 1));
+    BoxArray boxes(domain);
+    boxes.maxSize(IntVect(8, 2, 2));
+    const DistributionMapping dm(boxes);
+    const amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                                  {AMREX_D_DECL(1.0, 1.0, 1.0)});
+    const std::array<int, AMREX_SPACEDIM> periodicity{AMREX_D_DECL(1, 1, 1)};
+    const Geometry geometry(domain, &real_box, amrex::CoordSys::cartesian,
+                            periodicity.data());
+
+    amrex::MultiFab rho(boxes, dm, 1, 2);
+    amrex::MultiFab core(boxes, dm, RhoQ3_comp + 1, 0);
+    amrex::MultiFab xflux(amrex::convert(boxes, IntVect(1, 0, 0)), dm, 1, 0);
+    amrex::MultiFab yflux(amrex::convert(boxes, IntVect(0, 1, 0)), dm, 1, 0);
+    amrex::MultiFab zflux(amrex::convert(boxes, IntVect(0, 0, 1)), dm, 1, 0);
+    rho.setVal(Real(0.0));
+    core.setVal(Real(0.0));
+    xflux.setVal(Real(0.125));
+    yflux.setVal(Real(0.0));
+    zflux.setVal(Real(0.0));
+    for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
+        const auto density = rho.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            density(i,j,k,0) = Real(1.0) + Real(0.05) * Real(i + 1);
+        });
+    }
+    rho.FillBoundary(geometry.periodicity());
+    xflux.FillBoundary(geometry.periodicity());
+    yflux.FillBoundary(geometry.periodicity());
+    zflux.FillBoundary(geometry.periodicity());
+
+    erf_auxiliary::AuxiliaryStateManager manager(layout.auxiliary_layout());
+    manager.define_level(0, boxes, dm, 2);
+    const auto& population = layout.populations().front();
+    for (amrex::MFIter mfi(manager.output(0)); mfi.isValid(); ++mfi) {
+        const auto state = manager.output(0).array(mfi);
+        const auto density = rho.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real variation = Real(1.0) + Real(0.20) *
+                std::sin(Real(6.2831853071795864769) *
+                         (Real(i) + Real(0.5)) / Real(16.0));
+            for (int b = 0; b < nbins; ++b) {
+                const Real mass = density(i,j,k,0) * Real(1.e-3) *
+                    Real(b + 1) * variation;
+                state(i,j,k,population.mass_offset+b) = mass;
+                if (mode == MomentMode::TwoMoment) {
+                    state(i,j,k,population.number_offset+b) = mass / (Real(b) + Real(0.5));
+                }
+            }
+        });
+    }
+    manager.output(0).FillBoundary(geometry.periodicity());
+    manager.begin_step(0, 0.0);
+
+    erf_auxiliary::AuxiliaryFaceTransfer stage_flux;
+    stage_flux.define(boxes, dm, layout.ncomp(), 0);
+    const Real dt = Real(0.5) / Real(16.0);
+    const auto context = erf_auxiliary::make_compressible_stage(
+        2, 0.0, 0.0, dt, dt, nullptr, nullptr);
+    erf_sbm::advance_stage(manager, layout, context, rho, core,
+                           xflux, yflux, zflux, geometry, stage_flux,
+                           erf_sbm::TransportMethod::GroupedFCT_WENOZ3,
+                           0, Real(0.0), chunk_size);
+
+    ProductionChunkRun result;
+    result.spectral = std::make_unique<amrex::MultiFab>(
+        boxes, dm, layout.ncomp(), manager.output(0).nGrowVect());
+    amrex::MultiFab::Copy(*result.spectral, manager.output(0), 0, 0,
+                          layout.ncomp(), manager.output(0).nGrowVect());
+    result.compact = std::make_unique<amrex::MultiFab>(boxes, dm, RhoQ3_comp + 1, 0);
+    amrex::MultiFab::Copy(*result.compact, core, 0, 0, RhoQ3_comp + 1, 0);
+    result.accepted = std::make_unique<erf_auxiliary::AuxiliaryFaceTransfer>();
+    result.accepted->define(boxes, dm, layout.ncomp(), 0);
+    const auto& accepted = manager.face_transfer_ledger(0).accepted();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        amrex::MultiFab::Copy(result.accepted->direction(dir), accepted.direction(dir),
+                              0, 0, layout.ncomp(), 0);
+    }
+    result.temporary_bytes = erf_sbm::grouped_fct_peak_working_bytes(
+        layout, boxes, dm, chunk_size);
+    return result;
+}
+
+Real max_multifab_difference(const amrex::MultiFab& left,
+                             const amrex::MultiFab& right, const int ncomp)
+{
+    amrex::MultiFab difference(left.boxArray(), left.DistributionMap(), ncomp, 0);
+    amrex::MultiFab::Copy(difference, left, 0, 0, ncomp, 0);
+    amrex::MultiFab::Subtract(difference, right, 0, 0, ncomp, 0);
+    // Keep this comparison local.  The helper is called once per rank and a
+    // valid one-box decomposition leaves non-owning MPI ranks with no FABs;
+    // an empty-rank collective norm is not a useful comparison and is not
+    // required because the same DistributionMapping is used for both runs.
+    if (difference.local_size() == 0) return Real(0.0);
+    return difference.norm0(0, ncomp, amrex::IntVect(0), true);
+}
+
+Real max_face_transfer_difference(const erf_auxiliary::AuxiliaryFaceTransfer& left,
+                                  const erf_auxiliary::AuxiliaryFaceTransfer& right,
+                                  const int ncomp)
+{
+    Real result = Real(0.0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        result = amrex::max(result, max_multifab_difference(
+            left.direction(dir), right.direction(dir), ncomp));
+    }
+    return result;
 }
 
 TEST(SBMP2, ConstraintGroupsCoverOneAndTwoMomentLayouts)
@@ -109,6 +231,24 @@ TEST(SBMP2, ConstraintDescriptorsFlattenCompleteGroups)
     EXPECT_EQ(descriptors.size(), expected);
 }
 
+TEST(SBMP2, ProductionChunkPlannerKeepsCompleteConstraintGroupsAtomic)
+{
+    const auto layout = make_layout(4, MomentMode::TwoMoment, true);
+    const auto groups = erf_sbm::make_constraint_groups(layout);
+    const auto one_group = erf_sbm::make_constraint_closure_chunks(layout, 1);
+    ASSERT_EQ(one_group.size(), groups.size());
+    for (std::size_t i = 0; i < one_group.size(); ++i) {
+        ASSERT_EQ(one_group[i].group_indices.size(), 1U);
+        EXPECT_EQ(one_group[i].group_indices.front(), static_cast<int>(i));
+        EXPECT_EQ(one_group[i].components.size(), groups[i].members.size());
+    }
+    const auto two_groups = erf_sbm::make_constraint_closure_chunks(layout, 2);
+    ASSERT_EQ(two_groups.size(), 2U);
+    EXPECT_EQ(two_groups[0].group_indices.size(), 2U);
+    EXPECT_EQ(two_groups[0].components.size(), groups[0].members.size() + groups[1].members.size());
+    EXPECT_THROW((void)erf_sbm::make_constraint_closure_chunks(layout, 0), std::invalid_argument);
+}
+
 TEST(SBMP2, GroupedFCTUsesCellWideConstraintBudgets)
 {
     const auto layout = make_layout(2, MomentMode::OneMoment);
@@ -150,6 +290,145 @@ TEST(SBMP2, TwoMomentEndpointTransformIsStableAtBounds)
     const auto recovered = erf_sbm::inverse_two_moment(center.L, center.H, 1.0, 3.0);
     EXPECT_NEAR(recovered.first, 2.0, 1.e-14);
     EXPECT_NEAR(recovered.second, 4.0, 1.e-14);
+
+    // Cancellation-sized endpoint roundoff is normalized only in the
+    // derived (L,H) representation; the authoritative (C,M) inputs are not
+    // modified.  Violations outside the scale-aware tolerance fail closed.
+    const Real eps = std::numeric_limits<Real>::epsilon();
+    const auto near_lower = erf_sbm::transform_two_moment(2.0, 2.0 - 32*eps, 1.0, 3.0);
+    const auto near_upper = erf_sbm::transform_two_moment(2.0, 6.0 + 32*eps, 1.0, 3.0);
+    EXPECT_EQ(near_lower.H, 0.0);
+    EXPECT_EQ(near_upper.L, 0.0);
+    EXPECT_THROW((void)erf_sbm::transform_two_moment(2.0, 2.0 - 1.e-8, 1.0, 3.0), std::invalid_argument);
+    EXPECT_THROW((void)erf_sbm::transform_two_moment(2.0, 6.0 + 1.e-8, 1.0, 3.0), std::invalid_argument);
+
+    const Real tiny_c = Real(1.e-100);
+    const Real tiny_m = Real(2.0) * tiny_c;
+    const auto tiny = erf_sbm::transform_two_moment(tiny_c, tiny_m, 1.0, 3.0);
+    const auto tiny_back = erf_sbm::inverse_two_moment(tiny.L, tiny.H, 1.0, 3.0);
+    EXPECT_NEAR(tiny_back.first, tiny_c, 64*eps*tiny_c);
+    EXPECT_NEAR(tiny_back.second, tiny_m, 64*eps*tiny_m);
+
+    const Real huge_c = Real(1.e100);
+    const Real huge_m = Real(2.0) * huge_c;
+    const auto huge = erf_sbm::transform_two_moment(huge_c, huge_m, 1.0, 3.0);
+    const auto huge_back = erf_sbm::inverse_two_moment(huge.L, huge.H, 1.0, 3.0);
+    EXPECT_NEAR(huge_back.first, huge_c, 64*eps*huge_c);
+    EXPECT_NEAR(huge_back.second, huge_m, 64*eps*huge_m);
+
+    const Real lower_edge = Real(2.5), upper_edge = Real(9.25), count = Real(3.75);
+    const Real mass = Real(6.125) * count;
+    const auto nontrivial = erf_sbm::transform_two_moment(count, mass, lower_edge, upper_edge);
+    const auto nontrivial_back = erf_sbm::inverse_two_moment(
+        nontrivial.L, nontrivial.H, lower_edge, upper_edge);
+    EXPECT_NEAR(nontrivial_back.first, count, 64*eps*count);
+    EXPECT_NEAR(nontrivial_back.second, mass, 64*eps*std::abs(mass));
+}
+
+TEST(SBMP2, ProductionChunkWorkingMemoryScalesWithAtomicChunkPolicy)
+{
+    const Box domain(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    const BoxArray boxes(domain);
+    const DistributionMapping dm(boxes);
+    for (const int nbins : {4, 16, 64}) {
+        for (const auto mode : {MomentMode::OneMoment, MomentMode::TwoMoment}) {
+            const auto layout = make_layout(nbins, mode);
+            const auto one_group = erf_sbm::grouped_fct_peak_working_bytes(layout, boxes, dm, 1);
+            const auto all_groups = erf_sbm::grouped_fct_peak_working_bytes(layout, boxes, dm, nbins);
+            EXPECT_GT(one_group, std::size_t(0));
+            EXPECT_GE(all_groups, one_group);
+            EXPECT_EQ(one_group, erf_sbm::grouped_fct_peak_working_bytes(layout, boxes, dm, 1));
+            if (nbins > 1) EXPECT_GT(all_groups, one_group);
+        }
+    }
+    EXPECT_THROW((void)erf_sbm::grouped_fct_peak_working_bytes(
+        make_layout(4, MomentMode::OneMoment), boxes, dm, 0), std::invalid_argument);
+}
+
+TEST(SBMP2, ProductionGroupedTransportIsChunkEquivalentAcrossRuntimeLayouts)
+{
+    // The all-group run is the production reference.  Every other run still
+    // executes the grouped WENO/FCT FAB path; only the complete-group chunk
+    // policy changes.  This exercises both physical moments, accepted face
+    // transfers, compact projections, and the runtime 4/16/64-bin layouts.
+    std::size_t one_group_bytes[2][3]{{0, 0, 0}, {0, 0, 0}};
+    std::size_t all_group_bytes[2][3]{{0, 0, 0}, {0, 0, 0}};
+    std::ofstream evidence;
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        evidence.open("/private/tmp/erf_sbm_p2_chunk_equivalence_memory.csv");
+        ASSERT_TRUE(evidence.good());
+        evidence << "nbins,moment_mode,chunk_size,temporary_p2_working_bytes\n";
+    }
+    for (const int nbins : {4, 16, 64}) {
+        for (const auto mode : {MomentMode::OneMoment, MomentMode::TwoMoment}) {
+            SCOPED_TRACE(std::string("nbins=") + std::to_string(nbins) +
+                         " mode=" + std::to_string(static_cast<int>(mode)));
+            const auto reference = run_production_chunk_case(nbins, mode, nbins);
+            const auto one_group = run_production_chunk_case(nbins, mode, 1);
+            const auto two_groups = run_production_chunk_case(nbins, mode, 2);
+            const auto four_groups = run_production_chunk_case(nbins, mode, 4);
+            const Real tolerance = Real(5.e-13);
+            EXPECT_LE(max_multifab_difference(*one_group.spectral,
+                                               *reference.spectral, nbins *
+                                               (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+            EXPECT_LE(max_multifab_difference(*two_groups.spectral,
+                                               *reference.spectral, nbins *
+                                               (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+            EXPECT_LE(max_multifab_difference(*four_groups.spectral,
+                                               *reference.spectral, nbins *
+                                               (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+            EXPECT_LE(max_multifab_difference(*one_group.compact,
+                                               *reference.compact, RhoQ3_comp + 1),
+                      tolerance);
+            EXPECT_LE(max_multifab_difference(*two_groups.compact,
+                                               *reference.compact, RhoQ3_comp + 1),
+                      tolerance);
+            EXPECT_LE(max_multifab_difference(*four_groups.compact,
+                                               *reference.compact, RhoQ3_comp + 1),
+                      tolerance);
+            EXPECT_LE(max_face_transfer_difference(*one_group.accepted,
+                                                    *reference.accepted,
+                                                    nbins *
+                                                    (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+            EXPECT_LE(max_face_transfer_difference(*two_groups.accepted,
+                                                    *reference.accepted,
+                                                    nbins *
+                                                    (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+            EXPECT_LE(max_face_transfer_difference(*four_groups.accepted,
+                                                    *reference.accepted,
+                                                    nbins *
+                                                    (mode == MomentMode::TwoMoment ? 2 : 1)),
+                      tolerance);
+
+            EXPECT_GE(one_group.temporary_bytes, std::size_t(1));
+            EXPECT_LE(one_group.temporary_bytes, two_groups.temporary_bytes);
+            EXPECT_LE(two_groups.temporary_bytes, four_groups.temporary_bytes);
+            EXPECT_LE(four_groups.temporary_bytes, reference.temporary_bytes);
+
+            const int mode_index = mode == MomentMode::TwoMoment ? 1 : 0;
+            const int bin_index = nbins == 4 ? 0 : (nbins == 16 ? 1 : 2);
+            one_group_bytes[mode_index][bin_index] = one_group.temporary_bytes;
+            all_group_bytes[mode_index][bin_index] = reference.temporary_bytes;
+            if (evidence) {
+                evidence << nbins << ',' << mode_index << ",1," << one_group.temporary_bytes << '\n'
+                         << nbins << ',' << mode_index << ",2," << two_groups.temporary_bytes << '\n'
+                         << nbins << ',' << mode_index << ",4," << four_groups.temporary_bytes << '\n'
+                         << nbins << ',' << mode_index << ',' << nbins << ','
+                         << reference.temporary_bytes << '\n';
+            }
+        }
+    }
+    for (int mode_index = 0; mode_index < 2; ++mode_index) {
+        EXPECT_EQ(one_group_bytes[mode_index][0], one_group_bytes[mode_index][1]);
+        EXPECT_EQ(one_group_bytes[mode_index][1], one_group_bytes[mode_index][2]);
+        EXPECT_LT(all_group_bytes[mode_index][0], all_group_bytes[mode_index][1]);
+        EXPECT_LT(all_group_bytes[mode_index][1], all_group_bytes[mode_index][2]);
+    }
 }
 
 TEST(SBMP2, GroupedFCTUsesOneFaceLimiterAndConservesEveryComponent)
@@ -204,7 +483,11 @@ TEST(SBMP2, CapabilityGateKeepsP2NegativeControlsFailClosed)
 {
     erf_sbm::CapabilityInput input;
     input.p2_requested = true;
-    EXPECT_TRUE(erf_sbm::evaluate_p2_capabilities(input).supported);
+    const auto supported = erf_sbm::evaluate_p2_capabilities(input);
+    EXPECT_TRUE(supported.supported);
+    EXPECT_EQ(supported.qualification_status, "qualified");
+    EXPECT_EQ(supported.qualified_flags, supported.flags);
+    EXPECT_TRUE(supported.qualification_limitations.empty());
 
     input.moving_terrain = true;
     EXPECT_FALSE(erf_sbm::evaluate_p2_capabilities(input).supported);
@@ -343,7 +626,7 @@ TEST(SBMP2, ProductionCombinedAdvectionDiffusionFailsClosed)
     xflux.setVal(1.0);
     yflux.setVal(0.0);
     zflux.setVal(0.0);
-    amrex::MultiFab core(boxes, dm, layout.ncomp(), 0);
+    amrex::MultiFab core(boxes, dm, RhoQ3_comp + 1, 0);
     erf_auxiliary::AuxiliaryFaceTransfer stage_flux;
     stage_flux.define(boxes, dm, layout.ncomp(), 0);
     const auto context = erf_auxiliary::make_compressible_stage(
@@ -359,6 +642,119 @@ TEST(SBMP2, ProductionCombinedAdvectionDiffusionFailsClosed)
         diagnostic = error.what();
     }
     EXPECT_NE(diagnostic.find("combined low-order advection+diffusion"), std::string::npos);
+}
+
+TEST(SBMP2, ProductionCombinedDemandUsesPreStageBaselineForAllStageContracts)
+{
+    const auto run_case = [](const Real advection_demand, const Real diffusion,
+                             const bool anelastic, const int stage,
+                             const MomentMode mode = MomentMode::OneMoment,
+                             const bool with_property = false,
+                             const int chunk_size = 1) {
+        const auto layout = make_layout(2, mode, with_property);
+        erf_auxiliary::AuxiliaryStateManager manager(layout.auxiliary_layout());
+        const Box domain(IntVect(0, 0, 0), IntVect(1, 0, 0));
+        const BoxArray boxes(domain);
+        const DistributionMapping dm(boxes);
+        const amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                                      {AMREX_D_DECL(2.0, 1.0, 1.0)});
+        const std::array<int, AMREX_SPACEDIM> periodicity{AMREX_D_DECL(1, 1, 1)};
+        const Geometry geometry(domain, &real_box, amrex::CoordSys::cartesian,
+                                periodicity.data());
+        manager.define_level(0, boxes, dm, 2);
+        manager.output(0).setVal(Real(0.0));
+        for (amrex::MFIter mfi(manager.output(0)); mfi.isValid(); ++mfi) {
+            const auto state = manager.output(0).array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (mode == MomentMode::TwoMoment) {
+                    state(i,j,k,0) = i == 0 ? Real(0.5) : Real(0.0);
+                    state(i,j,k,2) = i == 0 ? Real(1.0) : Real(0.0);
+                    if (with_property) state(i,j,k,4) = i == 0 ? Real(0.25) : Real(0.0);
+                } else {
+                    state(i,j,k,0) = i == 0 ? Real(1.0) : Real(0.0);
+                }
+            });
+        }
+        manager.begin_step(0, 0.0);
+        if (anelastic && stage > 0) manager.evaluation(0).setVal(Real(0.0));
+        if (anelastic && stage > 0) {
+            for (amrex::MFIter mfi(manager.evaluation(0)); mfi.isValid(); ++mfi) {
+                const auto state = manager.evaluation(0).array(mfi);
+                amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    if (mode == MomentMode::TwoMoment) {
+                        state(i,j,k,0) = i == 0 ? Real(0.5) : Real(0.0);
+                        state(i,j,k,2) = i == 0 ? Real(1.0) : Real(0.0);
+                        if (with_property) state(i,j,k,4) = i == 0 ? Real(0.25) : Real(0.0);
+                    } else {
+                        state(i,j,k,0) = i == 0 ? Real(1.0) : Real(0.0);
+                    }
+                });
+            }
+        }
+
+        amrex::MultiFab rho(boxes, dm, 1, 2);
+        rho.setVal(Real(1.0));
+        rho.FillBoundary(geometry.periodicity());
+        amrex::MultiFab xflux(amrex::convert(boxes, IntVect(1, 0, 0)), dm, 1, 0);
+        amrex::MultiFab yflux(amrex::convert(boxes, IntVect(0, 1, 0)), dm, 1, 0);
+        amrex::MultiFab zflux(amrex::convert(boxes, IntVect(0, 0, 1)), dm, 1, 0);
+        xflux.setVal(Real(0.0));
+        yflux.setVal(Real(0.0));
+        zflux.setVal(Real(0.0));
+        for (amrex::MFIter mfi(xflux); mfi.isValid(); ++mfi) {
+            const auto flux = xflux.array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                flux(i,j,k) = i == 1 ? advection_demand : Real(0.0);
+            });
+        }
+        amrex::MultiFab core(boxes, dm, RhoQ3_comp + 1, 0);
+        erf_auxiliary::AuxiliaryFaceTransfer stage_flux;
+        stage_flux.define(boxes, dm, layout.ncomp(), 0);
+        const auto context = anelastic ?
+            erf_auxiliary::make_anelastic_stage(stage, 0.0, stage == 0 ? 0.0 : 1.0,
+                                                1.0, 1.0, nullptr, nullptr) :
+            erf_auxiliary::make_compressible_stage(2, 0.0, 0.0, 1.0, 1.0, nullptr, nullptr);
+        std::string diagnostic;
+        try {
+            erf_sbm::advance_stage(manager, layout, context, rho, core,
+                                   xflux, yflux, zflux, geometry, stage_flux,
+                                   erf_sbm::TransportMethod::GroupedFCT_WENOZ3,
+                                   0, diffusion, chunk_size);
+        } catch (const std::exception& error) {
+            diagnostic = error.what();
+        }
+        return diagnostic;
+    };
+
+    // B=1, D^out=.6 is valid even though the post-low-order state is .4.
+    for (const auto contract : {std::pair<bool,int>{false,0}, {true,0}, {true,1}}) {
+        SCOPED_TRACE(std::string(contract.first ? "anelastic" : "compressible") +
+                     " stage=" + std::to_string(contract.second));
+        const Real stage_scale = contract.first && contract.second > 0 ? Real(2.0) : Real(1.0);
+        EXPECT_TRUE(run_case(Real(0.6)*stage_scale, Real(0.0), contract.first, contract.second).empty());
+        const auto invalid = run_case(Real(1.2)*stage_scale, Real(0.0), contract.first, contract.second);
+        EXPECT_NE(invalid.find("combined low-order advection+diffusion"), std::string::npos) << invalid;
+    }
+
+    // Advection and diffusion are each admissible, but their combined demand
+    // is not.  The second case deliberately exceeds the final low state while
+    // remaining below the pre-stage baseline and must therefore pass.
+    for (const auto contract : {std::pair<bool,int>{false,0}, {true,0}, {true,1}}) {
+        const Real stage_scale = contract.first && contract.second > 0 ? Real(2.0) : Real(1.0);
+        const Real combined_fail_advection = contract.first && contract.second > 0 ? Real(1.9) : Real(0.8);
+        const Real combined_pass_advection = Real(0.4) * stage_scale;
+        const auto invalid = run_case(combined_fail_advection, Real(0.15), contract.first, contract.second);
+        EXPECT_NE(invalid.find("combined low-order advection+diffusion"), std::string::npos) << invalid;
+        EXPECT_TRUE(run_case(combined_pass_advection, Real(0.15), contract.first, contract.second).empty());
+    }
+
+    for (const auto mode : {MomentMode::TwoMoment}) {
+        const auto valid = run_case(Real(0.6), Real(0.0), false, 0, mode, true, 1);
+        EXPECT_TRUE(valid.empty()) << valid;
+        const auto invalid = run_case(Real(1.2), Real(0.0), false, 0, mode, true, 1);
+        EXPECT_NE(invalid.find("combined low-order advection+diffusion"), std::string::npos)
+            << invalid;
+    }
 }
 
 TEST(SBMP2, BoundaryBudgetsHaveNoWallSinkAndValidateInflow)
@@ -387,6 +783,38 @@ TEST(SBMP2, AMRRestrictionProlongationAndRegisterUnitsAreConservative)
     EXPECT_EQ(injected[0], 2.0); EXPECT_EQ(injected[3], 6.0);
     EXPECT_DOUBLE_EQ(erf_sbm::register_flux_from_integrated_transfer(12.0, 3.0, 2.0), 2.0);
     EXPECT_THROW((void)erf_sbm::register_flux_from_integrated_transfer(1.0, 0.0, 1.0), std::invalid_argument);
+}
+
+TEST(SBMP2, IndependentInterfaceOracleCatchesRefluxSignAreaAndTimeErrors)
+{
+    const std::vector<Real> coarse{2.0};
+    const std::vector<Real> fine{1.0, 1.0, 1.0, 1.0};
+    const auto good = erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 1.0, 0.5, 0.5, -2.0,
+        64*std::numeric_limits<Real>::epsilon());
+    EXPECT_TRUE(good.passes);
+    EXPECT_DOUBLE_EQ(good.coarse_transfer, 4.0);
+    EXPECT_DOUBLE_EQ(good.fine_transfer, 2.0);
+    EXPECT_DOUBLE_EQ(good.mismatch, -2.0);
+
+    const auto missing_reflux = erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 1.0, 0.5, 0.5, 0.0,
+        64*std::numeric_limits<Real>::epsilon());
+    EXPECT_FALSE(missing_reflux.passes);
+    const auto wrong_sign = erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 1.0, 0.5, 0.5, 2.0,
+        64*std::numeric_limits<Real>::epsilon());
+    EXPECT_FALSE(wrong_sign.passes);
+    const auto wrong_area = erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 2.0, 0.5, 0.5, -6.0,
+        64*std::numeric_limits<Real>::epsilon());
+    EXPECT_FALSE(wrong_area.passes);
+    const auto wrong_time = erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 1.0, 0.5, 1.0, -2.0,
+        64*std::numeric_limits<Real>::epsilon());
+    EXPECT_FALSE(wrong_time.passes);
+    EXPECT_THROW((void)erf_sbm::check_interface_transfer(
+        coarse, fine, 4.0, 1.0, 0.5, 0.0, -2.0, 1.e-12), std::invalid_argument);
 }
 
 TEST(SBMP2, PostRefluxFailsClosedWithDiagnosticsAndNeverClips)
@@ -524,7 +952,7 @@ TEST(SBMP2, WENOZ3ConvergenceBeatsDonorOnPeriodicSmoothOperator)
     evidence << "N,weno_max_error,donor_max_error,weno_order,donor_order\n";
     std::vector<Real> weno_errors;
     std::vector<Real> donor_errors;
-    for (const int ncell : {8, 16, 32, 64}) {
+    for (const int ncell : {16, 32, 64, 128}) {
         const Box domain(IntVect(0, 0, 0), IntVect(ncell-1, 0, 0));
         const BoxArray boxes(domain);
         const DistributionMapping dm(boxes);
@@ -567,14 +995,95 @@ TEST(SBMP2, WENOZ3ConvergenceBeatsDonorOnPeriodicSmoothOperator)
             std::log(weno_errors[i-1] / weno_errors[i]) / std::log(Real(2.0));
         const Real donor_order = i == 0 ? Real(0.0) :
             std::log(donor_errors[i-1] / donor_errors[i]) / std::log(Real(2.0));
-        evidence << (8 << i) << ',' << std::setprecision(17) << weno_errors[i] << ','
+        evidence << (16 << i) << ',' << std::setprecision(17) << weno_errors[i] << ','
                  << donor_errors[i] << ',' << weno_order << ',' << donor_order << '\n';
-        // The repository's WENO_Z3 reconstruction is a third-order stencil
-        // with a second-order face-value truncation for this smooth periodic
-        // operator; qualify the measured order rather than claiming a higher
-        // order than the implementation delivers.
+        // Source archaeology shows that this helper consumes pointwise cell
+        // center values: its two substencils reconstruct the face between
+        // neighboring centers.  This oracle therefore uses point values and
+        // compares against the analytic face point value; it does not make a
+        // finite-volume cell-average claim.
         if (i > 1) EXPECT_GT(weno_order, Real(1.8));
         if (i > 0) EXPECT_LT(weno_errors[i], donor_errors[i]);
+    }
+}
+
+TEST(SBMP2, FullGroupedTransportHasSmoothManufacturedConvergence)
+{
+    std::ofstream evidence("/private/tmp/erf_sbm_p2_full_transport_convergence.csv");
+    ASSERT_TRUE(evidence.good());
+    evidence << "N,weno_error,weno_order,donor_error,donor_order\n";
+    const auto run = [](const int ncell, const erf_sbm::TransportMethod method) {
+        const auto layout = make_layout(2, MomentMode::OneMoment);
+        erf_auxiliary::AuxiliaryStateManager manager(layout.auxiliary_layout());
+        const Box domain(IntVect(0, 0, 0), IntVect(ncell-1, 0, 0));
+        const BoxArray boxes(domain);
+        const DistributionMapping dm(boxes);
+        const amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                                      {AMREX_D_DECL(1.0, 1.0, 1.0)});
+        const std::array<int, AMREX_SPACEDIM> periodicity{AMREX_D_DECL(1, 1, 1)};
+        const Geometry geometry(domain, &real_box, amrex::CoordSys::cartesian,
+                                periodicity.data());
+        manager.define_level(0, boxes, dm, 2);
+        for (amrex::MFIter mfi(manager.output(0)); mfi.isValid(); ++mfi) {
+            const auto state = manager.output(0).array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real x = (static_cast<Real>(i) + Real(0.5)) / static_cast<Real>(ncell);
+                state(i,j,k,0) = Real(2.0) + std::sin(Real(6.2831853071795864769) * x);
+                state(i,j,k,1) = Real(1.0);
+            });
+        }
+        manager.begin_step(0, 0.0);
+        const Real dt = Real(1.0) / static_cast<Real>(ncell);
+        amrex::MultiFab rho(boxes, dm, 1, 2);
+        rho.setVal(Real(1.0));
+        rho.FillBoundary(geometry.periodicity());
+        amrex::MultiFab xflux(amrex::convert(boxes, IntVect(1, 0, 0)), dm, 1, 0);
+        amrex::MultiFab yflux(amrex::convert(boxes, IntVect(0, 1, 0)), dm, 1, 0);
+        amrex::MultiFab zflux(amrex::convert(boxes, IntVect(0, 0, 1)), dm, 1, 0);
+        xflux.setVal(Real(0.25));
+        yflux.setVal(Real(0.0));
+        zflux.setVal(Real(0.0));
+        amrex::MultiFab core(boxes, dm, RhoQ3_comp + 1, 0);
+        erf_auxiliary::AuxiliaryFaceTransfer stage_flux;
+        stage_flux.define(boxes, dm, layout.ncomp(), 0);
+        const auto context = erf_auxiliary::make_compressible_stage(
+            2, 0.0, 0.0, dt, dt, nullptr, nullptr);
+        erf_sbm::advance_stage(manager, layout, context, rho, core,
+                               xflux, yflux, zflux, geometry, stage_flux,
+                               method, 0, Real(0.0), 1);
+        amrex::MultiFab error(boxes, dm, 1, 0);
+        for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
+            const auto result = error.array(mfi);
+            const auto state = manager.output(0).const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const Real x = (static_cast<Real>(i) + Real(0.5)) / static_cast<Real>(ncell);
+                const Real exact = Real(2.0) + std::sin(
+                    Real(6.2831853071795864769) * (x - Real(0.25)*dt));
+                result(i,j,k) = std::abs(state(i,j,k,0) - exact);
+            });
+        }
+        return error.norm0(0);
+    };
+
+    std::vector<Real> weno_errors;
+    std::vector<Real> donor_errors;
+    for (const int ncell : {16, 32, 64, 128}) {
+        weno_errors.push_back(run(ncell, erf_sbm::TransportMethod::GroupedFCT_WENOZ3));
+        donor_errors.push_back(run(ncell, erf_sbm::TransportMethod::DonorCell));
+    }
+    for (std::size_t i = 0; i < weno_errors.size(); ++i) {
+        const Real weno_order = i == 0 ? Real(0.0) :
+            std::log(weno_errors[i-1] / weno_errors[i]) / std::log(Real(2.0));
+        const Real donor_order = i == 0 ? Real(0.0) :
+            std::log(donor_errors[i-1] / donor_errors[i]) / std::log(Real(2.0));
+        evidence << (16 << i) << ',' << std::setprecision(17)
+                 << weno_errors[i] << ',' << weno_order << ','
+                 << donor_errors[i] << ',' << donor_order << '\n';
+        if (i > 0) {
+            EXPECT_GT(weno_order, Real(1.5));
+            EXPECT_LT(donor_order, Real(1.5));
+            EXPECT_LT(weno_errors[i], donor_errors[i]);
+        }
     }
 }
 

@@ -14,7 +14,8 @@ namespace erf_auxiliary {
 void AuxiliaryStateManager::define_level(const int level,
                                          const amrex::BoxArray& ba,
                                          const amrex::DistributionMapping& dm,
-                                         const int ngrow)
+                                         const int ngrow,
+                                         const int scratch_ncomp)
 {
     if (level < 0 || m_layout.ncomp() <= 0 || ngrow < 0) {
         throw std::invalid_argument("invalid auxiliary state definition");
@@ -32,11 +33,19 @@ void AuxiliaryStateManager::define_level(const int level,
     m_old[static_cast<std::size_t>(level)] = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
     m_evaluation[static_cast<std::size_t>(level)] = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
     m_output[static_cast<std::size_t>(level)] = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
-    m_scratch[static_cast<std::size_t>(level)] = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
+    const int scratch_components = scratch_ncomp < 0 ? m_layout.ncomp() : scratch_ncomp;
+    if (scratch_components > 0) {
+        m_scratch[static_cast<std::size_t>(level)] =
+            std::make_unique<amrex::MultiFab>(ba, dm, scratch_components, ngrow);
+    } else {
+        m_scratch[static_cast<std::size_t>(level)].reset();
+    }
     m_old[static_cast<std::size_t>(level)]->setVal(0.0);
     m_evaluation[static_cast<std::size_t>(level)]->setVal(0.0);
     m_output[static_cast<std::size_t>(level)]->setVal(0.0);
-    m_scratch[static_cast<std::size_t>(level)]->setVal(0.0);
+    if (m_scratch[static_cast<std::size_t>(level)]) {
+        m_scratch[static_cast<std::size_t>(level)]->setVal(0.0);
+    }
     m_face_ledgers[static_cast<std::size_t>(level)] = std::make_unique<AuxiliaryFaceTransferLedger>();
     m_face_ledgers[static_cast<std::size_t>(level)]->define(ba, dm, m_layout.ncomp(), 3, 0);
 
@@ -45,7 +54,8 @@ void AuxiliaryStateManager::define_level(const int level,
 
 void AuxiliaryStateManager::remake_level(const int level, const amrex::BoxArray& ba,
                                          const amrex::DistributionMapping& dm,
-                                         const int ngrow, const amrex::Periodicity& periodicity)
+                                         const int ngrow, const amrex::Periodicity& periodicity,
+                                         const int scratch_ncomp)
 {
     if (level < 0 || m_layout.ncomp() <= 0 || ngrow < 0) {
         throw std::invalid_argument("invalid auxiliary state remake");
@@ -61,8 +71,13 @@ void AuxiliaryStateManager::remake_level(const int level, const amrex::BoxArray&
     auto new_old = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
     auto new_evaluation = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
     auto new_output = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
-    auto new_scratch = std::make_unique<amrex::MultiFab>(ba, dm, m_layout.ncomp(), ngrow);
-    new_old->setVal(0.0); new_evaluation->setVal(0.0); new_output->setVal(0.0); new_scratch->setVal(0.0);
+    const int scratch_components = scratch_ncomp < 0 ? m_layout.ncomp() : scratch_ncomp;
+    std::unique_ptr<amrex::MultiFab> new_scratch;
+    if (scratch_components > 0) {
+        new_scratch = std::make_unique<amrex::MultiFab>(ba, dm, scratch_components, ngrow);
+    }
+    new_old->setVal(0.0); new_evaluation->setVal(0.0); new_output->setVal(0.0);
+    if (new_scratch) new_scratch->setVal(0.0);
     if (had_level) {
         new_old->ParallelCopy(*m_old[static_cast<std::size_t>(level)], 0, 0, m_layout.ncomp(),
                               amrex::IntVect(0), amrex::IntVect(0),
@@ -75,6 +90,16 @@ void AuxiliaryStateManager::remake_level(const int level, const amrex::BoxArray&
                                  amrex::Periodicity::NonPeriodic());
         new_old->FillBoundary(periodicity); new_evaluation->FillBoundary(periodicity); new_output->FillBoundary(periodicity);
     }
+    // ERF invokes regrid/remake at a coarse-step boundary, before the next
+    // level advance begins.  The pre-remake old/evaluation views therefore
+    // belong to the completed step and must not be carried as temporal
+    // baselines into the next step.  Use the accepted remade output for all
+    // three views; this preserves accepted overlap while giving the next
+    // begin_step a coherent authoritative state.
+    amrex::MultiFab::Copy(*new_old, *new_output, 0, 0, m_layout.ncomp(), new_output->nGrowVect());
+    amrex::MultiFab::Copy(*new_evaluation, *new_output, 0, 0, m_layout.ncomp(), new_output->nGrowVect());
+    new_old->FillBoundary(periodicity);
+    new_evaluation->FillBoundary(periodicity);
     m_old[static_cast<std::size_t>(level)] = std::move(new_old);
     m_evaluation[static_cast<std::size_t>(level)] = std::move(new_evaluation);
     m_output[static_cast<std::size_t>(level)] = std::move(new_output);
@@ -91,7 +116,7 @@ void AuxiliaryStateManager::remake_level_from_coarse(
     const int level, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
     const int ngrow, const amrex::Periodicity& periodicity, const int coarse_level,
     const amrex::Geometry& coarse_geometry, const amrex::Geometry& fine_geometry,
-    const amrex::IntVect& ref_ratio, const double time)
+    const amrex::IntVect& ref_ratio, const double time, const int scratch_ncomp)
 {
     if (!has_level(coarse_level) || level <= coarse_level || ref_ratio.min() <= 0 ||
         !coarse_geometry.isAllPeriodic() || !fine_geometry.isAllPeriodic()) {
@@ -121,7 +146,12 @@ void AuxiliaryStateManager::remake_level_from_coarse(
     auto new_old = make_state();
     auto new_evaluation = make_state();
     auto new_output = make_state();
-    auto new_scratch = make_state();
+    const int scratch_components = scratch_ncomp < 0 ? m_layout.ncomp() : scratch_ncomp;
+    std::unique_ptr<amrex::MultiFab> new_scratch;
+    if (scratch_components > 0) {
+        new_scratch = std::make_unique<amrex::MultiFab>(ba, dm, scratch_components, ngrow);
+        new_scratch->setVal(0.0);
+    }
     amrex::Vector<amrex::BCRec> bcs(static_cast<std::size_t>(m_layout.ncomp()));
 
     auto coarse_at_time = [&](const amrex::MultiFab& coarse_old,
@@ -166,6 +196,14 @@ void AuxiliaryStateManager::remake_level_from_coarse(
                                  amrex::Periodicity::NonPeriodic());
         new_old->FillBoundary(periodicity); new_evaluation->FillBoundary(periodicity); new_output->FillBoundary(periodicity);
     }
+    // A regrid is performed at a level-step boundary.  The old and
+    // evaluation views from the completed step are not valid temporal views
+    // for the next advance; the accepted remade output is the sole state to
+    // carry into all three slots.
+    amrex::MultiFab::Copy(*new_old, *new_output, 0, 0, m_layout.ncomp(), new_output->nGrowVect());
+    amrex::MultiFab::Copy(*new_evaluation, *new_output, 0, 0, m_layout.ncomp(), new_output->nGrowVect());
+    new_old->FillBoundary(periodicity);
+    new_evaluation->FillBoundary(periodicity);
     m_old[static_cast<std::size_t>(level)] = std::move(new_old);
     m_evaluation[static_cast<std::size_t>(level)] = std::move(new_evaluation);
     m_output[static_cast<std::size_t>(level)] = std::move(new_output);
@@ -254,8 +292,10 @@ void AuxiliaryStateManager::prolong_from_coarse(const int coarse_level, const in
     prolong(output(fine_level));
     prolong(old(fine_level));
     prolong(evaluation(fine_level));
-    scratch(fine_level).setVal(0.0);
-    scratch(fine_level).FillBoundary(fine_geometry.periodicity());
+    if (m_scratch[static_cast<std::size_t>(fine_level)]) {
+        scratch(fine_level).setVal(0.0);
+        scratch(fine_level).FillBoundary(fine_geometry.periodicity());
+    }
 }
 
 void AuxiliaryStateManager::fill_stage_from_coarse(
@@ -299,21 +339,34 @@ void AuxiliaryStateManager::recompute_resident_bytes() noexcept
         if (m_old[level]) {
             m_state_resident_bytes += allocated_payload_bytes(*m_old[level]) +
                 allocated_payload_bytes(*m_evaluation[level]) + allocated_payload_bytes(*m_output[level]) +
-                allocated_payload_bytes(*m_scratch[level]);
+                (m_scratch[level] ? allocated_payload_bytes(*m_scratch[level]) : 0U);
         }
         if (m_face_ledgers[level]) m_face_transfer_resident_bytes += m_face_ledgers[level]->resident_bytes();
     }
     m_resident_bytes = m_state_resident_bytes + m_face_transfer_resident_bytes;
 }
 
-void AuxiliaryStateManager::begin_step(const int level, const double old_time_value)
+void AuxiliaryStateManager::begin_step(const int level, const double old_time_value,
+                                       const bool reset_face_transfer)
 {
     amrex::MultiFab::Copy(old(level), output(level), 0, 0, m_layout.ncomp(), output(level).nGrowVect());
     amrex::MultiFab::Copy(evaluation(level), output(level), 0, 0, m_layout.ncomp(), output(level).nGrowVect());
-    face_transfer_ledger(level).begin_step();
+    face_transfer_ledger(level).begin_step(reset_face_transfer);
     m_old_time[static_cast<std::size_t>(level)] = old_time_value;
     m_evaluation_time[static_cast<std::size_t>(level)] = old_time_value;
     m_output_time[static_cast<std::size_t>(level)] = old_time_value;
+}
+
+void AuxiliaryStateManager::set_time_views(const int level, const double old_time_value,
+                                           const double evaluation_time_value,
+                                           const double output_time_value)
+{
+    if (level < 0 || !has_level(level)) {
+        throw std::invalid_argument("cannot restore time views for an undefined auxiliary level");
+    }
+    m_old_time[static_cast<std::size_t>(level)] = old_time_value;
+    m_evaluation_time[static_cast<std::size_t>(level)] = evaluation_time_value;
+    m_output_time[static_cast<std::size_t>(level)] = output_time_value;
 }
 
 void AuxiliaryStateManager::accept_stage(const int level, const double stage_time)

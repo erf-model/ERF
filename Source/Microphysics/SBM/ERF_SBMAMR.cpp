@@ -53,6 +53,43 @@ amrex::Real register_flux_from_integrated_transfer(const amrex::Real integrated_
     return integrated_transfer / (face_area * dt);
 }
 
+InterfaceTransferCheck check_interface_transfer(
+    const std::vector<amrex::Real>& coarse_flux,
+    const std::vector<amrex::Real>& fine_flux,
+    const amrex::Real coarse_face_area,
+    const amrex::Real fine_face_area,
+    const amrex::Real coarse_dt,
+    const amrex::Real fine_dt,
+    const amrex::Real applied_reflux,
+    const amrex::Real tolerance)
+{
+    if (coarse_flux.empty() || fine_flux.empty() ||
+        !std::isfinite(coarse_face_area) || !std::isfinite(fine_face_area) ||
+        !std::isfinite(coarse_dt) || !std::isfinite(fine_dt) ||
+        !std::isfinite(applied_reflux) || !std::isfinite(tolerance) ||
+        coarse_face_area <= 0.0 || fine_face_area <= 0.0 ||
+        coarse_dt <= 0.0 || fine_dt <= 0.0 || tolerance < 0.0) {
+        throw std::invalid_argument("invalid coarse/fine interface transfer oracle input");
+    }
+    InterfaceTransferCheck result;
+    for (const auto value : coarse_flux) {
+        if (!std::isfinite(value)) throw std::invalid_argument("nonfinite coarse interface flux");
+        result.coarse_transfer += value * coarse_face_area * coarse_dt;
+    }
+    for (const auto value : fine_flux) {
+        if (!std::isfinite(value)) throw std::invalid_argument("nonfinite fine interface flux");
+        result.fine_transfer += value * fine_face_area * fine_dt;
+    }
+    result.mismatch = result.fine_transfer - result.coarse_transfer;
+    result.correction_error = applied_reflux - result.mismatch;
+    const amrex::Real scale = std::max({amrex::Real(1.0),
+                                        std::abs(result.coarse_transfer),
+                                        std::abs(result.fine_transfer),
+                                        std::abs(applied_reflux)});
+    result.passes = std::abs(result.correction_error) <= tolerance * scale;
+    return result;
+}
+
 PostRefluxCheck validate_post_reflux(const std::vector<amrex::Real>& pre_state,
                                      const std::vector<amrex::Real>& correction,
                                      const std::vector<amrex::Real>& post_state,

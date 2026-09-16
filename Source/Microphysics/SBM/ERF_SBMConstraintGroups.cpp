@@ -191,6 +191,30 @@ std::vector<ConstraintDescriptor> make_constraint_descriptors(const SBMLayout& l
     return descriptors;
 }
 
+std::vector<ConstraintClosureChunk>
+make_constraint_closure_chunks(const SBMLayout& layout, const int max_groups)
+{
+    if (max_groups <= 0) {
+        throw std::invalid_argument("SBM scratch chunk size must be a positive number of complete groups");
+    }
+    const auto groups = make_constraint_groups(layout);
+    std::vector<ConstraintClosureChunk> chunks;
+    for (std::size_t group_index = 0; group_index < groups.size(); ++group_index) {
+        if (chunks.empty() ||
+            static_cast<int>(chunks.back().group_indices.size()) >= max_groups) {
+            chunks.push_back({});
+        }
+        auto& chunk = chunks.back();
+        chunk.group_indices.push_back(static_cast<int>(group_index));
+        for (const int component : groups[group_index].members) {
+            if (std::find(chunk.components.begin(), chunk.components.end(), component) == chunk.components.end()) {
+                chunk.components.push_back(component);
+            }
+        }
+    }
+    return chunks;
+}
+
 EndpointTransform transform_two_moment(const amrex::Real C, const amrex::Real M,
                                        const amrex::Real lower, const amrex::Real upper)
 {

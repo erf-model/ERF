@@ -30,6 +30,25 @@ register_flux_from_integrated_transfer(amrex::Real integrated_transfer,
                                        amrex::Real face_area,
                                        amrex::Real dt);
 
+/** Independent scalar oracle for accepted coarse/fine interface transfer. */
+struct InterfaceTransferCheck {
+    bool passes{false};
+    amrex::Real coarse_transfer{0.0};
+    amrex::Real fine_transfer{0.0};
+    amrex::Real mismatch{0.0};
+    amrex::Real correction_error{0.0};
+};
+
+[[nodiscard]] InterfaceTransferCheck
+check_interface_transfer(const std::vector<amrex::Real>& coarse_flux,
+                         const std::vector<amrex::Real>& fine_flux,
+                         amrex::Real coarse_face_area,
+                         amrex::Real fine_face_area,
+                         amrex::Real coarse_dt,
+                         amrex::Real fine_dt,
+                         amrex::Real applied_reflux,
+                         amrex::Real tolerance);
+
 struct PostRefluxCheck {
     bool admissible{false};
     int level{0};

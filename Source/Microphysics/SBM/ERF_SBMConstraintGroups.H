@@ -74,6 +74,19 @@ make_constraint_groups(const SBMLayout& layout);
 [[nodiscard]] std::vector<ConstraintDescriptor>
 make_constraint_descriptors(const SBMLayout& layout);
 
+/**
+ * A production scratch chunk is a sequence of complete constraint groups.
+ * `max_groups` is a policy limit on atomic groups, never a component limit;
+ * all mass/number/property members of each group stay together.
+ */
+struct ConstraintClosureChunk {
+    std::vector<int> group_indices;
+    std::vector<int> components;
+};
+
+[[nodiscard]] std::vector<ConstraintClosureChunk>
+make_constraint_closure_chunks(const SBMLayout& layout, int max_groups);
+
 struct EndpointTransform {
     amrex::Real L{0.0};
     amrex::Real H{0.0};

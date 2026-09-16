@@ -1003,6 +1003,11 @@ ERF::ReadCheckpointFile ()
                            sbm_layout->ncomp(), sbm_auxiliary->output(lev).nGrowVect());
             MultiFab::Copy(sbm_auxiliary->evaluation(lev), sbm_auxiliary->output(lev), 0, 0,
                            sbm_layout->ncomp(), sbm_auxiliary->output(lev).nGrowVect());
+            // The native checkpoint stores the accepted time, while the
+            // auxiliary manager's temporal views are process-local metadata.
+            // Restore all three views before any restart-time regrid can ask
+            // for the authoritative coarse interpolation bracket.
+            sbm_auxiliary->set_time_views(lev, t_new[lev], t_new[lev], t_new[lev]);
             const auto& liquid = sbm_layout->populations().front();
             const int split = sbm_layout->liquid_projection().cloud_rain_split;
             MultiFab projection(grids[lev], dmap[lev], 2, 0);

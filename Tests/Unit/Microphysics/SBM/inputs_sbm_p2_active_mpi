@@ -1,5 +1,7 @@
-# Small two-level static-periodic production SBM P2 qualification case.
-erf.prob_name = "SBM P2 manufactured AMR"
+# One-level production decomposition-independence case.  The manufactured
+# state and coordinate-defined carrier face pattern activate the production
+# grouped limiter at the max_grid_size=8 FAB/rank boundary.
+erf.prob_name = "SBM P2 active limiter MPI"
 erf.init_type = Uniform
 erf.moisture_model = SBM
 erf.sbm_nbins = 4
@@ -7,33 +9,24 @@ erf.sbm_moment_mode = 2
 erf.sbm_cloud_rain_split = 2
 erf.sbm_manufactured_initialization = true
 erf.sbm_manufactured_velocity = 0.125
+erf.sbm_test_active_limiter = true
 erf.sbm_transport_method = GroupedFCT_WENOZ3
 erf.sbm_diffusion_coeff = 0.0
 erf.sbm_chunk_size = 1
-erf.sbm_test_dynamic_regrid = true
 erf.anelastic = 0
 erf.use_gravity = false
 erf.substepping_type = None
-erf.fixed_dt = 1.0e-4
+erf.fixed_dt = 5.0e-3
 erf.molec_diff_type = None
 erf.les_type = None
 erf.coupling_type = TwoWay
-max_step = 2
+max_step = 1
 
-amr.max_level = 1
-amr.ref_ratio_vect = 2 2 2
-amr.max_grid_size = 4
+amr.max_level = 0
+amr.max_grid_size = 8
 amr.n_error_buf = 0
-amr.grid_eff = 0.9
-erf.regrid_int = 1
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo = 0.25 0.25 0.25
-erf.box1.in_box_hi = 0.75 0.75 0.75
-erf.cf_width = 0
-erf.cf_set_width = 0
 
-amr.n_cell = 8 8 8
+amr.n_cell = 16 4 4
 geometry.prob_lo = 0.0 0.0 0.0
 geometry.prob_hi = 1.0 1.0 1.0
 geometry.is_periodic = 1 1 1

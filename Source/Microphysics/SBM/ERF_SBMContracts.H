@@ -37,9 +37,16 @@ struct CapabilityInput {
 
 struct CapabilityReport {
     bool supported{false};
+    // `flags` is retained as the implementation inventory for source and
+    // restart compatibility.  Qualification is intentionally reported
+    // separately: an implemented path must not be presented as qualified
+    // until its decisive production evidence exists.
     std::vector<std::string> flags;
+    std::vector<std::string> qualified_flags;
+    std::vector<std::string> qualification_limitations;
     std::vector<std::string> invariant_ids;
     std::vector<std::string> rejected_reasons;
+    std::string qualification_status{"unqualified"};
     [[nodiscard]] std::string stable_description() const;
 };
 

@@ -440,7 +440,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 // during stage registration.  Compact qc/qr are then
                 // overwritten from that spectrum, never independently
                 // refluxed as a second provider state.
+                begin_sbm_reflux_oracle(lev);
                 sbm_flux_reg[lev+1]->Reflux(sbm_auxiliary->output(lev), 0);
+                Gpu::streamSynchronize();
+                finish_sbm_reflux_oracle(lev);
                 ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
                 const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
                 for (MFIter mfi(sbm_auxiliary->output(lev)); mfi.isValid(); ++mfi) {
@@ -476,6 +479,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
             }
         }
+    }
+
+    if (solverChoice.moisture_type == MoistureType::SBM &&
+        !solverChoice.sbm_composite_diagnostic_file.empty()) {
+        write_sbm_composite_diagnostic(nstep, time, dt_lev0);
     }
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {

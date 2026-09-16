@@ -177,6 +177,43 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     }
 #endif
 
+    // Qualification-only dynamic regrid seam.  It deliberately changes the
+    // refinement footprint after the first completed step so the real ERF
+    // RemakeLevel path exercises changed BoxArray/DistributionMapping and a
+    // subsequent production SBM transport step.  It is opt-in, SBM-only,
+    // and has no effect on ordinary ERF refinement indicators.
+    if (solverChoice.moisture_type == MoistureType::SBM &&
+        solverChoice.sbm_test_dynamic_regrid && levc == 0 && max_level > 0) {
+        const Box domain = geom[levc].Domain();
+        const auto lo = domain.smallEnd();
+        const auto hi = domain.bigEnd();
+        const int nx = domain.length(0);
+        const int ny = domain.length(1);
+        const int nz = domain.length(2);
+        const int xmid = lo[0] + nx/2;
+        const Box target = time <= Real(0.0) ?
+            Box(IntVect(lo[0] + 1, lo[1] + 1, lo[2] + 1),
+                IntVect(xmid-1, lo[1] + ny/2 - 1, lo[2] + nz/2 - 1)) :
+            Box(IntVect(xmid, lo[1] + ny/2, lo[2] + nz/2),
+                IntVect(hi[0] - 1, hi[1] - 1, hi[2] - 1));
+        for (MFIter mfi(tags); mfi.isValid(); ++mfi) {
+            const Box valid = mfi.validbox();
+            const auto tag_arr = tags.array(mfi);
+            ParallelFor(valid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                tag_arr(i,j,k) = clearval;
+            });
+            const Box tagged = valid & target;
+            if (!tagged.isEmpty()) {
+                ParallelFor(tagged, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tag_arr(i,j,k) = tagval;
+                });
+            }
+        }
+        amrex::Print() << "SBM dynamic qualification refinement level=" << levc
+                       << " time=" << time << " target=" << target << std::endl;
+        return;
+    }
+
     //
     // Make sure the ghost cells of the level we are tagging at are filled
     //    in case we take differences that require them

@@ -16,6 +16,21 @@ std::size_t allocated_payload_bytes(const amrex::MultiFab& state) noexcept
     return points * static_cast<std::size_t>(state.nComp()) * sizeof(amrex::Real);
 }
 
+bool AuxiliaryFaceTransfer::compatible_with(const amrex::BoxArray& ba,
+                                            const amrex::DistributionMapping& dm,
+                                            const int ncomp) const noexcept
+{
+    if (!defined() || ncomp != m_ncomp) return false;
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const auto& face = *m_face[static_cast<std::size_t>(dir)];
+        if (face.boxArray() != amrex::convert(ba, amrex::IntVect::TheDimensionVector(dir)) ||
+            face.DistributionMap() != dm) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void AuxiliaryFaceTransfer::define(const amrex::BoxArray& ba,
                                    const amrex::DistributionMapping& dm,
                                    const int ncomp, const int ngrow)
@@ -54,11 +69,11 @@ void AuxiliaryFaceTransferLedger::define(const amrex::BoxArray& ba,
     m_resident_bytes = m_stage->resident_bytes() + m_accepted->resident_bytes();
 }
 
-void AuxiliaryFaceTransferLedger::begin_step()
+void AuxiliaryFaceTransferLedger::begin_step(const bool reset_accepted)
 {
     if (!m_accepted) throw std::logic_error("auxiliary face ledger is not defined");
     m_stage->setVal(0.0);
-    m_accepted->setVal(0.0);
+    if (reset_accepted) m_accepted->setVal(0.0);
     m_recorded = {{false, false, false}};
 }
 

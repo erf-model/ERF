@@ -648,6 +648,19 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
 
+    // A YAFluxRegister owns the coarse/fine patch geometry captured at
+    // construction.  Rebuild the SBM register when a fine level is remade;
+    // retaining the pre-regrid register would silently accumulate new fine
+    // fluxes against the old footprint and make reflux disagree with the
+    // authoritative accepted face ledger.
+    if (lev > 0 && solverChoice.coupling_type == CouplingType::TwoWay &&
+        solverChoice.moisture_type == MoistureType::SBM && sbm_layout != nullptr) {
+        delete sbm_flux_reg[lev];
+        sbm_flux_reg[lev] = new YAFluxRegister(
+            ba, grids[lev-1], dm, dmap[lev-1], geom[lev], geom[lev-1],
+            ref_ratio[lev-1], lev, sbm_layout->ncomp());
+    }
+
     int     ncomp_cons  = vars_new[lev][Vars::cons].nComp();
     IntVect ngrow_state = vars_new[lev][Vars::cons].nGrowVect();
 
@@ -1079,12 +1092,16 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     if (solverChoice.moisture_type == MoistureType::SBM && sbm_auxiliary != nullptr &&
         sbm_auxiliary->has_level(lev)) {
+        synchronize_sbm_level_companions(lev, grids[lev], dmap[lev], true);
+        const int sbm_scratch_components = solverChoice.sbm_transport_method == "GroupedFCT_WENOZ3" ?
+            0 : sbm_layout->ncomp();
         if (lev > 0 && sbm_auxiliary->has_level(lev-1)) {
             sbm_auxiliary->remake_level_from_coarse(
                 lev, grids[lev], dmap[lev], 2, geom[lev].periodicity(), lev-1,
-                geom[lev-1], geom[lev], refRatio(lev-1), time);
+                geom[lev-1], geom[lev], refRatio(lev-1), time, sbm_scratch_components);
         } else {
-            sbm_auxiliary->remake_level(lev, grids[lev], dmap[lev], 2, geom[lev].periodicity());
+            sbm_auxiliary->remake_level(lev, grids[lev], dmap[lev], 2,
+                                        geom[lev].periodicity(), sbm_scratch_components);
         }
         ::erf_sbm::validate_admissible_state(*sbm_auxiliary, *sbm_layout, lev);
         const ::erf_sbm::SBMBulkProjection projection(*sbm_layout);
@@ -1093,6 +1110,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                      vars_new[lev][Vars::cons].array(mfi));
         }
         vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());
+    }
+
+    // The composite leaf mask is layout-dependent too.  Rebuild it after a
+    // fine BoxArray/DistributionMapping remake so conservation diagnostics
+    // and all volume-weighted coarse sums do not retain the previous fine
+    // footprint.
+    if (lev > 0) {
+        fine_mask[lev] = std::make_unique<MultiFab>(grids[lev-1], dmap[lev-1], 1, 0);
+        build_fine_mask(lev, *fine_mask[lev]);
     }
 
     // Particle redistribute handled in timeStep() after regrid() completes.

@@ -36,6 +36,9 @@ public:
     void setVal(amrex::Real value);
 
     [[nodiscard]] bool defined() const noexcept { return m_face[0] != nullptr; }
+    [[nodiscard]] bool compatible_with(const amrex::BoxArray& ba,
+                                       const amrex::DistributionMapping& dm,
+                                       int ncomp) const noexcept;
     [[nodiscard]] int ncomp() const noexcept { return m_ncomp; }
     [[nodiscard]] std::size_t resident_bytes() const noexcept { return m_resident_bytes; }
 
@@ -66,7 +69,7 @@ class AuxiliaryFaceTransferLedger {
 public:
     void define(const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                 int ncomp, int nstages = 3, int ngrow = 0);
-    void begin_step();
+    void begin_step(bool reset_accepted = true);
     void record_stage(const StageContext& context, const AuxiliaryFaceTransfer& stage_flux);
 
     [[nodiscard]] AuxiliaryFaceTransfer& stage() { return *m_stage; }

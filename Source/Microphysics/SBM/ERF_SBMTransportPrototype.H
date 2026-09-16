@@ -10,6 +10,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
+#include <cstddef>
 #include <vector>
 
 namespace erf_sbm {
@@ -46,7 +47,8 @@ void advance_stage(::erf_auxiliary::AuxiliaryStateManager& manager,
                    TransportMethod method = TransportMethod::DonorCell,
                    int level = 0,
                    amrex::Real diffusion_coefficient = amrex::Real(0.0),
-                   int chunk_size = 0);
+                   int chunk_size = 0,
+                   amrex::Real* minimum_accepted_limiter = nullptr);
 
 /** Fail-closed finite/nonnegative check for authoritative spectral state. */
 void validate_nonnegative_state(const amrex::MultiFab& state, int ncomp,
@@ -55,6 +57,17 @@ void validate_nonnegative_state(const amrex::MultiFab& state, int ncomp,
 /** Validate physical storage and two-moment endpoint realizability. */
 void validate_admissible_state(::erf_auxiliary::AuxiliaryStateManager& manager,
                                const SBMLayout& layout, int level);
+
+/**
+ * Return the allocation-bound temporary payload for one production grouped
+ * FCT chunk.  The estimate includes grown ratio/budget FABs and the three
+ * chunk-local face candidates; authoritative state and accepted ledgers are
+ * intentionally excluded because they are persistent state, not temporary
+ * chunk work.
+ */
+[[nodiscard]] std::size_t grouped_fct_peak_working_bytes(
+    const SBMLayout& layout, const amrex::BoxArray& ba,
+    const amrex::DistributionMapping& dm, int chunk_size);
 
 } // namespace erf_sbm
 

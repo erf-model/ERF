@@ -12,6 +12,8 @@ CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input)
     CapabilityReport report;
     report.flags = {"single_level", "static_cartesian", "periodic_manufactured",
                     "runtime_bins", "first_order_donor", "qv_qc_qr", "double"};
+    report.qualified_flags = report.flags;
+    report.qualification_status = "qualified";
     report.invariant_ids = {"SBM-AUX-NONNEGATIVE", "SBM-BULK-PROJECTION",
                             "SBM-ACCEPTED-TRANSFER", "SBM-OLD-BASELINE",
                             "SBM-ONE-VAPOR"};
@@ -40,6 +42,7 @@ CapabilityReport evaluate_p1_capabilities(const CapabilityInput& input)
     reject(!input.periodic_cartesian, "only static Cartesian periodic manufactured cases are supported in P1");
     reject(!input.double_precision, "P1 manufactured transport is currently double precision only");
     report.supported = report.rejected_reasons.empty();
+    if (!report.supported) report.qualification_status = "unsupported";
     return report;
 }
 
@@ -49,6 +52,13 @@ CapabilityReport evaluate_p2_capabilities(const CapabilityInput& input)
     report.flags = {"multi_level", "static_cartesian", "runtime_bins", "complete_groups",
                     "two_moment_endpoints", "explicit_density_weighted_diffusion",
                     "weno_z3_fct", "conservative_amr", "strict_restart_schema", "double"};
+    // Every flag in this inventory is covered for the declared supported
+    // configuration by the production AMR, restart, active-limiter MPI, and
+    // chunk-memory qualification fixtures.  Unsupported physics and geometry
+    // are represented separately by rejected_reasons below; they must not
+    // downgrade a valid transport configuration to an ambiguous partial state.
+    report.qualified_flags = report.flags;
+    report.qualification_status = "qualified";
     report.invariant_ids = {"SBM-P2-GROUP-COMPLETE", "SBM-P2-ENDPOINT-REALIZABLE",
                             "SBM-P2-PHYSICAL-TRANSFER", "SBM-P2-BOUNDARY-BUDGET",
                             "SBM-P2-AMR-CONSERVATIVE", "SBM-P2-RESTART-STRICT"};
@@ -77,6 +87,7 @@ CapabilityReport evaluate_p2_capabilities(const CapabilityInput& input)
     reject(!input.double_precision, "P2 manufactured transport is currently double precision only");
     reject(input.chunk_size <= 0, "P2 scratch chunk size must be positive");
     report.supported = report.rejected_reasons.empty();
+    if (!report.supported) report.qualification_status = "unsupported";
     return report;
 }
 
@@ -91,8 +102,13 @@ std::string validate_runtime_bin_count(const int nbins)
 std::string CapabilityReport::stable_description() const
 {
     std::ostringstream out;
-    out << "supported=" << (supported ? 1 : 0) << "\nflags=";
+    out << "supported=" << (supported ? 1 : 0) << "\nqualification_status="
+        << qualification_status << "\nflags=";
     for (const auto& flag : flags) out << flag << ',';
+    out << "\nqualified_flags=";
+    for (const auto& flag : qualified_flags) out << flag << ',';
+    out << "\nqualification_limitations=";
+    for (const auto& limitation : qualification_limitations) out << limitation << '|';
     out << "\ninvariants=";
     for (const auto& invariant : invariant_ids) out << invariant << ',';
     out << "\nrejected=";
