@@ -99,6 +99,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    make_lsm_at_level(lev);
+
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
@@ -132,16 +137,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         if ( (solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid) )
         {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
-
-            //
-            // Check if this level should use surface-only init (atmospheric state from coarse level)
-            // This applies when interp_atmos_from_coarse is enabled for fine levels with WRFInput files.
-            // Metgrid files only contain surface data anyway, so use_surface_only doesn't apply to Metgrid.
-            //
-            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
-                                    !nc_init_file[lev].empty() &&
-                                    (solverChoice.init_type == InitType::WRFInput);
-
             //
             // Note that "time" here is elapsed time, and start_time is the start_time from wrfinput/metgrid files
             //
@@ -157,27 +152,22 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 update_terrain_arrays(lev);
                 make_physbcs(lev);
                 init_only(lev, time);
-            } else if (use_surface_only) {
-                //
-                // Level has a file but is using surface-only init (interp_atmos_from_coarse):
-                // Read only surface fields from the WRFInput file now, and atmospheric state will
-                // be interpolated from coarse later in InitData_post via FillCoarsePatch.
-                // LSM initialization must also be deferred until after FillCoarsePatch.
-                // Note: use_surface_only is only true for WRFInput (checked above), not Metgrid.
-                //
-                amrex::Print() << "Using interp_atmos_from_coarse mode at level " << lev << " (from scratch):\n";
-                amrex::Print() << "  - Reading surface fields from wrfinput\n";
-                amrex::Print() << "  - Atmospheric state will be interpolated from level " << lev-1 << "\n";
-
-                init_from_wrfinput_surface_only(lev, *mf_PSFC[lev]);
-                init_zphys(lev, time);
-                update_terrain_arrays(lev);
-                make_physbcs(lev);
             } else {
                 //
                 // A level that does have a file reads its terrain and its data in the same
                 // pass, so init_only must come first here.
                 //
+                // Check if user requested interp_atmos_from_coarse but we're in MakeNewLevelFromScratch.
+                // In this case, both levels are starting at the same time, so the atmospheric states
+                // in the files should already be consistent. We ignore the flag and read from the file.
+                if (solverChoice.interp_atmos_from_coarse && lev > 0 &&
+                    solverChoice.init_type == InitType::WRFInput) {
+                    amrex::Warning("erf.interp_atmos_from_coarse = true is set, but both levels are starting "
+                                   "from scratch at the same time. The atmospheric state at level " + std::to_string(lev) +
+                                   " will be read from the wrfinput file instead of interpolated from coarse. "
+                                   "This option is intended for time-mismatched WRF input files or regridding, "
+                                   "not for initial startup with consistent files.");
+                }
                 init_only(lev, time);
                 init_zphys(lev, time);
                 update_terrain_arrays(lev);
@@ -235,34 +225,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
             terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
         }
-    }
-
-    //********************************************************************************************
-    // Land Surface Model - setup data structures
-    // NOTE: For WRF/Metgrid init with interp_atmos_from_coarse at lev > 0, LSM initialization
-    //       is deferred because it needs valid atmospheric state from FillCoarsePatch (which
-    //       happens later in InitData_post). The use_surface_only flag was set above.
-    // *******************************************************************************************
-    if (restart_chkfile.empty()) {
-        // Starting from scratch (not a restart)
-        if ((solverChoice.init_type == InitType::WRFInput) || (solverChoice.init_type == InitType::Metgrid)) {
-            // use_surface_only only applies to WRFInput with interp_atmos_from_coarse
-            bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
-                                    !nc_init_file[lev].empty() &&
-                                    (solverChoice.init_type == InitType::WRFInput);
-            if (!use_surface_only) {
-                // Initialize LSM normally; if use_surface_only=true, LSM init is deferred
-                // until after FillCoarsePatch in InitData_post
-                make_lsm_at_level(lev);
-            }
-        } else {
-            // Other init types (Input_Sounding, etc.) initialize LSM normally
-            make_lsm_at_level(lev);
-        }
-    } else {
-        // Restarting from checkpoint - LSM state is loaded from checkpoint
-        // Still need to set up data structures but not initialize
-        make_lsm_at_level(lev);
     }
 
      // Read in tables needed for windfarm simulations

@@ -2597,15 +2597,19 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
-| **erf.interp_atmos_from_coarse**  | for fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
+| **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
 |                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
 |                                   | theta, density, moisture) from coarse level via          |                              |                    |
 |                                   | ``FillCoarsePatch`` instead of reading from file.        |                              |                    |
 |                                   | Terrain, surface fields (SST, TSK, land masks), and LSM  |                              |                    |
 |                                   | variables are still read from the fine-level wrfinput    |                              |                    |
-|                                   | file. Useful when nested WRF domains have different      |                              |                    |
-|                                   | initialization times. Only applies to lev > 0 with       |                              |                    |
-|                                   | WRFInput; level 0 always reads full atmospheric state.   |                              |                    |
+|                                   | file. **Intended for time-mismatched WRF input files**   |                              |                    |
+|                                   | (e.g., wrfinput_d01 at t=0h, wrfinput_d02 at t=6h) or    |                              |                    |
+|                                   | regridding during runtime. When starting from scratch    |                              |                    |
+|                                   | with both files at the same time, this option is         |                              |                    |
+|                                   | ignored (with a warning) and atmospheric state is read   |                              |                    |
+|                                   | from file. Only applies to lev > 0 with WRFInput;        |                              |                    |
+|                                   | level 0 always reads full atmospheric state.             |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.real_extrap_w**             | First-order extrapolation of vertical velocities on      | Boolean                      | true               |
 |                                   | lateral boundaries (instead of setting to 0) if          |                              |                    |
