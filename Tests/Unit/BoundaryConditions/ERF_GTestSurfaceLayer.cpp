@@ -371,9 +371,12 @@ struct SurfaceLayerFields
         const Real rho_theta = (p_0 / R_d) *
             std::pow(pressure / p_0, Real(1.0) / Gamma) /
             (Real(1.0) + RvoRd * qv);
-        cons.setVal(test_rho, Rho_comp, 1);
-        cons.setVal(rho_theta, RhoTheta_comp, 1);
-        cons.setVal(test_rho * qv, RhoQ1_comp, 1);
+        for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
+            auto& fab = cons[mfi];
+            fab.setVal(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal(rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+        }
     }
 
     std::unique_ptr<SurfaceLayer>
@@ -631,6 +634,15 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             std::pow(p_0 / pressure, RdoCp);
         layer->get_t_surf(0)->setVal(surface_theta);
         std::unique_ptr<MultiFab> z_phys_nd;
+        // The qsurf boundary fill intentionally visits vertical state ghosts;
+        // initialize those cells so this test exercises qsat rather than an
+        // unrelated invalid-density path.
+        for (MFIter mfi(fields.cons, false); mfi.isValid(); ++mfi) {
+            auto& fab = fields.cons[mfi];
+            fab.setVal(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal(test_rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal(test_rho * test_qv, fab.box(), RhoQ1_comp, 1);
+        }
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
         const Real expected = expected_qsat(fields.geom);

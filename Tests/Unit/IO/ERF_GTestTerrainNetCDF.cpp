@@ -23,6 +23,7 @@ constexpr const char* terrain_time_filename = "erf_unit_terrain_time.nc";
 constexpr const char* terrain_wps_filename = "erf_unit_terrain_geo_em.nc";
 constexpr const char* metgrid_filename_0 = "erf_unit_metgrid_surface_0.nc";
 constexpr const char* metgrid_filename_1 = "erf_unit_metgrid_surface_1.nc";
+constexpr const char* metgrid_missing_psfc_filename = "erf_unit_metgrid_surface_missing_psfc.nc";
 
 void
 write_terrain_file ()
@@ -145,7 +146,10 @@ write_time_leading_terrain_file ()
 void
 write_metgrid_surface_file (const char* filename,
                             const amrex::Real psfc,
-                            const char* timestamp)
+                            const char* timestamp,
+                            const bool include_psfc = true,
+                            const bool include_tsk = false,
+                            const amrex::Real hgt = 0.0)
 {
     if (!amrex::ParallelDescriptor::IOProcessor()) {
         return;
@@ -163,8 +167,14 @@ write_metgrid_surface_file (const char* filename,
     file.def_var("Times", NC_CHAR, {"Time", "DateStrLen"});
     file.def_var("SST", ncutils::NCDType::Real,
                  {"Time", "south_north", "west_east"});
-    file.def_var("PSFC", ncutils::NCDType::Real,
-                 {"Time", "south_north", "west_east"});
+    if (include_psfc) {
+        file.def_var("PSFC", ncutils::NCDType::Real,
+                     {"Time", "south_north", "west_east"});
+    }
+    if (include_tsk) {
+        file.def_var("SKINTEMP", ncutils::NCDType::Real,
+                     {"Time", "south_north", "west_east"});
+    }
     file.def_var("HGT_M", ncutils::NCDType::Real,
                  {"Time", "south_north", "west_east"});
     file.put_attr("WEST-EAST_GRID_DIMENSION", std::vector<int>{2});
@@ -174,9 +184,13 @@ write_metgrid_surface_file (const char* filename,
     file.exit_def_mode();
 
     const amrex::Real sst = 290.0;
-    const amrex::Real hgt = 0.0;
     file.var("SST").put(&sst);
-    file.var("PSFC").put(&psfc);
+    if (include_psfc) {
+        file.var("PSFC").put(&psfc);
+    }
+    if (include_tsk) {
+        file.var("SKINTEMP").put(&sst);
+    }
     file.var("HGT_M").put(&hgt);
 
     int times_var = -1;
@@ -386,6 +400,75 @@ TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
     if (amrex::ParallelDescriptor::IOProcessor()) {
         std::remove(metgrid_filename_0);
         std::remove(metgrid_filename_1);
+    }
+}
+
+// Motivation: SST and SKINTEMP are valid Metgrid inputs even when PSFC is not
+// present. The initialization must use the physical terrain height in the
+// documented standard-atmosphere fallback, while debug_psfc and file PSFC
+// retain their explicit precedence.
+TEST(MetgridNetCDF, SurfacePressurePolicyHandlesMissingAndDebugPsfc)
+{
+    const amrex::Real z_sfc = amrex::Real(100.0);
+    const amrex::Real T00 = amrex::Real(290.0);
+    const amrex::Real P00 = p_0;
+    const amrex::Real TLP = amrex::Real(50.0);
+    const amrex::Real toa = T00 / TLP;
+    const amrex::Real expected_missing = P00 * std::exp(
+        -toa + std::sqrt(toa*toa - amrex::Real(2.0) * CONST_GRAV * z_sfc /
+                         (TLP * R_d)));
+
+    EXPECT_NEAR(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
+                                         P00, T00, TLP),
+                expected_missing, amrex::Real(1.0e-12) * expected_missing);
+    EXPECT_EQ(metgrid_surface_pressure(true, 1, amrex::Real(90000.0), z_sfc,
+                                       P00, T00, TLP),
+              amrex::Real(100000.0));
+    EXPECT_EQ(metgrid_surface_pressure(false, 1, amrex::Real(90000.0), z_sfc,
+                                       P00, T00, TLP),
+              amrex::Real(90000.0));
+}
+
+// Motivation: the old Metgrid reader rejected an SST-only forcing file before
+// the analytic pressure fallback could run. Keep this test at the actual
+// NetCDF ingestion boundary so missing PSFC remains an accepted input and the
+// current SST record is still made available to initialization.
+TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
+{
+    write_metgrid_surface_file(metgrid_missing_psfc_filename, 0.0,
+                               "2010-01-01_00:00:00", false, true, 100.0);
+    amrex::ParallelDescriptor::Barrier();
+
+    const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const amrex::Array<int, AMREX_SPACEDIM> periodic{0, 0, 0};
+    amrex::Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, periodic.data());
+
+    amrex::FArrayBox xvel, yvel, temp, rhum, pres, ght, hgt, psfc;
+    amrex::FArrayBox msfu, msfv, msfm, sst, tsk, lat, lon;
+    amrex::IArrayBox lmask;
+    std::string date_time;
+    double epoch_time = 0.0;
+    int flag_psfc = 0, flag_msf = 0, flag_sst = 0, flag_tsk = 0, flag_lmask = 0;
+    int nc_nx = 0, nc_ny = 0;
+    amrex::Real nc_dx = 0.0, nc_dy = 0.0;
+
+    read_from_metgrid(0, 0, domain, metgrid_missing_psfc_filename,
+                      date_time, epoch_time, flag_psfc, flag_msf,
+                      flag_sst, flag_tsk, flag_lmask, nc_nx, nc_ny,
+                      nc_dx, nc_dy, xvel, yvel, temp, rhum, pres, ght,
+                      hgt, psfc, msfu, msfv, msfm, sst, tsk, lat, lon,
+                      lmask, geom);
+
+    EXPECT_EQ(flag_psfc, 0);
+    EXPECT_EQ(flag_sst, 1);
+    EXPECT_EQ(flag_tsk, 1);
+    ASSERT_TRUE(psfc.box().isEmpty());
+    ASSERT_FALSE(sst.box().isEmpty());
+
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        std::remove(metgrid_missing_psfc_filename);
     }
 }
 

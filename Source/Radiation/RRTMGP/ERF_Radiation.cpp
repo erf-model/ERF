@@ -620,7 +620,6 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
         const int imin   = vbx.smallEnd(0);
         const int jmin   = vbx.smallEnd(1);
         const int offset = m_col_offsets[mfi.index()];
-        const int k_surface = vbx.smallEnd(2);
         const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
         const Array4<const Real>& z_arr    = (m_z_phys) ? m_z_phys->const_array(mfi) :
                                                           Array4<const Real>{};

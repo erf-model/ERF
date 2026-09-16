@@ -16,6 +16,35 @@
 #include <ERF_BaseStateParams.H>
 
 /**
+ * Return the physical surface pressure used by the Metgrid initialization.
+ *
+ * A debug pressure deliberately overrides file data.  Otherwise a PSFC value
+ * from the current forcing file is preferred; when PSFC is absent, invert the
+ * standard-atmosphere temperature profile at the physical terrain height.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+metgrid_surface_pressure (const bool debug_psfc,
+                          const int flag_psfc,
+                          const amrex::Real file_psfc,
+                          const amrex::Real z_sfc,
+                          const amrex::Real P00,
+                          const amrex::Real T00,
+                          const amrex::Real TLP)
+{
+    if (debug_psfc) {
+        return amrex::Real(100000.0);
+    }
+    if (flag_psfc == 1) {
+        return file_psfc;
+    }
+
+    const amrex::Real ToA = T00 / TLP;
+    return P00 * std::exp(-ToA + std::sqrt(
+        ToA*ToA - amrex::Real(2.0) * CONST_GRAV * z_sfc / (TLP * R_d)));
+}
+
+/**
  * Read metgrid NetCDF data and populate ERF initialization FABs.
  */
 void

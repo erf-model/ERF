@@ -183,10 +183,6 @@ read_from_metgrid (int lev, int /*itime*/,
     if (!flag_hgt) {
         Abort("HGT_M was not found in " + fname + "; it is required to build the terrain.");
     }
-    if ((flag_sst || flag_tsk) && !flag_psfc) {
-        Abort("Metgrid SST/SKINTEMP requires PSFC in each forcing file so it can be normalized to potential temperature: " + fname);
-    }
-
     // Read the netcdf file and fill these IABs
     Print() << "Building initial IABS from file " << fname << std::endl;
     Vector<int> success_i; success_i.resize(NC_iabs.size());

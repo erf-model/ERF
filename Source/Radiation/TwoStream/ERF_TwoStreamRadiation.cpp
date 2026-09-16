@@ -624,6 +624,9 @@ TwoStreamRadiation::advance (int lev,
                         has_lsm_t_sfc = true;
                     }
                 }
+                // Prognostic SEB is a level-wide alternative to Noah t_sfc.
+                // When Noah exposes t_sfc on this level, m_t_sfc is not advanced,
+                // so it must not be offered as a per-cell fallback.
                 if (!has_lsm_t_sfc && rad_choice.seb_prognostic_enable &&
                     rad_choice.seb_enable && m_t_sfc[lev]) {
                     seb_t_sfc_arr = m_t_sfc[lev]->const_array(mfi);

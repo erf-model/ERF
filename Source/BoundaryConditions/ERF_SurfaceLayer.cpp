@@ -1755,6 +1755,8 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
+    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
+    int* conversion_failed = d_conversion_failed.dataPtr();
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -1781,9 +1783,19 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                 Real theta = t_surf_arr(i,j,k);
                 if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
+                } else {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
                 }
             }
         });
+    }
+
+    amrex::Gpu::streamSynchronize();
+    int conversion_failed_host = d_conversion_failed.dataValue();
+    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
+    if (conversion_failed_host != 0) {
+        amrex::Abort("SurfaceLayer fill_tsurf_with_sfc_sst: failed to convert the authoritative "
+                     "sea-surface temperature to potential temperature.");
     }
 
     fill_planar_boundary(lev, *t_surf[lev]);
@@ -1816,6 +1828,8 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                 amrex::min(t_surf[lev]->nGrowVect()[2],
                                            q_surf[lev]->nGrowVect()[2]));
     const Real rdOcp = m_rdOcp;
+    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
+    int* conversion_failed = d_conversion_failed.dataPtr();
     // Use the 2-D surface mask as the iterator so ranks participate only when
     // their grids coincide with the selected face.
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
@@ -1886,9 +1900,18 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                 if (erf_surface_temperature::theta_to_temperature(
                         t_surf_arr(i,j,k), P_cc, rdOcp, t_surface)) {
                     erf_qsatw(t_surface, P_cc * Real(0.01), q_surf_arr(i,j,k));
+                } else {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
                 }
             }
         });
+    }
+    amrex::Gpu::streamSynchronize();
+    int conversion_failed_host = d_conversion_failed.dataValue();
+    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
+    if (conversion_failed_host != 0) {
+        amrex::Abort("SurfaceLayer fill_qsurf_with_qsat: failed to convert the authoritative "
+                     "surface potential temperature to absolute temperature.");
     }
     fill_planar_boundary(lev, *q_surf[lev]);
 }
@@ -1966,6 +1989,8 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
+    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
+    int* conversion_failed = d_conversion_failed.dataPtr();
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
@@ -2014,8 +2039,17 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
             if (erf_surface_temperature::temperature_to_theta(
                     coupled_sst_arr(li,lj,k), pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
+            } else {
+                amrex::Gpu::Atomic::Max(conversion_failed, 1);
             }
         });
+    }
+    amrex::Gpu::streamSynchronize();
+    int conversion_failed_host = d_conversion_failed.dataValue();
+    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
+    if (conversion_failed_host != 0) {
+        amrex::Abort("SurfaceLayer fill_tsurf_with_coupled_sst: failed to convert the authoritative "
+                     "coupled sea-surface temperature to potential temperature.");
     }
 }
 

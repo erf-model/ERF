@@ -173,6 +173,8 @@ ERF::init_from_metgrid (int lev)
 
     int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
     int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
+    const int k_surface = geom[lev].Domain().smallEnd(2);
+    const bool debug_psfc = metgrid_debug_psfc;
 
     // Set up FABs to hold data that will be used to set lateral boundary conditions.
     int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
@@ -406,9 +408,6 @@ ERF::init_from_metgrid (int lev)
         // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
 
         if (flag_sst) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                flag_psfc,
-                "Metgrid SST requires PSFC in each forcing file so it can be normalized to potential temperature.");
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(sst_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
@@ -416,15 +415,24 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_sst_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real>& psfc_arr = NC_psfc_fab.const_array();
+                const Array4<const Real> psfc_arr = flag_psfc ? NC_psfc_fab.const_array() :
+                                                               Array4<const Real>{};
+                const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
+                    const Real z_sfc = Real(0.25) *
+                        (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
+                         z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
+                    const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
+                    const Real surface_pressure = metgrid_surface_pressure(
+                        debug_psfc, flag_psfc, file_psfc, z_sfc,
+                        bsp.P00, bsp.T00, bsp.TLP);
                     // Metgrid SST is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
                     dst_arr(i,j,0) = getThgivenTandP(
-                        src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                        src_arr(li,lj,0), surface_pressure, l_rdOcp);
                 });
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
@@ -433,9 +441,6 @@ ERF::init_from_metgrid (int lev)
         }
 
         if (flag_tsk) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                flag_psfc,
-                "Metgrid SKINTEMP requires PSFC in each forcing file so it can be normalized to potential temperature.");
             tsk_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(tsk_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                 Box gtbx = mfi.growntilebox();
@@ -443,15 +448,24 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_tsk_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real>& psfc_arr = NC_psfc_fab.const_array();
+                const Array4<const Real> psfc_arr = flag_psfc ? NC_psfc_fab.const_array() :
+                                                               Array4<const Real>{};
+                const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
+                    const Real z_sfc = Real(0.25) *
+                        (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
+                         z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
+                    const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
+                    const Real surface_pressure = metgrid_surface_pressure(
+                        debug_psfc, flag_psfc, file_psfc, z_sfc,
+                        bsp.P00, bsp.T00, bsp.TLP);
                     // Metgrid SKINTEMP is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
                     dst_arr(i,j,0) = getThgivenTandP(
-                        src_arr(li,lj,0), psfc_arr(li,lj,0), l_rdOcp);
+                        src_arr(li,lj,0), surface_pressure, l_rdOcp);
                 });
             }
             tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
@@ -1649,15 +1663,9 @@ init_base_state_from_metgrid (const bool use_moisture,
                                       + z_nd(i,j+1,klo) + z_nd(i+1,j+1,klo) );
 
             // Calculate or use pressure at the surface.
-            if (metgrid_debug_psfc) {
-                psurf = amrex::Math::powi<5>(10);
-            } else if (flag_psfc == 1) {
-                psurf = orig_psfc(i,j,0);
-            } else {
-                // Same closed-form inversion as the troposphere branch of the base
-                // state above, evaluated at the height of the ground.
-                psurf = P00*std::exp(-T00/TLP + std::sqrt(std::pow(T00/TLP, two)-two*grav*z_sfc/(TLP*R_d)));
-            }
+            const Real file_psfc = flag_psfc == 1 ? orig_psfc(i,j,0) : zero;
+            psurf = metgrid_surface_pressure(metgrid_debug_psfc, flag_psfc,
+                                              file_psfc, z_sfc, P00, T00, TLP);
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 
