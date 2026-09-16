@@ -1130,6 +1130,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  # The MYNN25 PBL height scans whole columns: one box against boxes split in z, with the
+  # k-eqn length scale capped by the PBL height so that the 3D fields depend on it.
+  add_test_box_parity(PBLH_ZSplit_BoxParity PBLH_ZSplit "plt00040"
+      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_ZSplit_BoxParity/input_sounding"
+      REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+      FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

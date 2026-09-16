@@ -2026,9 +2026,64 @@ SurfaceLayer::compute_pblh (const int& lev,
                             const PBLHeightEstimator& est,
                             const MoistureComponentIndices& moisture_indices)
 {
-    est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
-                     vars[lev][Vars::cons],m_lmask_lev[lev][0],
-                     moisture_indices);
+    const MultiFab& cons = vars[lev][Vars::cons];
+    const iMultiFab* lmask = m_lmask_lev[lev][0];
+
+    // The estimator scans each column from the bottom of the domain to the top, one box
+    // column at a time, and writes the planar pblh of that box.  That is only correct when
+    // every box spans the full height: on grids split in z an upper box would read cons
+    // outside its data and write its own (wrong) copy of the planar field.  In that case run
+    // the estimator on boxes that span the full height of the domain, one per surface box,
+    // and copy the result onto every planar box.
+    const BoxArray& ba_sfc = m_planar_bndry[lev].surface_boxes();
+    const bool split_in_z = (m_terrain_type != TerrainType::EB) && (m_face.coordDir() == 2) &&
+                            (ba_sfc.size() < pblh[lev]->boxArray().size());
+    if (!split_in_z) {
+        est.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(), cons, lmask, moisture_indices);
+        return;
+    }
+
+    const Box& domain = m_geom[lev].Domain();
+    const Periodicity period = m_geom[lev].periodicity();
+
+    BoxList bl_col(ba_sfc.ixType());
+    for (int i = 0; i < ba_sfc.size(); ++i) {
+        Box b(ba_sfc[i]);
+        b.setRange(2, domain.smallEnd(2), domain.length(2));
+        bl_col.push_back(b);
+    }
+    BoxArray ba_col(std::move(bl_col));
+    DistributionMapping dm_col(ba_col);
+
+    MultiFab cons_col(ba_col, dm_col, cons.nComp(), cons.nGrowVect());
+    cons_col.setVal(zero);
+    // Two passes: ghost cells first (they hold the physical and periodic boundary values the
+    // estimator reads outside the domain), then the valid cells, so that inside the domain
+    // every cell comes from the box that owns it and not from a neighbour's ghost cell
+    cons_col.ParallelCopy(cons, 0, 0, cons.nComp(), cons.nGrowVect(), cons.nGrowVect(), period);
+    cons_col.ParallelCopy(cons, 0, 0, cons.nComp(), IntVect(0), cons.nGrowVect(), period);
+
+    std::unique_ptr<MultiFab> zcc_col;
+    if (z_phys_cc) {
+        zcc_col = std::make_unique<MultiFab>(ba_col, dm_col, 1, z_phys_cc->nGrowVect());
+        zcc_col->setVal(zero);
+        zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, z_phys_cc->nGrowVect(), z_phys_cc->nGrowVect(), period);
+        zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, IntVect(0), z_phys_cc->nGrowVect(), period);
+    }
+
+    std::unique_ptr<iMultiFab> lmask_col;
+    if (lmask) {
+        lmask_col = std::make_unique<iMultiFab>(ba_sfc, dm_col, 1, lmask->nGrowVect());
+        lmask_col->setVal(1);
+        lmask_col->ParallelCopy(*lmask, 0, 0, 1, lmask->nGrowVect(), lmask->nGrowVect(), period);
+        lmask_col->ParallelCopy(*lmask, 0, 0, 1, IntVect(0), lmask->nGrowVect(), period);
+    }
+
+    MultiFab pblh_col(ba_sfc, dm_col, 1, pblh[lev]->nGrowVect());
+    est.compute_pblh(m_geom[lev], zcc_col.get(), &pblh_col, cons_col, lmask_col.get(), moisture_indices);
+
+    pblh[lev]->ParallelCopy(pblh_col, 0, 0, 1, pblh[lev]->nGrowVect(), pblh[lev]->nGrowVect(), period);
+    pblh[lev]->ParallelCopy(pblh_col, 0, 0, 1, IntVect(0), pblh[lev]->nGrowVect(), period);
 }
 
 /**
