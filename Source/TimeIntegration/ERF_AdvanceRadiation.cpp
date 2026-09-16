@@ -139,12 +139,14 @@ void ERF::advance_radiation (int lev,
                             MultiFab::Copy(tmp_coarse, *lsm_coarse, 0, 0, lsm_coarse->nComp(), 0);
                             tmp_coarse.FillBoundary(geom[lev-1].periodicity());
 
-                            // Now interpolate from tmp_coarse (with ghost) to lsm_fine (no ghost needed)
+                            // LSM data are 2D surface fields: use 2D refinement ratio and pc_interp
+                            // to avoid computing z-slopes from uninitialized ghost cells
+                            IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
                             InterpFromCoarseLevel(*lsm_fine, IntVect(0,0,0),
                                                   IntVect(0,0,0),
                                                   tmp_coarse, 0, 0, lsm_coarse->nComp(),
                                                   geom[lev-1], geom[lev],
-                                                  refRatio(lev-1), &cell_cons_interp,
+                                                  rr2d, &pc_interp,
                                                   domain_bcs_type, BCVars::cons_bc);
                         }
                     }
