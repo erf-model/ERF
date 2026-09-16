@@ -1,4 +1,5 @@
 #include "ERF_SurfaceLayer.H"
+#include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
 
@@ -350,6 +351,26 @@ SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
     } else {
         m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
     }
+}
+
+Real
+SurfaceLayer::surface_sum (const int& lev, const MultiFab& mf, int comp) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_face.coordDir() == 2,
+        "SurfaceLayer::surface_sum is only defined for a surface layer on a z face");
+    if (m_terrain_type == TerrainType::EB) {
+        // EB fields live on the full 3D BoxArray without duplicates: sum the lowest plane
+        return sumToLine(mf, comp, 1, m_geom[lev].Domain(), 2)[0];
+    }
+    // A face-centered planar field (the MOST velocity averages) shares the planar BoxArray
+    // but not its index type, and neighbouring surface boxes would then share a face, which
+    // this sum would count twice
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mf.boxArray().ixType().cellCentered(),
+        "SurfaceLayer::surface_sum is only defined for a cell-centered planar MultiFab");
+    const PlanarBoundary& pb = m_planar_bndry[lev];
+    MultiFab surface_copy(pb.surface_boxes(), pb.surface_dm(), 1, 0);
+    pb.gather_surface(mf, surface_copy, comp, 0, 1);
+    return surface_copy.sum(0);
 }
 
 void
