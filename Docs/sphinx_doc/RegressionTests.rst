@@ -567,6 +567,9 @@ projection and are registered only when the build enables FFT
 than any physics: it states, for each kind of comparison the shared
 ``rans_checks.py`` offers, what the check must decide for values inside and
 just outside the stated tolerance or band, and fails when a check disagrees.
+It also calls ``check_implicit_explicit_ke.py`` with malformed arguments (a
+missing or non-numeric ``--tol``, too few plotfiles), each of which must print
+the usage and exit with status 2 rather than fail with a traceback.
 It runs no ERF executable; labels ``rans`` and ``unit``. It is registered
 only when CMake finds a Python 3 interpreter, so a configuration without
 one simply does not have the test rather than failing the unit stage.
