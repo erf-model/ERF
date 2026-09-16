@@ -1,4 +1,6 @@
 # ===== Problem Setup ==========
+max_step = 1
+
 erf.prob_name        = ABL
 prob.KE_0            = 0.4
 prob.KE_decay_height = 1000.
@@ -54,7 +56,7 @@ erf.dycore_vert_adv_type   = Upwind_3rd
 erf.dryscal_horiz_adv_type = WENO5
 erf.dryscal_vert_adv_type  = WENO5
 
-erf.fixed_dt = 0.5
+erf.fixed_dt = 5.0
 erf.fixed_mri_dt_ratio = 6
 
 
@@ -107,7 +109,6 @@ erf.rayleigh_zdamp    = 5000.0
 erf.rayleigh_dampcoef = 0.2
 
 erf.radiation_model        = "RRTMGP"
-erf.profile_rad_int        = 100
 erf.rad_freq_in_steps      = 100
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false
@@ -119,7 +120,7 @@ erf.covmr                  = 1.5e-7
 erf.ch4vmr                 = 1.7e-6
 erf.o2vmr                  = 0.209
 erf.n2vmr                  = 0.7906
-erf.rrtmgp_file_path       = ./  # Path to data-files
+erf.rrtmgp_file_path       = .  # Path to data-files
 erf.rrtmgp_coeffs_sw       = rrtmgp-gas-sw-g112.nc
 erf.rrtmgp_coeffs_lw       = rrtmgp-gas-lw-g128.nc
 erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
