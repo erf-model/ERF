@@ -723,7 +723,7 @@ public:
     void ibseb_report (int nstep, amrex::Real time);
     amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
                                               const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
-    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt, const amrex::MultiFab& cons,
+    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt_lev, const amrex::MultiFab& cons,
                         const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel);
 
     void input_sponge (int lev);
