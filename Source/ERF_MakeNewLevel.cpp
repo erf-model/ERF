@@ -506,6 +506,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             // Now initialize LSM with the properly filled atmospheric state
             if (solverChoice.lsm_type != LandSurfaceType::None) {
                 amrex::Print() << "Initializing LSM at level " << lev << " after FillCoarsePatch\n";
+
+                // First, resize the vectors and Define the LSM
+                int lsm_data_size  = lsm.Get_Data_Size();
+                int lsm_flux_size  = lsm.Get_Flux_Size();
+                lsm_data[lev].resize(lsm_data_size);
+                lsm_data_name.resize(lsm_data_size);
+                lsm_flux[lev].resize(lsm_flux_size);
+                lsm_flux_name.resize(lsm_flux_size);
+                lsm.Define(lev, solverChoice);
+
                 IntVect RefRatio(1);
                 for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
                 lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
