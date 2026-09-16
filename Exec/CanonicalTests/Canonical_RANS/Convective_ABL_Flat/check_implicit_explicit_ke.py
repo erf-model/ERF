@@ -5,9 +5,10 @@ diffusion.
 
 Usage: check_implicit_explicit_ke.py --tol TOL <implicit plotfile> <explicit plotfile>
 
-The buoyancy production of k is g/theta_0 times the subgrid heat flux the
-closure computes at the start of the step, so it must not depend on how theta
-is then diffused. The two runs therefore differ only by the time
+The buoyancy production of k is g/theta_0 times the vertical heat flux of the
+theta diffusion, averaged from the two faces of the cell. Those are the full
+face fluxes whether the vertical diffusion is explicit or implicit, so the
+source must not depend on that choice. The two runs therefore differ only by the time
 discretisation of the diffusion, and the largest planar-mean difference in KE,
 relative to the largest KE of the explicit run, must stay below TOL. If the
 buoyancy term depended on the diffusion of theta (for example on the face flux

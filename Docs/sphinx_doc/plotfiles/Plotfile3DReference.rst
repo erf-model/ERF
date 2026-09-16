@@ -631,9 +631,17 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **hfx3**                    | Heat flux in     |
 |                             | z-direction.     |
-|                             | Only available   |
-|                             | with Z surface   |
-|                             | layers enabled   |
+|                             | Flux of the theta|
+|                             | diffusion at the |
+|                             | two z-faces of   |
+|                             | the cell,        |
+|                             | averaged (the    |
+|                             | full flux, also  |
+|                             | with the implicit|
+|                             | vertical solve;  |
+|                             | the surface-layer|
+|                             | flux at the      |
+|                             | bottom face).    |
 |                             | [W/m^2]          |
 +-----------------------------+------------------+
 | **q1fx1**                   | Moisture flux 1  |

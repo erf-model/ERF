@@ -266,10 +266,6 @@ namespace EddyDiff {
         RANS_Rt,
         RANS_cmu,
         RANS_cmu_prime,
-        // Vertical subgrid heat flux -K_h dtheta/dz at the cell centre, written by the
-        // TKE closures (Deardorff, k-eqn RANS) at the start of the step for the buoyancy
-        // production of k. Hfx3 holds the face fluxes of the theta diffusion instead.
-        Theta_flux_v,
         NumDiffs
     };
 }
