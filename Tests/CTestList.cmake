@@ -315,6 +315,11 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
     if(NOT "${ADD_TEST_RP_RUN_TIMEOUT}" STREQUAL "")
         set(_run_timeout "${ADD_TEST_RP_RUN_TIMEOUT}")
     endif()
+    # Three runs, each capped at _run_timeout by RunRestartParity.cmake, plus the
+    # fcompare calls and process startup, which sit outside that budget. CTest's
+    # own limit must exceed the sum, or it kills the script before the script can
+    # report which of the three legs stalled.
+    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
 
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         -DMPIEXEC=${MPIEXEC_EXECUTABLE}
@@ -334,7 +339,7 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 3600
+        TIMEOUT ${_ctest_timeout}
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;restart-parity"
