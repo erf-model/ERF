@@ -40,9 +40,13 @@ class Report:
         elif kind == "range":   # target is (lo, hi); tol unused
             lo, hi = target
             err = max(lo - value, value - hi, 0.0)
+            # err is already the distance outside [lo, hi], so the value passes
+            # only when it is inside the band. The midpoint and half width below
+            # are what the printed table shows, not what decides the check.
+            in_band = (err <= 0.0)
             target = 0.5 * (lo + hi)
             tol = 0.5 * (hi - lo)
-        ok = err <= tol
+        ok = in_band if kind == "range" else (err <= tol)
         if not ok:
             self.failed += 1
         self.rows.append((name, value, target, tol, kind, ok))
