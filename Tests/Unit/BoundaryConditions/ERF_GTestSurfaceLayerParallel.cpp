@@ -365,3 +365,93 @@ TEST(SurfaceLayerParallel, DistributedMixedFaceCornersPreserveBothStresses)
 }
 
 } // namespace
+
+namespace {
+
+// theta = 300 K in the two lowest cells and 302 K above, rho = 1, no TKE, over every cell of every
+// box including ghost cells.  With dz = 1 m the MYNN25 estimator puts the PBL height where theta_v
+// reaches min + 1.25 K between the cell centres at 1.5 m and 2.5 m: 1.5 + 1.25/2 = 2.125 m.
+void set_theta_jump (MultiFab& cons)
+{
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        auto arr = cons.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            arr(i,j,k,Rho_comp)      = Real(1.0);
+            arr(i,j,k,RhoTheta_comp) = (k >= 2) ? Real(302.0) : Real(300.0);
+            arr(i,j,k,RhoKE_comp)    = Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+std::pair<Real,Real> valid_min_max (const MultiFab& mf)
+{
+    ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+    ReduceData<Real, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.const_array(mfi);
+        reduce_op.eval(mfi.validbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+            {
+                return {arr(i,j,k), arr(i,j,k)};
+            });
+    }
+    auto result = reduce_data.value(reduce_op);
+    Real lo = get<0>(result);
+    Real hi = get<1>(result);
+    ParallelDescriptor::ReduceRealMin(lo);
+    ParallelDescriptor::ReduceRealMax(hi);
+    return {lo, hi};
+}
+
+Real pblh_on_layout (const bool single_box, const IntVect& max_size, int& nplanar,
+                     std::pair<Real,Real>& range)
+{
+    const Orientation zlo(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(single_box, max_size);
+    set_theta_jump(fields.cons);
+    auto layer = fields.prepare_layer(zlo, active_face(zlo), "unit_surface_layer_zsplit_pblh",
+                                      false, false, false, false);
+
+    Vector<Vector<MultiFab>> vars(1);
+    vars[0].resize(Vars::NumTypes);
+    vars[0][Vars::cons] = MultiFab(fields.cons, amrex::make_alias, 0, fields.cons.nComp());
+    layer->update_pblh(0, vars, nullptr, MoistureComponentIndices{});
+
+    const MultiFab& pblh = *layer->get_pblh(0);
+    nplanar = static_cast<int>(pblh.boxArray().size());
+    range = valid_min_max(pblh);
+    return range.first;
+}
+
+} // namespace
+
+// The MYNN25 PBL-height estimator scans whole columns.  On grids split in z it must still see the
+// whole column, and every duplicate planar copy of pblh must hold the same, exact height.
+TEST(SurfaceLayerParallel, PBLHeightScansWholeColumnsOnZSplitGrids)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_zsplit_pblh");
+    ParmParse pp("unit_surface_layer_zsplit_pblh");
+    pp.add("most.pblh_calc", std::string("MYNN25"));
+
+    const Real expected = Real(2.125);
+    const Real tol = Real(1.0e-10);
+
+    int nplanar = 0;
+    std::pair<Real,Real> range;
+
+    pblh_on_layout(true, IntVect(AMREX_D_DECL(16, 16, 1024)), nplanar, range);
+    EXPECT_EQ(nplanar, 1);
+    ERF_EXPECT_NEAR(range.first,  expected, tol);
+    ERF_EXPECT_NEAR(range.second, expected, tol);
+
+    // 4 columns of 2 stacked boxes: the upper box of each column holds no cell below k = 2
+    pblh_on_layout(false, IntVect(AMREX_D_DECL(16, 16, 2)), nplanar, range);
+    EXPECT_EQ(nplanar, 8);
+    ERF_EXPECT_NEAR(range.first,  expected, tol);
+    ERF_EXPECT_NEAR(range.second, expected, tol);
+
+    pp.remove("most.pblh_calc");
+}
