@@ -3,6 +3,13 @@
         int qty_index = RhoKE_comp;
         auto pbl_mynn_B1_l = turbChoice.pbl_mynn.B1;
 
+        // At k = klo the resolved vertical gradients are contaminated by the
+        // foextrap/hoextrap ghost cells (ERF #4037). When a SurfaceLayer owns the
+        // zlo face, ComputeQKESourceTerms builds the production terms there from
+        // the surface stresses and scalar fluxes that are actually applied to the
+        // momentum, heat and moisture equations instead.
+        const bool l_surface_layer_on_zlo = SurfLayer_zlo;
+
         ParallelFor(bx,[=,moist_indices=solverChoice.moisture_indices] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -21,6 +28,8 @@
                                                                   moist_indices,
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                                  tau13, tau23, hfx_z, qfx1_z,
+                                                                  l_surface_layer_on_zlo);
         });
     }

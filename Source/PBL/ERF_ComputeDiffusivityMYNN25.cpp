@@ -185,6 +185,29 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
             }
 
+            // At the first cell center the vertical gradients computed above are
+            // built from the foextrap (cons) and hoextrap (velocity) ghost values
+            // that zlo.type = surface_layer installs, and those carry no surface
+            // information: the potential-temperature gradient comes out half the
+            // one-sided value and the velocity gradient has no dependence on the
+            // friction velocity at all (ERF #4037). Replace them with the MOST
+            // profile gradients that the surface layer is imposing on this cell,
+            //   |dU/dz|    = u_*      phi_m(zeta) / (kappa z)
+            //   dthetav/dz = thetav_* phi_h(zeta) / (kappa z)
+            // which is the same profile the stress and heat flux were derived from.
+            if (k == izmin) {
+                PBLSurfaceLayerGradient sl;
+                sl.u_star  = u_star_arr(i,j,0);
+                // Equals -surface_heat_flux/u_*, formed directly to avoid
+                // dividing by a vanishing u_*
+                sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                    (use_moisture) ? q_star_arr(i,j,0) : zero,
+                                                    theta0, qv0, use_moisture);
+                sl.zval    = zval;
+                sl.zeta    = zeta;
+                ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
+            }
+
             // ABL-depth length scale (NN09, Eqn. 54)
             Real l_T;
             if (qint(i,j,0,1) > zero) {

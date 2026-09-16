@@ -4372,6 +4372,19 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                 l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
             }
 
+            // Replace the resolved gradients in the first cell with the MOST
+            // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
+            if (k == izmin) {
+                PBLSurfaceLayerGradient sl;
+                sl.u_star  = u_star_arr(i,j,0);
+                sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                    (use_moisture) ? q_star_arr(i,j,0) : zero,
+                                                    theta0, qv0, use_moisture);
+                sl.zval    = zval;
+                sl.zeta    = zeta;
+                ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
+            }
+
             // ABL-depth length scale (NN09, Eqn. 54)
             Real l_T;
             if (qint(i,j,0,1) > zero) {
