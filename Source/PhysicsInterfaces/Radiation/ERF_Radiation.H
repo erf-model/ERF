@@ -85,9 +85,12 @@ public:
         bool is_nested_patch = is_nested_patch_local;
         amrex::ParallelDescriptor::ReduceLogicalOr(is_nested_patch);
 
+        // Update the nested patch flag - must be set/cleared on every Init call
+        // so that levels that stop being nested after regrid will resume radiation computation
+        m_is_nested_patch = is_nested_patch;
+
         // Skip radiation on nested patches - heating rates will be interpolated from coarser level
         if (is_nested_patch) {
-            m_is_nested_patch = true;
             return;
         }
 
