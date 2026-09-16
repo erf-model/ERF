@@ -392,11 +392,12 @@ Radiation::alloc_buffers ()
         lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol, m_nlay+1);
         lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
     } else {
-        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
-        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
-        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol_chunk, m_nlay+1);
-        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
-        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
+        // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol_chunk_requested, m_nlay+1);
+        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol_chunk_requested, m_nlay+1);
+        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol_chunk_requested, m_nlay+1);
+        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol_chunk_requested, m_nlay+1);
+        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol_chunk_requested, m_nlay+1);
     }
 
     // Clean-clear-sky diagnostic fluxes (only when enabled)
@@ -430,14 +431,16 @@ Radiation::alloc_buffers ()
     }
 
     // 3d size (ncol_chunk, nlay+1, nswbands)
-    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol_chunk, m_nlay+1, m_nswbands);
+    // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol_chunk_requested, m_nlay+1, m_nswbands);
 
     // 3d size (ncol_chunk, nlay+1, nlwbands)
-    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nlwbands);
+    // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol_chunk_requested, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol_chunk_requested, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
