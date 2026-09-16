@@ -923,7 +923,7 @@ private:
     void make_physbcs (int lev);
 
     // (Re)build the land surface model on this level's current grids
-    void make_lsm_at_level (int lev);
+    void make_lsm_at_level (int lev, bool from_regrid = false);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
