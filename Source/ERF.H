@@ -4,6 +4,7 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <set>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -797,6 +798,14 @@ public:
 
     std::string pp_prefix {"erf"};
 
+    // The inputs table as the user wrote it, captured at the top of
+    // ReadParameters before anything in ERF can add to it.  ParmParse::queryAdd
+    // inserts the default it was handed whenever a key is absent, so by the time
+    // initialization is under way the table no longer distinguishes a key the
+    // user typed from a key some other query defaulted (see
+    // has_surface_layer_inputs).
+    std::set<std::string> user_specified_inputs;
+
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               double time);
 
@@ -901,7 +910,7 @@ private:
     void ReadParameters ();
     void ParameterSanityChecks ();
 
-    static bool has_surface_layer_inputs (const std::string& prefix);
+    [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
 
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();

@@ -19,6 +19,7 @@
 
 #include "ERF_NCInterface.H"
 #include "ERF_Radiation.H"
+#include "ERF_RRTMGP_SurfaceTemperature.H"
 
 using namespace amrex;
 
@@ -754,22 +755,38 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     // Check if over land
                     bool is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
 
-                    // Check if valid LSM data
-                    bool valid_lsm_data = (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined));
-
-                    // Have LSM and are over land
-                    if (is_land && valid_lsm_data) {
-                        rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
-                    }
-                    // We have a SurfLayer (enforce consistency with temperature)
-                    else if (tsurf_arr && (ivar==0)) {
-                        rrtmgp_to_fill(icol) = tsurf_arr(i,j,k);
-                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = tsurf_arr(i,j,k); }
-                    }
-                    // Use the default value
-                    else {
-                        rrtmgp_to_fill(icol) = rrtmgp_default_val;
-                        if (lsm_in_arr) { lsm_in_arr(i,j,k) = rrtmgp_default_val; }
+                    // Surface temperature has a distinct contract: LSM and
+                    // RRTMGP use absolute temperature, while SurfaceLayer
+                    // supplies potential temperature.  The other LSM inputs
+                    // retain their existing validity/default handling.
+                    if (ivar == 0) {
+                        const bool has_lsm_t_sfc = static_cast<bool>(lsm_in_arr);
+                        const bool valid_lsm_t_sfc =
+                            has_lsm_t_sfc && (lsm_in_arr(i,j,k) < lsm_undefined);
+                        // Match TwoStream: convert SurfaceLayer theta with
+                        // the pressure in the lowest atmospheric cell.
+                        rrtmgp::resolve_surface_temperature(
+                            is_land,
+                            has_lsm_t_sfc,
+                            valid_lsm_t_sfc,
+                            has_lsm_t_sfc ? lsm_in_arr(i,j,k) : Real(0.),
+                            static_cast<bool>(tsurf_arr),
+                            tsurf_arr ? tsurf_arr(i,j,k) : Real(0.),
+                            p_lay_tab(icol, 0),
+                            rrtmgp_default_val,
+                            rrtmgp_to_fill(icol),
+                            has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);
+                    } else {
+                        // Have LSM and are over land.
+                        const bool valid_lsm_data =
+                            (lsm_in_arr && (lsm_in_arr(i,j,k) < lsm_undefined));
+                        if (is_land && valid_lsm_data) {
+                            rrtmgp_to_fill(icol) = lsm_in_arr(i,j,k);
+                        } else {
+                            // Use the default value.
+                            rrtmgp_to_fill(icol) = rrtmgp_default_val;
+                            if (lsm_in_arr) { lsm_in_arr(i,j,k) = rrtmgp_default_val; }
+                        }
                     }
                 });
             } //mfi
