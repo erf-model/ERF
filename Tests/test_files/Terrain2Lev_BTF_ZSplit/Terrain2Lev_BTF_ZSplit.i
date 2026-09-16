@@ -18,6 +18,10 @@ erf.init_type = Isentropic
 
 max_step = 0
 
+# No acoustic substepping: its implicit w solve cannot run on grids split in z (the split
+# run would abort at start-up), and this test only compares the mesh at step 0.
+erf.substepping_type = None
+
 amrex.fpe_trap_invalid = 1
 
 # PROBLEM SIZE & GEOMETRY

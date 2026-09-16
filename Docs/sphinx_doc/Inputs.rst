@@ -881,6 +881,14 @@ Notes
      **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
      grids that are not split in z.
 
+-  | The acoustic substep (**erf.substepping_type = Implicit**, the default for compressible runs)
+     also solves for the vertical velocity one column at a time, holding it fixed at the bottom and
+     top face of each grid.  If the grids at a level are decomposed in the vertical, the code aborts
+     at start-up (or at the regrid that creates such grids) instead of running with those faces
+     acting as rigid lids inside the domain.  To run such a case, set **erf.substepping_type = None**
+     (the time step is then limited by the acoustic CFL condition) or choose grids that are not
+     split in z.
+
 -  | A column may, however, end below the top of the domain, as it does on a refined level that
      does not reach the domain top, or where the refined region is a staircase in z.  In that
      case the physical boundary condition is applied only where the column really does end at
