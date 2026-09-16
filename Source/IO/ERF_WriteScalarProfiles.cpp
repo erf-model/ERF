@@ -77,10 +77,11 @@ ERF::sum_integrated_quantities (double time)
     Orientation zlo(Direction::z, Orientation::low);
     if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0)) {
         Box domain = geom[0].Domain();
-        int zdir = 2;
-        h_avg_ustar = sumToLine(*m_SurfaceLayer[zlo]->get_u_star(0),0,1,domain,zdir);
-        h_avg_tstar = sumToLine(*m_SurfaceLayer[zlo]->get_t_star(0),0,1,domain,zdir);
-        h_avg_olen  = sumToLine(*m_SurfaceLayer[zlo]->get_olen(0)  ,0,1,domain,zdir);
+        // Sum each surface cell once: on grids split in z the planar arrays hold one
+        // duplicate box per stacked 3D box
+        h_avg_ustar[0] = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_u_star(0));
+        h_avg_tstar[0] = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_t_star(0));
+        h_avg_olen[0]  = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_olen(0));
 
         // Divide by the total number of cells we are averaging over
         Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));

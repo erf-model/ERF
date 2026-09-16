@@ -255,7 +255,7 @@ endfunction(add_test_cloud_chamber_parity)
 # COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
 # SPLIT_OPTIONS give the split (the deck's own grid when empty).
 function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
-    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG")
     cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -284,6 +284,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
+        "-DDATALOG=${ADD_TEST_BP_DATALOG}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1078,9 +1079,10 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
     FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding erf.data_log=surf_hist.dat erf.sum_interval=1"
     REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9")
+    FCOMPARE_RTOL "1.0e-9"
+    DATALOG "surf_hist.dat")
 endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")

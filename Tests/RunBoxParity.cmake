@@ -82,3 +82,25 @@ execute_process(
 if(NOT parity_result EQUAL 0)
     message(FATAL_ERROR "Single-box and split-box plotfiles differ: ${parity_result}")
 endif()
+
+# Optional: the data logs (erf.data_log) of the two runs must agree line for line.  fcompare
+# never reads them, and planar diagnostics can depend on the decomposition while the plotfiles
+# do not.
+if(NOT "${DATALOG}" STREQUAL "")
+    foreach(dir "${REF_DIR}" "${SPLIT_DIR}")
+        if(NOT EXISTS "${dir}/${DATALOG}")
+            message(FATAL_ERROR "RunBoxParity.cmake: no data log ${dir}/${DATALOG}")
+        endif()
+    endforeach()
+    file(STRINGS "${REF_DIR}/${DATALOG}"   ref_log)
+    file(STRINGS "${SPLIT_DIR}/${DATALOG}" split_log)
+    list(LENGTH ref_log ref_lines)
+    if(ref_lines LESS 2)
+        message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} has ${ref_lines} lines; the comparison would be trivial")
+    endif()
+    if(NOT "${ref_log}" STREQUAL "${split_log}")
+        message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} differs between the single-box and split runs\n"
+                            "one box:\n${ref_log}\nsplit:\n${split_log}")
+    endif()
+    message(STATUS "RunBoxParity: data log ${DATALOG} agrees (${ref_lines} lines)")
+endif()

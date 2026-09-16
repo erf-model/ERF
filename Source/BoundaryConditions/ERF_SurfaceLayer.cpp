@@ -1,4 +1,5 @@
 #include "ERF_SurfaceLayer.H"
+#include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
 
@@ -350,6 +351,21 @@ SurfaceLayer::fill_planar_boundary (const int& lev, MultiFab& mf)
     } else {
         m_planar_bndry[lev].fill(mf, m_geom[lev].periodicity());
     }
+}
+
+Real
+SurfaceLayer::surface_sum (const int& lev, const MultiFab& mf, int comp)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_face.coordDir() == 2,
+        "SurfaceLayer::surface_sum is only defined for a surface layer on a z face");
+    if (m_terrain_type == TerrainType::EB) {
+        // EB fields live on the full 3D BoxArray without duplicates: sum the lowest plane
+        return sumToLine(mf, comp, 1, m_geom[lev].Domain(), 2)[0];
+    }
+    const BoxArray& ba_sfc = m_planar_bndry[lev].surface_boxes();
+    MultiFab surface_copy(ba_sfc, DistributionMapping(ba_sfc), 1, 0);
+    surface_copy.ParallelCopy(mf, comp, 0, 1);
+    return surface_copy.sum(0);
 }
 
 void
