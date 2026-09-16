@@ -72,14 +72,18 @@ public:
         int khi = geom.Domain().bigEnd(2);
 
         // Detect if any box doesn't reach the domain top (nested patch)
-        bool is_nested_patch = false;
+        // Must check across all ranks since some ranks may have boxes that reach the top
+        // while others don't. If ranks disagree, collective communication below will deadlock.
+        bool is_nested_patch_local = false;
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
             if (vbx.bigEnd(2) < khi) {
-                is_nested_patch = true;
+                is_nested_patch_local = true;
                 break;
             }
         }
+        bool is_nested_patch = is_nested_patch_local;
+        amrex::ParallelDescriptor::ReduceLogicalOr(is_nested_patch);
 
         // Skip radiation on nested patches - heating rates will be interpolated from coarser level
         if (is_nested_patch) {
