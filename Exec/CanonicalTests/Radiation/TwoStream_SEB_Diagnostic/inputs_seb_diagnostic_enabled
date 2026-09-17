@@ -86,12 +86,13 @@ erf.moisture_model = "Kessler"
 
 # RADIATION - Two-Stream SW + LW
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.tau_per_layer = 0.003125
 erf.radiation.tau_lw_per_layer = 1.0
-erf.radiation.solar_zenith = 60.0
-erf.radiation.S0 = 1361.0
+erf.fixed_solar_zenith_angle = 0.5    # cos(60 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 
 # RADIATION - Cloud properties
 erf.radiation.tau_profile_type = "constant"
@@ -117,10 +118,8 @@ erf.radiation.seb_diagnostic_enable = true
 
 
 # RADIATION - Solar geometry parameters (for completeness)
-erf.radiation.latitude_deg = 45.0
-erf.radiation.longitude_deg = 0.0
-erf.radiation.day_of_year = 172.0
-erf.radiation.time_zone_offset_hours = 0.0
+erf.rad_cons_lat = 45.0
+erf.rad_cons_lon = 0.0
 
 # RADIATION - Diagnostics
 erf.radiation.v = 1

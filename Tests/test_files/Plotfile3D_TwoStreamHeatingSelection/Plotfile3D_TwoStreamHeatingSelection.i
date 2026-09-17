@@ -48,6 +48,9 @@ erf.use_coriolis = false
 erf.abl_driver_type = "None"
 
 erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
+erf.fixed_solar_zenith_angle = 0.7071067811865476    # cos(45 deg): the cosine, as RRTMGP takes it
+erf.fixed_total_solar_irradiance = 1361.0
 erf.radiation.sw_enabled = true
 erf.radiation.lw_enabled = true
 erf.radiation.v = 0

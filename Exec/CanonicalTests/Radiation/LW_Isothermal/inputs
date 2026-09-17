@@ -117,7 +117,7 @@ erf.radiation.lw_enabled = true
 erf.radiation.tau_lw_per_layer = 1.0
 # Physically isothermal column: theta(z) = 300 exp(g z / (c_p 300)) gives T = 300 K everywhere,
 # and the surface is black at the same 300 K.
-erf.radiation.surface_temp_k = 300.0
+erf.rad_t_sfc = 300.0    # surface temperature [K] where no LSM or surface layer supplies one (shared with RRTMGP)
 erf.radiation.surface_emissivity_lw = 1.0
 erf.radiation.v = 1
 erf.radiation.diag_enable = true

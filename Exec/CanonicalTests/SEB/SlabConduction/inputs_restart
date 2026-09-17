@@ -1,0 +1,11 @@
+FILE = inputs_base
+
+# Restart from chk00200 to step 400; must reproduce inputs_thin.
+erf.ibseb.k_therm = 1.0
+erf.ibseb.rho_cp = 1.0e5
+erf.ibseb.thickness = 0.02
+erf.ibseb.n_slab_layers = 4
+erf.ibseb.csv_file = "ibseb_restart.csv"
+erf.ibseb.dump_faces_file = "faces_restart"
+erf.restart = chk00200
+max_step = 400

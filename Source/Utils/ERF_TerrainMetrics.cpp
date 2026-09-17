@@ -48,8 +48,6 @@ init_default_zphys (int /*lev*/,
     }
 }
 
-namespace {
-
 /**
  * The cells of a (cell-centered) BoxArray as boxes that are never stacked on each other.
  *
@@ -158,6 +156,8 @@ join_boxes_stacked_in_z (const BoxArray& ba)
 
     return BoxArray(std::move(bl_joined));
 }
+
+namespace {
 
 /**
  * The boxes on which a fine BTF level is built: whole columns, with their DistributionMapping.

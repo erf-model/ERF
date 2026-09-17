@@ -3,21 +3,27 @@
  */
 #include <ERF_PlanarBoundary.H>
 
+#include <algorithm>
+
 using namespace amrex;
 
 /**
  * Record the surface copies of a planar BoxArray (see ERF_PlanarBoundary.H).
  *
- * @param[in] ba3d 3D BoxArray the planar BoxArray was collapsed from
- * @param[in] ba2d planar BoxArray, one box per box of ba3d and in the same order
- * @param[in] dm   DistributionMapping shared by ba3d and ba2d
- * @param[in] klo  k index of the lowest cell in the domain
+ * @param[in] ba3d          3D BoxArray the planar BoxArray was collapsed from
+ * @param[in] ba2d          planar BoxArray, one box per box of ba3d and in the same order
+ * @param[in] dm            DistributionMapping shared by ba3d and ba2d
+ * @param[in] surface_index index of the surface cell in the normal direction
+ * @param[in] is_low        whether the surface is the low side of the domain
+ * @param[in] normal_dir    normal direction of the surface
  */
 void
 PlanarBoundary::define (const BoxArray& ba3d,
                         const BoxArray& ba2d,
                         const DistributionMapping& dm,
-                        int klo)
+                        int surface_index,
+                        bool is_low,
+                        int normal_dir)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.size() == ba3d.size(),
         "PlanarBoundary::define: the planar BoxArray must hold one box per 3D box");
@@ -26,11 +32,14 @@ PlanarBoundary::define (const BoxArray& ba3d,
     m_src_index.clear();
     m_buffers.clear();
 
-    // The planar boxes are taken as they are, whatever k they were collapsed to
+    // The planar boxes are taken as they are, whatever index they were collapsed to
     BoxList bl_sfc(IndexType::TheCellType());
     Vector<int> pmap;
     for (int ib = 0; ib < m_nplanar; ++ib) {
-        if (ba3d[ib].smallEnd(2) == klo) {
+        const bool touches_surface = is_low
+            ? (ba3d[ib].smallEnd(normal_dir) == surface_index)
+            : (ba3d[ib].bigEnd(normal_dir) == surface_index);
+        if (touches_surface) {
             bl_sfc.push_back(enclosedCells(ba2d[ib]));
             pmap.push_back(dm[ib]);
             m_src_index.push_back(ib);
@@ -71,16 +80,8 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
     if (nsfc == 0) { return; }
 
     const int ncomp = mf.nComp();
-    MultiFab& buf = buffer(mf.ixType(), ncomp);
-    for (MFIter mfi(buf); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
-        const int src = m_src_index[mfi.index()];
-        // The surface copy must be the planar box with the same footprint, on this rank
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src] &&
-                                         mf.DistributionMap()[src] == ParallelDescriptor::MyProc(),
-            "PlanarBoundary::fill: surface box does not match its planar box");
-        buf[mfi].copy<RunOn::Device>(mf[src], bx, 0, bx, 0, ncomp);
-    }
+    MultiFab& buf = buffer(mf);
+    gather_surface(mf, buf, 0, 0, ncomp);
 
     // A face-centered buffer's boxes share a face with their neighbours, and the gather above
     // takes each box's face from its own surface copy, so two boxes can hold different values
@@ -95,18 +96,76 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 }
 
 /**
- * Gather buffer for one index type and number of components, allocated on first use.
+ * Copy the computed surface copies of a planar MultiFab into a MultiFab without duplicates
+ * (see ERF_PlanarBoundary.H).
  *
- * @param[in] ixtype index type of the planar MultiFab
- * @param[in] ncomp  number of components of the planar MultiFab
+ * @param[in]  mf    planar MultiFab on the planar BoxArray given to define
+ * @param[out] dst   MultiFab on the surface boxes, in the index type of mf
+ * @param[in]  scomp first component to read from mf
+ * @param[in]  dcomp first component to write in dst
+ * @param[in]  ncomp number of components
+ */
+void
+PlanarBoundary::gather_surface (const MultiFab& mf, MultiFab& dst,
+                                int scomp, int dcomp, int ncomp) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(mf.size()) == m_nplanar,
+        "PlanarBoundary::gather_surface: the MultiFab is not on the planar BoxArray given to define");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst.size() == static_cast<Long>(m_src_index.size()),
+        "PlanarBoundary::gather_surface: the destination is not on the surface boxes");
+
+    for (MFIter mfi(dst); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const int src = m_src_index[mfi.index()];
+        // The surface copy must be the planar box with the same footprint, on this rank
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src] &&
+                                         mf.DistributionMap()[src] == ParallelDescriptor::MyProc(),
+            "PlanarBoundary::gather_surface: surface box does not match its planar box");
+        dst[mfi].copy<RunOn::Device>(mf[src], bx, scomp, bx, dcomp, ncomp);
+    }
+}
+
+/**
+ * Gather buffer for one target layout, index type, and number of components, allocated on
+ * first use.  The source MultiFab list avoids rebuilding the layout key on every fill.
+ *
+ * @param[in] mf planar MultiFab to buffer
  */
 MultiFab&
-PlanarBoundary::buffer (IndexType ixtype, int ncomp)
+PlanarBoundary::buffer (const MultiFab& mf)
 {
+    const IndexType ixtype = mf.ixType();
+    const int ncomp = mf.nComp();
+
+    // define() clears m_buffers whenever the underlying layout changes, so a
+    // source pointer is a stable per-field cache key for the lifetime of this
+    // PlanarBoundary definition.
     for (auto& b : m_buffers) {
-        if (b.ixtype == ixtype && b.ncomp == ncomp) { return *b.mf; }
+        if (b.ixtype == ixtype && b.ncomp == ncomp &&
+            std::find(b.sources.begin(), b.sources.end(), &mf) != b.sources.end()) {
+            return *b.mf;
+        }
     }
-    m_buffers.push_back(Buffer{ixtype, ncomp,
-                               std::make_unique<MultiFab>(convert(m_ba_sfc, ixtype), m_dm_sfc, ncomp, 0)});
+
+    // Only an unfamiliar source field needs the more expensive derived-layout
+    // construction below.  Fields with the same layout continue to share one
+    // gather buffer.
+    BoxList bl_sfc(ixtype);
+    Vector<int> pmap;
+    for (int src : m_src_index) {
+        bl_sfc.push_back(mf.boxArray()[src]);
+        pmap.push_back(mf.DistributionMap()[src]);
+    }
+    BoxArray ba(std::move(bl_sfc));
+    DistributionMapping dm(std::move(pmap));
+
+    for (auto& b : m_buffers) {
+        if (b.ixtype == ixtype && b.ncomp == ncomp && b.ba == ba && b.dm == dm) {
+            b.sources.push_back(&mf);
+            return *b.mf;
+        }
+    }
+    m_buffers.push_back(Buffer{ixtype, ncomp, ba, dm, {&mf},
+                               std::make_unique<MultiFab>(ba, dm, ncomp, 0)});
     return *m_buffers.back().mf;
 }

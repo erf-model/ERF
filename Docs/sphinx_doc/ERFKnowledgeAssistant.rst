@@ -124,12 +124,12 @@ ERF Knowledge Assistant
      - Yes
      - No
      - Yes
-   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1wnuJ84MnXQrLnoZp3hvTCVsy_7tBmVck?usp=sharing>`_
+   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1wnuJ84MnXQrLnoZp3hvTCVsy_7tBmVck?usp=sharing>`__
        | Deep research (AMReX/ERF)
      - No
      - No
      - Yes
-   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1-nyIxXiueWECypPG1QJrkTAuc2GTPUAb?usp=sharing>`_
+   * - | `Sphinx SingleHTML <https://gemini.google.com/gem/1-nyIxXiueWECypPG1QJrkTAuc2GTPUAb?usp=sharing>`__
        | Source/Exec
      - No
      - No
@@ -213,18 +213,6 @@ What to use
    * - Portable HPC / Numerics Report
      - Layer 2 compiled report used by the assistant.
      - :download:`Report <_static/AMReX_Expert_GemReport_Layer1-2.md>`
-   * - Layer 3 Prompt A
-     - Generic Layer 3 prompt optimized for ChatGPT.
-     - :download:`Prompt <_static/Generic_Layer3_prompt_A.md>`
-   * - Layer 3 Prompt B
-     - Generic Layer 3 prompt optimized for Gemini.
-     - :download:`Prompt <_static/Generic_Layer3_prompt_B.md>`
-   * - Layer 3 Prompt C
-     - Generic Layer 3 prompt variant from the tutorial set.
-     - :download:`Prompt <_static/Generic_Layer3_prompt_C.md>`
-   * - Layer 3 Prompt D
-     - Generic Layer 3 prompt variant from the tutorial set.
-     - :download:`Prompt <_static/Generic_Layer3_prompt_D.md>`
    * - ERF Layer 3 Generation Prompt
      - ERF-specific Layer 3 generation prompt.
      - :download:`Prompt <_static/ERF_Expert_GemReport_Layer3_prompt.md>`

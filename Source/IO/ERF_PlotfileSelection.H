@@ -145,7 +145,8 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
     static constexpr const char* names[] = {
         "temp", "theta", "KE", "scalar", "soundspeed", "reflectivity",
         "max_reflectivity", "mucape", "vorticity_x", "vorticity_y", "vorticity_z",
-        "helicity", "local_helicity", "magvel", "divU", "pres_hse", "dens_hse",
+        "helicity", "local_helicity", "vort_stretching",
+        "magvel", "divU", "pres_hse", "dens_hse",
         "theta_hse", "pi_hse", "qv_hse", "pressure", "pert_pres", "pert_dens", "buoyancy",
         "eq_pot_temp", "VPD", "dpdx", "dpdy", "dpdz", "pres_hse_x", "pres_hse_y",
         "pres_hse_z", "z_phys", "detJ", "h_xi", "h_eta", "h_zeta",
@@ -153,7 +154,12 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
         "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond", "wqls_sec", "wthv_sec",
         "w_sec", "thl_sec", "qw_sec", "qwthl_sec", "wthl_sec", "wqw_sec", "w3",
         "brunt", "isotropy", "shear_prod", "buoy_prod", "diss_tke",
-        "terrain_IB_mask", "volfrac"
+        "terrain_IB_mask", "volfrac",
+        "ibseb_nfaces", "ibseb_tskin", "ibseb_sw_abs", "ibseb_shadow",
+        "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G",
+        "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23",
+        "Tau31", "Tau32", "Tau33", "hfx1", "hfx2", "hfx3",
+        "q1fx1", "q1fx2", "q1fx3", "q2fx3"
     };
 
     for (const char* candidate : names) {
