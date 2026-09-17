@@ -360,10 +360,20 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
 endfunction(add_test_restart_parity)
 
 # Expected abort: run a deck that must stop at start-up, and require the abort message.
-# EXPECTED is a ;-separated list of strings that must all appear in the output.
+# EXPECTED lists the strings that must all appear in the output; it takes any number of
+# arguments, so it must be a multi-value keyword (a one-value keyword would keep only the
+# first string and drop the rest into UNPARSED_ARGUMENTS, checking less than it claims).
 function(add_test_expected_abort TEST_NAME TEST_FILES_DIR)
-    set(oneValueArgs "RUNTIME_OPTIONS" "EXPECTED")
-    cmake_parse_arguments(ADD_TEST_EA "" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "RUNTIME_OPTIONS")
+    set(multiValueArgs "EXPECTED")
+    cmake_parse_arguments(ADD_TEST_EA "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(NOT "${ADD_TEST_EA_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "add_test_expected_abort(${TEST_NAME}): unrecognized arguments "
+                            "'${ADD_TEST_EA_UNPARSED_ARGUMENTS}' (mistyped keyword?)")
+    endif()
+    if("${ADD_TEST_EA_EXPECTED}" STREQUAL "")
+        message(FATAL_ERROR "add_test_expected_abort(${TEST_NAME}): EXPECTED must be given")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
@@ -1127,7 +1137,8 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSu
 # vertical acoustic solve closes every box's column at its own bottom and top face.
 add_test_expected_abort(ABL_MOST_WOA_ZSplit_Substep_Abort ABL_MOST_WOA_ZSplit_NoSub
     RUNTIME_OPTIONS "erf.substepping_type=Implicit erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_Substep_Abort/input_sounding"
-    EXPECTED "are decomposed in the vertical, which cannot be combined with acoustic substepping;erf.substepping_type = None")
+    EXPECTED "are decomposed in the vertical, which cannot be combined with acoustic substepping"
+             "erf.substepping_type = None")
 endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
