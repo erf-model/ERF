@@ -50,14 +50,18 @@ make_parallel_distribution_mapping (const BoxArray& ba)
     if (nprocs > 1) {
         for (int ibox = 0; ibox < ba.size(); ++ibox) {
             if (nprocs == 2) {
-                // The two lateral neighbors of every selected face must be
-                // assigned to different ranks.  This checkerboard mapping
-                // achieves that for both x and y faces.
+                // Boxes 0 to 3 are the four lateral quarters of the domain in
+                // both layouts, so this checkerboard assigns the two lateral
+                // neighbors of every selected face to different ranks, for both
+                // x and y faces.  In the z-split layout the boxes stacked above
+                // them follow and all land on rank 1, which leaves the duplicate
+                // planar boxes of quarters 0 and 3 on the other rank from their
+                // surface copy.
                 pmap[ibox] = (ibox == 0 || ibox == 3) ? 0 : 1;
             } else {
-                // With at least three ranks, assign the four-box layout to
-                // distinct ranks where possible.  This also works when more
-                // ranks are present than boxes; unused ranks are harmless.
+                // With at least three ranks, spread the boxes over distinct
+                // ranks where possible.  This also works when more ranks are
+                // present than boxes; unused ranks are harmless.
                 pmap[ibox] = ibox % nprocs;
             }
         }

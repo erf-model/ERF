@@ -79,6 +79,63 @@ expect_lateral_stresses (SurfaceLayerFields& fields, const Orientation face)
     }
 }
 
+namespace {
+
+// f(i,j) = 1 + i + 2 j in every cell of every planar box, valid region and ghost cells, so every
+// duplicate copy of a surface cell holds the same value, as after fill_planar_boundary
+void set_planar_pattern (MultiFab& mf)
+{
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        auto arr = mf.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            arr(i,j,k) = Real(1.0) + static_cast<Real>(i) + Real(2.0) * static_cast<Real>(j);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+} // namespace
+
+// On grids split in z the planar surface-layer arrays hold one duplicate box per stacked 3D box;
+// surface_sum must count each surface cell once (the surface history averages were multiplied by
+// the number of stacked boxes).
+TEST(SurfaceLayerParallel, SurfaceSumCountsEachSurfaceCellOnceOnZSplitGrids)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_zsplit_sum");
+    const Orientation zlo(Direction::z, Orientation::low);
+
+    // 32 x 32 x 4 cells in 16 x 16 x 2 boxes: 4 columns of 2 stacked boxes
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    ASSERT_EQ(static_cast<int>(fields.ba.size()), 8);
+    auto layer = fields.prepare_layer(zlo, active_face(zlo), "unit_surface_layer_zsplit_sum",
+                                      false, false, false, false);
+    MultiFab& ustar = *layer->get_u_star(0);
+    ASSERT_EQ(static_cast<int>(ustar.boxArray().size()), 8);
+
+    const Real ncell = Real(32 * 32);
+    // Sum over i, j in [0,31] of 1 + i + 2 j
+    const Real pattern_sum = ncell + Real(32 * 496) + Real(2 * 32 * 496);
+
+    ustar.setVal(Real(1.0));
+    // The plain sum counts every surface cell twice, so the layout does duplicate the planar boxes
+    ERF_EXPECT_NEAR(ustar.sum(0), Real(2.0) * ncell, Real(1.0e-10) * ncell);
+    ERF_EXPECT_NEAR(layer->surface_sum(0, ustar), ncell, Real(1.0e-10) * ncell);
+
+    set_planar_pattern(ustar);
+    ERF_EXPECT_NEAR(layer->surface_sum(0, ustar), pattern_sum, Real(1.0e-10) * pattern_sum);
+
+    // Without a split the planar boxes are not duplicated and the two sums agree
+    SurfaceLayerFields unsplit;
+    auto unsplit_layer = unsplit.prepare_layer(zlo, active_face(zlo), "unit_surface_layer_zsplit_sum",
+                                               false, false, false, false);
+    MultiFab& ustar_unsplit = *unsplit_layer->get_u_star(0);
+    set_planar_pattern(ustar_unsplit);
+    ERF_EXPECT_NEAR(unsplit_layer->surface_sum(0, ustar_unsplit), pattern_sum,
+                    Real(1.0e-10) * pattern_sum);
+    ERF_EXPECT_NEAR(ustar_unsplit.sum(0), pattern_sum, Real(1.0e-10) * pattern_sum);
+}
+
 TEST(SurfaceLayerParallel, DistributedFaceStressIsFaceOwnedAndMatchesSerialReference)
 {
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
