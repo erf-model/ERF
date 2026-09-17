@@ -71,19 +71,11 @@ public:
         int klo = geom.Domain().smallEnd(2);
         int khi = geom.Domain().bigEnd(2);
 
-        // Detect if any box doesn't reach the domain top (nested patch)
-        // Must check across all ranks since some ranks may have boxes that reach the top
-        // while others don't. If ranks disagree, collective communication below will deadlock.
-        bool is_nested_patch_local = false;
-        for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
-            const amrex::Box& vbx = mfi.validbox();
-            if (vbx.bigEnd(2) < khi) {
-                is_nested_patch_local = true;
-                break;
-            }
-        }
-        bool is_nested_patch = is_nested_patch_local;
-        amrex::ParallelDescriptor::ReduceBoolOr(is_nested_patch);
+        // Detect nested patches: a nested fine level doesn't span the full domain vertically.
+        // Use ba.minimalBox() which gives the bounding box of all grids on this level.
+        // If that box doesn't reach the domain top or bottom, it's a nested patch.
+        amrex::Box minimal_box = ba.minimalBox();
+        bool is_nested_patch = (minimal_box.smallEnd(2) > klo) || (minimal_box.bigEnd(2) < khi);
 
         // Update the nested patch flag - must be set/cleared on every Init call
         // so that levels that stop being nested after regrid will resume radiation computation
@@ -102,8 +94,8 @@ public:
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            // This assertion now only triggers for true vertical MPI decomposition,
-            // not for nested patches (which we handle above by skipping radiation)
+            // This assertion catches true vertical MPI decomposition (individual boxes that don't
+            // span the full domain height). The nested patch case is handled above by returning early.
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
                                              (khi == vbx.bigEnd(2)),
                                              "Vertical decomposition with radiation is not allowed.");
