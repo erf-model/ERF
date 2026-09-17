@@ -809,6 +809,22 @@ public:
   void fill_planar_boundary (const int& lev, amrex::MultiFab& mf);
 
   /**
+   * Sum a planar field over the valid cells of the surface, counting each surface cell once.
+   *
+   * On a level whose grids are split in the surface-normal direction the planar BoxArray holds
+   * one duplicate box per stacked 3D box (see PlanarBoundary), so a plain sum over the planar
+   * MultiFab counts every surface cell once per stacked box.  Only the computed surface copies
+   * are read here, so the duplicates need not have been filled by fill_planar_boundary, and the
+   * gather needs no communication.  On EB terrain the fields are 3D without duplicates, and the
+   * lowest plane of the domain is summed.  Only for a surface layer on a z face.
+   *
+   * @param[in] lev  level index
+   * @param[in] mf   cell-centered planar MultiFab on this surface's planar BoxArray
+   * @param[in] comp component to sum
+   */
+  amrex::Real surface_sum (const int& lev, const amrex::MultiFab& mf, int comp = 0) const;
+
+  /**
    * Impose surface-layer boundary conditions for planar terrain.
    *
    * @param[in]     lev        level index
@@ -1472,6 +1488,27 @@ private:
   // this for u*, w* (only when it is computed), t*, q*, L, t_surf, q_surf, pblh and the
   // diagnostic source, after each is computed on the surface copies.
   amrex::Vector<PlanarBoundary> m_planar_bndry;
+  // Columns for the PBL-height estimator.  The estimator scans each box it is given from its
+  // lowest cell to its highest, so the box must start at the ground.  When some box of a
+  // level does not (grids stacked in z, or a refined region aloft), compute_pblh runs the
+  // estimator on these boxes instead: the runs of cells that start at the ground, each joined
+  // into one box that ends where the grids above that ground end.  Built by
+  // define_pblh_columns when the grids of the level change.
+  struct PBLHColumns
+  {
+      amrex::BoxArray ba;                 // Grids the columns were built for ...
+      amrex::DistributionMapping dm;      // ... and their ranks
+      bool needed = false;                // Whether some box does not start at the ground
+      amrex::BoxArray ba_col;             // The columns; empty on a level entirely aloft
+      amrex::BoxArray ba_col2d;           // Their ground plane
+      amrex::DistributionMapping dm_col;
+      amrex::MultiFab hold_col;           // No data; keep the copy metadata alive
+      amrex::MultiFab hold_col2d;
+  };
+  amrex::Vector<PBLHColumns> m_pblh_columns;
+  void define_pblh_columns (const int& lev,
+                            const amrex::BoxArray& ba,
+                            const amrex::DistributionMapping& dm);
   // Diagnostic-only provenance mask. This records the cell-centered source
   // path used by the SurfaceLayer scalar diagnostic path. It must not feed
   // back into flux calculations, boundary conditions, or model state.
