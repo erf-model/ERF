@@ -596,6 +596,37 @@ Test Location: `Tests/test_files/MoistBubble_Kessler_Restart`_
 
 .. _`Tests/test_files/MoistBubble_Kessler_Restart`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistBubble_Kessler_Restart
 
+Closure box, rank and tiling parity
+-----------------------------------
+The ``Closure_BoxParity_*`` tests (MPI builds, not Windows; label ``box-parity``)
+run the unstable, perturbed ABL deck of ``ABL_MRF_Tiling`` twice: on one box, on
+one rank, without tiling, and on four 16 x 16 x 32 boxes on two ranks with 8 x 8
+tiles. The plotfiles after 10 steps must agree to a relative tolerance of 1e-9
+(``Tests/RunBoxParity.cmake``, no gold file). The entries choose the physics on
+the command line: the Deardorff closure, once with ``erf.vert_implicit = false``
+and once with the implicit vertical solve that ERF uses by default; the k-eqn
+closure with its PBL-height length cap; the MYNN25, MYNNEDMF, MYJ and native
+SHOC PBL schemes; Kessler microphysics on a moist sounding; and Smagorinsky on a
+stretched mesh whose levels are chosen so that they sum to the top of the domain.
+With the FFT build, two more run the anelastic MidPoint integrator with the
+Deardorff closure and with Kessler microphysics.
+Until September 2026 the anelastic integrator copied the projected momentum
+into the fluxes of the slow scalars tile by tile inside the loop that advects
+them, so the turbulent kinetic energy, moisture and passive scalars of anelastic
+runs depended on the tile size. The boxes are never split in z, so the column
+solves apply. The moist sounding is supersaturated below 150 m so that Kessler
+condenses, autoconverts and sediments within the ten steps of the run; otherwise
+``qc`` and ``qp`` would be compared as zero against zero. MYNNEDMF computed its
+diffusivities on a box grown by one cell in the vertical, so its vertical-derivative
+stencil reached two cells outside the domain; it now uses the valid box, as MYNN25
+does. The ghost values it computed were discarded in any case, since
+``ComputeTurbulentViscosity`` refills every eddy-viscosity ghost cell after the
+scheme returns, and dropping them leaves the answer bit for bit unchanged.
+
+Test Location: `Tests/test_files/Closure_BoxParity`_
+
+.. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
