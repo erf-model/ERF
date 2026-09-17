@@ -178,9 +178,16 @@ struct SurfaceLayerFields
 
     explicit SurfaceLayerFields (const bool single_box = false,
                                  const IntVect& max_size = IntVect(AMREX_D_DECL(16, 16, 1024)))
+        : SurfaceLayerFields(make_parallel_box_array(make_parallel_geometry().Domain(),
+                                                     single_box, max_size))
+    {}
+
+    // Any grids inside the domain: they need not cover it (a refined level of partial
+    // height, boxes aloft)
+    explicit SurfaceLayerFields (const BoxArray& grids)
         : geom(make_parallel_geometry()),
           domain(geom.Domain()),
-          ba(make_parallel_box_array(domain, single_box, max_size)),
+          ba(grids),
           dm(make_parallel_distribution_mapping(ba)),
           cons(ba, dm, RhoQ1_comp + 1,
                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 1))),
