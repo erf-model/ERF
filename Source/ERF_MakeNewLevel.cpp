@@ -165,11 +165,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 // in the files should already be consistent. We ignore the flag and read from the file.
                 if (solverChoice.interp_atmos_from_coarse && lev > 0 &&
                     solverChoice.init_type == InitType::WRFInput) {
-                    amrex::Warning("erf.interp_atmos_from_coarse = true is set, but both levels are starting "
-                                   "from scratch at the same time. The atmospheric state at level " + std::to_string(lev) +
-                                   " will be read from the wrfinput file instead of interpolated from coarse. "
-                                   "This option is intended for time-mismatched WRF input files or regridding, "
-                                   "not for initial startup with consistent files.");
+                    if (ParallelDescriptor::IOProcessor()) {
+                        amrex::Warning("erf.interp_atmos_from_coarse = true is set, but both levels are starting "
+                                       "from scratch at the same time. The atmospheric state at level " + std::to_string(lev) +
+                                       " will be read from the wrfinput file instead of interpolated from coarse. "
+                                       "This option is intended for time-mismatched WRF input files or regridding, "
+                                       "not for initial startup with consistent files.");
+                    }
                 }
                 init_only(lev, time);
                 init_zphys(lev, time);
