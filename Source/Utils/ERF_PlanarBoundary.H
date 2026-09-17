@@ -68,8 +68,30 @@ public:
      */
     void fill (amrex::MultiFab& mf, const amrex::Periodicity& period);
 
+    /**
+     * Copy the computed surface copies of a planar MultiFab into a MultiFab without
+     * duplicates.
+     *
+     * define() gives each surface copy the rank of the planar box it is a copy of, so every
+     * box of dst is filled from a FAB of mf that lives on the same rank and the gather needs
+     * no communication.  Reading the surface copies directly, rather than any copy of the
+     * field, means the caller need not have filled the duplicates with fill().
+     *
+     * @param[in]  mf    planar MultiFab on the planar BoxArray given to define
+     * @param[out] dst   MultiFab on surface_boxes() converted to the index type of mf, and on
+     *                   surface_dm()
+     * @param[in]  scomp first component to read from mf
+     * @param[in]  dcomp first component to write in dst
+     * @param[in]  ncomp number of components
+     */
+    void gather_surface (const amrex::MultiFab& mf, amrex::MultiFab& dst,
+                         int scomp, int dcomp, int ncomp) const;
+
     //! Cell-centered surface copies of the planar boxes, without duplicates
     [[nodiscard]] const amrex::BoxArray& surface_boxes () const { return m_ba_sfc; }
+
+    //! Ranks owning the surface copies: each is on the rank of the planar box it is a copy of
+    [[nodiscard]] const amrex::DistributionMapping& surface_dm () const { return m_dm_sfc; }
 
     //! Index of each surface copy in the planar BoxArray
     [[nodiscard]] const amrex::Vector<int>& surface_index () const { return m_src_index; }
