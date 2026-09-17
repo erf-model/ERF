@@ -27,7 +27,8 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0             = 0.1
 erf.most.surf_temp_flux = 0.24
-# Keep the MRF PBL height in the surface layer so the 2D plotfile shows it
+# No PBL height by default; the entries whose scheme needs one (k-eqn length cap,
+# MYNN25, MYJ) ask for MYNN25 on the command line
 erf.most.pblh_calc      = "None"
 # Local (per-column) averaging, so u_star, t_star and Olen vary with the
 # perturbations instead of being one plane-averaged number in every column
@@ -42,12 +43,12 @@ erf.sounding_type       = Ideal
 erf.input_sounding_file = "sounding_dry"
 
 # Deterministic (position-only) perturbations so the columns differ and the
-# initial state does not depend on the decomposition.  The sounding puts a 6 K
-# inversion at 150-250 m and the wind is 5 m/s, so the bulk-Richardson crossing
-# that sets the PBL height lies inside the perturbed layer (z <= 200 m) and
-# pblh differs from column to column.  With a 15 m/s wind and the inversion
-# above the domain top, every column sat at the 16 m floor (0.5 dz) and the
-# parity check on pblh compared one constant with itself.
+# initial state does not depend on the decomposition.  A field that is uniform
+# across a plane would compare equal whatever the decomposition did to it, so
+# the perturbations are what gives the parity check something to catch.  The
+# sounding puts a 6 K inversion at 150-250 m and the wind is 5 m/s, so the
+# bulk-Richardson crossing that sets the PBL height of the schemes that need
+# one also lies inside the perturbed layer (z <= 200 m).
 prob.pert_ref_height = 200.0
 prob.pert_deltaU     = 1.0
 prob.pert_deltaV     = 1.0
@@ -72,7 +73,8 @@ amr.max_level = 0
 # CHECKPOINT FILES
 erf.check_int = -1
 
-# PLOTFILES (file prefixes are set by the script)
+# PLOTFILES (the two runs write the same prefix; RunBoxParity.cmake keeps them
+# apart by running each in its own directory, one_box/ and split/)
 erf.plot_file_1   = plt
 erf.plot_int_1    = 10
 erf.plot_vars_1   = density x_velocity y_velocity z_velocity pressure theta KE Kmv Khv

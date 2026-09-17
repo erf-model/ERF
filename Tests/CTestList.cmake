@@ -1119,15 +1119,27 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   set(_cbp_dir   "${CMAKE_CURRENT_BINARY_DIR}/test_files")
   set(_cbp_ke    "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta KE Kmv Khv")
   foreach(_cbp IN ITEMS
-      "Deardorff|erf.les_type=Deardorff|sounding_dry"
+      # erf.vert_implicit defaults to true, so the explicit half of the pair is the one that
+      # has to be named: without erf.vert_implicit=false the two Deardorff entries are the
+      # same run twice.
+      "Deardorff_Explicit|erf.les_type=Deardorff erf.vert_implicit=false|sounding_dry"
       "kEqn_PBLHCap|erf.rans_type=kEqn erf.theta_ref=300 erf.most.pblh_calc=MYNN25 erf.rans_lscale_from_pblh=true|sounding_dry"
       "MYNN25|erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25|sounding_dry"
-      "MYNNEDMF|erf.pbl_type=MYNNEDMF erf.most.pblh_calc=MYNN25 amrex.fpe_trap_invalid=0|sounding_dry"
+      "MYNNEDMF|erf.pbl_type=MYNNEDMF erf.most.pblh_calc=MYNN25|sounding_dry"
       "MYJ|erf.pbl_type=MYJ erf.most.pblh_calc=MYNN25|sounding_dry"
       "NativeSHOC|erf.pbl_type=NATIVE_SHOC|sounding_dry"
-      "Kessler_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc Kmv|sounding_moist"
-      "Stretched_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.grid_stretching_ratio=1.03 erf.initial_dz=20|sounding_dry"
-      "Deardorff_Implicit|erf.les_type=Deardorff erf.vert_implicit=true|sounding_dry")
+      # sounding_moist is supersaturated below 150 m on purpose: over the 10 steps of a parity
+      # run that is what makes Kessler condense, autoconvert and sediment, so qc and qp are
+      # compared as varying fields rather than as zero against zero.  Sedimentation in
+      # particular sets its substep count from a ParReduce over the whole MultiFab, which is
+      # exactly the kind of global quantity a decomposition can get wrong.
+      "Kessler_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv|sounding_moist"
+      # 32 levels starting at 19.503737114205 m and growing by 1.03 sum to the deck's
+      # prob_extent[2] = 1024 m, so the stretched mesh reaches the top of the domain and the
+      # geometry-derived quantities (Rayleigh damping, MOST reference height) agree with the
+      # levels.  erf.initial_dz=20 overshoots to 1050.1 m and ERF prints a mismatch note.
+      "Stretched_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.grid_stretching_ratio=1.03 erf.initial_dz=19.503737114205|sounding_dry"
+      "Deardorff_Implicit|erf.les_type=Deardorff|sounding_dry")
     string(REPLACE "|" ";" _cbp_fields "${_cbp}")
     list(GET _cbp_fields 0 _cbp_name)
     list(GET _cbp_fields 1 _cbp_opts)
@@ -1144,7 +1156,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # so the FFT solver is used and the tests need the FFT build.  The slow scalars (k, qv)
     # are advected with the projected momentum, which used to be copied tile by tile.
     add_test_box_parity(Closure_BoxParity_Anelastic_Kessler Closure_BoxParity "plt00010"
-        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc Kmv erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
+        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
         REFERENCE_OPTIONS "${_cbp_ref}"
         SPLIT_OPTIONS "${_cbp_split}"
         FCOMPARE_RTOL "1.0e-9")
