@@ -3,12 +3,15 @@
 #include <AMReX_Reduce.H>
 
 #include <ERF_Diffusion.H>
+#include <ERF_SurfaceLayer.H>
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <string>
 
 using namespace amrex;
 
@@ -30,14 +33,17 @@ constexpr Real gabs    = Real(9.81);
 constexpr Real theta0  = Real(300.0);
 
 struct BuoyancyResult {
-    Real max_hfx_error = 0.0;   // hfx_z against -K (b + 2 c z_face) over interior faces
-    Real max_qfx_error = 0.0;   // qfx1_z against -K qb over interior faces
-    Real max_src_error = 0.0;   // RhoKE rhs against |g|/theta0 (-K (b + 2 c z_k)) over interior cells
+    Real max_hfx_error = 0.0;   // hfx_z against -K (b + 2 c z_face) over every face
+    Real max_qfx_error = 0.0;   // qfx1_z against -K qb over every face
+    Real max_src_error = 0.0;   // RhoKE rhs against |g|/theta0 (-K (b + 2 c z_k)) over every cell
     Real flux_scale    = 0.0;
     Real src_scale     = 0.0;
 };
 
-Real max_abs_error (const MultiFab& mf, int comp, const Box& region, int kind, Real c)
+// With a surface layer (with_sfc) the face k = 0 holds the surface flux sfc and the first cell
+// averages it with the diffusion flux at k = 1.
+Real max_abs_error (const MultiFab& mf, int comp, const Box& region, int kind, Real c,
+                    bool with_sfc = false, Real sfc = Real(0.0))
 {
     ReduceOps<ReduceOpMax> reduce_op;
     ReduceData<Real> reduce_data(reduce_op);
@@ -50,9 +56,12 @@ Real max_abs_error (const MultiFab& mf, int comp, const Box& region, int kind, R
         {
             Real expected = Real(0.0);
             if (kind == 0) {        // theta face flux at z_face = k dz
-                expected = -K * (b + Real(2.0) * c * static_cast<Real>(k) * dz);
+                expected = (with_sfc && k == 0) ? sfc
+                                                : -K * (b + Real(2.0) * c * static_cast<Real>(k) * dz);
             } else if (kind == 1) { // qv face flux
                 expected = -K * qb;
+            } else if (with_sfc && k == 0) { // first cell: surface flux and the flux at z = dz
+                expected = gabs / theta0 * Real(0.5) * (sfc - K * (b + Real(2.0) * c * dz));
             } else {                // buoyancy production at z_k = (k + 1/2) dz
                 expected = gabs / theta0 * (-K * (b + Real(2.0) * c * (static_cast<Real>(k) + Real(0.5)) * dz));
             }
@@ -87,7 +96,19 @@ void fill_column (MultiFab& cell_data, MultiFab& cell_prim, MultiFab& mu_turb, R
     Gpu::streamSynchronize();
 }
 
-BuoyancyResult run_column (Real implicit_fac, Real c)
+// Set the bottom face (k = 0) of a z-face MultiFab, as the surface layer does each stage
+void set_bottom_face (MultiFab& mf, Real value)
+{
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        Box bx = mfi.validbox();
+        bx.setRange(2, 0);
+        auto arr = mf.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { arr(i,j,k) = value; });
+    }
+    Gpu::streamSynchronize();
+}
+
+BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Real sfc = Real(0.0))
 {
     const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 11));
     const BoxArray ba(domain);
@@ -169,6 +190,27 @@ BuoyancyResult run_column (Real implicit_fac, Real c)
     auto qfx2_arr = qfx2_z[0].array();
     auto diss_arr = diss[0].array();
     Vector<std::unique_ptr<SurfaceLayer>> surf_layer(6);
+    std::string sfc_prefix("unit_tke_buoyancy_sfc");
+    if (with_sfc) {
+        // The diffusion only asks whether a zlo surface layer exists; the surface fluxes are
+        // the values stored at the bottom faces, set here as the surface layer would
+        ParmParse pp(sfc_prefix);
+        pp.add("most.average_policy", 0);
+        pp.add("most.z0", Real(0.1));
+        pp.add("most.surf_temp", Real(300.0));
+        const RealBox real_box({AMREX_D_DECL(Real(0.0), Real(0.0), Real(0.0))},
+                               {AMREX_D_DECL(Real(4.0), Real(4.0), Real(12.0) * dz)});
+        const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+        Vector<Geometry> geoms{Geometry(domain, &real_box, 0, is_periodic.data())};
+        Vector<std::unique_ptr<MultiFab>> qv_prim(1);
+        Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
+        bool rotate = false;
+        surf_layer[Orientation(Direction::z, Orientation::low)] = std::make_unique<SurfaceLayer>(
+            Orientation(Direction::z, Orientation::low), geoms, rotate, sfc_prefix, qv_prim, z_phys_nd,
+            Vector<Vector<Real>>{}, MeshType::ConstantDz, TerrainType::None, TurbChoice{}, 0.0, 0.0);
+        set_bottom_face(hfx_z, sfc);
+        set_bottom_face(qfx1_z, -K * qb);
+    }
 
     // theta and k in one call, as in erf_slow_rhs_pre / post; then qv
     DiffusionSrcForState_N(
@@ -178,7 +220,7 @@ BuoyancyResult run_column (Real implicit_fac, Real c)
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
         qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs_d.data(), false, surf_layer, implicit_fac);
+        tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
     DiffusionSrcForState_N(
         domain, domain, RhoQ1_comp, 1,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
@@ -186,19 +228,27 @@ BuoyancyResult run_column (Real implicit_fac, Real c)
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
         qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs_d.data(), false, surf_layer, implicit_fac);
+        tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
     Gpu::streamSynchronize();
 
-    // Interior faces k = 1..11 and interior cells k = 1..10 (away from the one-sided boundary faces)
-    const Box faces(IntVect(0, 0, 1), IntVect(3, 3, 11), IntVect(0, 0, 1));
-    const Box cells(IntVect(0, 0, 1), IntVect(3, 3, 10));
+    // Every face k = 0..12 and every cell k = 0..11: with first-order extrapolation at the domain
+    // ends the boundary faces use the interior stencil on the analytic ghost cells, so the first
+    // and last cells average their two faces like any other cell
+    const Box faces(IntVect(0, 0, 0), IntVect(3, 3, 12), IntVect(0, 0, 1));
+    const Box cells(IntVect(0, 0, 0), IntVect(3, 3, 11));
 
     BuoyancyResult r;
-    r.max_hfx_error = max_abs_error(hfx_z,  0, faces, 0, c);
-    r.max_qfx_error = max_abs_error(qfx1_z, 0, faces, 1, c);
-    r.max_src_error = max_abs_error(cell_rhs, RhoKE_comp, cells, 2, c);
+    r.max_hfx_error = max_abs_error(hfx_z,  0, faces, 0, c, with_sfc, sfc);
+    r.max_qfx_error = max_abs_error(qfx1_z, 0, faces, 1, c, with_sfc, sfc);
+    r.max_src_error = max_abs_error(cell_rhs, RhoKE_comp, cells, 2, c, with_sfc, sfc);
+    if (with_sfc) {
+        ParmParse pp(sfc_prefix);
+        pp.remove("most.average_policy");
+        pp.remove("most.z0");
+        pp.remove("most.surf_temp");
+    }
     const Real zmax = Real(12.0) * dz;
-    r.flux_scale = K * (std::abs(b) + Real(2.0) * std::abs(c) * zmax + std::abs(qb)) + K * a / dz;
+    r.flux_scale = K * (std::abs(b) + Real(2.0) * std::abs(c) * zmax + std::abs(qb)) + K * a / dz + std::abs(sfc);
     r.src_scale  = gabs / theta0 * r.flux_scale;
     return r;
 }
@@ -230,6 +280,23 @@ TEST(TKEBuoyancySource, CellCentredFluxIsTheAverageOfTheTwoFaces)
     ASSERT_GT(gabs / theta0 * K * c * dz, Real(4.0) * tol(gabs / theta0 * K * a / dz));
     for (Real fac : {Real(0.0), Real(1.0)}) {
         const auto r = run_column(fac, c);
+        EXPECT_LE(r.max_hfx_error, tol(r.flux_scale)) << "implicit_fac = " << fac;
+        EXPECT_LE(r.max_src_error, tol(r.src_scale))  << "implicit_fac = " << fac;
+    }
+}
+
+// With a surface layer the bottom face holds the surface heat flux, and the first cell averages it
+// with the diffusion flux at its top face like every other cell.
+TEST(TKEBuoyancySource, FirstCellAveragesTheSurfaceFluxWithTheFaceAbove)
+{
+    const Real c = Real(0.1);
+    const Real sfc = Real(0.24);
+    // Using the surface flux alone in the first cell would be off by half the difference between the
+    // two faces; that difference must be resolvable, also in single precision
+    ASSERT_GT(gabs / theta0 * Real(0.5) * std::abs(sfc + K * (b + Real(2.0) * c * dz)),
+              Real(4.0) * tol(gabs / theta0 * (K * a / dz + sfc)));
+    for (Real fac : {Real(0.0), Real(1.0)}) {
+        const auto r = run_column(fac, c, true, sfc);
         EXPECT_LE(r.max_hfx_error, tol(r.flux_scale)) << "implicit_fac = " << fac;
         EXPECT_LE(r.max_src_error, tol(r.src_scale))  << "implicit_fac = " << fac;
     }

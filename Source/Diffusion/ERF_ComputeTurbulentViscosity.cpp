@@ -19,9 +19,6 @@ using namespace amrex;
  * @param[in]  Tau_lev strain at this level
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
- * @param[out] Hfx1 heat flux in x-dir
- * @param[out] Hfx2 heat flux in y-dir
- * @param[out] Hfx3 heat flux in z-dir
  * @param[out] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
  * @param[in]  use_terrain_fitted_coords flag for terrain-fitted coordinates
@@ -35,7 +32,7 @@ using namespace amrex;
  */
 void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab& cons_in, MultiFab& eddyViscosity,
-                                   MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
+                                   MultiFab& Diss,
                                    const Geometry& geom, bool use_terrain_fitted_coords,
                                    Vector<std::unique_ptr<MultiFab>>& mapfac,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -78,9 +75,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         {
             Box bxcc  = mfi.growntilebox(1) & domain;
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
             Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
             Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
@@ -152,13 +146,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     mu_turb(i, j, k, EddyDiff::Mom_h) = rho * nu_turb_base_h;
                     mu_turb(i, j, k, EddyDiff::Mom_v) = rho * nu_turb_base_v * stability_factor;
                 }
-
-                Real dtheta_dz = myhalf * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                          - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-
-                hfx_x(i,j,k) = zero;
-                hfx_y(i,j,k) = zero;
-                hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
             });
         }
     }
@@ -186,9 +173,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Box bxcc  = mfi.tilebox();
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
             const Array4<Real const > &cell_data = cons_in.array(mfi);
@@ -274,15 +258,6 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     Ce = Real(1.9)*l_C_k + Ce_lcoeff*length / Delta;
                 }
                 diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,Real(1.5)) / length;
-
-                // - heat flux
-                //   (Note: If using SurfaceLayer, the value at k=0 will
-                //    be overwritten; above the surface the theta diffusion
-                //    replaces it with its face fluxes, which the TKE buoyancy
-                //    source reads)
-                hfx_x(i,j,k) = zero;
-                hfx_y(i,j,k) = zero;
-                hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
             });
         }
     }
@@ -492,6 +467,10 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                         dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
                     }
 
+                    // The EB diffusion does not write hfx_z, so on EB terrain this is
+                    // the only writer of the SGS heat flux output (the surface layer
+                    // overwrites the bottom).  Elsewhere the theta diffusion writes the
+                    // face fluxes and the closures do not store a heat flux.
                     hfx_x(i,j,k) = zero;
                     hfx_y(i,j,k) = zero;
                     hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
@@ -569,9 +548,6 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  cons_in cell center conserved quantities
  * @param[in]  wdist wall distance
  * @param[out] eddyViscosity turbulent viscosity
- * @param[out] Hfx1 heat flux in x-dir
- * @param[out] Hfx2 heat flux in y-dir
- * @param[out] Hfx3 heat flux in z-dir
  * @param[out] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
  * @param[in]  use_terrain_fitted_coords flag for terrain-fitted coordinates
@@ -585,9 +561,6 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab& cons_in,
                                     const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
-                                    MultiFab& Hfx1,
-                                    MultiFab& Hfx2,
-                                    MultiFab& Hfx3,
                                     MultiFab& Diss,
                                     const Geometry& geom,
                                     bool use_terrain_fitted_coords,
@@ -645,9 +618,6 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
 
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
             const Array4<Real const>& cell_data = cons_in.array(mfi);
@@ -712,19 +682,6 @@ void ComputeTurbulentViscosityRANS (int level,
                 mu_turb(i, j, k, EddyDiff::Mom_h) = cell_data(i, j, k, Rho_comp) * nut;
                 mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
                 mu_turb(i, j, k, EddyDiff::Theta_v) = cell_data(i, j, k, Rho_comp) * nut_prime;
-
-                // Calculate heat flux
-                // - If using SurfaceLayer, the value at k=0 will be overwritten;
-                //   above the surface the theta diffusion replaces it with its
-                //   face fluxes, which the TKE buoyancy source reads
-                hfx_x(i, j, k) = zero;
-                hfx_y(i, j, k) = zero;
-                // Note: buoyant production = g/theta0 * hfx == -nut_prime * N^2 (c.f. AL01 Eqn. 15)
-                //                          = nut_prime * g/theta0 * dtheta/dz
-                //                  ==> hfx = nut_prime * dtheta/dz
-                //   Our convention is such that dtheta/dz < 0 gives a positive
-                //   (upward) heat flux.
-                hfx_z(i, j, k) = -mu_turb(i, j, k, EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
             });
         }
     }
@@ -884,7 +841,7 @@ void ComputeTurbulentViscosity (double dt,
         } else {
             ComputeTurbulentViscosityLES(Tau_lev,
                                         cons_in, eddyViscosity,
-                                        Hfx1, Hfx2, Hfx3, Diss,
+                                        Diss,
                                         geom, use_terrain_fitted_coords,
                                         mapfac, z_phys_nd, turbChoice, const_grav,
                                         SurfLayer, solverChoice.moisture_indices,
@@ -895,7 +852,7 @@ void ComputeTurbulentViscosity (double dt,
     if (turbChoice.rans_type != RANSType::None) {
         ComputeTurbulentViscosityRANS(level, cons_in, wdist,
                                       eddyViscosity,
-                                      Hfx1, Hfx2, Hfx3, Diss,
+                                      Diss,
                                       geom, use_terrain_fitted_coords,
                                       z_phys_nd, turbChoice, const_grav,
                                       SurfLayer, z_0);

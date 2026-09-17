@@ -76,15 +76,15 @@ last step. A floor ``erf.tke_floor`` (default: machine epsilon on
 
 The heat flux in :math:`P_b` at the cell centre is the average of the
 fluxes of the :math:`\theta` diffusion at the two vertical faces of the
-cell, with the surface-layer flux in the first cell when a surface layer
-is used. These are the full face fluxes, including the metric terms of
-stretched and terrain-fitted meshes, whether the vertical diffusion of
-:math:`\theta` is explicit or implicit (``erf.vert_implicit``), so the
-source does not depend on that choice. The Deardorff closure shares this
-source term. The k-eqn closure cannot be combined with a PBL scheme that
-also transports the turbulent kinetic energy (``MYJ``, ``MYNN25``,
-``MYNNEDMF``, the SHOC schemes); the Deardorff closure cannot be combined
-with any PBL scheme.
+cell, in every cell; at the bottom of the domain the face flux is the
+surface-layer flux when a surface layer is used. These are the full face
+fluxes, including the metric terms of stretched and terrain-fitted
+meshes, whether the vertical diffusion of :math:`\theta` is explicit or
+implicit (``erf.vert_implicit``), so the source does not depend on that
+choice. The Deardorff closure shares this source term. The k-eqn closure
+cannot be combined with a PBL scheme that also transports the turbulent
+kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, the SHOC schemes);
+the Deardorff closure cannot be combined with any PBL scheme.
 
 Length scale
 ------------

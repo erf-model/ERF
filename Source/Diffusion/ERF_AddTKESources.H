@@ -8,21 +8,18 @@
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
     //       hfx_z holds the face fluxes of the theta diffusion of this stage
-    //       (the full flux, independent of the implicit/explicit split), so
-    //       the buoyancy production averages the two faces of the cell for the
-    //       cell-centred vertical heat flux.
+    //       (the full flux, independent of the implicit/explicit split); at the
+    //       bottom face of the domain that is the surface-layer flux when a
+    //       surface layer is used.  The buoyancy production averages the two
+    //       faces of every cell, the first cell included, for the cell-centred
+    //       vertical heat flux.
     //       REQUIRED WRITER: the RhoTheta call of DiffusionSrcForState_{N,S,T}
     //       in erf_slow_rhs_pre, on the same RK stage, which writes every z-face
     //       of each valid box (zbx = surroundingNodes(bx,2), top face included).
-    //       The closures (ComputeTurbulentViscosityLES/RANS) loop over cell
-    //       boxes and never write the top face of a box, so running the RhoKE
-    //       source without that same-stage theta pass would read a stale face. The surface heat flux is stored at
-    //       hfx_z at the bottom face (overwritten by the surface layer at each
-    //       RK stage), so with a surface layer the first cell uses that flux.
+    //       Running the RhoKE source without that same-stage theta pass would
+    //       read stale faces.
     if (l_use_keqn && (start_comp <= RhoKE_comp) && (end_comp >= RhoKE_comp)) {
         int qty_index = RhoKE_comp;
-        const int  l_klo_dom       = domain.smallEnd(2);
-        const bool l_surf_flux_klo = SurfLayer_zlo;
         // The source reads hfx_z at k+1: the z-faces of bx must be in hfx_z
         AMREX_ASSERT(hfx_z.contains(bx.smallEnd(0), bx.smallEnd(1), bx.smallEnd(2)) &&
                      hfx_z.contains(bx.bigEnd(0),   bx.bigEnd(1),   bx.bigEnd(2)+1));
@@ -41,10 +38,7 @@
             // not (see the WRF model description, Skamarock et al 2019).
             // NOTE: reads hfx_z at k+1, one face above bx; Hfx3 is z-nodal and
             //       the theta diffusion writes every face of its valid box, top included.
-            const bool l_surf_cell = l_surf_flux_klo && (k == l_klo_dom);
-            const amrex::Real hfx_cc = (l_surf_cell)
-                                     ? hfx_z(i,j,k)
-                                     : amrex::Real(0.5) * ( hfx_z(i,j,k) + hfx_z(i,j,k+1) );
+            const amrex::Real hfx_cc = amrex::Real(0.5) * ( hfx_z(i,j,k) + hfx_z(i,j,k+1) );
             amrex::Real buoyancy_src = l_abs_g * l_inv_theta0 * hfx_cc;
             if (!use_ref_theta) {
                 // l_inv_theta0 == 1, divide by actual theta

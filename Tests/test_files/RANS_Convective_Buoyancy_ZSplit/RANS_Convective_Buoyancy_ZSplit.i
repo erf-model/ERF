@@ -7,14 +7,11 @@
 # agree. The splits (k = 24, 48, 72) sit in the stratified air above the
 # 937 m inversion, where the heat flux is non-zero from the first step.
 #
-# Differences from the canonical deck, each forced by a z-split defect outside
-# the TKE source:
-# - no acoustic substepping: the implicit w solve of the substep closes every
-#   box's column with Dirichlet rows (ERF_MakeFastCoeffs.cpp), so it is only
-#   correct on unsplit columns; dt is then the acoustic limit;
-# - no PBL height: the MYNN25 PBL-height estimator (ERF_PBLHeight.H) loops each
-#   box over the full domain height, so the height and the k-eqn length cap it
-#   feeds (erf.rans_lscale_from_pblh) depend on the decomposition.
+# Difference from the canonical deck: no acoustic substepping.  The implicit w
+# solve of the substep closes every box's column with Dirichlet rows
+# (ERF_MakeFastCoeffs.cpp), so it is only correct on unsplit columns; dt is then
+# the acoustic limit.  The PBL height scans whole columns on split grids, so the
+# k-eqn length cap it feeds (erf.rans_lscale_from_pblh) stays on.
 erf.prob_name = "ABL"
 
 erf.anelastic         = 0
@@ -42,6 +39,7 @@ geometry.is_periodic = 1 1 0
 zlo.type                = "surface_layer"
 erf.most.z0             = 0.16
 erf.most.surf_temp_flux = 0.24   # [K m/s]
+erf.most.pblh_calc      = "MYNN25"
 
 zhi.type       = "SlipWall"
 zhi.theta_grad = 0.003   # [K/m], matches the sounding above the inversion
@@ -97,7 +95,7 @@ erf.rans_type                     = "kEqn"
 erf.dirichlet_k                   = true
 erf.init_tke_from_ustar           = true
 erf.rans_consistent_diffusivities = true
-erf.rans_lscale_from_pblh         = false
+erf.rans_lscale_from_pblh         = true   # cap l_g at kappa * 0.1 * zi
 erf.rans_lscale_min               = 1.0
 erf.max_geom_lscale               = 100.0
 erf.theta_ref                     = 300.0
