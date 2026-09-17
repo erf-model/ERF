@@ -4,8 +4,10 @@
 # explicit vertical diffusion, run on one box and on boxes split in z. The k
 # source averages the theta-diffusion fluxes at the two z-faces of each cell, so
 # the top cell of every box reads a face written for that box; the two runs must
-# agree. The splits (k = 24, 48, 72) sit in the stratified air above the
-# 937 m inversion, where the heat flux is non-zero from the first step.
+# agree. amr.max_grid_size_z = 24 gives five boxes of 20 cells (BoxList::maxSize
+# divides out the common factors of 2 first), so the splits are at k = 20, 40, 60
+# and 80, that is z = 400, 800, 1200 and 1600 m: two below the 937 m inversion and
+# two above it, with a non-zero heat flux at all four from the first step.
 #
 # Difference from the canonical deck: no acoustic substepping.  The implicit w
 # solve of the substep closes every box's column with Dirichlet rows

@@ -1097,7 +1097,8 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSu
     DATALOG "surf_hist.dat")
 # The TKE buoyancy source reads the theta-diffusion flux at both z-faces of each
 # cell, so the top cell of every box reads a box-boundary face: one box against
-# boxes split in z (x at 4, z at 24), for the k-eqn and Deardorff closures.
+# ten boxes (x split at 4, z in five boxes of 20 cells, so splits at k = 20, 40,
+# 60 and 80), for the k-eqn and Deardorff closures.
 add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn RANS_Convective_Buoyancy_ZSplit "plt00040"
     COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn/input_sounding"
     REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"

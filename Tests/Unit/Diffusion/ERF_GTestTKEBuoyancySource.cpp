@@ -23,12 +23,17 @@ namespace {
 // -K (theta_k - theta_{k-1}) / dz = -K (b + 2 c z_face) exactly, and the buoyancy production of k in
 // cell k is |g| / theta_ref times the average of the fluxes at its two faces, -K (b + 2 c z_k),
 // whether the vertical diffusion is explicit or implicit.
+//
+// The face flux is a difference of theta values of order a, so its roundoff floor is
+// eps * K a / dz, which is 7e-3 in single precision.  The gradients b, qb and c are chosen
+// well above that floor, and every test asserts that the quantity it checks exceeds four
+// tolerances, so none of them can pass by being smaller than the noise.
 constexpr Real dz      = Real(0.5);
 constexpr Real K       = Real(0.8);
 constexpr Real a       = Real(300.0);
-constexpr Real b       = Real(0.004);
-constexpr Real qa      = Real(0.01);
-constexpr Real qb      = Real(-0.0003);
+constexpr Real b       = Real(0.1);
+constexpr Real qa      = Real(1.0);
+constexpr Real qb      = Real(-0.1);
 constexpr Real gabs    = Real(9.81);
 constexpr Real theta0  = Real(300.0);
 
@@ -263,6 +268,13 @@ Real tol (Real scale)
 // fluxes, not the explicit fraction (which is zero), and the source must not change.
 TEST(TKEBuoyancySource, FaceFluxesAreFullForExplicitAndImplicitDiffusion)
 {
+    {   // the fluxes and the source must be resolvable; with the explicit fraction restored and
+        // implicit_fac = 1 the stored fluxes are zero, so these are the errors that must be seen
+        const auto r = run_column(Real(0.0), Real(0.0));
+        ASSERT_GT(K * std::abs(b),  Real(4.0) * tol(r.flux_scale));
+        ASSERT_GT(K * std::abs(qb), Real(4.0) * tol(r.flux_scale));
+        ASSERT_GT(gabs / theta0 * K * std::abs(b), Real(4.0) * tol(r.src_scale));
+    }
     for (Real fac : {Real(0.0), Real(0.5), Real(1.0)}) {
         const auto r = run_column(fac, Real(0.0));
         EXPECT_LE(r.max_hfx_error, tol(r.flux_scale)) << "implicit_fac = " << fac;
@@ -275,7 +287,7 @@ TEST(TKEBuoyancySource, FaceFluxesAreFullForExplicitAndImplicitDiffusion)
 // exact cell-centred flux; reading the lower face alone is off by K c dz.
 TEST(TKEBuoyancySource, CellCentredFluxIsTheAverageOfTheTwoFaces)
 {
-    const Real c = Real(0.1);
+    const Real c = Real(0.3);
     // The lower-face error the check has to be able to see, also in single precision
     ASSERT_GT(gabs / theta0 * K * c * dz, Real(4.0) * tol(gabs / theta0 * K * a / dz));
     for (Real fac : {Real(0.0), Real(1.0)}) {
@@ -289,7 +301,7 @@ TEST(TKEBuoyancySource, CellCentredFluxIsTheAverageOfTheTwoFaces)
 // with the diffusion flux at its top face like every other cell.
 TEST(TKEBuoyancySource, FirstCellAveragesTheSurfaceFluxWithTheFaceAbove)
 {
-    const Real c = Real(0.1);
+    const Real c = Real(0.3);
     const Real sfc = Real(0.24);
     // Using the surface flux alone in the first cell would be off by half the difference between the
     // two faces; that difference must be resolvable, also in single precision

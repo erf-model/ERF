@@ -19,6 +19,9 @@
     //       flux alone: that would again place a w-face value at the cell centre
     //       (a MOST-profile gradient evaluated at the first cell centre would be
     //       the consistent alternative).
+    //       On a terrain-fitted mesh hfx_z holds the flux along zeta only: the slope
+    //       corrections and the Jacobian are applied where the fluxes enter the RHS, so
+    //       over sloping terrain this source omits those terms (as does the hfx3 output).
     //       REQUIRED WRITER: the RhoTheta call of DiffusionSrcForState_{N,S,T}
     //       in erf_slow_rhs_pre, on the same RK stage, which writes every z-face
     //       of each valid box (zbx = surroundingNodes(bx,2), top face included).
