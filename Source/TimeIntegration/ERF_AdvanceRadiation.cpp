@@ -59,6 +59,63 @@ void ERF::advance_radiation (int lev,
 
     if (solverChoice.rad_uses_interface()) {
         BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
+
+        // On the first timestep after a new level is created from coarse using interp_atmos_from_coarse,
+        // interpolate heating rates and radiation fluxes from coarse instead of computing them.
+        // This avoids NaNs from thermodynamic inconsistencies in the FillCoarsePatch atmospheric
+        // state interpolation, and provides the LSM with the radiation fields it needs.
+        if (lev > 0 && istep[lev] == 0) {
+            amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
+                           << " to level " << lev << " on first timestep (istep=0)\n";
+
+            // Ensure parent level's ghost cells are filled before interpolation
+            if (!rad[lev-1]->is_nested_patch()) {
+                qheating_rates[lev-1]->FillBoundary(geom[lev-1].periodicity());
+            }
+
+            // Interpolate heating rates (copy pattern from nested patch code below)
+            InterpFromCoarseLevel(*qheating_rates[lev], qheating_rates[lev]->nGrowVect(),
+                                  IntVect(0,0,0),
+                                  *qheating_rates[lev-1], 0, 0, 2,
+                                  geom[lev-1], geom[lev],
+                                  refRatio(lev-1), &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+
+            // Interpolate LSM radiation output fields (surface fluxes needed by NoahMP)
+            // These are 2D surface fields that may have no ghost cells
+            if (solverChoice.lsm_type != LandSurfaceType::None) {
+                Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
+
+                for (int i = 0; i < lsm_output_names.size(); ++i) {
+                    int varIdx_fine = lsm.Get_DataIdx(lev, lsm_output_names[i]);
+                    int varIdx_coarse = lsm.Get_DataIdx(lev-1, lsm_output_names[i]);
+                    if (varIdx_fine >= 0 && varIdx_coarse >= 0) {
+                        MultiFab* lsm_fine = lsm.Get_Data_Ptr(lev, varIdx_fine);
+                        MultiFab* lsm_coarse = lsm.Get_Data_Ptr(lev-1, varIdx_coarse);
+                        if (lsm_fine && lsm_coarse && lsm_coarse->nComp() > 0) {
+                            // Create temporary coarse MultiFab with 1 ghost cell for safe interpolation
+                            MultiFab tmp_coarse(lsm_coarse->boxArray(), lsm_coarse->DistributionMap(),
+                                                lsm_coarse->nComp(), 1);
+                            MultiFab::Copy(tmp_coarse, *lsm_coarse, 0, 0, lsm_coarse->nComp(), 0);
+                            tmp_coarse.FillBoundary(geom[lev-1].periodicity());
+
+                            // LSM data are 2D surface fields: use 2D refinement ratio and pc_interp
+                            // to avoid computing z-slopes from uninitialized ghost cells
+                            IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+                            InterpFromCoarseLevel(*lsm_fine, IntVect(0,0,0),
+                                                  IntVect(0,0,0),
+                                                  tmp_coarse, 0, 0, lsm_coarse->nComp(),
+                                                  geom[lev-1], geom[lev],
+                                                  rr2d, &pc_interp,
+                                                  domain_bcs_type, BCVars::cons_bc);
+                        }
+                    }
+                }
+            }
+
+            return;
+        }
+
 #ifdef ERF_USE_NETCDF
         MultiFab *lat_ptr = lat_m[lev].get();
         MultiFab *lon_ptr = lon_m[lev].get();
