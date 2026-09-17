@@ -890,6 +890,7 @@ private:
 
     std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_soil_params;
     std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_veg_params;
+    std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_rad_params;
 
     //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
@@ -914,12 +915,12 @@ private:
     int opt_alb = 1;  // Snow albedo option: 1=BATS, 2=CLASS
 
     // NOAHMP radiation parameters from NoahmpTable.TBL
-    amrex::Gpu::DeviceVector<amrex::Real> albsat_vis;  // saturated soil albedos VIS (20 soil color classes)
-    amrex::Gpu::DeviceVector<amrex::Real> albsat_nir;  // saturated soil albedos NIR (20 soil color classes)
-    amrex::Gpu::DeviceVector<amrex::Real> albdry_vis;  // dry soil albedos VIS (20 soil color classes)
-    amrex::Gpu::DeviceVector<amrex::Real> albdry_nir;  // dry soil albedos NIR (20 soil color classes)
-    amrex::Gpu::DeviceVector<amrex::Real> alblak_rad;  // albedo frozen lakes: 1=vis, 2=nir
-    amrex::Gpu::DeviceVector<amrex::Real> omegas_rad;  // two-stream parameter omega for snow: 1=vis, 2=nir
+    // ALBSAT_VIS: saturated soil albedos VIS (20 soil color classes)
+    // ALBSAT_NIR: saturated soil albedos NIR (20 soil color classes)
+    // ALBDRY_VIS: dry soil albedos VIS (20 soil color classes)
+    // ALBDRY_NIR: dry soil albedos NIR (20 soil color classes)
+    // ALBLAK: albedo frozen lakes: 1=vis, 2=nir
+    // OMEGAS: two-stream parameter omega for snow: 1=vis, 2=nir
     amrex::Real betads_rad = 0.5;  // two-stream parameter betad for snow
     amrex::Real betais_rad = 0.5;  // two-stream parameter betai for snow
 
@@ -943,21 +944,21 @@ private:
     amrex::Real eg_soil_rad = 0.97;       // ground emissivity for soil (IST=1)
     amrex::Real eg_lake_rad = 0.98;       // ground emissivity for lake (IST=2)
 
-    // NOAHMP vegetation parameters for radiation (MODIS, 20 types) from NoahmpTable.TBL
-    amrex::Gpu::DeviceVector<amrex::Real> rhol_vis_rad;  // leaf reflectance: visible
-    amrex::Gpu::DeviceVector<amrex::Real> rhol_nir_rad;  // leaf reflectance: NIR
-    amrex::Gpu::DeviceVector<amrex::Real> rhos_vis_rad;  // stem reflectance: visible
-    amrex::Gpu::DeviceVector<amrex::Real> rhos_nir_rad;  // stem reflectance: NIR
-    amrex::Gpu::DeviceVector<amrex::Real> taul_vis_rad;  // leaf transmittance: visible
-    amrex::Gpu::DeviceVector<amrex::Real> taul_nir_rad;  // leaf transmittance: NIR
-    amrex::Gpu::DeviceVector<amrex::Real> taus_vis_rad;  // stem transmittance: visible
-    amrex::Gpu::DeviceVector<amrex::Real> taus_nir_rad;  // stem transmittance: NIR
+    // NOAHMP vegetation radiation parameters are stored in d_veg_params:
+    // RHOL_VIS: leaf reflectance: visible
+    // RHOL_NIR: leaf reflectance: NIR
+    // RHOS_VIS: stem reflectance: visible
+    // RHOS_NIR: stem reflectance: NIR
+    // TAUL_VIS: leaf transmittance: visible
+    // TAUL_NIR: leaf transmittance: NIR
+    // TAUS_VIS: stem transmittance: visible
+    // TAUS_NIR: stem transmittance: NIR
+    // RC: crown radius (m)
+    // HVB: bottom of canopy (m) - NOAHMP name: HVB
+    // DEN: tree density (no. of trunks per m2) - NOAHMP name: DEN
+    // CWPVT: canopy wind extinction parameter - NOAHMP name: CWPVT
     // NOTE: NOAHMP parameter "xl" (leaf/stem orientation index) uses existing Khai_L from init_landtype()
-    amrex::Gpu::DeviceVector<amrex::Real> rc_rad;        // crown radius (m)
     // NOTE: NOAHMP parameter "hvt" (top of canopy height) uses existing ztop from init_landtype()
-    amrex::Gpu::DeviceVector<amrex::Real> hvb_rad;       // bottom of canopy (m) - NOAHMP name: HVB
-    amrex::Gpu::DeviceVector<amrex::Real> den_rad;       // tree density (no. of trunks per m2) - NOAHMP name: DEN
-    amrex::Gpu::DeviceVector<amrex::Real> cwpvt;         // canopy wind extinction parameter - NOAHMP name: CWPVT
 
     // MultiFabs to store NOAHMP radiation state variables
     amrex::MultiFab albold_noahmp;  // snow albedo at last time step (for CLASS option)

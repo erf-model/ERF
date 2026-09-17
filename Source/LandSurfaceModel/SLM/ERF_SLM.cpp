@@ -526,30 +526,15 @@ void SLM::init_from_inputs()
                 std::string pname = h_rad_params[i].first;
                 const int varsize = h_rad_params[i].second.size();
 
-                if (pname == "albsat_vis") {
-                    albsat_vis.resize(varsize);
+                if (varsize > 1 &&
+                    (pname == "albsat_vis" || pname == "albsat_nir" ||
+                     pname == "albdry_vis" || pname == "albdry_nir" ||
+                     pname == "alblak" || pname == "omegas")) {
+                    auto d_var = std::make_unique<amrex::Gpu::DeviceVector<amrex::Real>>(varsize);
+                    auto *d_var_ptr = d_var.get();
+                    d_rad_params.insert(std::make_pair(pname, std::move(d_var)));
                     Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, albsat_vis.data());
-                } else if (pname == "albsat_nir") {
-                    albsat_nir.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, albsat_nir.data());
-                } else if (pname == "albdry_vis") {
-                    albdry_vis.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, albdry_vis.data());
-                } else if (pname == "albdry_nir") {
-                    albdry_nir.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, albdry_nir.data());
-                } else if (pname == "alblak") {
-                    alblak_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, alblak_rad.data());
-                } else if (pname == "omegas") {
-                    omegas_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_rad_params[i].second.data(),
-                                   h_rad_params[i].second.data()+varsize, omegas_rad.data());
+                                   h_rad_params[i].second.data()+varsize, d_var_ptr->data());
                 } else if (pname == "betads" && varsize == 1) {
                     betads_rad = h_rad_params[i].second[0];
                 } else if (pname == "betais" && varsize == 1) {
@@ -585,67 +570,6 @@ void SLM::init_from_inputs()
                         eg_soil_rad = h_global_params[i].second[0];  // IST=1 (soil)
                         eg_lake_rad = h_global_params[i].second[1];  // IST=2 (lake)
                     }
-                }
-            }
-        }
-
-        // Read vegetation parameters for radiation from modis/usgs parameters
-        if (full_params.count(veg_param_key) > 0) {
-            auto &h_veg_rad_params = full_params.at(veg_param_key);
-            for (int i = 0; i < h_veg_rad_params.size(); i++) {
-                std::string pname = h_veg_rad_params[i].first;
-                const int varsize = h_veg_rad_params[i].second.size();
-
-                if (pname == "rhol_vis") {
-                    rhol_vis_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, rhol_vis_rad.data());
-                } else if (pname == "rhol_nir") {
-                    rhol_nir_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, rhol_nir_rad.data());
-                } else if (pname == "rhos_vis") {
-                    rhos_vis_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, rhos_vis_rad.data());
-                } else if (pname == "rhos_nir") {
-                    rhos_nir_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, rhos_nir_rad.data());
-                } else if (pname == "taul_vis") {
-                    taul_vis_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, taul_vis_rad.data());
-                } else if (pname == "taul_nir") {
-                    taul_nir_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, taul_nir_rad.data());
-                } else if (pname == "taus_vis") {
-                    taus_vis_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, taus_vis_rad.data());
-                } else if (pname == "taus_nir") {
-                    taus_nir_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, taus_nir_rad.data());
-                // NOTE: Skip "xl" - using existing Khai_L from init_landtype()
-                } else if (pname == "rc") {
-                    rc_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, rc_rad.data());
-                // NOTE: Skip "hvt" - using existing ztop from init_landtype()
-                } else if (pname == "hvb") {
-                    hvb_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, hvb_rad.data());
-                } else if (pname == "den") {
-                    den_rad.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, den_rad.data());
-                } else if (pname == "cwpvt") {
-                    cwpvt.resize(varsize);
-                    Gpu::copyAsync(Gpu::hostToDevice, h_veg_rad_params[i].second.data(),
-                                   h_veg_rad_params[i].second.data()+varsize, cwpvt.data());
                 }
             }
         }
@@ -3039,7 +2963,10 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto phi_2_arr = phi_2.array(mfi);
 
     // Get CWPVT parameter (canopy wind extinction factor) if available
-    const amrex::Real* d_cwpvt = (cwpvt.size() > 0) ? cwpvt.data() : nullptr;
+    const amrex::Real* d_cwpvt = nullptr;
+    if (d_veg_params.find("cwpvt") != d_veg_params.end()) {
+        d_cwpvt = d_veg_params.at("cwpvt")->data();
+    }
     const amrex::Real d_cwpvt_default = 1.0;  // default value if not from table
 
     ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
@@ -5215,25 +5142,25 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
     amrex::Real dt_loc = m_dt;
 
     // Get radiation parameters on device
-    const amrex::Real* d_rhol_vis = rhol_vis_rad.data();
-    const amrex::Real* d_rhol_nir = rhol_nir_rad.data();
-    const amrex::Real* d_rhos_vis = rhos_vis_rad.data();
-    const amrex::Real* d_rhos_nir = rhos_nir_rad.data();
-    const amrex::Real* d_taul_vis = taul_vis_rad.data();
-    const amrex::Real* d_taul_nir = taul_nir_rad.data();
-    const amrex::Real* d_taus_vis = taus_vis_rad.data();
-    const amrex::Real* d_taus_nir = taus_nir_rad.data();
+    const amrex::Real* d_rhol_vis = d_veg_params.at("rhol_vis")->data();
+    const amrex::Real* d_rhol_nir = d_veg_params.at("rhol_nir")->data();
+    const amrex::Real* d_rhos_vis = d_veg_params.at("rhos_vis")->data();
+    const amrex::Real* d_rhos_nir = d_veg_params.at("rhos_nir")->data();
+    const amrex::Real* d_taul_vis = d_veg_params.at("taul_vis")->data();
+    const amrex::Real* d_taul_nir = d_veg_params.at("taul_nir")->data();
+    const amrex::Real* d_taus_vis = d_veg_params.at("taus_vis")->data();
+    const amrex::Real* d_taus_nir = d_veg_params.at("taus_nir")->data();
     // NOTE: d_xl uses existing Khai_L_arr, d_hvt uses existing ztop_arr
-    const amrex::Real* d_rc = rc_rad.data();
-    const amrex::Real* d_hvb = hvb_rad.data();
-    const amrex::Real* d_den = den_rad.data();
+    const amrex::Real* d_rc = d_veg_params.at("rc")->data();
+    const amrex::Real* d_hvb = d_veg_params.at("hvb")->data();
+    const amrex::Real* d_den = d_veg_params.at("den")->data();
 
-    const amrex::Real* d_albsat_vis = albsat_vis.data();
-    const amrex::Real* d_albsat_nir = albsat_nir.data();
-    const amrex::Real* d_albdry_vis = albdry_vis.data();
-    const amrex::Real* d_albdry_nir = albdry_nir.data();
-    const amrex::Real* d_alblak = alblak_rad.data();
-    const amrex::Real* d_omegas = omegas_rad.data();
+    const amrex::Real* d_albsat_vis = d_rad_params.at("albsat_vis")->data();
+    const amrex::Real* d_albsat_nir = d_rad_params.at("albsat_nir")->data();
+    const amrex::Real* d_albdry_vis = d_rad_params.at("albdry_vis")->data();
+    const amrex::Real* d_albdry_nir = d_rad_params.at("albdry_nir")->data();
+    const amrex::Real* d_alblak = d_rad_params.at("alblak")->data();
+    const amrex::Real* d_omegas = d_rad_params.at("omegas")->data();
 
     const amrex::Real d_betads = betads_rad;
     const amrex::Real d_betais = betais_rad;
