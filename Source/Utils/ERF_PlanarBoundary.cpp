@@ -81,15 +81,7 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 
     const int ncomp = mf.nComp();
     MultiFab& buf = buffer(mf);
-    for (MFIter mfi(buf); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
-        const int src = m_src_index[mfi.index()];
-        // The surface copy must be the planar box with the same footprint, on this rank
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src] &&
-                                         mf.DistributionMap()[src] == ParallelDescriptor::MyProc(),
-            "PlanarBoundary::fill: surface box does not match its planar box");
-        buf[mfi].copy<RunOn::Device>(mf[src], bx, 0, bx, 0, ncomp);
-    }
+    gather_surface(mf, buf, 0, 0, ncomp);
 
     // A face-centered buffer's boxes share a face with their neighbours, and the gather above
     // takes each box's face from its own surface copy, so two boxes can hold different values
@@ -101,6 +93,36 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 
     // Fill every copy, valid region and ghost cells, from the computed surface copies
     mf.ParallelCopy(buf, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), period);
+}
+
+/**
+ * Copy the computed surface copies of a planar MultiFab into a MultiFab without duplicates
+ * (see ERF_PlanarBoundary.H).
+ *
+ * @param[in]  mf    planar MultiFab on the planar BoxArray given to define
+ * @param[out] dst   MultiFab on the surface boxes, in the index type of mf
+ * @param[in]  scomp first component to read from mf
+ * @param[in]  dcomp first component to write in dst
+ * @param[in]  ncomp number of components
+ */
+void
+PlanarBoundary::gather_surface (const MultiFab& mf, MultiFab& dst,
+                                int scomp, int dcomp, int ncomp) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(mf.size()) == m_nplanar,
+        "PlanarBoundary::gather_surface: the MultiFab is not on the planar BoxArray given to define");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst.size() == static_cast<Long>(m_src_index.size()),
+        "PlanarBoundary::gather_surface: the destination is not on the surface boxes");
+
+    for (MFIter mfi(dst); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const int src = m_src_index[mfi.index()];
+        // The surface copy must be the planar box with the same footprint, on this rank
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(bx == mf.boxArray()[src] &&
+                                         mf.DistributionMap()[src] == ParallelDescriptor::MyProc(),
+            "PlanarBoundary::gather_surface: surface box does not match its planar box");
+        dst[mfi].copy<RunOn::Device>(mf[src], bx, scomp, bx, dcomp, ncomp);
+    }
 }
 
 /**
