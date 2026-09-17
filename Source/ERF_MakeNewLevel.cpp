@@ -517,6 +517,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         // interpolate the atmospheric state from coarse (just like a level with no init file)
         //
         if (use_surface_only) {
+            // Rebuild base state from wrfinput on top of the fine terrain (must happen before
+            // FillCoarsePatch, which interpolates perturbational quantities relative to base state)
+            rebuild_base_state_from_wrfinput(lev, base_state[lev]);
+            (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
             // Interpolate atmospheric state from coarse level.
             // NOTE: This creates thermodynamically inconsistent data because ρ, θ, qv are
             // interpolated independently. We rely on:
