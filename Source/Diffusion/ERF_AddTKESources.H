@@ -7,12 +7,18 @@
     //       The strain rate magnitude is updated at the beginning of the first
     //       RK stage only, therefore the shear production term also does not
     //       change between RK stages.
+    //       hfx_z (Hfx3) is z-nodal, (0,0,1): it lives at the w-faces, not at the
+    //       cell centre, so a single hfx_z(i,j,k) is the flux at the LOWER face of
+    //       the cell and using it as the cell-centred value is not formally correct.
     //       hfx_z holds the face fluxes of the theta diffusion of this stage
     //       (the full flux, independent of the implicit/explicit split); at the
     //       bottom face of the domain that is the surface-layer flux when a
-    //       surface layer is used.  The buoyancy production averages the two
-    //       faces of every cell, the first cell included, for the cell-centred
-    //       vertical heat flux.
+    //       surface layer is used.  The buoyancy production therefore averages the
+    //       two faces of every cell, the first cell included, for the cell-centred
+    //       vertical heat flux.  The first cell is not special-cased to the surface
+    //       flux alone: that would again place a w-face value at the cell centre
+    //       (a MOST-profile gradient evaluated at the first cell centre would be
+    //       the consistent alternative).
     //       REQUIRED WRITER: the RhoTheta call of DiffusionSrcForState_{N,S,T}
     //       in erf_slow_rhs_pre, on the same RK stage, which writes every z-face
     //       of each valid box (zbx = surroundingNodes(bx,2), top face included).

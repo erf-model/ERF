@@ -74,6 +74,12 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box bxcc  = mfi.growntilebox(1) & domain;
+            // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       and the theta diffusion of every RK stage overwrites all z-faces (the
+            //       surface layer the bottom face) before anything reads them, so the value
+            //       written here was both misplaced and unused.  The TKE buoyancy source
+            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
             Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
@@ -172,6 +178,12 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         {
             Box bxcc  = mfi.tilebox();
 
+            // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       and the theta diffusion of every RK stage overwrites all z-faces (the
+            //       surface layer the bottom face) before anything reads them, so the value
+            //       written here was both misplaced and unused.  The TKE buoyancy source
+            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
@@ -470,7 +482,9 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     // The EB diffusion does not write hfx_z, so on EB terrain this is
                     // the only writer of the SGS heat flux output (the surface layer
                     // overwrites the bottom).  Elsewhere the theta diffusion writes the
-                    // face fluxes and the closures do not store a heat flux.
+                    // face fluxes and the closures do not store a heat flux.  This write
+                    // keeps the z-nodal/cell-centred mismatch noted above; moving the EB
+                    // heat-flux output to the EB face fluxes belongs with that diffusion.
                     hfx_x(i,j,k) = zero;
                     hfx_y(i,j,k) = zero;
                     hfx_z(i,j,k) = -inv_Pr_t * mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz;
@@ -617,6 +631,12 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
             const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
 
+            // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       and the theta diffusion of every RK stage overwrites all z-faces (the
+            //       surface layer the bottom face) before anything reads them, so the value
+            //       written here was both misplaced and unused.  The TKE buoyancy source
+            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
