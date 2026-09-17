@@ -64,7 +64,7 @@ void ERF::advance_radiation (int lev,
         // interpolate heating rates and radiation fluxes from coarse instead of computing them.
         // This avoids NaNs from thermodynamic inconsistencies in the FillCoarsePatch atmospheric
         // state interpolation, and provides the LSM with the radiation fields it needs.
-        if (lev > 0 && istep[lev] == 0) {
+        if (solverChoice.interp_atmos_from_coarse && lev > 0 && istep[lev] == 0) {
             amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
                            << " to level " << lev << " on first timestep (istep=0)\n";
 

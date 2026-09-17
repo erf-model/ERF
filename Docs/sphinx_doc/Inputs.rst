@@ -3261,6 +3261,14 @@ Notes
 -  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
    | and **erf.rad_cons_lon**.
 
+-  | **Multilevel/AMR with WRF initialization**: When initializing multilevel simulations from WRF input files
+   | (``erf.init_type = WRFInput``), radiation computations depend on the vertical extent of each refinement level.
+   | Finer levels that extend to the model top (or match the vertical extent of level 0) compute radiation normally.
+   | For finer levels that do not extend to the same height as level 0, heating rates and radiation fluxes are
+   | interpolated from the parent coarse level rather than computed directly, since the radiative transfer solver
+   | requires a complete atmospheric column. ERF automatically detects this configuration and applies the appropriate
+   | method. Full radiation calculations on such partial-column refinement levels are subject to ongoing development work.
+
 
 
 List of Parameters
