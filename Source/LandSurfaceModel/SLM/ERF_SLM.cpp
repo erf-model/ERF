@@ -491,19 +491,28 @@ void SLM::init_from_inputs()
             const int varsize = h_soil_params[i].second.size();
             if (varsize > 1) {
                 //amrex::Print() << " -- copying soil param '" << h_soil_params[i].first << "' to GPU " << std::endl;
-                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
-                d_soil_params.insert(std::make_pair(h_soil_params[i].first, d_var));
-                Gpu::copyAsync(Gpu::hostToDevice, h_soil_params[i].second.data(), h_soil_params[i].second.data()+varsize, d_var->data());
+                auto d_var = std::make_unique<amrex::Gpu::DeviceVector<amrex::Real>>(varsize);
+                auto *d_var_ptr = d_var.get();
+                d_soil_params.insert(std::make_pair(h_soil_params[i].first, std::move(d_var)));
+                Gpu::copyAsync(Gpu::hostToDevice, h_soil_params[i].second.data(), h_soil_params[i].second.data()+varsize, d_var_ptr->data());
             }
         }
 
         for (int i = 0; i < h_veg_params.size(); i++) {
             const int varsize = h_veg_params[i].second.size();
+            if (h_veg_params[i].first == "nroot") {
+                for (const amrex::Real value : h_veg_params[i].second) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                        value >= 0.0 && value <= m_nz_lsm && value == std::floor(value),
+                        "SLM: NoahMP NROOT must be an integer in [0, slm.nsoil]");
+                }
+            }
             if (varsize > 1) {
                 //amrex::Print() << " -- copying veg param '" << h_veg_params[i].first << "' to GPU " << std::endl;
-                amrex::Gpu::PinnedVector<amrex::Real> *d_var = new amrex::Gpu::PinnedVector<amrex::Real>(varsize);
-                d_veg_params.insert(std::make_pair(h_veg_params[i].first, d_var));
-                Gpu::copyAsync(Gpu::hostToDevice, h_veg_params[i].second.data(), h_veg_params[i].second.data()+varsize, d_var->data());
+                auto d_var = std::make_unique<amrex::Gpu::DeviceVector<amrex::Real>>(varsize);
+                auto *d_var_ptr = d_var.get();
+                d_veg_params.insert(std::make_pair(h_veg_params[i].first, std::move(d_var)));
+                Gpu::copyAsync(Gpu::hostToDevice, h_veg_params[i].second.data(), h_veg_params[i].second.data()+varsize, d_var_ptr->data());
             }
         }
 
@@ -1867,13 +1876,7 @@ void SLM::init_from_params()
         amrex::Print() << " SLM: Note - VPD formula changed to match NoahMP: 1/(1+HS*VPD)" << std::endl;
     }
     if (d_veg_params.find("nroot") != d_veg_params.end()) {
-        const auto& nroot_params = *d_veg_params.at("nroot");
-        for (const amrex::Real value : nroot_params) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                value >= 0.0 && value <= m_nz_lsm && value == std::floor(value),
-                "SLM: NoahMP NROOT must be an integer in [0, slm.nsoil]");
-        }
-        d_param_nroot = nroot_params.data();
+        d_param_nroot = d_veg_params.at("nroot")->data();
         has_nroot = true;
         amrex::Print() << " SLM: Using NROOT from NoahMP parameter file for the BTR=1 soil-water stress factor" << std::endl;
     }

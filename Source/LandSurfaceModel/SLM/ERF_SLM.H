@@ -888,18 +888,18 @@ private:
     amrex::Vector<std::string> param_veg_categories;
     amrex::Vector<std::string> param_soil_categories;
 
-    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_soil_params;
-    std::unordered_map<std::string, amrex::Gpu::PinnedVector<amrex::Real>*> d_veg_params;
+    std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_soil_params;
+    std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_veg_params;
 
     //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
     std::vector<std::vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     std::vector<std::vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
 
-    amrex::Gpu::PinnedVector<amrex::Real> d_lai_curr; // GPU LAI values for current month only
-    amrex::Gpu::PinnedVector<amrex::Real> d_lai_next; // GPU LAI values for next month
-    amrex::Gpu::PinnedVector<amrex::Real> d_sai_curr; // GPU LAI values for current month only
-    amrex::Gpu::PinnedVector<amrex::Real> d_sai_next; // GPU LAI values for next month
+    amrex::Gpu::DeviceVector<amrex::Real> d_lai_curr; // GPU LAI values for current month only
+    amrex::Gpu::DeviceVector<amrex::Real> d_lai_next; // GPU LAI values for next month
+    amrex::Gpu::DeviceVector<amrex::Real> d_sai_curr; // GPU SAI values for current month only
+    amrex::Gpu::DeviceVector<amrex::Real> d_sai_next; // GPU SAI values for next month
 
     bool use_param_file = false;  // whether to initialize using parameters from file
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
@@ -914,12 +914,12 @@ private:
     int opt_alb = 1;  // Snow albedo option: 1=BATS, 2=CLASS
 
     // NOAHMP radiation parameters from NoahmpTable.TBL
-    amrex::Gpu::PinnedVector<amrex::Real> albsat_vis;  // saturated soil albedos VIS (20 soil color classes)
-    amrex::Gpu::PinnedVector<amrex::Real> albsat_nir;  // saturated soil albedos NIR (20 soil color classes)
-    amrex::Gpu::PinnedVector<amrex::Real> albdry_vis;  // dry soil albedos VIS (20 soil color classes)
-    amrex::Gpu::PinnedVector<amrex::Real> albdry_nir;  // dry soil albedos NIR (20 soil color classes)
-    amrex::Gpu::PinnedVector<amrex::Real> alblak_rad;  // albedo frozen lakes: 1=vis, 2=nir
-    amrex::Gpu::PinnedVector<amrex::Real> omegas_rad;  // two-stream parameter omega for snow: 1=vis, 2=nir
+    amrex::Gpu::DeviceVector<amrex::Real> albsat_vis;  // saturated soil albedos VIS (20 soil color classes)
+    amrex::Gpu::DeviceVector<amrex::Real> albsat_nir;  // saturated soil albedos NIR (20 soil color classes)
+    amrex::Gpu::DeviceVector<amrex::Real> albdry_vis;  // dry soil albedos VIS (20 soil color classes)
+    amrex::Gpu::DeviceVector<amrex::Real> albdry_nir;  // dry soil albedos NIR (20 soil color classes)
+    amrex::Gpu::DeviceVector<amrex::Real> alblak_rad;  // albedo frozen lakes: 1=vis, 2=nir
+    amrex::Gpu::DeviceVector<amrex::Real> omegas_rad;  // two-stream parameter omega for snow: 1=vis, 2=nir
     amrex::Real betads_rad = 0.5;  // two-stream parameter betad for snow
     amrex::Real betais_rad = 0.5;  // two-stream parameter betai for snow
 
@@ -944,20 +944,20 @@ private:
     amrex::Real eg_lake_rad = 0.98;       // ground emissivity for lake (IST=2)
 
     // NOAHMP vegetation parameters for radiation (MODIS, 20 types) from NoahmpTable.TBL
-    amrex::Gpu::PinnedVector<amrex::Real> rhol_vis_rad;  // leaf reflectance: visible
-    amrex::Gpu::PinnedVector<amrex::Real> rhol_nir_rad;  // leaf reflectance: NIR
-    amrex::Gpu::PinnedVector<amrex::Real> rhos_vis_rad;  // stem reflectance: visible
-    amrex::Gpu::PinnedVector<amrex::Real> rhos_nir_rad;  // stem reflectance: NIR
-    amrex::Gpu::PinnedVector<amrex::Real> taul_vis_rad;  // leaf transmittance: visible
-    amrex::Gpu::PinnedVector<amrex::Real> taul_nir_rad;  // leaf transmittance: NIR
-    amrex::Gpu::PinnedVector<amrex::Real> taus_vis_rad;  // stem transmittance: visible
-    amrex::Gpu::PinnedVector<amrex::Real> taus_nir_rad;  // stem transmittance: NIR
+    amrex::Gpu::DeviceVector<amrex::Real> rhol_vis_rad;  // leaf reflectance: visible
+    amrex::Gpu::DeviceVector<amrex::Real> rhol_nir_rad;  // leaf reflectance: NIR
+    amrex::Gpu::DeviceVector<amrex::Real> rhos_vis_rad;  // stem reflectance: visible
+    amrex::Gpu::DeviceVector<amrex::Real> rhos_nir_rad;  // stem reflectance: NIR
+    amrex::Gpu::DeviceVector<amrex::Real> taul_vis_rad;  // leaf transmittance: visible
+    amrex::Gpu::DeviceVector<amrex::Real> taul_nir_rad;  // leaf transmittance: NIR
+    amrex::Gpu::DeviceVector<amrex::Real> taus_vis_rad;  // stem transmittance: visible
+    amrex::Gpu::DeviceVector<amrex::Real> taus_nir_rad;  // stem transmittance: NIR
     // NOTE: NOAHMP parameter "xl" (leaf/stem orientation index) uses existing Khai_L from init_landtype()
-    amrex::Gpu::PinnedVector<amrex::Real> rc_rad;        // crown radius (m)
+    amrex::Gpu::DeviceVector<amrex::Real> rc_rad;        // crown radius (m)
     // NOTE: NOAHMP parameter "hvt" (top of canopy height) uses existing ztop from init_landtype()
-    amrex::Gpu::PinnedVector<amrex::Real> hvb_rad;       // bottom of canopy (m) - NOAHMP name: HVB
-    amrex::Gpu::PinnedVector<amrex::Real> den_rad;       // tree density (no. of trunks per m2) - NOAHMP name: DEN
-    amrex::Gpu::PinnedVector<amrex::Real> cwpvt;         // canopy wind extinction parameter - NOAHMP name: CWPVT
+    amrex::Gpu::DeviceVector<amrex::Real> hvb_rad;       // bottom of canopy (m) - NOAHMP name: HVB
+    amrex::Gpu::DeviceVector<amrex::Real> den_rad;       // tree density (no. of trunks per m2) - NOAHMP name: DEN
+    amrex::Gpu::DeviceVector<amrex::Real> cwpvt;         // canopy wind extinction parameter - NOAHMP name: CWPVT
 
     // MultiFabs to store NOAHMP radiation state variables
     amrex::MultiFab albold_noahmp;  // snow albedo at last time step (for CLASS option)
