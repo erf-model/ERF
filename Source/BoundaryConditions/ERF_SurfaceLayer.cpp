@@ -2047,9 +2047,165 @@ SurfaceLayer::compute_pblh (const int& lev,
                             const PBLHeightEstimator& est,
                             const MoistureComponentIndices& moisture_indices)
 {
-    est.compute_pblh(m_geom[lev],z_phys_cc, pblh[lev].get(),
-                     vars[lev][Vars::cons],m_lmask_lev[lev][0],
-                     moisture_indices);
+    const MultiFab& cons = vars[lev][Vars::cons];
+    const iMultiFab* lmask = m_lmask_lev[lev][0];
+
+    // The estimator scans each box from its lowest cell to its highest and writes the planar
+    // pblh of that box, so every box it is given must start at the ground.  Grids that hold
+    // such boxes only -- full height or not -- go straight to it.  Any other grids (boxes
+    // stacked in z, or boxes aloft) go through columns: the runs of cells that start at the
+    // ground, each as one box (see define_pblh_columns).
+    if (static_cast<int>(m_pblh_columns.size()) <= lev) { m_pblh_columns.resize(lev+1); }
+    if (m_pblh_columns[lev].ba != cons.boxArray() ||
+        m_pblh_columns[lev].dm != cons.DistributionMap()) {
+        define_pblh_columns(lev, cons.boxArray(), cons.DistributionMap());
+    }
+    const PBLHColumns& cols = m_pblh_columns[lev];
+
+    if (!cols.needed) {
+        est.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(), cons, lmask, moisture_indices);
+        return;
+    }
+
+    // Zero is the estimator's own value for a height it did not find.  It stays on the planar
+    // boxes over which no box of this level reaches the ground: all of them on a level that
+    // lies entirely aloft.
+    pblh[lev]->setVal(zero);
+    if (cols.ba_col.empty()) { return; }
+
+    const Periodicity period = m_geom[lev].periodicity();
+
+    // The estimator reads the density, the potential temperature, the TKE and the moisture
+    // species that enter theta_v.  Those live in [0, RhoKE_comp] and in the moist window, so
+    // the columns carry the state up to the highest of them and no further: the species above
+    // it (the number concentrations of a two-moment scheme, the non-water species) are the
+    // bulk of a moist state and are never read here.  The span is contiguous rather than the
+    // two pieces it is made of, so that every component of cons_col is filled by the copies
+    // below -- a component the estimator reads must never be one this routine left unset --
+    // and the components keep their place, since the estimator indexes the state by
+    // component number.
+    int q_hi = -1;
+    for (const int q : {moisture_indices.qv, moisture_indices.qc, moisture_indices.qi,
+                        moisture_indices.qr, moisture_indices.qs, moisture_indices.qg}) {
+        AMREX_ALWAYS_ASSERT((q < 0) || ((q > RhoKE_comp) && (q < cons.nComp())));
+        q_hi = std::max(q_hi, q);
+    }
+    const int ncomp_col = std::max(RhoKE_comp+1, q_hi+1);
+
+    // The halo the columns need: in x and y the ghost cells of pblh, which the estimator
+    // writes and so reads the state over, and in z the one cell above the top of each column
+    // that the scan's k+1 reads end in.  The state must hold that halo for the copies below
+    // to have anything to take it from.
+    const IntVect ng_pblh = pblh[lev]->nGrowVect();
+    const IntVect ng_col = elemwiseMax(ng_pblh, IntVect(AMREX_D_DECL(0,0,1)));
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(cons.nGrowVect().allGE(ng_col),
+        "erf.most.pblh_calc = MYNN25 on grids that do not all start at the ground needs the "
+        "state to carry at least the ghost cells of the surface-layer fields, and one in z.");
+
+    // Every valid cell of a column is a valid cell of this level, and every ghost cell of a
+    // column is a valid or a ghost cell of the box that holds the cell next to it, so the two
+    // passes below leave no cell of the columns unset.  Ghost cells go first (they hold the
+    // physical boundary values and, next to a coarser level, the values interpolated from
+    // it), then the valid cells, so that every cell this level owns comes from the box that
+    // owns it and not from a neighbour's ghost cell.
+    MultiFab cons_col(cols.ba_col, cols.dm_col, ncomp_col, ng_col);
+    for (const IntVect& ng_src : {ng_col, IntVect(0)}) {
+        cons_col.ParallelCopy(cons, 0, 0, ncomp_col, ng_src, ng_col, period);
+    }
+
+    std::unique_ptr<MultiFab> zcc_col;
+    if (z_phys_cc) {
+        const IntVect ng_z = z_phys_cc->nGrowVect();
+        zcc_col = std::make_unique<MultiFab>(cols.ba_col, cols.dm_col, 1, ng_z);
+        zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, ng_z, ng_z, period);
+        zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, IntVect(0), ng_z, period);
+    }
+
+    std::unique_ptr<iMultiFab> lmask_col;
+    if (lmask) {
+        lmask_col = std::make_unique<iMultiFab>(cols.ba_col2d, cols.dm_col, 1, ng_pblh);
+        lmask_col->setVal(1);
+        lmask_col->ParallelCopy(*lmask, 0, 0, 1, elemwiseMin(lmask->nGrowVect(), ng_pblh), ng_pblh, period);
+        lmask_col->ParallelCopy(*lmask, 0, 0, 1, IntVect(0), ng_pblh, period);
+    }
+
+    MultiFab pblh_col(cols.ba_col2d, cols.dm_col, 1, ng_pblh);
+    est.compute_pblh(m_geom[lev], zcc_col.get(), &pblh_col, cons_col, lmask_col.get(), moisture_indices);
+
+    // Onto every planar box.  The ghost cells of the columns go first, for the ghost cells of
+    // pblh outside the domain.  They also reach valid cells of pblh over which no box of this
+    // level starts at the ground (the estimator fills the ghost cells of a column next to such
+    // a gap from ghost data), so those are set back to zero before the valid cells of the
+    // columns are copied.  Every planar copy of a cell then holds the same value, which makes
+    // the FillBoundary that ends this well defined despite the duplicate boxes.
+    pblh[lev]->ParallelCopy(pblh_col, 0, 0, 1, ng_pblh, ng_pblh, period);
+    pblh[lev]->setVal(zero, 0, 1, 0);
+    pblh[lev]->ParallelCopy(pblh_col, 0, 0, 1, IntVect(0), IntVect(0), period);
+    pblh[lev]->FillBoundary(period);
+}
+
+/**
+ * Build the columns on which compute_pblh runs the PBL-height estimator when the grids of a
+ * level do not all start at the ground (see PBLHColumns).  Called when the grids change.
+ *
+ * @param[in] lev Current level
+ * @param[in] ba  BoxArray of the state at this level
+ * @param[in] dm  DistributionMapping of the state at this level
+ */
+void
+SurfaceLayer::define_pblh_columns (const int& lev,
+                                   const BoxArray& ba,
+                                   const DistributionMapping& dm)
+{
+    PBLHColumns& cols = m_pblh_columns[lev];
+    cols = PBLHColumns{};
+    cols.ba = ba;
+    cols.dm = dm;
+
+    const int k_ground = m_geom[lev].Domain().smallEnd(2);
+    for (int ib = 0; ib < ba.size(); ++ib) {
+        if (ba[ib].smallEnd(2) != k_ground) { cols.needed = true; }
+    }
+    if (!cols.needed) { return; }
+
+    // With EB the surface-layer fields live on the 3D grids and the estimator writes their
+    // k = 0 plane, which a box that does not start at the ground does not hold
+    if (m_terrain_type == TerrainType::EB) {
+        Abort("erf.most.pblh_calc = MYNN25 with EB needs every grid at level " + std::to_string(lev) +
+              " to start at the bottom of the domain: the PBL height is written into the lowest "
+              "plane of each grid.  Choose grids that are not decomposed in z "
+              "(amr.max_grid_size_z) and refined regions that reach the ground.");
+    }
+
+    // The runs of cells in z, each as one box; those that start at the ground are the columns.
+    // A column goes to the rank that owns its lowest corner cell, which keeps most of the
+    // copies to and from the columns on the rank.
+    const BoxArray ba_joined = join_boxes_stacked_in_z(ba);
+    BoxList bl_col(IndexType::TheCellType());
+    BoxList bl_col2d(IndexType::TheCellType());
+    Vector<int> pmap;
+    for (int ib = 0; ib < ba_joined.size(); ++ib) {
+        const Box& b = ba_joined[ib];
+        if (b.smallEnd(2) != k_ground) { continue; }
+        const auto& owners = ba.intersections(Box(b.smallEnd(), b.smallEnd()));
+        AMREX_ALWAYS_ASSERT(!owners.empty());
+        Box b2d(b);
+        b2d.setRange(2, k_ground);
+        bl_col.push_back(b);
+        bl_col2d.push_back(b2d);
+        pmap.push_back(dm[owners[0].first]);
+    }
+    if (bl_col.isEmpty()) { return; }
+
+    cols.ba_col   = BoxArray(std::move(bl_col));
+    cols.ba_col2d = BoxArray(std::move(bl_col2d));
+    cols.dm_col   = DistributionMapping(std::move(pmap));
+
+    // These hold no data.  AMReX drops the communication metadata of a BoxArray and
+    // DistributionMapping pair with the last FabArray built on it, and the MultiFabs that
+    // compute_pblh builds on the columns are temporaries.
+    cols.hold_col.define(cols.ba_col, cols.dm_col, 1, 0, MFInfo().SetAlloc(false));
+    cols.hold_col2d.define(cols.ba_col2d, cols.dm_col, 1, 0, MFInfo().SetAlloc(false));
 }
 
 /**
