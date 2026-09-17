@@ -494,6 +494,19 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
                                 (solverChoice.init_type == InitType::WRFInput);
 
+        // If using surface-only init with LSM, we need to set up LSM data structures before
+        // reading the wrfinput file, so that init_from_wrfinput_surface_only can populate them.
+        // We'll call lsm.Init later after FillCoarsePatch provides atmospheric state.
+        if (use_surface_only && solverChoice.lsm_type != LandSurfaceType::None) {
+            int lsm_data_size  = lsm.Get_Data_Size();
+            int lsm_flux_size  = lsm.Get_Flux_Size();
+            lsm_data[lev].resize(lsm_data_size);
+            lsm_data_name.resize(lsm_data_size);
+            lsm_flux[lev].resize(lsm_flux_size);
+            lsm_flux_name.resize(lsm_flux_size);
+            lsm.Define(lev, solverChoice);
+        }
+
         if (solverChoice.init_type == InitType::Metgrid) {
             init_from_metgrid(lev);
         } else if (solverChoice.init_type == InitType::WRFInput) {
@@ -530,24 +543,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             FillCoarsePatch(lev, time);
 
             // Now initialize LSM with the properly filled atmospheric state
+            // (Define was already called above before reading surface data)
             if (solverChoice.lsm_type != LandSurfaceType::None) {
                 amrex::Print() << "Initializing LSM at level " << lev << " after FillCoarsePatch\n";
-
-                // First, resize the vectors and Define the LSM
-                int lsm_data_size  = lsm.Get_Data_Size();
-                int lsm_flux_size  = lsm.Get_Flux_Size();
-                lsm_data[lev].resize(lsm_data_size);
-                lsm_data_name.resize(lsm_data_size);
-                lsm_flux[lev].resize(lsm_flux_size);
-                lsm_flux_name.resize(lsm_flux_size);
-                lsm.Define(lev, solverChoice);
 
                 IntVect RefRatio(1);
                 for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
                 lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), Geom(0),
                          domain_bcs_type, RefRatio, zero, nc_init_file);
 
-                // Now set up the LSM data/flux pointers (same as in make_lsm_at_level)
+                // Set up the LSM data/flux pointers (same as in make_lsm_at_level)
                 for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
                     lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
                     lsm_data_name[mvar] = lsm.Get_DataName(mvar);
