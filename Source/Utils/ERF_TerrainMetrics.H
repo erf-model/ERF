@@ -745,7 +745,7 @@ Compute_Z_AtWFace (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Relative height at cell center.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,

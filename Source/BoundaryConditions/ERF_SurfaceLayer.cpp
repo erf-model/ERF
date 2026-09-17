@@ -2442,10 +2442,13 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     // Handle vertical decomposition by selectively copying into
     // a FArrayBox section on each rank. Then doing a reduce real sum
     // and broadcasting to each rank. No mask since all CC data
+    //
+    // Pinned so the reduction below can read them on the host; the device
+    // still reaches pinned memory, so the loops here are unaffected.
     const int klo = m_geom[lev].Domain().smallEnd(2);
     Box bx_lo = u_star[lev]->boxArray().minimalBox();
-    FArrayBox u_star_lo(bx_lo, 1); u_star_lo.setVal<RunOn::Device>(0);
-    FArrayBox z_surf_lo(bx_lo, 1); z_surf_lo.setVal<RunOn::Device>(0);
+    FArrayBox u_star_lo(bx_lo, 1, The_Pinned_Arena()); u_star_lo.setVal<RunOn::Host>(0);
+    FArrayBox z_surf_lo(bx_lo, 1, The_Pinned_Arena()); z_surf_lo.setVal<RunOn::Host>(0);
     Real* ustar_ptr = u_star_lo.dataPtr();
     Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)
@@ -2467,6 +2470,7 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
                                        + z_phys_arr(i  ,j+1,klo) + z_phys_arr(i+1,j+1,klo) );
         });
     }
+    Gpu::streamSynchronize(); // the fills above are async, the reduction is not
     ParallelDescriptor::ReduceRealSum(ustar_ptr, static_cast<int>(bx_lo.numPts()));
     ParallelDescriptor::ReduceRealSum(zsurf_ptr, static_cast<int>(bx_lo.numPts()));
 

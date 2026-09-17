@@ -3,8 +3,10 @@
 
     const GpuArray<Real, AMREX_SPACEDIM> prob_lo = {
         geomdata.ProbLo(0), geomdata.ProbLo(1), geomdata.ProbLo(2)};
-    const auto prob_hi = geomdata.ProbHi();
-    const auto dx = geomdata.CellSize();
+    const GpuArray<Real, AMREX_SPACEDIM> prob_hi = {
+        geomdata.ProbHi(0), geomdata.ProbHi(1), geomdata.ProbHi(2)};
+    const GpuArray<Real, AMREX_SPACEDIM> dx = {
+        geomdata.CellSize(0), geomdata.CellSize(1), geomdata.CellSize(2)};
     const Real lx = prob_hi[0] - prob_lo[0];
     const Real ly = prob_hi[1] - prob_lo[1];
     const Real lz = prob_hi[2] - prob_lo[2];

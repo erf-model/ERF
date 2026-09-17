@@ -292,6 +292,7 @@ struct SurfaceLayerFields
             fab.setVal<RunOn::Device>(rho_theta, fab.box(), RhoTheta_comp, 1);
             fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
         }
+        Gpu::streamSynchronize();
     }
 
     std::unique_ptr<SurfaceLayer>
