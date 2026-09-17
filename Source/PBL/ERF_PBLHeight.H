@@ -55,6 +55,17 @@ struct MYNNPBLH {
 
         pblh->setVal(zero);
 
+        // The scan below ends at the top cell of each box and reads the cell above it, so
+        // the fields it reads must carry a ghost cell in z.  On grids that all start at the
+        // ground that is the state's own halo; on grids that do not, it is the halo
+        // SurfaceLayer::compute_pblh copies onto the columns it hands over.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(cons.nGrowVect()[2] >= 1,
+            "MYNNPBLH::compute_pblh: the state must carry a ghost cell in z; the scan reads "
+            "one cell above the top of every box");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE((z_phys_cc == nullptr) || (z_phys_cc->nGrowVect()[2] >= 1),
+            "MYNNPBLH::compute_pblh: z_phys_cc must carry a ghost cell in z; the scan reads "
+            "one cell above the top of every box");
+
         // Now, loop over columns...
         for (amrex::MFIter mfi(cons,TileNoZ()); mfi.isValid(); ++mfi)
         {

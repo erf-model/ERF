@@ -2076,22 +2076,31 @@ SurfaceLayer::compute_pblh (const int& lev,
     const Periodicity period = m_geom[lev].periodicity();
 
     // The estimator reads the density, the potential temperature, the TKE and the moisture
-    // species that enter theta_v, in x and y over the ghost cells of pblh and in z one cell
-    // above the box.  Copy those components and that halo only; the components keep their
-    // place, since the estimator indexes the state by component number.
-    int q_lo = cons.nComp();
+    // species that enter theta_v.  Those live in [0, RhoKE_comp] and in the moist window, so
+    // the columns carry the state up to the highest of them and no further: the species above
+    // it (the number concentrations of a two-moment scheme, the non-water species) are the
+    // bulk of a moist state and are never read here.  The span is contiguous rather than the
+    // two pieces it is made of, so that every component of cons_col is filled by the copies
+    // below -- a component the estimator reads must never be one this routine left unset --
+    // and the components keep their place, since the estimator indexes the state by
+    // component number.
     int q_hi = -1;
     for (const int q : {moisture_indices.qv, moisture_indices.qc, moisture_indices.qi,
                         moisture_indices.qr, moisture_indices.qs, moisture_indices.qg}) {
-        if (q >= 0) {
-            q_lo = std::min(q_lo, q);
-            q_hi = std::max(q_hi, q);
-        }
+        AMREX_ALWAYS_ASSERT((q < 0) || ((q > RhoKE_comp) && (q < cons.nComp())));
+        q_hi = std::max(q_hi, q);
     }
-    AMREX_ALWAYS_ASSERT(q_hi < cons.nComp());
-    const int ncomp_dry = RhoKE_comp + 1;
-    const IntVect ng_col = elemwiseMin(cons.nGrowVect(), IntVect(1));
-    AMREX_ALWAYS_ASSERT((q_hi < 0) || (q_lo >= ncomp_dry));
+    const int ncomp_col = std::max(RhoKE_comp+1, q_hi+1);
+
+    // The halo the columns need: in x and y the ghost cells of pblh, which the estimator
+    // writes and so reads the state over, and in z the one cell above the top of each column
+    // that the scan's k+1 reads end in.  The state must hold that halo for the copies below
+    // to have anything to take it from.
+    const IntVect ng_pblh = pblh[lev]->nGrowVect();
+    const IntVect ng_col = elemwiseMax(ng_pblh, IntVect(AMREX_D_DECL(0,0,1)));
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(cons.nGrowVect().allGE(ng_col),
+        "erf.most.pblh_calc = MYNN25 on grids that do not all start at the ground needs the "
+        "state to carry at least the ghost cells of the surface-layer fields, and one in z.");
 
     // Every valid cell of a column is a valid cell of this level, and every ghost cell of a
     // column is a valid or a ghost cell of the box that holds the cell next to it, so the two
@@ -2099,12 +2108,9 @@ SurfaceLayer::compute_pblh (const int& lev,
     // physical boundary values and, next to a coarser level, the values interpolated from
     // it), then the valid cells, so that every cell this level owns comes from the box that
     // owns it and not from a neighbour's ghost cell.
-    MultiFab cons_col(cols.ba_col, cols.dm_col, std::max(ncomp_dry, q_hi+1), ng_col);
+    MultiFab cons_col(cols.ba_col, cols.dm_col, ncomp_col, ng_col);
     for (const IntVect& ng_src : {ng_col, IntVect(0)}) {
-        cons_col.ParallelCopy(cons, 0, 0, ncomp_dry, ng_src, ng_col, period);
-        if (q_hi >= 0) {
-            cons_col.ParallelCopy(cons, q_lo, q_lo, q_hi-q_lo+1, ng_src, ng_col, period);
-        }
+        cons_col.ParallelCopy(cons, 0, 0, ncomp_col, ng_src, ng_col, period);
     }
 
     std::unique_ptr<MultiFab> zcc_col;
@@ -2114,8 +2120,6 @@ SurfaceLayer::compute_pblh (const int& lev,
         zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, ng_z, ng_z, period);
         zcc_col->ParallelCopy(*z_phys_cc, 0, 0, 1, IntVect(0), ng_z, period);
     }
-
-    const IntVect ng_pblh = pblh[lev]->nGrowVect();
 
     std::unique_ptr<iMultiFab> lmask_col;
     if (lmask) {
