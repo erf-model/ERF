@@ -64,9 +64,19 @@ struct MYNNPBLH {
             //       2D fields we write here (pblh, pblh_tke, min_thetav all have the
             //       ghost cells of pblh).  Grow by *their* ghost vector, not by the
             //       default, or we write past the end of their allocations.
+            //
+            //       The scan covers the cells this box holds and no more.  A box that stops
+            //       below the top of the domain (a refined level of partial height) has no
+            //       data above its top ghost cell, so the scan must stop with it; the
+            //       k+1 reads below then end in that ghost cell.  The caller hands over
+            //       boxes that start at the ground (SurfaceLayer::compute_pblh builds them
+            //       when the grids are stacked in z).
+            const amrex::Box& vbx = mfi.validbox();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vbx.smallEnd(2) == domain.smallEnd(2),
+                "MYNNPBLH::compute_pblh: every box must start at the bottom of the domain");
             amrex::Box gtbx = mfi.growntilebox(ng);
-            gtbx.setSmall(2,domain.smallEnd(2)); // don't loop over ghost cells
-            gtbx.setBig(2,domain.bigEnd(2));     // in z
+            gtbx.setSmall(2,vbx.smallEnd(2)); // don't loop over ghost cells
+            gtbx.setBig(2,vbx.bigEnd(2));     // in z
 
             // Columns are parallelized over; the k loops below are serialized within
             // each thread.  Everything in this routine is a per-column scan -- the
