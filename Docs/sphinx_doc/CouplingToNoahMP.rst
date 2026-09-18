@@ -74,7 +74,6 @@ The ERF-side driver is split by concern across several files under
 
 -  **ERF_NOAHMP_IO.cpp**: The land plotfile and checkpoint/restart.
 
-
 The C++ ``↔`` Fortran coupling glue under **Submodules/Noah-MP/drivers/erf**
 is no longer hand-written. Five files are **generated** at build time from a single
 source of truth by ``tools/NoahmpMacro.py``. Only the tracked ``*-mc``
@@ -134,7 +133,6 @@ on every build:
    ...) to/from a NetCDF restart file. They are exposed to C++ through the
    ``WriteRestart``/``ReadRestart`` methods of ``NoahmpIO_type`` and are used by
    ERF's checkpoint/restart capability (see :ref:`noahmp-checkpoint-restart`).
-
 
 NOAHMP Class
 ------------
@@ -367,7 +365,6 @@ into the physics on the first ``Advance``.
    #. **(Optional) NetCDF land output.** To make the variable appear in the
       per-timestep land output, add it to ``NoahmpWriteLandMod.F90`` following the
       existing ``TSK`` / ``SMOIS`` pattern.
-
 
    Working on the ERF driver
    =========================

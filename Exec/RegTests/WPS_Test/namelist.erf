@@ -2,11 +2,6 @@
 
  ERF_SETUP_FILE_01 = "wrfinput_chisholmview_d01"
 
- START_YEAR  = 2023
- START_MONTH = 08
- START_DAY   = 17
- START_HOUR  = 06
- START_MIN   = 00
 
  KDAY = 2
  SPINUP_LOOPS = 0
