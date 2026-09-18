@@ -60,11 +60,15 @@ void ERF::advance_radiation (int lev,
     if (solverChoice.rad_uses_interface()) {
         BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
 
-        // On the first timestep after a new level is created from coarse using interp_atmos_from_coarse,
-        // interpolate heating rates and radiation fluxes from coarse instead of computing them.
-        // This avoids NaNs from thermodynamic inconsistencies in the FillCoarsePatch atmospheric
-        // state interpolation, and provides the LSM with the radiation fields it needs.
-        if (solverChoice.interp_atmos_from_coarse && lev > 0 && istep[lev] == 0) {
+        // On the first timestep after a new level is created from coarse using surface-only init
+        // (interp_atmos_from_coarse mode), interpolate heating rates and radiation fluxes from coarse
+        // instead of computing them. This avoids NaNs from thermodynamic inconsistencies in the
+        // FillCoarsePatch atmospheric state interpolation, and provides the LSM with the radiation
+        // fields it needs. Only apply this to levels that actually used surface-only init, not levels
+        // that read full state from wrfinput during MakeNewLevelFromScratch.
+        if (lev > 0 && istep[lev] == 0 &&
+            lev < static_cast<int>(used_surface_only_init.size()) &&
+            used_surface_only_init[lev]) {
             amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
                            << " to level " << lev << " on first timestep (istep=0)\n";
 
@@ -80,6 +84,19 @@ void ERF::advance_radiation (int lev,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &cell_cons_interp,
                                   domain_bcs_type, BCVars::cons_bc);
+
+            // Interpolate radiation fluxes (needed for plotfiles and diagnostics)
+            if (rad_fluxes[lev] && rad_fluxes[lev-1]) {
+                if (!rad[lev-1]->is_nested_patch()) {
+                    rad_fluxes[lev-1]->FillBoundary(geom[lev-1].periodicity());
+                }
+                InterpFromCoarseLevel(*rad_fluxes[lev], rad_fluxes[lev]->nGrowVect(),
+                                      IntVect(0,0,0),
+                                      *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev]->nComp(),
+                                      geom[lev-1], geom[lev],
+                                      refRatio(lev-1), &cell_cons_interp,
+                                      domain_bcs_type, BCVars::cons_bc);
+            }
 
             // Interpolate LSM radiation output fields (surface fluxes needed by NoahMP)
             // These are 2D surface fields that may have no ghost cells
@@ -177,6 +194,19 @@ void ERF::advance_radiation (int lev,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &cell_cons_interp,
                                   domain_bcs_type, BCVars::cons_bc);
+
+            // Also interpolate radiation fluxes (needed for plotfiles and diagnostics)
+            if (rad_fluxes[lev] && rad_fluxes[lev-1]) {
+                if (!rad[lev-1]->is_nested_patch()) {
+                    rad_fluxes[lev-1]->FillBoundary(geom[lev-1].periodicity());
+                }
+                InterpFromCoarseLevel(*rad_fluxes[lev], rad_fluxes[lev]->nGrowVect(),
+                                      IntVect(0,0,0),
+                                      *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev]->nComp(),
+                                      geom[lev-1], geom[lev],
+                                      refRatio(lev-1), &cell_cons_interp,
+                                      domain_bcs_type, BCVars::cons_bc);
+            }
 
             // Also interpolate LSM radiation output fields (surface fluxes needed by NoahMP)
             // These are 2D surface fields (k=0 only) that may have no ghost cells

@@ -1129,6 +1129,11 @@ private:
     amrex::Vector<int> istep;      // which step?
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
+    // Track whether each level was initialized with surface-only mode (interp_atmos_from_coarse)
+    // Used to gate radiation skip on first step - only levels initialized this way need it
+    // (using int instead of bool to avoid std::vector<bool> specialization issues)
+    amrex::Vector<int> used_surface_only_init;
+
     // keep track of old time, new time, and time step at each level
     amrex::Vector<double> t_new;
     amrex::Vector<double> t_old;

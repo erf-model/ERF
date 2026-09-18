@@ -2629,6 +2629,7 @@ ERF::ReadParameters ()
         int nlevs_max = max_level + 1;
         istep.resize(nlevs_max, 0);
         nsubsteps.resize(nlevs_max, 1);
+        used_surface_only_init.resize(nlevs_max, 0);
         // This is the default
         for (int lev = 1; lev <= max_level; ++lev) {
             nsubsteps[lev] = MaxRefRatio(lev-1);

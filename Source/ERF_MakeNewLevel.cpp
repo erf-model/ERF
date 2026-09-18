@@ -494,6 +494,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
                                 (solverChoice.init_type == InitType::WRFInput);
 
+        // Track whether this level used surface-only initialization
+        // (needed by advance_radiation to decide whether to skip radiation on first step)
+        if (static_cast<int>(used_surface_only_init.size()) <= lev) {
+            used_surface_only_init.resize(lev+1, 0);
+        }
+        used_surface_only_init[lev] = use_surface_only ? 1 : 0;
+
         // If using surface-only init with LSM, we need to set up LSM data structures before
         // reading the wrfinput file, so that init_from_wrfinput_surface_only can populate them.
         // We'll call lsm.Init later after FillCoarsePatch provides atmospheric state.
