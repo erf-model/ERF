@@ -662,6 +662,43 @@ erf_derlocalhelicity ( const Box& bx,
 }
 
 void
+erf_dervortstretching ( const Box& bx,
+                        FArrayBox& derfab,
+                        int dcomp,
+                        int /*ncomp*/,
+                        const FArrayBox& datfab,
+                        const FArrayBox& zcc_fab,
+                        const Geometry& geomdata,
+                        Real /*time*/,
+                        const int* /*bcrec*/,
+                        const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+
+    auto const dat = datfab.array();  // cell-centered velocity
+    auto dfab      = derfab.array();  // cell-centered vorticity stretching
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
+
+    const Real two_dx = two * geomdata.CellSize(0);
+    const Real two_dy = two * geomdata.CellSize(1);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
+                   - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
+
+        // As in the vorticity components, the vertical derivative uses the
+        //    physical heights of the cell centers so that it is correct on a
+        //    vertically stretched mesh
+        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
+        Real dwdz   = (dat(i,j,k+1,2) - dat(i,j,k-1,2)) / two_dz;
+
+        // Stretching term in the vertical vorticity equation
+        dfab(i,j,k,dcomp) = vortz * dwdz;
+    });
+}
+
+void
 erf_derhelicity ( const Box& bx,
                   FArrayBox& derfab,
                   int dcomp,

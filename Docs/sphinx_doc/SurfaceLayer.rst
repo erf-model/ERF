@@ -276,6 +276,15 @@ boundary layer depth would ever be diagnosed. The subgrid velocity scale
 
 which vanishes for grid spacings of :math:`\Delta x < 5` km.
 
+The ``MYNN25`` PBL height is found by scanning each column upwards from the ground, so
+it does not depend on how the grids are decomposed: where boxes are stacked in z, the
+scan runs on the whole column they make up.  The scan ends at the top of the grids, so
+on a refined level that stops below the top of the domain a PBL top above the refined
+region is not found.  The PBL height is zero wherever it is not found, and wherever
+the grids of a level do not reach the ground.  With ``erf.terrain_type = EB`` the PBL
+height is stored on the three-dimensional grids, and every grid must start at the
+bottom of the domain (no decomposition in z); the run aborts otherwise.
+
 Surface Layer boundary on all faces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

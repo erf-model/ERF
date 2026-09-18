@@ -30,13 +30,15 @@ make_parallel_geometry ()
 }
 
 inline BoxArray
-make_parallel_box_array (const Box& domain, const bool single_box = false)
+make_parallel_box_array (const Box& domain, const bool single_box = false,
+                         const IntVect& max_size = IntVect(AMREX_D_DECL(16, 16, 1024)))
 {
     BoxArray ba(domain);
     if (single_box) { return ba; }
-    // Lateral boxes span the full vertical domain, as required by the x/y
-    // surface-layer kernels, while still distributing the face ownership.
-    ba.maxSize(IntVect(AMREX_D_DECL(16, 16, 1024)));
+    // By default lateral boxes span the full vertical domain, as required by
+    // the x/y surface-layer kernels, while still distributing the face
+    // ownership.  A smaller z size stacks boxes in z (z-face layers only).
+    ba.maxSize(max_size);
     return ba;
 }
 
@@ -48,14 +50,18 @@ make_parallel_distribution_mapping (const BoxArray& ba)
     if (nprocs > 1) {
         for (int ibox = 0; ibox < ba.size(); ++ibox) {
             if (nprocs == 2) {
-                // The two lateral neighbors of every selected face must be
-                // assigned to different ranks.  This checkerboard mapping
-                // achieves that for both x and y faces.
+                // Boxes 0 to 3 are the four lateral quarters of the domain in
+                // both layouts, so this checkerboard assigns the two lateral
+                // neighbors of every selected face to different ranks, for both
+                // x and y faces.  In the z-split layout the boxes stacked above
+                // them follow and all land on rank 1, which leaves the duplicate
+                // planar boxes of quarters 0 and 3 on the other rank from their
+                // surface copy.
                 pmap[ibox] = (ibox == 0 || ibox == 3) ? 0 : 1;
             } else {
-                // With at least three ranks, assign the four-box layout to
-                // distinct ranks where possible.  This also works when more
-                // ranks are present than boxes; unused ranks are harmless.
+                // With at least three ranks, spread the boxes over distinct
+                // ranks where possible.  This also works when more ranks are
+                // present than boxes; unused ranks are harmless.
                 pmap[ibox] = ibox % nprocs;
             }
         }
@@ -170,10 +176,18 @@ struct SurfaceLayerFields
     MultiFab zqv_flux;
     Vector<MultiFab*> state;
 
-    explicit SurfaceLayerFields (const bool single_box = false)
+    explicit SurfaceLayerFields (const bool single_box = false,
+                                 const IntVect& max_size = IntVect(AMREX_D_DECL(16, 16, 1024)))
+        : SurfaceLayerFields(make_parallel_box_array(make_parallel_geometry().Domain(),
+                                                     single_box, max_size))
+    {}
+
+    // Any grids inside the domain: they need not cover it (a refined level of partial
+    // height, boxes aloft)
+    explicit SurfaceLayerFields (const BoxArray& grids)
         : geom(make_parallel_geometry()),
           domain(geom.Domain()),
-          ba(make_parallel_box_array(domain, single_box)),
+          ba(grids),
           dm(make_parallel_distribution_mapping(ba)),
           cons(ba, dm, RhoQ1_comp + 1,
                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 1))),

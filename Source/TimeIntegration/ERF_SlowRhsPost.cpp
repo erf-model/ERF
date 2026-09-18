@@ -258,6 +258,16 @@ void erf_slow_rhs_post (int level, int finest_level,
         avg_zmom.ParallelCopy(S_data[IntVars::zmom], 0, 0, 1, 0, 1, geom.periodicity());
     }
 
+    // Non-EB Anelastic: the slow scalars are advected with the projected momentum.  Copy it
+    // before the tile loop below: a copy per tile inside that loop left the faces of the tiles
+    // not yet visited at their values from the previous stage while earlier tiles were already
+    // advecting with them, so the scalars depended on the tile size.
+    if (l_anelastic && !l_use_eb) {
+        MultiFab::Copy(avg_xmom, S_data[IntVars::xmom], 0, 0, 1, 0);
+        MultiFab::Copy(avg_ymom, S_data[IntVars::ymom], 0, 0, 1, 0);
+        MultiFab::Copy(avg_zmom, S_data[IntVars::zmom], 0, 0, 1, 0);
+    }
+
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
@@ -360,24 +370,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
-
-        // Non-EB Anelastic: Per-tile copy of projected momentum (EB done above)
-        if (l_anelastic && !l_use_eb) {
-            Box tbx_inc = mfi.nodaltilebox(0);
-            Box tby_inc = mfi.nodaltilebox(1);
-            Box tbz_inc = mfi.nodaltilebox(2);
-
-            ParallelFor(tbx_inc, tby_inc, tbz_inc,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_xmom_arr(i,j,k) = cur_xmom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_ymom_arr(i,j,k) = cur_ymom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_zmom_arr(i,j,k) = cur_zmom(i,j,k);
-            });
-        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations

@@ -190,6 +190,11 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | column)          |
 |                             | [m^2/s^2]        |
 +-----------------------------+------------------+
+| **vort_stretching**         | stretching of    |
+|                             | vertical         |
+|                             | vorticity        |
+|                             | [1/s^2]          |
++-----------------------------+------------------+
 | **magvel**                  | magnitude of     |
 |                             | velocity [m/s]   |
 |                             |                  |
@@ -697,6 +702,38 @@ cells rather than cell-centred fields.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
+
+Rotation diagnostics
+~~~~~~~~~~~~~~~~~~~~
+
+``vorticity_x``, ``vorticity_y``, and ``vorticity_z`` are the three components
+of :math:`\nabla \times \mathbf{u}`. ``local_helicity`` is the cell-by-cell
+product :math:`\zeta w`, and ``helicity`` is its integral over the 2 km to 5 km
+layer of each column, which is why ``helicity`` needs a grid that is not
+decomposed in the vertical.
+
+``vort_stretching`` is the stretching term in the vertical vorticity equation,
+
+.. math::
+
+   S = \zeta \, \frac{\partial w}{\partial z}, \qquad
+   \zeta = \frac{\partial v}{\partial x} - \frac{\partial u}{\partial y},
+
+with units of :math:`\mathrm{s}^{-2}`. It is positive where vertical stretching
+is amplifying vertical vorticity already present in the flow and negative where
+vertical compression is spinning it down, so it is a local, instantaneous
+measure of vortex intensification rather than an accumulated quantity. It is one
+term of :math:`D\zeta/Dt` and not the full tendency; in particular the tilting
+term :math:`\omega_x \, \partial w / \partial x + \omega_y \, \partial w /
+\partial y`, which converts horizontal vorticity into vertical vorticity, is not
+included and is not output separately.
+
+All of these fields are computed cell-by-cell from the cell-centered velocity
+using centered differences. The vertical derivative in ``vort_stretching`` and
+in ``vorticity_x`` and ``vorticity_y`` is taken with respect to the physical
+heights of the cell centers, so it is correct on a vertically stretched mesh;
+on a terrain-fitted mesh it omits the horizontal metric terms of the mapping, as
+the vorticity components themselves do.
 
 Moisture variable selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

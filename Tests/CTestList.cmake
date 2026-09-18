@@ -255,7 +255,7 @@ endfunction(add_test_cloud_chamber_parity)
 # COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
 # SPLIT_OPTIONS give the split (the deck's own grid when empty).
 function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
-    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG")
     cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -284,6 +284,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
+        "-DDATALOG=${ADD_TEST_BP_DATALOG}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -293,6 +294,18 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         LABELS "regression;box-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
+
+# The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
+# accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
+# no ERF run, hence the "unit" label.
+add_test(CompareDataLogs_SelfTest ${CMAKE_COMMAND}
+    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/CompareDataLogs_SelfTest
+    -P ${PROJECT_SOURCE_DIR}/Tests/CompareDataLogsSelfTest.cmake)
+set_tests_properties(CompareDataLogs_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit;box-parity")
 
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
@@ -1078,9 +1091,10 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
     FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding erf.data_log=surf_hist.dat erf.sum_interval=1"
     REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9")
+    FCOMPARE_RTOL "1.0e-9"
+    DATALOG "surf_hist.dat")
 endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
@@ -1098,6 +1112,61 @@ add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOU
 # RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
 # which neither drops an empty MPIEXEC nor expands the Windows exe globs.
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # Box, rank and tiling parity of the other closures: one box on one rank without tiling
+  # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
+  set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")
+  set(_cbp_split "fabarray.mfiter_tile_size=8 8 1024")
+  set(_cbp_dir   "${CMAKE_CURRENT_BINARY_DIR}/test_files")
+  set(_cbp_ke    "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta KE Kmv Khv")
+  foreach(_cbp IN ITEMS
+      # erf.vert_implicit defaults to true, so the explicit half of the pair is the one that
+      # has to be named: without erf.vert_implicit=false the two Deardorff entries are the
+      # same run twice.
+      "Deardorff_Explicit|erf.les_type=Deardorff erf.vert_implicit=false|sounding_dry"
+      "kEqn_PBLHCap|erf.rans_type=kEqn erf.theta_ref=300 erf.most.pblh_calc=MYNN25 erf.rans_lscale_from_pblh=true|sounding_dry"
+      "MYNN25|erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25|sounding_dry"
+      "MYNNEDMF|erf.pbl_type=MYNNEDMF erf.most.pblh_calc=MYNN25|sounding_dry"
+      "MYJ|erf.pbl_type=MYJ erf.most.pblh_calc=MYNN25|sounding_dry"
+      "NativeSHOC|erf.pbl_type=NATIVE_SHOC|sounding_dry"
+      # sounding_moist is supersaturated below 150 m on purpose: over the 10 steps of a parity
+      # run that is what makes Kessler condense, autoconvert and sediment, so qc and qp are
+      # compared as varying fields rather than as zero against zero.  Sedimentation in
+      # particular sets its substep count from a ParReduce over the whole MultiFab, which is
+      # exactly the kind of global quantity a decomposition can get wrong.
+      "Kessler_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv|sounding_moist"
+      # 32 levels starting at 19.503737114205 m and growing by 1.03 sum to the deck's
+      # prob_extent[2] = 1024 m, so the stretched mesh reaches the top of the domain and the
+      # geometry-derived quantities (Rayleigh damping, MOST reference height) agree with the
+      # levels.  erf.initial_dz=20 overshoots to 1050.1 m and ERF prints a mismatch note.
+      "Stretched_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.grid_stretching_ratio=1.03 erf.initial_dz=19.503737114205|sounding_dry"
+      "Deardorff_Implicit|erf.les_type=Deardorff|sounding_dry")
+    string(REPLACE "|" ";" _cbp_fields "${_cbp}")
+    list(GET _cbp_fields 0 _cbp_name)
+    list(GET _cbp_fields 1 _cbp_opts)
+    list(GET _cbp_fields 2 _cbp_snd)
+    set(_cbp_test "Closure_BoxParity_${_cbp_name}")
+    add_test_box_parity(${_cbp_test} Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "${_cbp_ke} ${_cbp_opts} erf.input_sounding_file=${_cbp_dir}/${_cbp_test}/${_cbp_snd}"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+  endforeach()
+  if(ERF_ENABLE_FFT)
+    # The anelastic MidPoint integrator; its MLMG projection does not converge on this deck,
+    # so the FFT solver is used and the tests need the FFT build.  The slow scalars (k, qv)
+    # are advected with the projected momentum, which used to be copied tile by tile.
+    add_test_box_parity(Closure_BoxParity_Anelastic_Kessler Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+    add_test_box_parity(Closure_BoxParity_Anelastic_Deardorff Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "${_cbp_ke} erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+  endif()
+
   # pblh (2D) and Lturb (3D) are the per-tile PBL height copied out of the
   # scheme; the deck is set up so they differ from column to column.
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
@@ -1130,6 +1199,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  # The MYNN25 PBL height scans whole columns: one box against boxes split in z, with the
+  # k-eqn length scale capped by the PBL height so that the 3D fields depend on it.
+  add_test_box_parity(PBLH_ZSplit_BoxParity PBLH_ZSplit "plt00040"
+      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_ZSplit_BoxParity/input_sounding"
+      REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+      FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

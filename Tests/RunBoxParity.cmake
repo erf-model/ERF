@@ -82,3 +82,29 @@ execute_process(
 if(NOT parity_result EQUAL 0)
     message(FATAL_ERROR "Single-box and split-box plotfiles differ: ${parity_result}")
 endif()
+
+# Optional: the data logs (erf.data_log) of the two runs must agree.  fcompare never reads them,
+# and planar diagnostics can depend on the decomposition while the plotfiles do not.  The logs are
+# compared numerically, not byte for byte: they print six significant digits, and a planar sum
+# reduces in a different order for each decomposition, so a value near a rounding boundary can
+# print a different last digit without anything being wrong.
+if(NOT "${DATALOG}" STREQUAL "")
+    foreach(dir "${REF_DIR}" "${SPLIT_DIR}")
+        if(NOT EXISTS "${dir}/${DATALOG}")
+            message(FATAL_ERROR "RunBoxParity.cmake: no data log ${dir}/${DATALOG}")
+        endif()
+    endforeach()
+    file(STRINGS "${REF_DIR}/${DATALOG}" ref_log)
+    list(LENGTH ref_log ref_lines)
+    if(ref_lines LESS 2)
+        message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} has ${ref_lines} lines; the comparison would be trivial")
+    endif()
+    include("${CMAKE_CURRENT_LIST_DIR}/CompareDataLogs.cmake")
+    # datprecision in Source/ERF.H, and a couple of units of the last digit of tolerance
+    erf_compare_data_logs("${REF_DIR}/${DATALOG}" "${SPLIT_DIR}/${DATALOG}" 6 2 logs_agree log_message)
+    if(NOT logs_agree)
+        message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} differs between the single-box "
+                            "and split runs: ${log_message}")
+    endif()
+    message(STATUS "RunBoxParity: data log ${DATALOG} agrees (${ref_lines} lines)")
+endif()
