@@ -25,6 +25,9 @@ constexpr const char* terrain_wps_filename = "erf_unit_terrain_geo_em.nc";
 constexpr const char* metgrid_filename_0 = "erf_unit_metgrid_surface_0.nc";
 constexpr const char* metgrid_filename_1 = "erf_unit_metgrid_surface_1.nc";
 constexpr const char* metgrid_missing_psfc_filename = "erf_unit_metgrid_surface_missing_psfc.nc";
+constexpr const char* metgrid_fill_psfc_filename = "erf_unit_metgrid_surface_fill_psfc.nc";
+constexpr const char* metgrid_missing_value_psfc_filename =
+    "erf_unit_metgrid_surface_missing_value_psfc.nc";
 
 void
 write_terrain_file ()
@@ -150,7 +153,10 @@ write_metgrid_surface_file (const char* filename,
                             const char* timestamp,
                             const bool include_psfc = true,
                             const bool include_tsk = false,
-                            const amrex::Real hgt = 0.0)
+                            const amrex::Real hgt = 0.0,
+                            const bool add_fill_value = false,
+                            const bool add_missing_value = false,
+                            const bool write_psfc = true)
 {
     if (!amrex::ParallelDescriptor::IOProcessor()) {
         return;
@@ -171,6 +177,12 @@ write_metgrid_surface_file (const char* filename,
     if (include_psfc) {
         file.def_var("PSFC", ncutils::NCDType::Real,
                      {"Time", "south_north", "west_east"});
+        if (add_fill_value) {
+            file.var("PSFC").put_attr("_FillValue", std::vector<double>{psfc});
+        }
+        if (add_missing_value) {
+            file.var("PSFC").put_attr("missing_value", std::vector<double>{psfc});
+        }
     }
     if (include_tsk) {
         file.def_var("SKINTEMP", ncutils::NCDType::Real,
@@ -186,7 +198,7 @@ write_metgrid_surface_file (const char* filename,
 
     const amrex::Real sst = 290.0;
     file.var("SST").put(&sst);
-    if (include_psfc) {
+    if (include_psfc && write_psfc) {
         file.var("PSFC").put(&psfc);
     }
     if (include_tsk) {
@@ -419,15 +431,34 @@ TEST(MetgridNetCDF, SurfacePressurePolicyHandlesMissingAndDebugPsfc)
         -toa + std::sqrt(toa*toa - amrex::Real(2.0) * CONST_GRAV * z_sfc /
                          (TLP * R_d)));
 
-    EXPECT_NEAR(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
-                                         P00, T00, TLP),
-                expected_missing, amrex::Real(1.0e-12) * expected_missing);
-    EXPECT_EQ(metgrid_surface_pressure(true, 1, amrex::Real(90000.0), z_sfc,
-                                       P00, T00, TLP),
-              amrex::Real(100000.0));
-    EXPECT_EQ(metgrid_surface_pressure(false, 1, amrex::Real(90000.0), z_sfc,
-                                       P00, T00, TLP),
-              amrex::Real(90000.0));
+    amrex::Real pressure = 0.0;
+    ASSERT_TRUE(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
+                                         P00, T00, TLP, pressure));
+    EXPECT_NEAR(pressure, expected_missing, amrex::Real(1.0e-12) * expected_missing);
+    ASSERT_TRUE(metgrid_surface_pressure(true, 1, amrex::Real(90000.0), z_sfc,
+                                         P00, T00, TLP, pressure));
+    EXPECT_EQ(pressure, amrex::Real(100000.0));
+    ASSERT_TRUE(metgrid_surface_pressure(false, 1, amrex::Real(90000.0), z_sfc,
+                                         P00, T00, TLP, pressure));
+    EXPECT_EQ(pressure, amrex::Real(90000.0));
+
+    EXPECT_FALSE(metgrid_surface_pressure(false, 1,
+                                          std::numeric_limits<amrex::Real>::quiet_NaN(),
+                                          z_sfc, P00, T00, TLP, pressure));
+    EXPECT_FALSE(metgrid_surface_pressure(false, 1, amrex::Real(0.0),
+                                          z_sfc, P00, T00, TLP, pressure));
+    EXPECT_FALSE(metgrid_surface_pressure(false, 1, amrex::Real(-1.0),
+                                          z_sfc, P00, T00, TLP, pressure));
+    EXPECT_TRUE(metgrid_surface_pressure(true, 1,
+                                         std::numeric_limits<amrex::Real>::quiet_NaN(),
+                                         z_sfc, P00, T00, TLP, pressure));
+    EXPECT_EQ(pressure, amrex::Real(100000.0));
+
+    EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
+                                          P00, T00, amrex::Real(0.0), pressure));
+    EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0,
+                                          std::numeric_limits<amrex::Real>::quiet_NaN(),
+                                          P00, T00, TLP, pressure));
 }
 
 // Motivation: the pressure-selection policy is only useful if the production
@@ -450,14 +481,15 @@ TEST(MetgridNetCDF, SurfaceTemperatureNormalizationUsesPressurePolicy)
         std::pow(P00 / amrex::Real(100000.0), RdoCp);
     const amrex::Real expected_at_90k = temperature *
         std::pow(P00 / amrex::Real(90000.0), RdoCp);
-    EXPECT_NEAR(metgrid_surface_theta(
-                    temperature, false, 1, amrex::Real(100000.0), z_sfc,
-                    P00, T00, TLP, RdoCp),
-                expected_at_100k, tolerance);
-    EXPECT_NEAR(metgrid_surface_theta(
-                    temperature, false, 1, amrex::Real(90000.0), z_sfc,
-                    P00, T00, TLP, RdoCp),
-                expected_at_90k, tolerance);
+    amrex::Real theta = 0.0;
+    ASSERT_TRUE(metgrid_surface_theta(
+        temperature, false, 1, amrex::Real(100000.0), z_sfc,
+        P00, T00, TLP, RdoCp, theta));
+    EXPECT_NEAR(theta, expected_at_100k, tolerance);
+    ASSERT_TRUE(metgrid_surface_theta(
+        temperature, false, 1, amrex::Real(90000.0), z_sfc,
+        P00, T00, TLP, RdoCp, theta));
+    EXPECT_NEAR(theta, expected_at_90k, tolerance);
     EXPECT_NE(expected_at_100k, expected_at_90k);
 
     const amrex::Real toa = T00 / TLP;
@@ -466,16 +498,23 @@ TEST(MetgridNetCDF, SurfaceTemperatureNormalizationUsesPressurePolicy)
                          (TLP * R_d)));
     const amrex::Real expected_missing = temperature *
         std::pow(P00 / expected_missing_pressure, RdoCp);
-    EXPECT_NEAR(metgrid_surface_theta(
-                    temperature, false, 0, amrex::Real(0.0), z_sfc,
-                    P00, T00, TLP, RdoCp),
-                expected_missing, tolerance);
+    ASSERT_TRUE(metgrid_surface_theta(
+        temperature, false, 0, amrex::Real(0.0), z_sfc,
+        P00, T00, TLP, RdoCp, theta));
+    EXPECT_NEAR(theta, expected_missing, tolerance);
 
     // Debug pressure deliberately wins over the file value.
-    EXPECT_NEAR(metgrid_surface_theta(
-                    temperature, true, 1, amrex::Real(90000.0), z_sfc,
-                    P00, T00, TLP, RdoCp),
-                expected_at_100k, tolerance);
+    ASSERT_TRUE(metgrid_surface_theta(
+        temperature, true, 1, amrex::Real(90000.0), z_sfc,
+        P00, T00, TLP, RdoCp, theta));
+    EXPECT_NEAR(theta, expected_at_100k, tolerance);
+
+    EXPECT_FALSE(metgrid_surface_theta(
+        std::numeric_limits<amrex::Real>::quiet_NaN(), false, 1,
+        amrex::Real(90000.0), z_sfc, P00, T00, TLP, RdoCp, theta));
+    EXPECT_FALSE(metgrid_surface_theta(
+        temperature, false, 1, amrex::Real(90000.0), z_sfc,
+        P00, T00, TLP, amrex::Real(0.0), theta));
 }
 
 // Motivation: the old Metgrid reader rejected an SST-only forcing file before
@@ -518,6 +557,63 @@ TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
         std::remove(metgrid_missing_psfc_filename);
+    }
+}
+
+// Motivation: NetCDF may encode a present PSFC field with a declared,
+// missing-value, or type-default fill sentinel. Those cells must remain an
+// invalid provided pressure so the initialization path fails loudly rather
+// than silently selecting the analytic missing-variable fallback.
+TEST(MetgridNetCDF, CanonicalizesDeclaredAndDefaultPsfcFillValues)
+{
+    write_metgrid_surface_file(metgrid_fill_psfc_filename,
+                               static_cast<amrex::Real>(NC_FILL_DOUBLE),
+                               "2010-01-01_00:00:00", true, false, 0.0,
+                               false, false, true);
+    write_metgrid_surface_file(metgrid_missing_value_psfc_filename,
+                               amrex::Real(123456.0),
+                               "2010-01-01_00:00:00", true, false, 0.0,
+                               false, true, true);
+    amrex::ParallelDescriptor::Barrier();
+
+    const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const amrex::Array<int, AMREX_SPACEDIM> periodic{0, 0, 0};
+    amrex::Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, periodic.data());
+
+    const auto read_psfc = [&] (const char* filename) -> amrex::Real {
+        amrex::FArrayBox xvel, yvel, temp, rhum, pres, ght, hgt, psfc;
+        amrex::FArrayBox msfu, msfv, msfm, sst, tsk, lat, lon;
+        amrex::IArrayBox lmask;
+        std::string date_time;
+        double epoch_time = 0.0;
+        int flag_psfc = 0, flag_msf = 0, flag_sst = 0, flag_tsk = 0, flag_lmask = 0;
+        int nc_nx = 0, nc_ny = 0;
+        amrex::Real nc_dx = 0.0, nc_dy = 0.0;
+        read_from_metgrid(0, 0, domain, filename,
+                          date_time, epoch_time, flag_psfc, flag_msf,
+                          flag_sst, flag_tsk, flag_lmask, nc_nx, nc_ny,
+                          nc_dx, nc_dy, xvel, yvel, temp, rhum, pres, ght,
+                          hgt, psfc, msfu, msfv, msfm, sst, tsk, lat, lon,
+                          lmask, geom);
+        EXPECT_EQ(flag_psfc, 1);
+        if (psfc.box().isEmpty()) {
+            ADD_FAILURE() << "PSFC unexpectedly has an empty box";
+            return std::numeric_limits<amrex::Real>::quiet_NaN();
+        }
+        amrex::FArrayBox host(psfc.box(), 1, amrex::The_Pinned_Arena());
+        host.copy<amrex::RunOn::Device>(psfc);
+        amrex::Gpu::streamSynchronize();
+        return host.const_array()(0, 0, 0);
+    };
+
+    EXPECT_FALSE(std::isfinite(read_psfc(metgrid_fill_psfc_filename)));
+    EXPECT_FALSE(std::isfinite(read_psfc(metgrid_missing_value_psfc_filename)));
+
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        std::remove(metgrid_fill_psfc_filename);
+        std::remove(metgrid_missing_value_psfc_filename);
     }
 }
 

@@ -7,12 +7,22 @@
 namespace erf_surface_temperature {
 
 /**
- * Pressure at the physical surface from the lowest atmospheric cell state.
+ * Pressure at a boundary face from the adjacent atmospheric cell state.
  *
  * The state pressure is diagnosed at the cell centre. Adding rho*g*delta_z
- * gives the pressure at the physical surface, where delta_z is the
- * terrain-relative distance from the surface to that cell centre.
+ * gives the pressure at the boundary face, where delta_z is the signed
+ * distance from the face to the cell centre.
  */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+pressure_at_boundary_from_cell (const amrex::Real rho,
+                                const amrex::Real rho_theta,
+                                const amrex::Real qv,
+                                const amrex::Real delta_z)
+{
+    return getPgivenRTh(rho_theta, qv) + rho * CONST_GRAV * delta_z;
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 pressure_at_surface (const amrex::Real rho,
@@ -20,7 +30,7 @@ pressure_at_surface (const amrex::Real rho,
                      const amrex::Real qv,
                      const amrex::Real delta_z)
 {
-    return getPgivenRTh(rho_theta, qv) + rho * CONST_GRAV * delta_z;
+    return pressure_at_boundary_from_cell(rho, rho_theta, qv, delta_z);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

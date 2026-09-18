@@ -10,6 +10,7 @@
 
 #include <ERF.H>
 #include <ERF_EOS.H>
+#include <ERF_SurfaceTemperature.H>
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_HSEUtils.H>
@@ -23,25 +24,46 @@
  * standard-atmosphere temperature profile at the physical terrain height.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real
+bool
 metgrid_surface_pressure (const bool debug_psfc,
                           const int flag_psfc,
                           const amrex::Real file_psfc,
                           const amrex::Real z_sfc,
                           const amrex::Real P00,
                           const amrex::Real T00,
-                          const amrex::Real TLP)
+                          const amrex::Real TLP,
+                          amrex::Real& pressure)
 {
     if (debug_psfc) {
-        return amrex::Real(100000.0);
+        pressure = amrex::Real(100000.0);
+        return true;
     }
     if (flag_psfc == 1) {
-        return file_psfc;
+        if (!std::isfinite(file_psfc) || file_psfc <= amrex::Real(0.0)) {
+            return false;
+        }
+        pressure = file_psfc;
+        return true;
     }
 
+    if (!std::isfinite(z_sfc) || !std::isfinite(P00) || P00 <= amrex::Real(0.0) ||
+        !std::isfinite(T00) || T00 <= amrex::Real(0.0) ||
+        !std::isfinite(TLP) || TLP == amrex::Real(0.0)) {
+        return false;
+    }
     const amrex::Real ToA = T00 / TLP;
-    return P00 * std::exp(-ToA + std::sqrt(
-        ToA*ToA - amrex::Real(2.0) * CONST_GRAV * z_sfc / (TLP * R_d)));
+    const amrex::Real radicand =
+        ToA*ToA - amrex::Real(2.0) * CONST_GRAV * z_sfc / (TLP * R_d);
+    if (!std::isfinite(radicand) || radicand < amrex::Real(0.0)) {
+        return false;
+    }
+    const amrex::Real exponent = -ToA + std::sqrt(radicand);
+    const amrex::Real result = P00 * std::exp(exponent);
+    if (!std::isfinite(result) || result <= amrex::Real(0.0)) {
+        return false;
+    }
+    pressure = result;
+    return true;
 }
 
 /**
@@ -50,7 +72,7 @@ metgrid_surface_pressure (const bool debug_psfc,
  * physical surface pressure.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real
+bool
 metgrid_surface_theta (const amrex::Real temperature,
                         const bool debug_psfc,
                         const int flag_psfc,
@@ -59,11 +81,16 @@ metgrid_surface_theta (const amrex::Real temperature,
                         const amrex::Real P00,
                         const amrex::Real T00,
                         const amrex::Real TLP,
-                        const amrex::Real rdOcp)
+                        const amrex::Real rdOcp,
+                        amrex::Real& theta)
 {
-    const amrex::Real surface_pressure = metgrid_surface_pressure(
-        debug_psfc, flag_psfc, file_psfc, z_sfc, P00, T00, TLP);
-    return getThgivenTandP(temperature, surface_pressure, rdOcp);
+    amrex::Real surface_pressure;
+    if (!metgrid_surface_pressure(debug_psfc, flag_psfc, file_psfc, z_sfc,
+                                  P00, T00, TLP, surface_pressure)) {
+        return false;
+    }
+    return erf_surface_temperature::temperature_to_theta(
+        temperature, surface_pressure, rdOcp, theta);
 }
 
 /**

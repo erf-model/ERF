@@ -164,6 +164,21 @@ ERF::init_from_metgrid (int lev)
 
     auto& lev_new = vars_new[lev];
 
+    // Metgrid initializes one vertical atmospheric column at a time and the
+    // base-state integration is seeded only at the domain bottom.  A z-split
+    // BoxArray would therefore read surface fields from one box and then
+    // independently reseed each stacked box.  Keep this unsupported and fail
+    // before terrain, SST, or SKINTEMP data are read.
+    const Box& metgrid_domain = geom[lev].Domain();
+    for (int ibox = 0; ibox < boxes_at_level[lev].size(); ++ibox) {
+        const Box& box = boxes_at_level[lev][ibox];
+        if (box.smallEnd(2) != metgrid_domain.smallEnd(2) ||
+            box.bigEnd(2) != metgrid_domain.bigEnd(2)) {
+            Abort("init_from_metgrid does not support grids split in z; set "
+                  "amr.max_grid_size_z >= the full vertical domain extent.");
+        }
+    }
+
     z_phys_nd[lev]->setVal(0);
 
     AMREX_ALWAYS_ASSERT(SolverChoice::terrain_type != TerrainType::None);
@@ -407,6 +422,9 @@ ERF::init_from_metgrid (int lev)
 
         // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
 
+        amrex::Gpu::DeviceScalar<int> d_surface_conversion_failed(0);
+        int* surface_conversion_failed = d_surface_conversion_failed.dataPtr();
+
         if (flag_sst) {
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             for ( MFIter mfi(*(sst_lev[lev][itime]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
@@ -428,10 +446,23 @@ ERF::init_from_metgrid (int lev)
                     const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
                     // Metgrid SST is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
-                    dst_arr(i,j,0) = metgrid_surface_theta(
-                        src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
-                        bsp.P00, bsp.T00, bsp.TLP, l_rdOcp);
+                    Real theta;
+                    if (metgrid_surface_theta(
+                            src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
+                            bsp.P00, bsp.T00, bsp.TLP, l_rdOcp, theta)) {
+                        dst_arr(i,j,0) = theta;
+                    } else {
+                        amrex::Gpu::Atomic::Max(surface_conversion_failed, 1);
+                    }
                 });
+            }
+            amrex::Gpu::streamSynchronize();
+            int conversion_failed = d_surface_conversion_failed.dataValue();
+            amrex::ParallelDescriptor::ReduceIntMax(conversion_failed);
+            if (conversion_failed != 0) {
+                Abort("Invalid Metgrid SST conversion at level " + std::to_string(lev) +
+                      ", time " + std::to_string(itime) + " in " +
+                      nc_init_file[lev][itime]);
             }
             sst_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
         } else {
@@ -459,10 +490,23 @@ ERF::init_from_metgrid (int lev)
                     const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
                     // Metgrid SKINTEMP is absolute temperature; SurfaceLayer's
                     // canonical field is potential temperature.
-                    dst_arr(i,j,0) = metgrid_surface_theta(
-                        src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
-                        bsp.P00, bsp.T00, bsp.TLP, l_rdOcp);
+                    Real theta;
+                    if (metgrid_surface_theta(
+                            src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
+                            bsp.P00, bsp.T00, bsp.TLP, l_rdOcp, theta)) {
+                        dst_arr(i,j,0) = theta;
+                    } else {
+                        amrex::Gpu::Atomic::Max(surface_conversion_failed, 1);
+                    }
                 });
+            }
+            amrex::Gpu::streamSynchronize();
+            int conversion_failed = d_surface_conversion_failed.dataValue();
+            amrex::ParallelDescriptor::ReduceIntMax(conversion_failed);
+            if (conversion_failed != 0) {
+                Abort("Invalid Metgrid SKINTEMP conversion at level " + std::to_string(lev) +
+                      ", time " + std::to_string(itime) + " in " +
+                      nc_init_file[lev][itime]);
             }
             tsk_lev[lev][itime]->FillBoundary(geom[lev].periodicity());
         } else {
@@ -1660,8 +1704,10 @@ init_base_state_from_metgrid (const bool use_moisture,
 
             // Calculate or use pressure at the surface.
             const Real file_psfc = flag_psfc == 1 ? orig_psfc(i,j,0) : zero;
-            psurf = metgrid_surface_pressure(metgrid_debug_psfc, flag_psfc,
-                                              file_psfc, z_sfc, P00, T00, TLP);
+            const bool valid_psurf = metgrid_surface_pressure(
+                metgrid_debug_psfc, flag_psfc, file_psfc, z_sfc,
+                P00, T00, TLP, psurf);
+            AMREX_ALWAYS_ASSERT(valid_psurf);
             AMREX_ALWAYS_ASSERT(psurf > zero);
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 

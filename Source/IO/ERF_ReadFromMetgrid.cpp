@@ -3,12 +3,80 @@
  */
 #include <ERF_NCWpsFile.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_IArrayBox.H>
 #include <ERF_MetgridUtils.H>
+
+#include <limits>
 
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+namespace {
+
+void
+canonicalize_metgrid_psfc (const std::string& fname, FArrayBox& psfc_fab)
+{
+    GpuArray<Real, 4> invalid_values{};
+    int n_invalid = 0;
+
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+        if (ncf.has_var("PSFC")) {
+            const auto psfc = ncf.var("PSFC");
+            for (const std::string& attr_name : {"_FillValue", "missing_value"}) {
+                if (!psfc.has_attr(attr_name)) { continue; }
+                std::vector<double> values;
+                psfc.get_attr(attr_name, values);
+                for (const double value : values) {
+                    if (n_invalid < static_cast<int>(invalid_values.size()) &&
+                        std::isfinite(value)) {
+                        invalid_values[n_invalid++] = static_cast<Real>(value);
+                    }
+                }
+            }
+        }
+        ncf.close();
+    }
+
+    ParallelDescriptor::Bcast(&n_invalid, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(invalid_values.data(), static_cast<int>(invalid_values.size()),
+                              ParallelDescriptor::IOProcessorNumber());
+
+    // NetCDF applies a type-dependent default fill value when no explicit
+    // attribute is present. Include both Real representations because the
+    // input file type and the ERF build precision need not be identical.
+    const Real default_double = static_cast<Real>(NC_FILL_DOUBLE);
+    const Real default_float = static_cast<Real>(NC_FILL_FLOAT);
+    auto add_invalid = [&] (const Real value) {
+        for (int i = 0; i < n_invalid; ++i) {
+            if (invalid_values[i] == value) { return; }
+        }
+        if (n_invalid < static_cast<int>(invalid_values.size())) {
+            invalid_values[n_invalid++] = value;
+        }
+    };
+    add_invalid(default_double);
+    add_invalid(default_float);
+
+    if (psfc_fab.box().isEmpty()) { return; }
+    const Box box = psfc_fab.box();
+    auto psfc = psfc_fab.array();
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        const Real value = psfc(i,j,k);
+        bool invalid = !std::isfinite(value);
+        for (int n = 0; n < n_invalid; ++n) {
+            invalid = invalid || value == invalid_values[n];
+        }
+        if (invalid) { psfc(i,j,k) = nan; }
+    });
+    Gpu::streamSynchronize();
+}
+
+} // namespace
 
 Box
 read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
@@ -159,6 +227,13 @@ read_from_metgrid (int lev, int /*itime*/,
 
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
+
+    for (int i = 0; i < success.size(); ++i) {
+        if (NC_fnames[i] == "PSFC" && success[i] == 1) {
+            canonicalize_metgrid_psfc(fname, NC_psfc_fab);
+            break;
+        }
+    }
 
     // Default values
     flag_psfc = 0;

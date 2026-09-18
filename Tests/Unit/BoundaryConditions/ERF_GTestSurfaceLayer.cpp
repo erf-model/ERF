@@ -25,6 +25,7 @@
 
 using namespace amrex;
 using erf_surface_layer_test::expected_qsat;
+using erf_surface_layer_test::expected_surface_pressure;
 using erf_surface_layer_test::qsat_tolerance;
 using erf_surface_layer_test::stress_has_expected_sign;
 using erf_surface_layer_test::stress_is_antisymmetric;
@@ -617,7 +618,10 @@ TEST(SurfaceLayer, FaceStressIsConsistentForNonconstantInputs)
 // This is the serial counterpart of the distributed qsurf ownership test.
 TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
 {
-    ScopedSurfaceLayerParams params("unit_surface_layer_qsurf_serial");
+    const std::string prefix = "unit_surface_layer_qsurf_serial";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
 
     for (const auto& face : all_faces()) {
         SCOPED_TRACE(std::string("direction=") +
@@ -628,8 +632,7 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             face, active_faces({face}), "unit_surface_layer_qsurf_serial",
             true, false);
         fields.lmask[0]->setVal(0);
-        const Real pressure = getPgivenRTh(test_rho_theta, test_qv) +
-            test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2);
+        const Real pressure = expected_surface_pressure(fields.geom, face);
         const Real surface_theta = test_surface_temperature *
             std::pow(p_0 / pressure, RdoCp);
         layer->get_t_surf(0)->setVal(surface_theta);
@@ -645,11 +648,97 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
         }
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
-        const Real expected = expected_qsat(fields.geom);
+        const Real expected = expected_qsat(fields.geom, face);
         const Long selected_count = check_qsurf_values(
             fields, *qsurf, face, expected);
         EXPECT_GT(selected_count, 0);
     }
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: a terrain-following z-high boundary must use the local upper
+// W-face height with a negative signed offset. This independent oracle makes
+// the upper-face pressure differ materially from both p_cc and the old
+// ground-relative Compute_Zrel_AtCellCenter path.
+TEST(SurfaceLayer, QsurfUsesLocalSignedZHighFacePressure)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_zhigh_geometry";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::high);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_qsurf_zhigh_geometry",
+        true, false);
+
+    BoxArray node_ba(fields.ba);
+    node_ba.convert(IntVect::TheNodeVector());
+    auto z_phys_nd = std::make_unique<MultiFab>(node_ba, fields.dm, 1, 0);
+    for (MFIter mfi(*z_phys_nd, false); mfi.isValid(); ++mfi) {
+        auto z_arr = z_phys_nd->array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = static_cast<Real>(k * k);
+        });
+    }
+    Gpu::streamSynchronize();
+
+    // For the three-cell fixture, z_cc(k=2)-z_upper_face(k=3) = 6.5-9 = -2.5.
+    constexpr Real local_delta_z = Real(-2.5);
+    const Real pressure = expected_surface_pressure(geom, face, local_delta_z);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+    layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
+
+    const Real expected = expected_qsat(geom, face, local_delta_z);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected), Long(0));
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: lateral and tangential ghost cells are not authoritative
+// physical surface state. An invalid halo must be ignored without raising the
+// collective fatal flag, while the valid physical z-high slab still receives
+// qsat values.
+TEST(SurfaceLayer, QsurfInvalidHaloIsNonfatal)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_invalid_halo";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::high);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_qsurf_invalid_halo",
+        true, false);
+    const Real pressure = expected_surface_pressure(geom, face);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+
+    bool injected = false;
+    for (MFIter mfi(fields.cons, false); mfi.isValid() && !injected; ++mfi) {
+        Box ghost = mfi.validbox();
+        ghost.grow(1);
+        const IntVect point(ghost.bigEnd(0), ghost.smallEnd(1), mfi.validbox().bigEnd(2));
+        if (mfi.fabbox().contains(point) && !mfi.validbox().contains(point)) {
+            fields.cons[mfi].setVal(Real(0.0), Box(point, point), Rho_comp, 1);
+            injected = true;
+        }
+    }
+    ASSERT_TRUE(injected);
+    layer->fill_qsurf_with_qsat(0, fields.cons, nullptr);
+
+    const Real expected = expected_qsat(geom, face);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected), Long(0));
+    pp.remove("most.roughness_type_sea");
 }
 
 // Motivation: MOST's prescribed surface value is already potential

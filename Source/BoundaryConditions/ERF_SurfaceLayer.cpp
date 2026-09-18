@@ -1783,7 +1783,25 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     {
         Box gtbx = mfi.growntilebox();
 
-        if (gtbx.smallEnd(2) != klo) { continue; }
+        // A z-split planar field has one copy for every stacked 3-D box. Only
+        // the copy whose source box touches the physical z-low face owns the
+        // text-SST conversion and may read the 3-D state or terrain.
+        if (gtbx.smallEnd(2) != klo ||
+            (m_terrain_type != TerrainType::EB &&
+             !m_planar_bndry[lev].is_surface_copy(mfi.index()))) {
+            continue;
+        }
+
+        const Box source_box = cons_in.boxArray()[mfi.index()];
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        gtbx &= cons_in.fabbox(mfi.index());
+        if (z_phys_nd) {
+            gtbx &= amrex::convert(z_phys_nd->fabbox(mfi.index()), IntVect::TheCellVector());
+        }
+        if (m_lmask_lev[lev][0]) {
+            gtbx &= m_lmask_lev[lev][0]->fabbox(mfi.index());
+        }
+        if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
@@ -1791,16 +1809,25 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         const auto cons_arr = cons_in.const_array(mfi);
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
+        const int i_lo = source_box.smallEnd(0);
+        const int i_hi = source_box.bigEnd(0);
+        const int j_lo = source_box.smallEnd(1);
+        const int j_hi = source_box.bigEnd(1);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 0;
+            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 0;
             if (!is_land) {
-                const Real rho = cons_arr(i,j,klo,Rho_comp);
-                const Real qv = moist ? cons_arr(i,j,klo,RhoQ1_comp) / rho : Real(0.0);
-                const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(i,j,klo,z_arr) : myhalf*dz;
-                const Real pressure = erf_surface_temperature::pressure_at_surface(
-                    rho, cons_arr(i,j,klo,RhoTheta_comp), qv, delta_z);
+                const Real rho = cons_arr(li,lj,klo,Rho_comp);
+                const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+                const Real delta_z = z_arr
+                    ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                      Compute_Z_AtWFace(li,lj,klo,z_arr)
+                    : myhalf*dz;
+                const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
                 Real theta = t_surf_arr(i,j,k);
                 if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
@@ -1843,11 +1870,14 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         sm_index = m_geom[lev].Domain().bigEnd(dir);
     }
 
-    // Populate q_surf with qsat over water
-    auto dz = m_geom[lev].CellSize(2);
+    // Populate q_surf with qsat over water. The selected face is the only
+    // authoritative slab; state/terrain ghosts are useful when valid, but a
+    // bad halo must not turn into a collective conversion failure.
+    const Real dz = m_geom[lev].CellSize(2);
     const int ng_z = amrex::min(cons_in.nGrowVect()[2],
                                 amrex::min(t_surf[lev]->nGrowVect()[2],
                                            q_surf[lev]->nGrowVect()[2]));
+    const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
     amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
     int* conversion_failed = d_conversion_failed.dataPtr();
@@ -1905,23 +1935,59 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
         const auto cons_arr = cons_in.const_array(mfi);
         const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
                                             Array4<const Real> {};
+        const Box source_box = cons_in.boxArray()[mfi.index()];
+        const int src_i_lo = source_box.smallEnd(0);
+        const int src_i_hi = source_box.bigEnd(0);
+        const int src_j_lo = source_box.smallEnd(1);
+        const int src_j_hi = source_box.bigEnd(1);
+        const int src_k_lo = source_box.smallEnd(2);
+        const int src_k_hi = source_box.bigEnd(2);
+        const bool z_face = (dir == 2);
+        const bool low_face = m_face.isLow();
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             if (!is_land) {
-                auto deltaZ = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,k,z_arr) :
-                                        myhalf*dz;
-                auto Rho  = cons_arr(i,j,k,Rho_comp);
-                auto RTh  = cons_arr(i,j,k,RhoTheta_comp);
-                auto Qv   = cons_arr(i,j,k,RhoQ1_comp) / Rho;
-                const auto P_cc = erf_surface_temperature::pressure_at_surface(
-                    Rho, RTh, Qv, deltaZ);
+                const bool authoritative = i >= src_i_lo && i <= src_i_hi &&
+                                           j >= src_j_lo && j <= src_j_hi &&
+                                           k >= src_k_lo && k <= src_k_hi;
+                const Real rho = cons_arr(i,j,k,Rho_comp);
+                const Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
+                const Real rho_qv = cons_arr(i,j,k,RhoQ1_comp);
+                if (!std::isfinite(rho) || rho <= Real(0.0) ||
+                    !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                    if (authoritative) {
+                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    }
+                    return;
+                }
+                const Real qv = moist ? rho_qv / rho : Real(0.0);
+                if (!std::isfinite(qv)) {
+                    if (authoritative) {
+                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    }
+                    return;
+                }
+                Real delta_z = Real(0.0);
+                if (z_face) {
+                    if (z_arr) {
+                        const Real z_cc = Compute_Z_AtCellCenter(i,j,k,z_arr);
+                        const Real z_face_local = low_face
+                            ? Compute_Z_AtWFace(i,j,k,z_arr)
+                            : Compute_Z_AtWFace(i,j,k+1,z_arr);
+                        delta_z = z_cc - z_face_local;
+                    } else {
+                        delta_z = low_face ? myhalf*dz : -myhalf*dz;
+                    }
+                }
+                const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                    rho, rho_theta, qv, delta_z);
                 Real t_surface = t_surf_arr(i,j,k);
                 if (erf_surface_temperature::theta_to_temperature(
-                        t_surf_arr(i,j,k), P_cc, rdOcp, t_surface)) {
-                    erf_qsatw(t_surface, P_cc * Real(0.01), q_surf_arr(i,j,k));
-                } else {
+                        t_surface, pressure, rdOcp, t_surface)) {
+                    erf_qsatw(t_surface, pressure * Real(0.01), q_surf_arr(i,j,k));
+                } else if (authoritative) {
                     amrex::Gpu::Atomic::Max(conversion_failed, 1);
                 }
             }
@@ -2022,14 +2088,29 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     {
         Box gtbx = mfi.growntilebox();
 
-        if (gtbx.smallEnd(2) != klo) { continue; }
+        if (gtbx.smallEnd(2) != klo ||
+            (m_terrain_type != TerrainType::EB &&
+             !m_planar_bndry[lev].is_surface_copy(mfi.index()))) {
+            continue;
+        }
 
         // NOTE: the coupled lane does not carry lateral ghost cells, so clamp
-        //       into the valid box exactly as get_lsm_tsurf does. FillBoundary
-        //       in update_fluxes picks up the interior and periodic directions.
-        Box vbx  = mfi.validbox();
-        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
-        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+        //       into the physical source box exactly as the fallback path does.
+        //       FillBoundary in update_fluxes picks up the interior and
+        //       periodic directions.
+        const Box source_box = cons_in.boxArray()[mfi.index()];
+        const int i_lo = source_box.smallEnd(0); const int i_hi = source_box.bigEnd(0);
+        const int j_lo = source_box.smallEnd(1); const int j_hi = source_box.bigEnd(1);
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        gtbx &= m_coupled_sst_lev[lev]->fabbox(mfi.index());
+        gtbx &= cons_in.fabbox(mfi.index());
+        if (z_phys_nd) {
+            gtbx &= amrex::convert(z_phys_nd->fabbox(mfi.index()), IntVect::TheCellVector());
+        }
+        if (m_lmask_lev[lev][0]) {
+            gtbx &= m_lmask_lev[lev][0]->fabbox(mfi.index());
+        }
+        if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
@@ -2053,8 +2134,11 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
-            const Real delta_z = z_arr ? Compute_Zrel_AtCellCenter(li,lj,klo,z_arr) : myhalf*dz;
-            const Real pressure = erf_surface_temperature::pressure_at_surface(
+            const Real delta_z = z_arr
+                ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                  Compute_Z_AtWFace(li,lj,klo,z_arr)
+                : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
                 rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
             Real theta = t_surf_arr(i,j,k);
             if (erf_surface_temperature::temperature_to_theta(
