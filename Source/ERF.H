@@ -703,7 +703,7 @@ public:
     void ibseb_report (int nstep, amrex::Real time);
     amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
                                               const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
-    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt, const amrex::MultiFab& cons,
+    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt_lev, const amrex::MultiFab& cons,
                         const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel);
 
     void input_sponge (int lev);
@@ -1491,7 +1491,7 @@ private:
     const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
                                                     "reflectivity","max_reflectivity", "precipitable", "mucape",
                                                     "vorticity_x","vorticity_y","vorticity_z",
-                                                    "helicity", "local_helicity",
+                                                    "helicity", "local_helicity", "vort_stretching",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pi_hse", "qv_hse",
                                                     "pressure", "pert_pres", "pert_dens",

@@ -255,7 +255,7 @@ endfunction(add_test_cloud_chamber_parity)
 # COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
 # SPLIT_OPTIONS give the split (the deck's own grid when empty).
 function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
-    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL")
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG")
     cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -284,6 +284,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
+        "-DDATALOG=${ADD_TEST_BP_DATALOG}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -293,6 +294,70 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         LABELS "regression;box-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
+
+# The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
+# accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
+# no ERF run, hence the "unit" label.
+add_test(CompareDataLogs_SelfTest ${CMAKE_COMMAND}
+    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/CompareDataLogs_SelfTest
+    -P ${PROJECT_SOURCE_DIR}/Tests/CompareDataLogsSelfTest.cmake)
+set_tests_properties(CompareDataLogs_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit;box-parity")
+
+# Restart parity: run one deck straight, then to a checkpoint and on from it, and
+# require the plotfile at the end to be identical (no gold file). Every run has a
+# time limit, so a restart whose first step never finishes fails with a message.
+function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
+    set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
+    if(NOT "${ADD_TEST_RP_FCOMPARE_RTOL}" STREQUAL "")
+        set(_fcompare_rtol "${ADD_TEST_RP_FCOMPARE_RTOL}")
+    endif()
+    if(NOT "${ADD_TEST_RP_FCOMPARE_ATOL}" STREQUAL "")
+        set(_fcompare_atol "${ADD_TEST_RP_FCOMPARE_ATOL}")
+    endif()
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_RP_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_RP_RUN_TIMEOUT}")
+    endif()
+    # Three runs, each capped at _run_timeout by RunRestartParity.cmake, plus the
+    # fcompare calls and process startup, which sit outside that budget. CTest's
+    # own limit must exceed the sum, or it kills the script before the script can
+    # report which of the three legs stalled.
+    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DNRANKS=${NP}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DFCOMPARE=${FCOMPARE_EXE}
+        -DSTEP_CHK=${STEP_CHK}
+        -DSTEP_END=${STEP_END}
+        -DRTOL=${_fcompare_rtol}
+        -DATOL=${_fcompare_atol}
+        -DRUN_TIMEOUT=${_run_timeout}
+        "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;restart-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_restart_parity)
 
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
@@ -1026,8 +1091,21 @@ add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
     FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding"
+    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding erf.data_log=surf_hist.dat erf.sum_interval=1"
     REFERENCE_OPTIONS "amr.max_grid_size=64"
+    FCOMPARE_RTOL "1.0e-9"
+    DATALOG "surf_hist.dat")
+# The TKE buoyancy source reads the theta-diffusion flux at both z-faces of each
+# cell, so the top cell of every box reads a box-boundary face: one box against
+# ten boxes (x split at 4, z in five boxes of 20 cells, so splits at k = 20, 40,
+# 60 and 80), for the k-eqn and Deardorff closures.
+add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn RANS_Convective_Buoyancy_ZSplit "plt00040"
+    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+    FCOMPARE_RTOL "1.0e-9")
+add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff RANS_Convective_Buoyancy_ZSplit "plt00040"
+    COMMON_OPTIONS "erf.rans_type=None erf.les_type=Deardorff erf.dirichlet_k=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff/input_sounding"
+    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
     FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
@@ -1046,6 +1124,61 @@ add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOU
 # RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
 # which neither drops an empty MPIEXEC nor expands the Windows exe globs.
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # Box, rank and tiling parity of the other closures: one box on one rank without tiling
+  # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
+  set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")
+  set(_cbp_split "fabarray.mfiter_tile_size=8 8 1024")
+  set(_cbp_dir   "${CMAKE_CURRENT_BINARY_DIR}/test_files")
+  set(_cbp_ke    "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta KE Kmv Khv")
+  foreach(_cbp IN ITEMS
+      # erf.vert_implicit defaults to true, so the explicit half of the pair is the one that
+      # has to be named: without erf.vert_implicit=false the two Deardorff entries are the
+      # same run twice.
+      "Deardorff_Explicit|erf.les_type=Deardorff erf.vert_implicit=false|sounding_dry"
+      "kEqn_PBLHCap|erf.rans_type=kEqn erf.theta_ref=300 erf.most.pblh_calc=MYNN25 erf.rans_lscale_from_pblh=true|sounding_dry"
+      "MYNN25|erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25|sounding_dry"
+      "MYNNEDMF|erf.pbl_type=MYNNEDMF erf.most.pblh_calc=MYNN25|sounding_dry"
+      "MYJ|erf.pbl_type=MYJ erf.most.pblh_calc=MYNN25|sounding_dry"
+      "NativeSHOC|erf.pbl_type=NATIVE_SHOC|sounding_dry"
+      # sounding_moist is supersaturated below 150 m on purpose: over the 10 steps of a parity
+      # run that is what makes Kessler condense, autoconvert and sediment, so qc and qp are
+      # compared as varying fields rather than as zero against zero.  Sedimentation in
+      # particular sets its substep count from a ParReduce over the whole MultiFab, which is
+      # exactly the kind of global quantity a decomposition can get wrong.
+      "Kessler_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv|sounding_moist"
+      # 32 levels starting at 19.503737114205 m and growing by 1.03 sum to the deck's
+      # prob_extent[2] = 1024 m, so the stretched mesh reaches the top of the domain and the
+      # geometry-derived quantities (Rayleigh damping, MOST reference height) agree with the
+      # levels.  erf.initial_dz=20 overshoots to 1050.1 m and ERF prints a mismatch note.
+      "Stretched_Smagorinsky|erf.les_type=Smagorinsky erf.Cs=0.1 erf.grid_stretching_ratio=1.03 erf.initial_dz=19.503737114205|sounding_dry"
+      "Deardorff_Implicit|erf.les_type=Deardorff|sounding_dry")
+    string(REPLACE "|" ";" _cbp_fields "${_cbp}")
+    list(GET _cbp_fields 0 _cbp_name)
+    list(GET _cbp_fields 1 _cbp_opts)
+    list(GET _cbp_fields 2 _cbp_snd)
+    set(_cbp_test "Closure_BoxParity_${_cbp_name}")
+    add_test_box_parity(${_cbp_test} Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "${_cbp_ke} ${_cbp_opts} erf.input_sounding_file=${_cbp_dir}/${_cbp_test}/${_cbp_snd}"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+  endforeach()
+  if(ERF_ENABLE_FFT)
+    # The anelastic MidPoint integrator; its MLMG projection does not converge on this deck,
+    # so the FFT solver is used and the tests need the FFT build.  The slow scalars (k, qv)
+    # are advected with the projected momentum, which used to be copied tile by tile.
+    add_test_box_parity(Closure_BoxParity_Anelastic_Kessler Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta qv qc qp Kmv erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Smagorinsky erf.Cs=0.1 erf.moisture_model=Kessler erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Kessler/sounding_moist"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+    add_test_box_parity(Closure_BoxParity_Anelastic_Deardorff Closure_BoxParity "plt00010"
+        COMMON_OPTIONS "${_cbp_ke} erf.anelastic=1 erf.anelastic_type=MidPoint erf.use_fft=true erf.les_type=Deardorff erf.input_sounding_file=${_cbp_dir}/Closure_BoxParity_Anelastic_Deardorff/sounding_dry"
+        REFERENCE_OPTIONS "${_cbp_ref}"
+        SPLIT_OPTIONS "${_cbp_split}"
+        FCOMPARE_RTOL "1.0e-9")
+  endif()
+
   # pblh (2D) and Lturb (3D) are the per-tile PBL height copied out of the
   # scheme; the deck is set up so they differ from column to column.
   add_test_tiling_parity(ABL_MRF_Tiling      ABL_MRF_Tiling "00010" "00010"
@@ -1078,9 +1211,25 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  # The MYNN25 PBL height scans whole columns: one box against boxes split in z, with the
+  # k-eqn length scale capped by the PBL height so that the 3D fields depend on it.
+  add_test_box_parity(PBLH_ZSplit_BoxParity PBLH_ZSplit "plt00040"
+      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_ZSplit_BoxParity/input_sounding"
+      REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
+      FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+# The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
+# and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
+# mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
+# sedimentation substep count of the first restarted step came from an uninitialised
+# value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
+    COMMON_OPTIONS "erf.vert_implicit=false"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1299,6 +1448,101 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+
+# Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
+# and passes both final plotfiles to the check script.
+function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
+    set(options )
+    set(oneValueArgs "RUNTIME_OPTIONS" "OPTIONS_A" "OPTIONS_B" "CHECK_OPTIONS" "NRANKS")
+    set(multiValueArgs )
+    cmake_parse_arguments(ADD_TEST_RANS_PAIR "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(GLOB _rans_py "${_rans_root}/*.py")
+    file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        if("${ADD_TEST_RANS_PAIR_NRANKS}" STREQUAL "")
+            set(NP ${ERF_TEST_NRANKS})
+        else()
+            set(NP ${ADD_TEST_RANS_PAIR_NRANKS})
+        endif()
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_dir ${CURRENT_TEST_BINARY_DIR})
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1 ${ADD_TEST_RANS_PAIR_RUNTIME_OPTIONS}")
+    set(log_a "${_dir}/${TEST_NAME}.a.log")
+    set(log_b "${_dir}/${TEST_NAME}.b.log")
+    set(check_log "${_dir}/${TEST_NAME}.check.log")
+    # Either run's log tail is echoed if it exits non-zero; the check script's
+    # exit code is the verdict and its table is echoed into the ctest output.
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} ${ADD_TEST_RANS_PAIR_OPTIONS_A} erf.plot_file_1=${_dir}/a_plt > ${log_a} 2>&1 || ( tail -n 60 ${log_a} && false ) && ${MPI_COMMANDS} ${TEST_EXE} ${_dir}/${INPUT_FILE} ${_common} ${ADD_TEST_RANS_PAIR_OPTIONS_B} erf.plot_file_1=${_dir}/b_plt > ${log_b} 2>&1 || ( tail -n 60 ${log_b} && false ) && rm -f ${_dir}/CHECK_FAILED && ( ${ERF_RANS_PYTHON} ${_dir}/${CHECK_SCRIPT} ${ADD_TEST_RANS_PAIR_CHECK_OPTIONS} ${_dir}/a_plt${_step} ${_dir}/b_plt${_step} > ${check_log} 2>&1 || touch ${_dir}/CHECK_FAILED ) && cat ${check_log} && test ! -f ${_dir}/CHECK_FAILED")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${_dir}/"
+        LABELS "rans;regression"
+        ATTACHED_FILES_ON_FAIL "${log_a};${log_b};${check_log}"
+    )
+endfunction(add_test_rans_pair)
+
+# The buoyancy production of k must not depend on how theta is diffused: the
+# convective case, run compressible with the implicit vertical solve (A) and
+# with explicit vertical diffusion (B), must give the same KE to within the
+# time-discretisation difference. The command runs through sh, so not on Windows.
+# The z box boundaries are covered by RANS_Convective_Buoyancy_ZSplit_BoxParity_*.
+if(NOT WIN32)
+    add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
+        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
+        OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
+        CHECK_OPTIONS "--tol 1.0e-4")
+    add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_Deardorff Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
+        RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false erf.rans_type=None erf.les_type=Deardorff erf.plot_vars_1=density theta KE Kmv Khv"
+        OPTIONS_A "erf.vert_implicit=true" OPTIONS_B "erf.vert_implicit=false"
+        CHECK_OPTIONS "--tol 3.0e-4")
+endif()
+
+# The check scripts' own pass/fail logic: kind = "range" accepted half a band
+# width outside the band, so every band check was looser than it reads.
+# Pure Python, no ERF run.
+#
+# Registered only when CMake actually found an interpreter: this is the one
+# test with the "unit" label that is not a built binary, and "ctest -L unit"
+# runs in the gcc, macos, ci and windows workflows. Without the guard,
+# ERF_RANS_PYTHON falls back to the bare name "python3" and a configuration
+# that has no such executable on PATH fails the whole unit stage on a test
+# that exercises no ERF code.
+if(Python3_Interpreter_FOUND)
+    add_test(RANS_Checks_SelfTest ${ERF_RANS_PYTHON}
+        ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/test_rans_checks.py)
+    set_tests_properties(RANS_Checks_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS"
+        LABELS "rans;unit")
+endif()
 if(ERF_ENABLE_FFT)
     # terrain-fitted mesh (FFT-preconditioned projection): wall distance against
     # the exact ridge distance, and the same deck flattened (prob.hmax = 1e-6)

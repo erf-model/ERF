@@ -190,6 +190,11 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | column)          |
 |                             | [m^2/s^2]        |
 +-----------------------------+------------------+
+| **vort_stretching**         | stretching of    |
+|                             | vertical         |
+|                             | vorticity        |
+|                             | [1/s^2]          |
++-----------------------------+------------------+
 | **magvel**                  | magnitude of     |
 |                             | velocity [m/s]   |
 |                             |                  |
@@ -631,9 +636,17 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **hfx3**                    | Heat flux in     |
 |                             | z-direction.     |
-|                             | Only available   |
-|                             | with Z surface   |
-|                             | layers enabled   |
+|                             | Flux of the theta|
+|                             | diffusion at the |
+|                             | two z-faces of   |
+|                             | the cell,        |
+|                             | averaged (the    |
+|                             | full flux, also  |
+|                             | with the implicit|
+|                             | vertical solve;  |
+|                             | the surface-layer|
+|                             | flux at the      |
+|                             | bottom face).    |
 |                             | [W/m^2]          |
 +-----------------------------+------------------+
 | **q1fx1**                   | Moisture flux 1  |
@@ -668,10 +681,20 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **q1fx3**                   | Moisture flux 1  |
 |                             | in z-direction.  |
-|                             | Only available   |
-|                             | with Z surface   |
-|                             | layers and       |
-|                             | moisture enabled |
+|                             | Written when     |
+|                             | requested with   |
+|                             | moisture enabled.|
+|                             | Flux of the qv   |
+|                             | diffusion at the |
+|                             | two z-faces of   |
+|                             | the cell,        |
+|                             | averaged (the    |
+|                             | full flux, also  |
+|                             | with the implicit|
+|                             | vertical solve;  |
+|                             | the surface-layer|
+|                             | flux at the      |
+|                             | bottom face).    |
 |                             | [kg/m^2/s]       |
 +-----------------------------+------------------+
 | **q2fx3**                   | Moisture flux 2  |
@@ -697,6 +720,38 @@ cells rather than cell-centred fields.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
+
+Rotation diagnostics
+~~~~~~~~~~~~~~~~~~~~
+
+``vorticity_x``, ``vorticity_y``, and ``vorticity_z`` are the three components
+of :math:`\nabla \times \mathbf{u}`. ``local_helicity`` is the cell-by-cell
+product :math:`\zeta w`, and ``helicity`` is its integral over the 2 km to 5 km
+layer of each column, which is why ``helicity`` needs a grid that is not
+decomposed in the vertical.
+
+``vort_stretching`` is the stretching term in the vertical vorticity equation,
+
+.. math::
+
+   S = \zeta \, \frac{\partial w}{\partial z}, \qquad
+   \zeta = \frac{\partial v}{\partial x} - \frac{\partial u}{\partial y},
+
+with units of :math:`\mathrm{s}^{-2}`. It is positive where vertical stretching
+is amplifying vertical vorticity already present in the flow and negative where
+vertical compression is spinning it down, so it is a local, instantaneous
+measure of vortex intensification rather than an accumulated quantity. It is one
+term of :math:`D\zeta/Dt` and not the full tendency; in particular the tilting
+term :math:`\omega_x \, \partial w / \partial x + \omega_y \, \partial w /
+\partial y`, which converts horizontal vorticity into vertical vorticity, is not
+included and is not output separately.
+
+All of these fields are computed cell-by-cell from the cell-centered velocity
+using centered differences. The vertical derivative in ``vort_stretching`` and
+in ``vorticity_x`` and ``vorticity_y`` is taken with respect to the physical
+heights of the cell centers, so it is correct on a vertically stretched mesh;
+on a terrain-fitted mesh it omits the horizontal metric terms of the mapping, as
+the vorticity components themselves do.
 
 Moisture variable selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

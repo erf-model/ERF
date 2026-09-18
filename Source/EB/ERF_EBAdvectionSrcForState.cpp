@@ -299,21 +299,6 @@ EBAdvectionSrcForScalars (const Box& bx,
     const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
     const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
-    // Only advection operations in bndry normal direction with OPEN BC
-    Box  bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi;
-    if (xlo_open) {
-        if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));}
-    }
-    if (xhi_open) {
-        if ( bx.bigEnd(0) == domain.bigEnd(0))     {  bx_xhi = makeSlab( bx,0,domain.bigEnd(0)  );}
-    }
-    if (ylo_open) {
-        if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));}
-    }
-    if (yhi_open) {
-        if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );}
-    }
-
     // Inline with 2nd order for efficiency
     // NOTE: For EB, avg_xmom, avg_ymom, avg_zmom were are weighted by area fractions in AdvectionSrcForRho
     //       The flux is weighted by area fraction after its interpolation.
@@ -509,25 +494,18 @@ EBAdvectionSrcForScalars (const Box& bx,
     }
 
     // Special advection operator for open BC (bndry tangent operations)
-    if (xlo_open) {
-        bool do_lo = true;
-        AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, icomp, ncomp, advectionSrc, cell_prim,
-                                           avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, do_lo);
-    }
-    if (xhi_open) {
-        AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, icomp, ncomp, advectionSrc, cell_prim,
-                                           avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv);
-    }
-    if (ylo_open) {
-        bool do_lo = true;
-        AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, icomp, ncomp, advectionSrc, cell_prim,
-                                           avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, do_lo);
-    }
-    if (yhi_open) {
-        AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, icomp, ncomp, advectionSrc, cell_prim,
+    //
+    // The state is tangent to every lateral boundary, so where two perpendicular open
+    //    boundaries meet there is no boundary-normal operator to own the corner cell.
+    //    These kernels assign rather than accumulate, so the corner must appear in
+    //    exactly one patch: OpenBCTangentPatches gives the four edges trimmed clear of
+    //    the corners, plus the corners tagged with both open sides so that the kernel
+    //    differences across neither open boundary there.
+    for (const OpenBCPatch& patch : OpenBCTangentPatches(bx, domain,
+                                                         xlo_open, xhi_open, ylo_open, yhi_open))
+    {
+        AdvectionSrcForOpenBC_Tangent_Cons(patch.box, patch.x_side, patch.y_side,
+                                           icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
                                            detJ, cellSizeInv);
     }
