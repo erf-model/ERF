@@ -159,7 +159,8 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
  * Compute second-order advection tendencies for z-momentum tangent to an open boundary.
  *
  * @param[in] bxz box over which z-momentum is updated
- * @param[in] dir coordinate direction normal to the open boundary
+ * @param[in] x_side which x boundary the cells lie on, if any
+ * @param[in] y_side which y boundary the cells lie on, if any
  * @param[out] rho_w_rhs tendency for the z-momentum equation
  * @param[in] w z-component of velocity
  * @param[in] rho_u x-component of momentum
@@ -171,11 +172,11 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
  * @param[in] detJ Jacobian of the metric transformation
  * @param[in] cellSizeInv inverse grid spacing
  * @param[in] domhi_z maximum cell-centered k-index in the domain
- * @param[in] do_lo flag for a low-side open boundary
  */
 void
 AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
-                                    const int& dir,
+                                    const OpenSide x_side,
+                                    const OpenSide y_side,
                                     const Array4<      Real>& rho_w_rhs,
                                     const Array4<const Real>& w,
                                     const Array4<const Real>& rho_u,
@@ -186,13 +187,15 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
                                     const Array4<const Real>& az,
                                     const Array4<const Real>& detJ,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const int domhi_z,
-                                    const bool do_lo)
+                                    const int domhi_z)
 {
-    AMREX_ALWAYS_ASSERT(dir!=2);
+    // At a corner both sides are set, and neither x nor y may be differenced across
+    const bool xopen   = (x_side != OpenSide::none);
+    const bool yopen   = (y_side != OpenSide::none);
+    const bool x_do_lo = (x_side == OpenSide::lo);
+    const bool y_do_lo = (y_side == OpenSide::lo);
 
-    bool xopen = (dir==0);
-    bool yopen = (dir==1);
+    AMREX_ALWAYS_ASSERT(xopen || yopen);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -218,9 +221,9 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
                                                fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
                                                myhalf  * (az(i,j,k) + az(i,j,k+1));
 
-            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, w, rho_u, dxInv, do_lo) :
+            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 0, w, rho_u, dxInv, x_do_lo) :
                                    (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, w, rho_v, dyInv, do_lo) :
+            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 1, w, rho_v, dyInv, y_do_lo) :
                                    (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
@@ -236,7 +239,8 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
  * Compute second-order advection tendencies for conserved variables tangent to an open boundary.
  *
  * @param[in] bx box over which conserved variables are updated
- * @param[in] dir coordinate direction normal to the open boundary
+ * @param[in] x_side which x boundary the cells lie on, if any
+ * @param[in] y_side which y boundary the cells lie on, if any
  * @param[in] icomp first conserved component to update
  * @param[in] ncomp number of conserved components to update
  * @param[out] cell_rhs tendency for conserved variables
@@ -246,11 +250,11 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
  * @param[in] avg_zmom z-component of time-averaged momentum
  * @param[in] detJ Jacobian of the metric transformation
  * @param[in] cellSizeInv inverse grid spacing
- * @param[in] do_lo flag for a low-side open boundary
  */
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
-                                    const int& dir,
+                                    const OpenSide x_side,
+                                    const OpenSide y_side,
                                     const int& icomp,
                                     const int& ncomp,
                                     const Array4<      Real>& cell_rhs,
@@ -259,13 +263,15 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const Array4<const Real>& avg_ymom,
                                     const Array4<const Real>& avg_zmom,
                                     const Array4<const Real>& detJ,
-                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool do_lo)
+                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-    AMREX_ALWAYS_ASSERT(dir!=2 && icomp>0);
+    // At a corner both sides are set, and neither x nor y may be differenced across
+    const bool xopen   = (x_side != OpenSide::none);
+    const bool yopen   = (y_side != OpenSide::none);
+    const bool x_do_lo = (x_side == OpenSide::lo);
+    const bool y_do_lo = (y_side == OpenSide::lo);
 
-    bool xopen = (dir==0);
-    bool yopen = (dir==1);
+    AMREX_ALWAYS_ASSERT((xopen || yopen) && icomp>0);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -290,12 +296,12 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
             Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
 
             Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
-                                                                 prim_index, dir, cell_prim,
-                                                                 avg_xmom, dxInv, do_lo) :
+                                                                 prim_index, 0, cell_prim,
+                                                                 avg_xmom, dxInv, x_do_lo) :
                                    (xflux_hi - xflux_lo) * dxInv;
             Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
-                                                                 prim_index, dir, cell_prim,
-                                                                 avg_ymom, dyInv, do_lo) :
+                                                                 prim_index, 1, cell_prim,
+                                                                 avg_ymom, dyInv, y_do_lo) :
                                    (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
             Real advectionSrc = x_src + y_src + z_src;
