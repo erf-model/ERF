@@ -6,9 +6,27 @@
 Every case states what the check must decide; the script reports each
 disagreement and exits non-zero. The range cases are the ones that motivated
 this test: the comparison used to accept half a band width outside the band.
+
+It also runs the checkers' command lines with malformed arguments: each must
+print its usage and exit with status 2 before reading any plotfile, rather than
+fail with a traceback (check_implicit_explicit_ke.py raised StopIteration when
+--tol was the last argument).
 """
+import os
+import subprocess
 import sys
 import rans_checks as rc
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+CLI_CASES = [
+    # (checker relative to this directory, arguments)
+    ("Convective_ABL_Flat/check_implicit_explicit_ke.py", []),
+    ("Convective_ABL_Flat/check_implicit_explicit_ke.py", ["--tol"]),
+    ("Convective_ABL_Flat/check_implicit_explicit_ke.py", ["a_plt", "b_plt", "--tol"]),
+    ("Convective_ABL_Flat/check_implicit_explicit_ke.py", ["--tol", "abc", "a_plt", "b_plt"]),
+    ("Convective_ABL_Flat/check_implicit_explicit_ke.py", ["--tol", "1e-4", "a_plt"]),
+]
 
 CASES = [
     # (name, value, target, tol, kind, expected pass)
@@ -42,7 +60,19 @@ def main():
             bad += 1
     print("rans_checks self-test: %d of %d cases as expected"
           % (len(CASES) - bad, len(CASES)))
-    sys.exit(1 if bad else 0)
+
+    cli_bad = 0
+    for script, args in CLI_CASES:
+        p = subprocess.run([sys.executable, "-B", os.path.join(HERE, script)] + args,
+                           capture_output=True, text=True)
+        if p.returncode != 2 or "Traceback" in p.stderr:
+            print("  %s %s: exit %d, expected 2 with the usage%s"
+                  % (script, " ".join(args), p.returncode,
+                     " (traceback)" if "Traceback" in p.stderr else ""))
+            cli_bad += 1
+    print("checker command lines: %d of %d malformed calls rejected with the usage"
+          % (len(CLI_CASES) - cli_bad, len(CLI_CASES)))
+    sys.exit(1 if (bad or cli_bad) else 0)
 
 
 if __name__ == "__main__":
