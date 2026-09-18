@@ -74,6 +74,22 @@ the plotfile ``diss`` holds :math:`\rho \varepsilon` from the start of the
 last step. A floor ``erf.tke_floor`` (default: machine epsilon on
 :math:`\rho k`) bounds :math:`k` from below.
 
+The heat flux in :math:`P_b` at the cell centre is the average of the
+fluxes of the :math:`\theta` diffusion at the two vertical faces of the
+cell, in every cell; at the bottom of the domain the face flux is the
+surface-layer flux when a surface layer is used. These are the full face
+fluxes, including the stretched-mesh spacing, whether the vertical
+diffusion of :math:`\theta` is explicit or implicit
+(``erf.vert_implicit``), so the source does not depend on that choice.
+On a terrain-fitted mesh the stored face flux is the component along the
+:math:`\zeta` coordinate only: the slope corrections and the Jacobian
+are applied later, when the fluxes enter the right-hand side, so over
+sloping terrain both :math:`P_b` and the ``hfx3`` output omit those
+terms. The Deardorff closure shares this source term. The k-eqn closure
+cannot be combined with a PBL scheme that also transports the turbulent
+kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, the SHOC schemes);
+the Deardorff closure cannot be combined with any PBL scheme.
+
 Length scale
 ------------
 

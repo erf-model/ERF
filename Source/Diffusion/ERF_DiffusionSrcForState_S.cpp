@@ -225,11 +225,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    hfx_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    qfx1_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -360,11 +360,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    hfx_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    qfx1_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -492,11 +492,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    hfx_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    qfx1_z(i,j,k) = zflux(i,j,k);
                 }
             } else if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);
@@ -621,11 +621,11 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
 
             if (qty_index == RhoTheta_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    hfx_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ1_comp) {
                 if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k) * explicit_fac;
+                    qfx1_z(i,j,k) = zflux(i,j,k);
                 }
             } else  if (qty_index == RhoQ2_comp) {
                 qfx2_z(i,j,k) = zflux(i,j,k);

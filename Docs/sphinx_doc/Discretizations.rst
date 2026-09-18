@@ -635,7 +635,7 @@ Prognostic Equation for Subgrid Kinetic Energy
                                                       - \left( \rho v \right)_{i,j  ,k}^{n}e_{i,j-\frac{1}{2},k}^{n} \right\rbrack \\
               & +       \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k+1}^{n}e_{i,j,k+\frac{1}{2}}^{n}
                                                      - \left( \rho w \right)_{i,j,k  }^{n}e_{i,j,k-\frac{1}{2}}^{n} \right\rbrack  \\
-              & + \left. \rho_{i,j,k} K_H \frac{g}{\theta_{i,j,k}} (\frac{\partial\theta}{\partial z})_{i,j,k}
+              & + \left. \frac{g}{\theta_{i,j,k}} \frac{1}{2} \left\lbrack (\rho K_H \frac{\partial\theta}{\partial z})_{i,j,k-\frac{1}{2}} + (\rho K_H \frac{\partial\theta}{\partial z})_{i,j,k+\frac{1}{2}} \right\rbrack
                         - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}}
                         + (\nabla \cdot (K \nabla e))_{i,j,k}
                         - \rho_{i,j,k} C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}  \right\}
