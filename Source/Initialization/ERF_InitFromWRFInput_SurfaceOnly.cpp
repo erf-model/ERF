@@ -656,7 +656,7 @@ ERF::init_from_wrfinput_surface_only (int lev, MultiFab& mf_PSFC_lev)
         FineTerrain fine_terrain = FineTerrain::None;
         MultiFab z_phys_interp;
 
-        if (lev > 0 && terrain_smoothing != 0) {
+        if (lev > 0 && terrain_smoothing != 0 && !solverChoice.avg_grid_faces_to_nodes) {
             fine_terrain = which_fine_terrain();
             if (fine_terrain != FineTerrain::Transform) {
                 Abort("terrain_smoothing = " + std::to_string(terrain_smoothing) +
