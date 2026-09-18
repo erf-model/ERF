@@ -53,7 +53,6 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::MFIter& mfi,
-                         const amrex::Box& bx,
                          const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                          const amrex::Vector<amrex::Box>& bxx_grown,
                          const amrex::Vector<amrex::Box>& bxy_grown,
@@ -188,6 +187,25 @@ void AdvectionSrcForMom_EB (const amrex::MFIter& mfi,
                             const bool already_on_centroids,
                             const int lo_z_face, const int hi_z_face,
                             const amrex::Box& domain);
+
+/**
+ * Shrink a z-momentum box away from the bottom and top of the domain, where no
+ * z-momentum source term is computed.
+ *
+ * The shrink must be applied only at an end that actually coincides with the domain,
+ * which is why this takes `domain` rather than shrinking unconditionally: on a grid
+ * decomposed in z, an unconditional shrink also removes the w-face at every internal
+ * split, and any operator run on the result silently skips those faces.
+ *
+ * `b` is z-nodal; `domain` is cell-centered.
+ */
+inline amrex::Box
+ShrinkZmomBoxAtDomainEnds (amrex::Box b, const amrex::Box& domain)
+{
+    if (b.smallEnd(2) == domain.smallEnd(2))   { b.growLo(2,-1); }
+    if (b.bigEnd(2)   == domain.bigEnd(2) + 1) { b.growHi(2,-1); }
+    return b;
+}
 
 /**
  * Which side of the domain is open in one coordinate direction, as seen by the

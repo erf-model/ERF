@@ -14,7 +14,6 @@ using namespace amrex;
  * functions when either (or both) spatial order(s) is greater than two
  *
  * @param[in] mfi MultiFab Iterator
- * @param[in] bx cell-centered box used to rebuild open-boundary momentum boxes
  * @param[in] bxx box over which the x-momentum is updated
  * @param[in] bxy box over which the y-momentum is updated
  * @param[in] bxz box over which the z-momentum is updated
@@ -63,7 +62,6 @@ using namespace amrex;
  */
 void
 AdvectionSrcForMom (const MFIter& mfi,
-                    const Box& bx,
                     const Box& bxx, const Box& bxy, const Box& bxz,
                     const Vector<Box>& bxx_grown,
                     const Vector<Box>& bxy_grown,
@@ -194,11 +192,16 @@ AdvectionSrcForMom (const MFIter& mfi,
     const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
     const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
-    // We recreate tbx, tby, tbz here rather than using bxx, bxy, bxz because bxz has
-    //    already been shrunk by one at the bottom and top of the domain.
-    Box tbx(surroundingNodes(bx,0));
-    Box tby(surroundingNodes(bx,1));
-    Box tbz(surroundingNodes(bx,2)); tbz.growLo(2,-1); tbz.growHi(2,-1);
+    // The open-boundary kernels below overwrite the tendencies the operators above just
+    //    wrote, so they have to run on exactly the boxes those operators covered.  Rebuilding
+    //    the boxes here instead is what went wrong: the z shrink was applied unconditionally,
+    //    while the caller applies it only where the box actually reaches the bottom or top of
+    //    the domain.  On a grid decomposed in z that dropped one w-face at every internal
+    //    split from the open-boundary treatment, leaving in place the interior stencil --
+    //    which differences across the open lateral boundary, into an unfilled ghost cell.
+    const Box& tbx = bxx;
+    const Box& tby = bxy;
+    const Box& tbz = bxz;
 
     const int domhi_z = domain.bigEnd(2);
 

@@ -430,12 +430,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
 
         // We don't compute a source term for z-momentum on the bottom or top domain boundary
-        if (tbz.smallEnd(2) == domain.smallEnd(2)) {
-            tbz.growLo(2,-1);
-        }
-        if (tbz.bigEnd(2) == domain.bigEnd(2)+1) {
-            tbz.growHi(2,-1);
-        }
+        tbz = ShrinkZmomBoxAtDomainEnds(tbz, domain);
 
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
@@ -771,7 +766,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         int lo_z_face = domain.smallEnd(2);
         int hi_z_face = domain.bigEnd(2)+1;
 
-        AdvectionSrcForMom(mfi, bx, tbx, tby, tbz, tbx_grown, tby_grown, tbz_grown,
+        AdvectionSrcForMom(mfi, tbx, tby, tbz, tbx_grown, tby_grown, tbz_grown,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
