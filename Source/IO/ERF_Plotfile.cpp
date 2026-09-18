@@ -350,6 +350,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         containerHasElement(plot_var_names, "magvel"        ) ||
         containerHasElement(plot_var_names, "helicity"      ) ||
         containerHasElement(plot_var_names, "local_helicity") ||
+        containerHasElement(plot_var_names, "vort_stretching") ||
         containerHasElement(plot_var_names, "vorticity_x"   ) ||
         containerHasElement(plot_var_names, "vorticity_y"   ) ||
         containerHasElement(plot_var_names, "vorticity_z"   ) ) {
@@ -722,6 +723,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         calculate_derived("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
         calculate_derived("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
         calculate_derived("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
+        calculate_derived("vort_stretching", mf_cc_vel[lev], derived::erf_dervortstretching);
         calculate_derived("magvel",         mf_cc_vel[lev], derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
