@@ -890,6 +890,14 @@ Notes
      range covered by both of the cell columns adjacent to it, so the two grids sharing that
      seam obtain the same answer.
 
+-  | The acoustic substep (**erf.substepping_type = Implicit**, the default for compressible runs)
+     also solves for the vertical velocity one column at a time, holding it fixed at the bottom and
+     top face of each grid.  If the grids at a level are decomposed in the vertical, the code aborts
+     at start-up (or at the regrid that creates such grids) instead of running with those faces
+     acting as rigid lids inside the domain.  To run such a case, set **erf.substepping_type = None**
+     (the time step is then limited by the acoustic CFL condition) or choose grids that are not
+     split in z.
+
 -  | The time step controls work somewhat differently depending on whether one is using
      acoustic substepping in time; this is determined by the value of **substepping_type**.
 

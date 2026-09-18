@@ -644,6 +644,23 @@ ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMappi
                   "erf.implicit_thermal_diffusion and erf.implicit_momentum_diffusion), or choose "
                   "grids that are not split in z.");
         }
+
+        // The acoustic substep solves for w one column at a time as well, and closes each
+        // box's column with a Dirichlet row at the box's own lo.z and hi.z+1
+        // (ERF_MakeFastCoeffs.cpp, ERF_Substep_*.cpp), so a column split across boxes gets
+        // spurious rigid lids at the internal faces.
+        bool substep_implicit = (lev < solverChoice.substepping_type.size() &&
+                                 solverChoice.substepping_type[lev] == SubsteppingType::Implicit);
+        if (substep_implicit) {
+            Abort("The grids at level " + std::to_string(lev) + " are decomposed in the vertical, "
+                  "which cannot be combined with acoustic substepping (erf.substepping_type = Implicit, "
+                  "the default for compressible runs): the implicit vertical acoustic solve inverts one "
+                  "tridiagonal system per box column, with w held fixed at every box's bottom and top "
+                  "face, so a column split across boxes gets spurious internal boundaries and the "
+                  "answer depends on the grid decomposition.  Either set erf.substepping_type = None "
+                  "(the time step is then limited by the acoustic CFL), or choose grids that are not "
+                  "split in z.");
+        }
     }
 
     column_kextent[lev] = std::make_unique<iMultiFab>(ba2d[lev], dm, 2, IntVect(1,1,0));
