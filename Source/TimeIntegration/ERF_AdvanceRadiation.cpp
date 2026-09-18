@@ -87,12 +87,16 @@ void ERF::advance_radiation (int lev,
 
             // Interpolate radiation fluxes (needed for plotfiles and diagnostics)
             if (rad_fluxes[lev] && rad_fluxes[lev-1]) {
+                // Create temporary coarse MultiFab with ghost cells for safe interpolation
+                MultiFab tmp_coarse(rad_fluxes[lev-1]->boxArray(), rad_fluxes[lev-1]->DistributionMap(),
+                                    rad_fluxes[lev-1]->nComp(), IntVect(1,1,1));
+                MultiFab::Copy(tmp_coarse, *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev-1]->nComp(), 0);
                 if (!rad[lev-1]->is_nested_patch()) {
-                    rad_fluxes[lev-1]->FillBoundary(geom[lev-1].periodicity());
+                    tmp_coarse.FillBoundary(geom[lev-1].periodicity());
                 }
                 InterpFromCoarseLevel(*rad_fluxes[lev], rad_fluxes[lev]->nGrowVect(),
                                       IntVect(0,0,0),
-                                      *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev]->nComp(),
+                                      tmp_coarse, 0, 0, rad_fluxes[lev]->nComp(),
                                       geom[lev-1], geom[lev],
                                       refRatio(lev-1), &cell_cons_interp,
                                       domain_bcs_type, BCVars::cons_bc);
@@ -197,12 +201,16 @@ void ERF::advance_radiation (int lev,
 
             // Also interpolate radiation fluxes (needed for plotfiles and diagnostics)
             if (rad_fluxes[lev] && rad_fluxes[lev-1]) {
+                // Create temporary coarse MultiFab with ghost cells for safe interpolation
+                MultiFab tmp_coarse(rad_fluxes[lev-1]->boxArray(), rad_fluxes[lev-1]->DistributionMap(),
+                                    rad_fluxes[lev-1]->nComp(), IntVect(1,1,1));
+                MultiFab::Copy(tmp_coarse, *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev-1]->nComp(), 0);
                 if (!rad[lev-1]->is_nested_patch()) {
-                    rad_fluxes[lev-1]->FillBoundary(geom[lev-1].periodicity());
+                    tmp_coarse.FillBoundary(geom[lev-1].periodicity());
                 }
                 InterpFromCoarseLevel(*rad_fluxes[lev], rad_fluxes[lev]->nGrowVect(),
                                       IntVect(0,0,0),
-                                      *rad_fluxes[lev-1], 0, 0, rad_fluxes[lev]->nComp(),
+                                      tmp_coarse, 0, 0, rad_fluxes[lev]->nComp(),
                                       geom[lev-1], geom[lev],
                                       refRatio(lev-1), &cell_cons_interp,
                                       domain_bcs_type, BCVars::cons_bc);
