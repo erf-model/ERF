@@ -194,8 +194,8 @@ AdvectionSrcForMom (const MFIter& mfi,
     const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
     const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
-    // We recreate tbx, tbz, tbz here rather than using bxx, bxy, bxz because those
-    //    have already been shrunk by one in the case of open BCs.
+    // We recreate tbx, tby, tbz here rather than using bxx, bxy, bxz because bxz has
+    //    already been shrunk by one at the bottom and top of the domain.
     Box tbx(surroundingNodes(bx,0));
     Box tby(surroundingNodes(bx,1));
     Box tbz(surroundingNodes(bx,2)); tbz.growLo(2,-1); tbz.growHi(2,-1);
@@ -203,12 +203,23 @@ AdvectionSrcForMom (const MFIter& mfi,
     const int domhi_z = domain.bigEnd(2);
 
     // Special advection operator for open BC (bndry normal/tangent operations)
+    //
+    // Where two perpendicular open boundaries meet, every face and cell on the
+    //    boundary must be updated by exactly one of these kernels: they assign rather
+    //    than accumulate, so an overlap would silently keep whichever ran last and
+    //    throw the other away.  A boundary-normal momentum owns the corner in its own
+    //    direction -- that face lies on the open boundary, so the radiation condition
+    //    is what belongs there -- and the tangential boxes are trimmed to match.
+    //    w is tangent to both lateral boundaries and so has no normal owner at a
+    //    corner; it is covered by OpenBCTangentPatches below, which tags the corner
+    //    with both sides so that the kernel differences across neither open boundary.
     if (xlo_open)
     {
-        Box tbx_xlo, tby_xlo, tbz_xlo;
+        Box tbx_xlo, tby_xlo;
         if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0));}
         if (tby.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(tby,0,domain.smallEnd(0));}
-        if (tbz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(tbz,0,domain.smallEnd(0));}
+
+        tby_xlo = TrimOpenBCCorner(tby_xlo, 1, domain, ylo_open, yhi_open);
 
         bool do_lo = true;
 
@@ -217,33 +228,27 @@ AdvectionSrcForMom (const MFIter& mfi,
                                            rho_u, rho_v, omega,
                                            ay, az, detJ, cellSizeInv,
                                            do_lo);
-        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xlo, 0, rho_w_rhs, w,
-                                           rho_u, rho_v, omega,
-                                           ax, ay, az, detJ, cellSizeInv,
-                                           domhi_z, do_lo);
     }
     if (xhi_open)
     {
-        Box tbx_xhi, tby_xhi, tbz_xhi;
+        Box tbx_xhi, tby_xhi;
         if (tbx.bigEnd(0) == domain.bigEnd(0)+1)   { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0)+1);}
         if (tby.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(tby,0,domain.bigEnd(0)  );}
-        if (tbz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(tbz,0,domain.bigEnd(0)  );}
+
+        tby_xhi = TrimOpenBCCorner(tby_xhi, 1, domain, ylo_open, yhi_open);
 
         AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, cellSizeInv);
         AdvectionSrcForOpenBC_Tangent_Ymom(tby_xhi, 0, rho_v_rhs, v,
                                            rho_u, rho_v, omega,
                                            ay, az, detJ, cellSizeInv);
-        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xhi, 0, rho_w_rhs, w,
-                                           rho_u, rho_v, omega,
-                                           ax, ay, az, detJ, cellSizeInv,
-                                           domhi_z);
     }
     if (ylo_open)
     {
-        Box tbx_ylo, tby_ylo, tbz_ylo;
+        Box tbx_ylo, tby_ylo;
         if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1));}
         if (tby.smallEnd(1) == domain.smallEnd(1)) { tby_ylo = makeSlab(tby,1,domain.smallEnd(1));}
-        if (tbz.smallEnd(1) == domain.smallEnd(1)) { tbz_ylo = makeSlab(tbz,1,domain.smallEnd(1));}
+
+        tbx_ylo = TrimOpenBCCorner(tbx_ylo, 0, domain, xlo_open, xhi_open);
 
         bool do_lo = true;
         AdvectionSrcForOpenBC_Tangent_Xmom(tbx_ylo, 1, rho_u_rhs, u,
@@ -251,23 +256,25 @@ AdvectionSrcForMom (const MFIter& mfi,
                                            ax, az, detJ, cellSizeInv,
                                            do_lo);
         AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, cellSizeInv, do_lo);
-        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_ylo, 1, rho_w_rhs, w,
-                                           rho_u, rho_v, omega,
-                                           ax, ay, az, detJ, cellSizeInv,
-                                           domhi_z, do_lo);
     }
     if (yhi_open)
     {
-        Box tbx_yhi, tby_yhi, tbz_yhi;
+        Box tbx_yhi, tby_yhi;
         if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1)  );}
         if (tby.bigEnd(1) == domain.bigEnd(1)+1)   { tby_yhi = makeSlab(tby,1,domain.bigEnd(1)+1);}
-        if (tbz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(tbz,1,domain.bigEnd(1)  );}
+
+        tbx_yhi = TrimOpenBCCorner(tbx_yhi, 0, domain, xlo_open, xhi_open);
 
         AdvectionSrcForOpenBC_Tangent_Xmom(tbx_yhi, 1, rho_u_rhs, u,
                                            rho_u, rho_v, omega,
                                            ax, az, detJ, cellSizeInv);
         AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, cellSizeInv);
-        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_yhi, 1, rho_w_rhs, w,
+    }
+
+    for (const OpenBCPatch& patch : OpenBCTangentPatches(tbz, domain,
+                                                         xlo_open, xhi_open, ylo_open, yhi_open))
+    {
+        AdvectionSrcForOpenBC_Tangent_Zmom(patch.box, patch.x_side, patch.y_side, rho_w_rhs, w,
                                            rho_u, rho_v, omega,
                                            ax, ay, az, detJ, cellSizeInv,
                                            domhi_z);
