@@ -412,11 +412,11 @@ struct SurfaceLayerFields
             layer->set_coupled_sst_active(true);
             coupled_sst = std::make_unique<MultiFab>(
                 collapse_z(ba), dm, 1,
-                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+                IntVect(AMREX_D_DECL(0, 0, 0)));
             coupled_sst->setVal(Real(290.0));
             coupled_valid = std::make_unique<iMultiFab>(
                 collapse_z(ba), dm, 1,
-                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+                IntVect(AMREX_D_DECL(0, 0, 0)));
             coupled_valid->setVal(0);
         }
 
@@ -741,6 +741,47 @@ TEST(SurfaceLayer, QsurfInvalidHaloIsNonfatal)
     pp.remove("most.roughness_type_sea");
 }
 
+// Motivation: lateral-face qsat uses a grown tangential halo, so an invalid
+// state value just outside the physical face must be ignored rather than
+// treated as an authoritative conversion failure. This direct x-low case
+// complements the z-high halo regression and verifies that the physical slab
+// still receives the independent p_cc pressure oracle.
+TEST(SurfaceLayer, QsurfLateralInvalidHaloIsNonfatal)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_lateral_invalid_halo";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::x, Orientation::low);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, true, false);
+    const Real pressure = expected_surface_pressure(geom, face);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+
+    bool injected = false;
+    for (MFIter mfi(fields.cons, false); mfi.isValid() && !injected; ++mfi) {
+        const Box& source = mfi.validbox();
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const IntVect point(source.smallEnd(0), source.smallEnd(1) - 1,
+                            source.smallEnd(2));
+        if (mfi.fabbox().contains(point) && !source.contains(point)) {
+            fields.cons[mfi].setVal(Real(0.0), Box(point, point), Rho_comp, 1);
+            injected = true;
+        }
+    }
+    ASSERT_TRUE(injected);
+
+    layer->fill_qsurf_with_qsat(0, fields.cons, nullptr);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected_qsat(geom, face)), Long(0));
+    pp.remove("most.roughness_type_sea");
+}
+
 // Motivation: MOST's prescribed surface value is already potential
 // temperature. A pressure-dependent conversion at this producer would change
 // the long-standing MOST flux contract.
@@ -877,6 +918,66 @@ TEST(SurfaceLayer, CoupledSstConvertsOnlyCoveredWaterCells)
                 Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
     const IntVect uncovered(0, 0, 0);
     EXPECT_EQ(mf_value(*layer->get_t_surf(0), uncovered), test_surface_temperature);
+}
+
+// Motivation: production coupled-SST donors have no lateral ghost cells, but
+// the SurfaceLayer destination carries a one-cell grown halo. A covered
+// nonperiodic edge must therefore sample the clamped physical donor rather
+// than be dropped when the target is grown. Repeating the update without
+// coverage also verifies that the edge retains the existing fallback.
+TEST(SurfaceLayer, CoupledSstZeroGhostDonorClampsNonperiodicEdge)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst_zero_ghost_edge";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    bool checked_edge = false;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const Box target = t_surf->boxArray()[ibox];
+        const IntVect interior = target.smallEnd();
+        IntVect edge = interior;
+        edge[0] -= 1;
+        ASSERT_TRUE((*t_surf)[ibox].box().contains(edge));
+        const auto t_arr = (*t_surf)[ibox].const_array();
+        EXPECT_NEAR(t_arr(interior[0], interior[1], interior[2]),
+                    expected_theta, Real(64.0) * std::numeric_limits<Real>::epsilon() *
+                    expected_theta);
+        EXPECT_NEAR(t_arr(edge[0], edge[1], edge[2]),
+                    expected_theta, Real(64.0) * std::numeric_limits<Real>::epsilon() *
+                    expected_theta);
+        checked_edge = true;
+    }
+    ASSERT_TRUE(checked_edge);
+
+    fields.coupled_valid->setVal(0);
+    layer->get_t_surf(0)->setVal(test_surface_temperature);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const Box target = t_surf->boxArray()[ibox];
+        const IntVect edge(target.smallEnd(0) - 1,
+                           target.smallEnd(1), target.smallEnd(2));
+        const auto t_arr = (*t_surf)[ibox].const_array();
+        const Real fallback = t_arr(edge[0], edge[1], edge[2]);
+        EXPECT_EQ(fallback, test_surface_temperature);
+    }
 }
 
 // Motivation: a coupled SST pointer without a coverage mask carries no

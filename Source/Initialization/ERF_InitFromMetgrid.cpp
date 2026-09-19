@@ -170,8 +170,9 @@ ERF::init_from_metgrid (int lev)
     // independently reseed each stacked box.  Keep this unsupported and fail
     // before terrain, SST, or SKINTEMP data are read.
     const Box& metgrid_domain = geom[lev].Domain();
-    for (int ibox = 0; ibox < boxes_at_level[lev].size(); ++ibox) {
-        const Box& box = boxes_at_level[lev][ibox];
+    const BoxArray& state_ba = lev_new[Vars::cons].boxArray();
+    for (int ibox = 0; ibox < state_ba.size(); ++ibox) {
+        const Box& box = state_ba[ibox];
         if (box.smallEnd(2) != metgrid_domain.smallEnd(2) ||
             box.bigEnd(2) != metgrid_domain.bigEnd(2)) {
             Abort("init_from_metgrid does not support grids split in z; set "

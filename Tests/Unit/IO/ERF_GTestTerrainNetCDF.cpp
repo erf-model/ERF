@@ -459,6 +459,11 @@ TEST(MetgridNetCDF, SurfacePressurePolicyHandlesMissingAndDebugPsfc)
     EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0,
                                           std::numeric_limits<amrex::Real>::quiet_NaN(),
                                           P00, T00, TLP, pressure));
+    // Motivation: the analytic standard-atmosphere inversion assumes a
+    // positive tropospheric lapse rate. A negative value would otherwise
+    // silently select the wrong branch of the quadratic pressure relation.
+    EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
+                                          P00, T00, amrex::Real(-1.0), pressure));
 }
 
 // Motivation: the pressure-selection policy is only useful if the production

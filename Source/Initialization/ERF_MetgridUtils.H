@@ -48,7 +48,7 @@ metgrid_surface_pressure (const bool debug_psfc,
 
     if (!std::isfinite(z_sfc) || !std::isfinite(P00) || P00 <= amrex::Real(0.0) ||
         !std::isfinite(T00) || T00 <= amrex::Real(0.0) ||
-        !std::isfinite(TLP) || TLP == amrex::Real(0.0)) {
+        !std::isfinite(TLP) || TLP <= amrex::Real(0.0)) {
         return false;
     }
     const amrex::Real ToA = T00 / TLP;

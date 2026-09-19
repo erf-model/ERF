@@ -461,6 +461,63 @@ TEST(SurfaceLayerParallel, CoupledSstUsesPhysicalSurfaceCopyOnWaterZSplitGrids)
     }
 }
 
+// Motivation: production coupled donors are zero-ghost fields, while a
+// z-split planar destination is grown laterally. Every duplicate surface copy
+// must obtain a covered nonperiodic x-low edge value from the clamped physical
+// donor, and an uncovered edge must retain the fallback. This also makes the
+// duplicate-copy contract explicit across the distributed 1/2-rank layouts.
+TEST(SurfaceLayerParallel, CoupledSstZeroGhostDonorClampsZSplitEdge)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_edge";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    int checked_edges = 0;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != fields.domain.smallEnd(0) ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        const IntVect interior = target.smallEnd();
+        IntVect edge = interior;
+        edge[0] -= 1;
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, interior, true),
+                    expected_theta, halo_tolerance(expected_theta));
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, edge, true),
+                    expected_theta, halo_tolerance(expected_theta));
+        ++checked_edges;
+    }
+    EXPECT_GT(checked_edges, 0);
+
+    fields.coupled_valid->setVal(0);
+    layer->get_t_surf(0)->setVal(test_surface_temperature);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != fields.domain.smallEnd(0) ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        const IntVect edge(target.smallEnd(0) - 1,
+                           target.smallEnd(1), target.smallEnd(2));
+        EXPECT_EQ(global_fab_value(*t_surf, ibox, edge, true),
+                  test_surface_temperature);
+    }
+}
+
 // Motivation: the z-high qsat boundary is located at the upper W face, not at
 // the cell centre or the ground. Its pressure correction must therefore use
 // the local signed distance z_cc-z_upper, and the result must agree on every

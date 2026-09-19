@@ -66,6 +66,14 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
 
+    // PlanarBoundary repopulates duplicate valid regions and may restore a
+    // nonperiodic destination ghost from the fallback copy. Reapply covered
+    // zero-ghost coupled donors after that exchange so the owning physical
+    // surface copy retains its clamped edge value.
+    if (zlo && m_coupled_sst_lev[lev]) {
+        fill_tsurf_with_coupled_sst(lev, cons_in, z_phys_nd);
+    }
+
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
@@ -1821,13 +1829,24 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 0;
             if (!is_land) {
                 const Real rho = cons_arr(li,lj,klo,Rho_comp);
-                const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+                const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+                const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                if (!std::isfinite(rho) || rho <= Real(0.0) ||
+                    !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    return;
+                }
+                const Real qv = moist ? rho_qv / rho : Real(0.0);
+                if (!std::isfinite(qv)) {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    return;
+                }
                 const Real delta_z = z_arr
                     ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
                       Compute_Z_AtWFace(li,lj,klo,z_arr)
                     : myhalf*dz;
                 const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
-                    rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
+                    rho, rho_theta, qv, delta_z);
                 Real theta = t_surf_arr(i,j,k);
                 if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
@@ -2099,17 +2118,17 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
         //       FillBoundary in update_fluxes picks up the interior and
         //       periodic directions.
         const Box source_box = cons_in.boxArray()[mfi.index()];
-        const int i_lo = source_box.smallEnd(0); const int i_hi = source_box.bigEnd(0);
-        const int j_lo = source_box.smallEnd(1); const int j_hi = source_box.bigEnd(1);
+        const Box donor_box = m_coupled_sst_lev[lev]->boxArray()[mfi.index()];
+        const int source_i_lo = source_box.smallEnd(0);
+        const int source_i_hi = source_box.bigEnd(0);
+        const int source_j_lo = source_box.smallEnd(1);
+        const int source_j_hi = source_box.bigEnd(1);
+        const int donor_i_lo = donor_box.smallEnd(0);
+        const int donor_i_hi = donor_box.bigEnd(0);
+        const int donor_j_lo = donor_box.smallEnd(1);
+        const int donor_j_hi = donor_box.bigEnd(1);
+        const int donor_k = donor_box.smallEnd(2);
         gtbx &= t_surf[lev]->fabbox(mfi.index());
-        gtbx &= m_coupled_sst_lev[lev]->fabbox(mfi.index());
-        gtbx &= cons_in.fabbox(mfi.index());
-        if (z_phys_nd) {
-            gtbx &= amrex::convert(z_phys_nd->fabbox(mfi.index()), IntVect::TheCellVector());
-        }
-        if (m_lmask_lev[lev][0]) {
-            gtbx &= m_lmask_lev[lev][0]->fabbox(mfi.index());
-        }
         if (gtbx.isEmpty()) { continue; }
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
@@ -2124,25 +2143,37 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            const int li = amrex::min(amrex::max(i, source_i_lo), source_i_hi);
+            const int lj = amrex::min(amrex::max(j, source_j_lo), source_j_hi);
+            const int si = amrex::min(amrex::max(li, donor_i_lo), donor_i_hi);
+            const int sj = amrex::min(amrex::max(lj, donor_j_lo), donor_j_hi);
+            int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
             if (is_land) { return; }
 
-            int li = amrex::min(amrex::max(i, i_lo), i_hi);
-            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-
-            if (!has_valid || valid_arr(li,lj,k) == 0) { return; }
+            if (!has_valid || valid_arr(si,sj,donor_k) == 0) { return; }
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
-            const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+            const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+            const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+            if (!std::isfinite(rho) || rho <= Real(0.0) ||
+                !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                return;
+            }
+            const Real qv = moist ? rho_qv / rho : Real(0.0);
+            if (!std::isfinite(qv)) {
+                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                return;
+            }
             const Real delta_z = z_arr
                 ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
                   Compute_Z_AtWFace(li,lj,klo,z_arr)
                 : myhalf*dz;
             const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
-                rho, cons_arr(li,lj,klo,RhoTheta_comp), qv, delta_z);
+                rho, rho_theta, qv, delta_z);
             Real theta = t_surf_arr(i,j,k);
             if (erf_surface_temperature::temperature_to_theta(
-                    coupled_sst_arr(li,lj,k), pressure, rdOcp, theta)) {
+                    coupled_sst_arr(si,sj,donor_k), pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             } else {
                 amrex::Gpu::Atomic::Max(conversion_failed, 1);

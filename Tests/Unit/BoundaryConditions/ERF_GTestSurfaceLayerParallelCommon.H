@@ -334,11 +334,11 @@ struct SurfaceLayerFields
             layer->set_coupled_sst_active(true);
             coupled_sst = std::make_unique<MultiFab>(
                 collapse_z(ba), dm, 1,
-                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+                IntVect(AMREX_D_DECL(0, 0, 0)));
             coupled_sst->setVal(Real(290.0));
             coupled_valid = std::make_unique<iMultiFab>(
                 collapse_z(ba), dm, 1,
-                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+                IntVect(AMREX_D_DECL(0, 0, 0)));
             coupled_valid->setVal(0);
         }
 
