@@ -116,7 +116,13 @@ public:
         // does no radiation work.
         m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk_requested);
 
-        alloc_buffers();
+        // NOTE: the buffers are deliberately NOT allocated here.  set_grids() allocates them
+        //       at the top of every Run() that actually updates radiation, and finalize_impl()
+        //       frees them again at the end of it, which is what keeps only one level's worth
+        //       of RRTMGP working memory resident at a time (see RRTMGP_Memory_Reduction.md).
+        //       Allocating here as well would hold every level's buffers from the moment that
+        //       level is created until its first Run, so the whole hierarchy would be live
+        //       simultaneously at startup -- the peak the chunking exists to avoid.
     };
 
     virtual

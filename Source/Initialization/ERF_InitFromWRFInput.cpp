@@ -311,43 +311,62 @@ read_base_state_params_from_wrfinput (const std::string& fname,
  *
  * @param lev Integer specifying the current level
  * @param mf_PSFC MultiFab storing surface pressure for this level
+ * @param read_atmos_state If true, read and remap the atmospheric state, build the base
+ *                         state and read the boundary data as well as the surface fields.
+ *                         If false, read only the surface fields and build the terrain from
+ *                         them, leaving the atmospheric state for the caller to fill by
+ *                         interpolation from the coarse level.
  */
 void
-ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
+ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 {
     if (nc_init_file.empty()) {
         amrex::Error("NetCDF initialization file name must be provided via input");
     }
 
-    bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+    // Leaving the atmospheric state to the caller only makes sense at a level that has a
+    // coarser level to interpolate from; at level 0 there would be nothing to fill it with.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_atmos_state || lev > 0,
+        "init_from_wrfinput: the atmospheric state can only be left to the caller at lev > 0");
+
+    bool use_moist = (solverChoice.moisture_type != MoistureType::None) && read_atmos_state;
     bool use_lsm   = (solverChoice.lsm_type != LandSurfaceType::None);
 
     // *** FArrayBox's at this level for holding the INITIAL data
+    //
+    // The atmospheric fields are read only when we are filling the atmospheric state here.
+    // On the interp_atmos_from_coarse path they are supplied by FillCoarsePatch instead, so
+    // reading them would cost a NetCDF read and a MultiFab per field and then throw the
+    // result away.  The surface fields below are read on both paths.
     Vector<std::string> NC_names;
-    NC_names.push_back("ALB");       // 0 DO RHO FIRST
-    NC_names.push_back("AL");        // 1 DO RHO FIRST
-    NC_names.push_back("ALT");       // 2 DO RHO FIRST
-    NC_names.push_back("U");         // 3
-    NC_names.push_back("V");         // 4
-    NC_names.push_back("W");         // 5
-    NC_names.push_back("THM");       // 6
-    NC_names.push_back("PH");        // 7
-    NC_names.push_back("PHB");       // 8
-    NC_names.push_back("PB");        // 9
-    NC_names.push_back("P");         // 10
-    NC_names.push_back("PSFC");      // 11
-    NC_names.push_back("MUB");       // 12
-    NC_names.push_back("MAPFAC_U");  // 13
-    NC_names.push_back("MAPFAC_V");  // 14
-    NC_names.push_back("MAPFAC_M");  // 15
-    NC_names.push_back("SST");       // 16
-    NC_names.push_back("TSK");       // 17
-    NC_names.push_back("LANDMASK");  // 18
-    NC_names.push_back("C1H");       // 19
-    NC_names.push_back("C2H");       // 20
-    NC_names.push_back("RDNW");      // 21
-    NC_names.push_back("XLAT_V");    // 22
-    NC_names.push_back("XLONG_U");   // 23
+    if (read_atmos_state) {
+        NC_names.push_back("ALB");   // DO RHO FIRST
+        NC_names.push_back("AL");    // DO RHO FIRST
+        NC_names.push_back("ALT");   // DO RHO FIRST
+        NC_names.push_back("U");
+        NC_names.push_back("V");
+        NC_names.push_back("W");
+        NC_names.push_back("THM");
+    }
+    NC_names.push_back("PH");
+    NC_names.push_back("PHB");
+    if (read_atmos_state) {
+        NC_names.push_back("PB");
+        NC_names.push_back("P");
+    }
+    NC_names.push_back("PSFC");
+    NC_names.push_back("MUB");
+    NC_names.push_back("MAPFAC_U");
+    NC_names.push_back("MAPFAC_V");
+    NC_names.push_back("MAPFAC_M");
+    NC_names.push_back("SST");
+    NC_names.push_back("TSK");
+    NC_names.push_back("LANDMASK");
+    NC_names.push_back("C1H");
+    NC_names.push_back("C2H");
+    NC_names.push_back("RDNW");
+    NC_names.push_back("XLAT_V");
+    NC_names.push_back("XLONG_U");
     if (use_moist) {
         NC_names.push_back("QVAPOR");
         NC_names.push_back("QCLOUD");
@@ -480,7 +499,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     const Real l_rdOcp = solverChoice.rdOcp;
 
-    Print() << "Loading initial data from NetCDF file at level " << lev << "\n";
+    Print() << (read_atmos_state ? "Loading initial data" : "Loading surface data")
+            << " from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
         Print() << "Reading from file " << nc_init_file[lev][idx] << "\n";
 
@@ -1280,36 +1300,42 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     } // idx
 
     // Convert the velocities using the map factors
-    for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        Box bx = mfi.tilebox();
-        const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    //
+    // NOTE: only the velocities read from the file need this.  On the
+    //       interp_atmos_from_coarse path they are filled from the coarse level after this
+    //       function returns, already in ERF's units.
+    if (read_atmos_state) {
+        for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            dst_arr(i,j,k) /= src_arr(i,j,0);
-        });
-    }
-    for ( MFIter mfi(lev_new[Vars::yvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        Box bx = mfi.tilebox();
-        const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            Box bx = mfi.tilebox();
+            const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
+            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k) /= src_arr(i,j,0);
+            });
+        }
+        for ( MFIter mfi(lev_new[Vars::yvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            dst_arr(i,j,k) /= src_arr(i,j,0);
-        });
-    }
-    for ( MFIter mfi(lev_new[Vars::zvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        Box bx = mfi.tilebox();
-        const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
-        const Array4<const Real>& src_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            Box bx = mfi.tilebox();
+            const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
+            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::v_x]->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k) /= src_arr(i,j,0);
+            });
+        }
+        for ( MFIter mfi(lev_new[Vars::zvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            dst_arr(i,j,k) /= src_arr(i,j,0);
-        });
-    }
+            Box bx = mfi.tilebox();
+            const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
+            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                dst_arr(i,j,k) /= src_arr(i,j,0);
+            });
+        }
+    } // read_atmos_state
 
     // **************************************************************************
     // Compute min and max of terrain
@@ -1423,10 +1449,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
         make_J    (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc  (geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+    }
+
+    // **************************************************************************
+    // Interpolate the data to the grid
+    //
+    // NOTE: This remaps the atmospheric state from WRF's vertical grid onto ERF's, so it
+    //       runs only when we read that state above.  On the interp_atmos_from_coarse path
+    //       there is nothing here to remap -- the state arrives from the coarse level, on
+    //       ERF's grid already, after this function returns.
+    // **************************************************************************
+    if (compute_terrain_here && read_atmos_state) {
 
         // **************************************************************************
-        // Interpolate the data to the grid
-        //
         // NOTE: When keeping the WRF grid, we really only need to interpolate
         //       the highest level values, due to enforcing z_top. When using
         //       the ERF grid, interpolation is required everywhere.
@@ -1676,7 +1711,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
     // **************************************************************************
     // Rebalance the WRF state if needed
     // **************************************************************************
-    if (solverChoice.rebalance_wrf_input) {
+    if (read_atmos_state && solverChoice.rebalance_wrf_input) {
         Print() << "The state read from WRF is being rebalanced!\n";
 
         MultiFab rho (lev_new[Vars::cons], make_alias, Rho_comp, 1);
@@ -1707,7 +1742,18 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev)
 
     // **************************************************************************
     // Initialize the base state
+    //
+    // NOTE: On the interp_atmos_from_coarse path the caller rebuilds the base state
+    //       itself, after this level's terrain has been finalized by init_zphys and
+    //       before it interpolates the (perturbational) atmospheric state from the
+    //       coarse level.  See MakeNewLevelFromCoarse.
     // **************************************************************************
+    if (!read_atmos_state) {
+        Print() << "Surface-only initialization from wrfinput complete at level " << lev << ".\n";
+        Print() << "The atmospheric state and the base state will be built by the caller.\n";
+        return;
+    }
+
     rebuild_base_state_from_wrfinput(lev, base_state[lev]);
 
     // rho0 is consumed below by read_and_convert_from_wrfbdy (via scale_bdy_normal_by_rho0),

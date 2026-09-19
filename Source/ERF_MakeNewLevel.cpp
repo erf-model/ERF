@@ -502,7 +502,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         used_surface_only_init[lev] = use_surface_only ? 1 : 0;
 
         // If using surface-only init with LSM, we need to set up LSM data structures before
-        // reading the wrfinput file, so that init_from_wrfinput_surface_only can populate them.
+        // reading the wrfinput file, so that the surface-only read can populate them.
         // We'll call lsm.Init later after FillCoarsePatch provides atmospheric state.
         if (use_surface_only && solverChoice.lsm_type != LandSurfaceType::None) {
             int lsm_data_size  = lsm.Get_Data_Size();
@@ -521,7 +521,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                 amrex::Print() << "Using interp_atmos_from_coarse mode at level " << lev << ":\n";
                 amrex::Print() << "  - Reading surface fields from wrfinput\n";
                 amrex::Print() << "  - Atmospheric state will be interpolated from level " << lev-1 << "\n";
-                init_from_wrfinput_surface_only(lev, *mf_PSFC[lev]);
+                init_from_wrfinput(lev, *mf_PSFC[lev], /*read_atmos_state*/ false);
             } else {
                 init_from_wrfinput(lev, *mf_PSFC[lev]);
             }

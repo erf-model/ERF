@@ -2825,7 +2825,7 @@ List of Parameters
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
-|                                  | ``terrain_smoothing`` = 1 or 2. "interpolate" uses      | "transform"        |                  |
+|                                  | ``terrain_smoothing`` = 1 or 2. "interpolate" uses       | "transform"        |                  |
 |                                  | coarse-interpolated mesh as-is. "transform" reads fine   |                    |                  |
 |                                  | terrain from wrfinput and blends with interpolated mesh  |                    |                  |
 |                                  | using height-dependent decay. When ``terrain_smoothing`` |                    |                  |

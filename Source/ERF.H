@@ -821,8 +821,21 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
-    void init_from_wrfinput_surface_only (int lev, amrex::MultiFab& mf_PSFC);
+    // Read a wrfinput file at this level.
+    //
+    // With read_atmos_state = true (the default) this reads the full state: the
+    // atmospheric fields (U, V, W, THM, the density triple and the moisture species)
+    // as well as the surface fields, and it remaps the state onto the ERF vertical
+    // grid, builds the base state and reads the boundary data.
+    //
+    // With read_atmos_state = false only the surface fields are read -- terrain,
+    // surface pressure, surface and skin temperatures, the land/soil masks, the map
+    // factors, the lat/lon fields and the LSM variables -- and the terrain and metric
+    // terms are built from them.  The atmospheric state is left untouched for the
+    // caller to fill by interpolation from the coarse level (see the
+    // erf.interp_atmos_from_coarse path in MakeNewLevelFromCoarse), which is also
+    // responsible for calling rebuild_base_state_from_wrfinput afterwards.
+    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC, bool read_atmos_state = true);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 
