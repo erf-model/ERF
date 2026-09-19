@@ -3438,9 +3438,12 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     h_havg.resize(size_z, 0.0_rt);
 
     // Get the cell centered data and construct sums
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+    //
+    // NOTE: deliberately not threaded.  Every iteration does "h_havg[k] += ..." into the
+    //       same shared Vector with no atomic and no per-thread partials, so threading it
+    //       would be an outright data race on top of an order-dependent sum.  The body is
+    //       a pure reduction, so running it serially costs little.
+    //
     for (MFIter mfi(S); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
         const IntVect& se = box.smallEnd();
