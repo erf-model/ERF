@@ -68,7 +68,7 @@ TEST(CheckpointSurfaceTemperature, RejectsUnknownOrMalformedMarker)
                   unknown_version, version),
               ContractReadStatus::UnknownVersion);
 
-    for (const std::string& text : {"not-a-version\n", "1 extra\n"}) {
+    for (const char* text : {"not-a-version\n", "1 extra\n"}) {
         version = 0;
         std::istringstream malformed(text);
         EXPECT_EQ(erf_checkpoint_surface_temperature::read_contract_version(
