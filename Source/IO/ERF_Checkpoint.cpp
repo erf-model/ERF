@@ -6,6 +6,7 @@
 #include "ERF_Constants.H"
 #include <fstream>
 #include <cmath>
+#include <sstream>
 #include <vector>
 #include <string>
 
@@ -14,6 +15,7 @@
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
+#include "ERF_CheckpointSurfaceTemperature.H"
 
 using namespace amrex;
 
@@ -21,6 +23,62 @@ namespace
 {
 
 bool provenance_warning_emitted = false;
+
+constexpr const char* surface_temperature_contract_file =
+    "surface_temperature_contract";
+
+void
+write_surface_temperature_contract (const std::string& checkpointname)
+{
+    const std::string filename = checkpointname + "/" + surface_temperature_contract_file;
+    std::ofstream output(filename, std::ofstream::out |
+                                   std::ofstream::trunc |
+                                   std::ofstream::binary);
+    if (!output.good()) {
+        amrex::FileOpenFailed(filename);
+    }
+    erf_checkpoint_surface_temperature::write_contract_version(output);
+}
+
+void
+validate_surface_temperature_contract (const std::string& checkpointname,
+                                       const bool is_metgrid,
+                                       const int finest_level)
+{
+    const std::string marker_name = checkpointname + "/" + surface_temperature_contract_file;
+    const bool marker_present = amrex::FileExists(marker_name);
+
+    if (marker_present) {
+        amrex::Vector<char> marker_chars;
+        amrex::ParallelDescriptor::ReadAndBcastFile(marker_name, marker_chars);
+        std::istringstream marker_stream(std::string(marker_chars.dataPtr()),
+                                          std::istringstream::in);
+        int version = 0;
+        const auto status = erf_checkpoint_surface_temperature::read_contract_version(
+            marker_stream, version);
+        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::Malformed) {
+            amrex::Abort("Malformed surface-temperature contract marker in '" + marker_name + "'");
+        }
+        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::UnknownVersion) {
+            amrex::Abort("Unsupported surface-temperature contract version " +
+                         std::to_string(version) + " in '" + marker_name + "'");
+        }
+        return;
+    }
+
+    if (!is_metgrid) {
+        return;
+    }
+
+    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
+        checkpointname, finest_level);
+    if (legacy_level >= 0) {
+        amrex::Abort("Legacy Metgrid checkpoint '" + checkpointname +
+                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
+                     " without a surface-temperature contract marker; "
+                     "the legacy absolute-temperature arrays cannot be safely restored.");
+    }
+}
 
 } // namespace
 
@@ -63,6 +121,10 @@ ERF::WriteCheckpointFile () const
     // ---- after all directories are built
     // ---- ParallelDescriptor::IOProcessor() creates the directories
     PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+
+    if (ParallelDescriptor::IOProcessor()) {
+        write_surface_temperature_contract(checkpointname);
+    }
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
@@ -756,6 +818,9 @@ ERF::ReadCheckpointFile ()
     // read in finest_level
     is >> finest_level;
     GotoNextLine(is);
+
+    validate_surface_temperature_contract(
+        restart_chkfile, solverChoice.init_type == InitType::Metgrid, finest_level);
 
     // read the number of components
     // for each variable we store

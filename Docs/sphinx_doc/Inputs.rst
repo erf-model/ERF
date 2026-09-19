@@ -2686,6 +2686,20 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
+|                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
+|                                   | theta, density, moisture) from coarse level via          |                              |                    |
+|                                   | ``FillCoarsePatch`` instead of reading from file.        |                              |                    |
+|                                   | Terrain, surface fields (SST, TSK, land masks), and LSM  |                              |                    |
+|                                   | variables are still read from the fine-level wrfinput    |                              |                    |
+|                                   | file. **Intended for time-mismatched WRF input files**   |                              |                    |
+|                                   | (e.g., wrfinput_d01 at t=0h, wrfinput_d02 at t=6h) or    |                              |                    |
+|                                   | regridding during runtime. When starting from scratch    |                              |                    |
+|                                   | with both files at the same time, this option is         |                              |                    |
+|                                   | ignored (with a warning) and atmospheric state is read   |                              |                    |
+|                                   | from file. Only applies to lev > 0 with WRFInput;        |                              |                    |
+|                                   | level 0 always reads full atmospheric state.             |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.real_extrap_w**             | First-order extrapolation of vertical velocities on      | Boolean                      | true               |
 |                                   | lateral boundaries (instead of setting to 0) if          |                              |                    |
 |                                   | use_real_bcs is true                                     |                              |                    |
@@ -2852,8 +2866,15 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.amr_terrain_refinement**   | terrain refinement strategy for AMR with STF/Sullivan    | "interpolate",     | "interpolate"    |
-|                                  |                                                          | "transform"        |                  |
+| **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
+|                                  | ``terrain_smoothing`` = 1 or 2. "interpolate" uses       | "transform"        |                  |
+|                                  | coarse-interpolated mesh as-is. "transform" reads fine   |                    |                  |
+|                                  | terrain from wrfinput and blends with interpolated mesh  |                    |                  |
+|                                  | using height-dependent decay. When ``terrain_smoothing`` |                    |                  |
+|                                  | = 1 or 2 with WRFInput initialization on multilevel      |                    |                  |
+|                                  | grids, "transform" is **required** (code will abort if   |                    |                  |
+|                                  | "interpolate" is used). Ignored when                     |                    |                  |
+|                                  | ``terrain_smoothing`` = 0.                               |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name**        | filename                                                 | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2908,10 +2929,14 @@ Examples of Usage
 **erf.amr_terrain_refinement** is read only on levels finer than level 0 and only when
 ``erf.terrain_smoothing`` is 1 or 2; it is ignored otherwise. Any value other than
 ``"interpolate"`` or ``"transform"`` is an error, so that a misspelled mode cannot
-silently leave the fine mesh untransformed. Both modes are currently supported only for
-the idealized initialization types: with ``erf.init_type`` = ``WRFInput`` or ``Metgrid``,
-using ``erf.terrain_smoothing`` = 1 or 2 together with refinement still aborts, and
-support for those is planned for future work.
+silently leave the fine mesh untransformed.
+
+**For WRFInput initialization with multilevel AMR:**
+When using ``erf.init_type`` = ``WRFInput`` with ``terrain_smoothing`` = 1 or 2 on multilevel
+grids, "transform" mode is **required**. Using "interpolate" mode will cause the code to abort
+with an error. This requirement ensures fine-scale terrain features from the wrfinput file are
+properly blended with the smoothed coarse mesh while maintaining C0 continuity at coarse-fine
+interfaces.
 
 -  **erf.amr_terrain_refinement**  = "interpolate"
     Default mode for AMR with STF/Sullivan terrain smoothing (``terrain_smoothing=1`` or ``2``).
@@ -3215,14 +3240,14 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surf_temp**                | prescribed surface temperature [K]; a positive value     | Real > 0            | -1.0 (not set)   |
-|                                       | selects the surface-temperature formulation              |                     |                  |
+| **erf.most.surf_temp**                | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
+|                                       | value selects the surface-temperature formulation        |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | temperature; may not be combined with                    |                     |                  |
+|                                       | potential temperature; may not be combined with          |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |
@@ -3515,6 +3540,14 @@ Notes
 -  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
    | and **erf.rad_cons_lon**.
 
+-  | **Multilevel/AMR with WRF initialization**: When initializing multilevel simulations from WRF input files
+   | (``erf.init_type = WRFInput``), radiation computations depend on the vertical extent of each refinement level.
+   | Finer levels that extend to the model top (or match the vertical extent of level 0) compute radiation normally.
+   | For finer levels that do not extend to the same height as level 0, heating rates and radiation fluxes are
+   | interpolated from the parent coarse level rather than computed directly, since the radiative transfer solver
+   | requires a complete atmospheric column. ERF automatically detects this configuration and applies the appropriate
+   | method. Full radiation calculations on such partial-column refinement levels are subject to ongoing development work.
+
 
 
 List of Parameters
@@ -3650,7 +3683,8 @@ distance factor of the date, or the unscaled 1360.9 W/m² when the zenith angle 
 start date is known), ``erf.rad_t_sfc`` (required; with a land-surface model or a surface layer
 present it is the initial value of the prognostic surface temperature when the surface energy
 balance evolves one and unused otherwise, and the surface layer's potential temperature is
-converted with the Exner function of the lowest cell), ``start_datetime`` and the
+converted with the Exner function at the physical surface pressure diagnosed from the lowest
+atmospheric cell), ``start_datetime`` and the
 ``erf.rad_orbital_*`` overrides. A deck that still sets one of the former two-stream-only keys
 (``erf.radiation.solar_zenith``, ``erf.radiation.S0``, ``erf.radiation.surface_temp_k``,
 ``erf.radiation.latitude_deg``, ``erf.radiation.longitude_deg``, ``erf.radiation.day_of_year``,

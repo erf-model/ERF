@@ -66,9 +66,25 @@ public:
           const amrex::BoxArray& ba,
           amrex::MultiFab* cons_in) override
     {
-        // Ensure the boxes span klo -> khi
+        // Check for nested patches: fine levels that don't reach the model top
+        // These need special handling since radiation requires complete atmospheric columns
         int klo = geom.Domain().smallEnd(2);
         int khi = geom.Domain().bigEnd(2);
+
+        // Detect nested patches: a nested fine level doesn't span the full domain vertically.
+        // Use ba.minimalBox() which gives the bounding box of all grids on this level.
+        // If that box doesn't reach the domain top or bottom, it's a nested patch.
+        amrex::Box minimal_box = ba.minimalBox();
+        bool is_nested_patch = (minimal_box.smallEnd(2) > klo) || (minimal_box.bigEnd(2) < khi);
+
+        // Update the nested patch flag - must be set/cleared on every Init call
+        // so that levels that stop being nested after regrid will resume radiation computation
+        m_is_nested_patch = is_nested_patch;
+
+        // Skip radiation on nested patches - heating rates will be interpolated from coarser level
+        if (is_nested_patch) {
+            return;
+        }
 
         // Reset vector of offsets for columnar data
         m_nlay = geom.Domain().length(2);
@@ -78,6 +94,8 @@ public:
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
+            // This assertion catches true vertical MPI decomposition (individual boxes that don't
+            // span the full domain height). The nested patch case is handled above by returning early.
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
                                              (khi == vbx.bigEnd(2)),
                                              "Vertical decomposition with radiation is not allowed.");
@@ -97,6 +115,14 @@ public:
         // grow back. It is zero only when m_ncol is zero, and a rank with no columns
         // does no radiation work.
         m_ncol_chunk = amrex::min(m_ncol, m_ncol_chunk_requested);
+
+        // NOTE: the buffers are deliberately NOT allocated here.  set_grids() allocates them
+        //       at the top of every Run() that actually updates radiation, and finalize_impl()
+        //       frees them again at the end of it, which is what keeps only one level's worth
+        //       of RRTMGP working memory resident at a time (see RRTMGP_Memory_Reduction.md).
+        //       Allocating here as well would hold every level's buffers from the moment that
+        //       level is created until its first Run, so the whole hierarchy would be live
+        //       simultaneously at startup -- the peak the chunking exists to avoid.
     };
 
     virtual
@@ -119,6 +145,18 @@ public:
          amrex::MultiFab* lon_ptr,
          const bool updated_lsm) override
     {
+        // Skip radiation computation on nested patches - heating rates will be
+        // filled via interpolation from coarser level in ERF::FillPatch
+        if (m_is_nested_patch) {
+            return;
+        }
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            m_nlay == geom.Domain().length(2),
+            "Radiation: m_nlay (" + std::to_string(m_nlay) +
+            ") doesn't match domain vertical extent (" +
+            std::to_string(geom.Domain().length(2)) + ")");
+
         set_grids(level, step, time, dt, ba, geom,
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
@@ -210,6 +248,12 @@ public:
         return m_lsm_output_names;
     }
 
+    // Check if this is a nested patch (doesn't reach model top)
+    bool is_nested_patch () const override
+    {
+        return m_is_nested_patch;
+    }
+
     // Populate datalog structures
     void
     populateDatalogMF ();
@@ -223,6 +267,9 @@ private:
 
     // Process interface vars from ERF/AMReX
     //===================================================================================
+
+    // True if this level is a nested patch that doesn't reach model top
+    bool m_is_nested_patch = false;
 
     // Grid level
     int m_lev;
@@ -269,6 +316,7 @@ private:
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
+    amrex::Real m_rdOcp = RdoCp;
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;

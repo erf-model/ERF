@@ -1336,6 +1336,7 @@ ERF::InitData_post ()
                                                                  solverChoice.mesh_type,
                                                                  solverChoice.terrain_type,
                                                                  solverChoice.turbChoice[finest_level],
+                                                                 solverChoice.rdOcp,
 #ifdef ERF_USE_NETCDF
                                                                  start_low_time, final_low_time, low_time_interval,
 #else
@@ -2629,6 +2630,7 @@ ERF::ReadParameters ()
         int nlevs_max = max_level + 1;
         istep.resize(nlevs_max, 0);
         nsubsteps.resize(nlevs_max, 1);
+        rad_interp_from_coarse_pending.resize(nlevs_max, 0);
         // This is the default
         for (int lev = 1; lev <= max_level; ++lev) {
             nsubsteps[lev] = MaxRefRatio(lev-1);

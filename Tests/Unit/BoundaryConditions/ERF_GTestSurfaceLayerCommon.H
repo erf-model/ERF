@@ -30,13 +30,29 @@ constexpr int test_state_ng = 3;
 constexpr int test_velocity_ng = 2;
 constexpr int test_primitive_z_ng = 1;
 
-// The fixture uses no nodal height field, so the production qsat path uses
-// one half vertical cell for every selected surface value.
+// Independent qsat oracle for the flat fixture. Horizontal faces use the
+// adjacent cell-centre pressure; the vertical faces use the signed distance
+// from the cell centre to their boundary face.
 inline Real
-expected_qsat (const Geometry& geom)
+expected_surface_pressure (const Geometry& geom, const Orientation face,
+                           const Real delta_z_override = std::numeric_limits<Real>::quiet_NaN())
 {
     Real pressure = getPgivenRTh(test_rho_theta, test_qv);
-    pressure += test_rho * CONST_GRAV * myhalf * geom.CellSize(2);
+    Real delta_z = Real(0.0);
+    if (face.coordDir() == 2) {
+        delta_z = face.isLow() ? myhalf * geom.CellSize(2)
+                               : -myhalf * geom.CellSize(2);
+        if (std::isfinite(delta_z_override)) { delta_z = delta_z_override; }
+    }
+    pressure += test_rho * CONST_GRAV * delta_z;
+    return pressure;
+}
+
+inline Real
+expected_qsat (const Geometry& geom, const Orientation face,
+               const Real delta_z_override = std::numeric_limits<Real>::quiet_NaN())
+{
+    Real pressure = expected_surface_pressure(geom, face, delta_z_override);
     pressure *= Real(0.01); // Pa -> mbar, as in fill_qsurf_with_qsat.
     Real qsat = 0;
     erf_qsatw(test_surface_temperature, pressure, qsat);

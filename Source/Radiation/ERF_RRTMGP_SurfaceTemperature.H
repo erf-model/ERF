@@ -3,6 +3,7 @@
 
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
+#include <ERF_SurfaceTemperature.H>
 
 namespace rrtmgp {
 
@@ -11,8 +12,8 @@ namespace rrtmgp {
  *
  * RRTMGP and LSM surface-temperature fields contain absolute temperature,
  * while the SurfaceLayer field contains potential temperature.  The latter
- * must therefore be converted with the pressure of the lowest atmospheric
- * cell before it is handed to RRTMGP.
+ * must therefore be converted with the physical surface pressure diagnosed
+ * from the lowest atmospheric cell before it is handed to RRTMGP.
  *
  * @param[in]  is_land                 true when the column is over land
  * @param[in]  has_lsm_t_sfc           true when an LSM t_sfc field exists
@@ -20,7 +21,9 @@ namespace rrtmgp {
  * @param[in]  lsm_t_sfc               LSM t_sfc value, when present
  * @param[in]  has_surface_layer       true when a SurfaceLayer field exists
  * @param[in]  surface_layer_theta     SurfaceLayer potential temperature
- * @param[in]  surface_pressure        pressure in the lowest atmospheric cell
+ * @param[in]  surface_pressure        physical surface pressure diagnosed from
+ *                                     the lowest atmospheric cell
+ * @param[in]  rdOcp                   configured Rd/cp exponent
  * @param[in]  default_t_sfc           configured absolute-temperature fallback
  * @param[out] t_sfc                   resolved absolute temperature for RRTMGP
  * @param[in,out] lsm_t_sfc_out        optional LSM fallback/writeback field
@@ -34,6 +37,7 @@ resolve_surface_temperature (const bool is_land,
                               const bool has_surface_layer,
                               const amrex::Real surface_layer_theta,
                               const amrex::Real surface_pressure,
+                              const amrex::Real rdOcp,
                               const amrex::Real default_t_sfc,
                               amrex::Real& t_sfc,
                               amrex::Real* lsm_t_sfc_out)
@@ -44,9 +48,11 @@ resolve_surface_temperature (const bool is_land,
 
     if (use_lsm_t_sfc) {
         t_sfc = lsm_t_sfc;
-    } else if (has_surface_layer) {
+    } else if (has_surface_layer &&
+               erf_surface_temperature::theta_to_temperature(
+                   surface_layer_theta, surface_pressure, rdOcp, t_sfc)) {
         // SurfaceLayer::get_t_surf() returns theta.  RRTMGP requires T.
-        t_sfc = getTgivenPandTh(surface_pressure, surface_layer_theta, RdoCp);
+        // The helper also rejects an invalid pressure or nonphysical theta.
     } else {
         t_sfc = default_t_sfc;
     }

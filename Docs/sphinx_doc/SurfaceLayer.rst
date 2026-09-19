@@ -190,9 +190,9 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP [K]
+   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
    erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
-   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE POTENTIAL TEMP CHANGE [K/h]
    erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
    erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
@@ -389,6 +389,16 @@ or purely time and SST information, such as:
    day sst(K)
    203.000000  292.800
    204.000000  294.580
+
+The SST column in this file is absolute temperature in kelvin. ERF converts
+it to the SurfaceLayer's canonical potential-temperature field using the
+physical surface pressure diagnosed from the lowest atmospheric cell. In
+contrast, ``erf.most.surf_temp`` and ``erf.most.surf_heating_rate`` are already
+specified in the SurfaceLayer potential-temperature convention. SST and
+skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
+that same convention at ingestion; coupled SST is converted when it enters
+the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
+radiation path and is not adopted as the SurfaceLayer field.
 
 Notes
 ^^^^^
