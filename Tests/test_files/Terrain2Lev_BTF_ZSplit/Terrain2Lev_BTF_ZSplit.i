@@ -5,6 +5,7 @@
 # The test runs this deck twice to step 0: once with whole-height fine grids
 # (amr.max_grid_size_z = 1024 1024) and once with the fine grids split at k = 16 and 32
 # (amr.max_grid_size_z = 1024 16), and requires the plotfiles to agree bit for bit.
+# Splitting in z is only possible because this deck sets amr.no_box_split_dir = -1 below.
 # The fine level covers the hill top, where the fine terrain differs most from the
 # terrain interpolated from the coarse level.
 #
@@ -74,6 +75,11 @@ erf.box1.in_box_hi = 480. 480.
 amr.max_grid_size_x = 1024 16
 amr.max_grid_size_y = 1024 16
 amr.max_grid_size_z = 1024 1024
+
+# ERF defaults amr.no_box_split_dir to 2, which forbids any split in z and makes
+# amr.max_grid_size_z ignored.  This test exists to compare a z-split run against a
+# whole-column run, so it must allow boxes to be chopped in every direction.
+amr.no_box_split_dir = -1
 
 # PROBLEM PARAMETERS
 prob.T_0   = 300.0
