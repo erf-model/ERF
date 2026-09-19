@@ -289,12 +289,13 @@ struct SurfaceLayerFields
     Vector<MultiFab*> state;
 
     explicit SurfaceLayerFields (const Geometry& geometry = make_geometry(),
-                                 const bool split_lateral = false)
+                                 const bool split_lateral = false,
+                                 const int ncons = RhoQ1_comp + 1)
         : geom(geometry),
           domain(geom.Domain()),
           ba(split_lateral ? make_qsurf_box_array(domain) : BoxArray(domain)),
           dm(ba),
-          cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
+          cons(ba, dm, ncons, test_state_ng),
           xvel(convert(ba, IntVect(AMREX_D_DECL(1, 0, 0))), dm, 1,
                test_velocity_ng),
           yvel(convert(ba, IntVect(AMREX_D_DECL(0, 1, 0))), dm, 1,
@@ -312,7 +313,9 @@ struct SurfaceLayerFields
         cons.setVal(Real(0.0));
         cons.setVal(test_rho, Rho_comp, 1);
         cons.setVal(test_rho_theta, RhoTheta_comp, 1);
-        cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        if (cons.nComp() > RhoQ1_comp) {
+            cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        }
         xvel.setVal(test_u);
         yvel.setVal(test_v);
         zvel.setVal(test_w);
@@ -376,7 +379,9 @@ struct SurfaceLayerFields
             auto& fab = cons[mfi];
             fab.setVal(test_rho, fab.box(), Rho_comp, 1);
             fab.setVal(rho_theta, fab.box(), RhoTheta_comp, 1);
-            fab.setVal(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+            if (fab.nComp() > RhoQ1_comp) {
+                fab.setVal(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+            }
         }
     }
 
@@ -891,6 +896,45 @@ TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
     pp.remove("most.sfc_file");
 }
 
+// Motivation: production dry conserved state has four components and no
+// moisture density. The text-SST conversion must therefore obtain qv=0
+// without reading the out-of-range RhoQ1_comp slot.
+TEST(SurfaceLayer, DryTextSstDoesNotReadMoistureComponent)
+{
+    const std::string prefix = "unit_surface_layer_dry_text_sst";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp);
+    ASSERT_EQ(fields.cons.nComp(), RhoQ1_comp);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+}
+
 // Motivation: coupled SST is an absolute-temperature producer with partial
 // water coverage. Only covered cells should be converted into theta; an
 // uncovered water cell must retain the existing SurfaceLayer fallback.
@@ -918,6 +962,33 @@ TEST(SurfaceLayer, CoupledSstConvertsOnlyCoveredWaterCells)
                 Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
     const IntVect uncovered(0, 0, 0);
     EXPECT_EQ(mf_value(*layer->get_t_surf(0), uncovered), test_surface_temperature);
+}
+
+// Motivation: production dry coupled-SST state has no RhoQ1_comp component.
+// The covered conversion must use qv=0 without reading beyond the four
+// conserved components while still applying the pressure-dependent oracle.
+TEST(SurfaceLayer, DryCoupledSstDoesNotReadMoistureComponent)
+{
+    const std::string prefix = "unit_surface_layer_dry_coupled_sst";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp);
+    ASSERT_EQ(fields.cons.nComp(), RhoQ1_comp);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
 }
 
 // Motivation: production coupled-SST donors have no lateral ghost cells, but

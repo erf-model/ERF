@@ -461,11 +461,11 @@ TEST(SurfaceLayerParallel, CoupledSstUsesPhysicalSurfaceCopyOnWaterZSplitGrids)
     }
 }
 
-// Motivation: production coupled donors are zero-ghost fields, while a
-// z-split planar destination is grown laterally. Every duplicate surface copy
-// must obtain a covered nonperiodic x-low edge value from the clamped physical
-// donor, and an uncovered edge must retain the fallback. This also makes the
-// duplicate-copy contract explicit across the distributed 1/2-rank layouts.
+// Motivation: production coupled donors are zero-ghost fields, while the
+// z-split physical surface destination is grown laterally. Its covered
+// nonperiodic x-low edge must use the clamped physical donor, and an uncovered
+// edge must retain the fallback. Duplicate-copy agreement is checked by the
+// separate nonuniform internal-exchange regression.
 TEST(SurfaceLayerParallel, CoupledSstZeroGhostDonorClampsZSplitEdge)
 {
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
@@ -516,6 +516,69 @@ TEST(SurfaceLayerParallel, CoupledSstZeroGhostDonorClampsZSplitEdge)
         EXPECT_EQ(global_fab_value(*t_surf, ibox, edge, true),
                   test_surface_temperature);
     }
+}
+
+// Motivation: a uniform donor cannot distinguish a local clamp from a
+// correctly exchanged neighboring value. With zero-ghost coupled donors, the
+// complete update must replace an internal tangential ghost from the adjacent
+// valid FAB, preserve the nonperiodic edge clamp, and propagate that value to
+// duplicate z-split planar copies.
+TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_nonuniform";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+
+    for (MFIter mfi(*fields.coupled_sst, false); mfi.isValid(); ++mfi) {
+        auto donor = fields.coupled_sst->array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            donor(i,j,k) = Real(280.0) + static_cast<Real>(i) +
+                Real(0.25) * static_cast<Real>(j);
+        });
+    }
+    fields.coupled_valid->setVal(1);
+    Gpu::streamSynchronize();
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    const auto pairs = tangential_halo_pairs(*t_surf, fields.ba, fields.domain, face);
+    ASSERT_FALSE(pairs.empty());
+    const auto& pair = pairs.front();
+    const Box& local_source = fields.ba[pair.target_fab];
+    IntVect local_point = pair.point;
+    for (int d = 0; d < 2; ++d) {
+        local_point[d] = amrex::min(amrex::max(local_point[d], local_source.smallEnd(d)),
+                                    local_source.bigEnd(d));
+    }
+    const auto donor_temperature = [] (const IntVect& point) {
+        return Real(280.0) + static_cast<Real>(point[0]) +
+            Real(0.25) * static_cast<Real>(point[1]);
+    };
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const Real neighbor_expected = donor_temperature(pair.point) * factor;
+    const Real local_expected = donor_temperature(local_point) * factor;
+    const Real halo = global_fab_value(*t_surf, pair.target_fab, pair.point, true);
+    EXPECT_NEAR(halo, neighbor_expected, halo_tolerance(neighbor_expected));
+    EXPECT_GT(std::abs(halo - local_expected), halo_tolerance(neighbor_expected));
+
+    int duplicate_copies = 0;
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        if (!t_surf->boxArray()[ibox].contains(pair.point)) { continue; }
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, pair.point, false),
+                    neighbor_expected, halo_tolerance(neighbor_expected));
+        ++duplicate_copies;
+    }
+    EXPECT_EQ(duplicate_copies, 2);
 }
 
 // Motivation: the z-high qsat boundary is located at the upper W face, not at

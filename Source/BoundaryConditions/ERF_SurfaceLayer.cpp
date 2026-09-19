@@ -66,14 +66,6 @@ SurfaceLayer::update_fluxes (const int& lev,
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
 
-    // PlanarBoundary repopulates duplicate valid regions and may restore a
-    // nonperiodic destination ghost from the fallback copy. Reapply covered
-    // zero-ghost coupled donors after that exchange so the owning physical
-    // surface copy retains its clamped edge value.
-    if (zlo && m_coupled_sst_lev[lev]) {
-        fill_tsurf_with_coupled_sst(lev, cons_in, z_phys_nd);
-    }
-
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
@@ -1783,6 +1775,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
     amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
     int* conversion_failed = d_conversion_failed.dataPtr();
@@ -1830,16 +1823,27 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
             if (!is_land) {
                 const Real rho = cons_arr(li,lj,klo,Rho_comp);
                 const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
-                const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
                 if (!std::isfinite(rho) || rho <= Real(0.0) ||
-                    !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                    !std::isfinite(rho_theta)) {
                     amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     return;
                 }
-                const Real qv = moist ? rho_qv / rho : Real(0.0);
-                if (!std::isfinite(qv)) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                    return;
+                Real qv = Real(0.0);
+                if (moist) {
+                    if (!have_rho_qv) {
+                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        return;
+                    }
+                    const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                    if (!std::isfinite(rho_qv)) {
+                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        return;
+                    }
+                    qv = rho_qv / rho;
+                    if (!std::isfinite(qv)) {
+                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        return;
+                    }
                 }
                 const Real delta_z = z_arr
                     ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
@@ -2094,6 +2098,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
     amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
     int* conversion_failed = d_conversion_failed.dataPtr();
@@ -2154,16 +2159,27 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
-            const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
             if (!std::isfinite(rho) || rho <= Real(0.0) ||
-                !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                !std::isfinite(rho_theta)) {
                 amrex::Gpu::Atomic::Max(conversion_failed, 1);
                 return;
             }
-            const Real qv = moist ? rho_qv / rho : Real(0.0);
-            if (!std::isfinite(qv)) {
-                amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                return;
+            Real qv = Real(0.0);
+            if (moist) {
+                if (!have_rho_qv) {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    return;
+                }
+                const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                if (!std::isfinite(rho_qv)) {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    return;
+                }
+                qv = rho_qv / rho;
+                if (!std::isfinite(qv)) {
+                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    return;
+                }
             }
             const Real delta_z = z_arr
                 ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -

@@ -455,8 +455,10 @@ tangential_halo_pairs (const MultiFab& mf,
 {
     std::vector<TangentialHaloPair> result;
     const int dir = face.coordDir();
-    if (dir == 2) { return result; }
-    const int tangent_dir = 1 - dir;
+    // For a horizontal surface, the first lateral direction is sufficient to
+    // expose the internal exchange. Lateral faces use their other horizontal
+    // direction as the tangent.
+    const int tangent_dir = (dir == 2) ? 0 : 1 - dir;
     const BoxArray& target_ba = mf.boxArray();
 
     for (int ibox = 0; ibox < target_ba.size(); ++ibox) {
