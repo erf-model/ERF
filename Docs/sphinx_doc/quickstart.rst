@@ -23,6 +23,7 @@ directory layout and batch vs interactive runs is listed once below the tabs.
       The modules to be loaded in the `bash_profile` are 
 
       .. code-block:: bash
+
          module load craype-x86-milan
          module load PrgEnv-gnu
          module load cudatoolkit/12.9
