@@ -37,10 +37,10 @@ ComputeDiffusivityMYJ (double dt,
                        MultiFab& eddyViscosity,
                        const Geometry& geom,
                        const TurbChoice& /*turbChoice*/,
-                       std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
-                       bool /*use_moisture*/,
-                       int /*level*/,
+                       bool use_moisture,
+                       int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -164,9 +164,18 @@ ComputeDiffusivityMYJ (double dt,
         int izmin = geom.Domain().smallEnd(2);
         int izmax = geom.Domain().bigEnd(2);
 
-        // Ustar for BC
-        //MultiFab* ustar = SurfLayer->get_u_star(level);
-        //const Array4<Real const>& ustar_arr = ustar->array(mfi);
+        // Surface-layer scales, used to rebuild the gradients in the first cell
+        // above the surface (ERF #4037). MYJ can run without a SurfaceLayer, so
+        // these stay empty when there is none and the resolved stencil is kept.
+        const bool surface_layer_on_zlo = (SurfLayer != nullptr);
+        const auto u_star_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_u_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto t_star_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_t_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto q_star_arr = (surface_layer_on_zlo && use_moisture) ?
+                                SurfLayer->get_q_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto l_obuk_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_olen(level)->const_array(mfi) : Array4<const Real>{};
 
         // Vertical integrals to compute l0
         if (use_terrain_fitted_coords) {
@@ -234,6 +243,26 @@ ComputeDiffusivityMYJ (double dt,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                               dthetavdz, dudz, dvdz,
                                               moisture_indices);
+
+                // Replace the resolved gradients in the first cell with the MOST
+                // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
+                if (surface_layer_on_zlo && k == izmin) {
+                    const Real zval = use_terrain_fitted_coords ?
+                                      Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
+                                      gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                    const Real rho_k  = cell_data(i,j,k,Rho_comp);
+                    const Real theta  = cell_data(i,j,k,RhoTheta_comp) / rho_k;
+                    const Real qv     = (moisture_indices.qv >= 0) ?
+                                        cell_data(i,j,k,moisture_indices.qv) / rho_k : zero;
+                    PBLSurfaceLayerGradient sl;
+                    sl.u_star  = u_star_arr(i,j,0);
+                    sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                        (q_star_arr) ? q_star_arr(i,j,0) : zero,
+                                                        theta, qv, use_moisture);
+                    sl.zval    = zval;
+                    sl.zeta    = zval / l_obuk_arr(i,j,0);
+                    ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
+                }
 
                 // Calculate dimensional production terms
                 Real GML = std::max(dudz*dudz + dvdz*dvdz, EPSGM);

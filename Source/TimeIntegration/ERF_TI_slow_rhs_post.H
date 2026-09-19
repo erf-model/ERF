@@ -60,6 +60,7 @@
                           terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                           SmnSmn, eddyDiffs,
                           Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                          Tau[level][TauType::tau13].get(), Tau[level][TauType::tau23].get(),
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),

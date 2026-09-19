@@ -183,7 +183,9 @@ DiffusionCase run_case (int axis, bool low_active, bool high_active,
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
-        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr,
+        Array4<const Real>{}, Array4<const Real>{},
+        mu_turb[0].const_array(), solver_choice, 0,
         tm_arr, grav, bcs_d.data(), false, surfLayer, Real(0.0));
     Gpu::streamSynchronize();
 

@@ -4,6 +4,7 @@
 #include <AMReX_Periodicity.H>
 #include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
+#include "ERF_MOSTUtils.H"
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the
@@ -335,6 +336,80 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
 }
 
 /**
+ * Monin-Obukhov quantities needed to rebuild the vertical gradients in the first
+ * cell above a surface-layer boundary.
+ */
+struct PBLSurfaceLayerGradient
+{
+    amrex::Real u_star  {zero};  ///< friction velocity
+    amrex::Real tstar_v {zero};  ///< virtual temperature scale
+    amrex::Real zval    {zero};  ///< height of the cell center above the surface
+    amrex::Real zeta    {zero};  ///< stability coordinate z/L
+};
+
+/**
+ * Virtual temperature scale, thetav_* = theta_*(1 + epsv qv) + epsv theta q_*.
+ * The surface virtual heat flux is <w'thetav'> = -u_* thetav_*.
+ *
+ * @param[in] t_star temperature scale
+ * @param[in] q_star moisture scale
+ * @param[in] theta potential temperature
+ * @param[in] qv water vapor mixing ratio
+ * @param[in] use_moisture whether the moisture term is active
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeVirtualTStarPBL (amrex::Real t_star,
+                        amrex::Real q_star,
+                        amrex::Real theta,
+                        amrex::Real qv,
+                        bool use_moisture)
+{
+    amrex::Real tstar_v = t_star * (one + epsv*qv);
+    if (use_moisture) { tstar_v += epsv * theta * q_star; }
+    return tstar_v;
+}
+
+/**
+ * Overwrite the vertical gradients in the first cell above the surface with the
+ * MOST profile gradients,
+ *   |dU/dz|    = u_*      phi_m(zeta) / (kappa z)
+ *   dthetav/dz = thetav_* phi_h(zeta) / (kappa z)
+ *
+ * With zlo.type = surface_layer the state carries foextrap and the velocities
+ * hoextrap at the lower boundary, so the centered stencil in
+ * ComputeVerticalDerivativesPBL reads ghost values that hold no surface
+ * information there: the potential-temperature gradient comes out half the
+ * one-sided value and the velocity gradient has no dependence on the friction
+ * velocity at all (ERF #4037). The MOST profile used here is the one the surface
+ * stress and heat flux were themselves derived from.
+ *
+ * Every PBL scheme that consumes these gradients uses only the shear magnitude
+ * dudz^2 + dvdz^2, so that magnitude is carried in dudz and dvdz is left at zero
+ * rather than being split by wind direction.
+ *
+ * @param[in] sl Monin-Obukhov inputs for this column
+ * @param[out] dthetadz vertical derivative of virtual potential temperature
+ * @param[out] dudz vertical derivative of x-velocity (carries the shear magnitude)
+ * @param[out] dvdz vertical derivative of y-velocity (set to zero)
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
+ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
+                               amrex::Real& dthetadz,
+                               amrex::Real& dudz,
+                               amrex::Real& dvdz)
+{
+    const similarity_funs sfuns;
+    const amrex::Real inv_kappa_z = one / (KAPPA * sl.zval);
+    dudz     = sl.u_star  * sfuns.calc_phi_m(sl.zeta) * inv_kappa_z;
+    dvdz     = zero;
+    dthetadz = sl.tstar_v * sfuns.calc_phi_h(sl.zeta) * inv_kappa_z;
+}
+
+/**
  * Function for computing the QKE source terms (NN09, Eqn. 5).
  *
  * @param[in] u velocity in x-dir
@@ -346,6 +421,12 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
  * @param[in] dz_inv inverse spacings for interior and Dirichlet-boundary differences
  * @param[in] pbl_mynn_B1_l a parameter
  * @param[in] theta_mean average theta
+ * @param[in] moisture_indices moisture variable component indices
+ * @param[in] tau13 rho<u'w'> on z-faces; the surface-layer stress at the zlo face
+ * @param[in] tau23 rho<v'w'> on z-faces; the surface-layer stress at the zlo face
+ * @param[in] hfx_z rho<w'theta'> on z-faces; the surface-layer heat flux at the zlo face
+ * @param[in] qfx1_z rho<w'qv'> on z-faces; the surface-layer moisture flux at the zlo face
+ * @param[in] surface_layer_on_zlo a SurfaceLayer supplies the fluxes through the zlo face
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -366,22 +447,19 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool u_ext_dir_on_zlo,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
-                       bool v_ext_dir_on_zhi)
+                       bool v_ext_dir_on_zhi,
+                       const amrex::Array4<const amrex::Real>& tau13,
+                       const amrex::Array4<const amrex::Real>& tau23,
+                       const amrex::Array4<const amrex::Real>& hfx_z,
+                       const amrex::Array4<const amrex::Real>& qfx1_z,
+                       bool surface_layer_on_zlo)
 {
-    // Compute some relevant derivatives
-    amrex::Real dthetadz, dudz, dvdz;
     amrex::Real source_term = zero;
 
     int izmin = domain.smallEnd(2);
     int izmax = domain.bigEnd(2);
 
-    ComputeVerticalDerivativesPBL(i, j, k,
-                                  uvel, vvel, cell_data, izmin, izmax, dz_inv,
-                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi,
-                                  u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                  dthetadz, dudz, dvdz,
-                                  moisture_indices);
+    const amrex::Real rho = cell_data(i,j,k,Rho_comp);
 
     // Notes:
     // - We transport TKE = myhalf*QKE rather than QKE, so the RHS terms do not
@@ -390,20 +468,123 @@ ComputeQKESourceTerms (int i, int j, int k,
     //   DiffusionSrcForState_* is called from ERF_slow_rhs_post.
     // - Eddy diffusivities are updated at the beginning of each time step only.
 
-    // Second-order turbulent fluxes, e.g.:
-    // -<uw> = L q SM dU/dz  (NN09, Eqn. 18)
-    //       = Kmv/rho dU/dz
+    const bool use_surface_fluxes = ( surface_layer_on_zlo && (k == izmin) &&
+                                      tau13 && tau23 && hfx_z );
 
-    // Shear Production
-    source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+    if (use_surface_fluxes)
+    {
+        // The first cell center lies inside the unresolved surface layer. With
+        // zlo.type = surface_layer the state carries foextrap and the velocities
+        // hoextrap at the lower boundary, so the stencil used below reads ghost
+        // values that hold no surface information: the resolved gradients there
+        // are not a discretization of anything (ERF #4037). Build the production
+        // terms from the fluxes the model actually carries instead:
+        //
+        //   tau13, tau23  = rho<u'w'>, rho<v'w'>      (z-faces, staggered in x,y)
+        //   hfx_z, qfx1_z = rho<w'theta'>, rho<w'qv'> (z-faces)
+        //
+        // Two different heights are wanted here, so the two are kept apart:
+        //   - u_*, thetav_* and L are surface-layer parameters and have no
+        //     cell-centered counterpart, so they come from the zlo face alone;
+        //   - the production terms belong at the cell center, so their flux
+        //     factors average the two z-faces bounding this cell.
+        // Only the profile shape, phi(zeta_1)/(kappa z_1), ties the two together.
 
-    // Buoyancy Production
-    source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+        const amrex::Real theta = cell_data(i,j,k,RhoTheta_comp) / rho;
+        const amrex::Real qv    = (moisture_indices.qv >= 0) ?
+                                  cell_data(i,j,k,moisture_indices.qv) / rho : zero;
+
+        // ---- Surface-layer parameters, on the zlo face ----
+
+        // |tau|/rho = u_*^2
+        const amrex::Real t13_s = myhalf * ( tau13(i,j,k) + tau13(i+1,j,k) );
+        const amrex::Real t23_s = myhalf * ( tau23(i,j,k) + tau23(i,j+1,k) );
+        const amrex::Real tau_s = std::sqrt(t13_s*t13_s + t23_s*t23_s);
+        const amrex::Real ustar2 = tau_s / rho;
+        const amrex::Real ustar  = std::sqrt(ustar2);
+
+        // Surface virtual heat flux rho<w'theta_v'> (Stull Eqn. 4.4.5d)
+        amrex::Real hfxv_s = hfx_z(i,j,k) * (one + epsv*qv);
+        if (qfx1_z) { hfxv_s += epsv * theta * qfx1_z(i,j,k); }
+
+        // Height of this cell center above the surface. dz_inv.dirichlet_lo is by
+        // construction the inverse of the boundary-to-first-center distance, so it
+        // carries the right height for uniform, stretched and terrain-fitted grids.
+        const amrex::Real z1 = one / dz_inv.dirichlet_lo;
+
+        // Obukhov length, from the surface fluxes. A vanishing stress (a building
+        // face, say) leaves the shear production zero whatever zeta is, so the
+        // neutral value is the safe one to carry into phi_m there.
+        const amrex::Real thetav = theta * (one + epsv*qv);
+        const amrex::Real eps    = std::numeric_limits<amrex::Real>::epsilon();
+        amrex::Real zeta = zero;
+        if (std::abs(hfxv_s) > eps && ustar > eps) {
+            const amrex::Real l_obukhov = -( thetav * rho * ustar2 * ustar )
+                                        / ( KAPPA * CONST_GRAV * hfxv_s );
+            zeta = z1 / l_obukhov;
+        }
+
+        // phi_m, the companion of the psi_m that SurfaceLayer uses
+        const similarity_funs sfuns;
+        const amrex::Real phi_m = sfuns.calc_phi_m(zeta);
+
+        // ---- Production terms, at the cell center ----
+
+        // Cell-centered stress: average the two z-faces bounding this cell
+        const amrex::Real t13_c = fourth * ( tau13(i,j,k  ) + tau13(i+1,j,k  )
+                                           + tau13(i,j,k+1) + tau13(i+1,j,k+1) );
+        const amrex::Real t23_c = fourth * ( tau23(i,j  ,k) + tau23(i,j  ,k+1)
+                                           + tau23(i,j+1,k) + tau23(i,j+1,k+1) );
+
+        // Cell-centered virtual heat flux. NOTE: RhoQ1 is diffused after RhoKE in
+        // erf_slow_rhs_post, so the k+1 moisture face lags this stage by one; the
+        // moisture term is a small correction to the buoyancy flux, and the klo
+        // face it is averaged with is current.
+        amrex::Real hfxv_c = myhalf * ( hfx_z(i,j,k) + hfx_z(i,j,k+1) ) * (one + epsv*qv);
+        if (qfx1_z) {
+            hfxv_c += epsv * theta * myhalf * ( qfx1_z(i,j,k) + qfx1_z(i,j,k+1) );
+        }
+
+        // Shear production, -<u'w'> dU/dz - <v'w'> dV/dz. MOST sets the direction
+        // of the mean shear anti-parallel to the surface stress and its magnitude
+        // to u_* phi_m/(kappa z_1), so the dot product is the cell-centered stress
+        // projected onto the surface stress. This reduces to |tau| u_* phi_m /
+        // (kappa z_1) when the stress does not turn across the cell.
+        if (tau_s > eps) {
+            const amrex::Real tau_proj = (t13_c*t13_s + t23_c*t23_s) / tau_s;
+            source_term += tau_proj * ustar * phi_m / (KAPPA * z1);
+        }
+
+        // Buoyancy production, which needs no gradient at all
+        source_term += (CONST_GRAV/theta_mean) * hfxv_c;
+    }
+    else
+    {
+        // Compute some relevant derivatives
+        amrex::Real dthetadz, dudz, dvdz;
+        ComputeVerticalDerivativesPBL(i, j, k,
+                                      uvel, vvel, cell_data, izmin, izmax, dz_inv,
+                                      c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                      u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                      v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                      dthetadz, dudz, dvdz,
+                                      moisture_indices);
+
+        // Second-order turbulent fluxes, e.g.:
+        // -<uw> = L q SM dU/dz  (NN09, Eqn. 18)
+        //       = Kmv/rho dU/dz
+
+        // Shear Production
+        source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+
+        // Buoyancy Production
+        source_term -= (CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+    }
 
     // Dissipation (NN09, Eqn. 12)
     amrex::Real qke = two * cell_prim(i,j,k,PrimKE_comp);
     if (std::abs(qke) > zero) {
-        source_term -= cell_data(i,j,k,Rho_comp) * std::pow(qke,amrex::Real(1.5)) /
+        source_term -= rho * std::pow(qke,amrex::Real(1.5)) /
                        (pbl_mynn_B1_l * K_turb(i,j,k,EddyDiff::Turb_lengthscale));
     }
 
