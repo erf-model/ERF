@@ -316,6 +316,7 @@ private:
 
     // T surf if no LSM is available
     amrex::Real m_rad_t_sfc = -1;
+    amrex::Real m_rdOcp = RdoCp;
 
     // Pointer to the CC conserved vars
     amrex::MultiFab* m_cons_in = nullptr;

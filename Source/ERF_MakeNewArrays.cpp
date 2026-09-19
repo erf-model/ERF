@@ -530,7 +530,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
-        two_stream_rad.define_level(lev, solverChoice.radChoice, ba2d[lev], dm);
+        two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm);
     }
 
     //*********************************************************
