@@ -175,6 +175,14 @@ public:
         amrex::Error(
           "It is not recommended to use Deardorff LES and a PBL model");
       }
+      // Both the k-eqn RANS closure and these PBL schemes transport RhoKE
+      if ((rans_type == RANSType::kEqn) &&
+          ((pbl_type == PBLType::MYJ) || (pbl_type == PBLType::MYNN25) ||
+           (pbl_type == PBLType::MYNNEDMF) || uses_shoc_family())) {
+        amrex::Error("erf.rans_type = kEqn cannot be combined with erf.pbl_type = " +
+                     std::string(amrex::getEnumNameString(pbl_type)) +
+                     ": both transport the turbulent kinetic energy");
+      }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
         query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);

@@ -53,7 +53,6 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::MFIter& mfi,
-                         const amrex::Box& bx,
                          const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                          const amrex::Vector<amrex::Box>& bxx_grown,
                          const amrex::Vector<amrex::Box>& bxy_grown,
@@ -189,6 +188,152 @@ void AdvectionSrcForMom_EB (const amrex::MFIter& mfi,
                             const int lo_z_face, const int hi_z_face,
                             const amrex::Box& domain);
 
+/**
+ * Shrink a z-momentum box away from the bottom and top of the domain, where no
+ * z-momentum source term is computed.
+ *
+ * The shrink must be applied only at an end that actually coincides with the domain,
+ * which is why this takes `domain` rather than shrinking unconditionally: on a grid
+ * decomposed in z, an unconditional shrink also removes the w-face at every internal
+ * split, and any operator run on the result silently skips those faces.
+ *
+ * `b` is z-nodal; `domain` is cell-centered.
+ */
+inline amrex::Box
+ShrinkZmomBoxAtDomainEnds (amrex::Box b, const amrex::Box& domain)
+{
+    if (b.smallEnd(2) == domain.smallEnd(2))   { b.growLo(2,-1); }
+    if (b.bigEnd(2)   == domain.bigEnd(2) + 1) { b.growHi(2,-1); }
+    return b;
+}
+
+/**
+ * Which side of the domain is open in one coordinate direction, as seen by the
+ * cells an open-boundary kernel is about to update.
+ */
+enum struct OpenSide : int { lo = -1, none = 0, hi = 1 };
+
+/** One box on an open lateral boundary, tagged with the side(s) that are open there. */
+struct OpenBCPatch {
+    amrex::Box  box;
+    OpenSide x_side = OpenSide::none;
+    OpenSide y_side = OpenSide::none;
+};
+
+/**
+ * Remove from an open-boundary box the cells that also sit on a perpendicular
+ * open boundary, so that no cell is updated by two different open-boundary kernels.
+ *
+ * `b` is trimmed in dimension `dim` only at an end that actually coincides with the
+ * corresponding end of `domain`. The domain-level open flags by themselves are not a
+ * sufficient test: `b` is a per-box (or per-tile) slab whose ends generally lie in
+ * the interior, and trimming those would silently drop interior cells from the
+ * open-boundary treatment and make the answer depend on the grid decomposition.
+ *
+ * `domain` is cell-centered; the index of the boundary is taken in the index space
+ * of `b`, which may be node-centered in `dim`.
+ */
+inline amrex::Box
+TrimOpenBCCorner (amrex::Box b,
+                  const int dim,
+                  const amrex::Box& domain,
+                  const bool lo_open,
+                  const bool hi_open)
+{
+    if (!b.ok()) { return b; }
+
+    const int dom_lo = domain.smallEnd(dim);
+    const int dom_hi = domain.bigEnd(dim) + (b.ixType().nodeCentered(dim) ? 1 : 0);
+
+    if (lo_open && b.smallEnd(dim) == dom_lo) { b.growLo(dim,-1); }
+    if (hi_open && b.bigEnd(dim)   == dom_hi) { b.growHi(dim,-1); }
+
+    return b;
+}
+
+/**
+ * Build the one-cell-wide box where the `x_side` and `y_side` open boundaries meet,
+ * or an empty box if `b` does not reach both of them.
+ */
+inline amrex::Box
+OpenBCCornerBox (amrex::Box b,
+                 const amrex::Box& domain,
+                 const OpenSide x_side,
+                 const OpenSide y_side)
+{
+    AMREX_ALWAYS_ASSERT(x_side != OpenSide::none && y_side != OpenSide::none);
+
+    if (!b.ok()) { return amrex::Box(); }
+
+    const OpenSide side[2] = {x_side, y_side};
+    for (int dim(0); dim < 2; ++dim) {
+        const int idx = (side[dim] == OpenSide::lo) ?
+                         domain.smallEnd(dim) :
+                         domain.bigEnd(dim) + (b.ixType().nodeCentered(dim) ? 1 : 0);
+        if (idx < b.smallEnd(dim) || idx > b.bigEnd(dim)) { return amrex::Box(); }
+        b = amrex::makeSlab(b, dim, idx);
+    }
+
+    return b;
+}
+
+/**
+ * Enumerate the boxes on which the open-boundary tangential operator must be applied
+ * for a quantity that has no boundary-normal owner at a lateral corner -- that is,
+ * w and the cell-centered state, both of which are tangent to every lateral boundary.
+ *
+ * The returned boxes are disjoint and together cover every cell of `b` that lies on an
+ * open lateral boundary: the four edges, trimmed so they do not reach into a corner,
+ * plus the corners themselves, which carry both sides so the kernel differences across
+ * neither open boundary there.
+ */
+inline amrex::Vector<OpenBCPatch>
+OpenBCTangentPatches (const amrex::Box& b,
+                      const amrex::Box& domain,
+                      const bool xlo_open,
+                      const bool xhi_open,
+                      const bool ylo_open,
+                      const bool yhi_open)
+{
+    amrex::Vector<OpenBCPatch> patches;
+    if (!b.ok()) { return patches; }
+    patches.reserve(8);
+
+    const int dom_xhi = domain.bigEnd(0) + (b.ixType().nodeCentered(0) ? 1 : 0);
+    const int dom_yhi = domain.bigEnd(1) + (b.ixType().nodeCentered(1) ? 1 : 0);
+
+    // Edges: each is trimmed by the open boundaries perpendicular to it, which own
+    // the corner cells by way of the corner patches added below.
+    if (xlo_open && b.smallEnd(0) == domain.smallEnd(0)) {
+        amrex::Box e = TrimOpenBCCorner(amrex::makeSlab(b,0,domain.smallEnd(0)), 1, domain, ylo_open, yhi_open);
+        if (e.ok()) { patches.push_back({e, OpenSide::lo, OpenSide::none}); }
+    }
+    if (xhi_open && b.bigEnd(0) == dom_xhi) {
+        amrex::Box e = TrimOpenBCCorner(amrex::makeSlab(b,0,dom_xhi), 1, domain, ylo_open, yhi_open);
+        if (e.ok()) { patches.push_back({e, OpenSide::hi, OpenSide::none}); }
+    }
+    if (ylo_open && b.smallEnd(1) == domain.smallEnd(1)) {
+        amrex::Box e = TrimOpenBCCorner(amrex::makeSlab(b,1,domain.smallEnd(1)), 0, domain, xlo_open, xhi_open);
+        if (e.ok()) { patches.push_back({e, OpenSide::none, OpenSide::lo}); }
+    }
+    if (yhi_open && b.bigEnd(1) == dom_yhi) {
+        amrex::Box e = TrimOpenBCCorner(amrex::makeSlab(b,1,dom_yhi), 0, domain, xlo_open, xhi_open);
+        if (e.ok()) { patches.push_back({e, OpenSide::none, OpenSide::hi}); }
+    }
+
+    // Corners
+    for (OpenSide x_side : {OpenSide::lo, OpenSide::hi}) {
+        if (!((x_side == OpenSide::lo) ? xlo_open : xhi_open)) { continue; }
+        for (OpenSide y_side : {OpenSide::lo, OpenSide::hi}) {
+            if (!((y_side == OpenSide::lo) ? ylo_open : yhi_open)) { continue; }
+            amrex::Box c = OpenBCCornerBox(b, domain, x_side, y_side);
+            if (c.ok()) { patches.push_back({c, x_side, y_side}); }
+        }
+    }
+
+    return patches;
+}
+
 /** Compute advection tendencies for all normal components of momentum */
 void
 AdvectionSrcForOpenBC_Normal (const amrex::Box& bx,
@@ -229,10 +374,13 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const amrex::Box& bxy,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
-/** Compute advection tendencies for w momentum tangent to open BC */
+/** Compute advection tendencies for w momentum tangent to open BC
+ *  `x_side` and `y_side` say which lateral boundaries the cells being updated lie on;
+ *  both are set at a corner, where neither direction may be differenced across. */
 void
 AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
-                                    const int& dir,
+                                    const OpenSide x_side,
+                                    const OpenSide y_side,
                                     const amrex::Array4<      amrex::Real>& rho_w_rhs,
                                     const amrex::Array4<const amrex::Real>& w,
                                     const amrex::Array4<const amrex::Real>& rho_u,
@@ -243,13 +391,15 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const int domhi_z,
-                                    const bool do_lo=false);
+                                    const int domhi_z);
 
-/** Compute advection tendencies for conserved variables tangential to open BC */
+/** Compute advection tendencies for conserved variables tangential to open BC
+ *  `x_side` and `y_side` say which lateral boundaries the cells being updated lie on;
+ *  both are set at a corner, where neither direction may be differenced across. */
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
-                                    const int& dir,
+                                    const OpenSide x_side,
+                                    const OpenSide y_side,
                                     const int& icomp,
                                     const int& ncomp,
                                     const amrex::Array4<      amrex::Real>& cell_rhs,
@@ -258,8 +408,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const amrex::Array4<const amrex::Real>& avg_ymom,
                                     const amrex::Array4<const amrex::Real>& avg_zmom,
                                     const amrex::Array4<const amrex::Real>& detJ,
-                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool do_lo=false);
+                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 /** Compute advection tendencies in the normal direction for variables tangent to open BC */
 AMREX_GPU_HOST_DEVICE
