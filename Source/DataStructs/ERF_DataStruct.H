@@ -1434,6 +1434,17 @@ struct SolverChoice {
             }
         }
 
+        // The EB diffusion path adds no buoyancy, shear or dissipation source for
+        // a prognostic TKE closure
+        if (terrain_type == TerrainType::EB) {
+            for (int lev = 0; lev <= max_level; lev++) {
+                if (turbChoice[lev].use_keqn) {
+                    amrex::Error("erf.terrain_type = EB cannot be used with erf.les_type = Deardorff "
+                                 "or erf.rans_type = kEqn: the EB diffusion path has no TKE sources");
+                }
+            }
+        }
+
         // Do not allow implicit vertical diff when all the components are false
         if (!implicit_thermal_diffusion  &&
             !implicit_moisture_diffusion &&
