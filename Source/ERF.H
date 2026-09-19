@@ -1142,10 +1142,21 @@ private:
     amrex::Vector<int> istep;      // which step?
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
-    // Track whether each level was initialized with surface-only mode (interp_atmos_from_coarse)
-    // Used to gate radiation skip on first step - only levels initialized this way need it
-    // (using int instead of bool to avoid std::vector<bool> specialization issues)
-    amrex::Vector<int> used_surface_only_init;
+    // One entry per level: set when that level has just been built by the
+    // erf.interp_atmos_from_coarse path, whose atmospheric state comes from FillCoarsePatch
+    // and is not yet thermodynamically consistent (rho, theta and qv are interpolated
+    // independently).  advance_radiation interpolates the radiation fields from the parent
+    // rather than running RRTMGP on that state, and clears the entry once it has done so, so
+    // exactly one step is skipped per level creation.
+    //
+    // NOTE: this is deliberately a flag owned by the level's lifetime rather than a test on
+    //       istep[lev].  istep is sized once in ReadParameters and is never reset when a
+    //       level is removed, so it carries over from a level's previous life: a level that
+    //       ran for fifty steps, was de-refined, and was then re-created would have
+    //       istep[lev] == 50 and would silently miss the skip.
+    //
+    // (using int instead of bool to avoid the std::vector<bool> specialization)
+    amrex::Vector<int> rad_interp_from_coarse_pending;
 
     // keep track of old time, new time, and time step at each level
     amrex::Vector<double> t_new;
