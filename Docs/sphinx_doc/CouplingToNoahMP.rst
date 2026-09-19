@@ -74,9 +74,6 @@ The ERF-side driver is split by concern across several files under
 
 -  **ERF_NOAHMP_IO.cpp**: The land plotfile and checkpoint/restart.
 
-Developer design specifications for these files live under
-**Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``).
-
 The C++ ``↔`` Fortran coupling glue under **Submodules/Noah-MP/drivers/erf**
 is no longer hand-written. Five files are **generated** at build time from a single
 source of truth by ``tools/NoahmpMacro.py``. Only the tracked ``*-mc``
@@ -137,14 +134,6 @@ on every build:
    ``WriteRestart``/``ReadRestart`` methods of ``NoahmpIO_type`` and are used by
    ERF's checkpoint/restart capability (see :ref:`noahmp-checkpoint-restart`).
 
--  **Submodules/Noah-MP/drivers/erf/dev/**: Developer design specifications
-   (markdown) for the coupling layer — architecture and file map
-   (``spec-overview.md``), the Fortran ``↔`` C ABI/API and the code generator
-   (``spec-fc-api.md``), memory safety (``spec-memory-safety.md``), the land-output
-   and restart I/O (``spec-io-parallel.md``, ``spec-io-restart.md``), and the
-   add-a-coupled-variable workflow (``spec-add-coupled-variable.md``). Start with
-   ``dev/README.md``.
-
 NOAHMP Class
 ------------
 
@@ -193,9 +182,7 @@ types are identical *by construction*.
 
 To expose a new variable you therefore add a single line here and rebuild; the
 only remaining manual steps are the runtime wiring the generator does not own (the
-namelist guard for a namelist-read scalar, and optional NetCDF output). See
-``Submodules/Noah-MP/drivers/erf/dev/spec-add-coupled-variable.md`` for the full
-procedure.
+namelist guard for a namelist-read scalar, and optional NetCDF output).
 
 .. note::
 
@@ -343,8 +330,7 @@ into the physics on the first ``Advance``.
    Adding a coupled variable
    -------------------------
 
-   The full, authoritative procedure lives in
-   **Submodules/Noah-MP/drivers/erf/dev/spec-add-coupled-variable.md**. In short:
+   The procedure is:
 
    #. **Declare it (boundary glue).** Add ONE line to the
       ``@NoahmpMacro:Source m_noahmpio { ... }`` block in ``NoahmpIO.H-mc``, in the ABI
@@ -378,40 +364,15 @@ into the physics on the first ``Advance``.
 
    #. **(Optional) NetCDF land output.** To make the variable appear in the
       per-timestep land output, add it to ``NoahmpWriteLandMod.F90`` following the
-      existing ``TSK`` / ``SMOIS`` pattern (see
-      ``dev/spec-io-parallel.md``).
+      existing ``TSK`` / ``SMOIS`` pattern.
 
-   To extend the generator itself — a new region or better diagnostics — see
-   ``dev/spec-fc-api.md``.
-
-   Working on the ERF driver with a coding agent
-   =============================================
+   Working on the ERF driver
+   =========================
 
    The ERF-side C++ driver (the ``ERF_NOAHMP_*`` files under
    **Source/LandSurfaceModel/Noah-MP/**) is *not* covered by the macroprocessor above
    — it contains the GPU-aware, component-indexed state exchange rather than flat ABI
-   plumbing. It is instead maintained with the help of a coding agent (Claude Code or
-   similar) driven from its developer specifications.
-
-   Those specifications — the source layout and X-macro field registry, the
-   component-indexed field enums, the GPU-aware state exchange, the run lifecycle, and
-   the contract a change must respect — live as developer specs under
-   **Source/LandSurfaceModel/Noah-MP/dev/** (start with ``dev/README.md``). The
-   intended workflow is:
-
-   #. Load ``dev/README.md`` into the agent first — it is the map from each file to
-      its concern and to the spec that documents it.
-   #. Then load the concern-scoped spec for the file being changed
-      (``spec-noahmp-api.md`` for the API and lifecycle, ``spec-noahmp-gpu.md`` for
-      the per-step data movement, ``spec-noahmp-io.md`` for I/O, or
-      ``spec-noahmp-reorg.md`` for the source layout and field registry).
-   #. Treat the invariants — and, for a new coupled variable, the "Adding a coupled
-      variable" validation checklist in ``spec-noahmp-api.md`` — as the acceptance
-      criteria the change must satisfy.
-
-   Keeping the design specs in ``dev/`` beside the code, so a human or an agent works
-   from the same contract, is part of ongoing AI-for-HPC research using
-   `CodeScribe <https://github.com/akashdhruv/CodeScribe>`_.
+   plumbing, so it is maintained by hand.
 
    .. note::
 
