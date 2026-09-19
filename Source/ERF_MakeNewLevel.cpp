@@ -29,6 +29,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //
     // Note that "time" here is elapsed time
     //
+
+    // A level built here gets its atmospheric state from its own initialization -- an input
+    // file, a problem setup or a restart -- rather than from FillCoarsePatch, so radiation
+    // has a consistent state to work with and nothing is pending for it.  Clearing this
+    // explicitly matters because the entry may be left over from an earlier life of this
+    // level: erf.interp_atmos_from_coarse is ignored on this path (see the warning below),
+    // so a stale flag would skip a step of radiation for no reason.
+    if (static_cast<int>(rad_interp_from_coarse_pending.size()) <= lev) {
+        rad_interp_from_coarse_pending.resize(lev+1, 0);
+    }
+    rad_interp_from_coarse_pending[lev] = 0;
+
     BoxArray ba;
     DistributionMapping dm;
     Box domain(Geom(0).Domain());
@@ -494,12 +506,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         bool use_surface_only = solverChoice.interp_atmos_from_coarse && (lev > 0) &&
                                 (solverChoice.init_type == InitType::WRFInput);
 
-        // Track whether this level used surface-only initialization
-        // (needed by advance_radiation to decide whether to skip radiation on first step)
-        if (static_cast<int>(used_surface_only_init.size()) <= lev) {
-            used_surface_only_init.resize(lev+1, 0);
+        // Tell advance_radiation whether this level's atmospheric state is about to come from
+        // FillCoarsePatch, in which case it must interpolate the radiation fields from the
+        // parent for one step rather than run RRTMGP on a state that is not yet consistent.
+        if (static_cast<int>(rad_interp_from_coarse_pending.size()) <= lev) {
+            rad_interp_from_coarse_pending.resize(lev+1, 0);
         }
-        used_surface_only_init[lev] = use_surface_only ? 1 : 0;
+        rad_interp_from_coarse_pending[lev] = use_surface_only ? 1 : 0;
 
         // If using surface-only init with LSM, we need to set up LSM data structures before
         // reading the wrfinput file, so that the surface-only read can populate them.
@@ -1243,6 +1256,12 @@ ERF::ClearLevel (int lev)
         }
     }
 #endif
+
+    // This level is going away, so nothing is pending for its radiation.  Whichever routine
+    // builds the level next is responsible for setting this again.
+    if (lev < static_cast<int>(rad_interp_from_coarse_pending.size())) {
+        rad_interp_from_coarse_pending[lev] = 0;
+    }
 }
 
 //

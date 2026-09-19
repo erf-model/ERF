@@ -185,18 +185,23 @@ void ERF::advance_radiation (int lev,
     if (solverChoice.rad_uses_interface()) {
         BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
 
-        // On the first timestep after a new level is created from coarse using surface-only init
-        // (interp_atmos_from_coarse mode), interpolate heating rates and radiation fluxes from coarse
-        // instead of computing them. This avoids NaNs from thermodynamic inconsistencies in the
-        // FillCoarsePatch atmospheric state interpolation, and provides the LSM with the radiation
-        // fields it needs. Only apply this to levels that actually used surface-only init, not levels
-        // that read full state from wrfinput during MakeNewLevelFromScratch.
-        if (lev > 0 && istep[lev] == 0 &&
-            lev < static_cast<int>(used_surface_only_init.size()) &&
-            used_surface_only_init[lev]) {
+        // On the first step of a level that has just been built by interp_atmos_from_coarse,
+        // interpolate the heating rates and radiation fluxes from the parent instead of
+        // computing them.  That level's atmospheric state came from FillCoarsePatch, which
+        // interpolates rho, theta and qv independently and so leaves them thermodynamically
+        // inconsistent; running RRTMGP on it produces NaNs (see MakeNewLevelFromCoarse).
+        // Interpolating also gives the LSM the radiation fields it needs for that step.
+        //
+        // The flag is set by whichever routine built the level and is cleared here as soon as
+        // it has been acted on, so exactly one step is skipped per level creation.  Levels
+        // that read a full state of their own never have it set.
+        if (lev > 0 &&
+            lev < static_cast<int>(rad_interp_from_coarse_pending.size()) &&
+            rad_interp_from_coarse_pending[lev]) {
             amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
-                           << " to level " << lev << " on first timestep (istep=0)\n";
+                           << " to level " << lev << " on the first step after that level was built\n";
             interp_rad_from_coarse();
+            rad_interp_from_coarse_pending[lev] = 0;
             return;
         }
 
