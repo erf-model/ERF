@@ -9,6 +9,7 @@
 #include <AMReX_Box.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include <ERF_Constants.H>
@@ -200,16 +201,16 @@ amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
                                            amrex::Real rho,
                                            amrex::Real qv = 0.0)
 {
-    if (!(rho > 0.0) || !std::isfinite(rho) ||
-        !(rho_theta > 0.0) || !std::isfinite(rho_theta)) {
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) ||
+        !(rho_theta > 0.0) || !amrex::Math::isfinite(rho_theta)) {
         return 288.15;  // Defensive: fallback to standard T
     }
-    if (!(qv >= 0.0) || !std::isfinite(qv)) {
+    if (!(qv >= 0.0) || !amrex::Math::isfinite(qv)) {
         qv = 0.0;
     }
 
     amrex::Real T = getTgivenRandRTh(rho, rho_theta, qv);
-    if (!std::isfinite(T) || T <= 0.0) {
+    if (!amrex::Math::isfinite(T) || T <= 0.0) {
         return 288.15;  // Defensive: fallback
     }
 
@@ -223,7 +224,7 @@ amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool valid_surface_temperature (amrex::Real value)
 {
-    return std::isfinite(value) && value > 0.0 && value < lsm_undefined;
+    return amrex::Math::isfinite(value) && value > 0.0 && value < lsm_undefined;
 }
 
 /**
@@ -251,7 +252,7 @@ amrex::Real resolve_surface_albedo_sw (
 
     if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
-        if (std::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+        if (amrex::Math::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
             alb = hetero_val;
         }
     }
@@ -284,7 +285,7 @@ amrex::Real resolve_surface_emissivity_lw (
 
     if (has_hetero_emiss && hetero_emiss_lw != nullptr && hetero_emiss_lw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_emiss_lw)(i, j, 0, 0);  // Assume single component
-        if (std::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+        if (amrex::Math::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
             emiss = hetero_val;
         }
     }
@@ -388,9 +389,9 @@ amrex::Real get_qv_from_state (int i, int j, int k,
     if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
     amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) || !amrex::Math::isfinite(rho_qv)) return 0.0;
     amrex::Real qv = rho_qv / rho;
-    return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
+    return (amrex::Math::isfinite(qv) && qv > 0.0) ? qv : 0.0;
 }
 
 /**
@@ -405,10 +406,10 @@ amrex::Real get_inverse_exner (int i, int j, int k,
                                const amrex::Array4<const amrex::Real>& state_arr)
 {
     amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-    if (!(rho_theta > 0.0) || !std::isfinite(rho_theta)) return 1.0;
+    if (!(rho_theta > 0.0) || !amrex::Math::isfinite(rho_theta)) return 1.0;
     const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
     const amrex::Real pi = getExnergivenRTh(rho_theta, RdoCp, qv);
-    return (std::isfinite(pi) && pi > 0.0) ? 1.0 / pi : 1.0;
+    return (amrex::Math::isfinite(pi) && pi > 0.0) ? 1.0 / pi : 1.0;
 }
 
 /**
@@ -424,9 +425,9 @@ amrex::Real get_qc_from_state (int i, int j, int k,
     if (state_arr.nComp() <= RhoQ2_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
     amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qc)) return 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) || !amrex::Math::isfinite(rho_qc)) return 0.0;
     amrex::Real qc = rho_qc / rho;
-    return (std::isfinite(qc) && qc > 0.0) ? qc : 0.0;
+    return (amrex::Math::isfinite(qc) && qc > 0.0) ? qc : 0.0;
 }
 
 /**
@@ -449,10 +450,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_dynamic (amrex::Real tau_base, amrex::Real qv, amrex::Real qc,
                                   amrex::Real coeff_qv, amrex::Real coeff_qc)
 {
-    if (!(qv > 0.0) || !std::isfinite(qv)) qv = 0.0;
-    if (!(qc > 0.0) || !std::isfinite(qc)) qc = 0.0;
+    if (!(qv > 0.0) || !amrex::Math::isfinite(qv)) qv = 0.0;
+    if (!(qc > 0.0) || !amrex::Math::isfinite(qc)) qc = 0.0;
     amrex::Real tau = tau_base + coeff_qv * qv + coeff_qc * qc;
-    if (!std::isfinite(tau)) return tau_base;
+    if (!amrex::Math::isfinite(tau)) return tau_base;
     if (tau < 0.0) tau = 0.0;
     if (tau > 100.0) tau = 100.0;
     return tau;
@@ -564,13 +565,13 @@ amrex::Real diagnose_cloud_fraction_prognostic (
     // Unreachable from TwoStreamRadiation::advance, which refuses a state with
     // a non-finite or non-positive density or rho*theta before the sweep;
     // kept so a direct kernel caller (unit tests) cannot divide by zero.
-    if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-    if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+    if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+    if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
 
     // Temperature (via the Exner function) and pressure from the equation of state
     amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho, qv);
     amrex::Real P = getPgivenRTh(rho_theta, qv);
-    if (P <= 0.0 || !std::isfinite(P)) P = p_0;
+    if (P <= 0.0 || !amrex::Math::isfinite(P)) P = p_0;
 
     const amrex::Real rh = compute_relative_humidity(qv, T, P);
 
@@ -656,13 +657,13 @@ amrex::Real diagnose_layer_tau (
     amrex::Real base = tau_base;
     if (!is_sw && (rad_choice.lw_mass_absorption_enable || rad_choice.tau_model == TauModel::Mass)) {
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+        if (!(rho > 0.0) || !amrex::Math::isfinite(rho)) rho = 0.0;
         const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
         const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
         base = rho * dz_layer * (rad_choice.lw_kabs_dry
                                  + rad_choice.lw_kabs_vapor * qv
                                  + rad_choice.lw_kabs_cloud * qc);
-        if (!std::isfinite(base) || base < 0.0) base = 0.0;
+        if (!amrex::Math::isfinite(base) || base < 0.0) base = 0.0;
     }
 
     // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
@@ -763,7 +764,7 @@ void diagnose_layer_optics (
 
     // Shortwave mass model: constituent extinction optical depths.
     amrex::Real rho = state_arr(i, j, k, Rho_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho)) rho = 0.0;
     const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
     const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
     const amrex::Real path = rho * dz_layer;
@@ -797,7 +798,7 @@ void diagnose_layer_optics (
                                                      0.0, /*is_sw=*/true, cloudy, rad_choice) - band;
     if (additions > 0.0) ext += additions;
 
-    if (!std::isfinite(ext) || ext <= 0.0) {
+    if (!amrex::Math::isfinite(ext) || ext <= 0.0) {
         tau = 0.0;
         return;
     }
@@ -961,7 +962,7 @@ void vertical_two_stream_sweep (
             const amrex::Real z_lo = z_face(kmin + m);
             const amrex::Real z_hi = z_face(kmin + m + 1);
             const amrex::Real dz_computed = z_hi - z_lo;
-            dz_level(m) = (dz_computed > 0.0 && std::isfinite(dz_computed)) ? dz_computed : dz_uniform;
+            dz_level(m) = (dz_computed > 0.0 && amrex::Math::isfinite(dz_computed)) ? dz_computed : dz_uniform;
             z_level(m)  = 0.5 * (z_lo + z_hi) - z_surface;
         }
     } else {
@@ -1090,7 +1091,7 @@ void vertical_two_stream_sweep (
             }
 
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
 
             // dT/dt from the flux divergence, stored as dtheta/dt = (dT/dt)/pi
             // (the RhoTheta source term and RRTMGP use the same convention).
@@ -1122,8 +1123,8 @@ void vertical_two_stream_sweep (
 
             amrex::Real rho       = state_arr(i, j, k, Rho_comp);
             amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
             amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
 
@@ -1170,8 +1171,8 @@ void vertical_two_stream_sweep (
 
             amrex::Real rho       = state_arr(i, j, k, Rho_comp);
             amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
             amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
 
@@ -1183,7 +1184,7 @@ void vertical_two_stream_sweep (
         for (int k = kmin; k <= kmax; ++k) {
             const int m = k - kmin;
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
             if (rad_flux_out != nullptr) {
                 (*rad_flux_out)(i, j, k, 2) = F_lw_up_iface(m);    // LW up at the lower interface of layer k
                 (*rad_flux_out)(i, j, k, 3) = F_lw_down_iface(m);  // LW down

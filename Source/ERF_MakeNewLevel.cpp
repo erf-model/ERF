@@ -1273,7 +1273,7 @@ ERF::ClearLevel (int lev)
 // This must be called after vars_new[lev][Vars::cons] has been (re)defined on the new grids.
 //
 void
-ERF::make_lsm_at_level (int lev, bool from_regrid)
+ERF::make_lsm_at_level (int lev, bool from_regrid [[maybe_unused]])
 {
     int lsm_data_size  = lsm.Get_Data_Size();
     int lsm_flux_size  = lsm.Get_Flux_Size();

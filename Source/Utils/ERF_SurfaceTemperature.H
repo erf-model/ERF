@@ -1,6 +1,8 @@
 #ifndef ERF_SURFACE_TEMPERATURE_H_
 #define ERF_SURFACE_TEMPERATURE_H_
 
+#include <AMReX_Math.H>
+
 #include <ERF_Constants.H>
 #include <ERF_EOS.H>
 
@@ -37,14 +39,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 valid_pressure (const amrex::Real pressure)
 {
-    return std::isfinite(pressure) && pressure > amrex::Real(0.0);
+    return amrex::Math::isfinite(pressure) && pressure > amrex::Real(0.0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool
 valid_temperature (const amrex::Real temperature)
 {
-    return std::isfinite(temperature) && temperature > amrex::Real(0.0);
+    return amrex::Math::isfinite(temperature) && temperature > amrex::Real(0.0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -55,7 +57,7 @@ theta_to_temperature (const amrex::Real theta,
                       amrex::Real& temperature)
 {
     if (!valid_pressure(pressure) || !valid_temperature(theta) ||
-        !std::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
+        !amrex::Math::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
         return false;
     }
     const amrex::Real result = getTgivenPandTh(pressure, theta, rdOcp);
@@ -74,7 +76,7 @@ temperature_to_theta (const amrex::Real temperature,
                       amrex::Real& theta)
 {
     if (!valid_pressure(pressure) || !valid_temperature(temperature) ||
-        !std::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
+        !amrex::Math::isfinite(rdOcp) || rdOcp <= amrex::Real(0.0)) {
         return false;
     }
     const amrex::Real result = getThgivenTandP(temperature, pressure, rdOcp);
