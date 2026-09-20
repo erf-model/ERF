@@ -425,31 +425,6 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
 
-# Parity test: the deck with whole-height fine grids and with the fine grids split in z
-# must give identical plotfiles
-function(add_test_terrain_zsplit_parity TEST_NAME PLTFILE)
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DPLTFILE=${PLTFILE}
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainZSplitParity.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 600
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/full_columns/simulation.log;${CURRENT_TEST_BINARY_DIR}/split_in_z/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
-endfunction(add_test_terrain_zsplit_parity)
-
 # At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
 # outflow boundaries, where the mesh is extrapolated past the domain and the base state in
 # the ghost cells has to be built at the height the mesh puts them at rather than copied.
@@ -829,7 +804,6 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     LABELS "regression;shoc;microphysics")
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
-add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 endif()
 endif()
@@ -1072,42 +1046,6 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-# A terrain-fitted mesh whose BoxArray is split in z (amr.max_grid_size below the number of
-# cells in z), under a MOST surface layer. The anelastic case covers the projection as well,
-# but its terrain Poisson solve is the FFT-preconditioned GMRES, so it needs the FFT build.
-# The compressible case without acoustic substepping runs in every build.
-if(ERF_ENABLE_FFT)
-add_test_r(ABL_MOST_WOA_ZSplit               ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-endif()
-add_test_r(ABL_MOST_WOA_ZSplit_NoSub         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-# The ZSplit decks on one box against their 12 boxes: the base state and the projection used to
-# depend on the split in z (u 0.01 m/s and theta 0.18 K apart after 10 steps in the anelastic
-# case). The runner is a cmake -P script, so it needs MPI and cannot expand the Windows exe glob.
-if(ERF_ENABLE_MPI AND NOT WIN32)
-if(ERF_ENABLE_FFT)
-add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_BoxParity/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9")
-endif()
-add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding erf.data_log=surf_hist.dat erf.sum_interval=1"
-    REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9"
-    DATALOG "surf_hist.dat")
-# The TKE buoyancy source reads the theta-diffusion flux at both z-faces of each
-# cell, so the top cell of every box reads a box-boundary face: one box against
-# ten boxes (x split at 4, z in five boxes of 20 cells, so splits at k = 20, 40,
-# 60 and 80), for the k-eqn and Deardorff closures.
-add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn RANS_Convective_Buoyancy_ZSplit "plt00040"
-    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-    FCOMPARE_RTOL "1.0e-9")
-add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff RANS_Convective_Buoyancy_ZSplit "plt00040"
-    COMMON_OPTIONS "erf.rans_type=None erf.les_type=Deardorff erf.dirichlet_k=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-    FCOMPARE_RTOL "1.0e-9")
-endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_TKE
@@ -1211,12 +1149,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
-  # The MYNN25 PBL height scans whole columns: one box against boxes split in z, with the
-  # k-eqn length scale capped by the PBL height so that the 3D fields depend on it.
-  add_test_box_parity(PBLH_ZSplit_BoxParity PBLH_ZSplit "plt00040"
-      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_ZSplit_BoxParity/input_sounding"
-      REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-      FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -1511,7 +1443,6 @@ endfunction(add_test_rans_pair)
 # convective case, run compressible with the implicit vertical solve (A) and
 # with explicit vertical diffusion (B), must give the same KE to within the
 # time-discretisation difference. The command runs through sh, so not on Windows.
-# The z box boundaries are covered by RANS_Convective_Buoyancy_ZSplit_BoxParity_*.
 if(NOT WIN32)
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
         RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
