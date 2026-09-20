@@ -424,7 +424,8 @@ perpendicular to that direction -- here, the fraction of tagged columns in the
 x-y plane.
 
 If splitting in z is allowed -- that is, if ``amr.no_box_split_dir`` is set to
--1 rather than left at its ERF default of 2 -- then the region covering the
+-1 rather than left at its ERF default of 2, which ERF permits only when no level
+uses implicit acoustic substepping -- then the region covering the
 domain in z may still be *chopped* in z into several boxes by
 ``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``: their union always
 covers the full depth, but an individual box then does not.  With the ERF

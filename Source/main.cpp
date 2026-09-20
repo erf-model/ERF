@@ -35,11 +35,14 @@ void add_par () {
    // no_box_split_dir tells amrex that the grids must never be split in that
    // direction; max_grid_size and refine_grid_layout are then ignored there.
    // ERF sets this to 2 (the z-direction) by default so that no grid is ever
-   // decomposed in the vertical -- a column of the domain then always lies
-   // within a single grid, which is required, e.g., by the implicit vertical
-   // diffusion solves.  Setting amr.no_box_split_dir = -1 in the inputs file
-   // restores the amrex behavior of allowing grids to be chopped in every
-   // direction.
+   // decomposed in the vertical -- no two grids then share a face normal to z, so
+   // no column is chopped between them, which is required, e.g., by the implicit
+   // vertical diffusion solves and by the implicit acoustic substepping.  (Several
+   // grids may still sit over the same column, as long as they do not touch; what
+   // those solves cannot do is split one contiguous column at a box seam.)  Setting
+   // amr.no_box_split_dir = -1 in the inputs file restores the amrex behavior of
+   // allowing grids to be chopped in every direction; ERF::ReadParameters rejects
+   // that if any level uses erf.substepping_type = Implicit.
    int no_box_split_dir = 2;
    pp.queryAdd("no_box_split_dir",no_box_split_dir);
 

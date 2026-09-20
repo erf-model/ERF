@@ -672,6 +672,8 @@ Examples of Usage
 -  | **amr.no_box_split_dir** = -1
    | Restore the AMReX behavior, in which grids may be split in any direction
      subject to **amr.max_grid_size** and **amr.refine_grid_layout_x/_y/_z**.
+     This is only allowed if no level uses implicit acoustic substepping; see
+     the note below.
 
 .. _subsec:no-vertical-decomposition:
 
@@ -698,8 +700,13 @@ any level is decomposed in the vertical.  When it is set:
    load-balancing step can reintroduce a split there.
 
 Setting **amr.no_box_split_dir** = -1 turns this off and restores the AMReX
-behavior in which grids may be split in any direction.  In that case the two
-places where grids are created behave as follows:
+behavior in which grids may be split in any direction.  ERF only accepts that if
+every level has **erf.substepping_type** = None (which an anelastic level is
+given automatically): the implicit substep solve inverts one tridiagonal system
+per column, so no column may be chopped at a box seam, just as for the implicit
+vertical diffusion, and the code aborts rather than run with a value other than 2
+while any level substeps implicitly.  With **amr.no_box_split_dir** = -1, the two places
+where grids are created behave as follows:
 
 -  **When the level 0 grids are created**, ERF decomposes the domain across the
    processors itself (see ``ERFPostProcessBaseGrids``).  It decomposes in the
@@ -922,6 +929,17 @@ Notes
      (equivalently **erf.vert_implicit = false**), turn off
      **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
      grids that are not split in z.
+
+-  | The implicit acoustic substepping is subject to the same requirement, and for the
+     same reason: its vertical solve is one tridiagonal system per column.  Rather than
+     test the grids after they have been made, ERF refuses at input-parsing time to
+     combine **erf.substepping_type** = Implicit with any **amr.no_box_split_dir** other
+     than 2, since that parameter is what keeps two grids from sharing a face normal to
+     z in the first place.  This is not a requirement of one grid per column: several
+     grids may sit over the same column, as they do where the refined region is a
+     staircase in z, as long as they do not touch, so that each contiguous run of cells
+     in the column is solved by itself.  A run that must be decomposed in the vertical
+     has to set **erf.substepping_type** = None (or be anelastic, which sets it to None).
 
 -  | A column may, however, end below the top of the domain, as it does on a refined level that
      does not reach the domain top, or where the refined region is a staircase in z.  In that
