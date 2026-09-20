@@ -5,6 +5,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_IArrayBox.H>
+#include <AMReX_Math.H>
 #include <ERF_MetgridUtils.H>
 
 #include <limits>
@@ -67,7 +68,7 @@ canonicalize_metgrid_psfc (const std::string& fname, FArrayBox& psfc_fab)
     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         const Real value = psfc(i,j,k);
-        bool invalid = !std::isfinite(value);
+        bool invalid = !amrex::Math::isfinite(value);
         for (int n = 0; n < n_invalid; ++n) {
             invalid = invalid || value == invalid_values[n];
         }

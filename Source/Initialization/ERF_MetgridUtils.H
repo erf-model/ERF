@@ -4,6 +4,8 @@
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
 
+#include <AMReX_Math.H>
+
 #include <cmath>
 #include "ERF_Constants.H"
 #include <limits>
@@ -39,27 +41,27 @@ metgrid_surface_pressure (const bool debug_psfc,
         return true;
     }
     if (flag_psfc == 1) {
-        if (!std::isfinite(file_psfc) || file_psfc <= amrex::Real(0.0)) {
+        if (!amrex::Math::isfinite(file_psfc) || file_psfc <= amrex::Real(0.0)) {
             return false;
         }
         pressure = file_psfc;
         return true;
     }
 
-    if (!std::isfinite(z_sfc) || !std::isfinite(P00) || P00 <= amrex::Real(0.0) ||
-        !std::isfinite(T00) || T00 <= amrex::Real(0.0) ||
-        !std::isfinite(TLP) || TLP <= amrex::Real(0.0)) {
+    if (!amrex::Math::isfinite(z_sfc) || !amrex::Math::isfinite(P00) || P00 <= amrex::Real(0.0) ||
+        !amrex::Math::isfinite(T00) || T00 <= amrex::Real(0.0) ||
+        !amrex::Math::isfinite(TLP) || TLP <= amrex::Real(0.0)) {
         return false;
     }
     const amrex::Real ToA = T00 / TLP;
     const amrex::Real radicand =
         ToA*ToA - amrex::Real(2.0) * CONST_GRAV * z_sfc / (TLP * R_d);
-    if (!std::isfinite(radicand) || radicand < amrex::Real(0.0)) {
+    if (!amrex::Math::isfinite(radicand) || radicand < amrex::Real(0.0)) {
         return false;
     }
     const amrex::Real exponent = -ToA + std::sqrt(radicand);
     const amrex::Real result = P00 * std::exp(exponent);
-    if (!std::isfinite(result) || result <= amrex::Real(0.0)) {
+    if (!amrex::Math::isfinite(result) || result <= amrex::Real(0.0)) {
         return false;
     }
     pressure = result;

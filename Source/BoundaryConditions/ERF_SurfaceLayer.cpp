@@ -1,4 +1,5 @@
 #include "ERF_SurfaceLayer.H"
+#include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
@@ -1823,8 +1824,8 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
             if (!is_land) {
                 const Real rho = cons_arr(li,lj,klo,Rho_comp);
                 const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
-                if (!std::isfinite(rho) || rho <= Real(0.0) ||
-                    !std::isfinite(rho_theta)) {
+                if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                    !amrex::Math::isfinite(rho_theta)) {
                     amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     return;
                 }
@@ -1835,12 +1836,12 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                         return;
                     }
                     const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
-                    if (!std::isfinite(rho_qv)) {
+                    if (!amrex::Math::isfinite(rho_qv)) {
                         amrex::Gpu::Atomic::Max(conversion_failed, 1);
                         return;
                     }
                     qv = rho_qv / rho;
-                    if (!std::isfinite(qv)) {
+                    if (!amrex::Math::isfinite(qv)) {
                         amrex::Gpu::Atomic::Max(conversion_failed, 1);
                         return;
                     }
@@ -1978,15 +1979,15 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                 const Real rho = cons_arr(i,j,k,Rho_comp);
                 const Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
                 const Real rho_qv = cons_arr(i,j,k,RhoQ1_comp);
-                if (!std::isfinite(rho) || rho <= Real(0.0) ||
-                    !std::isfinite(rho_theta) || !std::isfinite(rho_qv)) {
+                if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                    !amrex::Math::isfinite(rho_theta) || !amrex::Math::isfinite(rho_qv)) {
                     if (authoritative) {
                         amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     }
                     return;
                 }
                 const Real qv = moist ? rho_qv / rho : Real(0.0);
-                if (!std::isfinite(qv)) {
+                if (!amrex::Math::isfinite(qv)) {
                     if (authoritative) {
                         amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     }
@@ -2061,7 +2062,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 const Real lsm_value = lsm_arr(li,lj,k);
-                if (std::isfinite(lsm_value) && lsm_value > Real(0.0) &&
+                if (amrex::Math::isfinite(lsm_value) && lsm_value > Real(0.0) &&
                     lsm_value < lsm_undefined) {
                     t_surf_arr(i,j,k) = lsm_value;
                 }
@@ -2159,8 +2160,8 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
-            if (!std::isfinite(rho) || rho <= Real(0.0) ||
-                !std::isfinite(rho_theta)) {
+            if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                !amrex::Math::isfinite(rho_theta)) {
                 amrex::Gpu::Atomic::Max(conversion_failed, 1);
                 return;
             }
@@ -2171,12 +2172,12 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                     return;
                 }
                 const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
-                if (!std::isfinite(rho_qv)) {
+                if (!amrex::Math::isfinite(rho_qv)) {
                     amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     return;
                 }
                 qv = rho_qv / rho;
-                if (!std::isfinite(qv)) {
+                if (!amrex::Math::isfinite(qv)) {
                     amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     return;
                 }

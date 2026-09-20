@@ -288,9 +288,9 @@ struct SurfaceLayerFields
             (Real(1.0) + RvoRd * qv);
         for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
             auto& fab = cons[mfi];
-            fab.setVal(test_rho, fab.box(), Rho_comp, 1);
-            fab.setVal(rho_theta, fab.box(), RhoTheta_comp, 1);
-            fab.setVal(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
         }
     }
 

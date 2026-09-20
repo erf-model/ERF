@@ -377,10 +377,10 @@ struct SurfaceLayerFields
             (Real(1.0) + RvoRd * qv);
         for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
             auto& fab = cons[mfi];
-            fab.setVal(test_rho, fab.box(), Rho_comp, 1);
-            fab.setVal(rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(rho_theta, fab.box(), RhoTheta_comp, 1);
             if (fab.nComp() > RhoQ1_comp) {
-                fab.setVal(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+                fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
             }
         }
     }
@@ -647,9 +647,9 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
         // unrelated invalid-density path.
         for (MFIter mfi(fields.cons, false); mfi.isValid(); ++mfi) {
             auto& fab = fields.cons[mfi];
-            fab.setVal(test_rho, fab.box(), Rho_comp, 1);
-            fab.setVal(test_rho_theta, fab.box(), RhoTheta_comp, 1);
-            fab.setVal(test_rho * test_qv, fab.box(), RhoQ1_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho * test_qv, fab.box(), RhoQ1_comp, 1);
         }
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
@@ -733,7 +733,8 @@ TEST(SurfaceLayer, QsurfInvalidHaloIsNonfatal)
         ghost.grow(1);
         const IntVect point(ghost.bigEnd(0), ghost.smallEnd(1), mfi.validbox().bigEnd(2));
         if (mfi.fabbox().contains(point) && !mfi.validbox().contains(point)) {
-            fields.cons[mfi].setVal(Real(0.0), Box(point, point), Rho_comp, 1);
+            fields.cons[mfi].setVal<RunOn::Device>(
+                Real(0.0), Box(point, point), Rho_comp, 1);
             injected = true;
         }
     }
@@ -775,7 +776,8 @@ TEST(SurfaceLayer, QsurfLateralInvalidHaloIsNonfatal)
         const IntVect point(source.smallEnd(0), source.smallEnd(1) - 1,
                             source.smallEnd(2));
         if (mfi.fabbox().contains(point) && !source.contains(point)) {
-            fields.cons[mfi].setVal(Real(0.0), Box(point, point), Rho_comp, 1);
+            fields.cons[mfi].setVal<RunOn::Device>(
+                Real(0.0), Box(point, point), Rho_comp, 1);
             injected = true;
         }
     }
