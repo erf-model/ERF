@@ -1152,9 +1152,7 @@ void vertical_two_stream_sweep (
                 const amrex::Real rho = state_arr(i, j, kmin, Rho_comp);
                 const amrex::Real rho_theta = state_arr(i, j, kmin, RhoTheta_comp);
                 const amrex::Real qv = get_qv_from_state(i, j, kmin, state_arr);
-                const amrex::Real delta_z = z_phys_nd
-                    ? Compute_Zrel_AtCellCenter(i, j, kmin, z_phys_nd)
-                    : amrex::Real(0.5) * dz_uniform;
+                const amrex::Real delta_z = z_level(0);
                 const amrex::Real pressure = erf_surface_temperature::pressure_at_surface(
                     rho, rho_theta, qv, delta_z);
                 if (!erf_surface_temperature::theta_to_temperature(
