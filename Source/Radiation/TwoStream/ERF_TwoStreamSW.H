@@ -2,6 +2,7 @@
 #define ERF_TWO_STREAM_SW_H_
 
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 #include <cmath>
 
@@ -107,7 +108,7 @@ compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
   amrex::Real flux_divergence = (flux_top - flux_bot) / dz;
   // Heating rate: (W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
   amrex::Real heating = flux_divergence / (rho * cp);
-  if (!std::isfinite(heating)) {
+  if (!amrex::Math::isfinite(heating)) {
     return 0.0;
   }
   return heating;
@@ -177,7 +178,7 @@ compute_sw_layer_two_stream(amrex::Real tau, amrex::Real omega, amrex::Real g,
 {
   TwoStreamLayerSW L{0.0, 1.0, 0.0, 0.0, 1.0};
 
-  if (!(tau > 0.0) || !std::isfinite(tau)) {
+  if (!(tau > 0.0) || !amrex::Math::isfinite(tau)) {
     return L;  // Empty layer: transparent to everything
   }
   if (!(cos_zenith > 0.0)) {
@@ -187,10 +188,10 @@ compute_sw_layer_two_stream(amrex::Real tau, amrex::Real omega, amrex::Real g,
   }
 
   amrex::Real w0 = omega;
-  if (!(w0 > 0.0) || !std::isfinite(w0)) w0 = 0.0;
+  if (!(w0 > 0.0) || !amrex::Math::isfinite(w0)) w0 = 0.0;
   if (w0 > 1.0) w0 = 1.0;
   amrex::Real asym = g;
-  if (!std::isfinite(asym)) asym = 0.0;
+  if (!amrex::Math::isfinite(asym)) asym = 0.0;
   if (asym > 1.0) asym = 1.0;
   if (asym < -1.0) asym = -1.0;
   amrex::Real mu0 = (cos_zenith > 0.0) ? cos_zenith : 1.0;
@@ -247,8 +248,8 @@ compute_sw_layer_two_stream(amrex::Real tau, amrex::Real omega, amrex::Real g,
                               - (1.0 - k_mu) * (alpha1 - k_g4) * E2 * T_noscat
                               - 2.0 * (k_g4 + alpha1 * k_mu) * E);
 
-  if (!std::isfinite(R_dir) || R_dir < 0.0) R_dir = 0.0;
-  if (!std::isfinite(T_dir) || T_dir < 0.0) T_dir = 0.0;
+  if (!amrex::Math::isfinite(R_dir) || R_dir < 0.0) R_dir = 0.0;
+  if (!amrex::Math::isfinite(T_dir) || T_dir < 0.0) T_dir = 0.0;
   const amrex::Real budget = 1.0 - T_noscat;  // scattered + absorbed fraction
   if (R_dir + T_dir > budget) {
     const amrex::Real s = (R_dir + T_dir > 0.0) ? budget / (R_dir + T_dir) : 0.0;
