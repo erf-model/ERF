@@ -299,8 +299,6 @@ public:
           pp, "pbl_mrf_const_b", pbl_mrf_const_b, lev, max_level);
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
         query_one_or_per_level(
-          pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
-        query_one_or_per_level(
           pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
         query_one_or_per_level(
           pp, "enable_mrf_cloud_adjustment", enable_mrf_cloud_adjustment, lev, max_level);
@@ -671,8 +669,6 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf
                      << std::endl;
-      amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars
-                     << std::endl;
       amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
                      << std::endl;
       amrex::Print() << "    enable_mrf_cloud_adjustment : " << enable_mrf_cloud_adjustment
@@ -906,7 +902,6 @@ public:
   amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
   amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].
   bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
-  bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
   bool        pbl_ib_aware = false;              // MRF / YSUNew: measure heights from the top of immersed solid columns
   amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
@@ -1045,8 +1040,6 @@ public:
  * @brief MRF constant used to compute PBL height.
  * @var TurbChoice::pbl_mrf_sf
  * @brief MRF surface flux value used to compute PBL height.
- * @var TurbChoice::mrf_moistvars
- * @brief Whether MRF applies turbulence to moisture variables.
  * @var TurbChoice::enable_mrf_countergradient
  * @brief Whether MRF countergradient corrections are enabled.
  * @var TurbChoice::pbl_ib_aware
