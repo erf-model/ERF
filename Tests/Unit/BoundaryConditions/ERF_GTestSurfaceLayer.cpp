@@ -383,6 +383,7 @@ struct SurfaceLayerFields
                 fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
             }
         }
+        Gpu::streamSynchronize();
     }
 
     std::unique_ptr<SurfaceLayer>
@@ -666,6 +667,7 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             fab.setVal<RunOn::Device>(test_rho_theta, fab.box(), RhoTheta_comp, 1);
             fab.setVal<RunOn::Device>(test_rho * test_qv, fab.box(), RhoQ1_comp, 1);
         }
+        Gpu::streamSynchronize();
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
         const Real expected = expected_qsat(fields.geom, face);
