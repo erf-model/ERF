@@ -20,6 +20,7 @@
 #include "ERF_NCInterface.H"
 #include "ERF_Radiation.H"
 #include "ERF_RRTMGP_SurfaceTemperature.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -85,6 +86,7 @@ Radiation::Radiation (const int& lev,
                       SolverChoice& sc)
 {
     // Note that Kokkos is now initialized in main.cpp
+    m_rdOcp = sc.rdOcp;
 
     // Check if we have a valid moisture model
     if (sc.moisture_type != MoistureType::None) { m_moist = true; }
@@ -417,11 +419,12 @@ Radiation::alloc_buffers ()
         lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol, m_nlay+1);
         lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol, m_nlay+1);
     } else {
-        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
-        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
-        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol_chunk, m_nlay+1);
-        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol_chunk, m_nlay+1);
-        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol_chunk, m_nlay+1);
+        // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+        sw_clrsky_flux_up        = real2d_k("sw_clrsky_flux_up"    , m_ncol_chunk_requested, m_nlay+1);
+        sw_clrsky_flux_dn        = real2d_k("sw_clrsky_flux_dn"    , m_ncol_chunk_requested, m_nlay+1);
+        sw_clrsky_flux_dn_dir    = real2d_k("sw_clrsky_flux_dn_dir", m_ncol_chunk_requested, m_nlay+1);
+        lw_clrsky_flux_up        = real2d_k("lw_clrsky_flux_up"    , m_ncol_chunk_requested, m_nlay+1);
+        lw_clrsky_flux_dn        = real2d_k("lw_clrsky_flux_dn"    , m_ncol_chunk_requested, m_nlay+1);
     }
 
     // Clean-clear-sky diagnostic fluxes (only when enabled)
@@ -455,14 +458,16 @@ Radiation::alloc_buffers ()
     }
 
     // 3d size (ncol_chunk, nlay+1, nswbands)
-    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol_chunk, m_nlay+1, m_nswbands);
-    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol_chunk, m_nlay+1, m_nswbands);
+    // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+    sw_bnd_flux_up  = real3d_k("sw_bnd_flux_up" , m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dn  = real3d_k("sw_bnd_flux_dn" , m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dir = real3d_k("sw_bnd_flux_dir", m_ncol_chunk_requested, m_nlay+1, m_nswbands);
+    sw_bnd_flux_dif = real3d_k("sw_bnd_flux_dif", m_ncol_chunk_requested, m_nlay+1, m_nswbands);
 
     // 3d size (ncol_chunk, nlay+1, nlwbands)
-    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol_chunk, m_nlay+1, m_nlwbands);
-    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol_chunk, m_nlay+1, m_nlwbands);
+    // Use m_ncol_chunk_requested to prevent pool shrinkage after regrid
+    lw_bnd_flux_up = real3d_k("lw_bnd_flux_up" , m_ncol_chunk_requested, m_nlay+1, m_nlwbands);
+    lw_bnd_flux_dn = real3d_k("lw_bnd_flux_dn" , m_ncol_chunk_requested, m_nlay+1, m_nlwbands);
 
     // 2d size (ncol, nswbands)
     sfc_alb_dir = real2d_k("sfc_alb_dir", m_ncol, m_nswbands);
@@ -610,6 +615,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
     Real cons_lat = m_lat_cons;
     Real cons_lon = m_lon_cons;
     Real rad_t_sfc = m_rad_t_sfc;
+    Real rdOcp = m_rdOcp;
 
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx  = mfi.validbox();
@@ -741,6 +747,10 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                 const int imin   = vbx.smallEnd(0);
                 const int jmin   = vbx.smallEnd(1);
                 const int offset = m_col_offsets[mfi.index()];
+                const int k_surface = vbx.smallEnd(2);
+                const Array4<const Real>& cons_arr = m_cons_in->const_array(mfi);
+                const Array4<const Real>& z_arr = (m_z_phys) ? m_z_phys->const_array(mfi) :
+                                                               Array4<const Real>{};
                 const Array4<const int>& lmask_arr   = (lmask)   ? lmask->const_array(mfi) :
                                                                    Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
@@ -764,7 +774,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                         const bool valid_lsm_t_sfc =
                             has_lsm_t_sfc && (lsm_in_arr(i,j,k) < lsm_undefined);
                         // Match TwoStream: convert SurfaceLayer theta with
-                        // the pressure in the lowest atmospheric cell.
+                        // the physical surface pressure diagnosed from the
+                        // lowest atmospheric cell.
                         rrtmgp::resolve_surface_temperature(
                             is_land,
                             has_lsm_t_sfc,
@@ -772,7 +783,13 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                             has_lsm_t_sfc ? lsm_in_arr(i,j,k) : Real(0.),
                             static_cast<bool>(tsurf_arr),
                             tsurf_arr ? tsurf_arr(i,j,k) : Real(0.),
-                            p_lay_tab(icol, 0),
+                            erf_surface_temperature::pressure_at_surface(
+                                cons_arr(i,j,k_surface,Rho_comp),
+                                cons_arr(i,j,k_surface,RhoTheta_comp),
+                                moist ? std::max(cons_arr(i,j,k_surface,RhoQ1_comp) /
+                                                 cons_arr(i,j,k_surface,Rho_comp), Real(0.)) : Real(0.),
+                                z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
+                            rdOcp,
                             rrtmgp_default_val,
                             rrtmgp_to_fill(icol),
                             has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);

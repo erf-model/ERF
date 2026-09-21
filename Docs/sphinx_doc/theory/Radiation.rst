@@ -262,10 +262,12 @@ Limitations
   over each column, not its average over the radiation interval. Without a fixed zenith angle
   and irradiance the run needs ``start_datetime``, and stops at the first sweep otherwise. The
   surface temperature of the longwave boundary is, in RRTMGP's order, the land-surface model's
-  field, else the surface layer's temperature, else ``erf.rad_t_sfc``; the prognostic surface
+  field, else the surface layer's potential temperature converted to absolute temperature, else
+  ``erf.rad_t_sfc``; the prognostic surface
   energy balance, when on, supplies its own state ahead of the surface layer. The surface
   layer works in potential temperature, so its value is converted to temperature with the
-  Exner function of the lowest cell before it enters the :math:`\sigma T_s^4` emission; with a
+  Exner function evaluated at the physical surface pressure diagnosed from the lowest atmospheric cell
+  before it enters the :math:`\sigma T_s^4` emission; with a
   surface layer present, ``erf.rad_t_sfc`` is the initial value of the prognostic surface
   temperature when the surface energy balance evolves one, and unused otherwise.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no

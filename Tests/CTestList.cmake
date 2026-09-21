@@ -2,6 +2,9 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
+# Shared handling of multi-word MPI launchers (e.g., "flux run").
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
@@ -116,7 +119,7 @@ function(add_test_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 5400
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
@@ -135,24 +138,24 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DSIMULATION_LOG=${test_simulation_log}
-        -DCHECKER_LOG=${test_checker_log}
-        -DCHECKER=${ANELASTIC_WALL_DIFFUSION_CHECKER}
-        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00002
-        -DAXIS=${TEST_AXIS}
-        -DTHETA_LO=300.0
-        -DTHETA_HI=301.0
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=${ANELASTIC_WALL_DIFFUSION_CHECKER}"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00002"
+        "-DAXIS=${TEST_AXIS}"
+        "-DTHETA_LO=300.0"
+        "-DTHETA_HI=301.0"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunAnelasticWallDiffusion.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 900
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;anelastic;wall-diffusion"
@@ -169,21 +172,21 @@ function(add_test_cloud_chamber TEST_NAME MODE)
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DSIMULATION_LOG=${test_simulation_log}
-        -DCHECKER_LOG=${test_checker_log}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
-        -DMODE=${MODE}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DMODE=${MODE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamber.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 900
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber"
@@ -202,17 +205,17 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DSIMULATION_LOG=${test_simulation_log}
-        -DCHECKER_LOG=${test_checker_log}
-        -DCHECKER=${TWO_STREAM_RADIATION_CHECKER}
-        -DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=${TWO_STREAM_RADIATION_CHECKER}"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}"
         "-DRUNTIME_OPTIONS=${ADD_TEST_TSR_RUNTIME_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
     set_tests_properties(${TEST_NAME}
@@ -232,18 +235,18 @@ function(add_test_cloud_chamber_parity TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1200
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber"
@@ -270,17 +273,17 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
     endif()
 
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DPLTFILE=${PLTFILE}
-        -DRTOL=${_fcompare_rtol}
-        -DATOL=${_fcompare_atol}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DRTOL=${_fcompare_rtol}"
+        "-DATOL=${_fcompare_atol}"
         "-DCOMMON_OPTIONS=${ADD_TEST_BP_COMMON_OPTIONS}"
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
@@ -288,7 +291,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1200
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;box-parity"
@@ -299,7 +302,7 @@ endfunction(add_test_box_parity)
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
 add_test(CompareDataLogs_SelfTest ${CMAKE_COMMAND}
-    -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/CompareDataLogs_SelfTest
+    "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/CompareDataLogs_SelfTest"
     -P ${PROJECT_SOURCE_DIR}/Tests/CompareDataLogsSelfTest.cmake)
 set_tests_properties(CompareDataLogs_SelfTest
     PROPERTIES
@@ -309,7 +312,8 @@ set_tests_properties(CompareDataLogs_SelfTest
 
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
-# time limit, so a restart whose first step never finishes fails with a message.
+# time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
+# unchanged to each leg and used to size the outer CTest watchdog.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
     set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
     cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
@@ -324,30 +328,27 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
     if(NOT "${ADD_TEST_RP_FCOMPARE_ATOL}" STREQUAL "")
         set(_fcompare_atol "${ADD_TEST_RP_FCOMPARE_ATOL}")
     endif()
-    set(_run_timeout 1200)
-    if(NOT "${ADD_TEST_RP_RUN_TIMEOUT}" STREQUAL "")
+    set(_run_timeout 600)
+    set(_ctest_timeout 600)
+    if(DEFINED ADD_TEST_RP_RUN_TIMEOUT)
         set(_run_timeout "${ADD_TEST_RP_RUN_TIMEOUT}")
+        math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
     endif()
-    # Three runs, each capped at _run_timeout by RunRestartParity.cmake, plus the
-    # fcompare calls and process startup, which sit outside that budget. CTest's
-    # own limit must exceed the sum, or it kills the script before the script can
-    # report which of the three legs stalled.
-    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
 
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DSTEP_CHK=${STEP_CHK}
-        -DSTEP_END=${STEP_END}
-        -DRTOL=${_fcompare_rtol}
-        -DATOL=${_fcompare_atol}
-        -DRUN_TIMEOUT=${_run_timeout}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DSTEP_CHK=${STEP_CHK}"
+        "-DSTEP_END=${STEP_END}"
+        "-DRTOL=${_fcompare_rtol}"
+        "-DATOL=${_fcompare_atol}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
@@ -374,26 +375,26 @@ function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
-        -DRUNTIME_OPTIONS=${ADD_TEST_TP_RUNTIME_OPTIONS}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DFEXTREMA=${FEXTREMA_EXE}
-        -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
-        -DATOL=${ERF_TEST_FCOMPARE_ATOL}
-        -DPLTFILE=${PLTFILE}
-        -DPLT2DFILE=${PLT2DFILE}
-        -DVARYING_3D=${ADD_TEST_TP_VARYING_3D}
-        -DVARYING_2D=${ADD_TEST_TP_VARYING_2D}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DRUNTIME_OPTIONS=${ADD_TEST_TP_RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DRTOL=${ERF_TEST_FCOMPARE_RTOL}"
+        "-DATOL=${ERF_TEST_FCOMPARE_ATOL}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DPLT2DFILE=${PLT2DFILE}"
+        "-DVARYING_3D=${ADD_TEST_TP_VARYING_3D}"
+        "-DVARYING_2D=${ADD_TEST_TP_VARYING_2D}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTilingParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1200
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
@@ -406,49 +407,24 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${_cloud_chamber_input_name}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
-        -DMODE=${MODE}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${_cloud_chamber_input_name}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DMODE=${MODE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberBudget.cmake)
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 900
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;cloud-chamber"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
-endfunction(add_test_cloud_chamber_budget)
-
-# Parity test: the deck with whole-height fine grids and with the fine grids split in z
-# must give identical plotfiles
-function(add_test_terrain_zsplit_parity TEST_NAME PLTFILE)
-    setup_test()
-    resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DPLTFILE=${PLTFILE}
-        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainZSplitParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/full_columns/simulation.log;${CURRENT_TEST_BINARY_DIR}/split_in_z/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
-endfunction(add_test_terrain_zsplit_parity)
+        LABELS "regression;cloud-chamber"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
+endfunction(add_test_cloud_chamber_budget)
 
 # At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
 # outflow boundaries, where the mesh is extrapolated past the domain and the base state in
@@ -457,17 +433,17 @@ function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLE
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DFEXTREMA=${FEXTREMA_EXE}
-        -DPLTFILE=${PLTFILE}
-        -DTOLERANCE=${TOLERANCE}
-        -DGRADP_TOLERANCE=${GRADP_TOLERANCE}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DTOLERANCE=${TOLERANCE}"
+        "-DGRADP_TOLERANCE=${GRADP_TOLERANCE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunAtRestTerrainOutflow.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -489,15 +465,15 @@ function(add_test_cloud_chamber_legacy_config TEST_NAME)
     set(output_directory "${CURRENT_TEST_BINARY_DIR}/legacy_plt00000")
     set(output_artifact "${output_directory}/Header")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DOUTPUT_DIRECTORY=${output_directory}
-        -DOUTPUT_ARTIFACT=${output_artifact}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLOG=${test_log}"
+        "-DOUTPUT_DIRECTORY=${output_directory}"
+        "-DOUTPUT_ARTIFACT=${output_artifact}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberConfigSuccess.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -519,17 +495,17 @@ function(add_test_shoc_removed_transport TEST_NAME RUNTIME_OPTION EXPECTED_MESSA
     set(test_input "${CURRENT_TEST_BINARY_DIR}/SHOC_Stable_Clear.i")
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DRUNTIME_OPTIONS=${RUNTIME_OPTION}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}
-        -DEXPECTED_GUIDANCE_1=${EXPECTED_GUIDANCE_1}
-        -DEXPECTED_GUIDANCE_2=${EXPECTED_GUIDANCE_2}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLOG=${test_log}"
+        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
+        "-DEXPECTED_GUIDANCE_1=${EXPECTED_GUIDANCE_1}"
+        "-DEXPECTED_GUIDANCE_2=${EXPECTED_GUIDANCE_2}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRemovedTransportConfig.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -559,18 +535,18 @@ function(add_test_cloud_chamber_neutral_momentum TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_NeutralMomentum.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_NeutralMomentum.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberNeutralMomentum.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1800
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber;neutral-roughness"
@@ -584,18 +560,18 @@ function(add_test_cloud_chamber_fixed_momentum TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_FixedMomentum.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_Dry_FixedMomentum.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberFixedMomentum.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1800
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber;bulk-momentum"
@@ -610,18 +586,18 @@ function(add_test_cloud_chamber_most TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj_MOSTMixedWalls.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/CloudChamber_SatAdj_MOSTMixedWalls.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberMOST.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1800
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber;most"
@@ -631,11 +607,11 @@ endfunction(add_test_cloud_chamber_most)
 function(add_test_cloud_chamber_fixed_dt_guard TEST_NAME)
     set(test_log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.log")
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DTEST_EXE=$<TARGET_FILE:erf_cloud_chamber_wall_dt_guard_check>"
-        -DLOG=${test_log}
+        "-DLOG=${test_log}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberWallDtGuardFailure.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -654,19 +630,19 @@ function(add_test_cloud_chamber_openmp TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DCHECKER=${CLOUD_CHAMBER_CHECKER}
-        -DCMAKE_COMMAND=${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DCMAKE_COMMAND=${CMAKE_COMMAND}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberOpenMP.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1200
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber;openmp"
@@ -705,33 +681,33 @@ function(add_test_shoc_r TEST_NAME TEST_DIR TEST_EXE PLTFILE)
         set(_shoc_gold_comparison "fcompare")
     endif()
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DINPUT=${test_input}
-        -DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}
-        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
-        -DLOG=${test_log}
-        -DCHECKER=${SHOC_PLOTFILE_CHECKER}
-        -DCHECK_MODE=${ADD_TEST_SHOC_R_CHECK_MODE}
-        -DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000
-        -DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010
-        -DFINAL=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}
-        -DFCOMPARE=${FCOMPARE_EXE}
-        -DGOLD_DIFFERENTIAL=${SHOC_GOLD_DIFFERENTIAL}
-        -DGOLD_COMPARISON=${_shoc_gold_comparison}
-        -DGOLD_MODE=${ADD_TEST_SHOC_R_GOLD_MODE}
-        -DRTOL=${ERF_TEST_FCOMPARE_RTOL}
-        -DATOL=${ERF_TEST_FCOMPARE_ATOL}
-        -DGOLD=${PLOT_GOLD}
-        -DSKIP_GOLD=${ADD_TEST_SHOC_R_SKIP_GOLD}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLOG=${test_log}"
+        "-DCHECKER=${SHOC_PLOTFILE_CHECKER}"
+        "-DCHECK_MODE=${ADD_TEST_SHOC_R_CHECK_MODE}"
+        "-DINITIAL=${CURRENT_TEST_BINARY_DIR}/plt00000"
+        "-DMIDPOINT=${CURRENT_TEST_BINARY_DIR}/plt00010"
+        "-DFINAL=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DGOLD_DIFFERENTIAL=${SHOC_GOLD_DIFFERENTIAL}"
+        "-DGOLD_COMPARISON=${_shoc_gold_comparison}"
+        "-DGOLD_MODE=${ADD_TEST_SHOC_R_GOLD_MODE}"
+        "-DRTOL=${ERF_TEST_FCOMPARE_RTOL}"
+        "-DATOL=${ERF_TEST_FCOMPARE_ATOL}"
+        "-DGOLD=${PLOT_GOLD}"
+        "-DSKIP_GOLD=${ADD_TEST_SHOC_R_SKIP_GOLD}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocRegression.cmake)
-    if(ADD_TEST_SHOC_R_TIMEOUT)
+    if(DEFINED ADD_TEST_SHOC_R_TIMEOUT)
         set(_shoc_timeout "${ADD_TEST_SHOC_R_TIMEOUT}")
     else()
-        set(_shoc_timeout 900)
+        set(_shoc_timeout 600)
     endif()
     if(ADD_TEST_SHOC_R_LABELS)
         set(_shoc_labels "${ADD_TEST_SHOC_R_LABELS}")
@@ -761,28 +737,28 @@ function(add_test_shoc_mutation TEST_NAME MUTATION_OPTION TARGET_FIELD
     set(_baseline_log "${_baseline_dir}/${TEST_NAME}_baseline.log")
     set(_mutant_log "${_mutant_dir}/${TEST_NAME}_mutant.log")
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
-        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
-        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
-        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
-        -DNRANKS=${NP}
-        -DTEST_EXE=${TEST_EXE}
-        -DBASELINE_INPUT=${_baseline_dir}/SHOC_Stable_Clear.i
-        -DMUTANT_INPUT=${_mutant_dir}/SHOC_Stable_Clear.i
-        -DBASELINE_OPTIONS=
-        -DMUTANT_OPTIONS=${MUTATION_OPTION}
-        -DBASELINE_WORKING_DIRECTORY=${_baseline_dir}
-        -DMUTANT_WORKING_DIRECTORY=${_mutant_dir}
-        -DBASELINE_LOG=${_baseline_log}
-        -DMUTANT_LOG=${_mutant_log}
-        -DCHECKER=${SHOC_MUTATION_DIFFERENTIAL}
-        -DTARGET_FIELD=${TARGET_FIELD}
-        -DMIN_FINAL_DIFFERENCE=${MIN_FINAL_DIFFERENCE}
-        -DMIN_BASELINE_EVOLUTION=${MIN_BASELINE_EVOLUTION}
-        -DMAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO=${MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DBASELINE_INPUT=${_baseline_dir}/SHOC_Stable_Clear.i"
+        "-DMUTANT_INPUT=${_mutant_dir}/SHOC_Stable_Clear.i"
+        "-DBASELINE_OPTIONS="
+        "-DMUTANT_OPTIONS=${MUTATION_OPTION}"
+        "-DBASELINE_WORKING_DIRECTORY=${_baseline_dir}"
+        "-DMUTANT_WORKING_DIRECTORY=${_mutant_dir}"
+        "-DBASELINE_LOG=${_baseline_log}"
+        "-DMUTANT_LOG=${_mutant_log}"
+        "-DCHECKER=${SHOC_MUTATION_DIFFERENTIAL}"
+        "-DTARGET_FIELD=${TARGET_FIELD}"
+        "-DMIN_FINAL_DIFFERENCE=${MIN_FINAL_DIFFERENCE}"
+        "-DMIN_BASELINE_EVOLUTION=${MIN_BASELINE_EVOLUTION}"
+        "-DMAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO=${MAX_MUTANT_TO_BASELINE_EVOLUTION_RATIO}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunShocMutationRegression.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 900
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;shoc;mutation"
@@ -815,8 +791,17 @@ add_test_cloud_chamber_most(CloudChamber_SatAdj_MOSTMixedWalls)
 if(ERF_ENABLE_OPENMP)
 add_test_cloud_chamber_openmp(CloudChamber_SatAdj_OpenMP)
 endif()
+# ctest runs this argv directly, with no shell, so the launcher cannot be
+# pasted in as one word: "flux run" has to reach ctest as two arguments.
+erf_mpi_launcher_command(SHOC_DIFFERENTIAL_LAUNCHER
+    LAUNCHER "${MPIEXEC_EXECUTABLE}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "SHOC microphysics differential test"
+    OPTIONAL)
 add_test(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
-    ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+    ${SHOC_DIFFERENTIAL_LAUNCHER}
     ${SHOC_MICROPHYSICS_DIFFERENTIAL}
     ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_SatAdj_Property/plt00020
     ${CMAKE_CURRENT_BINARY_DIR}/test_files/SHOC_Unstable_Cloud_NoCond_Property/plt00020)
@@ -829,7 +814,6 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
     LABELS "regression;shoc;microphysics")
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
-add_test_terrain_zsplit_parity(Terrain2Lev_BTF_ZSplit "plt00000")
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 endif()
 endif()
@@ -841,7 +825,7 @@ function(add_test_d TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_D "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
-    
+
     setup_test()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_D_RUNTIME_OPTIONS}")
@@ -857,7 +841,7 @@ function(add_test_d TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 5400
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
@@ -872,7 +856,7 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_0 "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
-    
+
     setup_test()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_0_RUNTIME_OPTIONS}")
@@ -888,7 +872,7 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 5400
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
@@ -928,7 +912,7 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 5400
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "${TEST_LABELS}"
@@ -959,21 +943,21 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         GOLD_COMPARISON "${_shoc_clear_gold_comparison}"
         GOLD_MODE "stable_clear"
         LABELS regression shoc
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Stable_Cloud "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Stable_Cloud"
         CHECK_MODE "stable_cloud"
         GOLD_COMPARISON "field_aware"
         GOLD_MODE "stable_cloud"
         LABELS regression shoc
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Clear_BOMEX "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Clear_BOMEX"
         CHECK_MODE "unstable_clear"
         GOLD_COMPARISON "${_shoc_clear_gold_comparison}"
         GOLD_MODE "unstable_clear"
         LABELS regression shoc
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
@@ -982,7 +966,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         GOLD_MODE "unstable_cloud"
         RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_NoCond "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
@@ -991,7 +975,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         GOLD_MODE "unstable_cloud_nocond"
         RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         LABELS regression shoc microphysics
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_SatAdj_Property "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
@@ -1001,7 +985,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         RUNTIME_OPTIONS "erf.moisture_model=SatAdj erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_NoCond_Property "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud.i"
@@ -1011,7 +995,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         RUNTIME_OPTIONS "erf.moisture_model=MoistNoCondensation erf.buoyancy_type=1 "
         SKIP_GOLD
         LABELS regression shoc microphysics property
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_Kessler "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_Kessler.i"
@@ -1019,7 +1003,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         GOLD_COMPARISON "field_aware"
         GOLD_MODE "unstable_cloud_kessler"
         LABELS regression shoc microphysics
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_r(SHOC_Unstable_Cloud_WSM6 "" "erf_exec" "plt00020"
         TEST_FILES_DIR "SHOC_Unstable_Cloud"
         INPUT_FILE "SHOC_Unstable_Cloud_WSM6.i"
@@ -1027,7 +1011,7 @@ if(ERF_ENABLE_TESTS AND ERF_ENABLE_MPI)
         GOLD_COMPARISON "field_aware"
         GOLD_MODE "unstable_cloud_wsm6"
         LABELS regression shoc microphysics
-        TIMEOUT 900)
+        TIMEOUT 600)
     add_test_shoc_mutation(SHOC_Mutation_Disable_Tke_State_Update
         "erf.shoc.debug_disable_tke_state_update=true" rhoKE
         1.0e-3 1.0e-3 0.10)
@@ -1072,42 +1056,6 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010" RUNTIME_O
 add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-# A terrain-fitted mesh whose BoxArray is split in z (amr.max_grid_size below the number of
-# cells in z), under a MOST surface layer. The anelastic case covers the projection as well,
-# but its terrain Poisson solve is the FFT-preconditioned GMRES, so it needs the FFT build.
-# The compressible case without acoustic substepping runs in every build.
-if(ERF_ENABLE_FFT)
-add_test_r(ABL_MOST_WOA_ZSplit               ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-endif()
-add_test_r(ABL_MOST_WOA_ZSplit_NoSub         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-# The ZSplit decks on one box against their 12 boxes: the base state and the projection used to
-# depend on the split in z (u 0.01 m/s and theta 0.18 K apart after 10 steps in the anelastic
-# case). The runner is a cmake -P script, so it needs MPI and cannot expand the Windows exe glob.
-if(ERF_ENABLE_MPI AND NOT WIN32)
-if(ERF_ENABLE_FFT)
-add_test_box_parity(ABL_MOST_WOA_ZSplit_BoxParity ABL_MOST_WOA_ZSplit "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_BoxParity/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9")
-endif()
-add_test_box_parity(ABL_MOST_WOA_ZSplit_NoSub_BoxParity ABL_MOST_WOA_ZSplit_NoSub "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_MOST_WOA_ZSplit_NoSub_BoxParity/input_sounding erf.data_log=surf_hist.dat erf.sum_interval=1"
-    REFERENCE_OPTIONS "amr.max_grid_size=64"
-    FCOMPARE_RTOL "1.0e-9"
-    DATALOG "surf_hist.dat")
-# The TKE buoyancy source reads the theta-diffusion flux at both z-faces of each
-# cell, so the top cell of every box reads a box-boundary face: one box against
-# ten boxes (x split at 4, z in five boxes of 20 cells, so splits at k = 20, 40,
-# 60 and 80), for the k-eqn and Deardorff closures.
-add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn RANS_Convective_Buoyancy_ZSplit "plt00040"
-    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_kEqn/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-    FCOMPARE_RTOL "1.0e-9")
-add_test_box_parity(RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff RANS_Convective_Buoyancy_ZSplit "plt00040"
-    COMMON_OPTIONS "erf.rans_type=None erf.les_type=Deardorff erf.dirichlet_k=false erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/RANS_Convective_Buoyancy_ZSplit_BoxParity_Deardorff/input_sounding"
-    REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-    FCOMPARE_RTOL "1.0e-9")
-endif()
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_TKE
@@ -1211,12 +1159,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
-  # The MYNN25 PBL height scans whole columns: one box against boxes split in z, with the
-  # k-eqn length scale capped by the PBL height so that the 3D fields depend on it.
-  add_test_box_parity(PBLH_ZSplit_BoxParity PBLH_ZSplit "plt00040"
-      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_ZSplit_BoxParity/input_sounding"
-      REFERENCE_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_z=128"
-      FCOMPARE_RTOL "1.0e-9")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -1436,7 +1378,7 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1800
+        TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "rans;regression"
@@ -1511,7 +1453,6 @@ endfunction(add_test_rans_pair)
 # convective case, run compressible with the implicit vertical solve (A) and
 # with explicit vertical diffusion (B), must give the same KE to within the
 # time-discretisation difference. The command runs through sh, so not on Windows.
-# The z box boundaries are covered by RANS_Convective_Buoyancy_ZSplit_BoxParity_*.
 if(NOT WIN32)
     add_test_rans_pair(RANS_Convective_ABL_Flat_Buoyancy_kEqn Convective_ABL_Flat inputs_convective 40 check_implicit_explicit_ke.py
         RUNTIME_OPTIONS "erf.anelastic=0 erf.use_fft=false"
@@ -1592,7 +1533,7 @@ function(add_test_most_zref TEST_NAME)
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 1800
+        TIMEOUT 600
         PROCESSORS 1
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"

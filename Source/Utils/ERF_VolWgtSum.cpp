@@ -1,6 +1,7 @@
 #include <iomanip>
 
 #include "ERF.H"
+#include "ERF_TileNoZ.H"
 
 using namespace amrex;
 
@@ -97,10 +98,19 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
 
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
+    //
+    // NOTE: TileNoZ, not TilingIfNotGPU: the atomic adds accumulate a whole column into
+    //       dst_arr(i,j,0), so if the grid were tiled in z the tiles covering one column
+    //       would add into the same entry concurrently.  On the host HostDevice::Atomic::Add
+    //       is "#pragma omp atomic" -- atomic but unordered -- so the column sum would then
+    //       depend on thread scheduling in its last bits.  Keeping each column inside a
+    //       single tile makes the k accumulation serial and the result independent of both
+    //       the tile size and the thread count.
+    //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(mf_to_be_summed, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(mf_to_be_summed, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box& bx   = mfi.tilebox();
         const auto  dst_arr = mf_2d.array(mfi);
         const auto  src_arr = mf_to_be_summed.array(mfi);

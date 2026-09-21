@@ -28,7 +28,7 @@
  *
  * Lifecycle:
  *  - resize(nlevs) once at construction (before the inputs are read);
- *  - define_level(lev, radChoice, ba2d, dm) whenever a level is (re)built;
+ *  - define_level(lev, radChoice, rdOcp, ba2d, dm) whenever a level is (re)built;
  *  - advance(...) twice per step: "pre_dycore" runs the column sweep on the
  *    old state and writes the heating rates, "post_dycore" reuses that
  *    sweep's flux diagnostics and advances the SEB state by dt_step;
@@ -58,6 +58,7 @@ public:
      */
     void define_level (int lev,
                        const RadChoice& rad_choice,
+                       amrex::Real rdOcp,
                        const amrex::BoxArray& ba2d,
                        const amrex::DistributionMapping& dm);
 
@@ -144,6 +145,7 @@ private:
     };
 
     const RadChoice* m_rad = nullptr;
+    amrex::Real m_rdOcp = RdoCp;
     OrbitalCache m_orbit;
 
     // CSV / console diagnostics writer, created on the first advance() so its
