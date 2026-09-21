@@ -13,12 +13,30 @@
 # Under outflow the mesh is extrapolated instead of mirrored, so a lateral ghost cell sits
 # at a different height than the cell inside it and the base state there has to be built,
 # not copied.  This is the run that guards that construction.
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
    NOT DEFINED NRANKS OR NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR
    NOT DEFINED WORKING_DIRECTORY OR NOT DEFINED FEXTREMA OR NOT DEFINED PLTFILE OR
    NOT DEFINED TOLERANCE OR NOT DEFINED GRADP_TOLERANCE)
     message(FATAL_ERROR "RunAtRestTerrainOutflow.cmake missing required argument")
 endif()
+
+# MPIEXEC may be a multi-word command such as "flux run", so the launcher
+# prefix is built once by the shared helper instead of being pasted into
+# each COMMAND as a single token.
+erf_mpi_launcher_command(mpi_launch
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunAtRestTerrainOutflow.cmake")
+erf_mpi_launcher_command(mpi_launch_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunAtRestTerrainOutflow.cmake")
 
 # The largest |dp0/dx| the run reported at startup, over every x face of the domain
 # including the two on the lateral boundaries.
@@ -61,7 +79,7 @@ function(max_abs_w RUN_NAME OUT_VAR)
         message(FATAL_ERROR "${RUN_NAME} wrote no plotfile (${PLT})")
     endif()
     execute_process(
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+        COMMAND ${mpi_launch_one}
                 ${FEXTREMA} -v "z_velocity" "${PLT}"
         OUTPUT_VARIABLE extrema_out
         ERROR_VARIABLE extrema_err
@@ -94,7 +112,7 @@ foreach(RUN IN ITEMS "symmetry|Symmetry" "outflow|Outflow")
     file(MAKE_DIRECTORY "${RUN_DIR}")
 
     execute_process(
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${MPIEXEC_PREFLAGS}
+        COMMAND ${mpi_launch}
                 ${TEST_EXE} ${INPUT} "xlo.type=${BC_TYPE}" "xhi.type=${BC_TYPE}"
         WORKING_DIRECTORY "${RUN_DIR}"
         OUTPUT_FILE "${RUN_DIR}/simulation.log"

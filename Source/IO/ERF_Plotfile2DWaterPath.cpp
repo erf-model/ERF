@@ -3,6 +3,7 @@
  */
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_Plotfile2DPrecip.H"
+#include "ERF_TileNoZ.H"
 
 #include <AMReX.H>
 #include <AMReX_Gpu.H>
@@ -262,10 +263,19 @@ fill_condensed_water_paths (MultiFab& dst,
 
     const auto& dx = geom.CellSizeArray();
 
+    //
+    // NOTE: TileNoZ, not TilingIfNotGPU: the atomic adds accumulate a whole column into
+    //       dst_arr(i,j,0), so if the grid were tiled in z the tiles covering one column
+    //       would add into the same entry concurrently.  On the host HostDevice::Atomic::Add
+    //       is "#pragma omp atomic" -- atomic but unordered -- so the column sum would then
+    //       depend on thread scheduling in its last bits.  Keeping each column inside a
+    //       single tile makes the k accumulation serial and the result independent of both
+    //       the tile size and the thread count.
+    //
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(cons, TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
         const auto dst_arr = dst.array(mfi);

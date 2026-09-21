@@ -1,3 +1,5 @@
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
    NOT DEFINED NRANKS OR NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR
    NOT DEFINED WORKING_DIRECTORY OR NOT DEFINED SIMULATION_LOG OR
@@ -7,8 +9,24 @@ if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
     message(FATAL_ERROR "RunAnelasticWallDiffusion.cmake missing required argument")
 endif()
 
+# MPIEXEC may be a multi-word command such as "flux run", so the launcher
+# prefix is built once by the shared helper instead of being pasted into
+# each COMMAND as a single token.
+erf_mpi_launcher_command(mpi_launch
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunAnelasticWallDiffusion.cmake")
+erf_mpi_launcher_command(mpi_launch_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunAnelasticWallDiffusion.cmake")
+
 execute_process(
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${MPIEXEC_PREFLAGS}
+    COMMAND ${mpi_launch}
             ${TEST_EXE} ${INPUT}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${SIMULATION_LOG}"
@@ -19,7 +37,7 @@ if(NOT simulation_result EQUAL 0)
 endif()
 
 execute_process(
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+    COMMAND ${mpi_launch_one}
             ${CHECKER} ${PLOTFILE} ${AXIS} ${THETA_LO} ${THETA_HI}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${CHECKER_LOG}"

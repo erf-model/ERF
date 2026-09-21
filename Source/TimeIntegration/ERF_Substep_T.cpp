@@ -157,7 +157,15 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
 
         Box  bx = mfi.validbox();
-        Box gbx = mfi.tilebox(); gbx.grow(1);
+        //
+        // NOTE: growntilebox / grownnodaltilebox, not the tilebox grown by hand.  Growing by
+        //       hand pushes every tile one cell past its own share of the grid, so once the
+        //       grid is tiled two tiles store to the same cells -- a data race under OpenMP,
+        //       even though both store the same value.  The union of the tiles, and the values
+        //       stored, are unchanged, and this is identical to the old expression when there
+        //       is one tile per grid.
+        //
+        Box gbx = mfi.growntilebox(1);
 
         if (step == 0) {
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -166,9 +174,9 @@ void erf_substep_T (int step, int /*nrk*/,
             });
         } // step = 0
 
-        Box gtbx = mfi.nodaltilebox(0); gtbx.grow(IntVect(1,1,0));
-        Box gtby = mfi.nodaltilebox(1); gtby.grow(IntVect(1,1,0));
-        Box gtbz = mfi.nodaltilebox(2); gtbz.grow(IntVect(1,1,0));
+        Box gtbx = mfi.grownnodaltilebox(0,IntVect(1,1,0));
+        Box gtby = mfi.grownnodaltilebox(1,IntVect(1,1,0));
+        Box gtbz = mfi.grownnodaltilebox(2,IntVect(1,1,0));
 
         const auto& bx_lo = lbound(bx);
         const auto& bx_hi = ubound(bx);
@@ -219,7 +227,8 @@ void erf_substep_T (int step, int /*nrk*/,
     for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We define lagged_delta_rt for our next step as the current delta_rt
-        Box gbx = mfi.tilebox(); gbx.grow(1);
+        // (growntilebox, not a hand-grown tilebox -- see the note above)
+        Box gbx = mfi.growntilebox(1);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
         const Array4<Real>& lagged_arr     = lagged_delta_rt.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

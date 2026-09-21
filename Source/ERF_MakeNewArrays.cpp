@@ -515,7 +515,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // way whichever one erf.radiation_model selects.
     if (solverChoice.rad_type != RadiationType::None)
     {
-        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
+        // Allocate with 1 ghost cell for interpolation stencil (cell_cons_interp)
+        // and FillBoundary operations (needed for nested patches)
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 1);
         // Level layout (RRTMGP's): index k holds the fluxes at the lower
         // interface of layer k, and the top-of-atmosphere interface sits in
         // the z-ghost cell above the top layer (k = khi + 1), which is why
@@ -528,7 +530,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
-        two_stream_rad.define_level(lev, solverChoice.radChoice, ba2d[lev], dm);
+        two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm);
     }
 
     //*********************************************************

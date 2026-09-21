@@ -5,6 +5,9 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 using namespace amrex;
@@ -90,6 +93,36 @@ void set_planar_pattern (MultiFab& mf)
         ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             arr(i,j,k) = Real(1.0) + static_cast<Real>(i) + Real(2.0) * static_cast<Real>(j);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// nvcc rejects an extended __device__ lambda whose enclosing function has
+// private access, and gtest generates TestBody() as a private member, so the
+// device fills below live here rather than inside the TEST bodies.
+void set_quadratic_node_heights (MultiFab& z_phys_nd)
+{
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        auto z_arr = z_phys_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = static_cast<Real>(k * k);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// Donor SST ramp T(i,j) = 280 + i + j/4, so a value exchanged from a
+// neighbouring valid FAB is distinguishable from a locally clamped one.
+void set_coupled_sst_ramp (MultiFab& coupled_sst)
+{
+    for (MFIter mfi(coupled_sst, false); mfi.isValid(); ++mfi) {
+        auto donor = coupled_sst.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            donor(i,j,k) = Real(280.0) + static_cast<Real>(i) +
+                Real(0.25) * static_cast<Real>(j);
         });
     }
     Gpu::streamSynchronize();
@@ -316,21 +349,31 @@ TEST(SurfaceLayerParallel, LateralSurfaceParameterGhostsAreFaceOwned)
     }
 }
 
-// Motivation: qsat must be written only by tiles that contain the selected
-// boundary plane.  The distributed layout deliberately leaves other FABs on
-// each rank, so a valid result cannot be established from one local FAB.
+// Motivation: SurfaceLayer stores potential temperature theta, but this test
+// wants an independent qsat oracle at physical temperature 300 K. Convert
+// that physical temperature to theta before populating t_surf, so production
+// must convert theta back before calling erf_qsatw. The distributed layout
+// also deliberately leaves other FABs on each rank, so a valid result cannot
+// be established from one local FAB. This catches accidental direct use of
+// theta as physical temperature.
 TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
 {
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
-    ScopedSurfaceLayerParams params("unit_surface_layer_parallel_qsurf");
+    const std::string prefix = "unit_surface_layer_parallel_qsurf";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
 
     for (const auto& face : all_faces()) {
         SurfaceLayerFields fields;
         auto layer = fields.prepare_layer(
-            face, active_face(face), "unit_surface_layer_parallel_qsurf",
+            face, active_face(face), prefix,
             true, false, false, false);
         fields.lmask[0]->setVal(0);
-        layer->get_t_surf(0)->setVal(test_surface_temperature);
+        const Real pressure = expected_surface_pressure(fields.geom, face);
+        const Real surface_theta =
+            test_surface_temperature * std::pow(p_0 / pressure, RdoCp);
+        layer->get_t_surf(0)->setVal(surface_theta);
         std::unique_ptr<MultiFab> z_phys_nd;
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const auto* qsurf = layer->get_q_surf(0);
@@ -361,12 +404,250 @@ TEST(SurfaceLayerParallel, DistributedQsurfUpdatesSelectedFace)
             *qsurf, fields.ba, fields.domain, face);
         EXPECT_EQ(selected.count, counts.finite)
             << "direction=" << dir << ", high=" << !face.isLow();
-        const Real expected = expected_qsat(fields.geom);
+        const Real expected = expected_qsat(fields.geom, face);
         EXPECT_NEAR(selected.lo, expected, qsat_tolerance(expected))
             << "direction=" << dir << ", high=" << !face.isLow();
         EXPECT_NEAR(selected.hi, expected, qsat_tolerance(expected))
             << "direction=" << dir << ", high=" << !face.isLow();
     }
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: on z-split grids every planar FAB must receive the same text-SST
+// result, but only the physical z-low source copy may read the atmospheric
+// state. This catches accidental conversion on an aloft duplicate or failure
+// to propagate the authoritative result across ranks.
+TEST(SurfaceLayerParallel, TextSstUsesPhysicalSurfaceCopyOnZSplitGrids)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_text_sst_zsplit";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_parallel_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream out(file);
+        EXPECT_TRUE(out.good());
+        if (out.good()) {
+            out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+        }
+    }
+    ParallelDescriptor::Barrier();
+
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, true, file.string());
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        const Box& box = t_surf->boxArray()[ibox];
+        const IntVect point = box.smallEnd();
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, point, false), expected_theta,
+                    halo_tolerance(expected_theta));
+    }
+
+    ParmParse pp(prefix);
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+    ParallelDescriptor::Barrier();
+    if (ParallelDescriptor::IOProcessor()) { std::remove(file.string().c_str()); }
+    ParallelDescriptor::Barrier();
+}
+
+// Motivation: coupled SST has water-only precedence over the fallback on a
+// z-split grid. A water column must use the covered coupled temperature,
+// convert it with the lowest-cell pressure, and copy that absolute-temperature
+// result to every planar surface copy.
+TEST(SurfaceLayerParallel, CoupledSstUsesPhysicalSurfaceCopyOnWaterZSplitGrids)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_zsplit";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        const Box& box = t_surf->boxArray()[ibox];
+        const IntVect point = box.smallEnd();
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, point, false), expected_theta,
+                    halo_tolerance(expected_theta));
+    }
+}
+
+// Motivation: production coupled donors are zero-ghost fields, while the
+// z-split physical surface destination is grown laterally. Its covered
+// nonperiodic x-low edge must use the clamped physical donor, and an uncovered
+// edge must retain the fallback. Duplicate-copy agreement is checked by the
+// separate nonuniform internal-exchange regression.
+TEST(SurfaceLayerParallel, CoupledSstZeroGhostDonorClampsZSplitEdge)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_edge";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    int checked_edges = 0;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != fields.domain.smallEnd(0) ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        const IntVect interior = target.smallEnd();
+        IntVect edge = interior;
+        edge[0] -= 1;
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, interior, true),
+                    expected_theta, halo_tolerance(expected_theta));
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, edge, true),
+                    expected_theta, halo_tolerance(expected_theta));
+        ++checked_edges;
+    }
+    EXPECT_GT(checked_edges, 0);
+
+    fields.coupled_valid->setVal(0);
+    layer->get_t_surf(0)->setVal(test_surface_temperature);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != fields.domain.smallEnd(0) ||
+            source.smallEnd(2) != fields.domain.smallEnd(2)) { continue; }
+        const Box& target = t_surf->boxArray()[ibox];
+        const IntVect edge(target.smallEnd(0) - 1,
+                           target.smallEnd(1), target.smallEnd(2));
+        EXPECT_EQ(global_fab_value(*t_surf, ibox, edge, true),
+                  test_surface_temperature);
+    }
+}
+
+// Motivation: a uniform donor cannot distinguish a local clamp from a
+// correctly exchanged neighboring value. With zero-ghost coupled donors, the
+// complete update must replace an internal tangential ghost from the adjacent
+// valid FAB, preserve the nonperiodic edge clamp, and propagate that value to
+// duplicate z-split planar copies.
+TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_coupled_sst_nonuniform";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * fields.geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false, "", true);
+
+    set_coupled_sst_ramp(*fields.coupled_sst);
+    fields.coupled_valid->setVal(1);
+    Gpu::streamSynchronize();
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    const auto pairs = tangential_halo_pairs(*t_surf, fields.ba, fields.domain, face);
+    ASSERT_FALSE(pairs.empty());
+    const auto& pair = pairs.front();
+    const Box& local_source = fields.ba[pair.target_fab];
+    IntVect local_point = pair.point;
+    for (int d = 0; d < 2; ++d) {
+        local_point[d] = amrex::min(amrex::max(local_point[d], local_source.smallEnd(d)),
+                                    local_source.bigEnd(d));
+    }
+    const auto donor_temperature = [] (const IntVect& point) {
+        return Real(280.0) + static_cast<Real>(point[0]) +
+            Real(0.25) * static_cast<Real>(point[1]);
+    };
+    const Real factor = std::pow(p_0 / pressure, RdoCp);
+    const Real neighbor_expected = donor_temperature(pair.point) * factor;
+    const Real local_expected = donor_temperature(local_point) * factor;
+    const Real halo = global_fab_value(*t_surf, pair.target_fab, pair.point, true);
+    EXPECT_NEAR(halo, neighbor_expected, halo_tolerance(neighbor_expected));
+    EXPECT_GT(std::abs(halo - local_expected), halo_tolerance(neighbor_expected));
+
+    int duplicate_copies = 0;
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        if (!t_surf->boxArray()[ibox].contains(pair.point)) { continue; }
+        EXPECT_NEAR(global_fab_value(*t_surf, ibox, pair.point, false),
+                    neighbor_expected, halo_tolerance(neighbor_expected));
+        ++duplicate_copies;
+    }
+    EXPECT_EQ(duplicate_copies, 2);
+}
+
+// Motivation: the z-high qsat boundary is located at the upper W face, not at
+// the cell centre or the ground. Its pressure correction must therefore use
+// the local signed distance z_cc-z_upper, and the result must agree on every
+// duplicate planar copy of a z-split layout.
+TEST(SurfaceLayerParallel, QsurfZHighUsesLocalSignedFacePressureOnZSplitGrids)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_qsurf_zhigh_zsplit";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Orientation face(Direction::z, Orientation::high);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, true, false, false, false);
+
+    BoxArray node_ba(fields.ba);
+    node_ba.convert(IntVect::TheNodeVector());
+    auto z_phys_nd = std::make_unique<MultiFab>(node_ba, fields.dm, 1, 0);
+    set_quadratic_node_heights(*z_phys_nd);
+
+    // The top cell is k=3: z_cc=(9+16)/2 and z_upper=16, hence delta_z=-3.5.
+    constexpr Real local_delta_z = Real(-3.5);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * local_delta_z, test_qv);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+    layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
+
+    const auto counts = value_counts(*layer->get_q_surf(0));
+    EXPECT_GT(counts.finite, 0);
+    EXPECT_EQ(counts.finite, counts.total);
+    Real expected = Real(0.0);
+    erf_qsatw(test_surface_temperature, pressure * Real(0.01), expected);
+    for (int ibox = 0; ibox < layer->get_q_surf(0)->boxArray().size(); ++ibox) {
+        const Box& box = layer->get_q_surf(0)->boxArray()[ibox];
+        const IntVect point = box.smallEnd();
+        EXPECT_NEAR(global_fab_value(*layer->get_q_surf(0), ibox, point, false),
+                    expected, qsat_tolerance(expected));
+    }
+    pp.remove("most.roughness_type_sea");
 }
 
 // Motivation: shared corners are processed by more than one active face. The

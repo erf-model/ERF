@@ -49,8 +49,8 @@ void ERF::poisson_wall_dist (int lev)
 
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
             Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
-            const Real* prob_lo = geomdata.ProbLo();
-            const Real* dx = geomdata.CellSize();
+            const auto prob_lo = geomdata.ProbLoArray();
+            const auto dx = geomdata.CellSizeArray();
             for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);

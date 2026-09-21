@@ -212,7 +212,8 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         bool rotate = false;
         surf_layer[Orientation(Direction::z, Orientation::low)] = std::make_unique<SurfaceLayer>(
             Orientation(Direction::z, Orientation::low), geoms, rotate, sfc_prefix, qv_prim, z_phys_nd,
-            Vector<Vector<Real>>{}, MeshType::ConstantDz, TerrainType::None, TurbChoice{}, 0.0, 0.0);
+            Vector<Vector<Real>>{}, MeshType::ConstantDz, TerrainType::None, TurbChoice{},
+            RdoCp, 0.0, 0.0);
         set_bottom_face(hfx_z, sfc);
         set_bottom_face(qfx1_z, -K * qb);
     }

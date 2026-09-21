@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <AMReX_Math.H>
 
 #include "ERF_SurfaceLayer.H"
 #include "ERF_DirectionSelector.H"
@@ -838,7 +839,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
                 if (enable_ysu_rad_tend_limiter && has_qheating_rates) {
                     // Guard against NaN/Inf in the raw heating rate
-                    if (!std::isfinite(LRAD_raw)) {
+                    if (!amrex::Math::isfinite(LRAD_raw)) {
                         LRAD_limited = zero;  // Safe fallback: no radiative forcing
                     } else {
                         // Apply the magnitude limiter/bounds
