@@ -936,8 +936,9 @@ void SLM::init_wrfinput_vars()
     const auto& input_vegtype = *lsm_fab_vars[LsmVar_SLM::vegtype];
     const int input_vegtype_min = static_cast<int>(input_vegtype.min(0));
     const int input_vegtype_max = static_cast<int>(input_vegtype.max(0));
-    if (input_vegtype_min < 1 || input_vegtype_max > 21) {
-        amrex::Abort("SLM: WRF vegetation categories must be in the supported range [1, 21]! min = " +
+    if (input_vegtype_min < 0 || input_vegtype_max > 21) {
+        amrex::Abort("SLM: WRF vegetation categories must be in the supported range [0, 21], "
+                     "where 0 denotes water/non-land! min = " +
                      std::to_string(input_vegtype_min) + ", max = " +
                      std::to_string(input_vegtype_max));
     }
