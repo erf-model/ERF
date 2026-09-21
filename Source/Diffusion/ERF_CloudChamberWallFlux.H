@@ -4,6 +4,7 @@
 #include <AMReX_Array4.H>
 #include <AMReX_Box.H>
 #include <AMReX_GpuContainers.H>
+#include <AMReX_Math.H>
 #include <AMReX_MultiFab.H>
 
 #include "ERF_Constants.H"
@@ -257,7 +258,7 @@ most_stability_coordinate (amrex::Real Ri,
         const amrex::Real zeta_new = amrex::Real(0.5) * zeta_old +
             amrex::Real(0.5) * Ri * A_m * A_m / A_s;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            std::isfinite(static_cast<double>(zeta_new)),
+            amrex::Math::isfinite(static_cast<double>(zeta_new)),
             "Cloud Chamber MOST produced a nonfinite stability coordinate");
         zeta = zeta_new;
         iterations = iter + 1;
@@ -344,9 +345,9 @@ most_wall_coefficients (
     result.zeta = zeta;
     result.valid = 1;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        std::isfinite(static_cast<double>(result.C_D)) &&
-        std::isfinite(static_cast<double>(result.C_H)) &&
-        std::isfinite(static_cast<double>(result.C_E)),
+        amrex::Math::isfinite(static_cast<double>(result.C_D)) &&
+        amrex::Math::isfinite(static_cast<double>(result.C_H)) &&
+        amrex::Math::isfinite(static_cast<double>(result.C_E)),
         "Cloud Chamber MOST produced nonfinite transfer coefficients");
     return result;
 }

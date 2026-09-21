@@ -1,9 +1,10 @@
 # Run a deck straight to STEP_END, run it again to STEP_CHK with a checkpoint there,
 # restart from that checkpoint to STEP_END, and require the restarted run's plotfile
-# at STEP_END to equal the straight run's with fcompare. Every run has a time limit,
-# so a restart that never finishes its first step fails with a message instead of
-# hanging until CTest's own timeout.
+# at STEP_END to equal the straight run's with fcompare. Each leg uses the forwarded
+# RUN_TIMEOUT, and the enclosing CTest timeout is sized separately by the caller.
 # -DX= defines X as empty, so test for a value, not for DEFINED
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 foreach(arg NRANKS TEST_EXE INPUT WORKING_DIRECTORY FCOMPARE STEP_CHK STEP_END RTOL ATOL RUN_TIMEOUT)
     if("${${arg}}" STREQUAL "")
         message(FATAL_ERROR "RunRestartParity.cmake: ${arg} must be given and non-empty")
@@ -14,20 +15,27 @@ if(NOT "${MPIEXEC}" STREQUAL "" AND "${MPIEXEC_NUMPROC_FLAG}" STREQUAL "")
 endif()
 
 separate_arguments(common_options   UNIX_COMMAND "${COMMON_OPTIONS}")
-separate_arguments(mpiexec_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
 
 set(STRAIGHT_DIR "${WORKING_DIRECTORY}/straight")
 set(RESTART_DIR  "${WORKING_DIRECTORY}/restart")
 file(REMOVE_RECURSE "${STRAIGHT_DIR}" "${RESTART_DIR}")
 file(MAKE_DIRECTORY "${STRAIGHT_DIR}" "${RESTART_DIR}")
 
-if(NOT "${MPIEXEC}" STREQUAL "")
-    set(launch     ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${mpiexec_preflags})
-    set(launch_one ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1         ${mpiexec_preflags})
-else()
-    set(launch)
-    set(launch_one)
-endif()
+# MPIEXEC may be a multi-word command such as "flux run"; the helper splits
+# it, validates the program and applies MPIEXEC_PREFLAGS. An empty MPIEXEC
+# yields an empty prefix, so the runs stay serial.
+erf_mpi_launcher_command(launch
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunRestartParity.cmake")
+erf_mpi_launcher_command(launch_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunRestartParity.cmake")
 
 # plotfile and checkpoint names carry the step padded to five digits
 function(padded step out_var)

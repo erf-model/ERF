@@ -326,11 +326,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
     BL_PROFILE("slow_rhs_making_omega");
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        Box bx  = mfi.tilebox();
-
         IntVect nGrowVect = (l_use_eb)
                             ? IntVect(AMREX_D_DECL(2, 2, 2)) : IntVect(AMREX_D_DECL(1, 1, 1));
-        Box gbxo = surroundingNodes(bx,2); gbxo.grow(nGrowVect);
+
+        //
+        // NOTE: grownnodaltilebox, not surroundingNodes(tilebox,2) grown by hand.  The latter
+        //       grows every tile past its own share of the grid, so once the grid is tiled two
+        //       tiles write the same Omega cells -- under OpenMP that is a concurrent write to
+        //       the same memory, i.e. a data race, even though both threads happen to store the
+        //       same value.  grownnodaltilebox hands each tile a disjoint piece of the grown
+        //       nodal box, and is identical to the old expression when there is one tile per grid.
+        //
+        Box gbxo = mfi.grownnodaltilebox(2,nGrowVect);
 
         const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);

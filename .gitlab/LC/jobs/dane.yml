@@ -1,18 +1,28 @@
-dane_gcc_12_1_1:
+dane_gcc_12_1_1_build:
+  stage: jobs-stage-1
   parallel:
     matrix:
-      - ERF_PRECISION: [single, double]
+      - ERF_PRECISION: [single]
         ERF_PARTICLES_PRECISION: [single, double]
-  rules:
-    # Build only when using single precision
-    - if: $ERF_PRECISION == "single" || $ERF_PARTICLES_PRECISION == "single"
-      variables:
-        RUN_CTEST: "false"
-    # Default to always test
-    - when: always
-      variables:
-        RUN_CTEST: "true"
+      - ERF_PRECISION: [double]
+        ERF_PARTICLES_PRECISION: [single]
   variables:
+    RUN_CTEST: "false"
+    CI_BUILD_JOBS: 16
+
+    MODULE_LIST: cmake/3.30.5 ninja/1.11.1 gcc/12.1.1 fftw/3.3.10
+
+    ERF_ENABLE_FFT: "ON"
+  extends: .job_on_dane
+
+dane_gcc_12_1_1_test:
+  stage: jobs-stage-2
+  variables:
+    RUN_CTEST: "true"
+    ERF_PRECISION: "double"
+    ERF_PARTICLES_PRECISION: "double"
+    CI_BUILD_JOBS: 64
+
     MODULE_LIST: cmake/3.30.5 ninja/1.11.1 gcc/12.1.1 fftw/3.3.10
 
     ERF_ENABLE_FFT: "ON"

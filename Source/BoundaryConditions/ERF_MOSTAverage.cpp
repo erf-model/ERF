@@ -668,9 +668,13 @@ MOSTAverage::set_eb_normalization (const int& lev)
     // All fields are now averaged on cell-centered grid
     // Compute total area once on cell-centered grid and use for all iavg
     Real total_area = zero;
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+    //
+    // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+    //       area_device entry, and on the host Gpu::deviceReduceSum is an unordered
+    //       "#pragma omp atomic" add.  Threading it would make the cut-cell area -- which
+    //       normalizes every EB surface-layer average -- depend on thread scheduling in the
+    //       last bits.  See the same note in PlaneAverage::compute_averages.
+    //
     for (MFIter mfi(cc_flags, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& flag = cc_flags[mfi];
 
@@ -1539,9 +1543,13 @@ MOSTAverage::compute_plane_averages (const int& lev)
         denom[imf]   = one / (Real)ncell_plane[imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             Box vbx = mfi.validbox(); // This is the grid (not tile)
             Box pbx = mfi.tilebox();  // This is the tile (not grid)
@@ -1663,9 +1671,13 @@ MOSTAverage::compute_plane_averages (const int& lev)
         denom[iavg]   = one / (Real)ncell_plane[iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[4], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
@@ -1804,9 +1816,13 @@ MOSTAverage::compute_plane_averages (const int& lev)
 
         const Real Vsg = m_Vsg[lev];
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box pbx = mfi.tilebox();
@@ -2731,9 +2747,13 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
         const Real Vsg = m_Vsg[lev]; // Subgrid scale velocity
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[3], TileNoZ()); mfi.isValid(); ++mfi) {
             const auto& flag = cc_flags[mfi];
 
@@ -2829,9 +2849,13 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[imf]   = one / m_total_bndry_area[lev][imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             const auto& flag = cc_flags[mfi];
 
@@ -2882,9 +2906,13 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+        //
+        // NOTE: deliberately not threaded.  The body is a pure reduction into the shared
+        //       plane_avg entries, and on the host Gpu::deviceReduceSum is an unordered
+        //       "#pragma omp atomic" add.  Threading it would make the surface-layer averages
+        //       -- and through them the surface fluxes -- depend on thread scheduling in the
+        //       last bits.  See the same note in PlaneAverage::compute_averages.
+        //
         for (MFIter mfi(*fields[4], TileNoZ()); mfi.isValid(); ++mfi)
         {
             const auto& flag = cc_flags[mfi];

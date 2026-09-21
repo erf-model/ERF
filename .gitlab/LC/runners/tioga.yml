@@ -31,8 +31,7 @@ stages:
     - shell
     - tioga
   variables:
-    # Limit build parallelism for matrix jobs
-    CMAKE_BUILD_PARALLEL_LEVEL: 8
+    CI_LINK_JOBS: 4
 
 .job_on_tioga:
   extends: .on_tioga
@@ -40,14 +39,39 @@ stages:
   variables:
     # Note: "flux" gets expanded to "flux run" inside build script
     MPIEXEC_EXECUTABLE: flux
-    MPIEXEC_PREFLAGS: "-c 1 -g 1 -o mpi-spectrum -o cpu-affinity=per-task -o gpu-affinity=per-task -vv"
+    # Concurrent-safe binding: this job shares the node with sibling matrix
+    # jobs, so a test launch cannot take the whole node and mpibind would infer
+    # GPUs from whatever fragmented cores it got. Bind explicitly from the
+    # granted resource set instead.
+    MPIEXEC_PREFLAGS: "--gpus-per-task=1 --label-io -vv -o mpibind=off -o gpu-affinity=per-task -o cpu-affinity=per-task"
   script:
     # Allocation information
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
     - echo -e "### Job ID is ${JOBID}"
-    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 16 -vv -o pmi=off ${TEST_SCRIPT}
+    # A small resource claim so sibling matrix jobs can run alongside,
+    # with both binding plugins off so the build still sees every core.
+    - flux proxy "${JOBID}" flux run -N 1 -n 1 -c 1 -vv -o pmi=off -o cpu-affinity=off -o mpibind=off ${TEST_SCRIPT}
+
+.job_on_tioga_exclusive:
+  extends: .on_tioga
+  stage: jobs-stage-1
+  variables:
+    # Note: "flux" gets expanded to "flux run" inside build script
+    MPIEXEC_EXECUTABLE: flux
+    MPIEXEC_PREFLAGS: "-N 1 --exclusive --label-io --setopt=mpibind=verbose:1 -vv"
+  script:
+    # Allocation information
+    - echo -e "### Allocation name is ${ALLOC_NAME}"
+    - export JOBID=$(flux jobs -n --name=${ALLOC_NAME} --format="{id}")
+    - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
+    - echo -e "### Job ID is ${JOBID}"
+    # Run the script as the INITIAL PROGRAM of a whole-node subinstance, not as
+    # a job inside the allocation. The initial program consumes no resources, so
+    # (a) the build sees every core with no affinity flags, and (b) the ctest
+    # launches below can take the whole node.
+    - flux proxy "${JOBID}" flux alloc -N 1 --exclusive -o cpu-affinity=off -o mpibind=off ${TEST_SCRIPT}
 
 ##############################################################################
 # JOBS
@@ -74,12 +98,12 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 90
+    ALLOC_TIME: 120
   extends: .on_tioga
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - flux alloc -N 1 -q ${ALLOC_QUEUE} -t=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME}
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} --time-limit=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME}
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run
