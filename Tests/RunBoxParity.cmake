@@ -3,6 +3,8 @@
 # on how the domain is decomposed. The reference runs on one rank because on more ranks
 # amr.refine_grid_layout splits even a single box.
 # -DX= defines X as empty, so test for a value, not for DEFINED
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 foreach(arg NRANKS TEST_EXE INPUT WORKING_DIRECTORY FCOMPARE PLTFILE RTOL ATOL)
     if("${${arg}}" STREQUAL "")
         message(FATAL_ERROR "RunBoxParity.cmake: ${arg} must be given and non-empty")
@@ -15,20 +17,27 @@ endif()
 separate_arguments(common_options    UNIX_COMMAND "${COMMON_OPTIONS}")
 separate_arguments(reference_options UNIX_COMMAND "${REFERENCE_OPTIONS}")
 separate_arguments(split_options     UNIX_COMMAND "${SPLIT_OPTIONS}")
-separate_arguments(mpiexec_preflags  UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
 
 set(REF_DIR   "${WORKING_DIRECTORY}/one_box")
 set(SPLIT_DIR "${WORKING_DIRECTORY}/split")
 file(REMOVE_RECURSE "${REF_DIR}" "${SPLIT_DIR}")
 file(MAKE_DIRECTORY "${REF_DIR}" "${SPLIT_DIR}")
 
-if(NOT "${MPIEXEC}" STREQUAL "")
-    set(launch_one   ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1         ${mpiexec_preflags})
-    set(launch_split ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NRANKS} ${mpiexec_preflags})
-else()
-    set(launch_one)
-    set(launch_split)
-endif()
+# MPIEXEC may be a multi-word command such as "flux run"; the helper splits
+# it, validates the program and applies MPIEXEC_PREFLAGS. An empty MPIEXEC
+# yields an empty prefix, so the runs stay serial.
+erf_mpi_launcher_command(launch_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunBoxParity.cmake")
+erf_mpi_launcher_command(launch_split
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunBoxParity.cmake")
 
 execute_process(
     COMMAND ${launch_one} ${TEST_EXE} ${INPUT} ${common_options} ${reference_options}

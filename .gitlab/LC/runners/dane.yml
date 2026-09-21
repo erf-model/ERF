@@ -31,8 +31,7 @@ stages:
     - shell
     - dane
   variables:
-    # Limit build parallelism for matrix jobs
-    CMAKE_BUILD_PARALLEL_LEVEL: 16
+    CI_LINK_JOBS: 8
 
 .job_on_dane:
   extends: .on_dane
@@ -42,7 +41,7 @@ stages:
     - echo -e "### Allocation name is ${ALLOC_NAME}"
     - export JOBID=$(squeue -h --name=${ALLOC_NAME} --format=%A)
     - if [[ -z "${JOBID}" ]]; then echo "No JOBID found for ${ALLOC_NAME}"; exit 1; fi
-    - echo -e "### Job ID is ${JOBID}"s
+    - echo -e "### Job ID is ${JOBID}"
     - srun --jobid=${JOBID} -N 1 -v --overlap --mpi=none ${TEST_SCRIPT}
 
 ##############################################################################
@@ -70,12 +69,12 @@ is_machine_up:
 allocate_resources:
   variables:
     GIT_STRATEGY: none
-    ALLOC_TIME: 60
+    ALLOC_TIME: 120
   extends: .on_dane
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - salloc --exclusive --reserv=ci --time=${ALLOC_TIME} --nodes=1 --no-shell --job-name=${ALLOC_NAME}
+    - salloc --exclusive -p ${ALLOC_QUEUE} --account=${ALLOC_BANK} --time=${ALLOC_TIME} --nodes=1 --no-shell --job-name=${ALLOC_NAME}
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run

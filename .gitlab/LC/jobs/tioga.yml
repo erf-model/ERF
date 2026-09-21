@@ -1,21 +1,32 @@
-tioga_hip_5.7.1:
+tioga_hip_6.1.2_build:
+  stage: jobs-stage-1
   parallel:
     matrix:
-      - ERF_PRECISION: [single, double]
+      - ERF_PRECISION: [single]
         ERF_PARTICLES_PRECISION: [single, double]
-  rules:
-    # Build only when using single precision
-    - if: $ERF_PRECISION == "single" || $ERF_PARTICLES_PRECISION == "single"
-      variables:
-        RUN_CTEST: "false"
-    # Default to always test
-    - when: always
-      variables:
-        RUN_CTEST: "true"
+      - ERF_PRECISION: [double]
+        ERF_PARTICLES_PRECISION: [single]
   variables:
+    RUN_CTEST: "false"
+    CI_BUILD_JOBS: 16
+
     MODULE_LIST: cmake/3.29.2 ninja/1.10.2 rocm/6.1.2 rocmcc/6.1.2-cce-18.0.0-magic craype-accel-amd-gfx90a
     ERF_ENABLE_HIP: "ON"
     AMD_ARCH: "gfx90a"
     # NOTE: Running with Debug build type causes AMD linking errors with AMReX plotfiles=ON
-    BUILD_TYPE: "RelWithDebInfo"
+    BUILD_TYPE: "Release"
   extends: .job_on_tioga
+
+tioga_hip_6.1.2_test:
+  stage: jobs-stage-2
+  variables:
+    RUN_CTEST: "true"
+    ERF_PRECISION: "double"
+    ERF_PARTICLES_PRECISION: "double"
+    CI_BUILD_JOBS: 56
+
+    MODULE_LIST: cmake/3.29.2 ninja/1.10.2 rocm/6.1.2 rocmcc/6.1.2-cce-18.0.0-magic craype-accel-amd-gfx90a
+    ERF_ENABLE_HIP: "ON"
+    AMD_ARCH: "gfx90a"
+    BUILD_TYPE: "Release"
+  extends: .job_on_tioga_exclusive
