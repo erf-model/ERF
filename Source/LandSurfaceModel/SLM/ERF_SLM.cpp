@@ -837,6 +837,126 @@ void SLM::slm_init()
 }
 
 /**
+ * Initializes local SLM fields from WRFInput data.
+ */
+void SLM::init_wrfinput_vars()
+{
+    if (wrfinput_initialized) {
+        return;
+    }
+
+    // TODO: fix - WRFinput sets 3D MFs in lsm_data - these need to be copied into SLM local 2D MFs
+    const int d_khi_lsm = khi_lsm;
+
+    const int isnature = 14; // nature cell type to use for urban cells
+    const int isurban  = 13; // urban cell type
+    const int islake   = 21; // lake cell
+    amrex::ignore_unused(isurban);
+
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box bx2d = mfi.tilebox();
+
+        auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+        auto in_lai_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
+        auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+        auto in_tsoil_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
+        auto in_vegfrac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+        auto in_vegfrac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
+        auto in_vegfrac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
+
+        auto emis_sfc_arr = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
+        auto alb_vis_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
+        auto alb_nir_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
+        auto alb_vis_sfc_dif_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
+        auto alb_nir_sfc_dif_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
+
+        auto landmask_arr = landmask.array(mfi);
+        auto landtype_arr = landtype.array(mfi);
+        auto lai_arr = LAI.array(mfi);
+        auto sstxy_arr = sstxy.array(mfi);
+        auto tskin_arr = t_skin.array(mfi);
+        auto t_ground_skin_arr = t_ground_skin.array(mfi);
+        auto vegetype_arr = vegetype.array(mfi);
+        auto vege_YES_arr = vege_YES.array(mfi);
+
+        const bool d_use_wrf_lai = use_wrf_lai;
+        const Real d_urban_veg_frac = d_use_wrf_lai ? param_table[isnature - 1][1] : 0.0;
+
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+        {
+            landtype_arr(i, j, 0) = static_cast<int>(vegtype_arr(i, j, d_khi_lsm));
+            lai_arr(i, j, 0) = in_lai_arr(i, j, d_khi_lsm);
+
+            const amrex::Real tsk = in_tsk_arr(i, j, d_khi_lsm);
+            sstxy_arr(i, j, 0) = tsk;
+            in_tsk_arr(i, j, 0) = tsk;
+            tskin_arr(i, j, 0) = tsk;
+            t_ground_skin_arr(i, j, 0) = in_tsoil_arr(i, j, d_khi_lsm);
+
+            in_vegfrac_arr(i, j, d_khi_lsm) *= 0.01;
+            in_vegfrac_arr(i, j, 0) = in_vegfrac_arr(i, j, d_khi_lsm);
+            in_vegfrac_min_arr(i, j, d_khi_lsm) *= 0.01;
+            in_vegfrac_min_arr(i, j, 0) = in_vegfrac_min_arr(i, j, d_khi_lsm);
+            in_vegfrac_max_arr(i, j, d_khi_lsm) *= 0.01;
+            in_vegfrac_max_arr(i, j, 0) = in_vegfrac_max_arr(i, j, d_khi_lsm);
+
+            if (landtype_arr(i, j, 0) == 17 || landtype_arr(i, j, 0) == islake) {
+                //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
+                landmask_arr(i, j, 0) = 0;
+                landtype_arr(i, j, 0) = 0;
+                vegetype_arr(i, j, 0) = 0;
+                vege_YES_arr(i, j, 0) = 0.0;
+                in_tsoil_arr(i, j, d_khi_lsm) = 273.16;
+
+                emis_sfc_arr(i, j, 0) = 0.98;
+                emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i, j, 0);
+
+                alb_vis_sfc_arr(i, j, 0) = 0.06;
+                alb_nir_sfc_arr(i, j, 0) = 0.06;
+                alb_vis_sfc_dif_arr(i, j, 0) = 0.06;
+                alb_nir_sfc_dif_arr(i, j, 0) = 0.06;
+
+                alb_vis_sfc_arr(i, j, d_khi_lsm) = alb_vis_sfc_arr(i, j, 0);
+                alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
+                alb_vis_sfc_dif_arr(i, j, d_khi_lsm) = alb_vis_sfc_dif_arr(i, j, 0);
+                alb_nir_sfc_dif_arr(i, j, d_khi_lsm) = alb_nir_sfc_dif_arr(i, j, 0);
+
+            } else if (landtype_arr(i, j, 0) > 16) {
+                // amrex::Print() << "     -- urban cell (i = " << i << " j = " << j << ") - setting landtype=" << isnature << " (orig landtype = " << landtype_arr(i, j, 0) << ")" << std::endl;
+                // for urban cells, set as a nature landtype for the non-building part
+                landtype_arr(i, j, 0) = isnature;
+                if (d_use_wrf_lai) {
+                    // set the vegetation frac
+                    in_vegfrac_arr(i, j, 0) = d_urban_veg_frac;
+                }
+                //landtype_arr(i, j, 0) = isurban;
+            }
+        });
+    }
+
+    // If using WRFInput, SLM init needs to be delayed here to use correct values set from WRFInput
+    slm_init();
+
+    // Convert soil moisture from wrfinput to soil wetness for SLM
+    for (MFIter mfi(*lsm_fab_vars[LsmVar_SLM::soilw], TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        auto landmask_arr = landmask.const_array(mfi);
+        auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
+        auto wsoil_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (landmask_arr(i, j, 0) == 1) {
+                wsoil_arr(i, j, k) /= poro_soil_arr(i, j, k);
+            }
+        });
+    }
+
+    init_slm_vars();
+    wrfinput_initialized = true;
+}
+
+/**
  * Helper function to set properties according to the IGBP class
  */
 void SLM::init_landtype()
@@ -1582,6 +1702,7 @@ void SLM::init_slm_vars()
 
         auto t_cas_arr = t_cas.array(mfi);
         auto q_cas_arr = q_cas.array(mfi);
+        auto q_gr_arr = q_gr.array(mfi);
 
         auto t_canop_arr = t_canop.array(mfi);
         auto t_ground_skin_arr = t_ground_skin.array(mfi);
@@ -1598,18 +1719,19 @@ void SLM::init_slm_vars()
         {
             if (landmask_arr(i, j, 0) == 1)
             {
-                amrex::Real q_gr;
+                amrex::Real q_ground;
 
                 // soil surface specific humidity
-                if (soilt_arr(i, j, d_khi_lsm) > tfriz)
+                if (tsurf_arr(i, j, 0) > tfriz)
                 {
-                    erf_qsatw(tsurf_arr(i, j, 0), pref_arr(i, j, 0), q_gr);
+                    erf_qsatw(tsurf_arr(i, j, 0), pref_arr(i, j, 0), q_ground);
                 }
                 else
                 {
-                    erf_qsati(tsurf_arr(i, j, 0), pref_arr(i, j, 0), q_gr);
+                    erf_qsati(tsurf_arr(i, j, 0), pref_arr(i, j, 0), q_ground);
                 }
-                q_gr *= soilw_arr(i, j, d_khi_lsm);
+                q_ground *= soilw_arr(i, j, d_khi_lsm);
+                q_gr_arr(i, j, 0) = q_ground;
 
                 // canopy temperature: initialize as (ref level temperature + soil surf temperature)/2
                 //t_canop_arr(i, j, 0) = 0.5*(tref_arr(i, j, 0) + tsurf_arr(i, j, 0));
@@ -1620,7 +1742,7 @@ void SLM::init_slm_vars()
                 t_ground_skin_arr(i, j, 0) = soilt_arr(i, j, d_khi_lsm);
 
                 // specific humidity in canopy air space
-                q_cas_arr(i, j, 0) = 0.5*(qref_arr(i, j, 0) + q_gr);
+                q_cas_arr(i, j, 0) = 0.5*(qref_arr(i, j, 0) + q_ground);
 
                 //amrex::Print() << " i = " << i << " j = " << j << " k = 0 : t_canop = " << t_canop_arr(i, j, 0) << " t_cas = " << t_cas_arr(i, j, 0) << " tsurf = " << tsurf_arr(i, j, 0) << " qcas = " << q_cas_arr(i, j, 0) << " qref = " << qref_arr(i, j, 0) << std::endl;
 
@@ -1631,6 +1753,94 @@ void SLM::init_slm_vars()
     // initialize nudging profiles for soil based on the initial soilt and soilw
     MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
     MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+
+    initialize_surface_outputs();
+}
+
+/**
+ * Initializes diagnostics and radiation coupling fields from the SLM state.
+ */
+void SLM::initialize_surface_outputs()
+{
+    const int d_khi_lsm = khi_lsm;
+
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const auto& box = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto LAI_arr = LAI.const_array(mfi);
+        auto phi_1_arr = phi_1.const_array(mfi);
+        auto phi_2_arr = phi_2.const_array(mfi);
+        auto albedovis_v_arr = albedovis_v.const_array(mfi);
+        auto albedonir_v_arr = albedonir_v.const_array(mfi);
+        auto albedovis_s_arr = albedovis_s.const_array(mfi);
+        auto albedonir_s_arr = albedonir_s.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto IR_emis_vege_arr = IR_emis_vege.const_array(mfi);
+        auto IR_emis_soil_arr = IR_emis_soil.const_array(mfi);
+        auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+        auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
+        auto t_canop_arr = t_canop.const_array(mfi);
+        auto mw_arr = mw.const_array(mfi);
+        auto t_cas_arr = t_cas.const_array(mfi);
+        auto q_cas_arr = q_cas.const_array(mfi);
+        auto q_gr_arr = q_gr.const_array(mfi);
+        auto t_ground_skin_arr = t_ground_skin.const_array(mfi);
+        auto tsurf_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+        auto t_skin_arr = t_skin.array(mfi);
+        auto t_sfc_arr = t_sfc.array(mfi);
+        auto q_sfc_arr = q_sfc.array(mfi);
+        auto tveg_arr = lsm_fab_vars[LsmVar_SLM::tv]->array(mfi);
+        auto mveg_arr = lsm_fab_vars[LsmVar_SLM::mv]->array(mfi);
+        auto emis_sfc_arr = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
+        auto alb_nir_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
+        auto alb_vis_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
+        auto alb_nir_sfc_diff_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
+        auto alb_vis_sfc_diff_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            const amrex::Real explai = std::exp(
+                -(phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0)) * LAI_arr(i, j, 0));
+            const amrex::Real wetfactor = 1.0 - 0.5 * soilw_arr(i, j, d_khi_lsm);
+
+            const amrex::Real veg_frac = veg_frac_arr(i, j, 0);
+            const amrex::Real alb_nir = albedonir_v_arr(i, j, 0) * (1.0 - explai)
+                                      + albedonir_s_arr(i, j, 0) * wetfactor * explai;
+            const amrex::Real alb_vis = albedovis_v_arr(i, j, 0) * (1.0 - explai)
+                                      + albedovis_s_arr(i, j, 0) * wetfactor * explai;
+
+            t_skin_arr(i, j, 0) = tsurf_arr(i, j, 0);
+            tsurf_arr(i, j, d_khi_lsm) = tsurf_arr(i, j, 0);
+            veg_frac_arr(i, j, d_khi_lsm) = veg_frac;
+            tveg_arr(i, j, 0) = t_canop_arr(i, j, 0);
+            tveg_arr(i, j, d_khi_lsm) = t_canop_arr(i, j, 0);
+            mveg_arr(i, j, 0) = mw_arr(i, j, 0);
+            mveg_arr(i, j, d_khi_lsm) = mw_arr(i, j, 0);
+
+            if (landmask_arr(i, j, 0) == 1 && vegetype_arr(i, j, 0) == 1) {
+                t_sfc_arr(i, j, 0) = t_cas_arr(i, j, 0);
+                q_sfc_arr(i, j, 0) = q_cas_arr(i, j, 0);
+            } else {
+                t_sfc_arr(i, j, 0) = t_ground_skin_arr(i, j, 0);
+                q_sfc_arr(i, j, 0) = q_gr_arr(i, j, 0);
+            }
+
+            emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i, j, 0) * veg_frac
+                                  + IR_emis_soil_arr(i, j, 0)
+                                    * (1.0 - veg_frac);
+            alb_nir_sfc_arr(i, j, 0) = alb_nir;
+            alb_vis_sfc_arr(i, j, 0) = alb_vis;
+            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir;
+            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis;
+
+            emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i, j, 0);
+            alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
+            alb_vis_sfc_arr(i, j, d_khi_lsm) = alb_vis_sfc_arr(i, j, 0);
+            alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = alb_nir_sfc_diff_arr(i, j, 0);
+            alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = alb_vis_sfc_diff_arr(i, j, 0);
+        });
+    }
 }
 
 /**
@@ -1945,7 +2155,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
         m_orbital_mon  = timeinfo->tm_mon  + 1;
         m_orbital_day  = timeinfo->tm_mday;
         m_orbital_sec  = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
-        
+
         static constexpr double dpy[] = {0.0  ,  31.0,  59.0,  90.0, 120.0, 151.0,
                                         181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
         bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
@@ -4324,15 +4534,38 @@ void
 SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
                         const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in)
 {
-    if (!first_step || use_wrfinput)
+    if (!first_step)
     {
         return;
     }
     auto tsurf = lsm_fab_vars[LsmVar_SLM::tsurf];
     const int d_khi_lsm = khi_lsm;
 
-    if (sst_in[0] && lmask_in[0]) {
-        // Set SLM SST and land mask input from ERF
+    if (lmask_in[0]) {
+        for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto& box3d = mfi.tilebox();
+
+            // Create a box with the same i,j bounds, but only at z = 0
+            amrex::Box b2d = box3d;
+            b2d.setRange(2, 0);
+
+            auto lmask_array = lmask_in[0]->array(mfi);
+            auto slm_lmask = landmask.array(mfi);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                slm_lmask(i, j, k) = lmask_array(i, j, k, 0);
+            });
+        }
+    } else {
+        landmask.setVal(1);
+    }
+
+    if (!use_wrfinput) {
+        slm_init();
+    }
+
+    if (sst_in[0]) {
+        // Set SLM surface temperature input from ERF.
         for ( MFIter mfi(*tsurf, TileNoZ()); mfi.isValid(); ++mfi) {
             const auto& box3d = mfi.tilebox();
 
@@ -4341,24 +4574,22 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
             b2d.setRange(2, 0);
 
             auto sst_array = sst_in[0]->array(mfi);
-            auto lmask_array = lmask_in[0]->array(mfi);
-
-            auto slm_sst   = sstxy.array(mfi);
-            auto slm_lmask   = landmask.array(mfi);
-
-            auto slm_tsk   = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+            auto slm_sst = sstxy.array(mfi);
+            auto slm_tsk = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
             auto slm_tskin = t_skin.array(mfi);
+            const bool d_use_wrfinput = use_wrfinput;
             ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                slm_sst(i, j, k) = sst_array(i, j, k, 0);
-                slm_tsk(i, j, k) = sst_array(i, j, k, 0);
-                slm_tskin(i, j, k) = sst_array(i, j, k, 0);
-                slm_lmask(i, j, k) = lmask_array(i, j, k, 0);
+                const amrex::Real tsk = d_use_wrfinput
+                    ? slm_tsk(i, j, d_khi_lsm)
+                    : sst_array(i, j, k, 0);
+                slm_sst(i, j, k) = tsk;
+                slm_tsk(i, j, k) = tsk;
+                slm_tskin(i, j, k) = tsk;
             });
         }
-    } else {
-        // If no terrain is setup, initialize SST to reference temperature and set default land mask
-        landmask.setVal(1);
+    } else if (!use_wrfinput) {
+        // If no terrain is setup, initialize SST to reference temperature.
         lsm_fab_vars[LsmVar_SLM::tsurf]->setVal(st0[0]);
     }
 }

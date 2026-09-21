@@ -239,132 +239,8 @@ public:
             //this->init_slm_vars();
             first_step = false;
 
-            if (use_wrfinput) {
-                // TODO: fix - WRFinput sets 3D MFs in lsm_data - these need to be copied into SLM local 2D MFs
-                int d_khi_lsm = khi_lsm;
-
-                const int isnature = 14; // nature cell type to use for urban cells
-                const int isurban  = 13; // urban cell type
-                const int islake   = 21; // lake cell
-                amrex::ignore_unused(isurban);
-                for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
-                    amrex::Box bx2d = mfi.tilebox();
-
-                    amrex::Box bx3d_mf = bx2d;
-                    bx3d_mf.setBig(2, khi_lsm);
-                    bx3d_mf.setSmall(2, khi_lsm);
-
-                    // Copies from 3D MF at k=-1 filled from WRFInput to 2D MF defined at k=0
-                    //landtype[mfi].template copy<amrex::RunOn::Device>((*lsm_fab_vars[LsmVar_SLM::vegtype])[mfi], bx2d);
-                    //LAI[mfi].template copy<amrex::RunOn::Device>((*lsm_fab_vars[LsmVar_SLM::lai])[mfi], bx2d);
-
-                    auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
-                    auto in_soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
-                    auto in_lai_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
-                    auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
-                    auto in_tsoil_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
-                    auto in_vegfrac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
-                    auto in_vegfrac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->array(mfi);
-                    auto in_vegfrac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->array(mfi);
-
-                    auto emis_sfc_arr = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
-                    auto alb_vis_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
-                    auto alb_nir_sfc_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
-                    auto alb_vis_sfc_dif_arr = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
-                    auto alb_nir_sfc_dif_arr = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
-
-                    auto landmask_arr = landmask.array(mfi);
-                    auto landtype_arr = landtype.array(mfi);
-                    auto lai_arr = LAI.array(mfi);
-
-                    auto sstxy_arr = sstxy.array(mfi);
-                    auto tskin_arr = t_skin.array(mfi);
-                    auto t_ground_skin_arr = t_ground_skin.array(mfi);
-
-                    auto vegetype_arr = vegetype.array(mfi);
-                    auto vege_YES_arr = vege_YES.array(mfi);
-
-                    auto const& d_params = d_param_table.const_table();
-
-                    const bool d_use_wrf_lai = use_wrf_lai;
-
-                    amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                        landtype_arr(i,j,0) = vegtype_arr(i,j,d_khi_lsm);
-                        //soiltype_arr(i,j,0) = in_soiltype_arr(i,j,d_khi_lsm);
-                        lai_arr(i,j,0) = in_lai_arr(i,j,d_khi_lsm);
-
-                        //sstxy_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
-
-                        //in_tsk_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
-
-                        //tskin_arr(i,j,0) = in_tsk_arr(i,j,d_khi_lsm);
-                        //amrex::Print() << " i = " << i << " j = " << j << ": landtype = " << landtype_arr(i,j,0) << " soiltype = " << in_soiltype_arr(i,j,d_khi_lsm) << " LAI = " << lai_arr(i, j, 0) << std::endl;
-
-                        // TODO: initialize surface to soil temperature for now, check
-                        sstxy_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
-                        in_tsk_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
-                        tskin_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
-                        t_ground_skin_arr(i,j,0) = in_tsoil_arr(i,j,d_khi_lsm);
-
-                        in_vegfrac_arr(i,j,d_khi_lsm) *= 0.01;
-                        in_vegfrac_arr(i,j,0) = in_vegfrac_arr(i,j,d_khi_lsm);
-                        in_vegfrac_min_arr(i,j,d_khi_lsm) *= 0.01;
-                        in_vegfrac_min_arr(i,j,0) = in_vegfrac_min_arr(i,j,d_khi_lsm);
-                        in_vegfrac_max_arr(i,j,d_khi_lsm) *= 0.01;
-                        in_vegfrac_max_arr(i,j,0) = in_vegfrac_max_arr(i,j,d_khi_lsm);
-
-                        if (landtype_arr(i,j,0) == 17 || landtype_arr(i, j, 0) == islake) {
-                            //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
-                            landmask_arr(i,j,0) = 0;
-                            landtype_arr(i,j,0) = 0;
-                            vegetype_arr(i,j,0) = 0;
-                            vege_YES_arr(i,j,0) = 0.0;
-                            in_tsoil_arr(i,j,d_khi_lsm) = 273.16;
-
-                            emis_sfc_arr(i,j,0) = 0.98;
-                            emis_sfc_arr(i,j,d_khi_lsm) = emis_sfc_arr(i,j,0);
-
-                            alb_vis_sfc_arr(i,j,0) = 0.06;
-                            alb_nir_sfc_arr(i,j,0) = 0.06;
-                            alb_vis_sfc_dif_arr(i,j,0) = 0.06;
-                            alb_nir_sfc_dif_arr(i,j,0) = 0.06;
-
-                            alb_vis_sfc_arr(i,j,d_khi_lsm) = alb_vis_sfc_arr(i,j,0);
-                            alb_nir_sfc_arr(i,j,d_khi_lsm) = alb_nir_sfc_arr(i,j,0);
-                            alb_vis_sfc_dif_arr(i,j,d_khi_lsm) = alb_vis_sfc_dif_arr(i,j,0);
-                            alb_nir_sfc_dif_arr(i,j,d_khi_lsm) = alb_nir_sfc_dif_arr(i,j,0);
-
-                        } else if (landtype_arr(i,j,0) > 16) {
-                            // amrex::Print() << "     -- urban cell (i = " << i << " j = " << j << ") - setting landtype=" << isnature << " (orig landtype = " << landtype_arr(i,j,0) << ")" << std::endl;
-                            // for urban cells, set as a nature landtype for the non-building part
-                            landtype_arr(i,j,0) = isnature;
-                            if (d_use_wrf_lai) {
-                                // set the vegetation frac
-                                in_vegfrac_arr(i,j,0) = d_params(isnature-1, 1);
-                            }
-                            //landtype_arr(i,j,0) = isurban;
-                        }
-                    });
-                }
-
-                // If using WRFInput, SLM init needs to be delayed here to use correct values set from WRFInput
-                slm_init();
-
-                // Convert soil moisture from wrfinput to soil wetness for SLM
-                for ( amrex::MFIter mfi(*lsm_fab_vars[LsmVar_SLM::soilw],TileNoZ()); mfi.isValid(); ++mfi) {
-                    const auto& box3d = mfi.tilebox();
-                    auto landmask_arr = landmask.const_array(mfi);
-                    auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
-                    auto wsoil_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
-                    amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        if (landmask_arr(i, j, 0) == 1)
-                        {
-                            wsoil_arr(i, j, k) /= poro_soil_arr(i, j, k);
-                        }
-                    });
-                }
-
-                init_slm_vars();
+            if (use_wrfinput && !wrfinput_initialized) {
+                this->init_wrfinput_vars();
             }
 
             // update zref using updated z_phys_nd
@@ -485,8 +361,12 @@ public:
     Update_Lsm_Vars (amrex::MultiFab& cons_in, amrex::MultiFab& u_in, amrex::MultiFab& v_in) override
     {
         this->Copy_State_to_Lsm(cons_in, u_in, v_in);
-        if (first_step && time == 0.0) {
-            this->init_slm_vars();
+        if (first_step) {
+            if (use_wrfinput && !wrfinput_initialized) {
+                this->init_wrfinput_vars();
+            } else if (!use_wrfinput) {
+                this->init_slm_vars();
+            }
             //time += m_dt; // update time here so that first timestep time is correct
         }
         //this->Diagnose();
@@ -530,6 +410,16 @@ public:
     void vege_root_init();
 
     void init_slm_vars();
+
+    /**
+     * Initializes local SLM fields from WRFInput data.
+     */
+    void init_wrfinput_vars();
+
+    /**
+     * Initializes diagnostics and radiation coupling fields from the SLM state.
+     */
+    void initialize_surface_outputs();
 
     SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
 
@@ -1010,6 +900,7 @@ private:
 
     // whether to initialize SLM from inputs file or from wrfinput
     bool use_wrfinput = false;
+    bool wrfinput_initialized = false;
 
     // list of extra MFs in lsm_fab_vars that are not checkpointed by ERF
     amrex::Vector<int> unmapped_fields;
