@@ -293,8 +293,14 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
-        bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
+        //
+        // NOTE: growntilebox, not the tilebox grown by hand.  Growing by hand pushes every tile
+        //       ngc cells past its own share of the grid, so once the grid is tiled two tiles
+        //       store to the same mu_turb cells -- a data race under OpenMP, even though both
+        //       store the same value.  The union of the tiles, and the values stored, are
+        //       unchanged, and this is identical to the old expression with one tile per grid.
+        //
+        bxcc = mfi.growntilebox(IntVect(ngc,ngc,0));
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
@@ -518,8 +524,14 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc); planey.grow(0,1);
-        bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
-        bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
+        //
+        // NOTE: growntilebox, not the tilebox grown by hand.  Growing by hand pushes every tile
+        //       ngc cells past its own share of the grid, so once the grid is tiled two tiles
+        //       store to the same mu_turb cells -- a data race under OpenMP, even though both
+        //       store the same value.  The union of the tiles, and the values stored, are
+        //       unchanged, and this is identical to the old expression with one tile per grid.
+        //
+        bxcc = mfi.growntilebox(IntVect(ngc,ngc,0));
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 

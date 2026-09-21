@@ -4,6 +4,7 @@
 #include "ERF_Plotfile2DFill.H"
 
 #include <AMReX_Gpu.H>
+#include <AMReX_Math.H>
 
 #include "ERF_Constants.H"
 #include "Diagnostics/ERF_SurfaceFluxDiagnostics.H"
@@ -22,7 +23,7 @@ is_valid_land_surface_value (Real value) noexcept
 {
     // Noah-MP's -9999 fill convention and ERF's large internal sentinel are
     // both invalid. This preserves valid zero and negative flux values.
-    return std::isfinite(value) && value > Real(-9990.0) &&
+    return amrex::Math::isfinite(value) && value > Real(-9990.0) &&
            value < Real(0.5) * lsm_undefined;
 }
 

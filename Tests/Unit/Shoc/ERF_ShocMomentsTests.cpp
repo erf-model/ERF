@@ -67,6 +67,9 @@ TEST(ShocMoments, SurfaceMomentBoundaryConditionsMatchTranslatedE3smSemantics)
         ShocStructure::diagnose_pblh(col);
         ShocStructure::diagnose_length_and_brunt(col, opts, 400.0, 400.0);
         ShocTKE::diagnose_tke_and_diffusivities(col, opts, 300.0);
+        // The kernels above may still be in flight; without this the host write
+        // below is overwritten and the moments come out of the diagnosed pblh.
+        shoc_test::sync();
         col.pblh.array()(0,0,0) = 400.0;
         ShocMoments::diagnose_second_moments(col, opts);
     });

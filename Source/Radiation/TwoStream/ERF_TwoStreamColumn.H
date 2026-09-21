@@ -9,6 +9,7 @@
 #include <AMReX_Box.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include <ERF_Constants.H>
@@ -20,6 +21,8 @@
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_OrbCosZenith.H>
+#include <ERF_SurfaceTemperature.H>
+#include <ERF_TerrainMetrics.H>
 
 /**
  * @file ERF_TwoStreamColumn.H
@@ -71,6 +74,7 @@ struct TwoStreamParams
     amrex::Real surface_albedo_sw_diffuse = -1.0;
     amrex::Real surface_emissivity_lw = 0.99;
     amrex::Real t_sfc_default = 300.0;   // erf.rad_t_sfc
+    amrex::Real rdOcp = RdoCp;
 
     bool tau_sw_dynamic_enable = false;
     bool tau_lw_dynamic_enable = false;
@@ -120,7 +124,8 @@ static_assert(std::is_trivially_copyable<TwoStreamParams>::value,
 /**
  * @brief Copy the column-kernel parameters out of a RadChoice.
  */
-inline TwoStreamParams make_two_stream_params (const RadChoice& rc)
+inline TwoStreamParams make_two_stream_params (const RadChoice& rc,
+                                                const amrex::Real rdOcp)
 {
     TwoStreamParams p;
     p.sw_enabled = rc.sw_enabled;
@@ -139,6 +144,7 @@ inline TwoStreamParams make_two_stream_params (const RadChoice& rc)
     p.surface_albedo_sw_diffuse = rc.surface_albedo_sw_diffuse;
     p.surface_emissivity_lw = rc.surface_emissivity_lw;
     p.t_sfc_default = rc.rad_t_sfc;
+    p.rdOcp = rdOcp;
     p.tau_sw_dynamic_enable = rc.tau_sw_dynamic_enable;
     p.tau_lw_dynamic_enable = rc.tau_lw_dynamic_enable;
     p.tau_sw_coeff_qv = rc.tau_sw_coeff_qv;
@@ -195,16 +201,16 @@ amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
                                            amrex::Real rho,
                                            amrex::Real qv = 0.0)
 {
-    if (!(rho > 0.0) || !std::isfinite(rho) ||
-        !(rho_theta > 0.0) || !std::isfinite(rho_theta)) {
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) ||
+        !(rho_theta > 0.0) || !amrex::Math::isfinite(rho_theta)) {
         return 288.15;  // Defensive: fallback to standard T
     }
-    if (!(qv >= 0.0) || !std::isfinite(qv)) {
+    if (!(qv >= 0.0) || !amrex::Math::isfinite(qv)) {
         qv = 0.0;
     }
 
     amrex::Real T = getTgivenRandRTh(rho, rho_theta, qv);
-    if (!std::isfinite(T) || T <= 0.0) {
+    if (!amrex::Math::isfinite(T) || T <= 0.0) {
         return 288.15;  // Defensive: fallback
     }
 
@@ -214,42 +220,11 @@ amrex::Real get_temperature_from_rhotheta (amrex::Real rho_theta,
     return T;
 }
 
-/**
- * @brief Clamp a real value to [min, max], with fallback for invalid (NaN/Inf).
- *
- * If the value is not finite (NaN, Inf), returns fallback. Otherwise returns
- * value clamped to [min, max].
- *
- * @param[in] value Input value to clamp
- * @param[in] min Lower bound
- * @param[in] max Upper bound
- * @param[in] fallback Value to use if input is not finite
- * @return Clamped finite value in [min, max]
- */
+/** @brief Check whether a heterogeneous absolute surface temperature is valid. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real clamp_finite (amrex::Real value,
-                          amrex::Real min,
-                          amrex::Real max,
-                          amrex::Real fallback)
+bool valid_surface_temperature (amrex::Real value)
 {
-    if (!std::isfinite(value)) {
-        value = fallback;
-    }
-    if (value < min) value = min;
-    if (value > max) value = max;
-    return value;
-}
-
-/**
- * @brief Check if a real value is finite and positive.
- *
- * @param[in] value Value to check
- * @return true if finite and > 0, false otherwise
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool is_finite_positive (amrex::Real value)
-{
-    return std::isfinite(value) && value > 0.0;
+    return amrex::Math::isfinite(value) && value > 0.0 && value < lsm_undefined;
 }
 
 /**
@@ -277,8 +252,8 @@ amrex::Real resolve_surface_albedo_sw (
 
     if (has_hetero_alb && hetero_alb_sw != nullptr && hetero_alb_sw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_alb_sw)(i, j, 0, 0);
-        if (std::isfinite(hetero_val)) {
-            alb = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_albedo_sw);
+        if (amrex::Math::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+            alb = hetero_val;
         }
     }
 
@@ -310,8 +285,8 @@ amrex::Real resolve_surface_emissivity_lw (
 
     if (has_hetero_emiss && hetero_emiss_lw != nullptr && hetero_emiss_lw->contains(i, j, 0)) {
         amrex::Real hetero_val = (*hetero_emiss_lw)(i, j, 0, 0);  // Assume single component
-        if (std::isfinite(hetero_val)) {
-            emiss = clamp_finite(hetero_val, 0.0, 1.0, rad_choice.surface_emissivity_lw);
+        if (amrex::Math::isfinite(hetero_val) && hetero_val >= 0.0 && hetero_val <= 1.0) {
+            emiss = hetero_val;
         }
     }
 
@@ -319,51 +294,71 @@ amrex::Real resolve_surface_emissivity_lw (
 }
 
 /**
- * @brief Resolve per-column surface temperature from hetero field or fallback.
+ * @brief Resolve the per-column surface-temperature boundary condition.
  *
- * Precedence:
- * 1. If t_sfc array available and value at (i,j) is finite & positive, use it
- * 2. Otherwise, use rad_choice.t_sfc_default (erf.rad_t_sfc, validated by init_params)
- * 3. Hard default: 300.0 K
+ * The candidates remain separate until this per-cell resolver runs. This is
+ * important for an LSM field that exists globally but contains an undefined
+ * value in an individual column.
+ *
+ * Precedence for each column:
+ * 1. valid LSM absolute temperature;
+ * 2. valid prognostic SEB absolute temperature;
+ * 3. valid SurfaceLayer potential temperature (marked for Exner conversion);
+ * 4. the scalar absolute-temperature fallback, erf.rad_t_sfc.
+ *
+ * Only the SurfaceLayer candidate is converted by the caller. The LSM and
+ * prognostic SEB candidates already satisfy the absolute-temperature contract.
  *
  * @param[in] i,j Column index
- * @param[in] t_sfc Heterogeneous surface temperature field (may be nullptr)
+ * @param[in] lsm_t_sfc LSM absolute-temperature field (may be nullptr)
+ * @param[in] has_lsm_t_sfc true if the LSM field is available
+ * @param[in] seb_t_sfc prognostic SEB absolute-temperature field (may be nullptr)
+ * @param[in] has_seb_t_sfc true if the prognostic SEB field is available
+ * @param[in] surface_layer_theta SurfaceLayer potential-temperature field (may be nullptr)
+ * @param[in] has_surface_layer true if the SurfaceLayer field is available
  * @param[in] rad_choice Radiation parameters with the fallback t_sfc_default
- * @param[in] has_t_sfc true if t_sfc is available
- * @return Surface temperature [K], strictly positive
+ * @param[out] from_surface_layer true when the returned value is SurfaceLayer theta
+ * @return Surface temperature candidate [K]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real resolve_surface_temp_k (
     int i, int j,
-    const amrex::Array4<const amrex::Real>* t_sfc,
+    const amrex::Array4<const amrex::Real>* lsm_t_sfc,
+    bool has_lsm_t_sfc,
+    const amrex::Array4<const amrex::Real>* seb_t_sfc,
+    bool has_seb_t_sfc,
+    const amrex::Array4<const amrex::Real>* surface_layer_theta,
+    bool has_surface_layer,
     const TwoStreamParams& rad_choice,
-    bool has_t_sfc,
-    bool& from_field)
+    bool& from_surface_layer)
 {
     amrex::Real t_surf = rad_choice.t_sfc_default;  // erf.rad_t_sfc (already validated)
-    from_field = false;
+    from_surface_layer = false;
 
-    if (has_t_sfc && t_sfc != nullptr && t_sfc->contains(i, j, 0)) {
-        amrex::Real hetero_val = (*t_sfc)(i, j, 0, 0);  // Assume single component
-        if (is_finite_positive(hetero_val)) {
-            t_surf = hetero_val;
-            from_field = true;
+    if (has_lsm_t_sfc && lsm_t_sfc != nullptr && lsm_t_sfc->contains(i, j, 0)) {
+        const amrex::Real lsm_value = (*lsm_t_sfc)(i, j, 0, 0);
+        if (valid_surface_temperature(lsm_value)) {
+            return lsm_value;
+        }
+    }
+
+    if (has_seb_t_sfc && seb_t_sfc != nullptr && seb_t_sfc->contains(i, j, 0)) {
+        const amrex::Real seb_value = (*seb_t_sfc)(i, j, 0, 0);
+        if (valid_surface_temperature(seb_value)) {
+            return seb_value;
+        }
+    }
+
+    if (has_surface_layer && surface_layer_theta != nullptr &&
+        surface_layer_theta->contains(i, j, 0)) {
+        const amrex::Real theta = (*surface_layer_theta)(i, j, 0, 0);
+        if (valid_surface_temperature(theta)) {
+            from_surface_layer = true;
+            return theta;
         }
     }
 
     return t_surf;
-}
-
-/** @brief Same, without reporting where the value came from. */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real resolve_surface_temp_k (
-    int i, int j,
-    const amrex::Array4<const amrex::Real>* t_sfc,
-    const TwoStreamParams& rad_choice,
-    bool has_t_sfc)
-{
-    bool from_field = false;
-    return resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc, from_field);
 }
 
 /**
@@ -394,9 +389,9 @@ amrex::Real get_qv_from_state (int i, int j, int k,
     if (state_arr.nComp() <= RhoQ1_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
     amrex::Real rho_qv = state_arr(i, j, k, RhoQ1_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qv)) return 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) || !amrex::Math::isfinite(rho_qv)) return 0.0;
     amrex::Real qv = rho_qv / rho;
-    return (std::isfinite(qv) && qv > 0.0) ? qv : 0.0;
+    return (amrex::Math::isfinite(qv) && qv > 0.0) ? qv : 0.0;
 }
 
 /**
@@ -411,10 +406,10 @@ amrex::Real get_inverse_exner (int i, int j, int k,
                                const amrex::Array4<const amrex::Real>& state_arr)
 {
     amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-    if (!(rho_theta > 0.0) || !std::isfinite(rho_theta)) return 1.0;
+    if (!(rho_theta > 0.0) || !amrex::Math::isfinite(rho_theta)) return 1.0;
     const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
     const amrex::Real pi = getExnergivenRTh(rho_theta, RdoCp, qv);
-    return (std::isfinite(pi) && pi > 0.0) ? 1.0 / pi : 1.0;
+    return (amrex::Math::isfinite(pi) && pi > 0.0) ? 1.0 / pi : 1.0;
 }
 
 /**
@@ -430,9 +425,9 @@ amrex::Real get_qc_from_state (int i, int j, int k,
     if (state_arr.nComp() <= RhoQ2_comp) return 0.0;
     amrex::Real rho    = state_arr(i, j, k, Rho_comp);
     amrex::Real rho_qc = state_arr(i, j, k, RhoQ2_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho) || !std::isfinite(rho_qc)) return 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho) || !amrex::Math::isfinite(rho_qc)) return 0.0;
     amrex::Real qc = rho_qc / rho;
-    return (std::isfinite(qc) && qc > 0.0) ? qc : 0.0;
+    return (amrex::Math::isfinite(qc) && qc > 0.0) ? qc : 0.0;
 }
 
 /**
@@ -455,10 +450,10 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real diagnose_tau_dynamic (amrex::Real tau_base, amrex::Real qv, amrex::Real qc,
                                   amrex::Real coeff_qv, amrex::Real coeff_qc)
 {
-    if (!(qv > 0.0) || !std::isfinite(qv)) qv = 0.0;
-    if (!(qc > 0.0) || !std::isfinite(qc)) qc = 0.0;
+    if (!(qv > 0.0) || !amrex::Math::isfinite(qv)) qv = 0.0;
+    if (!(qc > 0.0) || !amrex::Math::isfinite(qc)) qc = 0.0;
     amrex::Real tau = tau_base + coeff_qv * qv + coeff_qc * qc;
-    if (!std::isfinite(tau)) return tau_base;
+    if (!amrex::Math::isfinite(tau)) return tau_base;
     if (tau < 0.0) tau = 0.0;
     if (tau > 100.0) tau = 100.0;
     return tau;
@@ -570,13 +565,13 @@ amrex::Real diagnose_cloud_fraction_prognostic (
     // Unreachable from TwoStreamRadiation::advance, which refuses a state with
     // a non-finite or non-positive density or rho*theta before the sweep;
     // kept so a direct kernel caller (unit tests) cannot divide by zero.
-    if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-    if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+    if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+    if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
 
     // Temperature (via the Exner function) and pressure from the equation of state
     amrex::Real T = get_temperature_from_rhotheta(rho_theta, rho, qv);
     amrex::Real P = getPgivenRTh(rho_theta, qv);
-    if (P <= 0.0 || !std::isfinite(P)) P = p_0;
+    if (P <= 0.0 || !amrex::Math::isfinite(P)) P = p_0;
 
     const amrex::Real rh = compute_relative_humidity(qv, T, P);
 
@@ -662,13 +657,13 @@ amrex::Real diagnose_layer_tau (
     amrex::Real base = tau_base;
     if (!is_sw && (rad_choice.lw_mass_absorption_enable || rad_choice.tau_model == TauModel::Mass)) {
         amrex::Real rho = state_arr(i, j, k, Rho_comp);
-        if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+        if (!(rho > 0.0) || !amrex::Math::isfinite(rho)) rho = 0.0;
         const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
         const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
         base = rho * dz_layer * (rad_choice.lw_kabs_dry
                                  + rad_choice.lw_kabs_vapor * qv
                                  + rad_choice.lw_kabs_cloud * qc);
-        if (!std::isfinite(base) || base < 0.0) base = 0.0;
+        if (!amrex::Math::isfinite(base) || base < 0.0) base = 0.0;
     }
 
     // Base (clear-sky) value, plus cloud-band enhancement for cloudy columns.
@@ -769,7 +764,7 @@ void diagnose_layer_optics (
 
     // Shortwave mass model: constituent extinction optical depths.
     amrex::Real rho = state_arr(i, j, k, Rho_comp);
-    if (!(rho > 0.0) || !std::isfinite(rho)) rho = 0.0;
+    if (!(rho > 0.0) || !amrex::Math::isfinite(rho)) rho = 0.0;
     const amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
     const amrex::Real qc = get_qc_from_state(i, j, k, state_arr);
     const amrex::Real path = rho * dz_layer;
@@ -803,7 +798,7 @@ void diagnose_layer_optics (
                                                      0.0, /*is_sw=*/true, cloudy, rad_choice) - band;
     if (additions > 0.0) ext += additions;
 
-    if (!std::isfinite(ext) || ext <= 0.0) {
+    if (!amrex::Math::isfinite(ext) || ext <= 0.0) {
         tau = 0.0;
         return;
     }
@@ -872,11 +867,12 @@ void diagnose_layer_optics (
  * @param[in] hetero_alb_sw Optional per-column SW surface albedo field
  * @param[in] has_hetero_emiss_lw true if hetero_emiss_lw is available
  * @param[in] hetero_emiss_lw Optional per-column LW surface emissivity field
- * @param[in] has_t_sfc true if t_sfc is available
- * @param[in] t_sfc Optional per-column surface temperature field [K]
- * @param[in] t_sfc_is_theta true when t_sfc holds a potential temperature (the surface
- * layer's field: MOST works in theta); it is then converted with the Exner function of
- * the lowest cell before the surface emission is formed
+ * @param[in] has_lsm_t_sfc true if the LSM absolute-temperature field is available
+ * @param[in] lsm_t_sfc Optional LSM absolute surface-temperature field [K]
+ * @param[in] has_seb_t_sfc true if the prognostic SEB absolute-temperature field is available
+ * @param[in] seb_t_sfc Optional prognostic SEB absolute surface-temperature field [K]
+ * @param[in] has_surface_layer true if the SurfaceLayer potential-temperature field is available
+ * @param[in] surface_layer_theta Optional SurfaceLayer potential-temperature field [K]
  * @param[in] has_latlon true if per-column latitude and longitude fields are available
  * @param[in] lat_arr Optional per-column latitude [degrees] (dynamic sun)
  * @param[in] lon_arr Optional per-column longitude [degrees, east positive] (dynamic sun)
@@ -907,9 +903,12 @@ void vertical_two_stream_sweep (
     const amrex::Array4<const amrex::Real>* hetero_alb_sw = nullptr,
     bool has_hetero_emiss_lw = false,
     const amrex::Array4<const amrex::Real>* hetero_emiss_lw = nullptr,
-    bool has_t_sfc = false,
-    const amrex::Array4<const amrex::Real>* t_sfc = nullptr,
-    bool t_sfc_is_theta = false,
+    bool has_lsm_t_sfc = false,
+    const amrex::Array4<const amrex::Real>* lsm_t_sfc = nullptr,
+    bool has_seb_t_sfc = false,
+    const amrex::Array4<const amrex::Real>* seb_t_sfc = nullptr,
+    bool has_surface_layer = false,
+    const amrex::Array4<const amrex::Real>* surface_layer_theta = nullptr,
     bool has_latlon = false,
     const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
@@ -963,7 +962,7 @@ void vertical_two_stream_sweep (
             const amrex::Real z_lo = z_face(kmin + m);
             const amrex::Real z_hi = z_face(kmin + m + 1);
             const amrex::Real dz_computed = z_hi - z_lo;
-            dz_level(m) = (dz_computed > 0.0 && std::isfinite(dz_computed)) ? dz_computed : dz_uniform;
+            dz_level(m) = (dz_computed > 0.0 && amrex::Math::isfinite(dz_computed)) ? dz_computed : dz_uniform;
             z_level(m)  = 0.5 * (z_lo + z_hi) - z_surface;
         }
     } else {
@@ -1092,7 +1091,7 @@ void vertical_two_stream_sweep (
             }
 
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
 
             // dT/dt from the flux divergence, stored as dtheta/dt = (dT/dt)/pi
             // (the RhoTheta source term and RRTMGP use the same convention).
@@ -1124,8 +1123,8 @@ void vertical_two_stream_sweep (
 
             amrex::Real rho       = state_arr(i, j, k, Rho_comp);
             amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
             amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
 
@@ -1140,13 +1139,26 @@ void vertical_two_stream_sweep (
         // and reflects the fraction (1 - eps) of the downwelling flux that
         // reaches it (gray surface, Kirchhoff's law).
         {
-            bool t_sfc_from_field = false;
-            amrex::Real t_surface = resolve_surface_temp_k(i, j, t_sfc, rad_choice, has_t_sfc, t_sfc_from_field);
+            bool t_sfc_from_surface_layer = false;
+            amrex::Real t_surface = resolve_surface_temp_k(
+                i, j, lsm_t_sfc, has_lsm_t_sfc, seb_t_sfc, has_seb_t_sfc,
+                surface_layer_theta, has_surface_layer, rad_choice,
+                t_sfc_from_surface_layer);
             // The surface layer carries a potential temperature (MOST works in
             // theta); the emission needs the temperature, so convert with the
-            // Exner function of the lowest cell (p_surface ~ p of that cell).
-            if (t_sfc_from_field && t_sfc_is_theta) {
-                t_surface /= get_inverse_exner(i, j, kmin, state_arr);
+            // physical surface pressure diagnosed from the lowest atmospheric
+            // cell.
+            if (t_sfc_from_surface_layer) {
+                const amrex::Real rho = state_arr(i, j, kmin, Rho_comp);
+                const amrex::Real rho_theta = state_arr(i, j, kmin, RhoTheta_comp);
+                const amrex::Real qv = get_qv_from_state(i, j, kmin, state_arr);
+                const amrex::Real delta_z = z_level(0);
+                const amrex::Real pressure = erf_surface_temperature::pressure_at_surface(
+                    rho, rho_theta, qv, delta_z);
+                if (!erf_surface_temperature::theta_to_temperature(
+                        t_surface, pressure, rad_choice.rdOcp, t_surface)) {
+                    t_surface = rad_choice.t_sfc_default;
+                }
             }
             amrex::Real emiss_lw  = resolve_surface_emissivity_lw(i, j, hetero_emiss_lw, rad_choice, has_hetero_emiss_lw);
             F_lw_up_iface(0) = emiss_lw * compute_thermal_intensity(t_surface, sigma)
@@ -1157,8 +1169,8 @@ void vertical_two_stream_sweep (
 
             amrex::Real rho       = state_arr(i, j, k, Rho_comp);
             amrex::Real rho_theta = state_arr(i, j, k, RhoTheta_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
-            if (rho_theta <= 0.0 || !std::isfinite(rho_theta)) rho_theta = 288.15;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
+            if (rho_theta <= 0.0 || !amrex::Math::isfinite(rho_theta)) rho_theta = 288.15;
             amrex::Real qv = get_qv_from_state(i, j, k, state_arr);
             amrex::Real T_layer = get_temperature_from_rhotheta(rho_theta, rho, qv);
 
@@ -1170,7 +1182,7 @@ void vertical_two_stream_sweep (
         for (int k = kmin; k <= kmax; ++k) {
             const int m = k - kmin;
             amrex::Real rho = state_arr(i, j, k, Rho_comp);
-            if (rho <= 0.0 || !std::isfinite(rho)) rho = 1.0;
+            if (rho <= 0.0 || !amrex::Math::isfinite(rho)) rho = 1.0;
             if (rad_flux_out != nullptr) {
                 (*rad_flux_out)(i, j, k, 2) = F_lw_up_iface(m);    // LW up at the lower interface of layer k
                 (*rad_flux_out)(i, j, k, 3) = F_lw_down_iface(m);  // LW down

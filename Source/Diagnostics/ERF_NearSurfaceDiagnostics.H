@@ -2,6 +2,7 @@
 #define ERF_NEAR_SURFACE_DIAGNOSTICS_H_
 
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_iMultiFab.H>
 #include <cmath>
@@ -47,7 +48,7 @@ struct MostProfile
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool valid_real (amrex::Real value) noexcept
 {
-    return std::isfinite(value);
+    return amrex::Math::isfinite(value);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

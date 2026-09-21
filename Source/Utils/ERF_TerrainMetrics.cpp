@@ -580,11 +580,12 @@ init_which_terrain_grid (int lev,
     // The STF and Sullivan TF transformations need the full column from the surface to
     // the domain top, so on a fine level we build the mesh from the one interpolated
     // from the coarse level instead.  Only a caller that has done that interpolation
-    // (and told us so) may take this path; everyone else still aborts, as before.
+    // (and told us so) may take this path; everyone else still aborts.
     //
     if (lev > 0 && terrain_smoothing != 0) {
         if (fine_terrain == FineTerrain::None) {
-            Abort("Must use terrain_smoothing = 0 when doing multilevel with this initialization");
+            Abort("terrain_smoothing = " + std::to_string(terrain_smoothing) +
+                  " on level > 0 requires setting erf.amr_terrain_refinement (transform or interpolate)");
         }
         init_fine_terrain_grid(lev, geom, z_phys_nd, z_levels_h, fine_terrain, z_phys_interp);
         return;

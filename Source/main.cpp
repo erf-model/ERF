@@ -20,7 +20,8 @@ using namespace amrex;
  * Function to set the refine_grid_layout flags to (1,1,0) by default
  * since the ERF default is different from the amrex default (1,1,1)
  * Also set max_grid_size to very large since the only reason for
- * chopping grids is if Nprocs > Ngrids
+ * chopping grids is if Nprocs > Ngrids, and set no_box_split_dir to 2
+ * so that grids are never decomposed in the vertical direction
 */
 void add_par () {
    ParmParse pp("amr");
@@ -30,6 +31,20 @@ void add_par () {
    pp.add("refine_grid_layout_x",1);
    pp.add("refine_grid_layout_y",1);
    pp.add("refine_grid_layout_z",0);
+
+   // no_box_split_dir tells amrex that the grids must never be split in that
+   // direction; max_grid_size and refine_grid_layout are then ignored there.
+   // ERF sets this to 2 (the z-direction) by default so that no grid is ever
+   // decomposed in the vertical -- no two grids then share a face normal to z, so
+   // no column is chopped between them, which is required, e.g., by the implicit
+   // vertical diffusion solves and by the implicit acoustic substepping.  (Several
+   // grids may still sit over the same column, as long as they do not touch; what
+   // those solves cannot do is split one contiguous column at a box seam.)  Setting
+   // amr.no_box_split_dir = -1 in the inputs file restores the amrex behavior of
+   // allowing grids to be chopped in every direction; ERF::ReadParameters rejects
+   // that if any level uses erf.substepping_type = Implicit.
+   int no_box_split_dir = 2;
+   pp.queryAdd("no_box_split_dir",no_box_split_dir);
 
    // n_proper is the minimum number of coarse cells between coarse-fine boundaries
    // between levels (ell and ell+1) and levels (ell-1 and ell).   We want this to be

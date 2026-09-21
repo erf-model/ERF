@@ -32,7 +32,7 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaAndWritesLsmAbs
     amrex::Real lsm_t_sfc = lsm_undefined;
     rrtmgp::resolve_surface_temperature(
         true, true, false, lsm_t_sfc,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
@@ -41,7 +41,8 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackConvertsThetaAndWritesLsmAbs
 
 // Motivation: water columns do not use an available LSM surface temperature
 // in this fallback chain. SurfaceLayer theta must take precedence, be
-// converted at the lowest-cell pressure, and write back absolute temperature
+// converted at the physical surface pressure diagnosed from the lowest
+// atmospheric cell, and write back absolute temperature
 // to the available LSM field.
 TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackTakesPrecedenceOverWaterLsmTemperature)
 {
@@ -56,7 +57,7 @@ TEST(RRTMGP_SurfaceTemperature, SurfaceLayerFallbackTakesPrecedenceOverWaterLsmT
     amrex::Real lsm_t_sfc = valid_lsm_temperature;
     rrtmgp::resolve_surface_temperature(
         false, true, true, valid_lsm_temperature,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_NEAR(t_sfc, expected_temperature, expected_tolerance);
@@ -74,7 +75,7 @@ TEST(RRTMGP_SurfaceTemperature, ValidLsmTemperatureIsNotExnerConverted)
     amrex::Real lsm_t_sfc = valid_lsm_temperature;
     rrtmgp::resolve_surface_temperature(
         true, true, true, valid_lsm_temperature,
-        true, kSurfaceTheta, kSurfacePressure, kDefaultTemperature,
+        true, kSurfaceTheta, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, &lsm_t_sfc);
 
     EXPECT_EQ(t_sfc, valid_lsm_temperature);
@@ -89,8 +90,24 @@ TEST(RRTMGP_SurfaceTemperature, DefaultTemperatureIsAlreadyAbsolute)
     amrex::Real t_sfc = -1.0;
     rrtmgp::resolve_surface_temperature(
         true, false, false, 0.0,
-        false, 0.0, kSurfacePressure, kDefaultTemperature,
+        false, 0.0, kSurfacePressure, RdoCp, kDefaultTemperature,
         t_sfc, nullptr);
 
     EXPECT_EQ(t_sfc, kDefaultTemperature);
+}
+
+// Motivation: a malformed lowest-cell state must not turn the SurfaceLayer
+// fallback into a NaN RRTMGP boundary condition. The absolute fallback remains
+// the only valid contract when Exner conversion cannot be evaluated.
+TEST(RRTMGP_SurfaceTemperature, InvalidSurfacePressureUsesAbsoluteFallback)
+{
+    amrex::Real t_sfc = -1.0;
+    amrex::Real lsm_t_sfc = lsm_undefined;
+    rrtmgp::resolve_surface_temperature(
+        true, true, false, lsm_undefined,
+        true, kSurfaceTheta, amrex::Real(-1.0), RdoCp, kDefaultTemperature,
+        t_sfc, &lsm_t_sfc);
+
+    EXPECT_EQ(t_sfc, kDefaultTemperature);
+    EXPECT_EQ(lsm_t_sfc, kDefaultTemperature);
 }

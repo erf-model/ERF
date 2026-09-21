@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 if(NOT DEFINED MPIEXEC OR NOT DEFINED MPIEXEC_NUMPROC_FLAG OR
    NOT DEFINED MPIEXEC_PREFLAGS OR NOT DEFINED TEST_EXE OR
    NOT DEFINED INPUT OR NOT DEFINED RUNTIME_OPTIONS OR
@@ -20,22 +22,14 @@ if(NOT EXISTS "${INPUT}")
     message(FATAL_ERROR "Native SHOC startup test input is missing: ${INPUT}")
 endif()
 
-set(run_command)
-if(NOT "${MPIEXEC}" STREQUAL "")
-    if(NOT EXISTS "${MPIEXEC}")
-        message(FATAL_ERROR "Native SHOC startup test MPI launcher is missing: ${MPIEXEC}")
-    endif()
-
-    list(APPEND run_command "${MPIEXEC}")
-    if(NOT "${MPIEXEC_NUMPROC_FLAG}" STREQUAL "")
-        list(APPEND run_command "${MPIEXEC_NUMPROC_FLAG}" 1)
-    endif()
-    if(NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-        separate_arguments(mpi_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
-        list(APPEND run_command ${mpi_preflags})
-    endif()
-endif()
-
+# MPIEXEC may be a multi-word command such as "flux run", so it is split and
+# validated by the shared helper rather than used as a single argv[0].
+erf_mpi_launcher_command(run_command
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunShocRemovedTransportConfig.cmake")
 list(APPEND run_command "${TEST_EXE}" "${INPUT}")
 if(NOT "${RUNTIME_OPTIONS}" STREQUAL "")
     separate_arguments(runtime_options UNIX_COMMAND "${RUNTIME_OPTIONS}")

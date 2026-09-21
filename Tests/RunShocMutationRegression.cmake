@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 foreach(required_argument
     MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE
     BASELINE_INPUT MUTANT_INPUT BASELINE_WORKING_DIRECTORY MUTANT_WORKING_DIRECTORY
@@ -12,11 +14,12 @@ foreach(required_argument
 endforeach()
 
 function(run_mutation_case INPUT WORKING_DIRECTORY LOG OPTIONS RESULT_VARIABLE)
-    set(command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${NRANKS}")
-    if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-        separate_arguments(mpi_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
-        list(APPEND command ${mpi_preflags})
-    endif()
+    erf_mpi_launcher_command(command
+        LAUNCHER "${MPIEXEC}"
+        NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+        NRANKS ${NRANKS}
+        PREFLAGS "${MPIEXEC_PREFLAGS}"
+        CONTEXT "RunShocMutationRegression.cmake")
     list(APPEND command "${TEST_EXE}" "${INPUT}")
     if(NOT "${OPTIONS}" STREQUAL "")
         separate_arguments(runtime_options UNIX_COMMAND "${OPTIONS}")
@@ -61,11 +64,12 @@ foreach(snapshot plt00000 plt00010 plt00020)
     endif()
 endforeach()
 
-set(check_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
-if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-    separate_arguments(check_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
-    list(APPEND check_command ${check_preflags})
-endif()
+erf_mpi_launcher_command(check_command
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunShocMutationRegression.cmake")
 list(APPEND check_command
     "${CHECKER}"
     --field "${TARGET_FIELD}"

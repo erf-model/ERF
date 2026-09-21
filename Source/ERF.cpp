@@ -1336,6 +1336,7 @@ ERF::InitData_post ()
                                                                  solverChoice.mesh_type,
                                                                  solverChoice.terrain_type,
                                                                  solverChoice.turbChoice[finest_level],
+                                                                 solverChoice.rdOcp,
 #ifdef ERF_USE_NETCDF
                                                                  start_low_time, final_low_time, low_time_interval,
 #else
@@ -2629,6 +2630,7 @@ ERF::ReadParameters ()
         int nlevs_max = max_level + 1;
         istep.resize(nlevs_max, 0);
         nsubsteps.resize(nlevs_max, 1);
+        rad_interp_from_coarse_pending.resize(nlevs_max, 0);
         // This is the default
         for (int lev = 1; lev <= max_level; ++lev) {
             nsubsteps[lev] = MaxRefRatio(lev-1);
@@ -2946,6 +2948,34 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    // Implicit acoustic substepping inverts one tridiagonal system per column, so it is
+    // only well posed if no column is chopped between boxes.  That does not require one
+    // box per column: a level may have several boxes over the same (i,j) -- as it does
+    // where the refined region is a staircase in z, or covers two separate layers -- as
+    // long as they do not touch, so that each contiguous run of cells in the column is
+    // solved by itself.  What must not happen is two boxes sharing a face normal to z,
+    // which would split one column into pieces solved separately, with spurious internal
+    // boundaries at the seam and an answer that depends on the decomposition.
+    // amr.no_box_split_dir = 2 -- the ERF default, set in add_par -- is what rules that
+    // out: the grid generator merges the boxes it makes along z, so no two of them share
+    // a face normal to z.  Refuse to run with any other value while a level substeps
+    // implicitly.
+    for (int lev = 0; lev <= max_level; lev++) {
+        if ( (solverChoice.substepping_type[lev] == SubsteppingType::Implicit) &&
+             (no_box_split_dir != 2) )
+        {
+            Abort("erf.substepping_type = Implicit at level " + std::to_string(lev) +
+                  " requires amr.no_box_split_dir = 2 (the ERF default), so that no two grids "
+                  "share a face normal to z: the implicit substep solve inverts one tridiagonal "
+                  "system per column, and a column chopped at such a seam would instead be "
+                  "solved in pieces, giving an answer that depends on the grid decomposition.  "
+                  "(Boxes stacked over the same column are fine as long as they do not touch.)  "
+                  "Either remove amr.no_box_split_dir = " +
+                  std::to_string(no_box_split_dir) + " from the inputs file, or set "
+                  "erf.substepping_type = None.");
+        }
+    }
 
     // Set a default value for write_erfbdy following these rules.
     // Prioritize write_erfbdy provided by user.
@@ -3436,9 +3466,12 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
     h_havg.resize(size_z, 0.0_rt);
 
     // Get the cell centered data and construct sums
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
+    //
+    // NOTE: deliberately not threaded.  Every iteration does "h_havg[k] += ..." into the
+    //       same shared Vector with no atomic and no per-thread partials, so threading it
+    //       would be an outright data race on top of an order-dependent sum.  The body is
+    //       a pure reduction, so running it serially costs little.
+    //
     for (MFIter mfi(S); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
         const IntVect& se = box.smallEnd();

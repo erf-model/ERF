@@ -164,6 +164,8 @@ struct SurfaceLayerFields
     MultiFab yvel;
     MultiFab zvel;
     std::unique_ptr<MultiFab> theta;
+    std::unique_ptr<MultiFab> coupled_sst;
+    std::unique_ptr<iMultiFab> coupled_valid;
     Vector<std::unique_ptr<MultiFab>> qv_prim;
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -279,6 +281,20 @@ struct SurfaceLayerFields
         Gpu::streamSynchronize();
     }
 
+    void set_surface_cell_pressure (const Real pressure, const Real qv = Real(0.0))
+    {
+        const Real rho_theta = (p_0 / R_d) *
+            std::pow(pressure / p_0, Real(1.0) / Gamma) /
+            (Real(1.0) + RvoRd * qv);
+        for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
+            auto& fab = cons[mfi];
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+        }
+        Gpu::streamSynchronize();
+    }
+
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active,
@@ -286,7 +302,9 @@ struct SurfaceLayerFields
                    const bool with_moisture = false,
                    const bool varying_inputs = false,
                    const bool seed_outputs = false,
-                   const bool update_fluxes = true)
+                   const bool update_fluxes = true,
+                   const std::string& sfc_file = "",
+                   const bool coupled_active = false)
     {
         Vector<Geometry> geoms{geom};
         Vector<std::unique_ptr<MultiFab>> z_phys_nd(1);
@@ -302,12 +320,28 @@ struct SurfaceLayerFields
             set_varying_surface_temperature();
             set_varying_surface_humidity();
         }
+        if (!sfc_file.empty()) {
+            ParmParse pp(prefix);
+            pp.add("most.use_sfc_sst", true);
+            pp.add("most.sfc_file", sfc_file);
+        }
         bool rotate = false;
         auto layer = std::make_unique<SurfaceLayer>(
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             Vector<Vector<Real>>{},
-            MeshType::ConstantDz, TerrainType::None, TurbChoice{}, 0.0, 0.0);
+            MeshType::ConstantDz, TerrainType::None, TurbChoice{}, RdoCp, 0.0, 0.0);
         layer->set_surface_layer_faces(active);
+        if (coupled_active) {
+            layer->set_coupled_sst_active(true);
+            coupled_sst = std::make_unique<MultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(0, 0, 0)));
+            coupled_sst->setVal(Real(290.0));
+            coupled_valid = std::make_unique<iMultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(0, 0, 0)));
+            coupled_valid->setVal(0);
+        }
 
         std::unique_ptr<MultiFab> qr_prim;
         Vector<MultiFab*> empty_mfs;
@@ -318,6 +352,9 @@ struct SurfaceLayerFields
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, empty_mfs, empty_names,
             empty_mfs, empty_names, sst, tsk, lmask);
+        if (coupled_active) {
+            layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
+        }
         if (seed_outputs) {
             set_fab_values(*layer->get_u_star(0), u_star_seed);
             set_fab_values(*layer->get_t_star(0), t_star_seed);
@@ -419,8 +456,10 @@ tangential_halo_pairs (const MultiFab& mf,
 {
     std::vector<TangentialHaloPair> result;
     const int dir = face.coordDir();
-    if (dir == 2) { return result; }
-    const int tangent_dir = 1 - dir;
+    // For a horizontal surface, the first lateral direction is sufficient to
+    // expose the internal exchange. Lateral faces use their other horizontal
+    // direction as the tangent.
+    const int tangent_dir = (dir == 2) ? 0 : 1 - dir;
     const BoxArray& target_ba = mf.boxArray();
 
     for (int ibox = 0; ibox < target_ba.size(); ++ibox) {

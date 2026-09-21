@@ -2,6 +2,7 @@
 #define ERF_PROGNOSTIC_CLOUD_FRACTION_H_
 
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_FArrayBox.H>
 #include <cmath>
 
@@ -35,8 +36,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real compute_relative_humidity(amrex::Real qv, amrex::Real T, amrex::Real P)
 {
     // Guard against invalid inputs
-    if (T <= 0.0 || P <= 0.0 || qv < 0.0 || !std::isfinite(qv) ||
-        !std::isfinite(T) || !std::isfinite(P)) {
+    if (T <= 0.0 || P <= 0.0 || qv < 0.0 || !amrex::Math::isfinite(qv) ||
+        !amrex::Math::isfinite(T) || !amrex::Math::isfinite(P)) {
         return 0.0;
     }
 
@@ -51,7 +52,7 @@ amrex::Real compute_relative_humidity(amrex::Real qv, amrex::Real T, amrex::Real
 
     // Compute saturation vapor pressure (Magnus formula)
     amrex::Real arg = a * (T - T0) / (T - b);
-    if (!std::isfinite(arg) || arg > 100.0) {
+    if (!amrex::Math::isfinite(arg) || arg > 100.0) {
         // Protect against overflow
         arg = 100.0;
     }
@@ -60,7 +61,7 @@ amrex::Real compute_relative_humidity(amrex::Real qv, amrex::Real T, amrex::Real
     // Saturation mixing ratio: qsat = epsilon * e_sat / (P - e_sat)
     const amrex::Real epsilon = 0.622;  // ratio of molecular weights
     amrex::Real qsat = epsilon * e_sat / (P - e_sat);
-    if (qsat < 0.0 || !std::isfinite(qsat)) {
+    if (qsat < 0.0 || !amrex::Math::isfinite(qsat)) {
         qsat = 1.0e-6;  // fallback
     }
 
@@ -100,9 +101,9 @@ amrex::Real diagnose_cloud_fraction_from_rh_qc(
     amrex::Real qc_scale)
 {
     // Guard against invalid inputs
-    if (!std::isfinite(rh) || !std::isfinite(qc) ||
-        !std::isfinite(rh_min) || !std::isfinite(rh_max) ||
-        !std::isfinite(qc_scale)) {
+    if (!amrex::Math::isfinite(rh) || !amrex::Math::isfinite(qc) ||
+        !amrex::Math::isfinite(rh_min) || !amrex::Math::isfinite(rh_max) ||
+        !amrex::Math::isfinite(qc_scale)) {
         return 0.0;  // Safe fallback on invalid input
     }
 
@@ -138,7 +139,7 @@ amrex::Real diagnose_cloud_fraction_from_rh_qc(
     if (cf > 1.0) cf = 1.0;
 
     // Final sanity check
-    if (!std::isfinite(cf)) {
+    if (!amrex::Math::isfinite(cf)) {
         cf = 0.0;
     }
 

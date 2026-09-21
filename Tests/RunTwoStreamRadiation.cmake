@@ -1,3 +1,5 @@
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 if(NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR
    NOT DEFINED WORKING_DIRECTORY OR NOT DEFINED SIMULATION_LOG OR
    NOT DEFINED CHECKER_LOG OR NOT DEFINED CHECKER OR NOT DEFINED PLOTFILE)
@@ -7,11 +9,12 @@ endif()
 # Build the launcher prefix. A build without MPI passes an empty MPIEXEC, in
 # which case the executables are run directly instead of through a launcher.
 function(two_stream_launcher nranks out_var)
-    if(DEFINED MPIEXEC AND NOT "${MPIEXEC}" STREQUAL "")
-        set(launcher ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${nranks} ${MPIEXEC_PREFLAGS})
-    else()
-        set(launcher "")
-    endif()
+    erf_mpi_launcher_command(launcher
+        LAUNCHER "${MPIEXEC}"
+        NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+        NRANKS ${nranks}
+        PREFLAGS "${MPIEXEC_PREFLAGS}"
+        CONTEXT "RunTwoStreamRadiation.cmake")
     set(${out_var} "${launcher}" PARENT_SCOPE)
 endfunction()
 

@@ -88,10 +88,12 @@ namespace {
                                      const std::vector<amrex::Real>* z_faces = nullptr,
                                      const TwoStreamParams* params_override = nullptr,
                                      const amrex::Real* latlon_deg = nullptr,
-                                     const amrex::Real* t_sfc_theta = nullptr)
+                                     const amrex::Real* lsm_t_sfc = nullptr,
+                                     const amrex::Real* seb_t_sfc = nullptr,
+                                     const amrex::Real* surface_layer_theta = nullptr)
     {
         const TwoStreamParams rad_choice = (params_override != nullptr) ? *params_override
-                                                                        : make_two_stream_params(rad_choice_in);
+                                                                        : make_two_stream_params(rad_choice_in, RdoCp);
         const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
         const amrex::RealBox real_box({0.0, 0.0, 0.0}, {dz, dz, nz * dz});
         const int is_periodic[3] = {1, 1, 0};
@@ -148,12 +150,23 @@ namespace {
         const auto lat_arr = lat_fab.const_array();
         const auto lon_arr = lon_fab.const_array();
 
-        // Optional surface-temperature field holding a potential temperature,
-        // as the surface layer supplies it.
-        amrex::FArrayBox t_sfc_fab(xy_box, 1);
-        const bool has_t_sfc = (t_sfc_theta != nullptr);
-        if (has_t_sfc) { t_sfc_fab.setVal<amrex::RunOn::Device>(*t_sfc_theta); }
-        const auto t_sfc_arr = t_sfc_fab.const_array();
+        // Keep the candidate fields distinct, as production does. The kernel
+        // must resolve their precedence per column rather than allowing an
+        // invalid LSM value to hide a valid SurfaceLayer value.
+        amrex::FArrayBox lsm_t_sfc_fab(xy_box, 1);
+        amrex::FArrayBox seb_t_sfc_fab(xy_box, 1);
+        amrex::FArrayBox surface_layer_theta_fab(xy_box, 1);
+        const bool has_lsm_t_sfc = (lsm_t_sfc != nullptr);
+        const bool has_seb_t_sfc = (seb_t_sfc != nullptr);
+        const bool has_surface_layer = (surface_layer_theta != nullptr);
+        if (has_lsm_t_sfc) { lsm_t_sfc_fab.setVal<amrex::RunOn::Device>(*lsm_t_sfc); }
+        if (has_seb_t_sfc) { seb_t_sfc_fab.setVal<amrex::RunOn::Device>(*seb_t_sfc); }
+        if (has_surface_layer) {
+            surface_layer_theta_fab.setVal<amrex::RunOn::Device>(*surface_layer_theta);
+        }
+        const auto lsm_t_sfc_arr = lsm_t_sfc_fab.const_array();
+        const auto seb_t_sfc_arr = seb_t_sfc_fab.const_array();
+        const auto surface_layer_theta_arr = surface_layer_theta_fab.const_array();
 
         // Geometry::CellSize() is host-only, so read it before the device lambda.
         const amrex::Real dz_uniform = geom.CellSize(2);
@@ -170,7 +183,9 @@ namespace {
                                       qheating_arr, max_heating, sw_surface, sw_up, lw_net, lw_up, sw_toa,
                                       no_z_phys, scratch_arr,
                                       false, nullptr, false, nullptr,
-                                      has_t_sfc, &t_sfc_arr, /*t_sfc_is_theta=*/true,
+                                      has_lsm_t_sfc, &lsm_t_sfc_arr,
+                                      has_seb_t_sfc, &seb_t_sfc_arr,
+                                      has_surface_layer, &surface_layer_theta_arr,
                                       has_latlon, &lat_arr, &lon_arr, &flux_arr);
             scalar_ptr[0] = max_heating;
             scalar_ptr[1] = sw_surface;
@@ -267,6 +282,145 @@ TEST(TwoStreamColumn, TemperatureComesFromExnerFunction)
     // Defensive fallbacks for unphysical input.
     EXPECT_EQ(get_temperature_from_rhotheta(-1.0, rho), 288.15);
     EXPECT_EQ(get_temperature_from_rhotheta(rho * theta, 0.0), 288.15);
+}
+
+// Motivation: an uninitialized heterogeneous t_sfc uses ERF's undefined
+// sentinel, which is positive and therefore passed the old positivity-only
+// check. The resolver must retain the configured absolute fallback and mark
+// that it did not come from the field.
+TEST(TwoStreamColumn, UndefinedHeterogeneousSurfaceTemperatureUsesFallback)
+{
+    const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox t_sfc(box, 1, amrex::The_Pinned_Arena());
+    t_sfc.setVal<amrex::RunOn::Host>(lsm_undefined);
+
+    RadChoice rc = base_choice();
+    rc.rad_t_sfc = 301.0;
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
+    const auto t_sfc_arr = t_sfc.const_array();
+    bool from_field = true;
+    const amrex::Real result = resolve_surface_temp_k(
+        0, 0, &t_sfc_arr, true, nullptr, false, nullptr, false, p, from_field);
+
+    EXPECT_EQ(result, rc.rad_t_sfc);
+    EXPECT_FALSE(from_field);
+}
+
+// Motivation: the surface longwave boundary must remain finite when a
+// heterogeneous t_sfc field contains its undefined sentinel. This checks the
+// fallback in the full column emission calculation, including reflected
+// downwelling flux at a gray surface.
+TEST(TwoStreamColumn, UndefinedSurfaceTemperatureProducesFiniteFallbackFlux)
+{
+    RadChoice rc = base_choice();
+    rc.surface_emissivity_lw = 0.8;
+    rc.rad_t_sfc = 300.0;
+    const amrex::Real undefined_temperature = lsm_undefined;
+    const ColumnResult result = run_uniform_column(
+        rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, nullptr,
+        nullptr, &undefined_temperature);
+
+    const amrex::Real B = kSigma * rc.rad_t_sfc * rc.rad_t_sfc *
+        rc.rad_t_sfc * rc.rad_t_sfc;
+    const amrex::Real expected_up = rc.surface_emissivity_lw * B +
+        (1.0 - rc.surface_emissivity_lw) * result.flux_lw_dn[0];
+    EXPECT_TRUE(std::isfinite(result.flux_lw_up[0]));
+    EXPECT_NEAR(result.flux_lw_up[0], expected_up, 1.0e-9 * B);
+}
+
+// Motivation: the LSM may expose a t_sfc array whose value is still the
+// undefined sentinel in one column. SurfaceLayer theta must remain available
+// as the next per-cell candidate instead of being discarded because the LSM
+// array exists globally. This catches the old array-level precedence bug.
+TEST(TwoStreamColumn, InvalidLsmTemperatureFallsThroughToSurfaceLayerTheta)
+{
+    RadChoice rc = base_choice();
+    rc.surface_emissivity_lw = 1.0;
+    rc.rad_t_sfc = 310.0;
+
+    const amrex::Real T_air = 290.0;
+    const amrex::Real target_surface_pressure = amrex::Real(0.9) * p_0;
+    const amrex::Real rho = target_surface_pressure /
+        (R_d * T_air + CONST_GRAV * amrex::Real(0.5) * kDz);
+    const amrex::Real theta_s = 290.0;
+    const amrex::Real theta_air = getThgivenRandT(rho, T_air, RdoCp);
+    const amrex::Real p_cell = getPgivenRTh(rho * theta_air);
+    const amrex::Real p_surface = p_cell + rho * CONST_GRAV * amrex::Real(0.5) * kDz;
+    const amrex::Real expected_temperature =
+        theta_s * std::pow(p_surface / p_0, RdoCp);
+    const amrex::Real expected_flux = kSigma * expected_temperature * expected_temperature *
+        expected_temperature * expected_temperature;
+    ASSERT_NE(expected_temperature, theta_s);
+    ASSERT_NE(expected_temperature, rc.rad_t_sfc);
+
+    const amrex::Real invalid_lsm_temperature = lsm_undefined;
+    const ColumnResult result = run_uniform_column(
+        rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr,
+        &invalid_lsm_temperature, nullptr, &theta_s);
+
+    EXPECT_NEAR(result.flux_lw_up[0], expected_flux,
+                amrex::Real(128.0) * std::numeric_limits<amrex::Real>::epsilon() * expected_flux);
+    EXPECT_NE(result.flux_lw_up[0], kSigma * rc.rad_t_sfc * rc.rad_t_sfc *
+              rc.rad_t_sfc * rc.rad_t_sfc);
+}
+
+// Motivation: a valid LSM t_sfc is already absolute temperature and must stay
+// highest priority. SurfaceLayer's potential-temperature candidate must not be
+// Exner-converted or overwrite the valid LSM value.
+TEST(TwoStreamColumn, ValidLsmTemperatureWinsOverSurfaceLayerTheta)
+{
+    RadChoice rc = base_choice();
+    rc.surface_emissivity_lw = 1.0;
+    rc.rad_t_sfc = 310.0;
+
+    const amrex::Real T_air = 290.0;
+    const amrex::Real target_surface_pressure = amrex::Real(0.9) * p_0;
+    const amrex::Real rho = target_surface_pressure /
+        (R_d * T_air + CONST_GRAV * amrex::Real(0.5) * kDz);
+    const amrex::Real valid_lsm_temperature = 285.0;
+    const amrex::Real theta_s = 300.0;
+    const amrex::Real expected_flux = kSigma * valid_lsm_temperature *
+        valid_lsm_temperature * valid_lsm_temperature * valid_lsm_temperature;
+
+    const ColumnResult result = run_uniform_column(
+        rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr,
+        &valid_lsm_temperature, nullptr, &theta_s);
+
+    EXPECT_NEAR(result.flux_lw_up[0], expected_flux,
+                amrex::Real(128.0) * std::numeric_limits<amrex::Real>::epsilon() * expected_flux);
+}
+
+// Motivation: heterogeneous surface albedo and emissivity are physical
+// fractions, not values to clamp. An undefined sentinel or an out-of-range
+// value must leave the configured fallback intact rather than becoming 1.
+TEST(TwoStreamColumn, InvalidHeterogeneousSurfaceFractionsUseFallback)
+{
+    const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::FArrayBox fraction(box, 1, amrex::The_Pinned_Arena());
+    const auto fraction_arr = fraction.const_array();
+
+    RadChoice rc = base_choice();
+    rc.surface_albedo_sw = 0.25;
+    rc.surface_emissivity_lw = 0.85;
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
+
+    fraction.setVal<amrex::RunOn::Host>(lsm_undefined);
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              rc.surface_albedo_sw);
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              rc.surface_emissivity_lw);
+
+    fraction.setVal<amrex::RunOn::Host>(amrex::Real(-0.1));
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              rc.surface_albedo_sw);
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              rc.surface_emissivity_lw);
+
+    fraction.setVal<amrex::RunOn::Host>(amrex::Real(0.7));
+    EXPECT_EQ(resolve_surface_albedo_sw(0, 0, &fraction_arr, p, true),
+              amrex::Real(0.7));
+    EXPECT_EQ(resolve_surface_emissivity_lw(0, 0, &fraction_arr, p, true),
+              amrex::Real(0.7));
 }
 
 TEST(TwoStreamColumn, ShortwaveHeatingDecreasesFromTopToSurface)
@@ -417,7 +571,7 @@ TEST(TwoStreamColumn, NightHasNoShortwave)
     // A non-positive cosine cannot be given through erf.fixed_solar_zenith_angle
     // (that means "follow the calendar"), so set the kernel's sun directly.
     const RadChoice rc = base_choice();
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     p.solar_dynamic = false;
     p.cos_zenith_fixed = -0.5;   // sun below the horizon
     const ColumnResult r = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
@@ -455,7 +609,7 @@ TEST(TwoStreamColumn, CloudBandIsLocatedByLayerCenterHeight)
     rc.cloud_top_height_m = 700.0;
     rc.cloud_tau_per_layer = 0.5;
     rc.tau_per_layer = 0.05;
-    auto P = [&]() { return make_two_stream_params(rc); };
+    auto P = [&]() { return make_two_stream_params(rc, RdoCp); };
 
     // Inside the band: base + cloud enhancement for the cloudy column only.
     EXPECT_TRUE(is_cloud_level(500.0, P()));
@@ -563,7 +717,7 @@ TEST(TwoStreamColumn, MassBasedLongwaveOpticalDepthFollowsTheMassPath)
     rc.lw_kabs_dry = 2.0e-4;
     rc.lw_kabs_vapor = 0.05;
     rc.lw_kabs_cloud = 158.0;
-    const TwoStreamParams p = make_two_stream_params(rc);
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
 
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
@@ -589,7 +743,7 @@ TEST(TwoStreamColumn, MassBasedLongwaveOpticalDepthFollowsTheMassPath)
     // Disabled: the fixed per-layer value is returned.
     rc.lw_mass_absorption_enable = false;
     EXPECT_EQ(diagnose_layer_tau(0, 0, 0, dz, 25.0, state.const_array(), 1.0, false, false,
-                                 make_two_stream_params(rc)), 1.0);
+                                 make_two_stream_params(rc, RdoCp)), 1.0);
 }
 
 TEST(TwoStreamColumn, DiffuseAlbedoAppliesToTheDiffuseFluxOnly)
@@ -629,7 +783,7 @@ TEST(TwoStreamColumn, TopOfAtmosphereIrradianceScalesTheShortwave)
     // shortwave flux is linear in it.
     const RadChoice rc = base_choice();
     const ColumnResult ref = run_uniform_column(rc, 1.0, 290.0);
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     const amrex::Real f = 1.034;   // perihelion
     p.S0 = f * rc.fixed_total_solar_irradiance;
     const ColumnResult on = run_uniform_column(rc, 1.0, 290.0, kNz, kDz, 0.0, 0.0, nullptr, &p);
@@ -646,7 +800,7 @@ TEST(TwoStreamColumn, CalendarSunFollowsTheColumnLatitude)
     // sun stands at the declination over longitude 0: cos(zenith) is
     // cos(declination) on the equator and cos(60 - declination) at 60N.
     const RadChoice rc = base_choice();
-    TwoStreamParams p = make_two_stream_params(rc);
+    TwoStreamParams p = make_two_stream_params(rc, RdoCp);
     p.solar_dynamic = true;
     p.calday = 172.5;
     p.declin = 23.44 * PI / 180.0;
@@ -704,20 +858,26 @@ TEST(TwoStreamColumn, InterfaceFluxesMatchTheSurfaceAndTopDiagnostics)
     EXPECT_EQ(cold.flux_lw_up[kNz], cold.lw_up_toa);
 }
 
+// Motivation: a SurfaceLayer value is potential temperature, while the
+// longwave boundary emits absolute temperature. The conversion must use the
+// physical surface pressure, not the uncorrected cell-centre pressure.
 TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
 {
     // The surface layer hands the sweep a potential temperature (MOST works in
-    // theta). The emission needs the temperature, T_s = theta_s * Exner of the
-    // lowest cell; using theta directly would overstate sigma T^4 by the fourth
-    // power of 1/Exner, several percent below 1000 hPa.
+    // theta). The emission needs the temperature at the physical surface;
+    // using theta directly would overstate sigma T^4 by the fourth power of
+    // 1/Exner, several percent below 1000 hPa.
     RadChoice rc = base_choice();
     rc.surface_emissivity_lw = 1.0;
     const amrex::Real rho = 1.0, T_air = 290.0;
     const amrex::Real theta_air = getThgivenRandT(rho, T_air, RdoCp);
-    const amrex::Real exner = T_air / theta_air;            // Exner function of the state
-    ASSERT_LT(exner, 0.999);                                // the state is not at p_0
+    const amrex::Real p_cell = getPgivenRTh(rho * theta_air);
+    const amrex::Real p_surface = p_cell + rho * CONST_GRAV * amrex::Real(0.5) * kDz;
+    const amrex::Real exner = std::pow(p_surface / p_0, RdoCp);
+    ASSERT_LT(exner, 0.999);                                // the surface is below p_0
     const amrex::Real theta_s = 300.0;
-    const ColumnResult r = run_uniform_column(rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr, &theta_s);
+    const ColumnResult r = run_uniform_column(rc, rho, T_air, kNz, kDz, 0.0, 0.0, nullptr, nullptr, nullptr,
+                                              nullptr, nullptr, &theta_s);
     const amrex::Real T_s = theta_s * exner;
     const amrex::Real B_T = kSigma * T_s * T_s * T_s * T_s;
     const amrex::Real B_theta = kSigma * theta_s * theta_s * theta_s * theta_s;
@@ -725,7 +885,8 @@ TEST(TwoStreamColumn, SurfaceLayerPotentialTemperatureIsConvertedBeforeEmission)
     EXPECT_LT(r.flux_lw_up[0], 0.99 * B_theta);
     // Without a field the erf.rad_t_sfc value is a temperature and is used as is.
     const ColumnResult d = run_uniform_column(rc, rho, T_air);
-    const amrex::Real B_d = kSigma * std::pow(rc.rad_t_sfc, 4);
+    const amrex::Real B_d = kSigma * rc.rad_t_sfc * rc.rad_t_sfc
+                            * rc.rad_t_sfc * rc.rad_t_sfc;
     EXPECT_NEAR(d.flux_lw_up[0], B_d, 1.0e-9 * B_d);
 }
 
@@ -768,7 +929,7 @@ TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
     rc.sw_kext_cloud = 150.0;
     rc.sw_cloud_omega = 0.9999;
     rc.sw_cloud_g = 0.85;
-    const TwoStreamParams p = make_two_stream_params(rc);
+    const TwoStreamParams p = make_two_stream_params(rc, RdoCp);
 
     const amrex::Box bx(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::FArrayBox state(bx, RhoQ2_comp + 1, amrex::The_Pinned_Arena());
@@ -801,7 +962,7 @@ TEST(TwoStreamColumn, MassModelLayerOpticsAreExtinctionWeighted)
     rc.single_scattering_albedo = 0.3;
     rc.asymmetry_factor = 0.5;
     diagnose_layer_optics(0, 0, 0, dz, 25.0, state.const_array(), 0.05, true, false,
-                          make_two_stream_params(rc), tau, omega, g);
+                          make_two_stream_params(rc, RdoCp), tau, omega, g);
     EXPECT_EQ(tau, 0.05);
     EXPECT_EQ(omega, 0.3);
     EXPECT_EQ(g, 0.5);
@@ -909,11 +1070,11 @@ TEST(TwoStreamColumn, DynamicOpticalDepthSurvivesPrognosticCloudFraction)
     const auto state_arr = state.const_array();
 
     rc.tau_sw_dynamic_enable = false;
-    const TwoStreamParams p_static = make_two_stream_params(rc);
+    const TwoStreamParams p_static = make_two_stream_params(rc, RdoCp);
     rc.tau_sw_dynamic_enable = true;
-    const TwoStreamParams p_dynamic = make_two_stream_params(rc);
+    const TwoStreamParams p_dynamic = make_two_stream_params(rc, RdoCp);
     rc.cloud_fraction_prog_enable = false;
-    const TwoStreamParams p_dynamic_fixed_cf = make_two_stream_params(rc);
+    const TwoStreamParams p_dynamic_fixed_cf = make_two_stream_params(rc, RdoCp);
 
     amrex::Gpu::DeviceVector<amrex::Real> out(3, 0.0);
     amrex::Real* out_ptr = out.data();
@@ -942,4 +1103,3 @@ TEST(TwoStreamColumn, CloudFractionLiquidWaterTermIsAThreshold)
     // RH and qc terms add and saturate at 1
     EXPECT_NEAR(diagnose_cloud_fraction_from_rh_qc(0.9, 5.0e-4, 0.8, 1.0, 1.0e-3), 1.0, 1.0e-12);
 }
-

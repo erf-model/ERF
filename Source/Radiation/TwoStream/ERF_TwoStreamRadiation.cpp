@@ -3,6 +3,7 @@
 #include <AMReX_VisMF.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
+#include <AMReX_Math.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamColumn.H>
 #include <ERF_PrognosticCloudFraction.H>
@@ -220,11 +221,13 @@ TwoStreamRadiation::resize (int nlevs_max)
 void
 TwoStreamRadiation::define_level (int lev,
                                   const RadChoice& rad_choice,
+                                  const amrex::Real rdOcp,
                                   const BoxArray& ba2d,
                                   const DistributionMapping& dm)
 {
     if (!rad_choice.enabled) { return; }
     m_rad = &rad_choice;
+    m_rdOcp = rdOcp;
 
     // 2D surface fields on the horizontal BoxArray, one ghost cell in x and y
     const IntVect ng_sfc{1,1,0};
@@ -364,8 +367,8 @@ TwoStreamRadiation::advance (int lev,
                     constexpr amrex::Real neg_inf = -std::numeric_limits<amrex::Real>::infinity();
                     const amrex::Real rho = arr(i,j,k,Rho_comp);
                     const amrex::Real rth = arr(i,j,k,RhoTheta_comp);
-                    return {std::isfinite(rho) ? rho : neg_inf,
-                            std::isfinite(rth) ? rth : neg_inf};
+                    return {amrex::Math::isfinite(rho) ? rho : neg_inf,
+                            amrex::Math::isfinite(rth) ? rth : neg_inf};
                 });
         }
         auto state_tuple = state_data.value(state_ops);
@@ -438,7 +441,7 @@ TwoStreamRadiation::advance (int lev,
     // with the sun of this call from the inputs shared with RRTMGP. The
     // incident SW at the top (SW_TOA) is a domain mean formed by the sweep,
     // since with a calendar sun it varies across the columns.
-    TwoStreamParams ts_params = make_two_stream_params(rad_choice);
+    TwoStreamParams ts_params = make_two_stream_params(rad_choice, m_rdOcp);
     if (do_sweep) { set_solar_state(ts_params, rad_choice, m_orbit, epoch_time, have_datetime, lev, nstep); }
 
         // Host-side storage for reduction results (will be set by device-side reduction)
@@ -599,41 +602,40 @@ TwoStreamRadiation::advance (int lev,
                 }
             }
 
-            // Surface temperature for the longwave boundary condition, in
-            // the order RRTMGP uses: the land-surface model's field, else the
-            // surface layer's temperature, else this model's own field (the
-            // erf.rad_t_sfc value, or the LSM copy). The prognostic surface
-            // energy balance owns the surface temperature when it is on, so
-            // its state comes before the surface layer's; the gate is the one
-            // the force-restore update itself uses (init_params turns
-            // seb_enable on with seb_prognostic_enable, so the two agree).
-            bool has_t_sfc_field = false;
-            bool t_sfc_is_theta = false;   // the surface layer works in potential temperature
-            Array4<const amrex::Real> t_sfc_arr;
+            // Keep the surface-temperature sources separate until the column
+            // kernel resolves them per cell. An LSM field can exist globally
+            // while carrying an undefined sentinel in an individual column;
+            // that column must still fall through to SurfaceLayer theta.
+            // The kernel's precedence is valid LSM absolute temperature,
+            // valid prognostic SEB absolute temperature, SurfaceLayer theta,
+            // then the scalar absolute-temperature fallback.
+            bool has_lsm_t_sfc = false;
+            Array4<const amrex::Real> lsm_t_sfc_arr;
+            bool has_seb_t_sfc = false;
+            Array4<const amrex::Real> seb_t_sfc_arr;
+            bool has_surface_layer = false;
+            Array4<const amrex::Real> surface_layer_theta_arr;
             {
-                // Each source is tried in turn, so an LSM that lists the
-                // field but hands back no data falls through to the next one.
                 std::string varname_t_sfc = "t_sfc";
                 int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
                 if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
-                        t_sfc_arr = lsm_ptr->const_array(mfi);
-                        has_t_sfc_field = true;
+                        lsm_t_sfc_arr = lsm_ptr->const_array(mfi);
+                        has_lsm_t_sfc = true;
                     }
                 }
-                if (!has_t_sfc_field && rad_choice.seb_prognostic_enable && rad_choice.seb_enable && m_t_sfc[lev]) {
-                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
-                    has_t_sfc_field = true;
+                // Prognostic SEB is a level-wide alternative to Noah t_sfc.
+                // When Noah exposes t_sfc on this level, m_t_sfc is not advanced,
+                // so it must not be offered as a per-cell fallback.
+                if (!has_lsm_t_sfc && rad_choice.seb_prognostic_enable &&
+                    rad_choice.seb_enable && m_t_sfc[lev]) {
+                    seb_t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
+                    has_seb_t_sfc = true;
                 }
-                if (!has_t_sfc_field && t_surf != nullptr) {
-                    t_sfc_arr = t_surf->const_array(mfi);
-                    has_t_sfc_field = true;
-                    t_sfc_is_theta = true;
-                }
-                if (!has_t_sfc_field && m_t_sfc[lev]) {
-                    t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
-                    has_t_sfc_field = true;
+                if (t_surf != nullptr) {
+                    surface_layer_theta_arr = t_surf->const_array(mfi);
+                    has_surface_layer = true;
                 }
             }
 
@@ -740,7 +742,9 @@ TwoStreamRadiation::advance (int lev,
                         z_phys_nd_arr, scratch_arr,
                         has_hetero_alb_sw, &hetero_alb_sw_arr,
                         has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                        has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                        has_lsm_t_sfc, &lsm_t_sfc_arr,
+                        has_seb_t_sfc, &seb_t_sfc_arr,
+                        has_surface_layer, &surface_layer_theta_arr,
                         has_latlon, &lat_arr, &lon_arr,
                         write_fluxes ? &rad_flux_clear_arr : nullptr);
 
@@ -768,7 +772,9 @@ TwoStreamRadiation::advance (int lev,
                             z_phys_nd_arr, scratch_arr,
                             has_hetero_alb_sw, &hetero_alb_sw_arr,
                             has_hetero_emiss_lw, &hetero_emiss_lw_arr,
-                            has_t_sfc_field, &t_sfc_arr, t_sfc_is_theta,
+                            has_lsm_t_sfc, &lsm_t_sfc_arr,
+                            has_seb_t_sfc, &seb_t_sfc_arr,
+                            has_surface_layer, &surface_layer_theta_arr,
                             has_latlon, &lat_arr, &lon_arr,
                             write_fluxes ? &rad_flux_cloudy_arr : nullptr);
 
