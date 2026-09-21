@@ -17,11 +17,14 @@ known restart ancestry. See :ref:`sec:Provenance`.
 New native checkpoints also contain a small ``surface_temperature_contract``
 marker with value ``1``. This records that Metgrid SST and skin temperature
 arrays already use the current SurfaceLayer potential-temperature convention
-and can be restored directly. A checkpoint without this marker remains
-compatible unless it is a legacy Metgrid checkpoint containing ``SST_0`` or
-``TSK_0`` at any AMR level; those arrays were stored as absolute temperature
-and are rejected because a restart checkpoint does not carry enough pressure
-information to reinterpret them safely.
+and can be restored directly. For a markerless checkpoint containing ``SST_0``
+or ``TSK_0``, ERF uses that checkpoint's own ``job_info``
+``erf.init_type`` provenance: legacy WRFInput arrays remain compatible, while
+legacy Metgrid arrays are rejected because they contain absolute temperature.
+Markerless SST/TSK arrays with missing or unrecognized provenance are rejected
+rather than guessed. The restart deck's current ``erf.init_type`` does not
+override this compatibility check. Markerless checkpoints without SST/TSK
+arrays remain compatible.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 

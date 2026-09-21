@@ -25,6 +25,22 @@
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
+namespace erf_surface_layer {
+
+inline bool
+planar_sources_supported_for_terrain (TerrainType terrain_type,
+                                       bool use_sst,
+                                       bool use_tsk,
+                                       bool use_coupled_sst,
+                                       bool has_lsm_tsurf,
+                                       bool has_lsm_fluxes)
+{
+    return terrain_type != TerrainType::EB ||
+           !(use_sst || use_tsk || use_coupled_sst || has_lsm_tsurf || has_lsm_fluxes);
+}
+
+} // namespace erf_surface_layer
+
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -713,6 +729,13 @@ public:
 
       bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
       bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
+      if (!erf_surface_layer::planar_sources_supported_for_terrain(
+              m_terrain_type, use_sst, use_tsk, m_use_coupled_sst,
+              m_has_lsm_tsurf, m_has_lsm_fluxes)) {
+          amrex::Abort(
+              "EB SurfaceLayer stores state on 3-D cut-cell geometry, but the detected "
+              "SST/TSK/coupled/LSM providers are planar surface fields and no mapping is defined");
+      }
       if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst) {
           // Valid SST, TSK, LSM or coupled-ocean data; t_surf set before computing
           // fluxes (avoids extended lambda capture) Note that land temp will be set

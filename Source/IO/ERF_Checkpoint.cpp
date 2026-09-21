@@ -42,7 +42,6 @@ write_surface_temperature_contract (const std::string& checkpointname)
 
 void
 validate_surface_temperature_contract (const std::string& checkpointname,
-                                       const bool is_metgrid,
                                        const int finest_level)
 {
     const std::string marker_name = checkpointname + "/" + surface_temperature_contract_file;
@@ -66,17 +65,41 @@ validate_surface_temperature_contract (const std::string& checkpointname,
         return;
     }
 
-    if (!is_metgrid) {
+    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
+        checkpointname, finest_level);
+    if (legacy_level < 0) {
         return;
     }
 
-    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
-        checkpointname, finest_level);
-    if (legacy_level >= 0) {
+    const std::string job_info_name = checkpointname + "/job_info";
+    erf_checkpoint_surface_temperature::LegacyInitType legacy_init_type =
+        erf_checkpoint_surface_temperature::LegacyInitType::Unknown;
+    if (amrex::FileExists(job_info_name)) {
+        amrex::Vector<char> job_info_chars;
+        amrex::ParallelDescriptor::ReadAndBcastFile(job_info_name, job_info_chars);
+        std::istringstream job_info_stream(std::string(job_info_chars.dataPtr()),
+                                            std::istringstream::in);
+        legacy_init_type =
+            erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(
+                job_info_stream);
+    }
+
+    const auto compatibility =
+        erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+            false, true, legacy_init_type);
+    if (compatibility ==
+        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnsafeMetgrid) {
         amrex::Abort("Legacy Metgrid checkpoint '" + checkpointname +
                      "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
-                     " without a surface-temperature contract marker; "
-                     "the legacy absolute-temperature arrays cannot be safely restored.");
+                     " without a surface-temperature contract marker; the legacy absolute-"
+                     "temperature arrays cannot be safely restored as the current potential-"
+                     "temperature representation.");
+    }
+    if (compatibility ==
+        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnknownProvenance) {
+        amrex::Abort("Markerless checkpoint '" + checkpointname +
+                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
+                     ", but the original initialization source cannot be established from job_info.");
     }
 }
 
@@ -819,8 +842,7 @@ ERF::ReadCheckpointFile ()
     is >> finest_level;
     GotoNextLine(is);
 
-    validate_surface_temperature_contract(
-        restart_chkfile, solverChoice.init_type == InitType::Metgrid, finest_level);
+    validate_surface_temperature_contract(restart_chkfile, finest_level);
 
     // read the number of components
     // for each variable we store

@@ -1,9 +1,11 @@
 #ifdef ERF_USE_NETCDF
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <limits>
 #include <string>
+#include <tuple>
 
 #include <AMReX_Arena.H>
 #include <AMReX_FArrayBox.H>
@@ -464,6 +466,77 @@ TEST(MetgridNetCDF, SurfacePressurePolicyHandlesMissingAndDebugPsfc)
     // silently select the wrong branch of the quadratic pressure relation.
     EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
                                           P00, T00, amrex::Real(-1.0), pressure));
+}
+
+TEST(MetgridSurfacePressure, InvalidInputsDefineNaNOutput)
+{
+    const amrex::Real z_sfc = amrex::Real(100.0);
+    const amrex::Real P00 = p_0;
+    const amrex::Real T00 = amrex::Real(290.0);
+    const amrex::Real TLP = amrex::Real(50.0);
+    const amrex::Real nan = std::numeric_limits<amrex::Real>::quiet_NaN();
+
+    const std::array<amrex::Real, 4> invalid_file_pressures{
+        nan, std::numeric_limits<amrex::Real>::infinity(), amrex::Real(0.0), amrex::Real(-1.0)};
+    for (const auto file_psfc : invalid_file_pressures) {
+        amrex::Real pressure = amrex::Real(12345.0);
+        EXPECT_FALSE(metgrid_surface_pressure(false, 1, file_psfc, z_sfc,
+                                               P00, T00, TLP, pressure));
+        EXPECT_TRUE(std::isnan(pressure));
+    }
+
+    const std::array<std::tuple<amrex::Real, amrex::Real, amrex::Real, amrex::Real>, 7>
+        invalid_analytic_inputs{{
+            {nan, P00, T00, TLP},
+            {z_sfc, nan, T00, TLP},
+            {z_sfc, amrex::Real(0.0), T00, TLP},
+            {z_sfc, P00, nan, TLP},
+            {z_sfc, P00, amrex::Real(0.0), TLP},
+            {z_sfc, P00, T00, nan},
+            {z_sfc, P00, T00, amrex::Real(0.0)}}};
+    for (const auto& [z, p00, t00, tlp] : invalid_analytic_inputs) {
+        amrex::Real pressure = amrex::Real(12345.0);
+        EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, z, p00, t00, tlp, pressure));
+        EXPECT_TRUE(std::isnan(pressure));
+    }
+
+    amrex::Real pressure = amrex::Real(12345.0);
+    EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, z_sfc,
+                                          P00, T00, amrex::Real(-1.0), pressure));
+    EXPECT_TRUE(std::isnan(pressure));
+
+    pressure = amrex::Real(12345.0);
+    EXPECT_FALSE(metgrid_surface_pressure(false, 0, 0.0, amrex::Real(1.0e10),
+                                          P00, T00, TLP, pressure));
+    EXPECT_TRUE(std::isnan(pressure));
+
+    pressure = amrex::Real(12345.0);
+    EXPECT_FALSE(metgrid_surface_pressure(
+        false, 0, 0.0, amrex::Real(-1.0),
+        std::numeric_limits<amrex::Real>::max(), amrex::Real(1.0), amrex::Real(1.0), pressure));
+    EXPECT_TRUE(std::isnan(pressure));
+}
+
+TEST(MetgridSurfacePressure, InvalidFilePressureFailsDeterministicallyOnDevice)
+{
+    amrex::Gpu::DeviceScalar<int> d_status(0);
+    amrex::Gpu::DeviceScalar<amrex::Real> d_pressure(amrex::Real(12345.0));
+    int* status = d_status.dataPtr();
+    amrex::Real* pressure = d_pressure.dataPtr();
+    const amrex::Box box(amrex::IntVect(0), amrex::IntVect(0));
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int) noexcept
+    {
+        amrex::Real local_pressure = amrex::Real(12345.0);
+        const bool valid = metgrid_surface_pressure(
+            false, 1, amrex::Real(0.0), amrex::Real(0.0),
+            p_0, amrex::Real(290.0), amrex::Real(50.0), local_pressure);
+        *status = valid ? 1 : 0;
+        *pressure = local_pressure;
+    });
+    amrex::Gpu::streamSynchronize();
+
+    EXPECT_EQ(d_status.dataValue(), 0);
+    EXPECT_TRUE(std::isnan(d_pressure.dataValue()));
 }
 
 // Motivation: the pressure-selection policy is only useful if the production

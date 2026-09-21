@@ -667,6 +667,10 @@ ERF::init_from_metgrid (int lev)
 
             Print() << "[init_base_state_from_metgrid] lev = " << lev << ", itime = " << itime << std::endl;
 
+            amrex::Gpu::DeviceScalar<int> d_base_state_surface_pressure_failed(0);
+            int* base_state_surface_pressure_failed =
+                d_base_state_surface_pressure_failed.dataPtr();
+
             //
             // NOTE: The code inside this MFIter is not tile-safe so we must set false for the tiling option
             //
@@ -691,8 +695,17 @@ ERF::init_from_metgrid (int lev)
                                              geom[lev].Domain(), valid_bx, flag_psfc, cons_fab,
                                              r_hse_fab, p_hse_fab, pi_hse_fab, th_hse_fab,
                                              qv_hse_fab, z_phys_nd_fab, z_phys_cc_fab, NC_psfc_fab,
+                                             base_state_surface_pressure_failed,
                                              bsp);
             } // mf
+
+            amrex::Gpu::streamSynchronize();
+            int base_state_pressure_failed = d_base_state_surface_pressure_failed.dataValue();
+            amrex::ParallelDescriptor::ReduceIntMax(base_state_pressure_failed);
+            if (base_state_pressure_failed != 0) {
+                Abort("Invalid Metgrid base-state surface pressure at level " +
+                      std::to_string(lev) + " in " + nc_init_file[lev][itime]);
+            }
 
         } // itime==0
 
@@ -1438,6 +1451,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& z_phys_nd_fab,
                               FArrayBox& z_phys_cc_fab,
                               const FArrayBox& NC_psfc_fab,
+                              int* surface_pressure_failed,
                               const BaseStateParams& bsp)
 {
     // Base state parameters and the layer interfaces derived from them. These are
@@ -1708,8 +1722,10 @@ init_base_state_from_metgrid (const bool use_moisture,
             const bool valid_psurf = metgrid_surface_pressure(
                 metgrid_debug_psfc, flag_psfc, file_psfc, z_sfc,
                 P00, T00, TLP, psurf);
-            AMREX_ALWAYS_ASSERT(valid_psurf);
-            AMREX_ALWAYS_ASSERT(psurf > zero);
+            if (!valid_psurf || !amrex::Math::isfinite(psurf) || psurf <= zero) {
+                amrex::Gpu::Atomic::Max(surface_pressure_failed, 1);
+                return;
+            }
             AMREX_ALWAYS_ASSERT(new_data(i,j,0,RhoTheta_comp) > zero);
 
             // Iterations for the first CC point that is 1/2 dz off the surface
