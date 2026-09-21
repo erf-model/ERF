@@ -57,6 +57,7 @@
 #include <ERF_WallScalarBC.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
+#include <ERF_StationSampler.H>
 #include <ERF_ForestDrag.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
@@ -100,6 +101,10 @@ using amrex::MPI_Comm;
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
 #endif
+
+// Describes one component of a 2D plotfile; defined in
+// IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
+namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
 
 /**
  * Enum of possible interpolation types between coarse/fine
@@ -644,6 +649,40 @@ public:
     void MakeDiagnosticAverage (amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
     void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
+    // Per-level scratch needed to evaluate the 3D plot variables.  Held by the
+    // caller so that the work is done once for a set of variables and then
+    // reused for every level that is filled.
+    struct Plot3DScratch
+    {
+        amrex::Vector<amrex::MultiFab> mf_cc_vel;   // cell-centered velocity, 1 ghost
+        amrex::Vector<amrex::MultiFab> mf_cc_tau;   // cell-centered stress tensor
+        amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
+    };
+
+    void BuildPlot3DScratch (const amrex::Vector<std::string>& plot_var_names,
+                             Plot3DScratch& scratch);
+
+    // Station time-series output
+    void init_stations ();
+    void resolve_station_positions ();
+    void resolve_station_stencils ();
+    void sample_stations (amrex::Real time);
+    void flush_stations ();
+
+    void FillPlot2DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         const amrex::Vector<std::string>& varnames,
+                         const amrex::Vector<plotfile2d::Plotfile2DOutputDescriptor>& output_descriptors,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf);
+
+    void FillPlot3DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         Plot3DScratch& scratch,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf,
+                         amrex::Real tnew);
+
     // Write plotfile to disk
     bool Write3DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
     void Write2DPlotFile  (int which, PlotFileType plotfile_type, amrex::Vector<std::string> plot_var_names);
@@ -1044,6 +1083,9 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    void canonicalizePlot3DVariables (amrex::Vector<std::string>& plot_var_names);
+    void appendPlot3DVariables (const amrex::Vector<std::string>& plot_var_names,
+                                amrex::Vector<std::string>& a_plot_var_names);
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
@@ -2065,6 +2107,15 @@ private:
     amrex::Real plane_sampling_per = -one;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
+
+    // Station time-series output
+    int station_sampling_interval = -1;
+    amrex::Real station_sampling_per = -one;
+    std::unique_ptr<StationSampler> station_sampler = nullptr;
+    // The 3D and 2D plot variables the stations need, in the order the fill
+    // routines produce their components
+    amrex::Vector<std::string> station_vars_3d;
+    amrex::Vector<std::string> station_vars_2d;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;

@@ -255,7 +255,7 @@ endfunction(add_test_cloud_chamber_parity)
 # COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
 # SPLIT_OPTIONS give the split (the deck's own grid when empty).
 function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
-    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG")
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG" "DATALOG_SIGDIGITS")
     cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -285,6 +285,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
         "-DDATALOG=${ADD_TEST_BP_DATALOG}"
+        "-DDATALOG_SIGDIGITS=${ADD_TEST_BP_DATALOG_SIGDIGITS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -311,7 +312,7 @@ set_tests_properties(CompareDataLogs_SelfTest
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit, so a restart whose first step never finishes fails with a message.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS")
     cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -349,6 +350,8 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         -DATOL=${_fcompare_atol}
         -DRUN_TIMEOUT=${_run_timeout}
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        "-DDATALOG=${ADD_TEST_RP_DATALOG}"
+        "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1537,6 +1540,73 @@ add_test_most_zref(MOST_Zref_Stretched)
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
+
+#=============================================================================
+# Station time-series output
+#=============================================================================
+
+# A station series is an interpolation from whichever level and whichever box
+# happens to cover the point, so the two things most likely to break it are a
+# change of decomposition and a restart.  Both are checked against the run that
+# does it in one piece.  Center.dat is the series compared because it is the one
+# that varies: the stations in the still air away from the bubble would compare
+# a constant against a constant.  The series print ten significant digits, so
+# that is what must agree.
+add_test_box_parity(StationSampling_BoxParity StationSampling "plt00010"
+    COMMON_OPTIONS ""
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=32 amr.max_grid_size_y=2 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/Center.dat"
+    DATALOG_SIGDIGITS 10)
+
+add_test_restart_parity(StationSampling_Restart StationSampling 4 10
+    DATALOG "Output_Stations/Center.dat"
+    DATALOG_SIGDIGITS 10)
+
+# Input validation: a station that cannot be honored has to say which key is
+# wrong and stop, because a column that silently vanished or silently moved
+# would be discovered only after the run.
+function(add_test_station_abort TEST_NAME RUNTIME_OPTIONS EXPECTED_MESSAGE)
+    set(TEST_FILES_DIR "DensityCurrent")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        -DMPIEXEC=${MPIEXEC_EXECUTABLE}
+        -DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+        -DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}
+        -DTEST_EXE=${TEST_EXE}
+        -DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i
+        -DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}
+        -DLOG=${test_log}
+        "-DRUNTIME_OPTIONS=max_step=1 ${RUNTIME_OPTIONS}"
+        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunExpectAbort.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;configuration;station"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_station_abort)
+
+add_test_station_abort(StationSampling_UnknownVariable
+    "erf.station_names=Bad erf.Bad.field=not_a_variable erf.Bad.x=0 erf.Bad.y=50 erf.Bad.height=100"
+    "is not a 3D or 2D plotfile variable")
+add_test_station_abort(StationSampling_MismatchedPairs
+    "erf.station_names=Bad erf.Bad.field=theta erf.Bad.x=0 100 erf.Bad.y=50 erf.Bad.height=100"
+    "they are paired, so the counts must match")
+add_test_station_abort(StationSampling_MissingHeight
+    "erf.station_names=Bad erf.Bad.field=theta erf.Bad.x=0 erf.Bad.y=50"
+    "must be given, since this station requests a 3D variable")
+add_test_station_abort(StationSampling_OutsideDomain
+    "erf.station_names=Bad erf.Bad.field=theta erf.Bad.x=999999 erf.Bad.y=50 erf.Bad.height=100"
+    "is outside the problem domain")
+add_test_station_abort(StationSampling_LatLonWithoutMap
+    "erf.station_names=Bad erf.Bad.field=theta erf.Bad.lat=45 erf.Bad.long=-122 erf.Bad.height=100"
+    "need a run with latitude/longitude arrays")
 
 #=============================================================================
 # Performance tests

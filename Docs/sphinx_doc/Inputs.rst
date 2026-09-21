@@ -1417,8 +1417,10 @@ Data Sampling Outputs
    the native AMReX output using postprocessing tools provided in Exec/Tools if
    using gmake, or with the ``ERF_ENABLE_TOOLS`` flag if using cmake.
 
-   The ERF analog of **tslist** output is the line sampling described in this
-   section.
+   The ERF analog of **tslist** output is the station time series described in
+   :ref:`inputs-station-time-series` below, which samples named points given in
+   latitude and longitude.  The line and plane sampling described first in this
+   section writes whole lines and planes rather than points.
 
 Data along query lines or planes may be output during the simulation if
 ``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
@@ -1551,6 +1553,125 @@ Example of Usage
    erf.sample_plane_lo   =  48.0  48.0  32.0 # Lo points for one plane
    erf.sample_plane_hi   = 320.0 320.0  32.0 # Hi points for one plane
    erf.sample_plane_dir  = 2                 # One plane with z normal
+
+
+.. _inputs-station-time-series:
+
+Station Time Series
+===================
+
+A station is a named set of points at which a chosen set of variables is written
+to an ASCII time series, one file per station, for comparison against
+meteorological tower and surface-station observations.  This is the ERF analog
+of WRF's **tslist**.
+
+Stations are declared the way refinement indicators are: ``erf.station_names``
+lists the names, and the keys of each station live under its own prefix.
+
+::
+
+   erf.station_names = Lake1 Forests
+
+   erf.Lake1.field    = rain_accum
+   erf.Lake1.lat      = 45.13
+   erf.Lake1.long     = -122.34
+
+   erf.Forests.field  = magvel local_helicity
+   erf.Forests.lat    = 45.20 45.41
+   erf.Forests.long   = -122.10 -122.02
+   erf.Forests.height = 10.0 80.0
+
+   erf.station_sampling_interval = 1
+
+``lat`` and ``long`` are paired positionally, so ``Forests`` above is two
+locations, not four; the two lists must have the same number of values.  ``lon``
+is accepted as a synonym for ``long``.  A station may instead be placed with
+``.x`` and ``.y`` in domain coordinates, which is the only option for a run that
+has no latitude/longitude arrays; a station uses one form or the other, never
+both.
+
+``height`` is in metres above the local terrain and applies to every location of
+the station.  It is required if the station requests any 3D variable, and is
+ignored by 2D variables, which are surface quantities.
+
+The variable names accepted are exactly the names that can be written to a 3D
+plotfile (``erf.plot_vars_1``) or to a 2D plotfile (``erf.plot2d_vars_1``), and
+the values are produced by the same code, so a station column and the
+corresponding plotfile component cannot disagree.  A name that is not a plot
+variable stops the run, as does a 3D name that this configuration cannot
+produce; a 2D diagnostic that is valid but not computed in this run is written
+as the missing value it would have in a 2D plotfile (0 or -999 depending on the
+diagnostic) rather than being dropped.
+
+Values are interpolated bilinearly in the horizontal and linearly in the
+vertical, taken from the finest level whose valid region covers the whole
+interpolation stencil.  Within the outer half cell of a non-periodic boundary
+there is no second cell to interpolate from, so the horizontal stencil collapses
+to the edge cell; below the first cell centre and above the top of the domain
+the vertical interpolation likewise uses the nearest value.
+
+Each station is written to ``Output_Stations/<name>.dat``.  The header names
+every column, with its units where they are known, the requested position, the
+position actually sampled, and the height.  Columns are ordered by location:
+for each location, the 2D variables first, then, for each height in the order
+requested, the 3D variables in the order requested.  When ``erf.use_datetime``
+is set, a UTC timestamp column follows the elapsed-time column.
+
+The series starts at the initial condition, as WRF's tslist output does; a
+restart does not repeat that row, since the run that wrote the file before
+already has it.
+
+Rows are buffered in memory and written out every ``erf.station_buffer_steps``
+output steps and at the end of the run.  A restart appends to the file the
+earlier run wrote, so the series is continuous across a restart; the resumption
+is marked by a comment line.
+
+.. note::
+
+   Station output is enabled by naming stations.  ``erf.do_station_sampling``
+   may be set explicitly, but it is not needed.  If neither
+   ``erf.station_sampling_interval`` nor ``erf.station_sampling_per`` is given,
+   the stations are written every step.
+
+.. _list-of-parameters-10c:
+
+List of Parameters
+------------------
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.station_names**              | Names of the stations to write                           | List of Strings    | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.field**               | Variables to write at this station; 3D or 2D plotfile    | List of Strings    | None             |
+|                                    | variable names                                           |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.lat**,                | Locations of this station, paired positionally; not to   | List of Reals,     | None             |
+| **erf.<name>.long**                | be combined with ``.x`` / ``.y``                         | degrees            |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.x**,                  | Locations of this station in domain coordinates, paired  | List of Reals      | None             |
+| **erf.<name>.y**                   | positionally; not to be combined with ``.lat`` /         |                    |                  |
+|                                    | ``.long``                                                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.height**              | Heights above the local terrain at which the 3D          | List of Reals,     | None             |
+|                                    | variables are sampled                                    | metres             |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_sampling_interval**  | Output frequency (steps)                                 | Integer            | 1                |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_sampling_per**       | Output frequency (time)                                  | Real               | -1               |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_buffer_steps**       | Output steps buffered before the files are written       | Integer            | 100              |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_output_dir**         | Directory the station files are written to               | String             | Output_Stations  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. note::
+
+   Latitude and longitude need a run that has them: an initialization from a WRF
+   or metgrid file, or a restart from one.  ERF initialized from ``wrfinput``
+   stores WRF's staggered ``XLAT_V`` and ``XLONG_U``; the station sampler
+   averages the bracketing edges to get the mass-point latitude and longitude,
+   so a station lands on the cell its coordinates name and not half a cell away.
 
 
 .. _inputs-advection-schemes:

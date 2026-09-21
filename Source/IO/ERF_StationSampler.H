@@ -1,0 +1,194 @@
+/**
+ * \file ERF_StationSampler.H
+ */
+#ifndef ERF_STATIONSAMPLER_H_
+#define ERF_STATIONSAMPLER_H_
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+
+#include <AMReX_REAL.H>
+#include <AMReX_Vector.H>
+
+//
+// Station time-series output.
+//
+// A station is a named set of geographic points at which a user-chosen set of
+// variables is written to an ASCII time series, for comparison against
+// meteorological tower and surface-station observations.  The inputs follow the
+// same shape as erf.refinement_indicators:
+//
+//     erf.station_names  = Lake1 Forests
+//     erf.Lake1.field    = rain_accum
+//     erf.Lake1.lat      = 45.13
+//     erf.Lake1.long     = -122.34
+//     erf.Forests.field  = magvel local_helicity
+//     erf.Forests.lat    = 45.20 45.41
+//     erf.Forests.long   = -122.10 -122.02
+//     erf.Forests.height = 10.0 80.0
+//
+// lat/long are paired positionally, so the example above is two locations, not
+// four.  A station may instead be placed with .x/.y in domain coordinates, which
+// is the only option for a run that has no lat/lon arrays.  Heights are metres
+// above local terrain and apply to every location of the station.
+//
+// The variable names accepted are exactly the names that can be written to a 3D
+// or a 2D plotfile, and the values come from the same fill routines
+// (ERF::FillPlot3DVars / ERF::FillPlot2DVars), so a station column and the
+// corresponding plotfile component cannot disagree.
+//
+
+//
+// Invert the latitude/longitude map locally.  Given the difference between the
+// requested lat/lon and the lat/lon of a grid point, and the gradients of
+// latitude and longitude with respect to the two horizontal index directions at
+// that point, return the offset in cells from the grid point to the request.
+//
+// The map is smooth over a cell, so one linear solve places the station to well
+// under a cell width, whatever the projection.  Returns false when the two
+// gradients are parallel and the map is therefore not locally invertible.
+//
+inline bool
+invert_latlon_offset (amrex::Real dlat, amrex::Real dlon,
+                      amrex::Real dlat_di, amrex::Real dlon_di,
+                      amrex::Real dlat_dj, amrex::Real dlon_dj,
+                      amrex::Real& di, amrex::Real& dj)
+{
+    const amrex::Real scale = std::max(std::max(std::abs(dlat_di), std::abs(dlon_di)),
+                                       std::max(std::abs(dlat_dj), std::abs(dlon_dj)));
+    const amrex::Real det = dlat_di*dlon_dj - dlat_dj*dlon_di;
+    if (scale <= amrex::Real(0.0) || std::abs(det) <= amrex::Real(1.0e-12)*scale*scale) {
+        return false;
+    }
+    di = ( dlat*dlon_dj - dlon*dlat_dj) / det;
+    dj = (-dlat*dlon_di + dlon*dlat_di) / det;
+    return true;
+}
+
+struct StationVar
+{
+    std::string name;
+    std::string units;
+    bool is_2d      = false;              // comes from the 2D diagnostic catalog
+    bool is_missing = false;              // valid 2D name, inactive in this run
+    amrex::Real missing_value = amrex::Real(0.0);
+    int comp = -1;                        // component in the filled MultiFab
+};
+
+struct StationLoc
+{
+    bool use_latlon = false;
+
+    // As requested in the inputs file
+    amrex::Real req_lat = amrex::Real(0.0);
+    amrex::Real req_lon = amrex::Real(0.0);
+
+    // Domain coordinates of the station, resolved once at setup
+    amrex::Real x = amrex::Real(0.0);
+    amrex::Real y = amrex::Real(0.0);
+
+    // lat/lon actually reached by (x,y); equals the request to within the
+    // accuracy of the inverse map, and is reported in the file header
+    amrex::Real got_lat = amrex::Real(0.0);
+    amrex::Real got_lon = amrex::Real(0.0);
+
+    // Resolved against the current grids at every output step
+    int lev = 0;
+    int ic  = 0;                          // cell containing (x,y)
+    int jc  = 0;
+    int i0  = 0;                          // lower-left corner of the interpolation stencil
+    int j0  = 0;
+    int i1  = 0;                          // upper-right corner; equals i0 where the
+    int j1  = 0;                          // stencil collapses at a physical boundary
+    amrex::Real wx = amrex::Real(0.0);    // weight of i1 relative to i0
+    amrex::Real wy = amrex::Real(0.0);
+
+    // Index into the owning station's column list of this location's first column
+    int col_begin = 0;
+};
+
+//
+// One scalar written every output step: one variable, at one location, at one
+// height.  Heights do not apply to 2D variables, whose height index is -1.
+//
+struct StationColumn
+{
+    int station = 0;
+    int loc     = 0;
+    int height  = -1;
+    int var     = 0;
+};
+
+struct Station
+{
+    std::string name;
+    amrex::Vector<StationVar>  vars;
+    amrex::Vector<StationLoc>  locs;
+    amrex::Vector<amrex::Real> heights;   // metres above local terrain
+
+    // Global column indices owned by this station, in file column order
+    amrex::Vector<int> columns;
+
+    bool has_3d_vars () const {
+        for (const auto& v : vars) { if (!v.is_2d) { return true; } }
+        return false;
+    }
+};
+
+class StationSampler
+{
+public:
+    // Parses erf.station_names and the per-station keys.  Name validation needs
+    // the run's variable catalogs and is done by ERF::init_stations.
+    explicit StationSampler (const std::string& pp_prefix);
+
+    [[nodiscard]] bool empty () const { return m_stations.empty(); }
+
+    amrex::Vector<Station>&       stations ()       { return m_stations; }
+    [[nodiscard]] const amrex::Vector<Station>& stations () const { return m_stations; }
+
+    [[nodiscard]] int numColumns () const { return m_ncolumns; }
+
+    // Assigns the global column index of every (location, height, variable)
+    // triple.  Called by ERF::init_stations once the variables are resolved.
+    void buildColumns ();
+
+    // Buffer one row of values.  Writes through to disk once the buffer is full.
+    void appendRow (amrex::Real time, amrex::Real epoch_time, const amrex::Vector<amrex::Real>& values);
+
+    // Write any buffered rows.  Safe to call from any rank; only the IO rank writes.
+    void flush ();
+
+    // A run that is not restarting starts its station files afresh; a restart
+    // appends to what the earlier run wrote.
+    void setRestart (bool is_restart) { m_is_restart = is_restart; }
+
+    void setWriteTimestamp (bool write_timestamp, const std::string& datetime_format) {
+        m_write_timestamp = write_timestamp;
+        m_datetime_format = datetime_format;
+    }
+
+    [[nodiscard]] int bufferSteps () const { return m_buffer_steps; }
+
+private:
+    void writeHeader (const Station& station, std::ostream& os) const;
+
+    amrex::Vector<Station> m_stations;
+    int m_ncolumns    = 0;
+    int m_buffer_steps = 100;
+
+    // m_rows[irow] holds the values of every column at m_times[irow]
+    amrex::Vector<amrex::Real> m_times;
+    amrex::Vector<amrex::Real> m_epoch_times;
+    amrex::Vector<amrex::Real> m_rows;
+
+    bool m_is_restart = false;
+    bool m_write_timestamp = false;
+    std::string m_datetime_format;
+
+    std::string m_dir = "Output_Stations";
+    bool m_opened = false;
+};
+
+#endif

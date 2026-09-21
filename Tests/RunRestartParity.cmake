@@ -86,3 +86,48 @@ if(NOT parity_result EQUAL 0)
     message(FATAL_ERROR "RunRestartParity.cmake: the restarted run's ${PLTFILE} differs from the straight run's: ${parity_result} (see parity.log)")
 endif()
 message(STATUS "RunRestartParity: restart from ${CHKFILE} reproduces ${PLTFILE}")
+
+# Optional: a time series that the run appends to, such as a station file written by
+# erf.station_names, must come out the same whether it was written in one run or in two.
+# The restarted run marks the restart with a comment line the straight run does not have,
+# so the comparison is of the data lines only.
+if(NOT "${DATALOG}" STREQUAL "")
+    function(strip_comments in_file out_file out_count)
+        file(STRINGS "${in_file}" _lines)
+        set(_kept "")
+        foreach(_line IN LISTS _lines)
+            if(NOT _line MATCHES "^#")
+                list(APPEND _kept "${_line}")
+            endif()
+        endforeach()
+        list(LENGTH _kept _n)
+        string(JOIN "\n" _text ${_kept})
+        file(WRITE "${out_file}" "${_text}\n")
+        set(${out_count} ${_n} PARENT_SCOPE)
+    endfunction()
+
+    foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
+        if(NOT EXISTS "${dir}/${DATALOG}")
+            message(FATAL_ERROR "RunRestartParity.cmake: no time series ${dir}/${DATALOG}")
+        endif()
+    endforeach()
+
+    strip_comments("${STRAIGHT_DIR}/${DATALOG}" "${WORKING_DIRECTORY}/datalog_straight.txt" straight_rows)
+    strip_comments("${RESTART_DIR}/${DATALOG}"  "${WORKING_DIRECTORY}/datalog_restart.txt"  restart_rows)
+    if(straight_rows LESS 2)
+        message(FATAL_ERROR "RunRestartParity.cmake: ${DATALOG} has ${straight_rows} data rows; the comparison would be trivial")
+    endif()
+
+    if("${DATALOG_SIGDIGITS}" STREQUAL "")
+        set(DATALOG_SIGDIGITS 6)
+    endif()
+    include("${CMAKE_CURRENT_LIST_DIR}/CompareDataLogs.cmake")
+    erf_compare_data_logs("${WORKING_DIRECTORY}/datalog_straight.txt"
+                          "${WORKING_DIRECTORY}/datalog_restart.txt"
+                          ${DATALOG_SIGDIGITS} 2 logs_agree log_message)
+    if(NOT logs_agree)
+        message(FATAL_ERROR "RunRestartParity.cmake: ${DATALOG} differs between the straight run "
+                            "and the restarted run: ${log_message}")
+    endif()
+    message(STATUS "RunRestartParity: ${DATALOG} agrees (${straight_rows} rows)")
+endif()
