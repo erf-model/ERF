@@ -252,7 +252,13 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         const int nranks = ParallelDescriptor::NProcs();
         const int nmine = static_cast<int>(mybx.size());
         Vector<int> counts(nranks, 0);
-        ParallelAllGather::AllGather(nmine, counts.data(), ParallelDescriptor::Communicator());
+        if (nranks == 1) {
+            // The non-MPI implementation of AllGather leaves its output
+            // untouched, so populate the single-rank count explicitly.
+            counts[0] = nmine;
+        } else {
+            ParallelAllGather::AllGather(nmine, counts.data(), ParallelDescriptor::Communicator());
+        }
         Vector<Box> allbx(mybx);
         AllGatherBoxes(allbx);
         Vector<int> owner;

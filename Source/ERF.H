@@ -821,7 +821,21 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
+    // Read a wrfinput file at this level.
+    //
+    // With read_atmos_state = true (the default) this reads the full state: the
+    // atmospheric fields (U, V, W, THM, the density triple and the moisture species)
+    // as well as the surface fields, and it remaps the state onto the ERF vertical
+    // grid, builds the base state and reads the boundary data.
+    //
+    // With read_atmos_state = false only the surface fields are read -- terrain,
+    // surface pressure, surface and skin temperatures, the land/soil masks, the map
+    // factors, the lat/lon fields and the LSM variables -- and the terrain and metric
+    // terms are built from them.  The atmospheric state is left untouched for the
+    // caller to fill by interpolation from the coarse level (see the
+    // erf.interp_atmos_from_coarse path in MakeNewLevelFromCoarse), which is also
+    // responsible for calling rebuild_base_state_from_wrfinput afterwards.
+    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC, bool read_atmos_state = true);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 
@@ -943,7 +957,7 @@ private:
     void make_physbcs (int lev);
 
     // (Re)build the land surface model on this level's current grids
-    void make_lsm_at_level (int lev);
+    void make_lsm_at_level (int lev, bool from_regrid [[maybe_unused]] = false);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -1127,6 +1141,22 @@ private:
 
     amrex::Vector<int> istep;      // which step?
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
+
+    // One entry per level: set when that level has just been built by the
+    // erf.interp_atmos_from_coarse path, whose atmospheric state comes from FillCoarsePatch
+    // and is not yet thermodynamically consistent (rho, theta and qv are interpolated
+    // independently).  advance_radiation interpolates the radiation fields from the parent
+    // rather than running RRTMGP on that state, and clears the entry once it has done so, so
+    // exactly one step is skipped per level creation.
+    //
+    // NOTE: this is deliberately a flag owned by the level's lifetime rather than a test on
+    //       istep[lev].  istep is sized once in ReadParameters and is never reset when a
+    //       level is removed, so it carries over from a level's previous life: a level that
+    //       ran for fifty steps, was de-refined, and was then re-created would have
+    //       istep[lev] == 50 and would silently miss the skip.
+    //
+    // (using int instead of bool to avoid the std::vector<bool> specialization)
+    amrex::Vector<int> rad_interp_from_coarse_pending;
 
     // keep track of old time, new time, and time step at each level
     amrex::Vector<double> t_new;

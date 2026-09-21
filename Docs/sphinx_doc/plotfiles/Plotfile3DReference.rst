@@ -636,9 +636,17 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **hfx3**                    | Heat flux in     |
 |                             | z-direction.     |
-|                             | Only available   |
-|                             | with Z surface   |
-|                             | layers enabled   |
+|                             | Flux of the theta|
+|                             | diffusion at the |
+|                             | two z-faces of   |
+|                             | the cell,        |
+|                             | averaged (the    |
+|                             | full flux, also  |
+|                             | with the implicit|
+|                             | vertical solve;  |
+|                             | the surface-layer|
+|                             | flux at the      |
+|                             | bottom face).    |
 |                             | [W/m^2]          |
 +-----------------------------+------------------+
 | **q1fx1**                   | Moisture flux 1  |
@@ -673,10 +681,20 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 +-----------------------------+------------------+
 | **q1fx3**                   | Moisture flux 1  |
 |                             | in z-direction.  |
-|                             | Only available   |
-|                             | with Z surface   |
-|                             | layers and       |
-|                             | moisture enabled |
+|                             | Written when     |
+|                             | requested with   |
+|                             | moisture enabled.|
+|                             | Flux of the qv   |
+|                             | diffusion at the |
+|                             | two z-faces of   |
+|                             | the cell,        |
+|                             | averaged (the    |
+|                             | full flux, also  |
+|                             | with the implicit|
+|                             | vertical solve;  |
+|                             | the surface-layer|
+|                             | flux at the      |
+|                             | bottom face).    |
 |                             | [kg/m^2/s]       |
 +-----------------------------+------------------+
 | **q2fx3**                   | Moisture flux 2  |

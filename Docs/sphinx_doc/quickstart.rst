@@ -20,6 +20,18 @@ directory layout and batch vs interactive runs is listed once below the tabs.
 
    .. tab-item:: Perlmutter (NERSC)
 
+      The modules to be loaded in the `~/.bash_profile` are
+
+      .. code-block:: bash
+
+         module load craype-x86-milan
+         module load PrgEnv-gnu
+         module load cudatoolkit/12.9
+         module load craype-accel-nvidia80
+         module load cray-hdf5-parallel/1.14.3.1
+         module load cray-netcdf-hdf5parallel
+         module load cray-fftw/3.3.10.8
+
       .. code-block:: bash
 
          git clone --recursive https://github.com/erf-model/ERF.git
