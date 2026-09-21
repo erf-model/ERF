@@ -35,7 +35,8 @@ define( [[maybe_unused]] int const& a_level,
   Real small_volfrac = Real(1.e-14);
   ParmParse pp("eb2");
   pp.queryAdd("small_volfrac", small_volfrac);
-  const Real small_value = Real(1.e-15);
+  // Snap centroid/normal components that are pure roundoff to exactly zero.
+  const Real small_value = Real(10)*real_eps;
 
   const IntVect vdim(IntVect::TheDimensionVector(a_idim));
 

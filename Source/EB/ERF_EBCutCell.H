@@ -14,6 +14,7 @@
 #include <AMReX_GpuPrint.H>
 
 #include "ERF_EBPolygon.H"
+#include "ERF_NumericalConstants.H"
 
 /**
  * \brief Intersect a plane with a line segment.
@@ -467,7 +468,10 @@ struct eb_cut_cell_::path_data
           const amrex::RealVect& v_start,
           const amrex::RealVect& v_end)
   {
-    constexpr amrex::Real tol = amrex::Real(1.e-15);
+    // NOTE: this is an absolute length tolerance compared against a distance
+    //       along the edge, so it is only meaningful for edges of order unity;
+    //       it is scaled with the working precision but not with edge_length.
+    constexpr amrex::Real tol = amrex::Real(10)*real_eps;
     amrex::RealVect v_intersect{v_start};
     amrex::Real    dist_intersect = std::numeric_limits<amrex::Real>::quiet_NaN();
     intersected = intersect_plane_edge(
