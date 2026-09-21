@@ -11,16 +11,22 @@
                        << std::endl;
     }
 
+    int klo = geomdata.Domain().smallEnd(2);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
+        "Vertical decomposition with KE initialization is not allowed.");
+
     ParallelFor(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set an initial value for SGS KE
-        const Real z = z_cc(i,j,k);
+        const Real z_sfc = fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
+                                    + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
+        const Real z_agl = z_cc(i,j,k) - z_sfc;
         if (state_pert.nComp() > RhoKE_comp) {
             state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * KE_0;
             // scale initial SGS kinetic energy with height
             if (KE_decay_height > 0) {
                 state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z/KE_decay_height,one_d), KE_decay_order),
+                    std::pow(1 - min(z_agl/KE_decay_height,one_d), KE_decay_order),
                     1e-12);
             }
         }

@@ -58,6 +58,12 @@
         }
     }
 
+    // The KE profile below is measured from the surface, so each box must reach
+    // the bottom of the domain for z_nd(i,j,klo) to be in scope.
+    const int klo = geomdata.Domain().smallEnd(2);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
+        "Vertical decomposition with KE initialization is not allowed.");
+
     ParallelForRNG(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* dx = geomdata.CellSize();
@@ -86,13 +92,23 @@
         state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r*r);
 
         // Set an initial value for SGS KE
+        //
+        // KE_decay_height is a depth of turbulence above the ground, so the profile
+        // is a function of height above the terrain surface, not of absolute z.  Over
+        // terrain higher than KE_decay_height the latter would clamp the decay factor
+        // to its floor at the ground -- exactly backwards.  On a flat non-EB mesh
+        // z_sfc is zero and this reduces to the absolute height.  Matches the surface
+        // height used by SurfaceLayer::init_tke_from_ustar.
         if (state_pert.nComp() > RhoKE_comp) {
+            const Real z_sfc = fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
+                                        + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
+            const Real z_agl = z_cc(i,j,k) - z_sfc;
             // Deardorff
             state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * KE_0;
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
                 state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z/KE_decay_height,one_d), KE_decay_order), Real(1e-12));
+                    std::pow(1 - min(z_agl/KE_decay_height,one_d), KE_decay_order), Real(1e-12));
             }
         }
     });
