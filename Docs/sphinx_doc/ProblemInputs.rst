@@ -60,8 +60,6 @@ Initial state perturbation
 | IsentropicVortex        | ``ERF_InitCustomPert_IsentropicVortex.H``        | ``M_inf``, ``R``, ``T_inf``, ``alpha``, ``beta``, ``gamma``, ``p_inf``, ``sigma``, |
 |                         |                                                  | ``xc``, ``yc``                                                                     |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
-| KE                      | ``ERF_InitCustomPert_KE.H``                      | ``KE_0``, ``KE_decay_height``, ``KE_decay_order``                                  |
-+-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | MovingTerrain           | ``ERF_InitCustomPert_MovingTerrain.H``           | ``Ampl``, ``wavelength``                                                           |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | MultiSpeciesBubble      | ``ERF_InitCustomPert_MultiSpeciesBubble.H``      | ``T_0``, ``T_pert``, ``T_pert_is_airtemp``, ``do_moist_bubble``, ``eq_pot_temp``,  |
@@ -98,6 +96,8 @@ Initial state perturbation
 |                         |                                                  | ``T_0_Pert_Mag``, ``U_0``, ``U_0_Pert_Mag``, ``V_0``, ``V_0_Pert_Mag``, ``W_0``,   |
 |                         |                                                  | ``W_0_Pert_Mag``, ``pert_deltaU``, ``pert_deltaV``, ``pert_periods_U``,            |
 |                         |                                                  | ``pert_periods_V``, ``pert_ref_height``, ``pert_rhotheta``, ``rho_0``              |
++-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
+| WPS, Metgrid            | ``ERF_InitCustomPert_KE.H``                      | ``KE_0``, ``KE_decay_height``, ``KE_decay_order``                                  |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 
 Initial velocity perturbation

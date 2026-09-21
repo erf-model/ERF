@@ -71,10 +71,15 @@
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const Real rdOcp        = sc.rdOcp;
 
-    if (KE_decay_height > 0) {
+    const bool use_eb = (sc.terrain_type == TerrainType::EB);
+    const int klo = geomdata.Domain().smallEnd(2);
+    if (KE_decay_height > 0 &&
+        state_pert.nComp() > RhoKE_comp) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
                        << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
+        "Vertical decomposition with KE initialization is not allowed.");
     }
 
 #ifndef AMREX_USE_GPU
@@ -171,6 +176,15 @@
         state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r*r);
 
         // Set an initial value for SGS KE
+        //
+        // KE_decay_height is a depth of turbulence above the ground, so the profile
+        // is a function of height above the terrain surface, not of absolute z.  Over
+        // terrain higher than KE_decay_height the latter would clamp the decay factor
+        // to its floor at the ground -- exactly backwards.  On a flat mesh with
+        // prob_lo[2] == 0 this reduces to the absolute height, since
+        // init_default_zphys ignores prob_lo[2].  Under EB, z_cc is already measured
+        // from the EB surface, so z_sfc is forced to zero there.  Matches the surface
+        // height used by SurfaceLayer::init_tke_from_ustar.
         if (state_pert.nComp() > RhoKE_comp) {
             // Deardorff
             if (rhoKE_0 > 0) {
@@ -180,8 +194,13 @@
             }
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
+                const Real z_sfc = (use_eb) ? zero :
+                        fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
+                                 + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
+                const Real z_agl = z_cc(i,j,k) - z_sfc;
                 state_pert(i, j, k, RhoKE_comp) *= amrex::max(
-                    std::pow(1 - amrex::min(z/KE_decay_height,amrex::Real(1)), KE_decay_order), Real(1e-12));
+                    std::pow(1 - amrex::min(z_agl/KE_decay_height,amrex::Real(1)), KE_decay_order),
+                    amrex::Real(1e-12));
             }
         }
     });

@@ -96,7 +96,7 @@ Problem::init_custom_pert (
     Array4<Real      > const& state_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
-    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
     Array4<Real const> const&   mf_m,
@@ -194,6 +194,10 @@ Problem::init_custom_pert (
     }
     else if (my_prob_name_ci == "bellforest") {
         // No state perturbation; uniform flow is set in init_custom_pert_vels
+    }
+    else if (my_prob_name_ci == "wps"   ||
+             my_prob_name_ci == "metgrid") {
+#include "Prob/ERF_InitCustomPert_KE.H"
     }
     else {
         Print() << "Problem name" << " \"" <<  my_prob_name_ci << "\" "
