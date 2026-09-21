@@ -7,7 +7,8 @@
 
     const bool use_eb = (sc.terrain_type == TerrainType::EB);
     const int klo = geomdata.Domain().smallEnd(2);
-    if (KE_decay_height > 0) {
+    if (KE_decay_height > 0 &&
+        state_pert.nComp() > RhoKE_comp) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
                        << std::endl;
