@@ -3,6 +3,7 @@
 #include <AMReX_VisMF.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
+#include <AMReX_Math.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamColumn.H>
 #include <ERF_PrognosticCloudFraction.H>
@@ -366,8 +367,8 @@ TwoStreamRadiation::advance (int lev,
                     constexpr amrex::Real neg_inf = -std::numeric_limits<amrex::Real>::infinity();
                     const amrex::Real rho = arr(i,j,k,Rho_comp);
                     const amrex::Real rth = arr(i,j,k,RhoTheta_comp);
-                    return {std::isfinite(rho) ? rho : neg_inf,
-                            std::isfinite(rth) ? rth : neg_inf};
+                    return {amrex::Math::isfinite(rho) ? rho : neg_inf,
+                            amrex::Math::isfinite(rth) ? rth : neg_inf};
                 });
         }
         auto state_tuple = state_data.value(state_ops);

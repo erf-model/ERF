@@ -1,6 +1,8 @@
 #ifndef ERF_HSEUTIL_H_
 #define ERF_HSEUTIL_H_
 
+#include <AMReX_Math.H>
+
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
@@ -59,12 +61,12 @@ namespace HSEutils
         // convergence test below evaluate to false on the very first pass, so we
         // would silently return the initial guess and leave, e.g., an all-zero
         // base state.  Trap that here rather than propagating it downstream.
-        if (!(P > amrex::Real(0)) || !(rd > amrex::Real(0)) || !std::isfinite(F)) {
+        if (!(P > amrex::Real(0)) || !(rd > amrex::Real(0)) || !amrex::Math::isfinite(F)) {
             AMREX_DEVICE_PRINTF("ERROR: HSE Newton started from an invalid state: P = %e, rd = %e, F = %e\n",
                                 double(P), double(rd), double(F));
             AMREX_DEVICE_PRINTF("       Check the surface pressure/temperature used to seed the integration%s\n", "");
         }
-        AMREX_ALWAYS_ASSERT(P > amrex::Real(0) && rd > amrex::Real(0) && std::isfinite(F));
+        AMREX_ALWAYS_ASSERT(P > amrex::Real(0) && rd > amrex::Real(0) && amrex::Math::isfinite(F));
 
         int iter=0;
         int max_iter=20;

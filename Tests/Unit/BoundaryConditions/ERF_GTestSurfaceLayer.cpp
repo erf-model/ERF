@@ -531,6 +531,21 @@ Long check_qsurf_values (const SurfaceLayerFields& fields,
     return selected_count;
 }
 
+// nvcc rejects an extended __device__ lambda whose enclosing function has
+// private access, and gtest generates TestBody() as a private member, so the
+// device fills below live here rather than inside the TEST bodies.
+void set_quadratic_node_heights (MultiFab& z_phys_nd)
+{
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        auto z_arr = z_phys_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = static_cast<Real>(k * k);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 
 // Motivation: the Moeng stress functor has separate x-, y-, and z-wall
@@ -682,14 +697,7 @@ TEST(SurfaceLayer, QsurfUsesLocalSignedZHighFacePressure)
     BoxArray node_ba(fields.ba);
     node_ba.convert(IntVect::TheNodeVector());
     auto z_phys_nd = std::make_unique<MultiFab>(node_ba, fields.dm, 1, 0);
-    for (MFIter mfi(*z_phys_nd, false); mfi.isValid(); ++mfi) {
-        auto z_arr = z_phys_nd->array(mfi);
-        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            z_arr(i,j,k) = static_cast<Real>(k * k);
-        });
-    }
-    Gpu::streamSynchronize();
+    set_quadratic_node_heights(*z_phys_nd);
 
     // For the three-cell fixture, z_cc(k=2)-z_upper_face(k=3) = 6.5-9 = -2.5.
     constexpr Real local_delta_z = Real(-2.5);

@@ -98,6 +98,36 @@ void set_planar_pattern (MultiFab& mf)
     Gpu::streamSynchronize();
 }
 
+// nvcc rejects an extended __device__ lambda whose enclosing function has
+// private access, and gtest generates TestBody() as a private member, so the
+// device fills below live here rather than inside the TEST bodies.
+void set_quadratic_node_heights (MultiFab& z_phys_nd)
+{
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        auto z_arr = z_phys_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = static_cast<Real>(k * k);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// Donor SST ramp T(i,j) = 280 + i + j/4, so a value exchanged from a
+// neighbouring valid FAB is distinguishable from a locally clamped one.
+void set_coupled_sst_ramp (MultiFab& coupled_sst)
+{
+    for (MFIter mfi(coupled_sst, false); mfi.isValid(); ++mfi) {
+        auto donor = coupled_sst.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            donor(i,j,k) = Real(280.0) + static_cast<Real>(i) +
+                Real(0.25) * static_cast<Real>(j);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 
 // On grids split in z the planar surface-layer arrays hold one duplicate box per stacked 3D box;
@@ -537,14 +567,7 @@ TEST(SurfaceLayerParallel, CoupledSstNonuniformInternalGhostUsesNeighbor)
     auto layer = fields.prepare_layer(
         face, active_face(face), prefix, false, false, false, false, "", true);
 
-    for (MFIter mfi(*fields.coupled_sst, false); mfi.isValid(); ++mfi) {
-        auto donor = fields.coupled_sst->array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            donor(i,j,k) = Real(280.0) + static_cast<Real>(i) +
-                Real(0.25) * static_cast<Real>(j);
-        });
-    }
+    set_coupled_sst_ramp(*fields.coupled_sst);
     fields.coupled_valid->setVal(1);
     Gpu::streamSynchronize();
     layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
@@ -601,14 +624,7 @@ TEST(SurfaceLayerParallel, QsurfZHighUsesLocalSignedFacePressureOnZSplitGrids)
     BoxArray node_ba(fields.ba);
     node_ba.convert(IntVect::TheNodeVector());
     auto z_phys_nd = std::make_unique<MultiFab>(node_ba, fields.dm, 1, 0);
-    for (MFIter mfi(*z_phys_nd, false); mfi.isValid(); ++mfi) {
-        auto z_arr = z_phys_nd->array(mfi);
-        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            z_arr(i,j,k) = static_cast<Real>(k * k);
-        });
-    }
-    Gpu::streamSynchronize();
+    set_quadratic_node_heights(*z_phys_nd);
 
     // The top cell is k=3: z_cc=(9+16)/2 and z_upper=16, hence delta_z=-3.5.
     constexpr Real local_delta_z = Real(-3.5);
