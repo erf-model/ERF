@@ -44,11 +44,18 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
         // Cell centered strains
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real rhoAlpha  = cell_data(i, j, k, Rho_comp) * mu_eff;
-            if (tau33i) tau33i(i,j,k) = -rhoAlpha * tau33(i,j,k);
-            tau11(i,j,k) = -rhoAlpha * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -rhoAlpha * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -rhoAlpha * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            if (vfrac(i,j,k) > zero) {
+                Real rhoAlpha  = cell_data(i, j, k, Rho_comp) * mu_eff;
+                if (tau33i) tau33i(i,j,k) = -rhoAlpha * tau33(i,j,k);
+                tau11(i,j,k) = -rhoAlpha * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau22(i,j,k) = -rhoAlpha * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau33(i,j,k) = -rhoAlpha * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            } else {
+                if (tau33i) tau33i(i,j,k) = zero;
+                tau11(i,j,k) = zero;
+                tau22(i,j,k) = zero;
+                tau33(i,j,k) = zero;
+            }
         });
 
         // Off-diagonal strains
