@@ -5,6 +5,8 @@
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
 
+#include <optional>
+
 using namespace amrex;
 
 /* Initialize lsm data structures */
@@ -27,11 +29,19 @@ SLM::Init (const int& /*lev*/,
 
     ParmParse pp("slm");
     pp.query("nsoil", m_nz_lsm);
+    if (m_nz_lsm < 2) {
+        amrex::Abort("SLM: nsoil must be at least 2");
+    }
     pp.queryarr("soil_dz", m_dz_lsm);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
       m_dz_lsm.size() == m_nz_lsm,
       "Provided soil thicknesses most match number of soil layers");
     AMREX_ALWAYS_ASSERT(m_dz_lsm.size() > 0);
+    for (int k = 0; k < m_dz_lsm.size(); ++k) {
+        if (!std::isfinite(m_dz_lsm[k]) || m_dz_lsm[k] <= 0.0) {
+            amrex::Abort("SLM: soil_dz values must be finite and positive");
+        }
+    }
 
     Box domain = geom.Domain();
     khi_lsm    = domain.smallEnd(2) - 1; // index of z_r
@@ -385,7 +395,19 @@ void SLM::init_from_inputs()
     pp.query("landtype0", landtype0);
     pp.query("LAI0", LAI0);
 
-    auto const get_layer_prop = [&pp](std::string name, const int nz, amrex::Vector<amrex::Real> &prop)
+    auto validate_value = [](const std::string& name, const amrex::Real value,
+                             const std::optional<amrex::Real> lower = std::nullopt,
+                             const std::optional<amrex::Real> upper = std::nullopt)
+    {
+        if (!std::isfinite(value) || (lower && value < *lower) || (upper && value > *upper)) {
+            amrex::Abort("SLM: invalid value for '" + name + "'");
+        }
+    };
+
+    auto const get_layer_prop = [&pp, &validate_value](
+        const std::string& name, const int nz, amrex::Vector<amrex::Real>& prop,
+        const std::optional<amrex::Real> lower = std::nullopt,
+        const std::optional<amrex::Real> upper = std::nullopt)
     {
         int nval = pp.countval(name.c_str());
 
@@ -400,6 +422,9 @@ void SLM::init_from_inputs()
             pp.queryarr(name.c_str(), prop);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(prop.size() == nz, " Expected " + name + " to have " + std::to_string(nz) + " values!");
         }
+        for (const amrex::Real value : prop) {
+            validate_value(name, value, lower, upper);
+        }
     };
 
     pp.query("soiltnudging", dosoiltnudging);
@@ -407,13 +432,13 @@ void SLM::init_from_inputs()
     pp.query("tausoil", tausoil);
 
     if (!use_wrfinput) {
-        get_layer_prop("clay0", m_nz_lsm, clay0);
-        get_layer_prop("sand0", m_nz_lsm, sand0);
-        get_layer_prop("sw0", m_nz_lsm, sw0);
+        get_layer_prop("clay0", m_nz_lsm, clay0, 0.0, 100.0);
+        get_layer_prop("sand0", m_nz_lsm, sand0, 0.0, 100.0);
+        get_layer_prop("sw0", m_nz_lsm, sw0, 0.0, 1.0);
         get_layer_prop("st0", m_nz_lsm, st0);
     }
     if (dosoiltnudging || dosoilwnudging) {
-        get_layer_prop("relax_hgt", m_nz_lsm, relax_hgt);
+        get_layer_prop("relax_hgt", m_nz_lsm, relax_hgt, 0.0, 1.0);
     } else {
         relax_hgt.resize(m_nz_lsm);
         std::fill(relax_hgt.begin(), relax_hgt.end(), 0.0);
@@ -434,6 +459,16 @@ void SLM::init_from_inputs()
     pp.query("Rc_max", Rc_max);
     pp.query("T_opt", T_opt);
     pp.query("zref", zref);
+
+    validate_value("tausoil", tausoil, 0.0);
+    validate_value("z0_soil", z0_soil, 0.0);
+    validate_value("Rc_max", Rc_max, 0.0);
+    validate_value("zref", zref, 0.0);
+    validate_value("LAI0", LAI0, 0.0);
+    validate_value("mws_mx0", mws_mx0, 0.0);
+    validate_value("T_opt", T_opt);
+    validate_value("tabs_s", tabs_s);
+    validate_value("t00", t00);
 
     // Read NoahmpTable.TBL
     pp.query("use_parameter_file", use_param_file);
@@ -2152,8 +2187,9 @@ void SLM::validate_parameter_tables()
         return block->second;
     };
 
-    auto require_parameter = [](const ParameterBlock& block, const std::string& block_name,
-                                const std::string& parameter_name, int expected_size) -> const Vector<Real>& {
+    auto find_parameter = [](const ParameterBlock& block, const std::string& block_name,
+                             const std::string& parameter_name) -> const Vector<Real>*
+    {
         const Vector<Real>* values = nullptr;
         for (const auto& parameter : block) {
             if (parameter.first == parameter_name) {
@@ -2163,7 +2199,12 @@ void SLM::validate_parameter_tables()
                 values = &parameter.second;
             }
         }
+        return values;
+    };
 
+    auto require_parameter = [&find_parameter](const ParameterBlock& block, const std::string& block_name,
+                                               const std::string& parameter_name, int expected_size) -> const Vector<Real>& {
+        const Vector<Real>* values = find_parameter(block, block_name, parameter_name);
         if (values == nullptr || values->empty()) {
             amrex::Abort("SLM: parameter file is missing nonempty parameter '" + parameter_name +
                          "' in block '" + block_name + "'");
@@ -2174,6 +2215,21 @@ void SLM::validate_parameter_tables()
                          " values; expected " + std::to_string(expected_size));
         }
         return *values;
+    };
+
+    auto validate_parameter_value = [](const std::string& block_name,
+                                       const std::string& parameter_name,
+                                       const Real value,
+                                       const std::optional<Real> lower = std::nullopt,
+                                       const std::optional<Real> upper = std::nullopt,
+                                       const bool lower_strict = false)
+    {
+        if (!std::isfinite(value) ||
+            (lower && (lower_strict ? value <= *lower : value < *lower)) ||
+            (upper && value > *upper)) {
+            amrex::Abort("SLM: invalid value for parameter '" + parameter_name +
+                         "' in block '" + block_name + "'");
+        }
     };
 
     const ParameterBlock& veg_categories = require_block(veg_category_key);
@@ -2194,6 +2250,53 @@ void SLM::validate_parameter_tables()
                          "' has " + std::to_string(parameter.second.size()) +
                          " values; expected " + std::to_string(num_veg_params) +
                          " vegetation-category values");
+        }
+        std::optional<Real> lower;
+        std::optional<Real> upper;
+        if (parameter.first == "rhol_vis" || parameter.first == "rhol_nir" ||
+            parameter.first == "rhos_vis" || parameter.first == "rhos_nir" ||
+            parameter.first == "taul_vis" || parameter.first == "taul_nir" ||
+            parameter.first == "taus_vis" || parameter.first == "taus_nir") {
+            lower = 0.0;
+            upper = 1.0;
+        } else if (parameter.first == "rs" || parameter.first == "rgl" ||
+                   parameter.first == "nroot" || parameter.first == "hvt" ||
+                   parameter.first == "hvb" || parameter.first == "z0mvt" ||
+                   parameter.first == "cbiom" || parameter.first == "dleaf" ||
+                   parameter.first == "rc" || parameter.first == "den" ||
+                   parameter.first == "cwpvt") {
+            lower = 0.0;
+        }
+        for (const Real value : parameter.second) {
+            validate_parameter_value(veg_param_key, parameter.first, value, lower, upper);
+        }
+    }
+
+    const Vector<Real>* hvt_values = find_parameter(veg_params, veg_param_key, "hvt");
+    if (hvt_values != nullptr && static_cast<int>(hvt_values->size()) == num_veg_params) {
+        const Vector<Real>* hvb_values = find_parameter(veg_params, veg_param_key, "hvb");
+        if (hvb_values != nullptr && static_cast<int>(hvb_values->size()) == num_veg_params) {
+            for (int i = 0; i < num_veg_params; ++i) {
+                if ((*hvt_values)[i] > 0.0 && (*hvt_values)[i] <= (*hvb_values)[i]) {
+                    amrex::Abort("SLM: HVT must be greater than HVB for canopy categories in block '" +
+                                 veg_param_key + "'");
+                }
+            }
+        }
+        const Vector<std::string> canopy_parameters = {
+            "rgl", "z0mvt", "cwpvt", "dleaf", "rc", "den"
+        };
+        for (const std::string& parameter_name : canopy_parameters) {
+            const Vector<Real>* values = find_parameter(veg_params, veg_param_key, parameter_name);
+            if (values == nullptr || static_cast<int>(values->size()) != num_veg_params) {
+                continue;
+            }
+            for (int i = 0; i < num_veg_params; ++i) {
+                if ((*hvt_values)[i] > 0.0) {
+                    validate_parameter_value(veg_param_key, parameter_name, (*values)[i], 0.0,
+                                             std::nullopt, true);
+                }
+            }
         }
     }
 
@@ -2224,6 +2327,9 @@ void SLM::validate_parameter_tables()
                          " values; expected " + std::to_string(num_soil_params) +
                          " soil-category values");
         }
+        for (const Real value : parameter.second) {
+            validate_parameter_value(soil_param_key, parameter.first, value, 0.0);
+        }
     }
 
     if (radiation_scheme == RadiationScheme::NoahMP) {
@@ -2240,6 +2346,9 @@ void SLM::validate_parameter_tables()
         for (const auto& parameter : rad_params) {
             if (parameter.second.empty()) {
                 amrex::Abort("SLM: parameter '" + parameter.first + "' in block 'noahmp_rad_parameters' is empty");
+            }
+            for (const Real value : parameter.second) {
+                validate_parameter_value("noahmp_rad_parameters", parameter.first, value, 0.0, 1.0);
             }
         }
 

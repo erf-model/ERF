@@ -44,9 +44,9 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values    | Default          |
 +==================================+==========================================================+======================+==================+
-| **slm.nsoil**                    | number of soil layers                                    | Integer >= 1         | 7                |
+| **slm.nsoil**                    | number of soil layers                                    | Integer >= 2         | 7                |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real values; exactly | must be set      |
+| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real > 0; exactly    | must be set      |
 |                                  | from the surface downward; the number of values must     | ``nsoil`` values     |                  |
 |                                  | equal ``nsoil``. For WRFInput, per-cell thickness comes  |                      |                  |
 |                                  | from WRF ``DZS``.                                        |                      |                  |
@@ -55,19 +55,19 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.LAI0**                     | initial leaf-area index                                  | Real >= 0            | 0.0              |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.clay0**                    | clay fraction/content for each soil layer [%]; not read  | One Real or          | required unless  |
+| **slm.clay0**                    | clay fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.sand0**                    | sand fraction/content for each soil layer [%]; not read  | One Real or          | required unless  |
+| **slm.sand0**                    | sand fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real or          | must be set      |
+| **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real in [0,1]    | must be set      |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.st0**                      | initial soil temperature [K] for each layer; not read    | One Real or          | must be set      |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.relax_hgt**                | depth-dependent soil nudging weights; read when either   | One Real or          | required when    |
+| **slm.relax_hgt**                | depth-dependent soil nudging weights; read when either   | One Real in [0,1] or | required when    |
 |                                  | soil nudging option is enabled                           | ``nsoil`` Reals      | nudging is on    |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.soiltnudging**             | nudge soil temperature toward reference values           | Boolean              | false            |
