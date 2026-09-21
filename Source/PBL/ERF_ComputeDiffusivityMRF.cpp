@@ -12,57 +12,6 @@
 
 using namespace amrex;
 
-namespace {
-
-/**
- * Replace the resolved vertical gradients with the MOST profile gradients in the
- * first fluid cell of a column.
- *
- * Both Richardson-mixing branches below are the free atmosphere above the PBL, so
- * they only reach that cell when the PBL index collapses to it. The resolved
- * gradients are unusable there -- they are built from the foextrap/hoextrap ghost
- * values installed by zlo.type = surface_layer (ERF #4037) -- so fall back on the
- * MOST profile. The effective surface scales and the local surface index are used
- * so that an immersed surface is handled the same way as the domain bottom.
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-ApplySurfaceLayerGradientsAtKsrfMRF (int i, int j, int k, int ksrf,
-                                     Real zval, Real rho, Real obuk_val,
-                                     const Array4<const Real>& z_nd_arr,
-                                     const Array4<const Real>& cell_data,
-                                     const MoistureComponentIndices& moisture_indices,
-                                     const Array4<const Real>& us_eff_arr,
-                                     const Array4<const Real>& ts_eff_arr,
-                                     const Array4<const Real>& qs_eff_arr,
-                                     bool use_terrain_fitted_coords,
-                                     bool use_moisture,
-                                     Real& dthetadz, Real& dudz, Real& dvdz)
-{
-    if (k != ksrf) { return; }
-
-    const Real z_sfc = (use_terrain_fitted_coords)
-                     ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr) : Real(0);
-    const Real zrel  = amrex::max(zval - z_sfc, Real(1.0e-4));
-
-    const Real theta_k = cell_data(i, j, k, RhoTheta_comp) / rho;
-    const Real qv_k    = (moisture_indices.qv >= 0) ?
-                         cell_data(i, j, k, moisture_indices.qv) / rho : zero;
-
-    PBLSurfaceLayerGradient sl;
-    sl.u_star  = us_eff_arr(i, j, 0);
-    sl.tstar_v = ComputeVirtualTStarPBL(ts_eff_arr(i, j, 0),
-                                        use_moisture ? qs_eff_arr(i, j, 0) : zero,
-                                        theta_k, qv_k, use_moisture);
-    sl.zval    = zrel;
-    sl.zeta    = zrel / obuk_val;
-    ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
-}
-
-} // namespace
-
-
 /**
  * Compute vertical diffusivity using the Medium-Range Forecast (MRF) boundary layer scheme.
  *
@@ -138,9 +87,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
        - K_t = K_m / Pr_t, and K_q = K_t (WRF diffuses moisture with the heat
          coefficient XKZH; module_bl_mrf.F L1069, L1180)
        - Stability enters only through w_s = u_* / φ_m (WRF's WSCALE); as in WRF there
-         is no regime test below the PBL top (module_bl_mrf.F L968-986).  See the
-         comment on the K-profile branch in the kernel for why the Ri-based mixing
-         that ERF used inside stable/neutral PBLs was removed.
+         is no regime test below the PBL top (module_bl_mrf.F L968-986).  The
+         Ri-based mixing ERF used to apply inside stable/neutral PBLs is gone with
+         it; see KNOWN LIMITATION below for what that costs in stable layers.
 
     4. Free Atmosphere Mixing via Richardson Number
        - Uses YSU stability functions (Hong et al. 2006)
@@ -245,9 +194,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     ---------------------------------
     With the K-profile applied in every regime, this scheme inherits WRF MRF's
     over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
-    1.8x the Ri-based mixing ERF used previously and 2.1x YSUNew.  That is the
-    behaviour Hong et al. (2006) set out to fix in YSU, so stable cases that need
-    the weaker mixing should use the YSUNew scheme (erf.pbl_type = YSUNew).
+    2.1x YSUNew.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
+    so stable cases that need the weaker mixing should use the YSUNew scheme
+    (erf.pbl_type = YSUNew).
 
     TESTING & VALIDATION:
     ---------------------
@@ -1094,6 +1043,9 @@ if (ng_pblh > 1) {
                 K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
                 K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             } else if (k >= pbli_extent) {
+                // Free atmosphere above the PBL top.  This is the only branch left that
+                // reads resolved vertical gradients, but they are not evaluated anywhere
+                // near the surface.
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
                 Real dthetadz, dudz, dvdz;
@@ -1101,12 +1053,6 @@ if (ng_pblh > 1) {
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
-
-                ApplySurfaceLayerGradientsAtKsrfMRF(i, j, k, ksrf, zval, rho, obuk_val,
-                                                    z_nd_arr, cell_data, moisture_indices,
-                                                    us_eff_arr, ts_eff_arr, qs_eff_arr,
-                                                    use_terrain_fitted_coords, use_moisture,
-                                                    dthetadz, dudz, dvdz);
 
                 const Real dudz_safe = (k < izmax) ? dudz : Real(0);
                 const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
