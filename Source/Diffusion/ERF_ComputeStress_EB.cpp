@@ -67,7 +67,7 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vf_ijm1 = vfrac(i,j-1,k);
             Real vol_sum = vf_im1j + vf_ij + vf_im1jm1 + vf_ijm1;
             Real rho_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i-1, j  , k, Rho_comp) + cell_data(i  , j  , k, Rho_comp)
                                  + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i  , j-1, k, Rho_comp) );
             } else if (vol_sum > zero) {
@@ -85,7 +85,7 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vf_ijkm1 = vfrac(i,j,k-1);
             Real vol_sum = vf_im1jk + vf_ijk + vf_im1jkm1 + vf_ijkm1;
             Real rho_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i  , j, k  , Rho_comp)
                                  + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i  , j, k-1, Rho_comp) );
             } else if (vol_sum > zero) {
@@ -105,7 +105,7 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
             Real vf_ijkm1 = vfrac(i,j,k-1);
             Real vol_sum = vf_ijm1k + vf_ijk + vf_ijm1km1 + vf_ijkm1;
             Real rho_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j  , k  , Rho_comp)
                                  + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j  , k-1, Rho_comp) );
             } else if (vol_sum > zero) {
@@ -220,7 +220,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real vf_ijm1 = vfrac(i,j-1,k);
             Real vol_sum = vf_im1j + vf_ij + vf_im1jm1 + vf_ijm1;
             Real rho_bar = zero, mu_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i-1, j  , k, Rho_comp) + cell_data(i  , j  , k, Rho_comp)
                                  + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i  , j-1, k, Rho_comp) );
                 mu_bar  = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i  , j  , k, EddyDiff::Mom_h)
@@ -245,7 +245,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real vf_ijkm1 = vfrac(i,j,k-1);
             Real vol_sum = vf_im1jk + vf_ijk + vf_im1jkm1 + vf_ijkm1;
             Real rho_bar = zero, mu_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i  , j, k  , Rho_comp)
                                  + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i  , j, k-1, Rho_comp) );
                 mu_bar  = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i  , j, k  , EddyDiff::Mom_v)
@@ -271,7 +271,7 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real vf_ijkm1 = vfrac(i,j,k-1);
             Real vol_sum = vf_ijm1k + vf_ijk + vf_ijm1km1 + vf_ijkm1;
             Real rho_bar = zero, mu_bar = zero;
-            if (vol_sum >= four - Real(1.e-16)) {
+            if (vol_sum >= four) {
                 rho_bar = fourth*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j  , k  , Rho_comp)
                                  + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j  , k-1, Rho_comp) );
                 mu_bar  = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j  , k  , EddyDiff::Mom_v)
