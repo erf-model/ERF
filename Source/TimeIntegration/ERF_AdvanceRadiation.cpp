@@ -92,9 +92,20 @@ void ERF::advance_radiation (int lev,
         if (rad_fluxes[lev] && rad_fluxes[lev-1]) {
             const int nc = rad_fluxes[lev]->nComp();
 
+            // Create temporary coarse MultiFab with ghost cells for safe interpolation.
+            // rad_fluxes is defined with IntVect(0,0,1) ghost cells (the z ghost is for TOA data),
+            // but InterpFromCoarseLevel needs ghost cells in x/y to perform interpolation near
+            // grid boundaries. Use a temporary with uniform ghost cells like the LSM code does.
+            MultiFab tmp_coarse(rad_fluxes[lev-1]->boxArray(), rad_fluxes[lev-1]->DistributionMap(),
+                                nc, IntVect(1,1,1));
+            MultiFab::Copy(tmp_coarse, *rad_fluxes[lev-1], 0, 0, nc, 0);
+            if (!rad[lev-1]->is_nested_patch()) {
+                tmp_coarse.FillBoundary(geom[lev-1].periodicity());
+            }
+
             InterpFromCoarseLevel(*rad_fluxes[lev], rad_fluxes[lev]->nGrowVect(),
                                   IntVect(0,0,0),
-                                  *rad_fluxes[lev-1], 0, 0, nc,
+                                  tmp_coarse, 0, 0, nc,
                                   geom[lev-1], geom[lev],
                                   refRatio(lev-1), &cell_cons_interp,
                                   domain_bcs_type, BCVars::cons_bc);
@@ -125,8 +136,10 @@ void ERF::advance_radiation (int lev,
                     return BoxArray(std::move(bl));
                 };
 
+                // The TOA planes also need ghost cells for interpolation. Create temporaries
+                // with ghost cells, similar to the main rad_fluxes interpolation above.
                 MultiFab toa_crse(top_slab(rad_fluxes[lev-1]->boxArray()),
-                                  rad_fluxes[lev-1]->DistributionMap(), nc, 0);
+                                  rad_fluxes[lev-1]->DistributionMap(), nc, IntVect(1,1,0));
                 MultiFab toa_fine(top_slab(rad_fluxes[lev  ]->boxArray()),
                                   rad_fluxes[lev  ]->DistributionMap(), nc, 0);
 
@@ -135,6 +148,9 @@ void ERF::advance_radiation (int lev,
                     Box sbx(dbx); sbx.shift(2, 1);   // the coarse TOA, one above the top layer
                     toa_crse[mfi].template copy<RunOn::Device>((*rad_fluxes[lev-1])[mfi],
                                                                sbx, 0, dbx, 0, nc);
+                }
+                if (!rad[lev-1]->is_nested_patch()) {
+                    toa_crse.FillBoundary(geom[lev-1].periodicity());
                 }
 
                 // Both planes live at the same z index, so the ratio in z is one and the
