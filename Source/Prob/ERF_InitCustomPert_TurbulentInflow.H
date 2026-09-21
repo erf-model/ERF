@@ -8,7 +8,7 @@
     Real KE_0  = amrex::Real(0.1); pp.query("KE_0", KE_0);
 
     Real KE_decay_height = -1; pp.query("KE_decay_height", KE_decay_height);
-    Real KE_decay_order = 1; pp.query("KE_decay_order", KE_decay_order);
+    Real KE_decay_order  =  1; pp.query("KE_decay_order", KE_decay_order);
 
     Real U_0 = zero; pp.query("U_0", U_0);
     Real V_0 = zero; pp.query("V_0", V_0);
@@ -31,10 +31,14 @@
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();
 
+    const bool use_eb = (sc.terrain_type == TerrainType::EB);
+    const int klo = geomdata.Domain().smallEnd(2);
     if (KE_decay_height > 0) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
                        << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
+        "Vertical decomposition with KE initialization is not allowed.");
     }
 
     if (pert_ref_height > 0) {
@@ -57,12 +61,6 @@
             }
         }
     }
-
-    // The KE profile below is measured from the surface, so each box must reach
-    // the bottom of the domain for z_nd(i,j,klo) to be in scope.
-    const int klo = geomdata.Domain().smallEnd(2);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
-        "Vertical decomposition with KE initialization is not allowed.");
 
     ParallelForRNG(bx, [=,one_d=one] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
@@ -96,19 +94,23 @@
         // KE_decay_height is a depth of turbulence above the ground, so the profile
         // is a function of height above the terrain surface, not of absolute z.  Over
         // terrain higher than KE_decay_height the latter would clamp the decay factor
-        // to its floor at the ground -- exactly backwards.  On a flat non-EB mesh
-        // z_sfc is zero and this reduces to the absolute height.  Matches the surface
+        // to its floor at the ground -- exactly backwards.  On a flat mesh with
+        // prob_lo[2] == 0 this reduces to the absolute height, since
+        // init_default_zphys ignores prob_lo[2].  Under EB, z_cc is already measured
+        // from the EB surface, so z_sfc is forced to zero there.  Matches the surface
         // height used by SurfaceLayer::init_tke_from_ustar.
         if (state_pert.nComp() > RhoKE_comp) {
-            const Real z_sfc = fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
-                                        + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
-            const Real z_agl = z_cc(i,j,k) - z_sfc;
             // Deardorff
             state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * KE_0;
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
+                const Real z_sfc = (use_eb) ? zero :
+                        fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
+                                 + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
+                const Real z_agl = z_cc(i,j,k) - z_sfc;
                 state_pert(i, j, k, RhoKE_comp) *= max(
-                    std::pow(1 - min(z_agl/KE_decay_height,one_d), KE_decay_order), Real(1e-12));
+                    std::pow(1 - min(z_agl/KE_decay_height,one_d), KE_decay_order),
+                    amrex::Real(1e-12));
             }
         }
     });
