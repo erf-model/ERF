@@ -663,6 +663,12 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     MultiFab::Copy(mf,zrefxy,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "zrefxy"));
 
+    MultiFab::Copy(mf,albold_noahmp,0,0,1,ng);
+    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albold_noahmp"));
+
+    MultiFab::Copy(mf,tauss_noahmp,0,0,1,ng);
+    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tauss_noahmp"));
+
     for (int i = 0; i < unmapped_fields.size(); i++) {
         MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
         MultiFab::Copy(mf,*(lsm_fab_vars[unmapped_fields[i]]),0,0,1,IntVect(1,1,1));
@@ -947,6 +953,12 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "zrefxy"));
     MultiFab::Copy(zrefxy,mf,0,0,1,ng);
 
+    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albold_noahmp"));
+    MultiFab::Copy(albold_noahmp,mf,0,0,1,ng);
+
+    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tauss_noahmp"));
+    MultiFab::Copy(tauss_noahmp,mf,0,0,1,ng);
+
     for (int i = 0; i < unmapped_fields.size(); i++) {
         MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
         VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
@@ -954,11 +966,13 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     }
 
     first_step = false;
+    wrfinput_initialized = use_wrfinput;
 
     // Initialize common parameters
     init_layer_depths();
     vege_root_init();
     init_soil_vars();
+    rebuild_restart_fields();
 
     auto check_end = amrex::second() - check_start;
     ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());

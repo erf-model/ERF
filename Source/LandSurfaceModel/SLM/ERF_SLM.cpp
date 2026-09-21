@@ -1844,6 +1844,104 @@ void SLM::initialize_surface_outputs()
 }
 
 /**
+ * Rebuilds restart fields that can be derived from the checkpoint state.
+ */
+void SLM::rebuild_restart_fields()
+{
+    const int d_khi_lsm = khi_lsm;
+
+    nroot.setVal(m_nz_lsm);
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto landtype_arr = landtype.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto nroot_arr = nroot.array(mfi);
+        auto IR_emis_soil_arr = IR_emis_soil.const_array(mfi);
+        auto IR_emis_grnd_arr = IR_emis_grnd.array(mfi);
+        auto IMPERV_arr = IMPERV.array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            if (landmask_arr(i, j, 0) == 1) {
+                IMPERV_arr(i, j, 0) = landtype_arr(i, j, 0) == 13 ? 0.75 : 0.0;
+                IR_emis_grnd_arr(i, j, 0) = landtype_arr(i, j, 0) == 13
+                    ? IR_emis_urban * IMPERV_arr(i, j, 0)
+                      + IR_emis_soil_arr(i, j, 0) * (1.0 - IMPERV_arr(i, j, 0))
+                    : IR_emis_soil_arr(i, j, 0);
+                if (vegetype_arr(i, j, 0) == 0) {
+                    nroot_arr(i, j, 0) = 0;
+                }
+            } else {
+                IMPERV_arr(i, j, 0) = 0.0;
+                IR_emis_grnd_arr(i, j, 0) = 0.0;
+            }
+        });
+    }
+
+    // Reapply table-derived parameters without resetting prognostic state.
+    init_from_params();
+
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+
+        auto landmask_arr = landmask.const_array(mfi);
+        auto vegetype_arr = vegetype.const_array(mfi);
+        auto t_ground_skin_arr = t_ground_skin.const_array(mfi);
+        auto mws_arr = mws.const_array(mfi);
+        auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->const_array(mfi);
+        auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
+        auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
+        auto pref_arr = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
+        auto q_gr_arr = q_gr.array(mfi);
+        auto sdew_arr = sdew.array(mfi);
+        auto t_sfc_arr = t_sfc.array(mfi);
+        auto q_sfc_arr = q_sfc.array(mfi);
+        auto t_cas_arr = t_cas.const_array(mfi);
+        auto q_cas_arr = q_cas.const_array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            if (landmask_arr(i, j, 0) != 1) {
+                q_gr_arr(i, j, 0) = 0.0;
+                sdew_arr(i, j, 0) = 0.0;
+                t_sfc_arr(i, j, 0) = 0.0;
+                q_sfc_arr(i, j, 0) = 0.0;
+                return;
+            }
+
+            amrex::Real q_ground;
+            amrex::Real dew_factor = 1.0;
+            if (t_ground_skin_arr(i, j, 0) >= tfriz) {
+                erf_qsatw(t_ground_skin_arr(i, j, 0), pref_arr(i, j, 0), q_ground);
+                if (mws_arr(i, j, 0) == 0.0) {
+                    const amrex::Real humidity_factor = fh_calc(
+                        t_ground_skin_arr(i, j, 0),
+                        m_pot_sat_arr(i, j, d_khi_lsm),
+                        soilw_arr(i, j, d_khi_lsm),
+                        Bconst_arr(i, j, d_khi_lsm));
+                    dew_factor = humidity_factor > 0.99 ? 1.0 : 0.0;
+                    q_ground *= humidity_factor;
+                }
+            } else {
+                erf_qsati(t_ground_skin_arr(i, j, 0), pref_arr(i, j, 0), q_ground);
+            }
+
+            q_gr_arr(i, j, 0) = q_ground;
+            sdew_arr(i, j, 0) = dew_factor;
+            if (vegetype_arr(i, j, 0) == 1) {
+                t_sfc_arr(i, j, 0) = t_cas_arr(i, j, 0);
+                q_sfc_arr(i, j, 0) = q_cas_arr(i, j, 0);
+            } else {
+                t_sfc_arr(i, j, 0) = t_ground_skin_arr(i, j, 0);
+                q_sfc_arr(i, j, 0) = q_ground;
+            }
+        });
+    }
+}
+
+/**
  * Loads and parses the given .TBL file (such as NoahMPTable.TBL)
  *
  * Returns an unorderd map containing the name of each parameter block, where

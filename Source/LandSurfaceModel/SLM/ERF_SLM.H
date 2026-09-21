@@ -421,6 +421,11 @@ public:
      */
     void initialize_surface_outputs();
 
+    /**
+     * Rebuilds restart fields that can be derived from the checkpoint state.
+     */
+    void rebuild_restart_fields();
+
     SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
 
     void init_from_params();
