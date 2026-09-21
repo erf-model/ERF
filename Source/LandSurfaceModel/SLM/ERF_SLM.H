@@ -428,6 +428,11 @@ public:
 
     SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
 
+    /**
+     * Validates the selected Noah-MP parameter blocks before copying them to the device.
+     */
+    void validate_parameter_tables();
+
     void init_from_params();
 
     void UpdateLAI(const amrex::MFIter &mfi);
@@ -778,6 +783,8 @@ private:
     std::string veg_dataset = "modis"; // modis or usgs
     std::string soil_dataset = "stas"; // stas or stas_ruc
     int num_landtypes = -1; // Number of land types in sai/lai, parameter tables
+    int num_veg_params = -1;
+    int num_soil_params = -1;
 
     SLMParameterTable full_params;
     amrex::Vector<std::string> param_veg_categories;

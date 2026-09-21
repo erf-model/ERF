@@ -314,6 +314,11 @@ SLM::Init (const int& /*lev*/,
     // Initialize SLM from inputs (for idealized cases, if specified), and load any other parameters
     init_from_inputs();
 
+    if (!use_wrfinput) {
+        // Supply a valid default category when no external soil category is available.
+        lsm_fab_vars[LsmVar_SLM::soiltype]->setVal(1.0);
+    }
+
     landtype.setVal(landtype0);
     nroot.setVal(m_nz_lsm);
     LAI.setVal(LAI0);
@@ -465,19 +470,22 @@ void SLM::init_from_inputs()
     // Read NoahMP table if provided
     if (use_param_file && parameter_file != "") {
         full_params = ReadParameterFile(parameter_file, param_veg_categories, param_soil_categories);
+        validate_parameter_tables();
 
         std::string soil_param_key, veg_param_key;
-        if (soil_dataset == "stas_ruc") {
+        const std::string soil_dataset_lower = amrex::toLower(soil_dataset);
+        const std::string veg_dataset_lower = amrex::toLower(veg_dataset);
+        if (soil_dataset_lower == "stas_ruc") {
             soil_param_key = "noahmp_soil_stas_ruc_parameters";
-        } else if (soil_dataset == "stas") {
+        } else if (soil_dataset_lower == "stas") {
             soil_param_key = "noahmp_soil_stas_parameters";
         } else {
             amrex::Abort("Unrecognized soil dataset type, expected 'stas_ruc' or 'stas'");
         }
 
-        if (veg_dataset == "usgs") {
+        if (veg_dataset_lower == "usgs") {
             veg_param_key = "noahmp_usgs_parameters";
-        } else if (veg_dataset == "modis") {
+        } else if (veg_dataset_lower == "modis") {
             veg_param_key = "noahmp_modis_parameters";
         } else {
             amrex::Abort("Unrecognized vegetation dataset type, expected 'usgs' or 'modis'");
@@ -586,6 +594,9 @@ void SLM::init_from_inputs()
         // validate LAI and SAI tables
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table.size() == 12, "Invalid LAI table size, expected values for all 12 months");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sai_table.size() == 12, "Invalid SAI table size, expected values for all 12 months");
+        if (lai_table[0].empty()) {
+            amrex::Abort("SLM: LAI table must contain at least one landtype column");
+        }
         num_landtypes = lai_table[0].size(); // use first entry as size, check all others against
         for (int i = 0; i < lai_table.size(); i++) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table[i].size() == num_landtypes, "Invalid LAI table - inconsistent number of landtype entries between months");
@@ -600,6 +611,12 @@ void SLM::init_from_inputs()
 
     if (use_wrf_lai) {
         pp.gettable("vegparam", param_table);
+        if (param_table.size() < 16) {
+            amrex::Abort("SLM: vegparam must contain at least 16 landtype rows");
+        }
+        if (param_table[0].size() < 10) {
+            amrex::Abort("SLM: vegparam must contain at least 10 columns");
+        }
         amrex::Print() << " param table = " << std::endl;
 
         int nparam = param_table[0].size();
@@ -611,6 +628,9 @@ void SLM::init_from_inputs()
             amrex::Print() << std::endl;
 
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(param_table[t].size() == nparam, "Invalid param table, inconsistent number of parameters for landtype");
+            if (param_table[t][0] != t + 1) {
+                amrex::Abort("SLM: vegparam landtype IDs must be sequential");
+            }
         }
 
         // Copy parameter table to GPU
@@ -759,6 +779,31 @@ void SLM::slm_init()
                    std::to_string(lai_min) + ", max = " + std::to_string(lai_max));
     }
 
+    if (use_param_file && landtype_max > num_veg_params)
+    {
+        amrex::Abort("SLM: vegetation category " + std::to_string(landtype_max) +
+                     " is outside the selected parameter table range [1, " +
+                     std::to_string(num_veg_params) + "]");
+    }
+    if (interpolate_lai && landtype_max > num_landtypes)
+    {
+        amrex::Abort("SLM: vegetation category " + std::to_string(landtype_max) +
+                     " is outside the LAI/SAI table range [1, " +
+                     std::to_string(num_landtypes) + "]");
+    }
+    if (use_param_file) {
+        const auto& soiltype = *lsm_fab_vars[LsmVar_SLM::soiltype];
+        const int soiltype_min = static_cast<int>(soiltype.min(0));
+        const int soiltype_max = static_cast<int>(soiltype.max(0));
+        if (soiltype_min < 1 || soiltype_max > num_soil_params)
+        {
+            amrex::Abort("SLM: soil categories are outside the selected parameter table range [1, " +
+                         std::to_string(num_soil_params) + "]! min = " +
+                         std::to_string(soiltype_min) + ", max = " +
+                         std::to_string(soiltype_max));
+        }
+    }
+
     // Sets model properties based on the landtype
     init_landtype();
 
@@ -852,6 +897,15 @@ void SLM::init_wrfinput_vars()
     const int isurban  = 13; // urban cell type
     const int islake   = 21; // lake cell
     amrex::ignore_unused(isurban);
+
+    const auto& input_vegtype = *lsm_fab_vars[LsmVar_SLM::vegtype];
+    const int input_vegtype_min = static_cast<int>(input_vegtype.min(0));
+    const int input_vegtype_max = static_cast<int>(input_vegtype.max(0));
+    if (input_vegtype_min < 1 || input_vegtype_max > 21) {
+        amrex::Abort("SLM: WRF vegetation categories must be in the supported range [1, 21]! min = " +
+                     std::to_string(input_vegtype_min) + ", max = " +
+                     std::to_string(input_vegtype_max));
+    }
 
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box bx2d = mfi.tilebox();
@@ -2062,6 +2116,144 @@ SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vec
     return table;
 }
 
+void SLM::validate_parameter_tables()
+{
+    using ParameterBlock = SLMParameterTable::mapped_type;
+
+    const std::string soil_dataset_lower = amrex::toLower(soil_dataset);
+    const std::string veg_dataset_lower = amrex::toLower(veg_dataset);
+
+    std::string soil_param_key;
+    if (soil_dataset_lower == "stas_ruc") {
+        soil_param_key = "noahmp_soil_stas_ruc_parameters";
+    } else if (soil_dataset_lower == "stas") {
+        soil_param_key = "noahmp_soil_stas_parameters";
+    } else {
+        amrex::Abort("SLM: unrecognized soil dataset type '" + soil_dataset + "'");
+    }
+
+    std::string veg_param_key;
+    std::string veg_category_key;
+    if (veg_dataset_lower == "usgs") {
+        veg_param_key = "noahmp_usgs_parameters";
+        veg_category_key = "noahmp_usgs_veg_categories";
+    } else if (veg_dataset_lower == "modis") {
+        veg_param_key = "noahmp_modis_parameters";
+        veg_category_key = "noahmp_modis_veg_categories";
+    } else {
+        amrex::Abort("SLM: unrecognized vegetation dataset type '" + veg_dataset + "'");
+    }
+
+    auto require_block = [this](const std::string& block_name) -> const ParameterBlock& {
+        auto block = full_params.find(block_name);
+        if (block == full_params.end()) {
+            amrex::Abort("SLM: parameter file is missing block '" + block_name + "'");
+        }
+        return block->second;
+    };
+
+    auto require_parameter = [](const ParameterBlock& block, const std::string& block_name,
+                                const std::string& parameter_name, int expected_size) -> const Vector<Real>& {
+        const Vector<Real>* values = nullptr;
+        for (const auto& parameter : block) {
+            if (parameter.first == parameter_name) {
+                if (values != nullptr) {
+                    amrex::Abort("SLM: parameter '" + parameter_name + "' is duplicated in block '" + block_name + "'");
+                }
+                values = &parameter.second;
+            }
+        }
+
+        if (values == nullptr || values->empty()) {
+            amrex::Abort("SLM: parameter file is missing nonempty parameter '" + parameter_name +
+                         "' in block '" + block_name + "'");
+        }
+        if (expected_size >= 0 && static_cast<int>(values->size()) != expected_size) {
+            amrex::Abort("SLM: parameter '" + parameter_name + "' in block '" + block_name +
+                         "' has " + std::to_string(values->size()) +
+                         " values; expected " + std::to_string(expected_size));
+        }
+        return *values;
+    };
+
+    const ParameterBlock& veg_categories = require_block(veg_category_key);
+    const Vector<Real>& nveg_values = require_parameter(veg_categories, veg_category_key, "nveg", 1);
+    if (nveg_values[0] < 1.0 || nveg_values[0] != std::floor(nveg_values[0])) {
+        amrex::Abort("SLM: parameter 'nveg' in block '" + veg_category_key + "' must be a positive integer");
+    }
+    num_veg_params = static_cast<int>(nveg_values[0]);
+
+    const ParameterBlock& veg_params = require_block(veg_param_key);
+    for (const auto& parameter : veg_params) {
+        if (parameter.second.empty()) {
+            amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + veg_param_key + "' is empty");
+        }
+        if (parameter.first != "nveg" && parameter.second.size() > 1 &&
+            static_cast<int>(parameter.second.size()) != num_veg_params) {
+            amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + veg_param_key +
+                         "' has " + std::to_string(parameter.second.size()) +
+                         " values; expected " + std::to_string(num_veg_params) +
+                         " vegetation-category values");
+        }
+    }
+
+    const ParameterBlock& soil_categories = require_block("noahmp_stas_soil_categories");
+    const Vector<Real>& slcats_values = require_parameter(
+        soil_categories, "noahmp_stas_soil_categories", "slcats", 1);
+    if (slcats_values[0] < 1.0 || slcats_values[0] != std::floor(slcats_values[0])) {
+        amrex::Abort("SLM: parameter 'slcats' in block 'noahmp_stas_soil_categories' must be a positive integer");
+    }
+    num_soil_params = static_cast<int>(slcats_values[0]);
+
+    const ParameterBlock& soil_params = require_block(soil_param_key);
+    require_parameter(soil_params, soil_param_key, "maxsmc", num_soil_params);
+
+    const Vector<std::string> required_soil_parameters = {
+        "maxsmc", "refsmc", "wltsmc", "satpsi", "bb", "satdk"
+    };
+    for (const std::string& parameter_name : required_soil_parameters) {
+        require_parameter(soil_params, soil_param_key, parameter_name, num_soil_params);
+    }
+    for (const auto& parameter : soil_params) {
+        if (parameter.second.empty()) {
+            amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + soil_param_key + "' is empty");
+        }
+        if (parameter.second.size() > 1 && static_cast<int>(parameter.second.size()) != num_soil_params) {
+            amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + soil_param_key +
+                         "' has " + std::to_string(parameter.second.size()) +
+                         " values; expected " + std::to_string(num_soil_params) +
+                         " soil-category values");
+        }
+    }
+
+    if (radiation_scheme == RadiationScheme::NoahMP) {
+        const ParameterBlock& rad_params = require_block("noahmp_rad_parameters");
+        const Vector<std::pair<std::string, int>> required_rad_parameters = {
+            {"albsat_vis", 8}, {"albsat_nir", 8},
+            {"albdry_vis", 8}, {"albdry_nir", 8},
+            {"alblak", 2}, {"omegas", 2},
+            {"betads", 1}, {"betais", 1}
+        };
+        for (const auto& parameter : required_rad_parameters) {
+            require_parameter(rad_params, "noahmp_rad_parameters", parameter.first, parameter.second);
+        }
+        for (const auto& parameter : rad_params) {
+            if (parameter.second.empty()) {
+                amrex::Abort("SLM: parameter '" + parameter.first + "' in block 'noahmp_rad_parameters' is empty");
+            }
+        }
+
+        const Vector<std::string> required_veg_parameters = {
+            "rhol_vis", "rhol_nir", "rhos_vis", "rhos_nir",
+            "taul_vis", "taul_nir", "taus_vis", "taus_nir",
+            "rc", "hvb", "den"
+        };
+        for (const std::string& parameter_name : required_veg_parameters) {
+            require_parameter(veg_params, veg_param_key, parameter_name, num_veg_params);
+        }
+    }
+}
+
 /**
  * Overwrites any default SLM variables from values set in the parameter file
  */
@@ -2076,12 +2268,12 @@ void SLM::init_from_params()
     const int d_klo_lsm = klo_lsm;
 
     // Get pointers to GPU soil parameter values
-    const amrex::Real *d_param_poro = d_soil_params["maxsmc"]->data();
-    const amrex::Real *d_param_theta_FC = d_soil_params["refsmc"]->data();
-	const amrex::Real *d_param_theta_WP = d_soil_params["wltsmc"]->data();
-	const amrex::Real *d_param_m_pot_sat = d_soil_params["satpsi"]->data();
-    const amrex::Real *d_param_Bconst = d_soil_params["bb"]->data();
-    const amrex::Real *d_param_ks = d_soil_params["satdk"]->data();
+    const amrex::Real *d_param_poro = d_soil_params.at("maxsmc")->data();
+    const amrex::Real *d_param_theta_FC = d_soil_params.at("refsmc")->data();
+	const amrex::Real *d_param_theta_WP = d_soil_params.at("wltsmc")->data();
+	const amrex::Real *d_param_m_pot_sat = d_soil_params.at("satpsi")->data();
+    const amrex::Real *d_param_Bconst = d_soil_params.at("bb")->data();
+    const amrex::Real *d_param_ks = d_soil_params.at("satdk")->data();
 
     // Get pointers to GPU vegetation parameter values from NoahMP table
     const amrex::Real *d_param_rs = nullptr;
@@ -2192,8 +2384,7 @@ void SLM::init_from_params()
                 }
 
                 // Set vegetation parameters from NoahMP table if available
-                // Only update for valid vegetation types (ltype >= 0)
-                if (ltype >= 0 && vegetype_arr(i,j,0) == 1) {
+                if (vegetype_arr(i,j,0) == 1) {
                     if (has_rs && d_param_rs != nullptr) {
                         // RS = minimum stomatal resistance [s/m]
                         Rc_min_arr(i, j, 0) = d_param_rs[ltype];
@@ -2358,8 +2549,6 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
             if (landmask_arr(i, j, 0) == 1) {
 
                 const int ltype = landtype_arr(i,j,0) - 1; // shift by one to match table index (i.e, types 1-20 -> 0-19)
-
-                AMREX_ASSERT(d_params(ltype, 0) == ltype + 1); // debug to make sure landtypes match
 
                 if (ltype + 1 == 13) { // urban cells
                     veg_frac_arr(i,j,0) = d_params(ltype,1);
@@ -3336,7 +3525,7 @@ void SLM::resistances(const amrex::MFIter &mfi)
 
             // Get CWPVT (canopy wind extinction parameter) for this vegetation type
             int veg_idx = landtype_arr(i, j, 0) - 1;  // Convert the vegetation class to a 0-based table index
-            amrex::Real CanopyWindExtFac = (d_cwpvt != nullptr && veg_idx >= 0) ? d_cwpvt[veg_idx] : d_cwpvt_default;
+            amrex::Real CanopyWindExtFac = (d_cwpvt != nullptr) ? d_cwpvt[veg_idx] : d_cwpvt_default;
 
             // Stability correction for undercanopy (MoStabCorrShUndCan)
             amrex::Real MoStabCorrShUndCan = 1.0;  // Initialize to neutral
@@ -5640,7 +5829,6 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         amrex::Real fveg = veg_frac_arr(i, j, d_khi_lsm);
         int vegtyp = static_cast<int>(vegtype_arr(i, j, d_khi_lsm));
         int veg_idx = vegtyp - 1;  // convert to 0-based index
-        if (veg_idx < 0) veg_idx = 0;
 
         // Incoming solar radiation
         amrex::Real solad[2], solai[2];
