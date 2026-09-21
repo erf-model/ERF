@@ -23,8 +23,11 @@ or ``TSK_0``, ERF uses that checkpoint's own ``job_info``
 legacy Metgrid arrays are rejected because they contain absolute temperature.
 Markerless SST/TSK arrays with missing or unrecognized provenance are rejected
 rather than guessed. The restart deck's current ``erf.init_type`` does not
-override this compatibility check. Markerless checkpoints without SST/TSK
-arrays remain compatible.
+override this compatibility check, and a conflicting explicit assertion cannot
+override known checkpoint provenance. For very old markerless checkpoints that
+predate usable ``job_info`` provenance, the original source can be asserted
+explicitly with ``erf.legacy_surface_temperature_init_type = WRFInput``.
+Markerless checkpoints without SST/TSK arrays remain compatible.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
@@ -74,6 +77,10 @@ Restarting
      - Checkpoint directory from which to restart. ``amr.restart`` takes precedence if both are set.
      - String
      - Not used if unset
+   * - ``erf.legacy_surface_temperature_init_type``
+     - Explicit provenance assertion used only for markerless checkpoints with ``SST_0``/``TSK_0`` when checkpoint ``job_info`` cannot establish the original initialization source. ``WRFInput`` permits the known-safe legacy theta representation; ``Metgrid`` remains rejected because its arrays are absolute temperature and the checkpoint lacks the pressure needed to convert them safely. This setting must identify the actual old source and is not a general override of checkpoint metadata.
+     - ``WRFInput`` or ``Metgrid`` (case-insensitive)
+     - Unset
 
 .. _examples-of-usage-7:
 

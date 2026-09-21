@@ -219,7 +219,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab,
-                              int* surface_pressure_failed,
+                              int* base_state_column_failed,
                               const BaseStateParams& bsp);
 
 /**

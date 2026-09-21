@@ -406,9 +406,13 @@ Notes
 
 With ``erf.terrain_type = EB``, SurfaceLayer does not support planar SST/TSK
 from real-data input, coupled-ocean SST, or LSM surface-temperature or
-surface-flux providers because no 2-D-to-cut-cell mapping is defined. Ordinary
-EB SurfaceLayer operation using SurfaceLayer-native prescribed or default state
-remains supported.
+surface-flux providers because those LSM flux arrays are planar and the helper
+only writes their ``k=0`` slab, while EB MOST consumes surface parameters on
+arbitrary cut-cell ``k``; no 2-D-to-cut-cell mapping is defined. Custom/file-
+driven roughness (``most.roughness_file_name``) is also unsupported under EB
+for the same planar-provider compatibility policy. Ordinary EB SurfaceLayer
+operation using SurfaceLayer-native prescribed or default state remains
+supported.
 
 - For both flux and sst modes, the time column is reset relative to the simulation elapsed time (t=0s). This might cause issues with simulations initialized with real data, such as WRFInput.
 - The sst mode only applies the surface temperature where there are ocean cells (landmask=0). This can be forced with ``erf.is_land = 0``.

@@ -86,6 +86,20 @@ TEST(CheckpointSurfaceTemperature, ParsesLegacyMetgridInitTypeFromJobInfo)
               LegacyInitType::Metgrid);
 }
 
+TEST(CheckpointSurfaceTemperature, ParsesLegacyInitTypeValueCaseInsensitively)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("wRfInPuT"),
+              LegacyInitType::WRFInput);
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("METGRID"),
+              LegacyInitType::Metgrid);
+}
+
+TEST(CheckpointSurfaceTemperature, RejectsInvalidLegacyInitTypeValue)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("other"),
+              LegacyInitType::Unknown);
+}
+
 TEST(CheckpointSurfaceTemperature, ParsesLegacyWrfInputInitTypeCaseInsensitively)
 {
     std::istringstream job_info("erf.init_type = wrfinput\n");

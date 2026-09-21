@@ -59,6 +59,21 @@ enum class LegacySurfaceTemperatureCompatibility {
     UnknownProvenance
 };
 
+inline LegacyInitType
+parse_legacy_init_type_value (std::string value)
+{
+    for (char& character : value) {
+        character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    }
+    if (value == "wrfinput") {
+        return LegacyInitType::WRFInput;
+    }
+    if (value == "metgrid") {
+        return LegacyInitType::Metgrid;
+    }
+    return LegacyInitType::Unknown;
+}
+
 /**
  * Parse the integer surface-temperature contract marker from a checkpoint.
  */
@@ -149,16 +164,7 @@ parse_legacy_init_type_from_job_info (std::istream& input)
             continue;
         }
 
-        for (char& character : value) {
-            character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-        }
-        if (value == "wrfinput") {
-            result = LegacyInitType::WRFInput;
-        } else if (value == "metgrid") {
-            result = LegacyInitType::Metgrid;
-        } else {
-            result = LegacyInitType::Unknown;
-        }
+        result = parse_legacy_init_type_value(value);
     }
 
     return result;

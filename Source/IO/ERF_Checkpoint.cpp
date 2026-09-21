@@ -11,6 +11,7 @@
 #include <string>
 
 #include "ERF.H"
+#include "AMReX_ParmParse.H"
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
@@ -84,6 +85,28 @@ validate_surface_temperature_contract (const std::string& checkpointname,
                 job_info_stream);
     }
 
+    if (legacy_init_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
+        amrex::ParmParse pp_erf("erf");
+        constexpr const char* key = "legacy_surface_temperature_init_type";
+        if (pp_erf.countval(key) > 0) {
+            std::string asserted_source;
+            pp_erf.get(key, asserted_source);
+            const auto asserted_type =
+                erf_checkpoint_surface_temperature::parse_legacy_init_type_value(asserted_source);
+            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
+                amrex::Abort("Invalid erf." + std::string(key) + " value '" + asserted_source +
+                             "'; accepted values are WRFInput and Metgrid (case-insensitive).");
+            }
+            legacy_init_type = asserted_type;
+            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::WRFInput) {
+                amrex::Print() << "WARNING: checkpoint '" << checkpointname
+                               << "' has no usable legacy surface-temperature provenance; "
+                               << "trusting the explicit erf." << key
+                               << " = WRFInput assertion.\n";
+            }
+        }
+    }
+
     const auto compatibility =
         erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
             false, true, legacy_init_type);
@@ -99,7 +122,10 @@ validate_surface_temperature_contract (const std::string& checkpointname,
         erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnknownProvenance) {
         amrex::Abort("Markerless checkpoint '" + checkpointname +
                      "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
-                     ", but the original initialization source cannot be established from job_info.");
+                     ", but the original initialization source cannot be established from checkpoint job_info. "
+                     "If and only if the old checkpoint was written from WRFInput, set "
+                     "erf.legacy_surface_temperature_init_type = WRFInput; legacy Metgrid arrays "
+                     "cannot be repaired from checkpoint contents.");
     }
 }
 
