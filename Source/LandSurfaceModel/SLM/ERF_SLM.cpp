@@ -2227,6 +2227,12 @@ void SLM::init_from_params()
 
     // recompute soil variables using updated parameters
     init_soil_vars();
+
+    // recompute derived vegetation fields using the updated parameters.
+    vege_root_init();
+    for (amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        UpdateLAIParameters(mfi);
+    }
 }
 
 /**
@@ -2398,12 +2404,15 @@ void SLM::UpdateLAIParameters(const amrex::MFIter &mfi)
     auto ztop_arr = ztop.array(mfi); 
     auto Khai_L_arr = Khai_L.array(mfi);
     auto landmask_arr = landmask.const_array(mfi);
+    auto vegetype_arr = vegetype.const_array(mfi);
 
     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
     {
         if (landmask_arr(i, j, 0) == 1) {
-            // set minimum LAI for vegetated land
-            LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
+            if (vegetype_arr(i, j, 0) == 1) {
+                // set minimum LAI for vegetated land
+                LAI_arr(i, j, 0) = std::max(LAI_arr(i, j, 0), 0.001);
+            }
 
             phi_1_arr(i, j, 0) = 0.5 - 0.633 * Khai_L_arr(i, j, 0) - 0.33 * (std::pow(Khai_L_arr(i, j, 0), 2));
             phi_2_arr(i, j, 0) = 0.877 * (1.0 - 2.0 * phi_1_arr(i, j, 0));
