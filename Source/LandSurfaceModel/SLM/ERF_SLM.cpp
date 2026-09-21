@@ -856,7 +856,7 @@ void SLM::init_wrfinput_vars()
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box bx2d = mfi.tilebox();
 
-        auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+        auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->array(mfi);
         auto in_lai_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
         auto in_tsk_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
         auto in_tsoil_arr = lsm_fab_vars[LsmVar_SLM::soilt]->array(mfi);
@@ -931,6 +931,10 @@ void SLM::init_wrfinput_vars()
                 }
                 //landtype_arr(i, j, 0) = isurban;
             }
+
+            // Keep the WRF vegetation class synchronized with the normalized SLM class.
+            vegtype_arr(i, j, d_khi_lsm) = landtype_arr(i, j, 0);
+            vegtype_arr(i, j, 0) = landtype_arr(i, j, 0);
         });
     }
 
@@ -2236,8 +2240,8 @@ void SLM::init_from_params()
 }
 
 /**
- * Updates the LAI + SAI based on the current simulation time and monthly values
- * from the LAI and SAI tables
+ * Updates LAI and SAI based on the current simulation time and monthly values
+ * from the LAI and SAI tables.
  */
 void SLM::UpdateLAI(const amrex::MFIter &mfi)
 {
@@ -2291,7 +2295,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
         Gpu::copyAsync(Gpu::hostToDevice, sai_table[next_mon].data(), sai_table[next_mon].data()+num_landtypes, d_sai_next_ptr);
         Gpu::streamSynchronize();
 
-        // Update LAI = LAI + SAI
+        // Update LAI and SAI
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1) {
@@ -2311,10 +2315,10 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
                     const Real sai_x = d_sai_curr_ptr[ltype];
                     const Real sai_y = d_sai_next_ptr[ltype];
 
+                    // Update the LAI and SAI using interpolated values from the monthly tables
+                    // NOTE: LAI + SAI is computed later when needed
                     LAI_arr(i,j,0) = linear_interp(t0, t1, d_calday, lai_x, lai_y);
                     SAI_arr(i,j,0) = linear_interp(t0, t1, d_calday, sai_x, sai_y);
-
-                    LAI_arr(i,j,0) += SAI_arr(i,j,0);
                 }
             }
         });
@@ -2340,7 +2344,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
         auto const& d_params = d_param_table.const_table();
 
-        // Update LAI = LAI + SAI
+        // Update LAI from vegetation fraction.
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             if (landmask_arr(i, j, 0) == 1) {
@@ -5480,6 +5484,7 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
 
     auto landmask_arr = landmask.const_array(mfi);
     auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+    auto vegetype_arr = vegetype.const_array(mfi);
 
     // Input arrays
     auto swdsvisxyref_arr  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->const_array(mfi);
@@ -5692,16 +5697,6 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
             wl  = elai / std::max(vai,MPE);
             ws  = esai / std::max(vai,MPE);
 
-            // Get parameters for this vegetation type
-            for (int ib = 0; ib < NBAND; ib++) {
-                amrex::Real rhol_val = (ib == 0) ? d_rhol_vis[veg_idx] : d_rhol_nir[veg_idx];
-                amrex::Real rhos_val = (ib == 0) ? d_rhos_vis[veg_idx] : d_rhos_nir[veg_idx];
-                amrex::Real taul_val = (ib == 0) ? d_taul_vis[veg_idx] : d_taul_nir[veg_idx];
-                amrex::Real taus_val = (ib == 0) ? d_taus_vis[veg_idx] : d_taus_nir[veg_idx];
-                rho[ib] = std::max(rhol_val*wl + rhos_val*ws, MPE);
-                tau[ib] = std::max(taul_val*wl + taus_val*ws, MPE);
-            }
-
             // snow albedos: only if COSZ > 0 and FSNO > 0
             if(d_opt_alb == 1) {
                 snowalb_bats_noahmp(NBAND, fsno, cosz, fage,
@@ -5725,37 +5720,60 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
             groundalb_noahmp(nsoil, NBAND, ice, ist, fsno, smc, albsnd, albsni, cosz, tg,
                             albsat, albdry, alblak, albgrd, albgri);
 
-            // loop over NBAND wavebands to calculate surface albedos and solar
-            // fluxes for unit incoming direct (IC=0) and diffuse flux (IC=1)
+            const bool has_canopy = vegetype_arr(i, j, 0) == 1 && fveg > 0.0 && vai > 0.0;
+            if (has_canopy) {
+                // Get parameters for this vegetation type
+                for (int ib = 0; ib < NBAND; ib++) {
+                    amrex::Real rhol_val = (ib == 0) ? d_rhol_vis[veg_idx] : d_rhol_nir[veg_idx];
+                    amrex::Real rhos_val = (ib == 0) ? d_rhos_vis[veg_idx] : d_rhos_nir[veg_idx];
+                    amrex::Real taul_val = (ib == 0) ? d_taul_vis[veg_idx] : d_taul_nir[veg_idx];
+                    amrex::Real taus_val = (ib == 0) ? d_taus_vis[veg_idx] : d_taus_nir[veg_idx];
+                    rho[ib] = std::max(rhol_val*wl + rhos_val*ws, MPE);
+                    tau[ib] = std::max(taul_val*wl + taus_val*ws, MPE);
+                }
 
-            for (int ib = 0; ib < NBAND; ib++) {
-                // direct (IC=0)
-                twostream_noahmp(ib, 0, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
-                                rho, tau, fveg, ist,
-                                Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
-                                d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
-                                fabd, albd, ftdd, ftid, gdir, frevd, fregd, bgap, wgap,
-                                xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
+                // loop over NBAND wavebands to calculate surface albedos and solar
+                // fluxes for unit incoming direct (IC=0) and diffuse (IC=1)
 
-                // diffuse (IC=1)
-                twostream_noahmp(ib, 1, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
-                                rho, tau, fveg, ist,
-                                Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
-                                d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
-                                fabi, albi, ftdi, ftii, gdir, frevi, fregi, bgap, wgap,
-                                xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
-            }
-            // sunlit fraction of canopy. set FSUN = 0 if FSUN < 0.01.
-            ext = gdir/cosz * std::sqrt(1.0-rho[0]-tau[0]);
-            fsun = (1.0-std::exp(-ext*vai)) / std::max(ext*vai,MPE);
-            ext = fsun;
+                for (int ib = 0; ib < NBAND; ib++) {
+                    // direct (IC=0)
+                    twostream_noahmp(ib, 0, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
+                                    rho, tau, fveg, ist,
+                                    Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
+                                    d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
+                                    fabd, albd, ftdd, ftid, gdir, frevd, fregd, bgap, wgap,
+                                    xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
 
-            if (ext < 0.01) {
-                wl = 0.0;
+                    // diffuse (IC=1)
+                    twostream_noahmp(ib, 1, vegtyp, cosz, vai, fwet, tv, albgrd, albgri,
+                                    rho, tau, fveg, ist,
+                                    Khai_L_arr(i,j,0), d_omegas[ib], d_betads, d_betais,
+                                    d_opt_rad, d_rc[veg_idx], ztop_arr(i,j,0), d_hvb[veg_idx], d_den[veg_idx],
+                                    fabi, albi, ftdi, ftii, gdir, frevi, fregi, bgap, wgap,
+                                    xl_diag_val, chil_diag_val, phi1_diag_val, phi2_diag_val);
+                }
+
+                // sunlit fraction of canopy. set FSUN = 0 if FSUN < 0.01.
+                ext = gdir/cosz * std::sqrt(1.0-rho[0]-tau[0]);
+                fsun = (1.0-std::exp(-ext*vai)) / std::max(ext*vai,MPE);
+                ext = fsun;
+
+                if (ext < 0.01) {
+                    wl = 0.0;
+                } else {
+                    wl = ext;
+                }
+                fsun = wl;
             } else {
-                wl = ext;
+                for (int ib = 0; ib < NBAND; ib++) {
+                    albd[ib] = albgrd[ib];
+                    albi[ib] = albgri[ib];
+                    ftdd[ib] = 1.0;
+                    ftii[ib] = 1.0;
+                    fregd[ib] = albgrd[ib];
+                    fregi[ib] = albgri[ib];
+                }
             }
-            fsun = wl;
 
         } // cosz>0
 
