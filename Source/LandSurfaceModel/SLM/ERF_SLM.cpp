@@ -1783,6 +1783,7 @@ void SLM::initialize_surface_outputs()
         auto IR_emis_vege_arr = IR_emis_vege.const_array(mfi);
         auto IR_emis_soil_arr = IR_emis_soil.const_array(mfi);
         auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
+        auto coszrsxy_arr = lsm_fab_vars[LsmVar_SLM::coszrsxy]->const_array(mfi);
         auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
         auto t_canop_arr = t_canop.const_array(mfi);
         auto mw_arr = mw.const_array(mfi);
@@ -1804,15 +1805,24 @@ void SLM::initialize_surface_outputs()
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            const amrex::Real explai = std::exp(
-                -(phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0)) * LAI_arr(i, j, 0));
+            const amrex::Real cosz = coszrsxy_arr(i, j, 0);
+            const amrex::Real direct_extinction = phi_1_arr(i, j, 0) / std::max(0.01, cosz) + phi_2_arr(i, j, 0);
+            const amrex::Real diffuse_extinction = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
+            const amrex::Real explai = std::exp(-direct_extinction * LAI_arr(i, j, 0));
+            const amrex::Real explai0 = std::exp(-diffuse_extinction * LAI_arr(i, j, 0));
             const amrex::Real wetfactor = 1.0 - 0.5 * soilw_arr(i, j, d_khi_lsm);
 
-            const amrex::Real veg_frac = veg_frac_arr(i, j, 0);
-            const amrex::Real alb_nir = albedonir_v_arr(i, j, 0) * (1.0 - explai)
-                                      + albedonir_s_arr(i, j, 0) * wetfactor * explai;
-            const amrex::Real alb_vis = albedovis_v_arr(i, j, 0) * (1.0 - explai)
-                                      + albedovis_s_arr(i, j, 0) * wetfactor * explai;
+            const amrex::Real veg_frac = std::min(std::max(veg_frac_arr(i, j, 0), 0.0), 1.0);
+            const amrex::Real soil_nir = albedonir_s_arr(i, j, 0) * wetfactor;
+            const amrex::Real soil_vis = albedovis_s_arr(i, j, 0) * wetfactor;
+            const amrex::Real canopy_nir = albedonir_v_arr(i, j, 0) * (1.0 - explai) + soil_nir * explai;
+            const amrex::Real canopy_vis = albedovis_v_arr(i, j, 0) * (1.0 - explai) + soil_vis * explai;
+            const amrex::Real canopy_nir_diff = albedonir_v_arr(i, j, 0) * (1.0 - explai0) + soil_nir * explai0;
+            const amrex::Real canopy_vis_diff = albedovis_v_arr(i, j, 0) * (1.0 - explai0) + soil_vis * explai0;
+            const amrex::Real alb_nir = veg_frac * canopy_nir + (1.0 - veg_frac) * soil_nir;
+            const amrex::Real alb_vis = veg_frac * canopy_vis + (1.0 - veg_frac) * soil_vis;
+            const amrex::Real alb_nir_diff = veg_frac * canopy_nir_diff + (1.0 - veg_frac) * soil_nir;
+            const amrex::Real alb_vis_diff = veg_frac * canopy_vis_diff + (1.0 - veg_frac) * soil_vis;
 
             t_skin_arr(i, j, 0) = tsurf_arr(i, j, 0);
             tsurf_arr(i, j, d_khi_lsm) = tsurf_arr(i, j, 0);
@@ -1830,13 +1840,11 @@ void SLM::initialize_surface_outputs()
                 q_sfc_arr(i, j, 0) = q_gr_arr(i, j, 0);
             }
 
-            emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i, j, 0) * veg_frac
-                                  + IR_emis_soil_arr(i, j, 0)
-                                    * (1.0 - veg_frac);
+            emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i, j, 0) * veg_frac + IR_emis_soil_arr(i, j, 0) * (1.0 - veg_frac);
             alb_nir_sfc_arr(i, j, 0) = alb_nir;
             alb_vis_sfc_arr(i, j, 0) = alb_vis;
-            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir;
-            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis;
+            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir_diff;
+            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis_diff;
 
             emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i, j, 0);
             alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
@@ -5903,16 +5911,26 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) = sav - irc;  // canopy: SW + LW
         net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) = sag - irg;  // ground: SW + LW
         
+        // Directional shortwave diagnostics use positive physical directions:
+        // downwelling is positive in net_swdn and upwelling is positive in net_swup.
+        // net_sw1 and net_sw2 remain positive for absorbed shortwave.
+        // The surrad terms satisfy SW_in = reflected + canopy absorbed + ground absorbed.
         // Downwelling shortwave for stomatal resistance calculation
         // Total incoming SW = direct + diffuse for both visible and NIR
-        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) = solad[0] + solad[1] + solai[0] + solai[1];
-        net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = (solad[0] + solad[1] + solai[0] + solai[1]) - sav;  // incoming - absorbed = reflected
+        const amrex::Real sw_in = solad[0] + solad[1] + solai[0] + solai[1];
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) = sw_in;
+
+        // Reflected shortwave at the canopy top.
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = fsr;
 
         // Downwelling SW reaching ground (transmitted through canopy)
-        // This could be ftdd*solad + ftid*solad + ftii*solai, but simpler approximation:
-        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = (solad[0] + solai[0]) * (ftdd[0] + ftid[0] + ftii[0]) +
-                                                      (solad[1] + solai[1]) * (ftdd[1] + ftid[1] + ftii[1]);
-        net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) - sag;
+        amrex::Real sw_down_ground = 0.0;
+        for (int ib = 0; ib < NBAND; ib++) {
+            sw_down_ground += solad[ib] * (ftdd[ib] + ftid[ib])
+                            + solai[ib] * ftii[ib];
+        }
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = sw_down_ground;
+        net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = sw_down_ground - sag;
         // --------------------------------------------------------------------------------------------------
         // Store albedo outputs
         // --------------------------------------------------------------------------------------------------
