@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 # Run one deck twice, once with the CPU default MFIter tiling and once with
 # tiling switched off, then require the two plotfiles (3D and 2D) to agree.
 #
@@ -44,13 +46,20 @@ if(_varying_plt OR _varying_plt2d)
   endif()
 endif()
 
-set(_mpi_run "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${NRANKS}")
-set(_mpi_one "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
-if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-  separate_arguments(_mpi_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
-  list(APPEND _mpi_run ${_mpi_preflags})
-  list(APPEND _mpi_one ${_mpi_preflags})
-endif()
+# MPIEXEC may be a multi-word command such as "flux run", so it is split and
+# validated by the shared helper rather than used as a single argv[0].
+erf_mpi_launcher_command(_mpi_run
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunTilingParity.cmake")
+erf_mpi_launcher_command(_mpi_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunTilingParity.cmake")
 
 set(_runtime_options)
 if(DEFINED RUNTIME_OPTIONS AND NOT "${RUNTIME_OPTIONS}" STREQUAL "")
@@ -186,6 +195,10 @@ foreach(_kind IN ITEMS plt plt2d)
       ERROR_VARIABLE _extrema_err
       RESULT_VARIABLE _result)
     file(APPEND "${WORKING_DIRECTORY}/fextrema_${_kind}.log" "${_extrema}${_extrema_err}")
+    # Some launchers label task output with a per-line "<rank>: " prefix (srun
+    # --label, flux --label-io). Strip it, normalising to one leading space;
+    # unlabelled output is unchanged.
+    string(REGEX REPLACE "\n[0-9]+:[ \t]*" "\n " _extrema "\n${_extrema}")
     # fextrema prints one line per variable: " name   min   max"
     if(NOT _result EQUAL 0 OR
        NOT "${_extrema}" MATCHES "\n ${_var}[ \t]+([^ \t\n]+)[ \t]+([^ \t\n]+)[ \t]*\n")

@@ -1,14 +1,19 @@
 cmake_minimum_required(VERSION 3.24)
 
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
 if(NOT DEFINED MPIEXEC OR NOT DEFINED TEST_EXE OR NOT DEFINED INPUT)
   message(FATAL_ERROR "RunShocRegression.cmake requires MPIEXEC, TEST_EXE, and INPUT")
 endif()
 
-set(_run_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "${NRANKS}")
-if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-  separate_arguments(_mpi_preflags UNIX_COMMAND "${MPIEXEC_PREFLAGS}")
-  list(APPEND _run_command ${_mpi_preflags})
-endif()
+# MPIEXEC may be a multi-word command such as "flux run", so it is split and
+# validated by the shared helper rather than used as a single argv[0].
+erf_mpi_launcher_command(_run_command
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunShocRegression.cmake")
 list(APPEND _run_command "${TEST_EXE}" "${INPUT}")
 if(DEFINED RUNTIME_OPTIONS AND NOT "${RUNTIME_OPTIONS}" STREQUAL "")
   separate_arguments(_runtime_options UNIX_COMMAND "${RUNTIME_OPTIONS}")
@@ -25,10 +30,12 @@ if(NOT _run_result EQUAL 0)
   message(FATAL_ERROR "SHOC simulation failed with exit code ${_run_result}; see ${LOG}")
 endif()
 
-set(_checker_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
-if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-  list(APPEND _checker_command ${_mpi_preflags})
-endif()
+erf_mpi_launcher_command(_checker_command
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunShocRegression.cmake")
 list(APPEND _checker_command
   "${CHECKER}"
   --mode "${CHECK_MODE}"
@@ -49,10 +56,12 @@ if(NOT DEFINED GOLD_COMPARISON OR "${GOLD_COMPARISON}" STREQUAL "")
   set(GOLD_COMPARISON "fcompare")
 endif()
 
-set(_compare_command "${MPIEXEC}" "${MPIEXEC_NUMPROC_FLAG}" "1")
-if(DEFINED MPIEXEC_PREFLAGS AND NOT "${MPIEXEC_PREFLAGS}" STREQUAL "")
-  list(APPEND _compare_command ${_mpi_preflags})
-endif()
+erf_mpi_launcher_command(_compare_command
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunShocRegression.cmake")
 if(GOLD_COMPARISON STREQUAL "fcompare")
   message(STATUS "SHOC property stage passed; using strict amrex_fcompare gold comparison")
   list(APPEND _compare_command
