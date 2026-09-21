@@ -683,6 +683,19 @@ coefficient for temperature and moisture is given by:
 where :math:`K_t` is the turbulent diffusion coefficient for temperature, :math:`K_q` is the
 turbulent diffusion coefficient for moisture and :math:`Pr` is the Prandtl number.
 
+This mixed-layer profile is used below the PBL top in **every** stability regime, as in WRF
+(``module_bl_mrf.F`` has no regime test below ``KPBL``); stability enters only through
+:math:`w_s`.  A Richardson-number closure applied inside the PBL instead makes the diffusivity
+follow the local shear, which excites a grid-scale, sign-flipping wind mode under the implicit
+vertical solve that the A-stable integrators (MidPoint, RK3) do not damp.
+
+.. note::
+
+   Using the profile in every regime also inherits WRF MRF's over-mixing of stable boundary
+   layers: on GABLS1 the peak :math:`K_m` is about twice that of :ref:`YSU<YSUPBL>`.  This is the
+   behaviour that Hong et al. (2006) addressed in YSU, so stable cases that need the weaker
+   mixing should set ``erf.pbl_type = YSUNew``.
+
 The turbulent diffusion coefficient in the free atmosphere is computed from the YSU model as the MRF
 expressions showed oscillations in the canonical stable boundary layer tests.
 
