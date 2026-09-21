@@ -84,14 +84,18 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
        - HGAMQ: moisture excess from latent heat flux
        - VPERT: virtual potential temperature perturbation
 
-    3. Stability-Dependent Mixing Lengths in PBL
-       - K_m = ρ * w_* * κ * z * (1 - z/h)²
+    3. Stability-Dependent K-Profile in the PBL (used in EVERY stability regime)
+       - K_m = ρ * w_s * κ * z * (1 - (z - z_1)/(h - z_1))², z_1 = first level height
        - K_t = K_m / Pr_t, and K_q = K_t (WRF diffuses moisture with the heat
          coefficient XKZH; module_bl_mrf.F L1069, L1180)
+       - Stability enters only through w_s = u_* / φ_m (WRF's WSCALE); as in WRF there
+         is no regime test below the PBL top (module_bl_mrf.F L968-986).  See the
+         comment on the K-profile branch in the kernel for why the Ri-based mixing
+         that ERF used inside stable/neutral PBLs was removed.
 
     4. Free Atmosphere Mixing via Richardson Number
        - Uses YSU stability functions (Hong et al. 2006)
-       - Ri-dependent diffusivity above PBL
+       - Ri-dependent diffusivity above the PBL top only (module_bl_mrf.F L988 on)
 
     ENHANCEMENTS IN ERF IMPLEMENTATION:
     -----------------------------------
@@ -166,6 +170,8 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     -----------------------------------
     Uses YSU scheme (Hong et al. 2006, Appendix A) for Richardson number
     dependent mixing. This avoids MRF oscillations in stable conditions.
+    It is applied above the PBL top only, as in WRF; below the top the
+    K-profile of item 3 above is used in every stability regime.
 
     Gradient Richardson number: Ri_g = (g/theta_v) * (dtheta_v/dz) / ((du/dz)^2 + (dv/dz)^2)
 
@@ -185,6 +191,14 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     - Gradient Richardson number limited: -100 <= Ri_g <= 100
     - Avoids division by zero with minimum shear threshold (1e-10)
     - theta_v_klo and theta_v guarded against zero/negative values
+
+    KNOWN LIMITATION (stable layers):
+    ---------------------------------
+    With the K-profile applied in every regime, this scheme inherits WRF MRF's
+    over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
+    1.8x the Ri-based mixing ERF used previously and 2.1x YSUNew.  That is the
+    behaviour Hong et al. (2006) set out to fix in YSU, so stable cases that need
+    the weaker mixing should use the YSUNew scheme (erf.pbl_type = YSUNew).
 
     TESTING & VALIDATION:
     ---------------------
@@ -951,8 +965,6 @@ if (ng_pblh > 1) {
             const int pbli_extent = turbChoice.pbl_mrf_use_zero_ri_extent ? pbli_zero_arr(i, j, 0) : pbli_arr(i, j, 0);
 
             if (k < pbli_extent) {
-                bool SFCFLG = (obuk_val <= Real(0));
-
                 const Real HOL = sf * pblh_corr_arr(i, j, 0) / obuk_val;
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
                 // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
@@ -961,7 +973,7 @@ if (ng_pblh > 1) {
                 const Real HOL_abs = std::abs(HOL_bounded);
 
                 const Real one_quarter = Real(0.25);
-                // Enable QNSE stable functions if requested, otherwise use default linear form
+                // Enable QNSE stable functions if requested, otherwise use default linear form.
                 const Real enable_qnse_d = (turbChoice.enable_qnse_stable_functions) ? Real(1.0) : Real(0.0);
                 const Real qnse_am_d = turbChoice.qnse_am;
                 const Real qnse_bm_d = turbChoice.qnse_bm;
@@ -1002,93 +1014,36 @@ if (ng_pblh > 1) {
                 Real Prt_base = phit_eff / phiM_eff;
                 const Real Prt = amrex::min(amrex::max(Prt_base + const_b * KAPPA * sf, prmin), prmax);
 
+                // wstar is WRF's WSCALE: u_*/phi_m in a stable or neutral column (the
+                // convective part is floored at zero by the surface buoyancy flux), and
+                // the cube-sum blend with w_* when the surface flux is upward.
                 const Real wstar = wstar_arr(i, j, 0);
-                const bool use_qnse_stable_profile = (obuk_val > Real(0)) && (enable_qnse_d > Real(0.5));
-                if (SFCFLG || use_qnse_stable_profile) {
-                    // K-profile: K = rho * wstar * kappa * z * (1 - (z - zl1)/(h - zl1))^2
-                    // WRF (module_bl_mrf.F L976-978):
-                    //     ZFAC = MAX((1.-(ZQ(I,K)-ZL1(I))/(PBL(I)-ZL1(I))),ZFMIN)
-                    //     XKZM(I,K) = XKZO+WSCALE(I)*KARMAN*ZQ(I,K)*ZFAC**PFAC
-                    // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
-                    // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
-                    // both drives K_m to exactly zero in the first fluid cell.
-                    // ERF_ComputeDiffusivityYSUNew.cpp:1699-1720 splits them the same way.
-                    //
-                    // zval already measures height from the top of an immersed column (zib
-                    // was subtracted where it was formed), so it is that height directly;
-                    // zl1 is zval evaluated at the column's first fluid cell, so zval - zl1
-                    // is exactly zero there in both the terrain and the non-terrain path.
-                    const Real zl1 = (use_terrain_fitted_coords)
-                                   ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
-                                   : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
-                    const Real pblh = pblh_corr_arr(i, j, 0);
-                    // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
-                    // zero for any column whose height lands on that floor with a first
-                    // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
-                    // making the quotient 0/0.  Guard it, as YSUNew does (line 1701).
-                    const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
-                    const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zval * zfac * zfac;
-                    K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
+                // K-profile: K = rho * wstar * kappa * z * (1 - (z - zl1)/(h - zl1))^2
+                //
+                // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
+                // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
+                // both drives K_m to exactly zero in the first fluid cell.
+                // ERF_ComputeDiffusivityYSUNew.cpp:1699-1720 splits them the same way.
+                //
+                // zval already measures height from the top of an immersed column (zib
+                // was subtracted where it was formed), so it is that height directly;
+                // zl1 is zval evaluated at the column's first fluid cell, so zval - zl1
+                // is exactly zero there in both the terrain and the non-terrain path.
+                const Real zl1 = (use_terrain_fitted_coords)
+                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
+                               : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
+                const Real pblh = pblh_corr_arr(i, j, 0);
+                // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
+                // zero for any column whose height lands on that floor with a first
+                // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
+                // making the quotient 0/0.  Guard it, as YSUNew does (line 1701).
+                const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
+                const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 
-                    // WRF diffuses moisture with the heat coefficient XKZH
-                    // (module_bl_mrf.F L1069, L1180).
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
-                } else {
-                    const Real lambda = Real(150.0);
-                    const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
-                    Real dthetadz, dudz, dvdz;
-                    ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
-                                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
-                                                  u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
-                                                  dudz, dvdz, moisture_indices);
-
-                    const Real dudz_safe = (k < izmax) ? dudz : Real(0);
-                    const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
-                    const Real wind_shear = dudz_safe * dudz_safe + dvdz_safe * dvdz_safe;
-                    const Real wind_shear_safe = std::max(wind_shear, Real(1.0e-8));
-                    const Real theta_v     = amrex::max(GetThetav(i, j, k,   cell_data, moisture_indices), Real(1.0));
-                    const Real dtheta_v_dz = dthetadz;
-
-                    Real grad_Ri = CONST_GRAV / theta_v * dtheta_v_dz / wind_shear_safe;
-                    grad_Ri = std::max(std::min(grad_Ri, Real(100.0)), -Real(100.0));
-
-                    const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
-                    // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
-                    // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
-                    // arm's condition to drop the max and then hoisted the bare sqrt above the
-                    // selection, where Ri can be positive; written as min(Ri, 0) it folded the
-                    // sqrt into the arms of the min. Either way an invalid operation whose
-                    // result is discarded but whose flag kills the run under
-                    // amrex.fpe_trap_invalid. There is nothing to fold in the absolute value.
-                    const Real sqrt_neg_Ri = std::sqrt(std::abs(grad_Ri_safe));
-                    Real Pr_rich = Real(1) + Real(2.1) * grad_Ri;
-                    const Real fm = (grad_Ri_safe > 0)
-                                  ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.746) * sqrt_neg_Ri);
-                    const Real ft = (grad_Ri_safe > 0)
-                                  ? Real(1) / ((Real(1) + Real(5.0) * grad_Ri_safe) * (Real(1) + Real(5.0) * grad_Ri_safe))
-                                  : 1 - 8 * grad_Ri_safe / (1 + Real(1.286) * sqrt_neg_Ri);
-                    const Real rl2wsp = rho * lscale * lscale * std::sqrt(wind_shear);
-
-                    Pr_rich = std::max(amrex::Real(0.25), std::min(Pr_rich, Real(4.0)));
-
-                    // In the stable regime fm and ft are the same function, so the
-                    // Prandtl number has to be applied explicitly or momentum and heat
-                    // mix identically.  WRF (module_bl_mrf.F) takes heat as primary and
-                    // scales momentum up by it:
-                    //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
-                    // In the unstable regime fm and ft already differ (1.746 vs 1.286)
-                    // and WRF applies no Prandtl factor there.
-                    const Real Pr_mom = (grad_Ri_safe > 0) ? Pr_rich : Real(1);
-
-                    K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
-                    K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
-                    // WRF diffuses moisture with the heat coefficient XKZH
-                    // (module_bl_mrf.F L1069, L1180).
-                    K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
-                }
+                K_turb(i, j, k, EddyDiff::Mom_v)   = rho * wstar * KAPPA * zval * zfac * zfac;
+                K_turb(i, j, k, EddyDiff::Theta_v) = K_turb(i, j, k, EddyDiff::Mom_v) / Prt;
+                K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             } else if (k >= pbli_extent) {
                 const Real lambda = Real(150.0);
                 const Real lscale = (KAPPA * zval * lambda) / (KAPPA * zval + lambda);
@@ -1128,20 +1083,17 @@ if (ng_pblh > 1) {
 
                 Pr = std::max(amrex::Real(0.25), std::min(Pr, Real(4.0)));
 
-                // In the stable regime fm and ft are the same function, so the Prandtl
+                // In the stable regime, fm and ft are the same function, so the Prandtl
                 // number has to be applied explicitly or momentum and heat mix
-                // identically.  WRF (module_bl_mrf.F) takes heat as primary and scales
-                // momentum up by it:
-                //     XKZH = DK/(1+5*RI)**2 ; XKZM = XKZH*PRNUM
-                // In the unstable regime fm and ft already differ (1.746 vs 1.286) and
+                // identically.
+                //
+                // In the unstable regime, fm and ft already differ (1.746 vs 1.286) and
                 // WRF applies no Prandtl factor there.
                 const Real Pr_mom = (grad_Ri_safe > 0) ? Pr : Real(1);
 
                 K_turb(i, j, k, EddyDiff::Mom_v)   = rl2wsp * fm * Pr_mom;
                 K_turb(i, j, k, EddyDiff::Theta_v) = rl2wsp * ft;
-                // WRF diffuses moisture with the heat coefficient XKZH
-                // (module_bl_mrf.F L1069, L1180).
-                K_turb(i, j, k, EddyDiff::Q_v) = K_turb(i, j, k, EddyDiff::Theta_v);
+                K_turb(i, j, k, EddyDiff::Q_v)     = K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
             // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
