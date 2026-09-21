@@ -315,47 +315,59 @@ ComputeStressVarVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // Off-diagonal strains: vfrac-weighted mu_bar
         ParallelFor(tbxxy,tbxxz,tbxyz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real vol_sum = vfrac(i,j,k) + vfrac(i-1,j,k) + vfrac(i,j-1,k) + vfrac(i-1,j-1,k);
-            Real mu_bar;
-            if (vol_sum > Real(1.e-16)) {
-                mu_bar = ( vfrac(i-1,j  ,k) * mu_turb(i-1, j  , k, EddyDiff::Mom_h)
-                         + vfrac(i  ,j  ,k) * mu_turb(i  , j  , k, EddyDiff::Mom_h)
-                         + vfrac(i-1,j-1,k) * mu_turb(i-1, j-1, k, EddyDiff::Mom_h)
-                         + vfrac(i  ,j-1,k) * mu_turb(i  , j-1, k, EddyDiff::Mom_h) ) / vol_sum;
-            } else {
+            Real vf_im1j = vfrac(i-1,j,k);
+            Real vf_ij = vfrac(i,j,k);
+            Real vf_im1jm1 = vfrac(i-1,j-1,k);
+            Real vf_ijm1 = vfrac(i,j-1,k);
+            Real vol_sum = vf_im1j + vf_ij + vf_im1jm1 + vf_ijm1;
+            Real mu_bar = zero;
+            if (vol_sum >= four) {
                 mu_bar = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i  , j  , k, EddyDiff::Mom_h)
                                 + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i  , j-1, k, EddyDiff::Mom_h) );
+            } else if (vol_sum > zero) {
+                mu_bar = ( (vf_im1j   > zero ? vf_im1j   * mu_turb(i-1, j  , k, EddyDiff::Mom_h) : zero)
+                         + (vf_ij     > zero ? vf_ij     * mu_turb(i  , j  , k, EddyDiff::Mom_h) : zero)
+                         + (vf_im1jm1 > zero ? vf_im1jm1 * mu_turb(i-1, j-1, k, EddyDiff::Mom_h) : zero)
+                         + (vf_ijm1   > zero ? vf_ijm1   * mu_turb(i  , j-1, k, EddyDiff::Mom_h) : zero) ) / vol_sum;
             }
             Real mu_12 = mu_eff + two*mu_bar;
             tau12(i,j,k) *= -mu_12;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real vol_sum = vfrac(i,j,k) + vfrac(i-1,j,k) + vfrac(i,j,k-1) + vfrac(i-1,j,k-1);
-            Real mu_bar;
-            if (vol_sum > Real(1.e-16)) {
-                mu_bar = ( vfrac(i-1,j,k  ) * mu_turb(i-1, j, k  , EddyDiff::Mom_v)
-                         + vfrac(i  ,j,k  ) * mu_turb(i  , j, k  , EddyDiff::Mom_v)
-                         + vfrac(i-1,j,k-1) * mu_turb(i-1, j, k-1, EddyDiff::Mom_v)
-                         + vfrac(i  ,j,k-1) * mu_turb(i  , j, k-1, EddyDiff::Mom_v) ) / vol_sum;
-            } else {
+            Real vf_im1jk = vfrac(i-1,j,k);
+            Real vf_ijk = vfrac(i,j,k);
+            Real vf_im1jkm1 = vfrac(i-1,j,k-1);
+            Real vf_ijkm1 = vfrac(i,j,k-1);
+            Real vol_sum = vf_im1jk + vf_ijk + vf_im1jkm1 + vf_ijkm1;
+            Real mu_bar = zero;
+            if (vol_sum >= four) {
                 mu_bar = fourth*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i  , j, k  , EddyDiff::Mom_v)
                                 + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i  , j, k-1, EddyDiff::Mom_v) );
+            } else if (vol_sum > zero) {
+                mu_bar = ( (vf_im1jk   > zero ? vf_im1jk   * mu_turb(i-1, j, k  , EddyDiff::Mom_v) : zero)
+                         + (vf_ijk     > zero ? vf_ijk     * mu_turb(i  , j, k  , EddyDiff::Mom_v) : zero)
+                         + (vf_im1jkm1 > zero ? vf_im1jkm1 * mu_turb(i-1, j, k-1, EddyDiff::Mom_v) : zero)
+                         + (vf_ijkm1   > zero ? vf_ijkm1   * mu_turb(i  , j, k-1, EddyDiff::Mom_v) : zero) ) / vol_sum;
             }
             Real mu_13 = mu_eff + two*mu_bar;
             tau13(i,j,k) *= -mu_13;
             if (tau13i) tau13i(i,j,k) *= -mu_13;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real vol_sum = vfrac(i,j,k) + vfrac(i,j-1,k) + vfrac(i,j,k-1) + vfrac(i,j-1,k-1);
-            Real mu_bar;
-            if (vol_sum > Real(1.e-16)) {
-                mu_bar = ( vfrac(i,j-1,k  ) * mu_turb(i, j-1, k  , EddyDiff::Mom_v)
-                         + vfrac(i,j  ,k  ) * mu_turb(i, j  , k  , EddyDiff::Mom_v)
-                         + vfrac(i,j-1,k-1) * mu_turb(i, j-1, k-1, EddyDiff::Mom_v)
-                         + vfrac(i,j  ,k-1) * mu_turb(i, j  , k-1, EddyDiff::Mom_v) ) / vol_sum;
-            } else {
+            Real vf_ijm1k = vfrac(i,j-1,k);
+            Real vf_ijk = vfrac(i,j,k);
+            Real vf_ijm1km1 = vfrac(i,j-1,k-1);
+            Real vf_ijkm1 = vfrac(i,j,k-1);
+            Real vol_sum = vf_ijm1k + vf_ijk + vf_ijm1km1 + vf_ijkm1;
+            Real mu_bar = zero;
+            if (vol_sum >= four) {
                 mu_bar = fourth*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j  , k  , EddyDiff::Mom_v)
                                 + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j  , k-1, EddyDiff::Mom_v) );
+            } else if (vol_sum > zero) {
+                mu_bar = ( (vf_ijm1k   > zero ? vf_ijm1k   * mu_turb(i, j-1, k  , EddyDiff::Mom_v) : zero)
+                         + (vf_ijk     > zero ? vf_ijk     * mu_turb(i, j  , k  , EddyDiff::Mom_v) : zero)
+                         + (vf_ijm1km1 > zero ? vf_ijm1km1 * mu_turb(i, j-1, k-1, EddyDiff::Mom_v) : zero)
+                         + (vf_ijkm1   > zero ? vf_ijkm1   * mu_turb(i, j  , k-1, EddyDiff::Mom_v) : zero) ) / vol_sum;
             }
             Real mu_23 = mu_eff + two*mu_bar;
             tau23(i,j,k) *= -mu_23;
