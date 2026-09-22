@@ -140,7 +140,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
                                    lsm_fields[field] != -1 &&
                                    lsm_data_lev[lev][lsm_fields[field]]);
                 auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_fields[field]]->array(mfi) : Array4<Real>{};
-            
+
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     lsm_data_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::LAND);
@@ -313,6 +313,24 @@ void SurfaceModel::register_field_map(std::string name, amrex::Vector<amrex::Mul
     } else {
         return;
     }
+}
+
+void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
+                                          amrex::MultiFab* lsm_mf,
+                                          amrex::MultiFab* urban_mf)
+{
+    auto field_it = fieldmap.find(name);
+    AMREX_ALWAYS_ASSERT(field_it != fieldmap.end());
+
+    Field& field = field_it->second;
+    AMREX_ALWAYS_ASSERT(field.map.first == -1 && field.map.second == -1);
+    if (field.lsm_ptr.size() < static_cast<std::size_t>(m_nlevs)) {
+        field.lsm_ptr.resize(m_nlevs, nullptr);
+        field.urb_ptr.resize(m_nlevs, nullptr);
+    }
+    AMREX_ALWAYS_ASSERT(lev < m_nlevs);
+    field.lsm_ptr[lev] = lsm_mf;
+    field.urb_ptr[lev] = urban_mf;
 }
 
 void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_frac)

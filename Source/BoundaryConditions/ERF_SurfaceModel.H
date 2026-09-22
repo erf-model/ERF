@@ -24,7 +24,7 @@ public:
                           const SolverChoice &solverChoice,
                           amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
-        
+
         u_star.resize(m_nlevs);
         t_star.resize(m_nlevs);
         q_star.resize(m_nlevs);
@@ -303,7 +303,7 @@ public:
     void apply_weight_average(int lev, amrex::MultiFab *lsm_data, amrex::MultiFab *urban_data);
 
     /**
-     * Calculates the weight average and applies the weights to all the fields to average for each model
+     * Calculates the weight average and applies the weights to all the fields to average for each model.
      */
     void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac);
 
@@ -334,6 +334,12 @@ public:
     void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 
     void register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
+
+    /**
+     * Updates a pointer-based field mapping for one level.
+     */
+    void set_field_map_pointers(const std::string& name, int lev,
+                                amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
 
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
         if (auto field = fieldmap.find(name); field != fieldmap.end()) {
@@ -397,7 +403,7 @@ private:
 
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;
-    
+
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::BoxArray> m_ba2d;
     amrex::Vector<amrex::Geometry> m_geom;
@@ -443,7 +449,7 @@ private:
     amrex::Vector<std::string> m_urban_names;
 
     amrex::Vector<amrex::Vector<const amrex::MultiFab*>> rad_fields; // pointers to radiation MFs at each level
-    
+
     // plotfile names for outputs
     inline static const std::vector<std::string> field_names = {
         "uflux",

@@ -747,6 +747,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
             m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                m_SurfaceModel->set_field_map_pointers("olen", lev,
+                                                       lsm_flux[lev][lsm.Get_FluxIdx(lev, "olen")], nullptr);
+            }
+            m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
         }
     }
 
@@ -1218,11 +1223,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     make_lsm_at_level(lev, true); // from_regrid=true: always initialize LSM during regrid
 
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
-        m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
-        m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
-    }
-
     //
     // A level-0 remake replaces the MultiFabs that every finer level's model caches for
     // interp_from_lev0, so re-issue those pointers all the way up.
@@ -1231,6 +1231,20 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         for (int k = 1; k <= finest_level; ++k) {
             lsm.Set_Lev0_Data_Ptr(k);
             lsm.Set_Lev0_Flux_Ptr(k);
+        }
+    }
+
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        const int first_lev = (lev == 0) ? 0 : lev;
+        const int last_lev = (lev == 0) ? finest_level : lev;
+        for (int k = first_lev; k <= last_lev; ++k) {
+            m_SurfaceModel->set_model_data(k, lsm_data[k], lsm_data_name, SurfaceModelType::LAND);
+            m_SurfaceModel->set_model_fluxes(k, lsm_flux[k], lsm_flux_name, SurfaceModelType::LAND);
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                m_SurfaceModel->set_field_map_pointers("olen", k,
+                                                       lsm_flux[k][lsm.Get_FluxIdx(k, "olen")], nullptr);
+            }
+            m_SurfaceModel->calculate_weight_average(k, urb_frac_lev[k][0].get());
         }
     }
 

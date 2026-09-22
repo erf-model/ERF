@@ -1268,6 +1268,11 @@ ERF::InitData_post ()
                                                                                         flux_offset + lsm.Get_FluxIdx(0, "t_flux"),
                                                                                         flux_offset + lsm.Get_FluxIdx(0, "q_flux"),
                                                                                         lsm.Get_DataIdx(0, tsurf_name)}, true);
+
+            // Populate weighted outputs before the initial surface-layer update.
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+            }
         }
 
         /*
