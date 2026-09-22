@@ -1787,9 +1787,12 @@ ERF::InitData_post ()
         }
         if (do_station) {
             if (station_sampling_interval < 0 && station_sampling_per < 0) {
-                // Station output is meant to be a time series, so the default is
-                // every step rather than "never".
-                station_sampling_interval = 1;
+                // No default, as for the line and plane samplers above.  A
+                // sample costs a fillpatch and a fill of every requested
+                // variable over every level that hosts a station, so defaulting
+                // to every step would make a run with a one-second time step
+                // pay for output nobody asked for, and write a row a second.
+                Abort("Need to specify station_sampling_interval or station_sampling_per");
             }
             station_sampler = std::make_unique<StationSampler>(pp_prefix);
             station_sampler->setRestart(!restart_chkfile.empty());

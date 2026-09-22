@@ -115,6 +115,9 @@ erf.Surface.field     = z_surf
 erf.Surface.x         =      0.0
 erf.Surface.y         =     50.0
 
+# Required: naming stations with no cadence stops the run, as it does for the
+# line and plane samplers.  Every step here, so that a ten-step run gives the
+# parity tests a series with something in it.
 erf.station_sampling_interval = 1
 
 # Flush more often than the 100-step default, so that a ten-step run exercises

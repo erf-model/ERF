@@ -1581,7 +1581,13 @@ lists the names, and the keys of each station live under its own prefix.
    erf.Forests.long   = -122.10 -122.02
    erf.Forests.height_agl = 10.0 80.0
 
-   erf.station_sampling_interval = 1
+   erf.station_sampling_interval = 10
+
+How often the stations are written has no default and must be given, as it must
+for the line and plane samplers: either ``erf.station_sampling_interval`` in
+steps or ``erf.station_sampling_per`` in seconds.  A sample is not free -- see
+the note on cost below -- so a run with a short time step should not be made to
+guess at it.
 
 ``lat`` and ``long`` are paired positionally, so ``Forests`` above is two
 locations, not four; the two lists must have the same number of values.  ``lon``
@@ -1660,20 +1666,27 @@ distinct.
 
    Station output is enabled by naming stations; setting
    ``erf.do_station_sampling = false`` turns it off again without removing the
-   stations from the inputs file.  If neither ``erf.station_sampling_interval``
-   nor ``erf.station_sampling_per`` is given, the stations are written every
-   step.
+   stations from the inputs file.  Naming stations without giving
+   ``erf.station_sampling_interval`` or ``erf.station_sampling_per`` stops the
+   run: there is no default cadence.
 
 .. note::
 
-   A station column costs more than its one value: each output step fills the
-   requested 3D and 2D plot variables over every level that hosts a station, in
-   the same way a plotfile does, and interpolates a 2x2 column out of the
-   result.  With the default of every step, a long list of ``field`` names is
-   therefore a real cost; ask for the variables you will use, and raise
-   ``erf.station_sampling_interval`` if the series does not need every step.
-   The fill is a diagnostic: it does not change the solution, and a run with
-   station output turned on gives the same answer as one without.
+   A station column costs more than its one value.  Each *sampled* step fills
+   the requested 3D and 2D plot variables over the whole of every level that
+   hosts a station, in the same way a plotfile does, and interpolates a 2x2
+   column out of the result; it also fillpatches the state on every level up to
+   the highest one a station is on, and re-derives which level and which cells
+   each station is read from, whether or not the grids have moved since the last
+   sample.  The cost of a sample therefore scales with the number of ``field``
+   names and the size of the levels, not with the number of stations, and asking
+   for one velocity component fills all three.  None of it happens on a step
+   that is not sampled, so the cadence is the control that matters: ask for the
+   variables you will use, and set ``erf.station_sampling_interval`` or
+   ``erf.station_sampling_per`` to the rate the series actually needs rather
+   than to the time step.  The fill is a diagnostic: it does not change the
+   solution, and a run with station output turned on gives the same answer as
+   one without.
 
 .. _list-of-parameters-10c:
 
@@ -1706,9 +1719,11 @@ List of Parameters
 |                                    | 3D variables are sampled; not to be combined with        | metres             |                  |
 |                                    | ``.height_agl``                                          |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.station_sampling_interval**  | Output frequency (steps)                                 | Integer            | 1                |
+| **erf.station_sampling_interval**  | Output frequency (steps); one of this and                | Integer            | None             |
+|                                    | ``station_sampling_per`` is required                     |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.station_sampling_per**       | Output frequency (time)                                  | Real               | -1               |
+| **erf.station_sampling_per**       | Output frequency (time); one of this and                 | Real, seconds      | None             |
+|                                    | ``station_sampling_interval`` is required                |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.station_buffer_steps**       | Output steps buffered before the files are written       | Integer            | 100              |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
