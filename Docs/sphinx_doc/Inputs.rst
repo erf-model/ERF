@@ -1658,6 +1658,19 @@ many were dropped.  A restart into a file whose header describes a different set
 of columns -- a changed ``field``, location or height list -- stops the run
 rather than appending columns the header does not describe.
 
+That comparison is of one line, not of the header as a whole.  Each file carries
+a ``# format:`` line holding a format tag and a hash of what the columns are: the
+variables, their units, the locations as the inputs file asked for them, the
+heights, and their order.  A restart recomputes that signature and compares it,
+which means rewording the rest of the header does not make an existing series
+un-restartable, and neither does a coordinate that the setup resolves to a value
+differing in its last digits -- a resolved position is derived from the
+latitude/longitude arrays, so it can move with the build without the
+configuration having changed.  The check runs at setup, as soon as the columns
+are resolved, so a configuration that cannot continue an existing series costs a
+setup rather than a run.  When it does fail, the human-readable part of the
+header is read to report which column differs.
+
 Station names are used as file names, so they are limited to letters, digits,
 ``_``, ``-`` and ``.``, must begin with a letter or an underscore, and must be
 distinct.

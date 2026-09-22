@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -30,6 +31,46 @@ namespace {
 constexpr int datwidth      = 20;
 constexpr int datprecision  = 10;
 constexpr int timeprecision = 13;
+
+// The tag of the machine-readable line a restart compares.  Bump it when the
+// meaning of the signature changes, so that an old file is rejected as an old
+// file rather than as a changed configuration.
+const char* const station_format_tag = "erf-station-v1";
+
+// Requested coordinates and heights go into the signature at seven significant
+// digits: enough to tell two stations apart, few enough that the comparison
+// does not depend on the last bit of a Real, which is seven digits wide in a
+// single-precision build.
+constexpr int sigprecision = 7;
+
+// FNV-1a, 64 bit.  Any stable hash would do; this one is a few lines and needs
+// no library, and the signature is a guard against a changed configuration, not
+// against a forged file.
+std::string
+signature_hash (const std::string& s)
+{
+    std::uint64_t h = 14695981039346656037ULL;
+    for (const unsigned char c : s) {
+        h ^= static_cast<std::uint64_t>(c);
+        h *= 1099511628211ULL;
+    }
+    std::ostringstream os;
+    os << std::hex << std::setw(16) << std::setfill('0') << h;
+    return os.str();
+}
+
+// The format line of a station file, if it has one
+std::string
+find_format_line (const std::vector<std::string>& header)
+{
+    const std::string prefix = "# format: ";
+    for (const auto& line : header) {
+        if (line.compare(0, prefix.size(), prefix) == 0) {
+            return line.substr(prefix.size());
+        }
+    }
+    return {};
+}
 
 std::string
 station_key_error (const std::string& station, const std::string& key, const std::string& why)
@@ -314,6 +355,57 @@ StationSampler::appendRow (Real time, Real epoch_time, const Vector<Real>& value
     }
 }
 
+//
+// A canonical description of what the columns of this station's file are: the
+// station's name, whether it carries a timestamp column, and one token per
+// column in file order, giving the variable, its units, the location, the
+// height and whether the variable is one this run can actually fill.
+//
+// This is deliberately not the header the reader sees.  It leaves out the prose,
+// so that rewording the header does not make every existing series
+// un-restartable, and it uses the coordinates the inputs file asked for rather
+// than the ones the setup resolved: a resolved x is derived from the lat/lon
+// arrays and can move with the build or with init_type without the
+// configuration having changed at all.
+//
+std::string
+StationSampler::columnSignature (const Station& station) const
+{
+    std::ostringstream os;
+    os << std::setprecision(sigprecision);
+    os << station_format_tag << '|' << station.name
+       << "|ts=" << (m_write_timestamp ? 1 : 0);
+
+    auto describe = [&](const StationVar& var, Real height, bool with_height)
+    {
+        os << '|' << var.name << ':' << var.units;
+        if (with_height) {
+            os << ':' << height << (station.heights_are_agl ? "agl" : "abs");
+        } else {
+            os << ":2d";
+        }
+        if (var.is_missing) { os << ":na"; }
+    };
+
+    for (const auto& loc : station.locs) {
+        os << "|@";
+        if (loc.use_latlon) {
+            os << "ll=" << loc.req_lat << ',' << loc.req_lon;
+        } else {
+            os << "xy=" << loc.x << ',' << loc.y;
+        }
+        for (const auto& var : station.vars) {
+            if (var.is_2d) { describe(var, Real(0.0), false); }
+        }
+        for (const auto height : station.heights) {
+            for (const auto& var : station.vars) {
+                if (!var.is_2d) { describe(var, height, true); }
+            }
+        }
+    }
+    return std::string(station_format_tag) + " " + signature_hash(os.str());
+}
+
 void
 StationSampler::writeHeader (const Station& station, std::ostream& os) const
 {
@@ -321,6 +413,8 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
     // neighbouring stations apart
     os << std::setprecision(datprecision);
     os << "# ERF station time series\n";
+    // The one line a restart compares.  Everything below it is for the reader.
+    os << "# format: " << columnSignature(station) << "\n";
     os << "# station: " << station.name << "\n";
 
     int col = 1;
@@ -367,45 +461,101 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
 
 //
 // A restart appends to the file the earlier run wrote, so the two runs have to
-// agree about what the columns are.  The header says exactly that -- the
-// variables, the locations, the heights, and their order -- so comparing it
-// against the header this run would write is the whole check.
+// agree about what the columns are.  What is compared is the signature line, not
+// the header as a whole: the rest of the header is prose and resolved
+// coordinates, and neither should decide whether a series can be continued.
+//
+// The signature decides; the human header is read only to say what changed, and
+// only once the signature has already failed.
 //
 void
 StationSampler::checkHeaderMatches (const Station& station, const std::string& filename) const
 {
+    const std::vector<std::string> found = read_station_header(filename);
+    const std::string found_format = find_format_line(found);
+    const std::string want_format  = columnSignature(station);
+
+    if (found_format == want_format) { return; }
+
+    if (found_format.empty()) {
+        Abort("Station '" + station.name + "': " + filename + " has no '# format:' line, so it "
+              "was not written by this version of ERF's station output and cannot be appended "
+              "to.  Move it aside and start a new series.");
+    }
+
+    // A tag mismatch is a different thing from a hash mismatch and deserves a
+    // different message: nothing about the run is wrong, the file is just old.
+    const std::string found_tag = found_format.substr(0, found_format.find(' '));
+    if (found_tag != std::string(station_format_tag)) {
+        Abort("Station '" + station.name + "': " + filename + " is in station file format '" +
+              found_tag + "' and this ERF writes '" + station_format_tag + "'.  Move it aside "
+              "and start a new series.");
+    }
+
+    // Same format, different columns.  Point at the first column line that
+    // differs, which is the useful thing to say; the signature is what decided.
     std::ostringstream expected;
     writeHeader(station, expected);
-
     std::vector<std::string> want;
     {
         std::istringstream is(expected.str());
         std::string line;
         while (std::getline(is, line)) { want.push_back(line); }
     }
-    const std::vector<std::string> found = read_station_header(filename);
 
-    if (found == want) { return; }
+    // The signature lines differ by construction, so they say nothing a reader
+    // does not already know; what is worth reporting is the first column that
+    // differs.
+    auto without_signature = [](const std::vector<std::string>& lines) {
+        std::vector<std::string> out;
+        for (const auto& line : lines) {
+            if (line.compare(0, 10, "# format: ") != 0) { out.push_back(line); }
+        }
+        return out;
+    };
+    const std::vector<std::string> want_cmp  = without_signature(want);
+    const std::vector<std::string> found_cmp = without_signature(found);
 
-    std::size_t i = 0;
-    while (i < want.size() && i < found.size() && want[i] == found[i]) { ++i; }
-
-    std::string detail;
-    if (i < found.size() && i < want.size()) {
-        detail = "\n  line " + std::to_string(i+1) + " of the file: " + found[i] +
-                 "\n  this run would write:  " + want[i];
-    } else if (i >= found.size()) {
-        detail = "\n  the file's header stops after " + std::to_string(found.size()) +
-                 " line(s); this run would write " + std::to_string(want.size());
-    } else {
-        detail = "\n  the file's header has " + std::to_string(found.size()) +
-                 " line(s); this run would write " + std::to_string(want.size());
+    std::string detail = "\n  the difference is not one the header spells out";
+    for (std::size_t i = 0; i < want_cmp.size() || i < found_cmp.size(); ++i) {
+        const bool have_want  = (i < want_cmp.size());
+        const bool have_found = (i < found_cmp.size());
+        if (have_want && have_found && want_cmp[i] == found_cmp[i]) { continue; }
+        if (have_want && have_found) {
+            detail = "\n  the file says:        " + found_cmp[i] +
+                     "\n  this run would write: " + want_cmp[i];
+        } else if (have_found) {
+            detail = "\n  the file has a column this run does not: " + found_cmp[i];
+        } else {
+            detail = "\n  this run has a column the file does not: " + want_cmp[i];
+        }
+        break;
     }
 
-    Abort("Station '" + station.name + "': " + filename + " was written with a different "
-          "station configuration than this restart asks for, so appending to it would "
-          "produce columns that do not match its header.  Change the configuration back, "
-          "or move the file aside and start a new series." + detail);
+    Abort("Station '" + station.name + "': " + filename + " describes a different set of "
+          "columns than this restart would write -- a changed field, location, height or "
+          "units list -- so appending to it would produce columns its header does not "
+          "describe.  Change the configuration back, or move the file aside and start a "
+          "new series." + detail);
+}
+
+//
+// A station file this restart would append to has to describe the same columns.
+// That is a setup error when it is wrong, so it is checked here, before the run
+// does any work, rather than at the first flush -- which is the first checkpoint
+// or station_buffer_steps rows in, by which time the run has spent real time on
+// a series it cannot write.
+//
+void
+StationSampler::checkRestartFiles () const
+{
+    if (!m_is_restart) { return; }
+    if (!ParallelDescriptor::IOProcessor()) { return; }
+
+    for (const auto& station : m_stations) {
+        const std::string filename = m_dir + "/" + station.name + ".dat";
+        if (FileExists(filename)) { checkHeaderMatches(station, filename); }
+    }
 }
 
 void
@@ -429,13 +579,11 @@ StationSampler::flush ()
         // by starting a new file.  A run that is not restarting starts afresh.
         const bool append = m_opened || (m_is_restart && FileExists(filename));
 
-        // The first thing a restart writes into an existing file: check that the
-        // file is the same series -- the columns are not labelled row by row, so
-        // a changed station configuration would append columns that silently do
-        // not mean what the header says -- and drop anything the earlier run
-        // wrote past the checkpoint this run restarted from.
+        // The first thing a restart writes into an existing file: drop anything
+        // the earlier run wrote past the checkpoint this run restarted from.
+        // That the file is the same series was settled at setup, by
+        // checkRestartFiles.
         if (append && !m_opened) {
-            checkHeaderMatches(station, filename);
             const int dropped = truncate_station_file(filename, m_times[0]);
             if (dropped > 0) {
                 Print() << "Station output: dropped " << dropped << " row(s) at or after t = "
@@ -590,6 +738,11 @@ ERF::init_stations ()
 
     station_sampler->buildColumns();
     station_sampler->setWriteTimestamp(use_datetime, datetime_format);
+
+    // Everything the signature describes is now resolved, so a restart that
+    // would append to a file describing different columns stops here, before the
+    // run does any work.
+    station_sampler->checkRestartFiles();
 
     if (verbose > 0) {
         Print() << "Station output: " << stations.size() << " station(s), "

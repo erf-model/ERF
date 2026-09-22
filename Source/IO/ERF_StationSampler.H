@@ -174,6 +174,11 @@ public:
     // appends to what the earlier run wrote.
     void setRestart (bool is_restart) { m_is_restart = is_restart; }
 
+    // On a restart, stop now if a file this run would append to describes a
+    // different set of columns.  Called by ERF::init_stations once the columns
+    // are resolved, so that a setup error costs a setup rather than a run.
+    void checkRestartFiles () const;
+
     void setWriteTimestamp (bool write_timestamp, const std::string& datetime_format) {
         m_write_timestamp = write_timestamp;
         m_datetime_format = datetime_format;
@@ -193,6 +198,13 @@ public:
 
 private:
     void writeHeader (const Station& station, std::ostream& os) const;
+
+    // The format tag and a hash of what the columns are: the variables, their
+    // units, the requested locations, the heights and their order.  This is what
+    // a restart compares, rather than the header as a whole, so that rewording
+    // the header or resolving a coordinate to a slightly different value does
+    // not make an existing series un-restartable.
+    [[nodiscard]] std::string columnSignature (const Station& station) const;
 
     // Stops a restart that would append columns the file's header does not
     // describe, which would otherwise pass unnoticed until the file was read.
