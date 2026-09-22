@@ -686,6 +686,32 @@ public:
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
 
+    // Filling the plot variables, and the station sampling that reuses it.  Split
+    // out of the plotfile writers so that a station column and the corresponding
+    // plotfile component are produced the same way.  Private for the same reason
+    // canonicalizePlot3DVariables above is: this is output machinery rather than
+    // something ERF offers a caller.
+
+    // Per-level scratch needed to evaluate the 3D plot variables.  Held by the
+    // caller so that the work is done once for a set of variables and then
+    // reused for every level that is filled.
+    struct Plot3DScratch
+    {
+        amrex::Vector<amrex::MultiFab> mf_cc_vel;   // cell-centered velocity, 1 ghost
+        amrex::Vector<amrex::MultiFab> mf_cc_tau;   // cell-centered stress tensor
+        amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
+    };
+
+    // max_lev caps the levels whose scratch is built, -1 meaning every level: a
+    // caller that reads only the coarse levels should not pay for the fine ones.
+    // sync_solution allows the microphysics average-down, which the plotfile
+    // writer wants but a diagnostic that runs at every step must not do, since
+    // it changes the coarse solution.
+    void BuildPlot3DScratch (const amrex::Vector<std::string>& plot_var_names,
+                             Plot3DScratch& scratch,
+                             int max_lev = -1,
+                             bool sync_solution = true);
+
     void erf_enforce_hse (int lev,
                           amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
                           amrex::MultiFab& th, amrex::MultiFab& qv,
@@ -1055,32 +1081,6 @@ private:
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
-
-    // Filling the plot variables, and the station sampling that reuses it.  Split
-    // out of the plotfile writers so that a station column and the corresponding
-    // plotfile component are produced the same way.  Private for the same reason
-    // canonicalizePlot3DVariables above is: this is output machinery rather than
-    // something ERF offers a caller.
-
-    // Per-level scratch needed to evaluate the 3D plot variables.  Held by the
-    // caller so that the work is done once for a set of variables and then
-    // reused for every level that is filled.
-    struct Plot3DScratch
-    {
-        amrex::Vector<amrex::MultiFab> mf_cc_vel;   // cell-centered velocity, 1 ghost
-        amrex::Vector<amrex::MultiFab> mf_cc_tau;   // cell-centered stress tensor
-        amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
-    };
-
-    // max_lev caps the levels whose scratch is built, -1 meaning every level: a
-    // caller that reads only the coarse levels should not pay for the fine ones.
-    // sync_solution allows the microphysics average-down, which the plotfile
-    // writer wants but a diagnostic that runs at every step must not do, since
-    // it changes the coarse solution.
-    void BuildPlot3DScratch (const amrex::Vector<std::string>& plot_var_names,
-                             Plot3DScratch& scratch,
-                             int max_lev = -1,
-                             bool sync_solution = true);
 
     // Station time-series output
     void init_stations ();
