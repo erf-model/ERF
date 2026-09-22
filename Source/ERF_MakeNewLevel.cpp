@@ -746,6 +746,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+            m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
         }
     }
 
@@ -1193,10 +1194,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Update Surface Model arrays for this new level
     if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
         m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
-
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
-            m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
-        }
     }
 
     // ********************************************************************************************
@@ -1220,6 +1217,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         "NoahmpIO_type redistribution onto a new DistributionMapping is not implemented");
 
     make_lsm_at_level(lev, true); // from_regrid=true: always initialize LSM during regrid
+
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+        m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
+    }
 
     //
     // A level-0 remake replaces the MultiFabs that every finer level's model caches for

@@ -316,7 +316,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
-    if (use_surface_model && elapsed_time_since_start_low > 0.0) {
+    if (use_surface_model && !surf_model_fluxes && elapsed_time_since_start_low > 0.0) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
@@ -1659,6 +1659,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
 
     Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
+    const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto *const umm_ptr  = m_ma.get_average(lev,6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
@@ -1690,11 +1691,18 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         auto lsm_tau23_arr  = Array4<Real> {};
         // compute_sfc_params_from_lsm_fluxes consumes signed kinematic stress
         // components; their vector magnitude determines u_star^2.
-        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+        if (use_surface_model_fluxes) {
+            lsm_t_flux_arr = m_surf_model->get_tstar(lev)->array(mfi);
+            lsm_q_flux_arr = m_surf_model->get_qstar(lev)->array(mfi);
+            lsm_tau13_arr  = m_surf_model->get_ustar(lev)->array(mfi, 0);
+            lsm_tau23_arr  = m_surf_model->get_ustar(lev)->array(mfi, 1);
+        } else {
+            for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+                if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            }
         }
 
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept

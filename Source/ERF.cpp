@@ -1258,14 +1258,16 @@ ERF::InitData_post ()
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
                 m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+                m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
             }
 
-            // For SLM:
-            m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{lsm.Get_DataIdx(0, "surface_u"),
-                                                                                        lsm.Get_DataIdx(0, "surface_v"),
-                                                                                        lsm.Get_DataIdx(0, "surface_heat"),
-                                                                                        lsm.Get_DataIdx(0, "surface_vapor"),
-                                                                                        lsm.Get_DataIdx(0, "tsurf")}, true);
+            const int flux_offset = lsm_data[0].size();
+            const std::string tsurf_name = solverChoice.lsm_type == LandSurfaceType::SLM ? "tsurf" : "t_sfc";
+            m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{flux_offset + lsm.Get_FluxIdx(0, "tau13"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "tau23"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "t_flux"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "q_flux"),
+                                                                                        lsm.Get_DataIdx(0, tsurf_name)}, true);
         }
 
         /*

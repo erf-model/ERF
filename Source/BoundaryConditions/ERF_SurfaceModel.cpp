@@ -103,13 +103,17 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
             // Outputs for surface boundary condition
             auto output_arr = outputs[output_field]->array(mfi);
-            auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_fields[field]]->const_array(mfi) : Array4<const Real>{};
-            auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urban_fields[field]]->const_array(mfi) : Array4<const Real>{};
+            const amrex::MultiFab* lsm_mf = valid_land ? lsm_data_lev[lev][lsm_fields[field]] : nullptr;
+            const amrex::MultiFab* urban_mf = valid_urban ? urban_data_lev[lev][urban_fields[field]] : nullptr;
+            const int lsm_khi = valid_land ? lsm_mf->box(mfi.index()).bigEnd(2) : 0;
+            const int urban_klo = valid_urban ? urban_mf->box(mfi.index()).smallEnd(2) : 0;
+            auto lsm_data_arr = valid_land ? lsm_mf->const_array(mfi) : Array4<const Real>{};
+            auto urban_data_arr = valid_urban ? urban_mf->const_array(mfi) : Array4<const Real>{};
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, -1) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
-                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, k) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
+                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, lsm_khi) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
+                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, urban_klo) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
 
                 output_arr(i, j, k, comp) = land + urb;
 
@@ -228,7 +232,7 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            if (urban_frac_arr) {
+            if (use_land && use_urban) {
                 // Weights are proportional to urban fraction coverage in the current cell.
                 weights_arr(i, j, 0, SurfaceModelType::URBAN) = urban_frac_arr(i, j, 0);
                 weights_arr(i, j, 0, SurfaceModelType::LAND) = 1.0 - urban_frac_arr(i, j, 0);

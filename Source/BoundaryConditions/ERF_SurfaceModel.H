@@ -234,8 +234,45 @@ public:
     }
 
     /**
-     * Sets the fields to average for each model. The first four elements map to the surface boundary outputs
-     *   ustar, tstar, qstar, tsurf
+     * Adds model flux data to the fields that can be weight averaged.
+     */
+    void set_model_fluxes(const int lev, const amrex::Vector<amrex::MultiFab*> model_fluxes,
+                          const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
+    {
+        amrex::Vector<amrex::MultiFab*>* model_data = nullptr;
+        amrex::Vector<std::string>* model_names = nullptr;
+
+        if (type == SurfaceModelType::LAND) {
+            model_data = &lsm_data_lev[lev];
+            model_names = &m_lsm_names;
+        } else if (type == SurfaceModelType::URBAN) {
+            model_data = &urban_data_lev[lev];
+            model_names = &m_urban_names;
+        }
+
+        AMREX_ALWAYS_ASSERT(model_data != nullptr);
+        AMREX_ALWAYS_ASSERT(model_names != nullptr);
+        AMREX_ALWAYS_ASSERT(flux_names.size() == model_fluxes.size());
+
+        const int data_size = model_data->size();
+        model_data->resize(data_size + model_fluxes.size());
+        if (lev == 0) {
+            model_names->resize(data_size + model_fluxes.size());
+        }
+
+        for (int i = 0; i < model_fluxes.size(); ++i) {
+            AMREX_ALWAYS_ASSERT(model_fluxes[i]);
+            (*model_data)[data_size + i] = model_fluxes[i];
+            if (lev == 0) {
+                (*model_names)[data_size + i] = flux_names[i];
+            }
+        }
+    }
+
+    /**
+     * Sets the fields to average for each model. When using fluxes, the first five elements map to
+     *   u-stress, v-stress, heat flux, vapor flux, tsurf.
+     * Otherwise, the first four elements map to ustar, tstar, qstar, tsurf.
      * If a field is set to -1, then it is skipped in the weight average.
      */
     void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &fields, const bool use_fluxes = true)
@@ -385,7 +422,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> wavg;
 
     // Model variables to weight average
-    // First 4 are ustar, tstar, qstar, tsurf
+    // The flux interface uses u-stress, v-stress, heat flux, vapor flux, tsurf.
     // TODO: make this more flexible for different types of models
     amrex::Vector<int> lsm_fields;
     amrex::Vector<int> urban_fields;
