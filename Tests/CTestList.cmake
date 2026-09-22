@@ -258,7 +258,7 @@ endfunction(add_test_cloud_chamber_parity)
 # COMMON_OPTIONS go to both runs, REFERENCE_OPTIONS must make the grid a single box and
 # SPLIT_OPTIONS give the split (the deck's own grid when empty).
 function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
-    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG")
+    set(oneValueArgs "COMMON_OPTIONS" "REFERENCE_OPTIONS" "SPLIT_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "DATALOG" "DATALOG_SIGDIGITS")
     cmake_parse_arguments(ADD_TEST_BP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -288,6 +288,7 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         "-DREFERENCE_OPTIONS=${ADD_TEST_BP_REFERENCE_OPTIONS}"
         "-DSPLIT_OPTIONS=${ADD_TEST_BP_SPLIT_OPTIONS}"
         "-DDATALOG=${ADD_TEST_BP_DATALOG}"
+        "-DDATALOG_SIGDIGITS=${ADD_TEST_BP_DATALOG_SIGDIGITS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunBoxParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -315,7 +316,7 @@ set_tests_properties(CompareDataLogs_SelfTest
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
 # unchanged to each leg and used to size the outer CTest watchdog.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT")
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS")
     cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -350,6 +351,8 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DATOL=${_fcompare_atol}"
         "-DRUN_TIMEOUT=${_run_timeout}"
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        "-DDATALOG=${ADD_TEST_RP_DATALOG}"
+        "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1547,6 +1550,28 @@ add_test_most_zref(MOST_Zref_Stretched)
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
+
+#=============================================================================
+# Station time-series output
+#=============================================================================
+
+# A station series is an interpolation from whichever level and whichever box
+# happens to cover the point, so the two things most likely to break it are a
+# change of decomposition and a restart.  Both are checked against the run that
+# does it in one piece.  Center.dat is the series compared because it is the one
+# that varies: the stations in the still air away from the bubble would compare
+# a constant against a constant.  The series print ten significant digits, so
+# that is what must agree.
+add_test_box_parity(StationSampling_BoxParity StationSampling "plt00010"
+    COMMON_OPTIONS ""
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=32 amr.max_grid_size_y=2 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/Center.dat"
+    DATALOG_SIGDIGITS 10)
+
+add_test_restart_parity(StationSampling_Restart StationSampling 4 10
+    DATALOG "Output_Stations/Center.dat"
+    DATALOG_SIGDIGITS 10)
 
 #=============================================================================
 # Performance tests

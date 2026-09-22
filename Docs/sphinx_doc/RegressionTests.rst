@@ -630,6 +630,44 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Station time series
+-------------------
+``StationSampling_BoxParity`` and ``StationSampling_Restart`` cover the station
+time series written by ``erf.station_names`` (see :ref:`sec:Inputs`). A station
+value is an interpolation from whichever level and whichever box happens to
+cover the point, so the two things most likely to break it are a change of
+decomposition and a restart, and both are checked against the run that does it
+in one piece. Beyond the plotfile comparison every parity test makes, each
+compares ``Output_Stations/Center.dat`` line by line, to the ten significant
+digits the series prints rather than the six a data log prints
+(``DATALOG_SIGDIGITS`` in ``Tests/RunBoxParity.cmake`` and
+``Tests/RunRestartParity.cmake``). ``Center.dat`` is the series compared because
+it is the one that varies; the stations in the still air away from the bubble
+would compare a constant against a constant. The restart comparison strips the
+comment lines first, since the restarted run marks the seam with a comment the
+straight run does not have.
+
+The deck is the Straka density current refined over the lower middle of the
+domain, with four stations chosen so that the run touches every path the sampler
+has: ``Center``, two locations inside the refined region with two heights each,
+so the values come from level 1 and the vertical interpolation runs; ``Edge``,
+inside the outer half cell of the non-periodic ``x`` boundary, where the
+horizontal stencil collapses onto the edge cell; ``Wrap``, inside the outer half
+cell of the periodic ``y`` boundary, where the stencil reaches across the
+periodic image; and ``Surface``, a 2D diagnostic, which has no height and is
+filled by the 2D plotfile path rather than the 3D one. The refined box stops
+halfway up the domain, so the deck also pins down the level test: a level
+supplies a station when it covers the column from the bottom of the domain up
+through the cells the vertical interpolation reads, not when it covers the whole
+column, and with ``erf.v = 1`` the sampler prints the level it chose for each
+station. The deck lowers ``erf.station_buffer_steps`` to 2, well below its
+default of 100, so that a ten-step run exercises the flush path and, on the
+restart, the header check that fires with the first flush of the restarted run.
+
+Test Location: `Tests/test_files/StationSampling`_
+
+.. _`Tests/test_files/StationSampling`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/StationSampling
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
