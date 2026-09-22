@@ -36,6 +36,7 @@ metgrid_surface_pressure (const bool debug_psfc,
                           const amrex::Real TLP,
                           amrex::Real& pressure)
 {
+    pressure = std::numeric_limits<amrex::Real>::quiet_NaN();
     if (debug_psfc) {
         pressure = amrex::Real(100000.0);
         return true;
@@ -218,6 +219,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab,
+                              int* base_state_column_failed,
                               const BaseStateParams& bsp);
 
 /**

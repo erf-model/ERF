@@ -549,6 +549,38 @@ void set_quadratic_node_heights (MultiFab& z_phys_nd)
 
 } // namespace
 
+TEST(SurfaceLayerCompatibility, EBAllowsNativeStateWithoutPlanarProviders)
+{
+    EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
+        TerrainType::EB, false, false, false, false, false, false));
+}
+
+TEST(SurfaceLayerCompatibility, EBRejectsPlanarSurfaceProviders)
+{
+    const std::array<std::array<bool, 6>, 6> providers{{
+        {{true, false, false, false, false, false}},
+        {{false, true, false, false, false, false}},
+        {{false, false, true, false, false, false}},
+        {{false, false, false, true, false, false}},
+        {{false, false, false, false, true, false}},
+        {{false, false, false, false, false, true}}}};
+    for (const auto& provider : providers) {
+        EXPECT_FALSE(erf_surface_layer::planar_sources_supported_for_terrain(
+            TerrainType::EB, provider[0], provider[1], provider[2], provider[3], provider[4],
+            provider[5]));
+    }
+}
+
+TEST(SurfaceLayerCompatibility, NonEBAllowsPlanarSurfaceProviders)
+{
+    const std::array<TerrainType, 3> terrain_types{
+        TerrainType::None, TerrainType::StaticFittedMesh, TerrainType::MovingFittedMesh};
+    for (const auto terrain_type : terrain_types) {
+        EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
+            terrain_type, true, true, true, true, true, true));
+    }
+}
+
 // Motivation: the Moeng stress functor has separate x-, y-, and z-wall
 // interpolation paths.  Exercise each path at both wall orientations so the
 // SurfaceLayer caller can rely on the normal high-face index being mapped back

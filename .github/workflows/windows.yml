@@ -21,8 +21,13 @@ jobs:
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
-          - particles: OFF
+          # Only matching mesh/particle precisions are tested, i.e. DOUBLE mesh
+          # with DOUBLE particles and SINGLE mesh with SINGLE particles.
+          - mesh_precision: DOUBLE
             particles_precision: SINGLE
+          - mesh_precision: SINGLE
+            particles_precision: DOUBLE
+          # SINGLE precision is only exercised in the particle-enabled build.
           - mesh_precision: SINGLE
             particles: OFF
 

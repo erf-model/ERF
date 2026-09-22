@@ -25,6 +25,24 @@
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
+namespace erf_surface_layer {
+
+inline bool
+planar_sources_supported_for_terrain (TerrainType terrain_type,
+                                       bool use_sst,
+                                       bool use_tsk,
+                                       bool use_coupled_sst,
+                                       bool has_lsm_tsurf,
+                                       bool has_lsm_fluxes,
+                                       bool has_custom_roughness)
+{
+    return terrain_type != TerrainType::EB ||
+           !(use_sst || use_tsk || use_coupled_sst || has_lsm_tsurf ||
+             has_lsm_fluxes || has_custom_roughness);
+}
+
+} // namespace erf_surface_layer
+
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -564,6 +582,9 @@ public:
                            (n_valid_lsm_flux==1 && has_soil_t_flux)));
       if (n_valid_lsm_flux>=4) { m_has_lsm_fluxes = true; }
 
+      const bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
+      const bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
+
       // Check if there is a user-specified roughness file to be read
       std::string fname;
       bool read_z0 = false;
@@ -589,6 +610,18 @@ public:
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
               m_face.coordDir() == 2 && m_face.isLow(),
               "Custom MOST roughness is supported only on the z-low face.");
+      }
+
+      // LSM flux arrays are planar and compute_sfc_params_from_lsm_fluxes only
+      // writes the k=0 slab, while EB MOST consumes surface parameters at
+      // arbitrary cut-cell k; no valid planar-to-cut-cell mapping exists yet.
+      if (!erf_surface_layer::planar_sources_supported_for_terrain(
+              m_terrain_type, use_sst, use_tsk, m_use_coupled_sst,
+              m_has_lsm_tsurf, m_has_lsm_fluxes, read_z0)) {
+          amrex::Abort(
+              "EB SurfaceLayer does not support planar SST/TSK, coupled SST, LSM surface "
+              "temperature or fluxes, or custom/file-driven roughness; no mapping exists "
+              "from those planar inputs to arbitrary EB cut cells.");
       }
 
       // Attributes for MFs and FABs
@@ -711,8 +744,6 @@ public:
 
       // TODO: Do we want an enum struct for indexing?
 
-      bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
-      bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
       if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst) {
           // Valid SST, TSK, LSM or coupled-ocean data; t_surf set before computing
           // fluxes (avoids extended lambda capture) Note that land temp will be set

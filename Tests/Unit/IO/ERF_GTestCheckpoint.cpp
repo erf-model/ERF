@@ -10,6 +10,8 @@
 namespace {
 
 using erf_checkpoint_surface_temperature::ContractReadStatus;
+using erf_checkpoint_surface_temperature::LegacyInitType;
+using erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility;
 
 struct TemporaryCheckpoint
 {
@@ -77,28 +79,79 @@ TEST(CheckpointSurfaceTemperature, RejectsUnknownOrMalformedMarker)
     }
 }
 
-TEST(CheckpointSurfaceTemperature, AllowsCompatibleLegacyCheckpoint)
+TEST(CheckpointSurfaceTemperature, ParsesLegacyMetgridInitTypeFromJobInfo)
 {
-    // Motivation: the compatibility guard is specific to legacy Metgrid
-    // surface-temperature arrays; older WRFInput checkpoints and checkpoints
-    // without SST/TSK remain readable.
-    EXPECT_FALSE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        false, false, true, true));
-    EXPECT_FALSE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        false, true, false, false));
-    EXPECT_FALSE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        true, true, true, true));
+    std::istringstream job_info("unrelated = 1\nerf.init_type = \"Metgrid\"\n");
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(job_info),
+              LegacyInitType::Metgrid);
+}
+
+TEST(CheckpointSurfaceTemperature, ParsesLegacyInitTypeValueCaseInsensitively)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("wRfInPuT"),
+              LegacyInitType::WRFInput);
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("METGRID"),
+              LegacyInitType::Metgrid);
+}
+
+TEST(CheckpointSurfaceTemperature, RejectsInvalidLegacyInitTypeValue)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_value("other"),
+              LegacyInitType::Unknown);
+}
+
+TEST(CheckpointSurfaceTemperature, ParsesLegacyWrfInputInitTypeCaseInsensitively)
+{
+    std::istringstream job_info("erf.init_type = wrfinput\n");
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(job_info),
+              LegacyInitType::WRFInput);
+}
+
+TEST(CheckpointSurfaceTemperature, UsesLastLegacyInitTypeAssignment)
+{
+    std::istringstream job_info(
+        "erf.init_type = \"WRFInput\"\nerf.init_type = Metgrid\n");
+    EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(job_info),
+              LegacyInitType::Metgrid);
+}
+
+TEST(CheckpointSurfaceTemperature, UnknownWhenLegacyInitTypeIsMissingOrMalformed)
+{
+    for (const char* text : {"other.key = Metgrid\n", "erf.init_type =\n",
+                             "erf.init_type = \"Metgrid\n", "erf.init_type Metgrid\n",
+                             "erf.init_type = Other\n"}) {
+        std::istringstream job_info(text);
+        EXPECT_EQ(erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(job_info),
+                  LegacyInitType::Unknown);
+    }
+}
+
+TEST(CheckpointSurfaceTemperature, AllowsLegacyWrfInputSurfaceArraysWithoutMarker)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+                  false, true, LegacyInitType::WRFInput),
+              LegacySurfaceTemperatureCompatibility::Compatible);
 }
 
 TEST(CheckpointSurfaceTemperature, RejectsLegacyMetgridSurfaceArraysWithoutMarker)
 {
-    // Motivation: legacy Metgrid SST_0/TSK_0 arrays were written as absolute
-    // temperature, while current Metgrid initialization expects theta and
-    // cannot reconstruct the conversion pressure from a checkpoint alone.
-    EXPECT_TRUE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        false, true, true, false));
-    EXPECT_TRUE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        false, true, false, true));
+    EXPECT_EQ(erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+                  false, true, LegacyInitType::Metgrid),
+              LegacySurfaceTemperatureCompatibility::UnsafeMetgrid);
+}
+
+TEST(CheckpointSurfaceTemperature, RejectsLegacySurfaceArraysWithUnknownProvenance)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+                  false, true, LegacyInitType::Unknown),
+              LegacySurfaceTemperatureCompatibility::UnknownProvenance);
+}
+
+TEST(CheckpointSurfaceTemperature, AllowsMarkerlessCheckpointWithoutSurfaceArrays)
+{
+    EXPECT_EQ(erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+                  false, false, LegacyInitType::Unknown),
+              LegacySurfaceTemperatureCompatibility::Compatible);
 }
 
 TEST(CheckpointSurfaceTemperature, ScansEveryAMRLevelForLegacySurfaceArrays)
@@ -110,8 +163,6 @@ TEST(CheckpointSurfaceTemperature, ScansEveryAMRLevelForLegacySurfaceArrays)
     touch_surface_temperature_file(checkpoint.root, 1, "SST_0_H");
     EXPECT_EQ(erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
                   checkpoint.root.string(), 2), 1);
-    EXPECT_FALSE(erf_checkpoint_surface_temperature::legacy_metgrid_surface_temperature_is_unsafe(
-        false, false, true, false));
 
     std::filesystem::remove(amrex::MultiFabFileFullPrefix(
         1, checkpoint.root.string(), "Level_", "SST_0_H"));
