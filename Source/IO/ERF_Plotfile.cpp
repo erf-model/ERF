@@ -295,20 +295,28 @@ ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 // the same way.
 //
 void
-ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratch& scratch)
+ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratch& scratch,
+                         int max_lev, bool sync_solution)
 {
     auto& mf_cc_vel = scratch.mf_cc_vel;
     auto& mf_cc_tau = scratch.mf_cc_tau;
     auto& mf_cc_fx  = scratch.mf_cc_fx;
 
+    // The scratch is indexed by level whatever is built, so that a level the
+    // caller does not read is simply an empty MultiFab rather than a shift.
     mf_cc_vel.resize(finest_level+1);
     mf_cc_tau.resize(finest_level+1);
     mf_cc_fx.resize(finest_level+1);
 
+    const int top_lev = (max_lev < 0) ? finest_level : std::min(max_lev, finest_level);
+
     // Lagrangian microphysics with AMR (TwoWay): synchronize the
     // microphysics-owned storage before rebuilding the active moisture state
-    // used by the plotfile diagnostics.
-    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
+    // used by the plotfile diagnostics.  This modifies the coarse solution, so
+    // a caller that runs at every step rather than at plotfile cadence asks not
+    // to do it: turning a diagnostic on must not change the answer.
+    if (sync_solution
+        && Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian
         && solverChoice.coupling_type == CouplingType::TwoWay
         && finest_level >= 1) {
         micro->AverageDownMicroVars(finest_level);
@@ -326,7 +334,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
     FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
                        &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
 
-    for (int lev = 1; lev <= finest_level; ++lev) {
+    for (int lev = 1; lev <= top_lev; ++lev) {
         bool fillset = false;
         FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                            &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
@@ -354,7 +362,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
         containerHasElement(plot_var_names, "vorticity_y"   ) ||
         containerHasElement(plot_var_names, "vorticity_z"   ) ) {
 
-        for (int lev = 0; lev <= finest_level; ++lev) {
+        for (int lev = 0; lev <= top_lev; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
             mf_cc_vel[lev].setVal(bogus_large_value);
             average_face_to_cellcenter(mf_cc_vel[lev],0,
@@ -375,7 +383,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
         containerHasElement(plot_var_names, "Tau32" ) ||
         containerHasElement(plot_var_names, "Tau33" )) {
 
-        for (int lev = 0; lev <= finest_level; ++lev) {
+        for (int lev = 0; lev <= top_lev; ++lev) {
             mf_cc_tau[lev].define(grids[lev], dmap[lev], 9, IntVect(1,1,1));
             mf_cc_tau[lev].setVal(bogus_large_value);
 
@@ -417,7 +425,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
         containerHasElement(plot_var_names, "q1fx3" ) ||
         containerHasElement(plot_var_names, "q2fx3" ))
     {
-        for (int lev = 0; lev <= finest_level; ++lev) {
+        for (int lev = 0; lev <= top_lev; ++lev) {
             mf_cc_fx[lev].define(grids[lev], dmap[lev], 7, IntVect(1,1,1));
             mf_cc_fx[lev].setVal(bogus_large_value);
 
@@ -457,7 +465,7 @@ ERF::BuildPlot3DScratch (const Vector<std::string>& plot_var_names, Plot3DScratc
     {
         amrex::Interpolater* mapper = &cell_cons_interp;
         FillBdyCCVels(mf_cc_vel[0],geom[0]);
-        for (int lev = 1; lev <= finest_level; ++lev)
+        for (int lev = 1; lev <= top_lev; ++lev)
         {
             Real new_time = static_cast<Real>(t_new[lev]);
             Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};

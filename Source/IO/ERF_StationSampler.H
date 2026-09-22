@@ -103,6 +103,9 @@ struct StationLoc
     int j1  = 0;                          // stencil collapses at a physical boundary
     amrex::Real wx = amrex::Real(0.0);    // weight of i1 relative to i0
     amrex::Real wy = amrex::Real(0.0);
+    int ktop = 0;                         // highest cell the vertical interpolation
+                                          // reads, which is as high as the chosen
+                                          // level is known to cover the stencil
 
     // Index into the owning station's column list of this location's first column
     int col_begin = 0;
@@ -171,8 +174,22 @@ public:
 
     [[nodiscard]] int bufferSteps () const { return m_buffer_steps; }
 
+    // A height below the first cell centre is honored by clamping, which is
+    // worth saying once and not once per output step.
+    [[nodiscard]] bool lowHeightWarned () const { return m_low_height_warned; }
+    void setLowHeightWarned () { m_low_height_warned = true; }
+
+    // Which level each location was resolved to is reported once, since it is
+    // the thing about a station that is least obvious from the inputs file.
+    [[nodiscard]] bool levelsReported () const { return m_levels_reported; }
+    void setLevelsReported () { m_levels_reported = true; }
+
 private:
     void writeHeader (const Station& station, std::ostream& os) const;
+
+    // Stops a restart that would append columns the file's header does not
+    // describe, which would otherwise pass unnoticed until the file was read.
+    void checkHeaderMatches (const Station& station, const std::string& filename) const;
 
     amrex::Vector<Station> m_stations;
     int m_ncolumns    = 0;
@@ -184,6 +201,8 @@ private:
     amrex::Vector<amrex::Real> m_rows;
 
     bool m_is_restart = false;
+    bool m_low_height_warned = false;
+    bool m_levels_reported = false;
     bool m_write_timestamp = false;
     std::string m_datetime_format;
 

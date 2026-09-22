@@ -1776,9 +1776,15 @@ ERF::InitData_post ()
 
     // Create the object that writes station time series if any stations are named
     {
-        bool do_station = false;
+        // Naming stations turns the output on; an explicit erf.do_station_sampling
+        // = false turns it back off, so a deck can keep its stations and have the
+        // output switched off from the command line.
+        bool do_station = (pp.countval("station_names") > 0);
         pp.queryAdd("do_station_sampling", do_station);
-        if (!do_station) { do_station = (pp.countval("station_names") > 0); }
+        if (do_station && pp.countval("station_names") == 0) {
+            Abort("erf.do_station_sampling is true but erf.station_names is empty, "
+                  "so there is nothing to sample");
+        }
         if (do_station) {
             if (station_sampling_interval < 0 && station_sampling_per < 0) {
                 // Station output is meant to be a time series, so the default is

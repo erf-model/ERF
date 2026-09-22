@@ -659,15 +659,22 @@ public:
         amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
     };
 
+    // max_lev caps the levels whose scratch is built, -1 meaning every level: a
+    // caller that reads only the coarse levels should not pay for the fine ones.
+    // sync_solution allows the microphysics average-down, which the plotfile
+    // writer wants but a diagnostic that runs at every step must not do, since
+    // it changes the coarse solution.
     void BuildPlot3DScratch (const amrex::Vector<std::string>& plot_var_names,
-                             Plot3DScratch& scratch);
+                             Plot3DScratch& scratch,
+                             int max_lev = -1,
+                             bool sync_solution = true);
 
     // Station time-series output
     void init_stations ();
     void resolve_station_positions ();
     void resolve_station_stencils ();
     void sample_stations (amrex::Real time);
-    void flush_stations ();
+    void flush_stations () const;
 
     void FillPlot2DVars (int lev,
                          const amrex::Vector<std::string>& plot_var_names,

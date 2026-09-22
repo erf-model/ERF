@@ -1604,11 +1604,27 @@ as the missing value it would have in a 2D plotfile (0 or -999 depending on the
 diagnostic) rather than being dropped.
 
 Values are interpolated bilinearly in the horizontal and linearly in the
-vertical, taken from the finest level whose valid region covers the whole
-interpolation stencil.  Within the outer half cell of a non-periodic boundary
-there is no second cell to interpolate from, so the horizontal stencil collapses
-to the edge cell; below the first cell centre and above the top of the domain
-the vertical interpolation likewise uses the nearest value.
+vertical, taken from the finest level that covers the interpolation stencil from
+the bottom of the domain up through the requested heights.  Coverage is required
+from the bottom because a height is measured from the local terrain, but not
+above the heights asked for, so a level that refines only the lower part of the
+domain still supplies a station within it.  Within the outer half cell of a
+non-periodic boundary there is no second cell to interpolate from, so the
+horizontal stencil collapses to the edge cell; below the first cell centre and
+above the top of the domain the vertical interpolation likewise uses the nearest
+value.
+
+.. warning::
+
+   Below the first cell centre there is nothing to interpolate, so a height
+   there returns the first cell centre's value unchanged -- it is not
+   extrapolated to the requested height by surface-layer similarity.  In a run
+   whose first cell is 100 m deep, ``height = 10.0`` and ``height = 40.0`` both
+   report the value 50 m up.  For 2 m and 10 m quantities, ask for the 2D
+   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m`` and the
+   surface-layer diagnostics), which are computed from the surface-layer
+   parameterization; the run warns once if a requested height falls in that
+   first half cell.
 
 Each station is written to ``Output_Stations/<name>.dat``.  The header names
 every column, with its units where they are known, the requested position, the
@@ -1622,16 +1638,38 @@ restart does not repeat that row, since the run that wrote the file before
 already has it.
 
 Rows are buffered in memory and written out every ``erf.station_buffer_steps``
-output steps and at the end of the run.  A restart appends to the file the
-earlier run wrote, so the series is continuous across a restart; the resumption
-is marked by a comment line.
+output steps, whenever a checkpoint is written, and at the end of the run.  A
+restart appends to the file the earlier run wrote, so the series is continuous
+across a restart; the resumption is marked by a comment line.  Because the
+buffer is flushed with every checkpoint, a restart from any checkpoint picks the
+series up where that checkpoint left it: rows the earlier run wrote past that
+point are dropped, so the series never runs backwards, and the run reports how
+many were dropped.  A restart into a file whose header describes a different set
+of columns -- a changed ``field``, location or ``height`` list -- stops the run
+rather than appending columns the header does not describe.
+
+Station names are used as file names, so they are limited to letters, digits,
+``_``, ``-`` and ``.``, must begin with a letter or an underscore, and must be
+distinct.
 
 .. note::
 
-   Station output is enabled by naming stations.  ``erf.do_station_sampling``
-   may be set explicitly, but it is not needed.  If neither
-   ``erf.station_sampling_interval`` nor ``erf.station_sampling_per`` is given,
-   the stations are written every step.
+   Station output is enabled by naming stations; setting
+   ``erf.do_station_sampling = false`` turns it off again without removing the
+   stations from the inputs file.  If neither ``erf.station_sampling_interval``
+   nor ``erf.station_sampling_per`` is given, the stations are written every
+   step.
+
+.. note::
+
+   A station column costs more than its one value: each output step fills the
+   requested 3D and 2D plot variables over every level that hosts a station, in
+   the same way a plotfile does, and interpolates a 2x2 column out of the
+   result.  With the default of every step, a long list of ``field`` names is
+   therefore a real cost; ask for the variables you will use, and raise
+   ``erf.station_sampling_interval`` if the series does not need every step.
+   The fill is a diagnostic: it does not change the solution, and a run with
+   station output turned on gives the same answer as one without.
 
 .. _list-of-parameters-10c:
 
@@ -1642,6 +1680,9 @@ List of Parameters
 | Parameter                          | Definition                                               | Acceptable Values  | Default          |
 +====================================+==========================================================+====================+==================+
 | **erf.station_names**              | Names of the stations to write                           | List of Strings    | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.do_station_sampling**        | Write station output at all; naming stations turns this  | Boolean            | true if stations |
+|                                    | on, setting it false turns it back off                   |                    | are named        |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.<name>.field**               | Variables to write at this station; 3D or 2D plotfile    | List of Strings    | None             |
 |                                    | variable names                                           |                    |                  |

@@ -3,9 +3,12 @@
  */
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <utility>
+#include <vector>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Utility.H>
@@ -34,6 +37,109 @@ station_key_error (const std::string& station, const std::string& key, const std
     return "Station '" + station + "': erf." + station + "." + key + " " + why;
 }
 
+//
+// The leading comment block of a station file, which is the header the run that
+// created it wrote.  Comments that appear later (the restart markers) are not
+// part of it.
+//
+std::vector<std::string>
+read_station_header (const std::string& filename)
+{
+    std::vector<std::string> header;
+    std::ifstream is(filename);
+    std::string line;
+    while (std::getline(is, line)) {
+        if (line.empty() || line[0] != '#') { break; }
+        header.push_back(line);
+    }
+    return header;
+}
+
+//
+// Drop the rows at or after t_first.  A restart is from a checkpoint, and the
+// run that wrote the checkpoint may have gone on past it and flushed rows the
+// restart is about to write again; without this the series would run backwards
+// in time at the seam.  Returns the number of rows dropped.
+//
+int
+truncate_station_file (const std::string& filename, amrex::Real t_first)
+{
+    std::vector<std::string> keep;
+    int dropped = 0;
+
+    // The times are printed with timeprecision significant digits, so a slack of
+    // a few units in the last place separates "the row we are about to write"
+    // from "a row from earlier in the series".
+    const double t_cut = static_cast<double>(t_first) * (1.0 - 1.0e-12) - 1.0e-12;
+
+    {
+        std::ifstream is(filename);
+        std::string line;
+        while (std::getline(is, line)) {
+            // Comments before the first dropped row are the header and the
+            // restart markers of the part of the series that survives; comments
+            // after it belong to the part that does not.
+            if (line.empty() || line[0] == '#') {
+                if (dropped == 0) { keep.push_back(line); }
+                continue;
+            }
+            std::istringstream iss(line);
+            double t = 0.0;
+            if (!(iss >> t) || t < t_cut) { keep.push_back(line); } else { ++dropped; }
+        }
+    }
+
+    if (dropped > 0) {
+        std::ofstream os(filename, std::ios::out | std::ios::trunc);
+        if (!os.good()) { amrex::FileOpenFailed(filename); }
+        for (const auto& line : keep) { os << line << "\n"; }
+    }
+    return dropped;
+}
+
+//
+// A station name is both a ParmParse prefix and the name of the file the series
+// is written to, so it has to be a plain file name: anything that could reach
+// outside the output directory, or that a shell or a reader would have to quote,
+// is refused here rather than turned into a surprising path.
+//
+void
+check_station_name (const std::string& name)
+{
+    if (name.empty()) {
+        amrex::Abort("Station names in erf.station_names cannot be empty");
+    }
+    if (name == "." || name == "..") {
+        amrex::Abort("Station name '" + name + "' is not usable as a file name");
+    }
+    if (!(std::isalpha(static_cast<unsigned char>(name[0])) || name[0] == '_')) {
+        amrex::Abort("Station name '" + name + "' must start with a letter or an underscore");
+    }
+    for (const char c : name) {
+        if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.')) {
+            amrex::Abort("Station name '" + name + "' contains '" + std::string(1,c) +
+                         "'; station names are used as file names, so they are limited to "
+                         "letters, digits, '_', '-' and '.'");
+        }
+    }
+}
+
+//
+// The horizontal interpolation stencil of one location on one level, and how
+// far up that level's valid region covers it.
+//
+struct StationLevelStencil
+{
+    int ic = 0, jc = 0;                   // cell containing (x,y)
+    int i0 = 0, j0 = 0;                   // lower-left corner of the stencil
+    int i1 = 0, j1 = 0;                   // upper-right corner
+    amrex::Real wx = amrex::Real(0.0);
+    amrex::Real wy = amrex::Real(0.0);
+    int kcov = -1;                        // top of the coverage that reaches the bottom
+                                          // of the domain; below the domain's smallEnd(2)
+                                          // when the level cannot supply this location
+};
+
 } // namespace
 
 //
@@ -58,6 +164,14 @@ StationSampler::StationSampler (const std::string& pp_prefix)
 
     for (const auto& name : names)
     {
+        check_station_name(name);
+        for (const auto& earlier : m_stations) {
+            if (earlier.name == name) {
+                amrex::Abort("Station '" + name + "' is named twice in erf.station_names; the "
+                             "two would write the same file");
+            }
+        }
+
         Station station;
         station.name = name;
 
@@ -224,6 +338,49 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
     os << "# interpolation stencil.\n";
 }
 
+//
+// A restart appends to the file the earlier run wrote, so the two runs have to
+// agree about what the columns are.  The header says exactly that -- the
+// variables, the locations, the heights, and their order -- so comparing it
+// against the header this run would write is the whole check.
+//
+void
+StationSampler::checkHeaderMatches (const Station& station, const std::string& filename) const
+{
+    std::ostringstream expected;
+    writeHeader(station, expected);
+
+    std::vector<std::string> want;
+    {
+        std::istringstream is(expected.str());
+        std::string line;
+        while (std::getline(is, line)) { want.push_back(line); }
+    }
+    const std::vector<std::string> found = read_station_header(filename);
+
+    if (found == want) { return; }
+
+    std::size_t i = 0;
+    while (i < want.size() && i < found.size() && want[i] == found[i]) { ++i; }
+
+    std::string detail;
+    if (i < found.size() && i < want.size()) {
+        detail = "\n  line " + std::to_string(i+1) + " of the file: " + found[i] +
+                 "\n  this run would write:  " + want[i];
+    } else if (i >= found.size()) {
+        detail = "\n  the file's header stops after " + std::to_string(found.size()) +
+                 " line(s); this run would write " + std::to_string(want.size());
+    } else {
+        detail = "\n  the file's header has " + std::to_string(found.size()) +
+                 " line(s); this run would write " + std::to_string(want.size());
+    }
+
+    Abort("Station '" + station.name + "': " + filename + " was written with a different "
+          "station configuration than this restart asks for, so appending to it would "
+          "produce columns that do not match its header.  Change the configuration back, "
+          "or move the file aside and start a new series." + detail);
+}
+
 void
 StationSampler::flush ()
 {
@@ -244,6 +401,21 @@ StationSampler::flush ()
         // series is continuous; the restart is marked in a comment rather than
         // by starting a new file.  A run that is not restarting starts afresh.
         const bool append = m_opened || (m_is_restart && FileExists(filename));
+
+        // The first thing a restart writes into an existing file: check that the
+        // file is the same series -- the columns are not labelled row by row, so
+        // a changed station configuration would append columns that silently do
+        // not mean what the header says -- and drop anything the earlier run
+        // wrote past the checkpoint this run restarted from.
+        if (append && !m_opened) {
+            checkHeaderMatches(station, filename);
+            const int dropped = truncate_station_file(filename, m_times[0]);
+            if (dropped > 0) {
+                Print() << "Station output: dropped " << dropped << " row(s) at or after t = "
+                        << m_times[0] << " from " << filename << ", written by the run before "
+                        << "the restart past the checkpoint it restarted from" << std::endl;
+            }
+        }
 
         std::ofstream os(filename, append ? (std::ios::out | std::ios::app)
                                           : (std::ios::out | std::ios::trunc));
@@ -429,6 +601,12 @@ ERF::resolve_station_positions ()
         // This is a setup-time, level-0, 2D array, so the gather is affordable and
         // keeps the search and the inverse map as plain host code.
         //
+        // The ceiling is one rank holding 2 Reals per level-0 cell -- 100 MB or so
+        // for the largest domains ERF is run on, a few hundred million cells -- and
+        // a search of that array per station location, once.  If either ever
+        // matters, the search is what to distribute: the array is gathered once
+        // for all the locations, but each location scans all of it.
+        //
         // NOTE: init_from_wrfinput reads WRF's staggered XLAT_V / XLONG_U into
         //       lat_m / lon_m (see the staggering contract in ERF.H), so the mass
         //       point is the average of the two bracketing edges.  init_from_metgrid
@@ -454,6 +632,9 @@ ERF::resolve_station_positions ()
         DistributionMapping dm_one(pmap);
         MultiFab latlon_all(ba_one, dm_one, 2, 0, MFInfo().SetArena(The_Pinned_Arena()));
         latlon_all.ParallelCopy(latlon, 0, 0, 2);
+
+        // The copy is device-side in a GPU build; the search below is host code
+        Gpu::streamSynchronize();
 
         const int ilo = dom0.smallEnd(0), ihi = dom0.bigEnd(0);
         const int jlo = dom0.smallEnd(1), jhi = dom0.bigEnd(1);
@@ -506,11 +687,18 @@ ERF::resolve_station_positions ()
                               "degenerate near the requested point, so it cannot be inverted");
                     }
 
+                    // The solve places the station relative to the nearest grid
+                    // point, so more than a cell away means the request cannot be
+                    // trusted: either it is outside the domain, or the lat/lon map
+                    // is too poorly conditioned near it for one linear solve.
                     if (std::abs(di) > Real(1.0) || std::abs(dj) > Real(1.0)) {
                         Abort("Station '" + station.name + "': requested lat=" +
                               std::to_string(loc.req_lat) + " long=" + std::to_string(loc.req_lon) +
-                              " is outside the domain (the nearest grid point is more than one "
-                              "cell away from it)");
+                              " resolved to a point more than one cell from the nearest grid "
+                              "point (lat=" + std::to_string(ll(bi,bj,0,0)) + " long=" +
+                              std::to_string(ll(bi,bj,0,1)) + "), which means it is outside the "
+                              "domain, or that the latitude/longitude arrays are too distorted "
+                              "near it to invert");
                     }
 
                     out[0] = problo[0] + (Real(bi) + Real(0.5) + di) * dx0[0];
@@ -537,89 +725,314 @@ ERF::resolve_station_positions ()
 }
 
 //
-// Choose, for every station location, the finest level whose valid region
-// covers the whole interpolation stencil, and record the stencil there.  Must
-// be redone after every regrid, so it is simply redone every output step.
+// Choose, for every station location, the finest level that can supply the
+// interpolation, and record the stencil and the top of the column it reads.
+// Must be redone after every regrid, so it is simply redone every output step.
+//
+// A level can supply a location when its valid region covers the four columns
+// of the horizontal stencil from the bottom of the domain up through the cells
+// the vertical interpolation reads.  Coverage is required from the bottom
+// because a station height is measured from the local terrain, which is the
+// bottom of the column, and only as far up as the requested heights reach: a
+// level that refines the boundary layer and stops part way up the domain is
+// exactly the level a station wants, and requiring it to cover its whole
+// vertical extent -- which is the refinement of the coarse domain, not of the
+// refined region -- would reject it for every station.
 //
 void
 ERF::resolve_station_stencils ()
 {
     auto& stations = station_sampler->stations();
 
-    for (auto& station : stations)
+    // Flat list of (station, location) pairs, so a stencil and the location it
+    // belongs to share an index.
+    Vector<std::pair<int,int>> all_locs;
+    for (int is = 0; is < static_cast<int>(stations.size()); ++is) {
+        for (int il = 0; il < static_cast<int>(stations[is].locs.size()); ++il) {
+            all_locs.emplace_back(is, il);
+        }
+    }
+    const int nloc = static_cast<int>(all_locs.size());
+
+    // ---- the horizontal stencil, and the coverage above it, on every level ----
+    Vector<Vector<StationLevelStencil>> cand(nloc, Vector<StationLevelStencil>(finest_level+1));
+
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
-        for (auto& loc : station.locs)
+        const auto  problo = geom[lev].ProbLoArray();
+        const auto  dx     = geom[lev].CellSizeArray();
+        const Box&  dom    = geom[lev].Domain();
+
+        const int ilo = dom.smallEnd(0), ihi = dom.bigEnd(0);
+        const int jlo = dom.smallEnd(1), jhi = dom.bigEnd(1);
+        const int klo = dom.smallEnd(2), khi = dom.bigEnd(2);
+
+        // How far up this level's valid region covers the column at (i,j) --
+        // after wrapping, where the direction is periodic -- counting only
+        // coverage that is contiguous from the bottom of the domain.  Returns
+        // klo-1 when even the bottom cell is not covered.
+        auto column_top = [&](int i, int j)
         {
-            bool found = false;
+            int ii = i, jj = j;
+            if (geom[lev].isPeriodic(0)) {
+                const int nx = dom.length(0);
+                ii = ilo + ((i - ilo) % nx + nx) % nx;
+            }
+            if (geom[lev].isPeriodic(1)) {
+                const int ny = dom.length(1);
+                jj = jlo + ((j - jlo) % ny + ny) % ny;
+            }
+            if (ii < ilo || ii > ihi || jj < jlo || jj > jhi) { return klo-1; }
 
-            for (int lev = finest_level; lev >= 0 && !found; --lev)
-            {
-                const auto  problo = geom[lev].ProbLoArray();
-                const auto  dx     = geom[lev].CellSizeArray();
-                const Box&  dom    = geom[lev].Domain();
+            std::vector<std::pair<int,Box>> isects;
+            grids[lev].intersections(Box(IntVect(ii,jj,klo), IntVect(ii,jj,khi)), isects);
 
-                const int ilo = dom.smallEnd(0), ihi = dom.bigEnd(0);
-                const int jlo = dom.smallEnd(1), jhi = dom.bigEnd(1);
-
-                int ic = ilo + static_cast<int>(std::floor((loc.x - problo[0]) / dx[0]));
-                int jc = jlo + static_cast<int>(std::floor((loc.y - problo[1]) / dx[1]));
-                ic = std::min(std::max(ic, ilo), ihi);
-                jc = std::min(std::max(jc, jlo), jhi);
-
-                const Real tx = (loc.x - (problo[0] + (Real(ic-ilo) + Real(0.5))*dx[0])) / dx[0];
-                const Real ty = (loc.y - (problo[1] + (Real(jc-jlo) + Real(0.5))*dx[1])) / dx[1];
-
-                int  i0 = (tx >= Real(0.0)) ? ic : ic-1;
-                int  j0 = (ty >= Real(0.0)) ? jc : jc-1;
-                Real wx = (tx >= Real(0.0)) ? tx : tx + Real(1.0);
-                Real wy = (ty >= Real(0.0)) ? ty : ty + Real(1.0);
-                int  i1 = i0 + 1;
-                int  j1 = j0 + 1;
-
-                // Within the outer half cell of a non-periodic boundary there is
-                // no second cell to interpolate from, so the stencil collapses to
-                // the edge cell.
-                if (!geom[lev].isPeriodic(0)) {
-                    if (i0 <  ilo) { i0 = i1 = ilo; wx = Real(0.0); }
-                    if (i1 >  ihi) { i0 = i1 = ihi; wx = Real(0.0); }
-                }
-                if (!geom[lev].isPeriodic(1)) {
-                    if (j0 <  jlo) { j0 = j1 = jlo; wy = Real(0.0); }
-                    if (j1 >  jhi) { j0 = j1 = jhi; wy = Real(0.0); }
-                }
-
-                // Every cell of the stencil must be covered by this level's valid
-                // region -- after wrapping, where the direction is periodic -- or
-                // the interpolation would read data this level does not have.
-                auto covered = [&](int i, int j)
-                {
-                    int ii = i, jj = j;
-                    if (geom[lev].isPeriodic(0)) {
-                        const int nx = dom.length(0);
-                        ii = ilo + ((i - ilo) % nx + nx) % nx;
+            // The pieces of the column come back in no particular order, so grow
+            // the covered span from the bottom until nothing else abuts it.
+            int ktop = klo-1;
+            bool grew = true;
+            while (grew) {
+                grew = false;
+                for (const auto& is : isects) {
+                    if (is.second.smallEnd(2) <= ktop+1 && is.second.bigEnd(2) > ktop) {
+                        ktop = is.second.bigEnd(2);
+                        grew = true;
                     }
-                    if (geom[lev].isPeriodic(1)) {
-                        const int ny = dom.length(1);
-                        jj = jlo + ((j - jlo) % ny + ny) % ny;
-                    }
-                    if (ii < ilo || ii > ihi || jj < jlo || jj > jhi) { return false; }
-                    Box column(IntVect(ii,jj,dom.smallEnd(2)), IntVect(ii,jj,dom.bigEnd(2)));
-                    return grids[lev].contains(column);
-                };
-
-                if (covered(i0,j0) && covered(i1,j0) && covered(i0,j1) && covered(i1,j1)) {
-                    loc.lev = lev;
-                    loc.ic = ic; loc.jc = jc;
-                    loc.i0 = i0; loc.j0 = j0;
-                    loc.i1 = i1; loc.j1 = j1;
-                    loc.wx = wx; loc.wy = wy;
-                    found = true;
                 }
             }
+            return ktop;
+        };
 
-            // Level 0 covers the whole domain, so a station inside the domain
-            // always resolves.
-            AMREX_ALWAYS_ASSERT(found);
+        for (int ip = 0; ip < nloc; ++ip)
+        {
+            const auto& loc = stations[all_locs[ip].first].locs[all_locs[ip].second];
+            auto& c = cand[ip][lev];
+
+            int ic = ilo + static_cast<int>(std::floor((loc.x - problo[0]) / dx[0]));
+            int jc = jlo + static_cast<int>(std::floor((loc.y - problo[1]) / dx[1]));
+            ic = std::min(std::max(ic, ilo), ihi);
+            jc = std::min(std::max(jc, jlo), jhi);
+
+            const Real tx = (loc.x - (problo[0] + (Real(ic-ilo) + Real(0.5))*dx[0])) / dx[0];
+            const Real ty = (loc.y - (problo[1] + (Real(jc-jlo) + Real(0.5))*dx[1])) / dx[1];
+
+            int  i0 = (tx >= Real(0.0)) ? ic : ic-1;
+            int  j0 = (ty >= Real(0.0)) ? jc : jc-1;
+            Real wx = (tx >= Real(0.0)) ? tx : tx + Real(1.0);
+            Real wy = (ty >= Real(0.0)) ? ty : ty + Real(1.0);
+            int  i1 = i0 + 1;
+            int  j1 = j0 + 1;
+
+            // Within the outer half cell of a non-periodic boundary there is
+            // no second cell to interpolate from, so the stencil collapses to
+            // the edge cell.
+            if (!geom[lev].isPeriodic(0)) {
+                if (i0 <  ilo) { i0 = i1 = ilo; wx = Real(0.0); }
+                if (i1 >  ihi) { i0 = i1 = ihi; wx = Real(0.0); }
+            }
+            if (!geom[lev].isPeriodic(1)) {
+                if (j0 <  jlo) { j0 = j1 = jlo; wy = Real(0.0); }
+                if (j1 >  jhi) { j0 = j1 = jhi; wy = Real(0.0); }
+            }
+
+            c.ic = ic; c.jc = jc;
+            c.i0 = i0; c.j0 = j0;
+            c.i1 = i1; c.j1 = j1;
+            c.wx = wx; c.wy = wy;
+            c.kcov = std::min(std::min(column_top(i0,j0), column_top(i1,j0)),
+                              std::min(column_top(i0,j1), column_top(i1,j1)));
+        }
+    }
+
+    // ---- the cell centre heights of the candidate columns, on the IO rank ----
+    //
+    // Which cells the vertical interpolation reads depends on the terrain under
+    // the station, so choosing the level needs the heights themselves.  They are
+    // one component of a 2x2 column, so they are gathered where the choice is
+    // made, on the same rank that later interpolates.
+    //
+    const int io_rank = ParallelDescriptor::IOProcessorNumber();
+
+    Vector<Vector<int>> lev_cand(finest_level+1);      // ip of each gathered box, in box order
+    Vector<MultiFab> zc(finest_level+1), znd(finest_level+1);
+
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        const Box& dom = geom[lev].Domain();
+        const int  klo = dom.smallEnd(2);
+
+        for (int ip = 0; ip < nloc; ++ip) {
+            if (cand[ip][lev].kcov >= klo) { lev_cand[lev].push_back(ip); }
+        }
+        if (lev_cand[lev].empty() || (!z_phys_cc[lev] && !z_phys_nd[lev])) { continue; }
+
+        // Periodicity restricted to the horizontal: the columns start at the
+        // bottom of the domain, so there is nothing to wrap in z.
+        const Periodicity period(IntVect(geom[lev].isPeriodic(0) ? dom.length(0) : 0,
+                                         geom[lev].isPeriodic(1) ? dom.length(1) : 0,
+                                         0));
+
+        BoxList bl_cc, bl_nd;
+        for (const int ip : lev_cand[lev]) {
+            const auto& c = cand[ip][lev];
+            bl_cc.push_back(Box(IntVect(c.i0,c.j0,klo), IntVect(c.i1,c.j1,c.kcov)));
+            bl_nd.push_back(Box(IntVect(c.i0,c.j0,klo), IntVect(c.i1+1,c.j1+1,klo),
+                                IntVect::TheNodeVector()));
+        }
+
+        Vector<int> pmap(static_cast<int>(bl_cc.size()), io_rank);
+        DistributionMapping dm_io(pmap);
+        MFInfo pinned = MFInfo().SetArena(The_Pinned_Arena());
+
+        if (z_phys_cc[lev]) {
+            zc[lev].define(BoxArray(bl_cc), dm_io, 1, 0, pinned);
+            zc[lev].setVal(Real(0.0));
+            zc[lev].ParallelCopy(*z_phys_cc[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+        }
+        if (z_phys_nd[lev]) {
+            znd[lev].define(BoxArray(bl_nd), dm_io, 1, 0, pinned);
+            znd[lev].setVal(Real(0.0));
+            znd[lev].ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+        }
+    }
+
+    // The gathers above are device-side in a GPU build, and the choice below
+    // reads the pinned destinations on the host.
+    Gpu::streamSynchronize();
+
+    // ---- choose the level, on the IO rank, and tell everyone ----
+    //
+    // Only the level and the top of the column have to be broadcast: every rank
+    // computed the same stencils above.
+    //
+    Vector<int> chosen(2*nloc, -1);
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        for (int ip = 0; ip < nloc; ++ip)
+        {
+            const Station& station = stations[all_locs[ip].first];
+
+            // A station of 2D variables only never leaves the bottom of the column
+            const bool reads_column = station.has_3d_vars() && !station.heights.empty();
+
+            for (int lev = finest_level; lev >= 0 && chosen[2*ip] < 0; --lev)
+            {
+                const auto& c = cand[ip][lev];
+
+                const auto problo = geom[lev].ProbLoArray();
+                const auto dx     = geom[lev].CellSizeArray();
+                const Box& dom    = geom[lev].Domain();
+                const int  klo    = dom.smallEnd(2);
+                const int  khi    = dom.bigEnd(2);
+
+                if (c.kcov < klo) { continue; }
+
+                if (!reads_column) {
+                    chosen[2*ip] = lev; chosen[2*ip+1] = klo;
+                    break;
+                }
+
+                const int ib = static_cast<int>(
+                    std::find(lev_cand[lev].begin(), lev_cand[lev].end(), ip) - lev_cand[lev].begin());
+
+                auto bilinear = [&](const Array4<const Real>& a, int k)
+                {
+                    return (Real(1.0)-c.wy) * ( (Real(1.0)-c.wx)*a(c.i0,c.j0,k) + c.wx*a(c.i1,c.j0,k) )
+                         +            c.wy  * ( (Real(1.0)-c.wx)*a(c.i0,c.j1,k) + c.wx*a(c.i1,c.j1,k) );
+                };
+
+                Array4<const Real> zc_arr;
+                if (z_phys_cc[lev]) { zc_arr = zc[lev].const_array(ib); }
+                auto z_of_k = [&](int k)
+                {
+                    if (zc_arr) { return bilinear(zc_arr, k); }
+                    return problo[2] + (Real(k-klo) + Real(0.5)) * dx[2];
+                };
+
+                Real z_surf = problo[2];
+                if (z_phys_nd[lev]) {
+                    const Array4<const Real>& nd = znd[lev].const_array(ib);
+                    auto corner_avg = [&](int i, int j) {
+                        return Real(0.25) * (nd(i,j,klo) + nd(i+1,j,klo) + nd(i,j+1,klo) + nd(i+1,j+1,klo));
+                    };
+                    z_surf = (Real(1.0)-c.wy) * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j0) + c.wx*corner_avg(c.i1,c.j0) )
+                           +            c.wy  * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j1) + c.wx*corner_avg(c.i1,c.j1) );
+                }
+
+                // Every requested height must be bracketed within the covered
+                // part of the column.  Running out of coverage is fatal to the
+                // level unless the coverage reaches the top of the domain, where
+                // the interpolation legitimately clamps.
+                int  ktop = klo;
+                bool usable = true;
+                bool below_first_cell = false;
+                for (const Real height : station.heights)
+                {
+                    const Real z_target = z_surf + height;
+                    if (z_of_k(c.kcov) < z_target && c.kcov < khi) { usable = false; break; }
+
+                    if (z_target < z_of_k(klo)) { below_first_cell = true; }
+
+                    int kk = klo;
+                    while (kk < c.kcov && z_of_k(kk+1) < z_target) { ++kk; }
+                    ktop = std::max(ktop, std::min(kk+1, c.kcov));
+                }
+
+                if (usable) {
+                    chosen[2*ip] = lev;
+                    chosen[2*ip+1] = ktop;
+
+                    // Nothing in the model lives between the terrain and the first
+                    // cell centre, so a height there is the first cell centre's
+                    // value.  That is a trap for exactly the heights an observation
+                    // comparison asks for, so say so, once.
+                    if (below_first_cell && !station_sampler->lowHeightWarned()) {
+                        station_sampler->setLowHeightWarned();
+                        Warning("Station '" + station.name + "': a requested height is below the "
+                                "first cell centre of the level it is sampled from, so it is "
+                                "reported as the value at that cell centre -- there is no "
+                                "similarity extrapolation to the requested height.  For 2 m or "
+                                "10 m quantities, request the 2D diagnostics (temperature_2m, "
+                                "water_vapor_mixing_ratio_2m, and the surface-layer diagnostics) "
+                                "instead of a 3D variable at that height");
+                    }
+                }
+            }
+        }
+    }
+
+    ParallelDescriptor::Bcast(chosen.data(), chosen.size(), io_rank);
+
+    for (int ip = 0; ip < nloc; ++ip)
+    {
+        // Level 0 covers the whole domain from the ground up, so a station
+        // inside the domain always resolves.
+        AMREX_ALWAYS_ASSERT(chosen[2*ip] >= 0);
+
+        auto& loc     = stations[all_locs[ip].first].locs[all_locs[ip].second];
+        const auto& c = cand[ip][chosen[2*ip]];
+
+        loc.lev = chosen[2*ip];
+        loc.ic = c.ic; loc.jc = c.jc;
+        loc.i0 = c.i0; loc.j0 = c.j0;
+        loc.i1 = c.i1; loc.j1 = c.j1;
+        loc.wx = c.wx; loc.wy = c.wy;
+        loc.ktop = chosen[2*ip+1];
+    }
+
+    // Which level a station is sampled from follows from the grids rather than
+    // from anything in the inputs file, so report it once.
+    if (verbose > 0 && !station_sampler->levelsReported())
+    {
+        station_sampler->setLevelsReported();
+        for (int ip = 0; ip < nloc; ++ip) {
+            const Station&    station = stations[all_locs[ip].first];
+            const StationLoc& loc     = station.locs[all_locs[ip].second];
+            Print() << "Station output: '" << station.name << "' at x=" << loc.x
+                    << " y=" << loc.y << " is sampled from level " << loc.lev
+                    << " (cell " << loc.ic << "," << loc.jc
+                    << ", column through k=" << loc.ktop << ")" << std::endl;
         }
     }
 }
@@ -649,18 +1062,26 @@ ERF::sample_stations (Real time)
 
     // ---- fill the plot variables, on the levels that host a station ----
     Vector<int> lev_has_station(finest_level+1, 0);
+    int top_station_lev = 0;
     for (const auto& station : stations) {
-        for (const auto& loc : station.locs) { lev_has_station[loc.lev] = 1; }
+        for (const auto& loc : station.locs) {
+            lev_has_station[loc.lev] = 1;
+            top_station_lev = std::max(top_station_lev, loc.lev);
+        }
     }
 
     Vector<MultiFab> mf3d(finest_level+1);
     Vector<MultiFab> mf2d(finest_level+1);
 
     if (n3d > 0) {
-        // The scratch has to be built for every level: the vorticity path fills
-        // level l from level l-1.
+        // The scratch has to be built for every level up to the finest one a
+        // station is on, not just the levels that host a station: the vorticity
+        // path fills level l from level l-1.  Levels above that are not read, so
+        // they are not built.  The sampler runs at every output step, so it also
+        // asks BuildPlot3DScratch not to average the microphysics state down:
+        // turning station output on must not change the answer.
         Plot3DScratch scratch;
-        BuildPlot3DScratch(station_vars_3d, scratch);
+        BuildPlot3DScratch(station_vars_3d, scratch, top_station_lev, false);
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (!lev_has_station[lev]) { continue; }
             mf3d[lev].define(grids[lev], dmap[lev], n3d, 0);
@@ -711,18 +1132,20 @@ ERF::sample_stations (Real time)
 
         const Box& dom = geom[lev].Domain();
         const int  klo = dom.smallEnd(2);
-        const int  khi = dom.bigEnd(2);
 
-        // Periodicity restricted to the horizontal: the stencils are full columns
-        // in z, so there is nothing to wrap there.
+        // Periodicity restricted to the horizontal: the stencils start at the
+        // bottom of the domain, so there is nothing to wrap in z.
         const Periodicity period(IntVect(geom[lev].isPeriodic(0) ? dom.length(0) : 0,
                                          geom[lev].isPeriodic(1) ? dom.length(1) : 0,
                                          0));
 
+        // Each stencil reaches only as far up as resolve_station_stencils found
+        // the vertical interpolation needs, which is as far up as this level is
+        // guaranteed to cover it.
         BoxList bl_cc, bl_2d, bl_nd;
         for (const int ip : lev_locs[lev]) {
             const auto& loc = stations[all_locs[ip].first].locs[all_locs[ip].second];
-            Box cc(IntVect(loc.i0,loc.j0,klo), IntVect(loc.i1,loc.j1,khi));
+            Box cc(IntVect(loc.i0,loc.j0,klo), IntVect(loc.i1,loc.j1,loc.ktop));
             bl_cc.push_back(cc);
             Box b2(IntVect(loc.i0,loc.j0,0), IntVect(loc.i1,loc.j1,0));
             bl_2d.push_back(b2);
@@ -761,6 +1184,10 @@ ERF::sample_stations (Real time)
         }
     }
 
+    // The gathers above are device-side in a GPU build, and what follows reads
+    // the pinned destinations on the host.
+    Gpu::streamSynchronize();
+
     // ---- interpolate, on the IO rank ----
     Vector<Real> row(ss.numColumns(), Real(0.0));
 
@@ -774,7 +1201,6 @@ ERF::sample_stations (Real time)
             const auto  dx     = geom[lev].CellSizeArray();
             const Box&  dom    = geom[lev].Domain();
             const int   klo    = dom.smallEnd(2);
-            const int   khi    = dom.bigEnd(2);
 
             for (int ib = 0; ib < static_cast<int>(lev_locs[lev].size()); ++ib)
             {
@@ -828,14 +1254,15 @@ ERF::sample_stations (Real time)
                 {
                     const Real z_target = z_surf + height;
 
-                    // Bracket the target height in the station's column
+                    // Bracket the target height in the part of the column this
+                    // level was chosen to cover
                     int kk = klo;
-                    while (kk < khi && z_of_k(kk+1) < z_target) { ++kk; }
+                    while (kk < loc.ktop && z_of_k(kk+1) < z_target) { ++kk; }
                     const Real zk  = z_of_k(kk);
-                    const Real zk1 = z_of_k(std::min(kk+1, khi));
+                    const Real zk1 = z_of_k(std::min(kk+1, loc.ktop));
                     Real wz = (zk1 > zk) ? (z_target - zk) / (zk1 - zk) : Real(0.0);
                     wz = std::min(std::max(wz, Real(0.0)), Real(1.0));   // clamp below the first
-                    const int k1 = std::min(kk+1, khi);                  // cell centre and above the top
+                    const int k1 = std::min(kk+1, loc.ktop);             // cell centre and above the top
 
                     for (const auto& var : station.vars) {
                         if (var.is_2d) { continue; }
@@ -853,7 +1280,7 @@ ERF::sample_stations (Real time)
 }
 
 void
-ERF::flush_stations ()
+ERF::flush_stations () const
 {
     if (station_sampler) { station_sampler->flush(); }
 }
