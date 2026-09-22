@@ -324,19 +324,34 @@ ifeq ($(USE_NOAHMP), TRUE)
       NOAHMP_PRECISION_FLAG :=
     endif
 
-    # Try netcdf-fortran => netcdf-fortran_parallel
+    # Try netcdf-fortran => netcdf-fortran_parallel. The Fortran include flags are
+    # captured in NETCDF_FORTRAN_CFLAGS rather than appended straight to `includes`
+    # so that the Noah-MP sub-make (below) can be handed the very same flags. If the
+    # Noah-MP Fortran sources are compiled against a different netCDF-Fortran install
+    # than the one we link against, the mangled module symbols still resolve and the
+    # link succeeds -- but the procedure signatures disagree, and calls arrive with
+    # their arguments (including the hidden character lengths) in the wrong slots.
     has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
     ifeq ($(has_netcdf_fortran),0)
-      includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
+      NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
       LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
     else
       has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
       ifeq ($(has_netcdf_fortran_parallel),0)
-        includes  += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
+        NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
         LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
       else
         $(warning NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
       endif
+    endif
+
+    includes += $(NETCDF_FORTRAN_CFLAGS)
+
+    # Only override the sub-make's own netCDF probe when pkg-config actually told us
+    # something; an empty NETCDF_INCFLAGS= on the command line would silently defeat
+    # the nf-config fallback in the Noah-MP Makefile.
+    ifneq ($(strip $(NETCDF_FORTRAN_CFLAGS)),)
+      NOAHMP_SUBMAKE_NETCDF := NETCDF_INCFLAGS="$(NETCDF_FORTRAN_CFLAGS)"
     endif
 
     NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
@@ -604,7 +619,7 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
 build_noahmp:
 ifeq ($(USE_NOAHMP), TRUE)
-	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)"
+	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)" $(NOAHMP_SUBMAKE_NETCDF)
 
 # Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
 # `all` prereq order, so an order-only (|) dep is needed to enforce it.
