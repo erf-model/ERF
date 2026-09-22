@@ -26,12 +26,14 @@
 //     erf.Forests.field  = magvel local_helicity
 //     erf.Forests.lat    = 45.20 45.41
 //     erf.Forests.long   = -122.10 -122.02
-//     erf.Forests.height = 10.0 80.0
+//     erf.Forests.height_agl = 10.0 80.0
 //
 // lat/long are paired positionally, so the example above is two locations, not
 // four.  A station may instead be placed with .x/.y in domain coordinates, which
-// is the only option for a run that has no lat/lon arrays.  Heights are metres
-// above local terrain and apply to every location of the station.
+// is the only option for a run that has no lat/lon arrays.  The heights apply to
+// every location of the station and are given one way or the other, never both:
+// .height_agl is metres above the local terrain, .height_abs is metres in the
+// model's own vertical coordinate, the same z as geometry.prob_lo/prob_hi.
 //
 // The variable names accepted are exactly the names that can be written to a 3D
 // or a 2D plotfile, and the values come from the same fill routines
@@ -128,7 +130,12 @@ struct Station
     std::string name;
     amrex::Vector<StationVar>  vars;
     amrex::Vector<StationLoc>  locs;
-    amrex::Vector<amrex::Real> heights;   // metres above local terrain
+    // The requested heights, in metres, and what they are measured from.  The
+    // two input keys collapse to one list here: which one was given only decides
+    // where the column's zero is, and that is a single flag rather than two
+    // lists everything downstream would have to choose between.
+    amrex::Vector<amrex::Real> heights;
+    bool heights_are_agl = true;          // .height_agl, else .height_abs
 
     // Global column indices owned by this station, in file column order
     amrex::Vector<int> columns;

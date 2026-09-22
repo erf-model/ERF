@@ -1579,7 +1579,7 @@ lists the names, and the keys of each station live under its own prefix.
    erf.Forests.field  = magvel local_helicity
    erf.Forests.lat    = 45.20 45.41
    erf.Forests.long   = -122.10 -122.02
-   erf.Forests.height = 10.0 80.0
+   erf.Forests.height_agl = 10.0 80.0
 
    erf.station_sampling_interval = 1
 
@@ -1590,9 +1590,13 @@ is accepted as a synonym for ``long``.  A station may instead be placed with
 has no latitude/longitude arrays; a station uses one form or the other, never
 both.
 
-``height`` is in metres above the local terrain and applies to every location of
-the station.  It is required if the station requests any 3D variable, and is
-ignored by 2D variables, which are surface quantities.
+Heights are given one of two ways, and apply to every location of the station.
+``height_agl`` is in metres above the local terrain, which is what a tower
+measurement is; ``height_abs`` is in metres in the model's own vertical
+coordinate, the one ``geometry.prob_lo`` and ``geometry.prob_hi`` are given in,
+which is what an aircraft or a sounding level is.  A station uses one or the
+other, never both.  One of them is required if the station requests any 3D
+variable; both are ignored by 2D variables, which are surface quantities.
 
 The variable names accepted are exactly the names that can be written to a 3D
 plotfile (``erf.plot_vars_1``) or to a 2D plotfile (``erf.plot2d_vars_1``), and
@@ -1606,7 +1610,7 @@ diagnostic) rather than being dropped.
 Values are interpolated bilinearly in the horizontal and linearly in the
 vertical, taken from the finest level that covers the interpolation stencil from
 the bottom of the domain up through the requested heights.  Coverage is required
-from the bottom because a height is measured from the local terrain, but not
+from the bottom because ``height_agl`` is measured from the local terrain, but not
 above the heights asked for, so a level that refines only the lower part of the
 domain still supplies a station within it.  Within the outer half cell of a
 non-periodic boundary there is no second cell to interpolate from, so the
@@ -1619,7 +1623,7 @@ value.
    Below the first cell centre there is nothing to interpolate, so a height
    there returns the first cell centre's value unchanged -- it is not
    extrapolated to the requested height by surface-layer similarity.  In a run
-   whose first cell is 100 m deep, ``height = 10.0`` and ``height = 40.0`` both
+   whose first cell is 100 m deep, ``height_agl = 10.0`` and ``height_agl = 40.0`` both
    report the value 50 m up.  For 2 m and 10 m quantities, ask for the 2D
    diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m`` and the
    surface-layer diagnostics), which are computed from the surface-layer
@@ -1645,7 +1649,7 @@ buffer is flushed with every checkpoint, a restart from any checkpoint picks the
 series up where that checkpoint left it: rows the earlier run wrote past that
 point are dropped, so the series never runs backwards, and the run reports how
 many were dropped.  A restart into a file whose header describes a different set
-of columns -- a changed ``field``, location or ``height`` list -- stops the run
+of columns -- a changed ``field``, location or height list -- stops the run
 rather than appending columns the header does not describe.
 
 Station names are used as file names, so they are limited to letters, digits,
@@ -1694,8 +1698,13 @@ List of Parameters
 | **erf.<name>.y**                   | positionally; not to be combined with ``.lat`` /         |                    |                  |
 |                                    | ``.long``                                                |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.<name>.height**              | Heights above the local terrain at which the 3D          | List of Reals,     | None             |
-|                                    | variables are sampled                                    | metres             |                  |
+| **erf.<name>.height_agl**          | Heights above the local terrain at which the 3D          | List of Reals,     | None             |
+|                                    | variables are sampled; not to be combined with           | metres             |                  |
+|                                    | ``.height_abs``                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.height_abs**          | Heights in the model's vertical coordinate at which the  | List of Reals,     | None             |
+|                                    | 3D variables are sampled; not to be combined with        | metres             |                  |
+|                                    | ``.height_agl``                                          |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.station_sampling_interval**  | Output frequency (steps)                                 | Integer            | 1                |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+

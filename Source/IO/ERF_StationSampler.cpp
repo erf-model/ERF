@@ -244,9 +244,31 @@ StationSampler::StationSampler (const std::string& pp_prefix)
             }
         }
 
-        const int nheight = pps.countval("height");
+        // Heights come in one of two ways, and the difference is only what the
+        // zero of the column is: .height_agl measures from the local terrain,
+        // .height_abs from the bottom of the domain, in the same z the geometry
+        // is given in.  Both are read into the one list the rest of the sampler
+        // uses, with a flag saying which zero it is, so nothing downstream has
+        // to ask which key the user typed.
+        const int n_agl = pps.countval("height_agl");
+        const int n_abs = pps.countval("height_abs");
+
+        if (n_agl > 0 && n_abs > 0) {
+            Abort("Station '" + name + "': give heights as either erf." + name +
+                  ".height_agl (above the local terrain) or erf." + name +
+                  ".height_abs (in the model's z coordinate), not both");
+        }
+        if (pps.contains("height")) {
+            Abort("Station '" + name + "': erf." + name + ".height is not a key; say "
+                  "erf." + name + ".height_agl for metres above the local terrain, or erf." +
+                  name + ".height_abs for metres in the model's z coordinate");
+        }
+
+        station.heights_are_agl = (n_abs == 0);
+        const char* height_key  = station.heights_are_agl ? "height_agl" : "height_abs";
+        const int   nheight     = std::max(n_agl, n_abs);
         if (nheight > 0) {
-            pps.getarr("height", station.heights, 0, nheight);
+            pps.getarr(height_key, station.heights, 0, nheight);
         }
 
         m_stations.push_back(std::move(station));
@@ -308,6 +330,8 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
            << ", with 'T' where the format has a space, so the column is one field)\n";
     }
 
+    const bool station_heights_are_agl = station.heights_are_agl;
+
     auto describe = [&](const StationLoc& loc, const StationVar& var, Real height, bool with_height)
     {
         os << "# column " << col++ << ": " << var.name;
@@ -317,7 +341,10 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
                << " (sampled lat=" << loc.got_lat << " long=" << loc.got_lon << ")";
         }
         os << " at x=" << loc.x << " y=" << loc.y;
-        if (with_height) { os << ", height=" << height << " m above local terrain"; }
+        if (with_height) {
+            os << ", height=" << height
+               << (station_heights_are_agl ? " m above local terrain" : " m (absolute, model z)");
+        }
         if (var.is_missing) { os << "  [NOT AVAILABLE in this run: constant " << var.missing_value << "]"; }
         os << "\n";
     };
@@ -553,8 +580,9 @@ ERF::init_stations ()
         }
 
         if (station.has_3d_vars() && station.heights.empty()) {
-            Abort(station_key_error(station.name, "height",
-                                    "must be given, since this station requests a 3D variable"));
+            Abort("Station '" + station.name + "': erf." + station.name + ".height_agl or erf." +
+                  station.name + ".height_abs must be given, since this station requests a 3D "
+                  "variable");
         }
     }
 
@@ -950,6 +978,8 @@ ERF::resolve_station_stencils ()
                     return problo[2] + (Real(k-klo) + Real(0.5)) * dx[2];
                 };
 
+                // Terrain elevation under the station, which is where an AGL
+                // height is measured from
                 Real z_surf = problo[2];
                 if (z_phys_nd[lev]) {
                     const Array4<const Real>& nd = znd[lev].const_array(ib);
@@ -964,12 +994,16 @@ ERF::resolve_station_stencils ()
                 // part of the column.  Running out of coverage is fatal to the
                 // level unless the coverage reaches the top of the domain, where
                 // the interpolation legitimately clamps.
+                // The zero of the requested heights: the terrain under the
+                // station, or the bottom of the domain.
+                const Real z_zero = station.heights_are_agl ? z_surf : Real(0.0);
+
                 int  ktop = klo;
                 bool usable = true;
                 bool below_first_cell = false;
                 for (const Real height : station.heights)
                 {
-                    const Real z_target = z_surf + height;
+                    const Real z_target = z_zero + height;
                     if (z_of_k(c.kcov) < z_target && c.kcov < khi) { usable = false; break; }
 
                     if (z_target < z_of_k(klo)) { below_first_cell = true; }
@@ -1250,9 +1284,11 @@ ERF::sample_stations (Real time)
                     row[gcol] = var.is_missing ? var.missing_value : bilinear(a2, var.comp, 0);
                 }
 
+                const Real z_zero = station.heights_are_agl ? z_surf : Real(0.0);
+
                 for (const Real height : station.heights)
                 {
-                    const Real z_target = z_surf + height;
+                    const Real z_target = z_zero + height;
 
                     // Bracket the target height in the part of the column this
                     // level was chosen to cover
