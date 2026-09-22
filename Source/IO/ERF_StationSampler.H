@@ -8,6 +8,7 @@
 #include <cmath>
 #include <string>
 
+#include <AMReX_BoxArray.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 
@@ -35,10 +36,13 @@
 // .height_agl is metres above the local terrain, .height_abs is metres in the
 // model's own vertical coordinate, the same z as geometry.prob_lo/prob_hi.
 //
-// The variable names accepted are exactly the names that can be written to a 3D
-// or a 2D plotfile, and the values come from the same fill routines
+// The variable names accepted are the 3D plotfile variables and the built-in 2D
+// diagnostics, and the values come from the same fill routines
 // (ERF::FillPlot3DVars / ERF::FillPlot2DVars), so a station column and the
-// corresponding plotfile component cannot disagree.
+// corresponding plotfile component cannot disagree.  A 2D plotfile can also
+// carry sampled-level fields, named for the field and the level such as
+// 'theta_z100m'; those are not accepted here, since a station asks for the 3D
+// variable and a height directly.
 //
 
 //
@@ -196,6 +200,16 @@ public:
     [[nodiscard]] bool levelsReported () const { return m_levels_reported; }
     void setLevelsReported () { m_levels_reported = true; }
 
+    // Resolving which level and which cells a station is read from costs a
+    // ParallelCopy, a stream synchronization and a broadcast, and the answer is a
+    // function of the grids and of the terrain under the station.  With terrain
+    // that does not move, grids that have not changed give the answer already
+    // stored in the locations, so the work can be skipped: these remember which
+    // grids that was, and report whether it is still those.
+    [[nodiscard]] bool stencilsValidFor (const amrex::Vector<amrex::BoxArray>& ba,
+                                         int finest_level) const;
+    void rememberStencilGrids (const amrex::Vector<amrex::BoxArray>& ba, int finest_level);
+
 private:
     void writeHeader (const Station& station, std::ostream& os) const;
 
@@ -218,6 +232,10 @@ private:
     amrex::Vector<amrex::Real> m_times;
     amrex::Vector<amrex::Real> m_epoch_times;
     amrex::Vector<amrex::Real> m_rows;
+
+    // The grids the stencils currently stored in the locations were resolved
+    // against; empty until the first resolve.
+    amrex::Vector<amrex::BoxArray> m_stencil_grids;
 
     bool m_is_restart = false;
     bool m_low_height_warned = false;

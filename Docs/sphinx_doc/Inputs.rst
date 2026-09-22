@@ -1604,14 +1604,17 @@ which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
 
-The variable names accepted are exactly the names that can be written to a 3D
-plotfile (``erf.plot_vars_1``) or to a 2D plotfile (``erf.plot2d_vars_1``), and
-the values are produced by the same code, so a station column and the
-corresponding plotfile component cannot disagree.  A name that is not a plot
-variable stops the run, as does a 3D name that this configuration cannot
-produce; a 2D diagnostic that is valid but not computed in this run is written
-as the missing value it would have in a 2D plotfile (0 or -999 depending on the
-diagnostic) rather than being dropped.
+The variable names accepted are the names of the 3D plotfile variables
+(``erf.plot_vars_1``) and of the built-in 2D diagnostics (``erf.plot2d_vars_1``),
+and the values are produced by the same code, so a station column and the
+corresponding plotfile component cannot disagree.  A 2D plotfile can also carry
+sampled-level fields, named for the field and the level such as ``theta_z100m``;
+those are the one thing it can write that a station cannot be asked for, since a
+station asks for the 3D variable and a height directly.  A name that is none of
+these stops the run and says so, as does a 3D name that this configuration
+cannot produce; a 2D diagnostic that is valid but not computed in this run is
+written as the missing value it would have in a 2D plotfile (0 or -999 depending
+on the diagnostic) rather than being dropped.
 
 Values are interpolated bilinearly in the horizontal and linearly in the
 vertical, taken from the finest level that covers the interpolation stencil from
@@ -1635,6 +1638,18 @@ value.
    surface-layer diagnostics), which are computed from the surface-layer
    parameterization; the run warns once if a requested height falls in that
    first half cell.
+
+.. warning::
+
+   Which level supplies a station follows from the grids, so on a run that
+   regrids it can change mid-series: a station that the refined region grows to
+   cover starts being read from the finer level, at that level's resolution and
+   from that level's solution.  The series steps at that point rather than
+   changing smoothly, which matters when it is being compared against an
+   observed record.  Run with ``erf.v = 1`` to see which level each station was
+   resolved to.  A station whose level should not change can be kept on one by
+   placing it away from a refinement boundary, or by refining on a fixed box
+   rather than on a moving indicator.
 
 Each station is written to ``Output_Stations/<name>.dat``.  The header names
 every column, with its units where they are known, the requested position, the

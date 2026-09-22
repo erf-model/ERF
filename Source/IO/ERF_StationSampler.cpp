@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -108,10 +110,14 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
     std::vector<std::string> keep;
     int dropped = 0;
 
-    // The times are printed with timeprecision significant digits, so a slack of
-    // a few units in the last place separates "the row we are about to write"
-    // from "a row from earlier in the series".
-    const double t_cut = static_cast<double>(t_first) * (1.0 - 1.0e-12) - 1.0e-12;
+    // Keep the rows strictly before t_first.  The times are printed with
+    // timeprecision significant digits, so the comparison needs a slack of a few
+    // units in the last place to separate "the row we are about to write" from
+    // "a row from earlier in the series"; scaling it by the magnitude of t_first
+    // says that in one expression that stays right at t_first = 0 and for a
+    // negative time, rather than relying on the run never reaching either.
+    const double t_scale = std::max(1.0, std::abs(static_cast<double>(t_first)));
+    const double t_cut   = static_cast<double>(t_first) - 1.0e-12 * t_scale;
 
     {
         std::ifstream is(filename);
@@ -130,10 +136,24 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
         }
     }
 
+    // Write the survivors beside the file and move them into place, rather than
+    // truncating the file and refilling it.  The rewrite is the one moment the
+    // whole series exists only in this process's memory, and a crash there would
+    // take the run's history with it; a rename is atomic, so the worst a crash
+    // can leave behind is the original file and a stray .tmp.
     if (dropped > 0) {
-        std::ofstream os(filename, std::ios::out | std::ios::trunc);
-        if (!os.good()) { amrex::FileOpenFailed(filename); }
-        for (const auto& line : keep) { os << line << "\n"; }
+        const std::string tmpname = filename + ".tmp";
+        {
+            std::ofstream os(tmpname, std::ios::out | std::ios::trunc);
+            if (!os.good()) { amrex::FileOpenFailed(tmpname); }
+            for (const auto& line : keep) { os << line << "\n"; }
+            os.flush();
+            if (!os.good()) { amrex::FileOpenFailed(tmpname); }
+        }
+        if (std::rename(tmpname.c_str(), filename.c_str()) != 0) {
+            amrex::Abort("Station output: could not move " + tmpname + " onto " + filename +
+                         " while dropping the rows written past the restart point");
+        }
     }
     return dropped;
 }
@@ -558,6 +578,29 @@ StationSampler::checkRestartFiles () const
     }
 }
 
+//
+// Whether the stencils stored in the locations were resolved against these grids.
+// BoxArray equality is a pointer comparison when the two share a representation,
+// which is the common case between steps that did not regrid, and a content
+// comparison otherwise; either way it is far cheaper than resolving again.
+//
+bool
+StationSampler::stencilsValidFor (const Vector<BoxArray>& ba, int finest_level) const
+{
+    if (static_cast<int>(m_stencil_grids.size()) != finest_level+1) { return false; }
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        if (m_stencil_grids[lev] != ba[lev]) { return false; }
+    }
+    return true;
+}
+
+void
+StationSampler::rememberStencilGrids (const Vector<BoxArray>& ba, int finest_level)
+{
+    m_stencil_grids.resize(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) { m_stencil_grids[lev] = ba[lev]; }
+}
+
 void
 StationSampler::flush ()
 {
@@ -705,7 +748,11 @@ ERF::init_stations ()
                       "' is a 3D plotfile variable but is not available in this configuration");
             }
             Abort("Station '" + station.name + "': '" + var.name +
-                  "' is not a 3D or 2D plotfile variable.  See erf.plot_vars_1 and "
+                  "' is neither a 3D plotfile variable nor a built-in 2D diagnostic, which "
+                  "are the two catalogs a station can draw on.  Note that a 2D plotfile can "
+                  "also carry sampled-level fields, named for the field and the level such "
+                  "as 'theta_z100m', and those are not among them: ask for the 3D variable "
+                  "itself and give the station a height instead.  See erf.plot_vars_1 and "
                   "erf.plot2d_vars_1 in the documentation for the names that can be requested");
         }
     }
@@ -927,6 +974,19 @@ ERF::resolve_station_positions ()
 void
 ERF::resolve_station_stencils ()
 {
+    // What this computes -- which level supplies each location, which four cells
+    // its horizontal stencil reads, and how far up the column -- is a function of
+    // the grids and of the terrain under the station, and it costs a ParallelCopy,
+    // a stream synchronization and a broadcast to compute.  Neither input changes
+    // between samples unless the grids do, so the answer already in the locations
+    // stands and none of that work is needed.
+    //
+    // The exception is a mesh whose terrain moves: there the column heights change
+    // under a fixed grid, so the level a height falls in can change with the grids
+    // unchanged and the stencils have to be resolved every time.
+    const bool terrain_moves = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    if (!terrain_moves && station_sampler->stencilsValidFor(grids, finest_level)) { return; }
+
     auto& stations = station_sampler->stations();
 
     // Flat list of (station, location) pairs, so a stencil and the location it
@@ -1049,7 +1109,13 @@ ERF::resolve_station_stencils ()
         for (int ip = 0; ip < nloc; ++ip) {
             if (cand[ip][lev].kcov >= klo) { lev_cand[lev].push_back(ip); }
         }
-        if (lev_cand[lev].empty() || (!z_phys_cc[lev] && !z_phys_nd[lev])) { continue; }
+        // Terrain gives both arrays or neither: z_of_k below reads z_phys_cc and
+        // falls back to a uniform dz without it, while z_surf reads z_phys_nd, so
+        // a level with one and not the other would measure a height from the
+        // terrain and then look it up on a flat column.  No init path produces
+        // that, and this says so rather than leaving it to be discovered.
+        AMREX_ALWAYS_ASSERT((z_phys_cc[lev] != nullptr) == (z_phys_nd[lev] != nullptr));
+        if (lev_cand[lev].empty() || !z_phys_cc[lev]) { continue; }
 
         // Periodicity restricted to the horizontal: the columns start at the
         // bottom of the domain, so there is nothing to wrap in z.
@@ -1212,6 +1278,8 @@ ERF::resolve_station_stencils ()
         loc.ktop = chosen[2*ip+1];
     }
 
+    station_sampler->rememberStencilGrids(grids, finest_level);
+
     // Which level a station is sampled from follows from the grids rather than
     // from anything in the inputs file, so report it once.
     if (verbose > 0 && !station_sampler->levelsReported())
@@ -1333,6 +1401,14 @@ ERF::sample_stations (Real time)
         // Each stencil reaches only as far up as resolve_station_stencils found
         // the vertical interpolation needs, which is as far up as this level is
         // guaranteed to cover it.
+        // One box per location, in lev_locs order, so a gathered box and the
+        // location it belongs to share an index.  Two locations inside the same
+        // cell give identical boxes, which is allowed: the BoxArray is only ever
+        // a list of what to copy and what to index, never a cover of a region,
+        // and ParallelCopy fills each of a pair of identical boxes from the same
+        // source.  The 2D boxes sit at k = 0 rather than at klo because ba2d is
+        // built by compressing the 3D BoxArray with setRange(2,0), so 0 is where
+        // its data is whatever the domain's smallEnd is (ERF_MakeNewArrays.cpp).
         BoxList bl_cc, bl_2d, bl_nd;
         for (const int ip : lev_locs[lev]) {
             const auto& loc = stations[all_locs[ip].first].locs[all_locs[ip].second];
