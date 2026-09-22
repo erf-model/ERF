@@ -3402,8 +3402,8 @@ void SLM::transfer_coeff(const amrex::MFIter &mfi)
         // z0 = z0_sfc = surface roughness length
         // disp = disp_hgt
 
-        amrex::Real tsp = t_sfc_arr(i, j, 0) * std::pow(1000.0/pref_arr(i, j, 0), rair / cp);
-        amrex::Real thp = tref_arr(i, j, 0) * std::pow(1000.0 / pref_arr(i, j, 0), rair / cp);
+        amrex::Real tsp = t_sfc_arr(i, j, 0) * std::pow(1000.0/pref_arr(i, j, 0), R_d / Cp_d);
+        amrex::Real thp = tref_arr(i, j, 0) * std::pow(1000.0 / pref_arr(i, j, 0), R_d / Cp_d);
 
         amrex::Real vel;
         // Add additional velocity depending on the stratification
@@ -4194,7 +4194,7 @@ void SLM::solve_ground_skin_temperature(const amrex::MFIter &mfi)
         const amrex::Real lwdn = lwref_arr(i, j, 0);
         const amrex::Real tv = t_canop_arr(i, j, 0);
         const amrex::Real tsoil = soilt_arr(i, j, d_khi_lsm);
-        const amrex::Real potential_factor = std::pow(1000.0 / pref_arr(i, j, 0), rair / cp);
+        const amrex::Real potential_factor = std::pow(1000.0 / pref_arr(i, j, 0), R_d / Cp_d);
 
         auto residual = [=] AMREX_GPU_DEVICE (amrex::Real tg) noexcept {
             amrex::Real q_ground;
