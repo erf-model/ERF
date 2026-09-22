@@ -1,7 +1,11 @@
-This problem setup is to test the ability of ERF to correctly use files created 
-by the WRF Preprocessing System (WPS)
-to initialize the problem and provide time-dependent boundary conditions.
+This problem setup is to test the ability of ERF to correctly use files created
+by the WRF Preprocessing System (WPS) to initialize the problem and provide
+time-dependent boundary conditions.
 
-Use inputs_wps_noahmp to run this test using the Noah-MP land surface model. Make
-sure to copy `../../../Submodules/Noah-MP/drivers/erf/NoahmpTable.TBL` into this
-directory before running the simulation. 
+The inputs_noahmp_rrtmgp case employs the Noah-MP land surface model
+and RRTMGP radiation model. A namelist file, Noah-MP table file, and radiation data files
+are needed for this case;
+see `https://erf.readthedocs.io/en/latest/CouplingToNoahMP.html?highlight=namelist+erf`
+(obtained with the `wget` command) and
+`https://github.com/erf-model/data-files` (clone the repository).
+The needed files must be copied into the current directory before running the simulation.

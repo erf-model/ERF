@@ -2,6 +2,7 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include "ERF_Constants.H"
 
 #include "ERF.H"
 #include "ERF_Derive.H"
@@ -70,26 +71,23 @@ ERF::sum_integrated_quantities (double time)
         }
     }
 
-    Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
-    Gpu::HostVector<Real> h_avg_tstar; h_avg_tstar.resize(1);
-    Gpu::HostVector<Real> h_avg_olen; h_avg_olen.resize(1);
-    if ((m_SurfaceLayer != nullptr) && (NumDataLogs() > 0)) {
-        Box domain = geom[0].Domain();
-        int zdir = 2;
-        h_avg_ustar = sumToLine(*m_SurfaceLayer->get_u_star(0),0,1,domain,zdir);
-        h_avg_tstar = sumToLine(*m_SurfaceLayer->get_t_star(0),0,1,domain,zdir);
-        h_avg_olen  = sumToLine(*m_SurfaceLayer->get_olen(0)  ,0,1,domain,zdir);
+    Real h_avg_ustar = zero;
+    Real h_avg_tstar = zero;
+    Real h_avg_olen  = zero;
+    Orientation zlo(Direction::z, Orientation::low);
+    if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0)) {
+        // Sum each surface cell once: on grids split in z the planar arrays hold one
+        // duplicate box per stacked 3D box
+        h_avg_ustar = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_u_star(0));
+        h_avg_tstar = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_t_star(0));
+        h_avg_olen  = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_olen(0));
 
         // Divide by the total number of cells we are averaging over
-        Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-        h_avg_ustar[0] /= area_z;
-        h_avg_tstar[0] /= area_z;
-        h_avg_olen[0]  /= area_z;
-
-    } else {
-        h_avg_ustar[0] = zero;
-        h_avg_tstar[0] = zero;
-        h_avg_olen[0]  = zero;
+        const Box& domain = geom[0].Domain();
+        const Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+        h_avg_ustar /= area_z;
+        h_avg_tstar /= area_z;
+        h_avg_olen  /= area_z;
     }
 
     const int nfoo = 8;
@@ -150,9 +148,9 @@ ERF::sum_integrated_quantities (double time)
 
               // Write the quantities at this time
               data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time;
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_ustar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_tstar[0];
-              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_olen[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_ustar;
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_tstar;
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)  << h_avg_olen;
               data_log1 << std::endl;
             } // if good
         } // loop over i

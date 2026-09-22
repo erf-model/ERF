@@ -1,6 +1,7 @@
 #ifndef ERF_TURB_STRUCT_H_
 #define ERF_TURB_STRUCT_H_
 
+#include <AMReX_ParallelDescriptor.H>
 #include <ERF_MYNNStruct.H>
 
 /**
@@ -125,6 +126,14 @@ public:
 
     // Which LES closure?
     query_one_or_per_level(pp, "les_type", les_type, lev, max_level);
+    // Immersed-boundary awareness of the MRF and YSUNew schemes (off by default):
+    // the surface of a column with immersed solid cells is the first fluid cell
+    // above them, heights and the boundary-layer depth are measured from it,
+    // the eddy diffusivities are zero inside the solid, and the surface
+    // scales over such a column come from a neutral log law at its top with
+    // the roughness pbl_ib_z0. Only MRF and YSUNew honour it.
+    query_one_or_per_level(pp, "pbl_ib_aware", pbl_ib_aware, lev, max_level);
+    query_one_or_per_level(pp, "pbl_ib_z0",    pbl_ib_z0,    lev, max_level);
 
     // Handle 2-D Smag
     if (les_type == LESType::Smagorinsky2D) {
@@ -165,6 +174,14 @@ public:
       } else if (les_type == LESType::Deardorff) {
         amrex::Error(
           "It is not recommended to use Deardorff LES and a PBL model");
+      }
+      // Both the k-eqn RANS closure and these PBL schemes transport RhoKE
+      if ((rans_type == RANSType::kEqn) &&
+          ((pbl_type == PBLType::MYJ) || (pbl_type == PBLType::MYNN25) ||
+           (pbl_type == PBLType::MYNNEDMF) || uses_shoc_family())) {
+        amrex::Error("erf.rans_type = kEqn cannot be combined with erf.pbl_type = " +
+                     std::string(amrex::getEnumNameString(pbl_type)) +
+                     ": both transport the turbulent kinetic energy");
       }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
@@ -233,6 +250,46 @@ public:
           pp, "ysu_moistvars", ysu_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysunew_highres_bounds", pbl_ysunew_highres_bounds, lev, max_level);
+        // Radiative tendency limiter (YSUNew-only)
+        query_one_or_per_level(
+          pp, "enable_ysu_rad_tend_limiter", enable_ysu_rad_tend_limiter, lev, max_level);
+        query_one_or_per_level(
+          pp, "ysu_rad_tend_limiter_magnitude", ysu_rad_tend_limiter_magnitude, lev, max_level);
+        if (!(ysu_rad_tend_limiter_magnitude > 0.0)) {
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                amrex::Print() << "WARNING: erf.ysu_rad_tend_limiter_magnitude = "
+                               << ysu_rad_tend_limiter_magnitude
+                               << " is not positive; using the default of 1.0 K/s\n";
+            }
+            ysu_rad_tend_limiter_magnitude = amrex::Real(1.0);
+        }
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
       } else if (pbl_type == PBLType::MRF) {
         query_one_or_per_level(
           pp, "pbl_mrf_coriolis_freq", pbl_mrf_coriolis_freq, lev, max_level);
@@ -241,8 +298,6 @@ public:
         query_one_or_per_level(
           pp, "pbl_mrf_const_b", pbl_mrf_const_b, lev, max_level);
         query_one_or_per_level(pp, "pbl_mrf_sf", pbl_mrf_sf, lev, max_level);
-        query_one_or_per_level(
-          pp, "mrf_moistvars", mrf_moistvars, lev, max_level);
         query_one_or_per_level(
           pp, "enable_mrf_countergradient", enable_mrf_countergradient, lev, max_level);
         query_one_or_per_level(
@@ -253,6 +308,17 @@ public:
           pp, "enable_mrf_unbounded_vpert", enable_mrf_unbounded_vpert, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_mrf_use_zero_ri_extent", pbl_mrf_use_zero_ri_extent, lev, max_level);
+        // QNSE stable stability functions (Sukoriansky et al. 2005)
+        query_one_or_per_level(
+          pp, "enable_qnse_stable_functions", enable_qnse_stable_functions, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_am", qnse_am, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bm", qnse_bm, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_ah", qnse_ah, lev, max_level);
+        query_one_or_per_level(
+          pp, "qnse_bh", qnse_bh, lev, max_level);
         // Scale-aware PBL-LES blending parameters.
         query_one_or_per_level(
           pp, "pbl_blend_length", pbl_blend_length, lev, max_level);
@@ -262,6 +328,22 @@ public:
           pp, "pbl_blend_c_max", pbl_blend_c_max, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_blend_use_smag", pbl_blend_use_smag, lev, max_level);
+        // Vogelezang & Holtslag (1996) shear correction
+        query_one_or_per_level(
+          pp, "enable_vh96_shear_correction", enable_vh96_shear_correction, lev, max_level);
+        query_one_or_per_level(
+          pp, "vh96_shear_const_b", vh96_shear_const_b, lev, max_level);
+        // PBLH spatial smoothing
+        query_one_or_per_level(
+          pp, "enable_pblh_smoothing", enable_pblh_smoothing, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_passes", pblh_smoothing_passes, lev, max_level);
+        query_one_or_per_level(
+          pp, "pblh_smoothing_weight", pblh_smoothing_weight, lev, max_level);
+        // Validate pblh_smoothing_weight is in [0,1]
+        if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
+          amrex::Error("pblh_smoothing_weight must be in [0, 1]");
+        }
       } else if (pbl_type == PBLType::SHOC) {
 #ifndef ERF_USE_SHOC
           amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
@@ -332,6 +414,29 @@ public:
     query_one_or_per_level(pp, "Rt_min", Rt_min, lev, max_level);
     query_one_or_per_level(pp, "max_geom_lscale", l_g_max, lev, max_level);
     query_one_or_per_level(pp, "dirichlet_k", dirichlet_k, lev, max_level);
+    query_one_or_per_level(pp, "tke_floor", tke_floor, lev, max_level);
+    query_one_or_per_level(pp, "implicit_tke_dissipation", implicit_tke_dissipation, lev, max_level);
+    query_one_or_per_level(pp, "rans_consistent_diffusivities", rans_consistent_diffusivities, lev, max_level);
+    query_one_or_per_level(pp, "rans_lscale_from_pblh", rans_lscale_from_pblh, lev, max_level);
+    query_one_or_per_level(pp, "rans_lscale_min", rans_lscale_min, lev, max_level);
+    if (rans_lscale_from_pblh && !(rans_lscale_min > 0)) {
+        amrex::Error("erf.rans_lscale_min must be > 0 with erf.rans_lscale_from_pblh");
+    }
+
+    if (rans_type == RANSType::kEqn) {
+        // The stability functions (AL01 Eqs. 31, 32) have poles near Rt = -3.6;
+        // the Burchard & Petersen smoothing maps Rt < Rt_crit onto
+        // (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0.
+        if (!(Cmu0 > 0)) { amrex::Error("erf.Cmu0 must be > 0 for the k-eqn RANS"); }
+        if (!(Cb > 0)) { amrex::Error("erf.Cb must be > 0 for the k-eqn RANS"); }
+        if (!(l_g_max > 0)) { amrex::Error("erf.max_geom_lscale must be > 0 for the k-eqn RANS"); }
+        if (!(Rt_crit <= 0)) { amrex::Error("erf.Rt_crit must be <= 0 for the k-eqn RANS"); }
+        if (!(Rt_min < Rt_crit)) { amrex::Error("erf.Rt_min must be < erf.Rt_crit for the k-eqn RANS"); }
+        if (!(Rt_min > amrex::Real(-3.6))) {
+            amrex::Error("erf.Rt_min must be > -3.6 for the k-eqn RANS (stability functions have poles near -3.61)");
+        }
+    }
+    if (tke_floor < 0) { amrex::Error("erf.tke_floor must be >= 0"); }
 
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
@@ -466,6 +571,12 @@ public:
         amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+        amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
+        amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
+        amrex::Print() << "implicit_tke_dissipation    : " << implicit_tke_dissipation << std::endl;
+        amrex::Print() << "consistent diffusivities    : " << rans_consistent_diffusivities << std::endl;
+        amrex::Print() << "lscale cap from PBL height  : " << rans_lscale_from_pblh
+                       << " (floor " << rans_lscale_min << " m)" << std::endl;
       }
     }
 
@@ -524,8 +635,31 @@ public:
                      << ysu_moistvars << std::endl;
       amrex::Print() << "    pbl_ysunew_highres_bounds          : "
                      << pbl_ysunew_highres_bounds << std::endl;
+      // Radiative tendency limiter/smoothing (YSUNew-only)
+      amrex::Print() << "    enable_ysu_rad_tend_limiter        : "
+                     << enable_ysu_rad_tend_limiter << std::endl;
+      amrex::Print() << "    ysu_rad_tend_limiter_magnitude     : "
+                     << ysu_rad_tend_limiter_magnitude << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction       : "
+                     << enable_vh96_shear_correction << std::endl;
+      amrex::Print() << "    vh96_shear_const_b                 : "
+                     << vh96_shear_const_b << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing              : "
+                     << enable_pblh_smoothing << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes              : "
+                     << pblh_smoothing_passes << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight              : "
+                     << pblh_smoothing_weight << std::endl;
       amrex::Print() << "    enable_mrf_unbounded_vpert         : "
                      << enable_mrf_unbounded_vpert << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     } else if (pbl_type == PBLType::MRF) {
       amrex::Print() << "    pbl_mrf_coriolis_freq : " << pbl_mrf_coriolis_freq
                      << std::endl;
@@ -534,8 +668,6 @@ public:
       amrex::Print() << "    pbl_mrf_const_b       : " << pbl_mrf_const_b
                      << std::endl;
       amrex::Print() << "    pbl_mrf_sf            : " << pbl_mrf_sf
-                     << std::endl;
-      amrex::Print() << "    mrf_moistvars         : " << mrf_moistvars
                      << std::endl;
       amrex::Print() << "    enable_mrf_countergradient : " << enable_mrf_countergradient
                      << std::endl;
@@ -555,6 +687,24 @@ public:
                      << std::endl;
       amrex::Print() << "    pbl_blend_use_smag : " << pbl_blend_use_smag
                      << std::endl;
+      amrex::Print() << "    enable_vh96_shear_correction : " << enable_vh96_shear_correction
+                     << std::endl;
+      amrex::Print() << "    vh96_shear_const_b           : " << vh96_shear_const_b
+                     << std::endl;
+      amrex::Print() << "    enable_pblh_smoothing        : " << enable_pblh_smoothing
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_passes        : " << pblh_smoothing_passes
+                     << std::endl;
+      amrex::Print() << "    pblh_smoothing_weight        : " << pblh_smoothing_weight
+                     << std::endl;
+      amrex::Print() << "    enable_qnse_stable_functions       : "
+                     << enable_qnse_stable_functions << std::endl;
+      if (enable_qnse_stable_functions) {
+        amrex::Print() << "      qnse_am (momentum coeff)         : " << qnse_am << std::endl;
+        amrex::Print() << "      qnse_bm (momentum coeff)         : " << qnse_bm << std::endl;
+        amrex::Print() << "      qnse_ah (heat coeff)             : " << qnse_ah << std::endl;
+        amrex::Print() << "      qnse_bh (heat coeff)             : " << qnse_bh << std::endl;
+      }
     }
   }
 
@@ -604,6 +754,26 @@ public:
   RANSType rans_type = RANSType::None;
 
   bool dirichlet_k = false;
+
+  // Runtime floor on the turbulent kinetic energy [m2/s2] in the k-equation
+  // update and the RANS closure; 0 means machine epsilon on rho*k (the
+  // historical floor). Distinct from tke_min, the initial TKE value.
+  amrex::Real tke_floor = zero;
+
+  // Treat the TKE dissipation implicitly: eps = (Cmu0^3 sqrt(k_old)/L) * k_new
+  // folded into the update (Deardorff and k-eqn RANS)
+  bool implicit_tke_dissipation = false;
+
+  // k-eqn RANS: horizontal heat, scalar and moisture diffusivities follow the
+  // AL01 scalar stability function (cmu') like the vertical heat diffusivity,
+  // instead of Pr_t and Sc_t times the eddy viscosity
+  bool rans_consistent_diffusivities = false;
+
+  // k-eqn RANS: cap the geometric length at kappa * 0.1 * PBL height (from
+  // erf.most.pblh_calc), clamped to [rans_lscale_min, max_geom_lscale],
+  // instead of the fixed max_geom_lscale
+  bool rans_lscale_from_pblh = false;
+  amrex::Real rans_lscale_min = one;
 
   // PBL model
   PBLType pbl_type = PBLType::None;
@@ -711,6 +881,15 @@ public:
     amrex::Real(1.0e-4); // Cloud liquid water threshold for YSUNew (kg/kg)
   bool ysu_moistvars = false; // if true, adds turbulence to moisture
   bool pbl_ysunew_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds
+  // Radiative tendency limiter (YSUNew-only)
+  bool enable_ysu_rad_tend_limiter = false; // if true, guard and bound the qheating_rates top-down forcing
+  amrex::Real ysu_rad_tend_limiter_magnitude = amrex::Real(1.0); // Bound on the limited radiative tendency (K/s)
+  // Vogelezang & Holtslag (1996) shear correction and PBLH smoothing for YSU/YSUNew
+  bool enable_vh96_shear_correction = false; // if true, use VH96 shear correction term instead of ad-hoc floor
+  amrex::Real vh96_shear_const_b = amrex::Real(100.0); // VH96 shear correction constant b
+  bool enable_pblh_smoothing = false; // if true, apply spatial smoothing to diagnosed PBLH
+  int pblh_smoothing_passes = 1; // number of smoothing iterations
+  amrex::Real pblh_smoothing_weight = amrex::Real(0.5); // center-cell weight in smoothing stencil
   // Model coefficients - MRF
   amrex::Real pbl_mrf_coriolis_freq = amrex::Real(1.0e-4);
   amrex::Real pbl_mrf_Ribcr   = amrex::Real(0.5); // Critical Bulk Richardson number for MRF PBL model
@@ -723,12 +902,24 @@ public:
   amrex::Real pbl_blend_cs       = amrex::Real(0.17);  ///< Smagorinsky coeff for K_h ceiling.
   amrex::Real pbl_blend_c_max    = amrex::Real(0.1);   ///< Power-law ceiling coeff [m^(2/3)/s].
   bool        pbl_blend_use_smag = true;               ///< Use Smagorinsky ceiling (else power-law).
-  bool mrf_moistvars = false; // if true, adds turbulence to moisture
   bool enable_mrf_countergradient = false; // if true, apply WRF-style HGAMT/HGAMQ correction to PBL height
+  bool        pbl_ib_aware = false;              // MRF / YSUNew: measure heights from the top of immersed solid columns
+  amrex::Real pbl_ib_z0    = amrex::Real(0.01);  // roughness [m] of the neutral log law at the top of an immersed column
   bool enable_mrf_cloud_adjustment = false; // if true, apply cloud-aware stability function adjustments in MRF scheme
   bool pbl_mrf_highres_bounds = false; // if true, apply high-resolution grid-dependent diffusivity bounds instead of global forecast bounds
   bool enable_mrf_unbounded_vpert = false; // if true, does not limit VPERT to GAMCRT
   bool pbl_mrf_use_zero_ri_extent = false; // if true, use Ri=0 (pbli_zero_arr) for K-profile extent; default false uses Ri=0.5 corrector (pbli_arr) for WRF compatibility
+  // QNSE (Quasi-Normal Scale Elimination) spectral stable stability functions
+  // Sukoriansky, S., B. Galperin, and V. Perov, 2005: Application of a New Spectral
+  // Theory of Stably Stratified Turbulence to the Atmospheric Boundary Layer over
+  // Sea Ice. Boundary-Layer Meteorology, 117, 231–257.
+  // https://doi.org/10.1007/s10546-004-6848-4
+  bool enable_qnse_stable_functions = false; // if true, use QNSE spectral stability functions
+                                              // instead of linear Businger-Dyer form for stable conditions
+  amrex::Real qnse_am = amrex::Real(2.5);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_bm = amrex::Real(0.2);    // QNSE momentum stability function coefficient (dimensionless)
+  amrex::Real qnse_ah = amrex::Real(2.5);    // QNSE heat stability function coefficient (dimensionless)
+  amrex::Real qnse_bh = amrex::Real(0.2);    // QNSE heat stability function coefficient (dimensionless)
   // MYNN2.5 PBL model
   // TKE/QKE stuff
   bool advect_tke = true; // if MYNN2.5 PBL is used default is turb transport in
@@ -831,6 +1022,16 @@ public:
  * @brief Whether YSU applies turbulence to moisture variables.
  * @var TurbChoice::pbl_ysunew_highres_bounds
  * @brief Whether YSUNew applies high-resolution grid-dependent diffusivity bounds.
+ * @var TurbChoice::enable_vh96_shear_correction
+ * @brief Whether Vogelezang & Holtslag (1996) shear-correction term is enabled.
+ * @var TurbChoice::vh96_shear_const_b
+ * @brief Vogelezang & Holtslag (1996) shear-correction constant b.
+ * @var TurbChoice::enable_pblh_smoothing
+ * @brief Whether spatial smoothing of diagnosed PBLH is enabled.
+ * @var TurbChoice::pblh_smoothing_passes
+ * @brief Number of PBLH smoothing iterations to apply.
+ * @var TurbChoice::pblh_smoothing_weight
+ * @brief Center-cell weight in PBLH smoothing stencil (must be in [0,1]).
  * @var TurbChoice::pbl_mrf_coriolis_freq
  * @brief Coriolis frequency used by the MRF PBL scheme.
  * @var TurbChoice::pbl_mrf_Ribcr
@@ -839,10 +1040,23 @@ public:
  * @brief MRF constant used to compute PBL height.
  * @var TurbChoice::pbl_mrf_sf
  * @brief MRF surface flux value used to compute PBL height.
- * @var TurbChoice::mrf_moistvars
- * @brief Whether MRF applies turbulence to moisture variables.
  * @var TurbChoice::enable_mrf_countergradient
  * @brief Whether MRF countergradient corrections are enabled.
+ * @var TurbChoice::pbl_ib_aware
+ * When true, the MRF and YSUNew schemes treat the first fluid cell above the
+ * immersed solid of a column (buildings or terrain by immersed forcing) as
+ * that column's surface: the bulk Richardson heights, the boundary-layer
+ * depth and the K profile are measured from it, the diffusivities vanish
+ * inside the solid, and the surface scales of such a column are a neutral
+ * log law at its top (u* from the wind there and pbl_ib_z0, theta* = 0). The
+ * boundary-layer height both schemes store (pblh, Lturb) stays the absolute
+ * height above the domain bottom; with enable_pblh_smoothing the stencil runs
+ * on that absolute height, and the smoothed value is kept at or above each
+ * column's own floor (half a cell above its surface, at least 10 m). Off by
+ * default; without immersed cells the results are identical. Not supported
+ * with terrain-fitted coordinates.
+ * @var TurbChoice::pbl_ib_z0
+ * Roughness length [m] of that log law.
  * @var TurbChoice::enable_mrf_cloud_adjustment
  * @brief Whether MRF cloud-aware stability adjustments are enabled.
  * @var TurbChoice::pbl_mrf_highres_bounds

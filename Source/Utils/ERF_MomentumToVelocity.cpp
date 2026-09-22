@@ -75,26 +75,35 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
             ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (c_vfrac_arr(i,j,k) > zero || c_vfrac_arr(i-1,j,k) > zero) {
-                    Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp)
-                            + c_vfrac_arr(i-1,j,k) * dens_arr(i-1,j,k,Rho_comp))
-                            / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i-1,j,k));
+                Real vfrac_i = c_vfrac_arr(i,j,k);
+                Real vfrac_im1 = c_vfrac_arr(i-1,j,k);
+                Real vfrac_sum = vfrac_i + vfrac_im1;
+                if (vfrac_sum > zero) {
+                    Real rho = (vfrac_i > zero ? vfrac_i * dens_arr(i,j,k,Rho_comp) : zero)
+                             + (vfrac_im1 > zero ? vfrac_im1 * dens_arr(i-1,j,k,Rho_comp) : zero);
+                    rho /= vfrac_sum;
                     velx(i,j,k) = momx(i,j,k) / rho;
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (c_vfrac_arr(i,j,k) > zero || c_vfrac_arr(i,j-1,k) > zero) {
-                    Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp)
-                            + c_vfrac_arr(i,j-1,k) * dens_arr(i,j-1,k,Rho_comp))
-                            / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j-1,k));
+                Real vfrac_j = c_vfrac_arr(i,j,k);
+                Real vfrac_jm1 = c_vfrac_arr(i,j-1,k);
+                Real vfrac_sum = vfrac_j + vfrac_jm1;
+                if (vfrac_sum > zero) {
+                    Real rho = (vfrac_j > zero ? vfrac_j * dens_arr(i,j,k,Rho_comp) : zero)
+                             + (vfrac_jm1 > zero ? vfrac_jm1 * dens_arr(i,j-1,k,Rho_comp) : zero);
+                    rho /= vfrac_sum;
                     vely(i,j,k) = momy(i,j,k) / rho;
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (c_vfrac_arr(i,j,k) > zero || c_vfrac_arr(i,j,k-1) > zero) {
-                    Real rho = (c_vfrac_arr(i,j,k) * dens_arr(i,j,k,Rho_comp)
-                            + c_vfrac_arr(i,j,k-1) * dens_arr(i,j,k-1,Rho_comp))
-                            / (c_vfrac_arr(i,j,k) + c_vfrac_arr(i,j,k-1));
+                Real vfrac_k = c_vfrac_arr(i,j,k);
+                Real vfrac_km1 = c_vfrac_arr(i,j,k-1);
+                Real vfrac_sum = vfrac_k + vfrac_km1;
+                if (vfrac_sum > zero) {
+                    Real rho = (vfrac_k > zero ? vfrac_k * dens_arr(i,j,k,Rho_comp) : zero)
+                             + (vfrac_km1 > zero ? vfrac_km1 * dens_arr(i,j,k-1,Rho_comp) : zero);
+                    rho /= vfrac_sum;
                     velz(i,j,k) = momz(i,j,k) / rho;
                 }
             });

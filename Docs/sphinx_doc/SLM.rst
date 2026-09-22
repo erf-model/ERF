@@ -7,11 +7,10 @@ The Simple Land-surface Model (SLM) supplies lower-boundary sensible-heat,
 latent-heat, and momentum fluxes for land cells.  Select it with
 ``erf.land_surface_model = "SLM"``.  SLM uses the ``slm.`` input prefix.
 
-SLM can initialize a horizontally uniform land surface from the input file,
-read land-surface fields from ``WRFInput``, or use reference sounding, flux,
-and skin-temperature files for testing.  The soil layers are ordered from the
-surface downward.  ``slm.soil_dz`` gives the thickness of each layer in m and
-must contain exactly ``slm.nsoil`` values.
+SLM can initialize a horizontally uniform land surface from the input file or
+read land-surface fields from ``WRFInput``.  The soil layers are ordered from
+the surface downward.  ``slm.soil_dz`` gives the thickness of each layer in m
+and must contain exactly ``slm.nsoil`` values.
 
 Build and coupling requirements
 -------------------------------
@@ -45,32 +44,30 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values    | Default          |
 +==================================+==========================================================+======================+==================+
-| **slm.nsoil**                    | number of soil layers                                    | Integer >= 1         | 7                |
+| **slm.nsoil**                    | number of soil layers                                    | Integer >= 2         | 7                |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.soil_dz**                  | thickness of each soil layer [m], from the surface       | Real values; exactly | must be set      |
-|                                  | downward; the number of values must equal ``nsoil``      | ``nsoil`` values     |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_use_inputs**           | use SLM input/reference data files instead of the        | Boolean              | false            |
-|                                  | normal uniform initialization; also enables the          |                      |                  |
-|                                  | reference-file path when not using ``WRFInput``          |                      |                  |
+| **slm.soil_dz**                  | SLM layer layout: thickness of each soil layer [m],      | Real > 0; exactly    | must be set      |
+|                                  | from the surface downward; the number of values must     | ``nsoil`` values     |                  |
+|                                  | equal ``nsoil``. For WRFInput, per-cell thickness comes  |                      |                  |
+|                                  | from WRF ``DZS``.                                        |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.landtype0**                | initial land-use category applied over the domain        | Integer land type    | 16               |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.LAI0**                     | initial leaf-area index                                  | Real >= 0            | 0.0              |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.clay0**                    | clay fraction/content for each soil layer [%]            | One Real or          | must be set      |
-|                                  |                                                          | ``nsoil`` Reals      |                  |
+| **slm.clay0**                    | clay fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
+|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.sand0**                    | sand fraction/content for each soil layer [%]            | One Real or          | must be set      |
-|                                  |                                                          | ``nsoil`` Reals      |                  |
+| **slm.sand0**                    | sand fraction/content for each soil layer [%]; not read  | One Real in [0,100]  | required unless  |
+|                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real or          | must be set      |
+| **slm.sw0**                      | initial soil wetness fraction for each layer; not read   | One Real in [0,1]    | must be set      |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.st0**                      | initial soil temperature [K] for each layer; not read    | One Real or          | must be set      |
 |                                  | when initializing from ``WRFInput``                      | ``nsoil`` Reals      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.relax_hgt**                | depth-dependent soil nudging weights; read when either   | One Real or          | required when    |
+| **slm.relax_hgt**                | depth-dependent soil nudging weights; read when either   | One Real in [0,1] or | required when    |
 |                                  | soil nudging option is enabled                           | ``nsoil`` Reals      | nudging is on    |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.soiltnudging**             | nudge soil temperature toward reference values           | Boolean              | false            |
@@ -79,7 +76,8 @@ Core soil and surface options
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.tausoil**                  | soil nudging time scale [s]                              | Real > 0             | 86400.0          |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.tabs_s**                   | prescribed/initial surface temperature [K]               | Real                 | 0.0              |
+| **slm.tabs_s**                   | prescribed/fallback surface temperature [K]; WRFInput    | Real                 | 0.0              |
+|                                  | land-cell surface temperature comes from ``TSK``         |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.t00**                      | constant temperature offset used in the surface          | Real [K]             | 300.0            |
 |                                  | temperature field                                        |                      |                  |
@@ -103,6 +101,8 @@ Parameter tables and external forcing
 +==================================+==========================================================+======================+==================+
 | **slm.use_parameter_file**       | initialize soil and vegetation parameters from the       | Boolean              | false            |
 |                                  | Noah-MP-format parameter file                            |                      |                  |
++----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **slm.radiation_scheme**         | internal SLM canopy/soil radiation treatment             | ``SLM``, ``NoahMP``  | ``NoahMP``       |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.parameter_file**           | parameter-table filename used when                       | String               | NoahmpTable.TBL  |
 |                                  | ``use_parameter_file`` is true                           |                      |                  |
@@ -132,41 +132,13 @@ Parameter tables and external forcing
 |                                  | cosine-zenith-angle fields; requires NetCDF support      |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
-``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  The
+``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  When
+``use_param_tbl`` is true, SLM reads the ``slm.vegparam`` table for
+WRF/Noah-style LAI and vegetation-fraction handling.  The
 parameter-file datasets must be ``usgs`` or ``modis`` for vegetation and
 ``stas`` or ``stas_ruc`` for soil.  The radiation file is expected to contain
 the variables ``SWVIS``, ``SWNIR``, ``SWVISD``, ``SWNIRD``, ``COSZRS``, and
 ``LWDS`` with dimensions matching the horizontal SLM grid.
-
-Reference-data testing options
-------------------------------
-
-These options support the SLM reference-data testing path.  They are read
-when ``slm.SLM_use_inputs = true``.  The three files contain, respectively,
-the sounding, surface flux, and surface-temperature reference data.
-
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| Parameter                        | Definition                                               | Acceptable Values    | Default          |
-+==================================+==========================================================+======================+==================+
-| **slm.SLM_num_ref_inputs**       | number of reference input records/files                  | Integer >= 1         | 1                |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_sounding_file**    | reference sounding file; columns are time, pressure,     | String               | must be set      |
-|                                  | temperature, humidity, u velocity, and v velocity        |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_flux_file**        | reference flux file; columns are time, SW down, LW down, | String               | must be set      |
-|                                  | SW up, and LW up                                         |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.SLM_ref_sst_file**         | reference skin-temperature file; columns are time, SST,  | String               | must be set      |
-|                                  | and precipitation                                        |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.start_time**               | starting time selected from the reference data           | Real                 | -1.0             |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.time_unit**                | seconds represented by one reference-data time unit      | Real > 0             | 1.0              |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-
-When ``slm.SLM_use_inputs = false``, ``slm.zref`` is recomputed from the
-canopy height and the lowest atmospheric cell unless the run is initialized
-from ``WRFInput``.  When it is true, ``slm.zref`` is used directly.
 
 WRFInput initialization
 ------------------------
@@ -174,7 +146,12 @@ WRFInput initialization
 With ``erf.init_type = WRFInput``, SLM reads the mapped land-surface fields
 from the WRF input data, including soil thickness and temperature/moisture,
 LAI, vegetation and soil type, skin temperature, and vegetation fractions.
-The uniform ``sw0`` and ``st0`` values are therefore not used in this mode.
+The uniform ``clay0``, ``sand0``, ``sw0``, and ``st0`` values are therefore not
+used in this mode; clay and sand are derived from the WRF soil type.
+
+``slm.soil_dz`` is still required to define the SLM layer layout and must contain
+exactly ``slm.nsoil`` values.  The per-cell soil thickness used by SLM is read
+from WRF ``DZS``.
 
 The active WRF-to-SLM field mapping is:
 
@@ -212,6 +189,45 @@ For each horizontal cell, SLM performs the following operations:
 * WRF soil moisture is divided by the SLM soil porosity.  Thus the SLM ``wsoil``
   value is a normalized wetness fraction, with saturation represented relative to
   ``poro_soil``.
+
+For WRF ``ISLTYP`` values 1--16, SLM assigns the following sand and clay
+contents to every soil layer in the cell.
+
++----------+-----------------------+----------+----------+
+| ISLTYP   | Soil type             | Sand [%] | Clay [%] |
++==========+=======================+==========+==========+
+| 1        | Sand                  | 92.0     | 3.0      |
++----------+-----------------------+----------+----------+
+| 2        | Loamy sand            | 82.0     | 6.0      |
++----------+-----------------------+----------+----------+
+| 3        | Sandy loam            | 65.0     | 10.0     |
++----------+-----------------------+----------+----------+
+| 4        | Silt loam             | 20.0     | 15.0     |
++----------+-----------------------+----------+----------+
+| 5        | Silt                  | 8.0      | 12.0     |
++----------+-----------------------+----------+----------+
+| 6        | Loam                  | 40.0     | 20.0     |
++----------+-----------------------+----------+----------+
+| 7        | Sandy clay loam       | 60.0     | 30.0     |
++----------+-----------------------+----------+----------+
+| 8        | Clay loam             | 32.0     | 34.0     |
++----------+-----------------------+----------+----------+
+| 9        | Silty clay loam       | 20.0     | 40.0     |
++----------+-----------------------+----------+----------+
+| 10       | Sandy clay            | 52.0     | 42.0     |
++----------+-----------------------+----------+----------+
+| 11       | Silty clay            | 6.0      | 47.0     |
++----------+-----------------------+----------+----------+
+| 12       | Clay                  | 20.0     | 60.0     |
++----------+-----------------------+----------+----------+
+| 13       | Organic material      | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 14       | Water                 | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 15       | Bedrock               | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 16       | Other/urban           | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
 
 The category constants and their WRFInput treatment are:
 

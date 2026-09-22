@@ -1,8 +1,10 @@
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_SAM.H"
 #include "ERF_SAMUtils.H"
 #include "ERF_TileNoZ.H"
 #include <cmath>
+#include <limits>
 
 using namespace amrex;
 
@@ -118,6 +120,8 @@ SAM::PrecipFall (const SolverChoice& sc)
     // active tiles for this reduction, so keep the explicit MPI max reduction.
     ParallelDescriptor::ReduceRealMax(max_reduced_flux);
     max_reduced_flux += std::numeric_limits<Real>::epsilon();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
+        "SAM::PrecipFall: the minimum cell height was never set (Set_dzmin), so the fall substeps cannot be sized");
     n_substep = sam_substep_count_from_reduced_flux(max_reduced_flux, dtn, m_dzmin);
     AMREX_ALWAYS_ASSERT(n_substep >= 1);
     coef /= Real(n_substep);

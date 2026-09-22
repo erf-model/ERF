@@ -9,23 +9,20 @@
 
 enum class ShocTransportMode
 {
-    StateUpdate,
-    HostDiffusion
+    StateUpdate
 };
 
 enum class ShocMomentumTransport
 {
     None,
-    StateUpdate,
-    HostDiffusion
+    StateUpdate
 };
 
 inline const char*
 shoc_transport_mode_name (ShocTransportMode mode)
 {
     switch (mode) {
-    case ShocTransportMode::StateUpdate:   return "state_update";
-    case ShocTransportMode::HostDiffusion: return "host_diffusion";
+    case ShocTransportMode::StateUpdate: return "state_update";
     }
     return "unknown";
 }
@@ -34,35 +31,16 @@ inline const char*
 shoc_momentum_transport_name (ShocMomentumTransport mode)
 {
     switch (mode) {
-    case ShocMomentumTransport::None:          return "none";
-    case ShocMomentumTransport::StateUpdate:   return "state_update";
-    case ShocMomentumTransport::HostDiffusion: return "host_diffusion";
+    case ShocMomentumTransport::None:        return "none";
+    case ShocMomentumTransport::StateUpdate: return "state_update";
     }
     return "unknown";
-}
-
-inline bool
-shoc_uses_state_update (ShocTransportMode mode)
-{
-    return (mode == ShocTransportMode::StateUpdate);
-}
-
-inline bool
-shoc_uses_host_diffusion (ShocTransportMode mode)
-{
-    return (mode == ShocTransportMode::HostDiffusion);
 }
 
 inline bool
 shoc_uses_momentum_state_update (ShocMomentumTransport mode)
 {
     return (mode == ShocMomentumTransport::StateUpdate);
-}
-
-inline bool
-shoc_uses_momentum_host_diffusion (ShocMomentumTransport mode)
-{
-    return (mode == ShocMomentumTransport::HostDiffusion);
 }
 
 inline bool
@@ -90,8 +68,9 @@ parse_shoc_transport_mode_string (std::string value,
         return true;
     }
     if (value == "host_diffusion") {
-        mode = ShocTransportMode::HostDiffusion;
-        return true;
+        error_message =
+            "erf.shoc.transport_mode = host_diffusion has been removed for native SHOC. Use erf.shoc.transport_mode = state_update.";
+        return false;
     }
     if (value == "tendencies") {
         error_message =
@@ -99,7 +78,7 @@ parse_shoc_transport_mode_string (std::string value,
         return false;
     }
 
-    error_message = "erf.shoc.transport_mode must be 'state_update' or 'host_diffusion'";
+    error_message = "erf.shoc.transport_mode must be 'state_update'";
     return false;
 }
 
@@ -118,11 +97,12 @@ parse_shoc_momentum_transport_string (std::string value,
         return true;
     }
     if (value == "host_diffusion") {
-        mode = ShocMomentumTransport::HostDiffusion;
-        return true;
+        error_message =
+            "erf.shoc.momentum_transport = host_diffusion has been removed for native SHOC. Use 'state_update' to retain SHOC momentum transport, or 'none' to disable SHOC momentum transport.";
+        return false;
     }
 
-    error_message = "erf.shoc.momentum_transport must be 'none', 'state_update', or 'host_diffusion'";
+    error_message = "erf.shoc.momentum_transport must be 'none' or 'state_update'";
     return false;
 }
 

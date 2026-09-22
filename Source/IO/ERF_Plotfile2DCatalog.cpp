@@ -34,7 +34,7 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::QStar,          "q_star",       "Humidity scale from the surface layer",           "kg/kg",     DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Olen,           "Olen",         "Obukhov length from the surface layer",          "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Pblh,           "pblh",         "Planetary boundary layer height from the active PBL diagnostic provider", "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
-        {DiagnosticID::TSurf,          "t_surf",       "Surface temperature from the surface layer",      "K",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::TSurf,          "t_surf",       "Surface potential temperature from the surface layer", "K",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::QSurf,          "q_surf",       "Surface humidity from the surface layer",         "kg/kg",     DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Z0,             "z0",           "Roughness height from the surface layer",         "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::OLR,            "OLR",          "Outgoing longwave radiation at the model top",    "W/m^2",     DiagnosticCategory::Radiation,       MissingPolicy::FillMinus999WhenUnavailable},

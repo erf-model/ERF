@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 21600 # 6 hours
 
+erf.prob_name = "SLM"
+
 start_datetime = "1999-02-23 11:30:00"
 
 amrex.fpe_trap_invalid = 0
@@ -21,6 +23,7 @@ erf.use_Ri_correction = 0
 
 erf.mg_v = 1
 erf.terrain_type = StaticFittedMesh
+erf.flat_terrain = true
 #erf.anelastic = 1
 #erf.use_fft = 1
 
@@ -165,7 +168,6 @@ slm.Rc_max  = 5000.0  # maximum stomatal resistance
 slm.T_opt   = 298.0   # optimum temperature for transpiration
 #slm.zref    = 25.0    # height of reference level (m)
 
-slm.SLM_use_inputs = false
 
 #slm.rad_input_file = "LBA_240x240x250_default_rad_coszrs_combined.nc"
 erf.do_radiation = false

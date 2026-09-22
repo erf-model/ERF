@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include "ERF_Constants.H"
@@ -25,7 +26,7 @@ bool result_is_valid (amrex::Real value) noexcept
 {
     // Noah-MP uses approximately -9999 for unprocessed cells. ERF also
     // rejects nonfinite values before storing provider data.
-    return std::isfinite(value) && value > amrex::Real(-9990.0) &&
+    return amrex::Math::isfinite(value) && value > amrex::Real(-9990.0) &&
            value < amrex::Real(0.5) * lsm_undefined;
 }
 

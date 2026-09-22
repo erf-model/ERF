@@ -238,9 +238,17 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
 
     std::unique_ptr<amrex::iMultiFab> mask = OwnerMask(*m_field, m_geom.periodicity(), ng);
 
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
+    //
+    // NOTE: this loop is deliberately not threaded.  Every iteration accumulates into the
+    //       same cnt_avg / line_avg entries, and on the host Gpu::deviceReduceSum is just
+    //       "#pragma omp atomic; *dest += source" -- atomic, but not ordered.  Under OpenMP
+    //       the order in which a plane's contributions are summed would therefore depend on
+    //       thread scheduling, so the profile would differ in its last bits from run to run
+    //       and from the same build without OpenMP.  These averages feed the subsidence,
+    //       nudging and immersed-forcing source terms, so that round-off would enter the
+    //       solution.  The body is a pure reduction over the local cells, which is cheap
+    //       next to the RHS, so serializing it costs little.
+    //
     for (amrex::MFIter mfi(mfab, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         amrex::Box tbx  = mfi.tilebox();
         if (tbx.smallEnd(m_axis) == domain.smallEnd(m_axis)) tbx.growLo(m_axis,offset);

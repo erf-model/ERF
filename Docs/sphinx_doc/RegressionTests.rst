@@ -539,6 +539,97 @@ Problem Location: ``Exec/CanonicalTests/DensityCurrent``
 
 .. _`Exec/CanonicalTests/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/DensityCurrent
 
+Canonical RANS
+---------------------------
+Five cases exercise the one-equation :math:`k` RANS closure (see :ref:`RANS`)
+on flat ground (neutral, stable and convective boundary layers) and on
+terrain-fitted meshes (a 2D ridge and a 3D hill), each for 40 steps. Every
+entry then runs the case's Python check script, which reads the plotfile
+with a standard-library AMReX reader, averages or samples the fields, and
+compares numbers against stated targets with tolerances: wall distance
+against the exact distance to the terrain, length scale against its bounds,
+the wall value of :math:`k` against :math:`u_*^2 / (c_\mu^0)^2`, dissipation
+against AL01 Eq. 19, and, in the longer physics runs documented in each
+case's README, the log law, GABLS1 depths and jets, the convective heat
+budget and the hill-top speed-up. The script's exit code is the verdict; a
+clean exit alone never passes a test. The ``_Poisson`` variants run the
+terrain cases with the Poisson wall distance instead of the terrain height.
+
+Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
+``RANS_Convective_ABL_Flat``, ``RANS_Neutral_Hill_2D`` (and ``_Poisson``),
+``RANS_Flat_Fitted_2D`` (and ``_Poisson``), ``RANS_Neutral_Hill_3D`` (and
+``_Poisson``); label ``rans``. The flat cases run with the MLMG projection
+(``erf.use_fft=false``); the terrain-fitted cases need the FFT-preconditioned
+projection and are registered only when the build enables FFT
+(``ERF_ENABLE_FFT``).
+
+``RANS_Checks_SelfTest`` tests the check scripts' own verdict logic rather
+than any physics: it states, for each kind of comparison the shared
+``rans_checks.py`` offers, what the check must decide for values inside and
+just outside the stated tolerance or band, and fails when a check disagrees.
+It also calls ``check_implicit_explicit_ke.py`` with malformed arguments (a
+missing or non-numeric ``--tol``, too few plotfiles), each of which must print
+the usage and exit with status 2 rather than fail with a traceback.
+It runs no ERF executable; labels ``rans`` and ``unit``. It is registered
+only when CMake finds a Python 3 interpreter, so a configuration without
+one simply does not have the test rather than failing the unit stage.
+
+Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
+
+.. _`Exec/CanonicalTests/Canonical_RANS`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/Canonical_RANS
+
+Restart parity
+--------------
+``MoistBubble_Kessler_Restart`` (MPI builds, not Windows) runs the moist bubble
+deck with Kessler rain (``erf.moisture_model=Kessler``, the rain fields in the
+plotfile) straight to step 8,
+again to a checkpoint at step 4, and from that checkpoint to step 8, and
+requires the two plotfiles at step 8 to be identical (``Tests/RunRestartParity.cmake``,
+no gold file; label ``restart-parity``). Every run has a time limit of its own,
+so a restart whose first step never finishes fails with a message. Until
+September 2026 the restart path handed the microphysics its minimum cell
+height only on terrain-fitted meshes; on a constant-dz mesh the sedimentation
+substep count of the first restarted step was computed from an uninitialised
+value and the step never finished. Only the schemes that size their
+sedimentation substeps from that height are affected, namely Kessler
+(``ERF_Kessler.cpp``) and SAM (``ERF_PrecipFall.cpp``, ``ERF_IceFall.cpp``);
+Morrison, WSM6 and WDM6 store the minimum cell height but never read it.
+
+Test Location: `Tests/test_files/MoistBubble_Kessler_Restart`_
+
+.. _`Tests/test_files/MoistBubble_Kessler_Restart`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistBubble_Kessler_Restart
+
+Closure box, rank and tiling parity
+-----------------------------------
+The ``Closure_BoxParity_*`` tests (MPI builds, not Windows; label ``box-parity``)
+run the unstable, perturbed ABL deck of ``ABL_MRF_Tiling`` twice: on one box, on
+one rank, without tiling, and on four 16 x 16 x 32 boxes on two ranks with 8 x 8
+tiles. The plotfiles after 10 steps must agree to a relative tolerance of 1e-9
+(``Tests/RunBoxParity.cmake``, no gold file). The entries choose the physics on
+the command line: the Deardorff closure, once with ``erf.vert_implicit = false``
+and once with the implicit vertical solve that ERF uses by default; the k-eqn
+closure with its PBL-height length cap; the MYNN25, MYNNEDMF, MYJ and native
+SHOC PBL schemes; Kessler microphysics on a moist sounding; and Smagorinsky on a
+stretched mesh whose levels are chosen so that they sum to the top of the domain.
+With the FFT build, two more run the anelastic MidPoint integrator with the
+Deardorff closure and with Kessler microphysics.
+Until September 2026 the anelastic integrator copied the projected momentum
+into the fluxes of the slow scalars tile by tile inside the loop that advects
+them, so the turbulent kinetic energy, moisture and passive scalars of anelastic
+runs depended on the tile size. The boxes are never split in z, so the column
+solves apply. The moist sounding is supersaturated below 150 m so that Kessler
+condenses, autoconverts and sediments within the ten steps of the run; otherwise
+``qc`` and ``qp`` would be compared as zero against zero. MYNNEDMF computed its
+diffusivities on a box grown by one cell in the vertical, so its vertical-derivative
+stencil reached two cells outside the domain; it now uses the valid box, as MYNN25
+does. The ghost values it computed were discarded in any case, since
+``ComputeTurbulentViscosity`` refills every eddy-viscosity ghost cell after the
+scheme returns, and dropping them leaves the answer bit for bit unchanged.
+
+Test Location: `Tests/test_files/Closure_BoxParity`_
+
+.. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.

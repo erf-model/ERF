@@ -1,4 +1,5 @@
 #include "ERF_SAM.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_EOS.H"
 #include "ERF_SAMUtils.H"
 

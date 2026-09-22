@@ -23,8 +23,6 @@ if(NOT ERF_BUILD_LIBRARY_ONLY)
 
   add_subdirectory(${PROJECT_SOURCE_DIR}/.Exec_dev ${PROJECT_BINARY_DIR}/Exec_dev)
 
-  add_subdirectory(DevTests/LandSurfaceModel_SLM)
-  add_subdirectory(DevTests/LandSurfaceModel_SLM_Coupled)
 
 if(ERF_ENABLE_TOOLS)
   message(STATUS "Building additional ERF tools")

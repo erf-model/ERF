@@ -1,5 +1,6 @@
 
 #include <ERF_TI_fast_headers.H>
+#include "ERF_Constants.H"
 
 using namespace amrex;
 
@@ -179,8 +180,14 @@ void erf_substep_NS (int step, int nrk,
 
         // NOTE: We must do this here because for step > 0, prev_zmom and cur_zmom both point to the same data,
         //       so by the time we would use prev_zmom to define zflux, it would have already been over-written.
-        Box gtbz = mfi.nodaltilebox(2);
-        gtbz.grow(IntVect(1,1,0));
+        //
+        // NOTE: grownnodaltilebox, not nodaltilebox(2) grown by hand.  Growing by hand pushes
+        //       every tile one cell past its own share of the grid in x and y, so once the grid
+        //       is tiled two tiles write the same Delta_rho_w cells -- a data race under OpenMP,
+        //       even though both store the same value.  This is identical to the old expression
+        //       when there is one tile per grid.
+        //
+        Box gtbz = mfi.grownnodaltilebox(2,IntVect(1,1,0));
         ParallelFor(gtbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             prev_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
         });

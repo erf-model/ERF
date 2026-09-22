@@ -6,6 +6,8 @@
 #max_step = 43200
 max_step = 34500
 
+erf.prob_name = "SLM"
+
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
@@ -145,7 +147,6 @@ slm.Rc_max  = 5000.0  # maximum stomatal resistance
 slm.T_opt   = 298.0   # optimum temperature for transpiration
 slm.zref    = 25.0    # height of reference level (m)
 
-slm.SLM_use_inputs = false
 
 slm.rad_input_file = "CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
 
@@ -160,7 +161,7 @@ prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 200.0
-prob.T_0_Pert_Mag    = 0.0
+prob.T_0_Pert_Mag    = 0.1
 prob.qv_0_Pert_Mag   = 0.0
 
 prob.custom_TKE      = false

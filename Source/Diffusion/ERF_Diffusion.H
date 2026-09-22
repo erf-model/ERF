@@ -8,7 +8,6 @@
 #include "AMReX_BCRec.H"
 
 #include "ERF_DataStruct.H"
-#include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_EB.H"
@@ -88,7 +87,11 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_my,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
+                                   amrex::Array4<      amrex::Real>& hfx_x,
+                                   amrex::Array4<      amrex::Real>& hfx_y,
                                    amrex::Array4<      amrex::Real>& hfx_z,
+                                   amrex::Array4<      amrex::Real>& qfx1_x,
+                                   amrex::Array4<      amrex::Real>& qfx1_y,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
@@ -99,6 +102,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms on a vertically stretched grid. */
@@ -121,7 +125,11 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::Array4<const amrex::Real>& mf_my,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
+                                   amrex::Array4<      amrex::Real>& hfx_x,
+                                   amrex::Array4<      amrex::Real>& hfx_y,
                                    amrex::Array4<      amrex::Real>& hfx_z,
+                                   amrex::Array4<      amrex::Real>& qfx1_x,
+                                   amrex::Array4<      amrex::Real>& qfx1_y,
                                    amrex::Array4<      amrex::Real>& qfx1_z,
                                    amrex::Array4<      amrex::Real>& qfx2_z,
                                    amrex::Array4<      amrex::Real>& diss,
@@ -132,6 +140,7 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms on terrain-following coordinates. */
@@ -175,6 +184,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac);
 
 /** \brief Add state diffusion source terms for embedded-boundary cells. */
@@ -205,7 +215,8 @@ void DiffusionSrcForState_EB (const amrex::Box& bx, const amrex::Box& domain,
                              const SolverChoice& solverChoice,
                              const int level,
                              const amrex::BCRec* bc_ptr,
-                             const bool use_SurfLayer);
+                             const bool use_SurfLayer,
+                             const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer);
 
 /** \brief Compute embedded-boundary stress components for constant viscosity. */
 void ComputeStressConsVisc_EB (amrex::Box bxcc,
@@ -531,12 +542,19 @@ void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const amrex::Real implicit_fac,
                                const bool use_mrf_countergradient = false);
 
-/** \brief Apply implicit vertical momentum diffusion on a uniform grid without terrain. */
+/**
+ * \brief Apply implicit vertical momentum diffusion on a uniform grid without terrain.
+ *
+ * col_kext holds, on a z-slab with one ghost cell in x and y, the [klo,khi] extent of the
+ * grid column over each (i,j); it is used to restrict each face column's tridiagonal solve
+ * to the range covered by both of the cell columns adjacent to it.  See ERF::define_column_kextent.
+ */
 template <int stagdir>
 void ImplicitDiffForMomLU_N (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,
@@ -555,6 +573,7 @@ void ImplicitDiffForMomLU_S (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,
@@ -573,6 +592,7 @@ void ImplicitDiffForMomLU_T (const amrex::Box& bx,
                              const amrex::Box& domain,
                              const int level,
                              const double dt,
+                             const amrex::Array4<const int >& col_kext,
                              const amrex::Array4<const amrex::Real>& cell_data,
                              const amrex::Array4<      amrex::Real>& face_data,
                              const amrex::Array4<const amrex::Real>& tau,

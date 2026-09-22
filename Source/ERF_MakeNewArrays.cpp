@@ -7,6 +7,7 @@
 */
 
 #include <memory>
+#include "ERF_Constants.H"
 
 #include "AMReX_buildInfo.H"
 
@@ -295,19 +296,25 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Define Theta_prim storage if using surface_layer BC
     // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-        if (solverChoice.moisture_type != MoistureType::None) {
-            Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-            Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
-        } else {
-            Qv_prim[lev]    = nullptr;
-            Qr_prim[lev]    = nullptr;
+    Theta_prim[lev] = nullptr;
+    Qv_prim[lev]    = nullptr;
+    Qr_prim[lev]    = nullptr;
+
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            amrex::Print() << " Found MOST at face " << ori << " : Constructing primitive vars for MOST.." << std::endl;
+            Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+            if (solverChoice.moisture_type != MoistureType::None) {
+                Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+                Qr_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,1));
+            } else {
+                Qv_prim[lev]    = nullptr;
+                Qr_prim[lev]    = nullptr;
+            }
+            // these only need to be defined once
+            break;
         }
-    } else {
-        Theta_prim[lev] = nullptr;
-        Qv_prim[lev]    = nullptr;
-        Qr_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************
@@ -331,6 +338,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         b.setRange(1,0);
     }
     ba1d[lev]  = BoxArray(std::move(bl1d));
+
+    // ********************************************************************************************
+    // Vertical extent of the grid column over each (i,j) -- needed by the implicit
+    //     vertical diffusion solves, which must treat a column as one tridiagonal system
+    // ********************************************************************************************
+    define_column_kextent(lev, ba, dm);
 
     // ********************************************************************************************
     // Map factors
@@ -504,12 +517,36 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
+    // Every radiation model (RRTMGP, Simple, TwoStream) writes the same
+    // 2-component (SW, LW) heating rates, so the arrays are shaped the same
+    // way whichever one erf.radiation_model selects.
     if (solverChoice.rad_type != RadiationType::None || solverChoice.do_radiation)
     {
-        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 0);
-        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, 0);
+        // Allocate with 1 ghost cell for interpolation stencil (cell_cons_interp)
+        // and FillBoundary operations (needed for nested patches)
+        qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, 1);
+        // Level layout (RRTMGP's): index k holds the fluxes at the lower
+        // interface of layer k, and the top-of-atmosphere interface sits in
+        // the z-ghost cell above the top layer (k = khi + 1), which is why
+        // the array carries one ghost cell in z. See ERF.H.
+        //
+        // The ghost cells in x and y are not part of that layout. They are here so that
+        // this array can be the coarse source of an InterpFromCoarseLevel, exactly as
+        // qheating_rates is: that overload asserts that the coarse source itself carries
+        // the ghost cells the interpolation stencil reads, and its ParallelCopy then
+        // reads them. See the note in ERF_AdvanceRadiation.cpp.
+        rad_fluxes[lev]     = std::make_unique<MultiFab>(ba, dm, 4, IntVect(1,1,1));
         qheating_rates[lev]->setVal(zero);
+        // Zeroing the ghost cells too is load-bearing, not tidiness: the ghost cells that
+        // lie outside the physical domain are never written by anything else, and they are
+        // read as interpolation-stencil neighbors when this level is a parent.
         rad_fluxes[lev]->setVal(zero);
+    }
+
+    // Two-stream radiation: the model owns its 2D surface and SEB fields.
+    if (solverChoice.rad_type == RadiationType::TwoStream)
+    {
+        two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm);
     }
 
     //*********************************************************
@@ -570,6 +607,86 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 #endif
 }
 
+/**
+ * Is any (i,j) column of this BoxArray covered by more than one box?
+ *
+ * Projecting every box onto a common z index turns "two boxes stacked in z" into
+ * "two overlapping 2D boxes", so a non-disjoint projection is exactly the test for
+ * a grid that has been decomposed in the vertical.
+ *
+ * @param[in] ba BoxArray to test
+ */
+bool
+ERF::grids_are_split_in_z (const BoxArray& ba)
+{
+    BoxList bl(ba.ixType());
+    for (int i(0); i < ba.size(); ++i) {
+        Box b(ba[i]); b.setRange(2,0);
+        bl.push_back(b);
+    }
+    return !(BoxArray(std::move(bl)).isDisjoint());
+}
+
+/**
+ * Build the map of the vertical extent of the grid column over each (i,j).
+ *
+ * The implicit vertical diffusion solves invert one tridiagonal system per column, so
+ * they are only well posed if each column lives in a single box.  We enforce that here,
+ * then record each column's [klo,khi] on a z-slab with a one-cell halo in x and y; a box
+ * can then read the vertical extent of the column on the other side of any of its faces,
+ * which is what the staggered (u,v) solves need to agree with their neighbors.
+ *
+ * @param[in] lev level of refinement
+ * @param[in] ba  BoxArray at this level
+ * @param[in] dm  DistributionMapping at this level
+ */
+void
+ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMapping& dm)
+{
+    if (grids_are_split_in_z(ba))
+    {
+        bool implicit_var   = (solverChoice.implicit_thermal_diffusion ||
+                               solverChoice.implicit_momentum_diffusion);
+        bool implicit_stage = false;
+        if (lev < solverChoice.vert_implicit_fac.size()) {
+            for (int nrk(0); nrk < solverChoice.vert_implicit_fac[lev].size(); ++nrk) {
+                if (solverChoice.vert_implicit_fac[lev][nrk] > zero) { implicit_stage = true; }
+            }
+        }
+        if (implicit_var && implicit_stage) {
+            Abort("The grids at level " + std::to_string(lev) + " are decomposed in the vertical, "
+                  "which cannot be combined with implicit vertical diffusion: the solve inverts one "
+                  "tridiagonal system per column, and a column split across boxes would instead be "
+                  "solved piecewise with spurious internal boundaries, giving an answer that depends "
+                  "on the grid decomposition.  Either set erf.vert_implicit_fac = 0 0 0 (or turn off "
+                  "erf.implicit_thermal_diffusion and erf.implicit_momentum_diffusion), or choose "
+                  "grids that are not split in z.");
+        }
+    }
+
+    column_kextent[lev] = std::make_unique<iMultiFab>(ba2d[lev], dm, 2, IntVect(1,1,0));
+
+    // Columns that no box covers -- outside the level, or outside the domain -- keep these
+    // sentinels, which drop out of the max/min that defines the solve range below.
+    column_kextent[lev]->setVal(column_kextent_lo_sentinel, 0, 1, IntVect(1,1,0));
+    column_kextent[lev]->setVal(column_kextent_hi_sentinel, 1, 1, IntVect(1,1,0));
+
+    // NOTE: no ParallelFor here.  This is a private member function, and nvcc does not allow
+    //       an extended (__device__) lambda inside a member function with private or protected
+    //       access.  Each box contributes a single (klo,khi) pair over its whole footprint,
+    //       so BaseFab::setVal fills it on the device without needing a lambda at all.
+    for (MFIter mfi(*column_kextent[lev]); mfi.isValid(); ++mfi)
+    {
+        const Box& vbx  = mfi.validbox();
+        const Box& bx3d = ba[mfi.index()];
+        IArrayBox& kext_fab = (*column_kextent[lev])[mfi];
+        kext_fab.setVal<RunOn::Device>(bx3d.smallEnd(2), vbx, 0, 1);
+        kext_fab.setVal<RunOn::Device>(bx3d.bigEnd(2)  , vbx, 1, 1);
+    }
+
+    column_kextent[lev]->FillBoundary(geom[lev].periodicity());
+}
+
 void
 ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
@@ -584,6 +701,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     bool l_need_SmnSmn = solverChoice.turbChoice[lev].use_keqn;
     bool l_use_moist   = (  solverChoice.moisture_type != MoistureType::None  );
     bool l_rotate      = (  solverChoice.use_rotate_surface_flux  );
+    bool l_Surf_X      = phys_bc_type[Orientation::xlo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::xhi()] == ERF_BC::surface_layer;
+    bool l_Surf_Y      = phys_bc_type[Orientation::ylo()] == ERF_BC::surface_layer || phys_bc_type[Orientation::yhi()] == ERF_BC::surface_layer;
+
 
     bool l_implicit_diff = (solverChoice.vert_implicit_fac[lev][0] > 0 ||
                             solverChoice.vert_implicit_fac[lev][1] > 0 ||
@@ -616,7 +736,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         Tau[lev][TauType::tau12] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau12]->setVal(zero);
         Tau[lev][TauType::tau13] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau13]->setVal(zero);
         Tau[lev][TauType::tau23] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau23]->setVal(zero);
-        if (l_use_terrain) {
+        if (l_use_terrain || (l_Surf_X || l_Surf_Y)) {
             Tau[lev][TauType::tau21] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau21]->setVal(zero);
             Tau[lev][TauType::tau31] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau31]->setVal(zero);
             Tau[lev][TauType::tau32] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); Tau[lev][TauType::tau32]->setVal(zero);
@@ -692,7 +812,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
             SFS_q1fx3_lev[lev]->setVal(zero);
             SFS_q2fx3_lev[lev]->setVal(zero);
-            if (l_rotate) {
+            if (l_rotate || (l_Surf_X || l_Surf_Y)) {
                 SFS_q1fx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx2_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,1,0)), dm, 1, IntVect(1,1,1) );
                 SFS_q1fx1_lev[lev]->setVal(zero);
@@ -712,6 +832,8 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau[lev][i] = nullptr;
         }
         SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+        SFS_q1fx1_lev[lev] = nullptr; SFS_q1fx2_lev[lev] = nullptr; SFS_q1fx3_lev[lev] = nullptr;
+        SFS_q2fx3_lev[lev] = nullptr;
         SFS_diss_lev[lev] = nullptr;
     }
 
@@ -1185,6 +1307,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping((solverChoice.substepping_type[lev] == SubsteppingType::None));
     mri_integrator_mem[lev]->setAnelastic(solverChoice.anelastic[lev]);
+    mri_integrator_mem[lev]->setAnelasticType(solverChoice.anelastic_type[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }
@@ -1216,5 +1339,7 @@ ERF::make_physbcs (int lev)
                                                             solverChoice.terrain_type, mapfac[lev], z_phys_nd[lev],
                                                             l_use_real_bcs, zvel_bc_data[lev].data());
     physbcs_base[lev] = std::make_unique<ERFPhysBCFunct_base> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d, z_phys_nd[lev],
-                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+                                                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
+                                                               (solverChoice.mesh_type != MeshType::ConstantDz),
+                                                               solverChoice.rdOcp, solverChoice.gravity);
 }

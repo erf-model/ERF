@@ -22,7 +22,8 @@
 #include <AMReX_GpuContainers.H>
 
 #include "ERF_EOS.H"
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
@@ -64,6 +65,7 @@ public:
         m_fac_cond = lcond / sc.c_p;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
+        set_anelastic_reference_pressure_mode(sc);
     }
 
     // init

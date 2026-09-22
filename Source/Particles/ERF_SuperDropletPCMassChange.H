@@ -2,8 +2,11 @@
 #define SUPERDROPLET_PC_MASSCHANGE_H_
 
 #include <cmath>
+#include <limits>
 #include <AMReX_GpuPrint.H>
-#include "ERF_Constants.H"
+#include <AMReX_Math.H>
+#include "ERF_NumericalConstants.H"
+#include "ERF_MicrophysicsConstants.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -216,7 +219,7 @@ namespace SDMassChangeUtils_LV
                     a_converged = true;
                     break;
                 }
-                if (!std::isfinite(a_res_norm_a)) {
+                if (!amrex::Math::isfinite(a_res_norm_a)) {
                     a_converged = false;
                     break;
                 }
@@ -385,7 +388,7 @@ namespace SDMassChangeUtils_LV
                 if ((cur_time + dt) > m_t_final) {
                     dt = m_t_final - cur_time;
                 }
-                if (!std::isfinite(dt)) {
+                if (!amrex::Math::isfinite(dt)) {
                     a_success = false;
                     break;
                 }
@@ -437,7 +440,7 @@ namespace SDMassChangeUtils_LV
                         dt_new = dt / std::cbrt(E);
                     }
 
-                    if (std::isfinite(u_new)) {
+                    if (amrex::Math::isfinite(u_new)) {
                         if (u_new > 0) {
                             step_success = true;
                             break;
@@ -488,7 +491,7 @@ namespace SDMassChangeUtils_LV
                 RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 dt = limitTimestep(dt, cur_time);
-                if (!std::isfinite(dt)) {
+                if (!amrex::Math::isfinite(dt)) {
                     a_success = false;
                     break;
                 }
@@ -517,7 +520,7 @@ namespace SDMassChangeUtils_LV
 
                     u_new = a_u + dt*(f1 + RT(2.0)*f2 + RT(2.0)*f3 + f4)/RT(6.0);
 
-                    if (std::isfinite(u_new) && (u_new > 0)) {
+                    if (amrex::Math::isfinite(u_new) && (u_new > 0)) {
                         step_success = true;
                         break;
                     }
@@ -555,7 +558,7 @@ namespace SDMassChangeUtils_LV
                 RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 dt = limitTimestep(dt, cur_time);
-                if (!std::isfinite(dt)) {
+                if (!amrex::Math::isfinite(dt)) {
                     a_success = false;
                     break;
                 }
@@ -582,7 +585,7 @@ namespace SDMassChangeUtils_LV
                              m_S, m_T, m_e_s, m_D, m_a, m_b, m_N_s, ventFactor(a_u),
                              res_norm_a, res_norm_r, converged);
 
-                    if (converged && std::isfinite(u_new) && (u_new > 0)) {
+                    if (converged && amrex::Math::isfinite(u_new) && (u_new > 0)) {
                         step_success = true;
                         break;
                     }
@@ -621,7 +624,7 @@ namespace SDMassChangeUtils_LV
                 RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 dt = limitTimestep(dt, cur_time);
-                if (!std::isfinite(dt)) {
+                if (!amrex::Math::isfinite(dt)) {
                     a_success = false;
                     break;
                 }
@@ -650,7 +653,7 @@ namespace SDMassChangeUtils_LV
 
                     u_new = a_u + myhalf * dt * (f1 + f2);
 
-                    if (converged && std::isfinite(u_new) && (u_new > 0)) {
+                    if (converged && amrex::Math::isfinite(u_new) && (u_new > 0)) {
                         step_success = true;
                         break;
                     }
@@ -689,7 +692,7 @@ namespace SDMassChangeUtils_LV
                 RT tau = computeTau(a_u);
                 RT dt = m_cfl / std::sqrt(tau*tau);
                 dt = limitTimestep(dt, cur_time);
-                if (!std::isfinite(dt)) {
+                if (!amrex::Math::isfinite(dt)) {
                     a_success = false;
                     break;
                 }
@@ -752,7 +755,7 @@ namespace SDMassChangeUtils_LV
                     u_new = a_u + myhalf * dt * (f1 + f2);
 
                     if (converged) {
-                        if (std::isfinite(u_new)) {
+                        if (amrex::Math::isfinite(u_new)) {
                             if (u_new > 0) {
                                 step_success = true;
                                 break;
@@ -1061,7 +1064,7 @@ namespace SDMassChangeUtils_SV
 
                 RT rhs = m_ode.rhs_func(m_a, m_c, m_vt, m_S, m_rhom, m_T, m_e_s, m_D);
                 RT u_new = a_u + m_dt*rhs;
-                if (!std::isfinite(u_new)) {
+                if (!amrex::Math::isfinite(u_new)) {
                     a_success = false;
                     break;
                 }

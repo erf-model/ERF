@@ -47,7 +47,10 @@ void compute_tangent_vectors (Real nx, Real ny, Real nz,
     // Below this the projection is all round-off and its direction is meaningless.
     // The squared norms are formed as ny^2+nz^2 and nx^2+nz^2 rather than as the
     // algebraically equal 1-nx^2 and 1-ny^2 to avoid cancellation for a near-axis normal
-    constexpr Real tol = Real(1.e-12);
+    // The squared norm of a unit normal carries an absolute roundoff of order
+    // real_eps, so the floor is a (generous) multiple of it: 2.2e-12 in double,
+    // 1.2e-03 in single, i.e. a normal within ~2 degrees of the axis.
+    constexpr Real tol = Real(1.e4)*real_eps;
 
     // x-tangential vector: t_bx = (e_x - (e_x · n)n) / ||e_x - (e_x · n)n||
     // e_x = (1,0,0), so e_x · n = nx

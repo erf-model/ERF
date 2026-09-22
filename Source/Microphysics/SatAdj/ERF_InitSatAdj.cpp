@@ -49,6 +49,9 @@ void SatAdj::Copy_State_to_Micro (const MultiFab& cons_in)
 void SatAdj::Update_Micro_Vars (MultiFab& cons_in,
                                 const MultiFab* base_state)
 {
+    assert_base_state_available(base_state);
+    const bool use_anelastic_reference_pressure =
+        m_use_anelastic_reference_pressure;
     const Real rdOcp = m_rdOcp;
     for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
         const auto& tbx = mfi.tilebox();
@@ -79,7 +82,7 @@ void SatAdj::Update_Micro_Vars (MultiFab& cons_in,
             theta_array(i,j,k) = theta;
             qv_array(i,j,k)    = qv;
             qc_array(i,j,k)    = qc;
-            if (base_state != nullptr) {
+            if (use_anelastic_reference_pressure) {
                 const Real p0 = base_array(i,j,k,BaseState::p0_comp);
                 tabs_array(i,j,k) = getTgivenPandTh(p0, theta, rdOcp);
                 pres_array(i,j,k) = p0 * Real(0.01);

@@ -3,7 +3,8 @@
 #include <fstream>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Reduce.H>
-#include "ERF_Constants.H"
+#include <cmath>
+#include "ERF_NumericalConstants.H"
 #include "ERF_SuperDropletPC.H"
 
 #ifdef ERF_USE_PARTICLES

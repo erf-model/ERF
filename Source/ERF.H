@@ -4,6 +4,7 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <set>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -39,6 +40,7 @@
 
 #include "ERF_ProbCommon.H"
 
+#include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_BaseStateParams.H>
@@ -56,6 +58,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_ForestDrag.H>
+#include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -65,6 +68,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#include "ERF_TwoStreamRadiation.H"
 
 #ifdef ERF_USE_WINDFARM
 #include "ERF_WindFarm.H"
@@ -687,6 +691,15 @@ public:
 
     void init_immersed_forcing (int lev);
 
+    // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
+    void init_ibseb ();
+    void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
+    void ibseb_report (int nstep, amrex::Real time);
+    amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
+                                              const amrex::MultiFab& xvel, const amrex::MultiFab& yvel);
+    void ibseb_advance (int lev, amrex::Real time, amrex::Real dt_lev, const amrex::MultiFab& cons,
+                        const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel);
+
     void input_sponge (int lev);
 
     void init_from_hse (int lev);
@@ -726,11 +739,13 @@ public:
     void apply_gaussian_smoothing_to_perturbations (const int lev,
                                                     amrex::MultiFab& mf_cc_pert);
 
-    void ComputeAndWriteEnsemblePerturbations ();
+    void ComputeAndWriteEnsemblePerturbations (const int da_iter);
 
     void PerformDataAssimilation (int da_iter);
 
-    void SetDirsForPlotfilesAndCheckpointsForDA (const int ens_no);
+    void SetDirsForPlotfilesAndCheckpointsForDA (const int da_iter, const int ens_no);
+
+    void GetEnsembleCheckpointName (int da_iter, int ens_no);
 
     void init_custom (int lev);
 
@@ -777,6 +792,14 @@ public:
 
     std::string pp_prefix {"erf"};
 
+    // The inputs table as the user wrote it, captured at the top of
+    // ReadParameters before anything in ERF can add to it.  ParmParse::queryAdd
+    // inserts the default it was handed whenever a key is absent, so by the time
+    // initialization is under way the table no longer distinguishes a key the
+    // user typed from a key some other query defaulted (see
+    // has_surface_layer_inputs).
+    std::set<std::string> user_specified_inputs;
+
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
                               double time);
 
@@ -792,7 +815,21 @@ public:
 #endif
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC);
+    // Read a wrfinput file at this level.
+    //
+    // With read_atmos_state = true (the default) this reads the full state: the
+    // atmospheric fields (U, V, W, THM, the density triple and the moisture species)
+    // as well as the surface fields, and it remaps the state onto the ERF vertical
+    // grid, builds the base state and reads the boundary data.
+    //
+    // With read_atmos_state = false only the surface fields are read -- terrain,
+    // surface pressure, surface and skin temperatures, the land/soil masks, the map
+    // factors, the lat/lon fields and the LSM variables -- and the terrain and metric
+    // terms are built from them.  The atmospheric state is left untouched for the
+    // caller to fill by interpolation from the coarse level (see the
+    // erf.interp_atmos_from_coarse path in MakeNewLevelFromCoarse), which is also
+    // responsible for calling rebuild_base_state_from_wrfinput afterwards.
+    void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC, bool read_atmos_state = true);
     void init_from_metgrid  (int lev);
     void init_from_ncfile   (int lev);
 
@@ -881,6 +918,8 @@ private:
     void ReadParameters ();
     void ParameterSanityChecks ();
 
+    [[nodiscard]] bool has_surface_layer_inputs (const std::string& prefix) const;
+
     // set covered coarse cells/faces to be the average of overlying fine cells/faces
     void AverageDown ();
 
@@ -911,6 +950,9 @@ private:
     // Create the physbcs objects
     void make_physbcs (int lev);
 
+    // (Re)build the land surface model on this level's current grids
+    void make_lsm_at_level (int lev, bool from_regrid [[maybe_unused]] = false);
+
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
@@ -918,6 +960,9 @@ private:
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
 #endif
+
+    // Initialize embedded boundary geometries
+    void initializeEB ();
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -1091,6 +1136,22 @@ private:
     amrex::Vector<int> istep;      // which step?
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
 
+    // One entry per level: set when that level has just been built by the
+    // erf.interp_atmos_from_coarse path, whose atmospheric state comes from FillCoarsePatch
+    // and is not yet thermodynamically consistent (rho, theta and qv are interpolated
+    // independently).  advance_radiation interpolates the radiation fields from the parent
+    // rather than running RRTMGP on that state, and clears the entry once it has done so, so
+    // exactly one step is skipped per level creation.
+    //
+    // NOTE: this is deliberately a flag owned by the level's lifetime rather than a test on
+    //       istep[lev].  istep is sized once in ReadParameters and is never reset when a
+    //       level is removed, so it carries over from a level's previous life: a level that
+    //       ran for fifty steps, was de-refined, and was then re-created would have
+    //       istep[lev] == 50 and would silently miss the skip.
+    //
+    // (using int instead of bool to avoid the std::vector<bool> specialization)
+    amrex::Vector<int> rad_interp_from_coarse_pending;
+
     // keep track of old time, new time, and time step at each level
     amrex::Vector<double> t_new;
     amrex::Vector<double> t_old;
@@ -1184,7 +1245,18 @@ private:
 
     amrex::Vector<std::unique_ptr<IRadiation>> rad; // Radiation model at each level
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms (SW, LW) (DYCORE)
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;      // radiation fluxes (SW up/dn, LW up/dn) (OUTPUT ONLY)
+    // Radiation fluxes (SW up, SW down, LW up, LW down) [W/m^2] at the
+    // interfaces (OUTPUT ONLY). Index k holds the lower interface of layer k
+    // (k = klo is the surface); the top-of-atmosphere interface is stored in
+    // the z-ghost cell k = khi + 1, so the array has one ghost cell in z.
+    // Both RRTMGP and the two-stream model fill all nz + 1 levels.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;
+
+    // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
+    // surface and SEB state; every call from ERF is behind a test of
+    // solverChoice.rad_type == RadiationType::TwoStream.
+    TwoStreamRadiation two_stream_rad;
+
     int num_rad_times = -1;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qrad_forcings; // qrad src over time
     amrex::Vector<amrex::Real> rad_times;
@@ -1260,6 +1332,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
+
+    // Immersed-boundary surface energy balance: inputs and one face set per level
+    IBSEBParams ibseb_params;
+    amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
@@ -1446,7 +1522,7 @@ private:
     const amrex::Vector<std::string> derived_names {"temp", "theta", "KE", "scalar", "soundspeed",
                                                     "reflectivity","max_reflectivity", "precipitable", "mucape",
                                                     "vorticity_x","vorticity_y","vorticity_z",
-                                                    "helicity", "local_helicity",
+                                                    "helicity", "local_helicity", "vort_stretching",
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "theta_hse", "pi_hse", "qv_hse",
                                                     "pressure", "pert_pres", "pert_dens",
@@ -1471,6 +1547,8 @@ private:
                                                     "Khv","Khh",
                                                     // turbulence lengthscale
                                                     "Lturb",
+                                                    // k-eqn RANS: smoothed turbulent Richardson number and stability functions
+                                                    "Rt", "cmu", "cmu_prime",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",
@@ -1487,13 +1565,18 @@ private:
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
+                                                    "ibseb_nfaces", "ibseb_tskin",
+                                                    "ibseb_sw_abs", "ibseb_shadow",
+                                                    "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G",
                                                     // EB variables
                                                     "volfrac"
 #ifdef ERF_COMPUTE_ERROR
                                                     // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-                                                    ,"qsrc_sw", "qsrc_lw"
+                                                    ,"qsrc_sw", "qsrc_lw",
+                                                    "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23", "Tau31", "Tau32", "Tau33",
+                                                    "hfx1", "hfx2", "hfx3", "q1fx1", "q1fx2", "q1fx3", "q2fx3"
                                                    };
 
     // **************************************************************************************
@@ -1599,6 +1682,24 @@ private:
     amrex::Vector<amrex::BoxArray> ba1d;
     amrex::Vector<amrex::BoxArray> ba2d;
 
+    // Vertical extent of the grid column over each (i,j), stored on ba2d (so the
+    // compressed z index is 0) with one ghost cell in x and y so that a box can also
+    // read the extent of the column on the other side of each of its faces.
+    //     component 0 : smallEnd(2) of the box covering this column
+    //     component 1 : bigEnd(2)   of the box covering this column
+    // Ghost entries that no box covers keep the "unconstraining" sentinels below.
+    // This is well defined only because grids may not be split in the vertical --
+    // see ERF::grids_are_split_in_z.  Used by the implicit vertical diffusion solves.
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
+
+    static constexpr int column_kextent_lo_sentinel = std::numeric_limits<int>::min()/2;
+    static constexpr int column_kextent_hi_sentinel = std::numeric_limits<int>::max()/2;
+
+    void define_column_kextent (int lev, const amrex::BoxArray& ba,
+                                const amrex::DistributionMapping& dm);
+
+    static bool grids_are_split_in_z (const amrex::BoxArray& ba);
+
     // The six parameters defining the WRF analytic reference profile, plus the layer
     // interfaces derived from them.  These are read from the LEVEL 0 wrfinput file only
     // and then shared by every level: the levels of an AMR hierarchy must be built from
@@ -1688,7 +1789,7 @@ private:
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
-    std::unique_ptr<SurfaceLayer>     m_SurfaceLayer = nullptr;
+    amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
     //

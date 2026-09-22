@@ -41,7 +41,7 @@ struct ShocRuntimeOptions
     bool allow_tendency_microphysics_overlap = false;
     bool signed_tke_production = false;
     ShocTransportMode transport_mode = ShocTransportMode::StateUpdate;
-    ShocMomentumTransport momentum_transport = ShocMomentumTransport::HostDiffusion;
+    ShocMomentumTransport momentum_transport = ShocMomentumTransport::StateUpdate;
     bool debug_bad_column = false;
     bool debug_bad_column_abort = true;
     int debug_bad_column_max_reports = 8;
@@ -55,19 +55,6 @@ struct ShocRuntimeOptions
     bool debug_disable_moisture_state_update = false;
     bool debug_disable_tke_state_update = false;
 };
-
-inline bool
-validate_shoc_runtime_options_message (const ShocRuntimeOptions& opts,
-                                      std::string& error_message)
-{
-    if (shoc_uses_host_diffusion(opts.transport_mode) &&
-        !shoc_uses_momentum_host_diffusion(opts.momentum_transport)) {
-        error_message =
-            "erf.shoc.transport_mode = host_diffusion requires erf.shoc.momentum_transport = host_diffusion";
-        return false;
-    }
-    return true;
-}
 
 struct ShocColumnLayout
 {
@@ -232,9 +219,6 @@ validate_shoc_runtime_options (const ShocRuntimeOptions& opts)
                                      "erf.shoc.debug_bad_column_min_dz must be positive");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(opts.debug_bad_column_scalar_moment_threshold > 0.0,
                                      "erf.shoc.debug_bad_column_scalar_moment_threshold must be positive");
-    std::string error_message;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(validate_shoc_runtime_options_message(opts, error_message),
-                                     error_message.c_str());
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

@@ -249,8 +249,8 @@ function(build_erf_lib erf_lib_name)
   ########################### RRTMGP #################################
   if(ERF_ENABLE_RRTMGP)
     set(RRTMGP_ERF_SOURCES
-        ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_RRTMGP_Interface.cpp
-        ${SRC_DIR}/PhysicsInterfaces/Radiation/ERF_Radiation.cpp
+        ${SRC_DIR}/Radiation/RRTMGP/ERF_RRTMGP_Interface.cpp
+        ${SRC_DIR}/Radiation/RRTMGP/ERF_Radiation.cpp
         ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
         ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
         ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
@@ -267,7 +267,7 @@ function(build_erf_lib erf_lib_name)
     # so warnings from its headers do not leak into ordinary ERF translation
     # units that include ERF.H.
     target_include_directories(${erf_lib_name} PUBLIC
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation>
+                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/RRTMGP>
                               )
     target_include_directories(${erf_lib_name} SYSTEM PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp>
@@ -449,6 +449,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/EB/ERF_EBAux.cpp
        ${SRC_DIR}/EB/ERF_EB.cpp
        ${SRC_DIR}/EB/ERF_EBCutCell.cpp
+       ${SRC_DIR}/EB/ERF_EBInit.cpp
        ${SRC_DIR}/EB/ERF_EBRedistribute.cpp
        ${SRC_DIR}/Initialization/ERF_InitBCs.cpp
        ${SRC_DIR}/Initialization/ERF_InitCustomPertState.cpp
@@ -531,6 +532,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSU.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityMRF.cpp
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
+       ${SRC_DIR}/Radiation/TwoStream/ERF_RadiationDiagnostics.cpp
+       ${SRC_DIR}/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp
@@ -545,6 +548,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBFaceSet.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEB.cpp
+       ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEBMaterials.cpp
        ${SRC_DIR}/SourceTerms/ERF_ForestDrag.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
@@ -562,6 +568,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
+       ${SRC_DIR}/Utils/ERF_ColumnBands.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
@@ -572,6 +579,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_TerrainMetrics.cpp
        ${SRC_DIR}/Utils/ERF_VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/ERF_InteriorGhostCells.cpp
+       ${SRC_DIR}/Utils/ERF_PlanarBoundary.cpp
        ${SRC_DIR}/Utils/ERF_ThinBodyWallDist.cpp
        ${SRC_DIR}/Utils/ERF_TimeAvgVel.cpp
        ${SRC_DIR}/Utils/ERF_Utils.cpp
@@ -584,7 +592,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM_IO.cpp
-       ${SRC_DIR}/PhysicsInterfaces/Radiation/Simple/ERF_RadiationSimple.cpp
+       ${SRC_DIR}/Radiation/Simple/ERF_RadiationSimple.cpp
   )
 
   include(AMReXBuildInfo)
@@ -642,7 +650,9 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/IO>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LinearSolvers>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PBL>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/SourceTerms>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/ImmersedBoundarySEB>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
@@ -667,8 +677,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/>)
-  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces/Radiation/Simple>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/Simple>)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC AMReX::amrex)

@@ -7,7 +7,6 @@
 
 #include <AMReX_Math.H>
 
-#include <ERF_Constants.H>
 #include <ERF_HSEUtils.H>
 #include <ERF_MicrophysicsUtils.H>
 

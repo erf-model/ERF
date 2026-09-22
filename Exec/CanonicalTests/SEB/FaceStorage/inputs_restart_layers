@@ -1,0 +1,8 @@
+FILE = inputs_base
+
+# Restart from the 4-layer checkpoint with another slab layer count: the
+# IBSEBState field cannot be unpacked and the run must abort saying so.
+max_step = 4
+erf.restart = chk00002
+erf.ibseb.n_slab_layers = 6
+erf.ibseb.csv_file = "ibseb_restart_layers.csv"

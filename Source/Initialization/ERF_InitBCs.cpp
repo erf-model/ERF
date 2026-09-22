@@ -325,16 +325,73 @@ void ERF::init_bcs ()
 
     init_phys_bcs(read_prim_theta);
 
+    // Deardorff LES, RANS, and PBL models consume lower-z SurfaceLayer fields
+    // explicitly. They cannot safely coexist with a lateral or upper
+    // SurfaceLayer wall. Smagorinsky LES uses the generic all-face diffusion
+    // path.
+    bool has_non_zlo_surface_layer = false;
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        const bool is_zlo = (ori.coordDir() == static_cast<int>(Direction::z) &&
+                             ori.faceDir() == Orientation::low);
+        if (!is_zlo && phys_bc_type[ori] == ERF_BC::surface_layer) {
+            has_non_zlo_surface_layer = true;
+            break;
+        }
+    }
+
+    if (has_non_zlo_surface_layer) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            const auto& turb_choice = solverChoice.turbChoice[lev];
+            if (turb_choice.les_type  == LESType::Deardorff ||
+                turb_choice.rans_type != RANSType::None ||
+                turb_choice.pbl_type  != PBLType::None) {
+                Abort("Deardorff LES, RANS, and PBL models (including SHOC) support "
+                      "SurfaceLayer only at zlo. Remove non-zlo surface_layer boundaries "
+                      "or select Smagorinsky LES.");
+            }
+        }
+    }
+
     bool keqn_dir = (solverChoice.turbChoice[max_level].rans_type == RANSType::kEqn &&
                      solverChoice.turbChoice[max_level].dirichlet_k == true);
     if (keqn_dir) {
-        // Need to change wall BC type, assume for now that all levels are RANS
+        // The wall value of k (AL01 Eq. 16) is written into the first cell by
+        // SurfaceLayer::update_fluxes and held there through every RK stage
+        // (erf_slow_rhs_post, ImplicitDiffForStateLU_*). The logical BC for
+        // RhoKE at the wall stays foextrap, so the ghost cell carries the same
+        // value and the surface-layer branch of the diffusion sets a zero flux
+        // through the wall face. Assume for now that all levels are RANS.
         for (int lev = 0; lev < max_level; ++lev) {
             if (solverChoice.turbChoice[lev].rans_type != RANSType::kEqn) {
                 Error("If using one-eqn RANS, all levels must be RANS for now");
             }
         }
-        Print() << "Using dirichlet BC for k equation" << std::endl;
+        // The AL01 Eq. 16 wall value is computed only by SurfaceLayer::update_fluxes,
+        // so without a surface layer at zlo nothing ever writes it. The pin in
+        // erf_slow_rhs_post is gated on SurfLayer != nullptr and would silently do
+        // nothing, while ImplicitDiffForStateLU_* would still collapse the klo row
+        // and freeze the first cell at whatever it was initialized to. Rather than
+        // let the two paths disagree, require the surface layer.
+        if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) {
+            Error("erf.dirichlet_k = true requires zlo.type = surface_layer: the wall value "
+                  "of k (Axell & Liungman Eq. 16) is computed by the surface layer model");
+        }
+        Print() << "Using dirichlet wall value for the k equation (held in the first cell)" << std::endl;
+    }
+
+    // k-eqn RANS under a surface layer without the Dirichlet wall value: the
+    // first cell cannot resolve the near-wall shear production, so k there
+    // settles at about half the AL01 equilibrium u*^2/Cmu0^2 (the mean wind
+    // still follows the log law because MOST supplies the stress). Warn.
+    for (int lev = 0; lev <= max_level; ++lev) {
+        if (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn &&
+            !solverChoice.turbChoice[lev].dirichlet_k &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
+            Warning("erf.rans_type = kEqn with zlo.type = surface_layer but erf.dirichlet_k = false: "
+                    "near-wall TKE will be about half the Axell & Liungman equilibrium value; "
+                    "set erf.dirichlet_k = true");
+        }
     }
 
     // *****************************************************************************
@@ -468,10 +525,19 @@ void ERF::init_bcs ()
             else if ( bct == ERF_BC::surface_layer )
             {
                 use_surfacelayer = true;
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+1].setLo(dir, ERFBCType::hoextrap);
-                domain_bcs_type[BCVars::xvel_bc+2].setLo(dir, ERFBCType::ext_dir);
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::hoextrap);
+                    }
+                    // Only normal direction has ext_dir
+                    domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::ext_dir);
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::hoextrap);
+                    }
+                    // Only normal direction has ext_dir
+                    domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::ext_dir);
+                }
             }
         }
     }
@@ -666,14 +732,17 @@ void ERF::init_bcs ()
             }
             else if ( bct == ERF_BC::surface_layer )
             {
-                AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                for (int i = 0; i < NBCVAR_max; i++) {
-                    domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
+                } else {
+                    for (int i = 0; i < NBCVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
                 }
-                if (keqn_dir) {
-                    Print() << "Setting surface layer logical BC to dirichlet for RANS with k model" << std::endl;
-                    domain_bcs_type[BCVars::RhoKE_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                }
+                // NOTE: with erf.dirichlet_k the RhoKE wall value lives in the
+                //       first cell (see above); foextrap is the right logical BC.
             }
         }
     }
