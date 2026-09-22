@@ -668,6 +668,54 @@ Test Location: `Tests/test_files/StationSampling`_
 
 .. _`Tests/test_files/StationSampling`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/StationSampling
 
+Station output does not change the answer
+-----------------------------------------
+The three ``StationSampling_AnswerParity*`` tests (label ``option-parity``) hold
+the sampler to the claim made in :ref:`sec:Inputs`, that turning station output
+on does not change the solution. Each runs one deck twice, once with the
+stations off and once with them on, and requires the plotfile to be identical
+**bit for bit** -- ``--rel_tol 0 --abs_tol 0``, not the tolerances the gold-file
+tests use, because a diagnostic that moves the answer at all is a bug rather
+than a tolerance question (``Tests/RunOptionParity.cmake``, no gold file). Both
+legs run on the same number of ranks with the same decomposition, so anything
+that survives is the sampler's own doing. Each names a file the "on" leg must
+write and the "off" leg must not, so a misspelled option cannot pass as
+agreement, and the harness refuses two legs given the same options.
+
+The claim is not free, which is why it is tested. The sampler asks
+``BuildPlot3DScratch`` not to average the microphysics state down
+(``sync_solution = false``), since that call modifies the coarse solution. What
+it still does at every sampled step is fillpatch the state on every level up to
+the highest one a station is on, re-point the ``qmoist`` pointers on every
+level, and fill the requested variables over whole levels. The three decks cover
+the paths that could break:
+
+* ``StationSampling_AnswerParity`` on the ``StationSampling`` deck -- two
+  levels, dry. The only one of the three whose station resolves to level 1, so
+  it is the case that exercises ``FillPatchFineLevel``.
+* ``StationSampling_AnswerParity_MOST`` on ``ABL_MOST`` -- the surface layer.
+  ``u_star`` and ``t_star`` are 2D diagnostics of the MOST path, so the "on" leg
+  reads what the surface layer computed as well as the 3D state.
+* ``StationSampling_AnswerParity_SDM`` on ``SDM_MoistBubble2D_AMR1`` (MPI builds
+  with ``ERF_ENABLE_PARTICLES``) -- Lagrangian microphysics on two levels with
+  ``CouplingType::TwoWay``, which is the configuration in which
+  ``BuildPlot3DScratch`` would average the microphysics state down, and so the
+  one the ``sync_solution = false`` argument exists for. Unlike the SDM
+  gold-file tests this one compares a run against itself, so it needs neither
+  the machine-specific gold files nor the flags that gate them.
+
+One gap is left open deliberately. A run driven by time-dependent lateral
+boundary data is the remaining case where an extra fill at ``t_new`` could in
+principle matter, and it is not covered: there is no ``nc_bdy_file`` fixture
+under ``Tests/test_files``, and the decks that read one
+(``Exec/RegTests/WPS_Test``, ``Exec/RegTests/MetGrid``, the Katrina inputs under
+``Exec/CanonicalTests/Hurricanes``) need NetCDF input that CI does not have. The
+argument that it is safe is that the boundary path reaches
+``ReadBndryPlanes::interp_in_time``, which memoizes on the requested time and is
+otherwise a pure function of it, so a second fill at ``t_new`` re-derives what
+the step already wrote rather than consuming a read. That is an argument, not a
+measurement.
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.

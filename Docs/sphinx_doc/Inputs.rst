@@ -1686,7 +1686,13 @@ distinct.
    ``erf.station_sampling_per`` to the rate the series actually needs rather
    than to the time step.  The fill is a diagnostic: it does not change the
    solution, and a run with station output turned on gives the same answer as
-   one without.
+   one without.  That is tested rather than asserted -- the
+   ``StationSampling_AnswerParity*`` regression tests run a deck with the
+   stations off and on and require the plotfiles to be identical bit for bit,
+   on a two-level dry case, on a surface-layer case and on a case with
+   Lagrangian microphysics -- with one gap: no test covers a run driven by
+   time-dependent lateral boundary data, because no such deck can run in CI.
+   See :ref:`RegressionTests`.
 
 .. _list-of-parameters-10c:
 

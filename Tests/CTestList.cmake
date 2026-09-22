@@ -299,6 +299,49 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
+# Run the deck in test_files/<TEST_FILES_DIR> twice, once with a diagnostic off and once
+# with it on, and require PLTFILE to be identical bit for bit.  This is the harness for
+# "turning this output on does not change the answer": OFF_OPTIONS and ON_OPTIONS are the
+# two option sets, COMMON_OPTIONS go to both, and REQUIRE_ON_FILE names a file the on leg
+# must write and the off leg must not, so a misspelled option cannot pass as agreement.
+function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
+    set(oneValueArgs "COMMON_OPTIONS" "OFF_OPTIONS" "ON_OPTIONS" "REQUIRE_ON_FILE" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_OP "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_run_timeout 600)
+    set(_ctest_timeout 600)
+    if(DEFINED ADD_TEST_OP_RUN_TIMEOUT)
+        set(_run_timeout "${ADD_TEST_OP_RUN_TIMEOUT}")
+        math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+    endif()
+
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DCOMMON_OPTIONS=${ADD_TEST_OP_COMMON_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_OP_OFF_OPTIONS}"
+        "-DON_OPTIONS=${ADD_TEST_OP_ON_OPTIONS}"
+        "-DREQUIRE_ON_FILE=${ADD_TEST_OP_REQUIRE_ON_FILE}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunOptionParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;option-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+endfunction(add_test_option_parity)
+
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
@@ -1572,6 +1615,44 @@ add_test_box_parity(StationSampling_BoxParity StationSampling "plt00010"
 add_test_restart_parity(StationSampling_Restart StationSampling 4 10
     DATALOG "Output_Stations/Center.dat"
     DATALOG_SIGDIGITS 10)
+
+# The docs say a run with station output turned on gives the same answer as one without,
+# and the sampler is built so that it does: it asks BuildPlot3DScratch not to average the
+# microphysics state down.  What it still does at every sampled step is fillpatch the state
+# on every level up to the highest one a station is on, re-point the qmoist pointers, and
+# fill the requested variables over whole levels, so the claim is not free and is tested
+# rather than asserted.  Each test runs the same deck with the stations off and on and
+# requires the plotfile to be identical bit for bit, not to a tolerance: a diagnostic that
+# moves the answer at all is a bug.  The three decks cover the paths that could break it.
+#
+# AMR, dry: the only one of the three whose station resolves to level 1, so it is the case
+# that exercises FillPatchFineLevel.  The deck's own stations are switched off with
+# erf.do_station_sampling for the off leg.
+add_test_option_parity(StationSampling_AnswerParity StationSampling "plt00010"
+    OFF_OPTIONS "erf.do_station_sampling=false"
+    ON_OPTIONS  "erf.Center.field=theta magvel vorticity_x vorticity_y vorticity_z pressure"
+    REQUIRE_ON_FILE "Output_Stations/Center.dat")
+
+# Surface layer: u_star and t_star are 2D diagnostics of the MOST path, so the on leg reads
+# what the surface layer computed as well as the 3D state.
+add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
+    COMMON_OPTIONS "erf.vert_implicit=false"
+    OFF_OPTIONS "erf.do_station_sampling=false"
+    ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
+    REQUIRE_ON_FILE "Output_Stations/T.dat")
+
+if(ERF_ENABLE_PARTICLES)
+    # Lagrangian microphysics on two levels with TwoWay coupling: the configuration in which
+    # BuildPlot3DScratch would average the microphysics state down, and so the one the
+    # sync_solution = false argument exists for.  It also has qmoist to re-point on every
+    # level.  Unlike the SDM gold-file tests this one compares a run against itself, so it
+    # needs neither the machine-specific gold files nor the flags that gate them.
+    add_test_option_parity(StationSampling_AnswerParity_SDM SDM_MoistBubble2D_AMR1 "plt00020"
+        COMMON_OPTIONS "erf.vert_implicit=false"
+        OFF_OPTIONS "erf.do_station_sampling=false"
+        ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z qv qc qrain pressure erf.T.x=10000 erf.T.y=200 erf.T.height_agl=500.0 2000.0"
+        REQUIRE_ON_FILE "Output_Stations/T.dat")
+endif()
 
 #=============================================================================
 # Performance tests
