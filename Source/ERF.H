@@ -702,6 +702,20 @@ public:
         amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
     };
 
+    void FillPlot2DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         const amrex::Vector<std::string>& varnames,
+                         const amrex::Vector<plotfile2d::Plotfile2DOutputDescriptor>& output_descriptors,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf);
+
+    void FillPlot3DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         Plot3DScratch& scratch,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf,
+                         amrex::Real tnew);
+
     // max_lev caps the levels whose scratch is built, -1 meaning every level: a
     // caller that reads only the coarse levels should not pay for the fine ones.
     // sync_solution allows the microphysics average-down, which the plotfile
@@ -1088,20 +1102,6 @@ private:
     void resolve_station_stencils ();
     void sample_stations (amrex::Real time);
     void flush_stations () const;
-
-    void FillPlot2DVars (int lev,
-                         const amrex::Vector<std::string>& plot_var_names,
-                         const amrex::Vector<std::string>& varnames,
-                         const amrex::Vector<plotfile2d::Plotfile2DOutputDescriptor>& output_descriptors,
-                         amrex::MultiFab& mf_dst,
-                         int ncomp_mf);
-
-    void FillPlot3DVars (int lev,
-                         const amrex::Vector<std::string>& plot_var_names,
-                         Plot3DScratch& scratch,
-                         amrex::MultiFab& mf_dst,
-                         int ncomp_mf,
-                         amrex::Real tnew);
 
     void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
