@@ -3051,11 +3051,11 @@ SLM::AdvanceSLM ()
             qstar_arr(i, j, 0) = -1.0 * flbq_arr(i, j, d_khi_lsm) / ustar_arr(i, j, 0);
             qstar_arr(i, j, d_khi_lsm) = qstar_arr(i, j, 0);
 
-            // TODO: fix - copies SLM boundary into flux array for MOST
-            fluxq_arr(i,j,0) = rhow * flbq_arr(i, j, d_khi_lsm);
-            fluxt_arr(i,j,0) = rhow * flbt_arr(i, j, d_khi_lsm);
-            tau13_arr(i,j,0) = rhow * flbu_arr(i, j, d_khi_lsm);
-            tau23_arr(i,j,0) = rhow * flbv_arr(i, j, d_khi_lsm);
+            // These terms are multiplied by rho in SurfaceLayer
+            fluxq_arr(i,j,0) = flbq_arr(i, j, d_khi_lsm);
+            fluxt_arr(i,j,0) = flbt_arr(i, j, d_khi_lsm);
+            tau13_arr(i,j,0) = flbu_arr(i, j, d_khi_lsm);
+            tau23_arr(i,j,0) = flbv_arr(i, j, d_khi_lsm);
 
             amrex::Real tvm = getThgivenRandT(rhow, tref_arr(i,j,0), R_d / Cp_d, qref_arr(i,j,0)) * (1.0 + 0.61 * qref_arr(i,j,0));
             olen_arr(i,j,0) = -ustar_arr(i,j,0) * ustar_arr(i,j,0) * ustar_arr(i,j,0) * tvm / (KAPPA * CONST_GRAV * flbt_arr(i,j,d_khi_lsm));
