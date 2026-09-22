@@ -109,13 +109,8 @@ if(NOT "${DATALOG}" STREQUAL "")
         message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} has ${ref_lines} lines; the comparison would be trivial")
     endif()
     include("${CMAKE_CURRENT_LIST_DIR}/CompareDataLogs.cmake")
-    # datprecision in Source/ERF.H, and a couple of units of the last digit of tolerance.
-    # Station time series (Source/IO/ERF_StationSampler.cpp) print more digits, so the
-    # caller can raise the number of significant digits that must agree.
-    if("${DATALOG_SIGDIGITS}" STREQUAL "")
-        set(DATALOG_SIGDIGITS 6)
-    endif()
-    erf_compare_data_logs("${REF_DIR}/${DATALOG}" "${SPLIT_DIR}/${DATALOG}" ${DATALOG_SIGDIGITS} 2 logs_agree log_message)
+    # datprecision in Source/ERF.H, and a couple of units of the last digit of tolerance
+    erf_compare_data_logs("${REF_DIR}/${DATALOG}" "${SPLIT_DIR}/${DATALOG}" 6 2 logs_agree log_message)
     if(NOT logs_agree)
         message(FATAL_ERROR "RunBoxParity.cmake: data log ${DATALOG} differs between the single-box "
                             "and split runs: ${log_message}")
