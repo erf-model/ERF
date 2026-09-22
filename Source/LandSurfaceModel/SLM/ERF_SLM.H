@@ -61,7 +61,6 @@ namespace LsmVar_SLM {
       soilt_obs,
       soilw_obs,
        // vegetation
-       rootF,           // fraction of total root length of a vegetation in each soil layer
        soil_transp_frac,// normalized fraction of transpiration extracted from each soil layer
        w_s_FC,          // wetness at field capacity
       w_s_WP,          // wetness at wilting point
@@ -406,8 +405,6 @@ public:
 
     void init_soil_tw();
 
-    void vege_root_init();
-
     void init_slm_vars();
 
     /**
@@ -437,8 +434,6 @@ public:
     void UpdateLAI(const amrex::MFIter &mfi);
 
     void UpdateLAIParameters(const amrex::MFIter &mfi);
-
-    void radiative_fluxes(const amrex::MFIter &mfi);
 
     // NOAHMP radiation functions
     void radiation_noahmp(const amrex::MFIter &mfi);
@@ -712,9 +707,6 @@ private:
     amrex::MultiFab Rgl; // parameter for stomatal resistance
     amrex::MultiFab Rc_min; // minimum stomatal resistance
     amrex::MultiFab hs_rc; // parameter for stomatal resistance
-    amrex::MultiFab rootL; // root length
-    amrex::MultiFab root_a; // coef a for root density
-    amrex::MultiFab root_b; // coef b for root density
     amrex::MultiFab precip_extinc; // precipitation extinction coef
     amrex::MultiFab precip_sfc; // precipitation reaching to soil top through canopy
     amrex::MultiFab mw_mx; // max of mw
@@ -808,7 +800,6 @@ private:
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
     bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
 
-    enum class RadiationScheme { SLM, NoahMP };
     RadiationScheme radiation_scheme = RadiationScheme::NoahMP;
 
     // NOAHMP radiation parameters

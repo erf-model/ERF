@@ -214,9 +214,6 @@ SLM::Init (const int& /*lev*/,
     Rgl.define(ba_lsm_2d, dm, 1, ng_2d);
     Rc_min.define(ba_lsm_2d, dm, 1, ng_2d);
     hs_rc.define(ba_lsm_2d, dm, 1, ng_2d);
-    rootL.define(ba_lsm_2d, dm, 1, ng_2d);
-    root_a.define(ba_lsm_2d, dm, 1, ng_2d);
-    root_b.define(ba_lsm_2d, dm, 1, ng_2d);
     precip_extinc.define(ba_lsm_2d, dm, 1, ng_2d);
     mw_mx.define(ba_lsm_2d, dm, 1, ng_2d);
     mws_mx.define(ba_lsm_2d, dm, 1, ng_2d);
@@ -235,9 +232,6 @@ SLM::Init (const int& /*lev*/,
     Rgl.setVal(0.0);
     Rc_min.setVal(0.0);
     hs_rc.setVal(0.0);
-    rootL.setVal(0.0);
-    root_a.setVal(0.0);
-    root_b.setVal(0.0);
     precip_extinc.setVal(0.0);
     mw_mx.setVal(0.0);
     mws_mx.setVal(0.0);
@@ -909,9 +903,6 @@ void SLM::slm_init()
 
     init_soil_vars();
 
-    // Calculate fraction of root in each soil layer
-    vege_root_init();
-
     // Update any parameters using the values from a parameter file
     init_from_params();
 }
@@ -1068,16 +1059,7 @@ void SLM::init_landtype()
         auto albedonir_v_arr = albedonir_v.array(mfi);
         auto albedovis_s_arr = albedovis_s.array(mfi);
         auto albedonir_s_arr = albedonir_s.array(mfi);
-        auto ztop_arr = ztop.array(mfi);
         auto disp_hgt_arr = disp_hgt.array(mfi);
-        auto z0_sfc_arr = z0_sfc.array(mfi);
-        auto Khai_L_arr = Khai_L.array(mfi);
-        auto rootL_arr = rootL.array(mfi);
-        auto root_a_arr = root_a.array(mfi);
-        auto root_b_arr = root_b.array(mfi);
-        auto Rc_min_arr = Rc_min.array(mfi);
-        auto Rgl_arr = Rgl.array(mfi);
-        auto hs_rc_arr = hs_rc.array(mfi);
         auto BAI_arr = BAI.array(mfi);
         auto IMPERV_arr = IMPERV.array(mfi);
         auto vegetype_arr = vegetype.array(mfi);
@@ -1101,17 +1083,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.161;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 20.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 1.09;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.8;
-                    root_a_arr(i, j, 0) = 6.706;
-                    root_b_arr(i, j, 0) = 2.175;
-                    Rc_min_arr(i, j, 0) = 250.;
-                    Rgl_arr(i, j, 0) = 120.;
-                    //Rgl_arr(i, j, 0) = 30.;
-                    hs_rc_arr(i, j, 0) = 0.03;
                     BAI_arr(i, j, 0) = 200.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1121,16 +1093,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.146;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 20.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 1.00;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 3.0;
-                    root_a_arr(i, j, 0) = 7.344;
-                    root_b_arr(i, j, 0) = 1.303;
-                    Rc_min_arr(i, j, 0) = 250.;
-                    Rgl_arr(i, j, 0) = 120.;
-                    hs_rc_arr(i, j, 0) = 0.03;
                     BAI_arr(i, j, 0) = 200.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1140,16 +1103,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.198;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 20.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 1.10;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 2.0;
-                    root_a_arr(i, j, 0) = 7.066;
-                    root_b_arr(i, j, 0) = 1.953;
-                    Rc_min_arr(i, j, 0) = 250.;
-                    Rgl_arr(i, j, 0) = 120.;
-                    hs_rc_arr(i, j, 0) = 0.03;
                     BAI_arr(i, j, 0) = 200.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1159,16 +1113,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.151;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 20.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.8;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 2.0;
-                    root_a_arr(i, j, 0) = 5.990;
-                    root_b_arr(i, j, 0) = 1.955;
-                    Rc_min_arr(i, j, 0) = 250.;
-                    Rgl_arr(i, j, 0) = 120.;
-                    hs_rc_arr(i, j, 0) = 0.03;
                     BAI_arr(i, j, 0) = 200.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1178,16 +1123,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.179;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 20.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.8;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 2.4;
-                    root_a_arr(i, j, 0) = 4.453;
-                    root_b_arr(i, j, 0) = 1.631;
-                    Rc_min_arr(i, j, 0) = 250.;
-                    Rgl_arr(i, j, 0) = 120.;
-                    hs_rc_arr(i, j, 0) = 0.03;
                     BAI_arr(i, j, 0) = 200.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1197,16 +1133,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.121;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 1.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.1;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 2.5;
-                    root_a_arr(i, j, 0) = 6.326;
-                    root_b_arr(i, j, 0) = 1.567;
-                    Rc_min_arr(i, j, 0) = 220.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 60.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1216,16 +1143,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.226;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 1.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.1;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 3.1;
-                    root_a_arr(i, j, 0) = 7.718;
-                    root_b_arr(i, j, 0) = 1.262;
-                    Rc_min_arr(i, j, 0) = 220.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 60.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1235,16 +1153,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.085;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 5.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.3;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 1.7;
-                    root_a_arr(i, j, 0) = 7.604;
-                    root_b_arr(i, j, 0) = 2.300;
-                    Rc_min_arr(i, j, 0) = 180.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.02;
                     BAI_arr(i, j, 0) = 100.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1254,16 +1163,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.227;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 5.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.3;
-                    Khai_L_arr(i, j, 0) = 0.25;
-                    rootL_arr(i, j, 0) = 2.4;
-                    root_a_arr(i, j, 0) = 8.235;
-                    root_b_arr(i, j, 0) = 1.627;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 100.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1273,16 +1173,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.269;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 0.5;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.04;
-                    Khai_L_arr(i, j, 0) = -0.3;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 10.74;
-                    root_b_arr(i, j, 0) = 2.608;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 20.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1292,16 +1183,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.18;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 0.5;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.2;
-                    Khai_L_arr(i, j, 0) = -0.3;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 100.0;
-                    Rgl_arr(i, j, 0) = 100.0;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 20.0;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) =1;
@@ -1311,16 +1193,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.193;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 0.5;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.03;
-                    Khai_L_arr(i, j, 0) = -0.3;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 60.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1330,16 +1203,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.164;
                     albedovis_s_arr(i, j, 0) = 0.15;
                     albedonir_s_arr(i, j, 0) = 0.25;
-                    ztop_arr(i, j, 0) = 10.;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 1.0;
-                    Khai_L_arr(i, j, 0) = -0.3;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 0.0;
-                    Rgl_arr(i, j, 0) = 0.0;
-                    hs_rc_arr(i, j, 0) = 0.0;
                     BAI_arr(i, j, 0) = 0.0;
                     IMPERV_arr(i, j, 0) = 0.75;
                     vegetype_arr(i, j, 0) = 0;
@@ -1349,16 +1213,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.169;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 0.5;
                     disp_hgt_arr(i, j, 0) = 0.65 * ztop_arr(i, j, 0);
-                    z0_sfc_arr(i, j, 0) = 0.04;
-                    Khai_L_arr(i, j, 0) = -0.3;
-                    rootL_arr(i, j, 0) = 1.5;
-                    root_a_arr(i, j, 0) = 5.558;
-                    root_b_arr(i, j, 0) = 2.614;
-                    Rc_min_arr(i, j, 0) = 100.;
-                    Rgl_arr(i, j, 0) = 100.;
-                    hs_rc_arr(i, j, 0) = 0.01;
                     BAI_arr(i, j, 0) = 20.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 1;
@@ -1368,16 +1223,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.0;
                     albedovis_s_arr(i, j, 0) = 0.91;
                     albedonir_s_arr(i, j, 0) = 0.65;
-                    ztop_arr(i, j, 0) = 0.0;
                     disp_hgt_arr(i, j, 0) = 0.0;
-                    z0_sfc_arr(i, j, 0) = 0.001;
-                    Khai_L_arr(i, j, 0) = 0.0;
-                    rootL_arr(i, j, 0) = 0.0;
-                    root_a_arr(i, j, 0) = 0.0;
-                    root_b_arr(i, j, 0) = 0.0;
-                    Rc_min_arr(i, j, 0) = 0.0;
-                    Rgl_arr(i, j, 0) = 0.0;
-                    hs_rc_arr(i, j, 0) = 0.0;
                     BAI_arr(i, j, 0) = 0.0;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 0;
@@ -1387,16 +1233,7 @@ void SLM::init_landtype()
                     albedonir_v_arr(i, j, 0) = 0.0;
                     albedovis_s_arr(i, j, 0) = 0.208;
                     albedonir_s_arr(i, j, 0) = 0.344;
-                    ztop_arr(i, j, 0) = 0.;
                     disp_hgt_arr(i, j, 0) = 0.0;
-                    z0_sfc_arr(i, j, 0) = d_z0_soil;
-                    Khai_L_arr(i, j, 0) = 0.;
-                    rootL_arr(i, j, 0) = 0.;
-                    root_a_arr(i, j, 0) = 0.;
-                    root_b_arr(i, j, 0) = 0.;
-                    Rc_min_arr(i, j, 0) = 0.;
-                    Rgl_arr(i, j, 0) = 0.;
-                    hs_rc_arr(i, j, 0) = 0.;
                     BAI_arr(i, j, 0) = 0.;
                     IMPERV_arr(i, j, 0) = 0.;
                     vegetype_arr(i, j, 0) = 0;
@@ -1710,74 +1547,6 @@ void SLM::init_soil_vars()
 
                 // soil wetness at wilting point
                 w_s_WP_arr(i, j, k) = theta_WP_arr(i, j, k) / poro_soil_arr(i, j, k);
-            }
-        });
-    }
-}
-
-
-/**
- * Assigns root fraction in each soil layer
- * Fraction of total root in each soil layer is determined based on the soil
- * depth and vegetation root parameters
- */
-void SLM::vege_root_init()
-{
-    const int d_khi_lsm = khi_lsm;
-    const int d_klo_lsm = klo_lsm;
-
-    for ( MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
-
-        auto landmask_arr = landmask.const_array(mfi);
-
-        auto interface_z_arr = lsm_fab_vars[LsmVar_SLM::interface_z]->const_array(mfi);
-        auto rootF_arr = lsm_fab_vars[LsmVar_SLM::rootF]->array(mfi);
-        auto rootL_arr = rootL.const_array(mfi);
-
-        auto root_a_arr = root_a.const_array(mfi);
-        auto root_b_arr = root_b.const_array(mfi);
-
-        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
-            if (landmask_arr(i, j, 0) == 1)
-            {
-                int nrootind = d_khi_lsm;
-                for (int k = d_klo_lsm; k <= d_khi_lsm - 1; k++)
-                {
-                    if (interface_z_arr(i, j, k) >= rootL_arr(i, j, 0) && interface_z_arr(i, j, k + 1) <= rootL_arr(i, j, 0))
-                    {
-                        nrootind = k;
-                    }
-                }
-
-                rootF_arr(i, j, nrootind) = 1.0 - 0.5 * (std::exp(-1.0 * root_a_arr(i, j, 0) * rootL_arr(i, j, 0)) +
-                                                         std::exp(-1.0 * root_b_arr(i, j, 0) * rootL_arr(i, j, 0)));
-
-                const amrex::Real tot_root_density = rootF_arr(i, j, nrootind);
-                for (int k = d_khi_lsm; k >= nrootind + 1; k--)
-                {
-                    rootF_arr(i, j, k) = 1.0 - 0.5 * (std::exp(-1.0 * root_a_arr(i, j, 0) * interface_z_arr(i, j, k)) +
-                                                      std::exp(-1.0 * root_b_arr(i, j, 0) * interface_z_arr(i, j, k)));
-                }
-
-                if (nrootind < d_khi_lsm)
-                {
-                    for (int k = nrootind; k <= d_khi_lsm - 1; k++)
-                    {
-                        rootF_arr(i, j, k) = rootF_arr(i, j, k) - rootF_arr(i, j, k + 1);
-                    }
-
-                    // to ensure total root density equals 1
-                    amrex::Real new_root_density = 0.0;
-                    for (int k = d_khi_lsm; k >= nrootind; k--)
-                    {
-                        rootF_arr(i, j, k) = rootF_arr(i, j, k) / tot_root_density;
-                        new_root_density += rootF_arr(i, j, k);
-                    }
-
-                    AMREX_ASSERT_WITH_MESSAGE(std::abs(new_root_density - 1.0) < 1.0e-12, "total root density should equal 1.0");
-                }
             }
         });
     }
@@ -2542,7 +2311,6 @@ void SLM::init_from_params()
     init_soil_vars();
 
     // recompute derived vegetation fields using the updated parameters.
-    vege_root_init();
     for (amrex::MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         UpdateLAIParameters(mfi);
     }
@@ -2854,14 +2622,8 @@ SLM::AdvanceSLM ()
         // Update LAI and SAI based on current month
         UpdateLAI(mfi);
 
-        if (radiation_scheme == RadiationScheme::SLM) {
-            // Calculate net radiation absorbed by canopy and soil surface
-            // Old SLM radiation
-            radiative_fluxes(mfi);
-        } else {
-            // NOAHMP radiation calculation
-            radiation_noahmp(mfi);
-        }
+        // NOAHMP radiation calculation
+        radiation_noahmp(mfi);
 
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -3078,225 +2840,6 @@ SLM::AdvanceSLM ()
     lsm_fab_flux[LsmFlux_SLM::olen]->FillBoundary(m_geom.periodicity());
 }
 
-void SLM::radiative_fluxes(const amrex::MFIter &mfi)
-{
-    const int d_khi_lsm = khi_lsm;
-    const int d_klo_lsm = klo_lsm;
-
-    auto box = mfi.tilebox();
-
-    auto landmask_arr = landmask.const_array(mfi);
-
-    auto swdsvisxyref_arr  = lsm_fab_vars[LsmVar_SLM::swdsvisxyref]->const_array(mfi);
-    auto swdsnirxyref_arr  = lsm_fab_vars[LsmVar_SLM::swdsnirxyref]->const_array(mfi);
-    auto swdsvisdxyref_arr = lsm_fab_vars[LsmVar_SLM::swdsvisdxyref]->const_array(mfi);
-    auto swdsnirdxyref_arr = lsm_fab_vars[LsmVar_SLM::swdsnirdxyref]->const_array(mfi);
-    auto lwref_arr         = lsm_fab_vars[LsmVar_SLM::lwref]->const_array(mfi);
-    auto coszrsxy_arr      = lsm_fab_vars[LsmVar_SLM::coszrsxy]->const_array(mfi);
-
-    auto phi_1_arr = phi_1.const_array(mfi);
-    auto phi_2_arr = phi_2.const_array(mfi);
-    auto LAI_arr   = LAI.const_array(mfi);
-
-    auto albedovis_v_arr = albedovis_v.const_array(mfi);
-    auto albedonir_v_arr = albedonir_v.const_array(mfi);
-    auto albedovis_s_arr = albedovis_s.const_array(mfi);
-    auto albedonir_s_arr = albedonir_s.const_array(mfi);
-
-    auto IR_emis_vege_arr = IR_emis_vege.const_array(mfi);
-    auto IR_emis_soil_arr = IR_emis_soil.const_array(mfi);
-    auto IR_emis_grnd_arr = IR_emis_grnd.const_array(mfi);
-    auto t_canop_arr      = t_canop.const_array(mfi);
-    auto soilw_arr        = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
-    auto soilt_arr        = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
-    auto veg_frac_arr     = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
-
-    // Combined (veg+soil) surface emissivity and albedos for coupling to radiation model
-    auto emis_sfc_arr     = lsm_fab_vars[LsmVar_SLM::emis_sfc]->array(mfi);
-    auto alb_nir_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc]->array(mfi);
-    auto alb_vis_sfc_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc]->array(mfi);
-    auto alb_nir_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_nir_sfc_diff]->array(mfi);
-    auto alb_vis_sfc_diff_arr  = lsm_fab_vars[LsmVar_SLM::alb_vis_sfc_diff]->array(mfi);
-
-    auto t_skin_arr  = t_skin.array(mfi);
-    auto net_rad_arr = net_rad.array(mfi);
-
-    ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int)
-    {
-        amrex::Real fdn1; // downwelling flux on top
-        amrex::Real fdn2; // transmitted flux (downwelling flux below)
-        amrex::Real fup1; // upwelling flux from top
-        amrex::Real fup2; // upwelling flux from below
-
-        amrex::Real ka; // optical depth
-        amrex::Real explai, explai0, wetfactor;
-
-        if (landmask_arr(i, j, 0) != 1) {
-            return;
-        }
-
-        // ===================================================
-        // Compute shortwave radiation transfer between land surface and reference level
-        // ===================================================
-        if (coszrsxy_arr(i, j, 0) > 0.0)
-        {
-            // Optical depth of the direct beam per unit leaf area
-            ka = phi_1_arr(i, j, 0) / std::max(0.01, coszrsxy_arr(i, j, 0)) + phi_2_arr(i, j, 0);
-            explai = exp(-ka*LAI_arr(i, j, 0)); // for direct radiation
-
-            // Optical depth of the diffuse beam per unit leaf area
-            ka = phi_1_arr(i, j, 0) + phi_2_arr(i, j, 0);
-            explai0 = exp(-ka*LAI_arr(i, j, 0)); // for diffuse radiation
-
-            // net_rad(1) = net absorbed shortwave radiation by canopy
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += swdsvisxyref_arr(i, j, 0)*(1.0 - albedovis_v_arr(i, j, 0)*(1.0 - explai)-explai);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += swdsvisdxyref_arr(i, j, 0)*(1.0 - albedovis_v_arr(i, j, 0)*(1.0 - explai0)-explai);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += swdsnirxyref_arr(i, j, 0)*(1.0 - albedonir_v_arr(i, j, 0)*(1.0 - explai)-explai);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += swdsnirdxyref_arr(i, j, 0)*(1.0 - albedonir_v_arr(i, j, 0)*(1.0 - explai0)-explai);
-
-            net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) = swdsvisxyref_arr(i, j, 0) + swdsvisdxyref_arr(i, j, 0) + swdsnirxyref_arr(i, j, 0) + swdsnirdxyref_arr(i, j, 0);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_swup1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1) * (1. - explai);
-
-            // net_rad(2) = net absorbed shortwave radiation by soil
-            wetfactor = 1.0 - 0.5*soilw_arr(i, j, d_khi_lsm); // soil wetness factor: assume that wet soil is twice as dark
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += swdsvisxyref_arr(i, j, 0)*(1.0 - albedovis_s_arr(i, j, 0)*wetfactor)*explai;
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += swdsvisdxyref_arr(i, j, 0)*(1.0 - albedovis_s_arr(i, j, 0)*wetfactor)*explai0;
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += swdsnirxyref_arr(i, j, 0)*(1.0 - albedonir_s_arr(i, j, 0)*wetfactor)*explai;
-            net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += swdsnirdxyref_arr(i, j, 0)*(1.0 - albedonir_s_arr(i, j, 0)*wetfactor)*explai0;
-
-            net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2) = net_rad_arr(i, j, 0, SLM_NetRad::net_swdn1)*explai;
-            net_rad_arr(i, j, 0, SLM_NetRad::net_swup2) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) - net_rad_arr(i, j, 0, SLM_NetRad::net_swdn2);
-
-            // Albedo is computed as alb = alb_v*(1-exp(-kLAI))+alb_s*exp(-kLAI)
-            Real alb_nir_veg_dir = albedonir_v_arr(i, j, 0)*(1.0 - explai);
-            Real alb_nir_veg_dif = albedonir_v_arr(i, j, 0)*(1.0 - explai0);
-            Real alb_vis_veg_dir = albedovis_v_arr(i, j, 0)*(1.0 - explai);
-            Real alb_vis_veg_dif = albedovis_v_arr(i, j, 0)*(1.0 - explai0);
-
-            Real alb_nir_soil_dir = albedonir_s_arr(i, j, 0)*wetfactor*explai;
-            Real alb_nir_soil_dif = albedonir_s_arr(i, j, 0)*wetfactor*explai0;
-            Real alb_vis_soil_dir = albedovis_s_arr(i, j, 0)*wetfactor*explai;
-            Real alb_vis_soil_dif = albedovis_s_arr(i, j, 0)*wetfactor*explai0;
-
-            alb_nir_sfc_arr(i, j, 0) = alb_nir_veg_dir + alb_nir_soil_dir;
-            alb_vis_sfc_arr(i, j, 0) = alb_vis_veg_dir + alb_vis_soil_dir;
-            alb_nir_sfc_diff_arr(i, j, 0) = alb_nir_veg_dif + alb_nir_soil_dif;
-            alb_vis_sfc_diff_arr(i, j, 0) = alb_vis_veg_dif + alb_vis_soil_dif;
-
-            alb_nir_sfc_arr(i, j, d_khi_lsm) = alb_nir_sfc_arr(i, j, 0);
-            alb_vis_sfc_arr(i, j, d_khi_lsm) = alb_vis_sfc_arr(i, j, 0);
-            alb_nir_sfc_diff_arr(i, j, d_khi_lsm) = alb_nir_sfc_diff_arr(i, j, 0);
-            alb_vis_sfc_diff_arr(i, j, d_khi_lsm) = alb_vis_sfc_diff_arr(i, j, 0);
-
-
-            // Store net absorbed SW
-            net_rad_arr(i, j, 0, SLM_NetRad::net_sw1) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad1);
-            net_rad_arr(i, j, 0, SLM_NetRad::net_sw2) = net_rad_arr(i, j, 0, SLM_NetRad::net_rad2);
-        }
-
-        // ===================================================
-        // Longwave radiation
-        // ===================================================
-
-        // ===================================================
-        // tir: Emitted thermal infrared radiation
-        // ===================================================
-        //  Note: for no vegetation: IR_trans becomes zero => tir(1) automatically becomes zero
-        net_rad_arr(i, j, 0, SLM_NetRad::tir1) = IR_emis_vege_arr(i, j, 0)*sigma*(std::pow(t_canop_arr(i, j, 0), 4));
-        net_rad_arr(i, j, 0, SLM_NetRad::tir2) = IR_emis_grnd_arr(i, j, 0)*sigma*(std::pow(soilt_arr(i, j, d_khi_lsm), 4));
-
-        // ===================================================
-        // downwelling LW on canopy top: input
-        // ===================================================
-        fdn1 = lwref_arr(i, j, 0);
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lwdn1) = fdn1;
-
-        // ===================================================
-        // downwelling LW below canopy layer
-        // ===================================================
-        //  Note:
-        //    below canopy layer: incoming LW (fdn1) that is not absorbed by canopy
-        //                        + emitted thermal IR by canopy (tir(1)) toward soil surface
-        //    with no canopy: fdn2 is computed to be fdn1
-        //    (1 - IR_emis) = area of canopy gap (skyview factor)
-        // ===================================================
-        fdn2 = (1.0 - IR_emis_vege_arr(i, j, 0))*fdn1 + net_rad_arr(i, j, 0, SLM_NetRad::tir1);
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lw1) = fdn1 - fdn2;
-
-        // ===================================================
-        //  Note: At this stage,
-        //   net_rad(1) = net absorbed SW by canopy
-        //           + downwelling LW on canopy top
-        //           - transmitted LW through canopy layer
-        //           - emitted TIR toward soil surface
-        // ===================================================
-        net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += fdn1 - fdn2;
-
-        // ===================================================
-        // downwelling LW for soil surface
-        // ===================================================
-        fdn1 = fdn2;
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lwdn2) = fdn1;
-
-        // no fluxes below topsoil
-        fdn2 = 0.0;
-        fup2 = 0.0;
-
-        // ===================================================
-        // Note:
-        //  Emitted LW from topsoil = emitted tir from topsoil + portion of incoming LW that is reflected back toward canopy
-        //  IR_emis_soil is set to 1.0
-        // ===================================================
-        fup1 = (net_rad_arr(i, j, 0, SLM_NetRad::tir2) + (1.0 - IR_emis_grnd_arr(i, j, 0))*fdn1);
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lwup2) = fup1;
-
-        // ===================================================
-        // Note: At this stage,
-        //  net_rad(2) = net absorbed SW by soil surface
-        //             + net absorbed LW by soil surface
-        // ===================================================
-        net_rad_arr(i, j, 0, SLM_NetRad::net_rad2) += fdn1 - fdn2 - fup1 + fup2;
-
-        // net absorbed LW by soil surface
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lw2) = fdn1 - fdn2 - fup1 + fup2;
-
-        // ===================================================
-        // Incoming LW from below canopy
-        //  Note: Incoming LW from below canopy = upwelling flux at topsoil
-        // ===================================================
-        fup2 = fup1;
-
-        // ===================================================
-        // Upwelling LW from canopy top
-        //  Note: fup1 = portion of fup2 that is not absorbed + tir emitted from canopy
-        //        for no canopy: fup1 = fup2
-        // ===================================================
-        fup1 = (1.0 - IR_emis_vege_arr(i,j,0))*fup2 + net_rad_arr(i, j, 0, SLM_NetRad::tir1);
-
-        emis_sfc_arr(i, j, 0) = IR_emis_vege_arr(i,j,0) * veg_frac_arr(i, j, d_khi_lsm) + IR_emis_soil_arr(i,j,0) * (1.0 - veg_frac_arr(i, j, d_khi_lsm));
-
-        emis_sfc_arr(i, j, d_khi_lsm) = emis_sfc_arr(i,j,0);
-
-        // total upward LW from surface (for canopy cover- from canopy top, for no canopy - from soil surface)
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lwup1) = fup1;
-        t_skin_arr(i, j, 0) = std::pow(fup1 / sigma, 0.25);
-
-        net_rad_arr(i, j, 0, SLM_NetRad::net_lw1) += fup2 - fup1;
-
-
-        // ===================================================
-        //  Note: At this stage,
-        //   net_rad(1) = net absorbed SW by canopy
-        //           + downwelling LW on canopy top
-        //           - transmitted LW through canopy layer (downward direction)
-        //           - emitted TIR from canopy toward soil surface
-        //           - emitted TIR from canopy toward atmosphere
-        //           + upwelling LW from topsoil
-        //           - transmitted LW through canopy layer (upward direction)
-        // ===================================================
-        net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) += fup2 - fup1;
-    });
-}
 
 void SLM::transfer_coeff(const amrex::MFIter &mfi)
 {
