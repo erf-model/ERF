@@ -57,6 +57,7 @@
 #include <ERF_WallScalarBC.H>
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
+#include <ERF_StationSampler.H>
 #include <ERF_ForestDrag.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
@@ -100,6 +101,10 @@ using amrex::MPI_Comm;
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
 #endif
+
+// Describes one component of a 2D plotfile; defined in
+// IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
+namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
 
 /**
  * Enum of possible interpolation types between coarse/fine
@@ -1044,9 +1049,59 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    void canonicalizePlot3DVariables (amrex::Vector<std::string>& plot_var_names);
+    void appendPlot3DVariables (const amrex::Vector<std::string>& plot_var_names,
+                                amrex::Vector<std::string>& a_plot_var_names);
     void setPlotVariables2D (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
     // append variables to plot
     void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+
+    // Filling the plot variables, and the station sampling that reuses it.  Split
+    // out of the plotfile writers so that a station column and the corresponding
+    // plotfile component are produced the same way.  Private for the same reason
+    // canonicalizePlot3DVariables above is: this is output machinery rather than
+    // something ERF offers a caller.
+
+    // Per-level scratch needed to evaluate the 3D plot variables.  Held by the
+    // caller so that the work is done once for a set of variables and then
+    // reused for every level that is filled.
+    struct Plot3DScratch
+    {
+        amrex::Vector<amrex::MultiFab> mf_cc_vel;   // cell-centered velocity, 1 ghost
+        amrex::Vector<amrex::MultiFab> mf_cc_tau;   // cell-centered stress tensor
+        amrex::Vector<amrex::MultiFab> mf_cc_fx;    // cell-centered SFS fluxes
+    };
+
+    // max_lev caps the levels whose scratch is built, -1 meaning every level: a
+    // caller that reads only the coarse levels should not pay for the fine ones.
+    // sync_solution allows the microphysics average-down, which the plotfile
+    // writer wants but a diagnostic that runs at every step must not do, since
+    // it changes the coarse solution.
+    void BuildPlot3DScratch (const amrex::Vector<std::string>& plot_var_names,
+                             Plot3DScratch& scratch,
+                             int max_lev = -1,
+                             bool sync_solution = true);
+
+    // Station time-series output
+    void init_stations ();
+    void resolve_station_positions ();
+    void resolve_station_stencils ();
+    void sample_stations (amrex::Real time);
+    void flush_stations () const;
+
+    void FillPlot2DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         const amrex::Vector<std::string>& varnames,
+                         const amrex::Vector<plotfile2d::Plotfile2DOutputDescriptor>& output_descriptors,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf);
+
+    void FillPlot3DVars (int lev,
+                         const amrex::Vector<std::string>& plot_var_names,
+                         Plot3DScratch& scratch,
+                         amrex::MultiFab& mf_dst,
+                         int ncomp_mf,
+                         amrex::Real tnew);
 
     void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
@@ -1093,6 +1148,15 @@ private:
 #endif // ERF_USE_NETCDF
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
+
+    // Whether lat_m/lon_m hold WRF's edge-staggered XLAT_V/XLONG_U rather than
+    // mass-point values -- see the staggering contract on
+    // GetOceanToAtmosCornerCoordinates above.  Both carry CELL index type either
+    // way, so nothing about the MultiFabs themselves says which it is; a
+    // consumer that needs the mass point has to be told.  Set by whichever init
+    // path filled the arrays, carried across a restart in the checkpoint, and
+    // meaningless when lat_m is null.
+    bool latlon_are_edge_staggered = false;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
@@ -2065,6 +2129,15 @@ private:
     amrex::Real plane_sampling_per = -one;
     std::unique_ptr<LineSampler> line_sampler = nullptr;
     std::unique_ptr<PlaneSampler> plane_sampler = nullptr;
+
+    // Station time-series output
+    int station_sampling_interval = -1;
+    amrex::Real station_sampling_per = -one;
+    std::unique_ptr<StationSampler> station_sampler = nullptr;
+    // The 3D and 2D plot variables the stations need, in the order the fill
+    // routines produce their components
+    amrex::Vector<std::string> station_vars_3d;
+    amrex::Vector<std::string> station_vars_2d;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;

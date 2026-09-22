@@ -7,6 +7,13 @@
 
 namespace rrtmgp {
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+inverse_exner (const amrex::Real pressure, const amrex::Real rdOcp)
+{
+    return one / getExnergivenP(pressure, rdOcp);
+}
+
 /**
  * Resolve the RRTMGP surface-temperature input from ERF's surface sources.
  *

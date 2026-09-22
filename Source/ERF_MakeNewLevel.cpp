@@ -517,9 +517,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         }
         rad_interp_from_coarse_pending[lev] = use_surface_only ? 1 : 0;
 
-        // If using surface-only init with LSM, we need to set up LSM data structures before
-        // reading the wrfinput file, so that the surface-only read can populate them.
-        // We'll call lsm.Init later after FillCoarsePatch provides atmospheric state.
+        // If using surface-only init with LSM, we need to resize the lsm_data/lsm_flux vectors
+        // before the deferred lsm.Init() call below. The LSM will read its initial state
+        // from nc_init_file when lsm.Init() is called (after FillCoarsePatch provides
+        // atmospheric data). Note: Define() is empty for both LSMs.
         if (use_surface_only && solverChoice.lsm_type != LandSurfaceType::None) {
             int lsm_data_size  = lsm.Get_Data_Size();
             int lsm_flux_size  = lsm.Get_Flux_Size();
@@ -565,8 +566,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             // 2. Letting dynamics equilibrate the state on the first timestep
             FillCoarsePatch(lev, time);
 
-            // Now initialize LSM with the properly filled atmospheric state
-            // (Define was already called above before reading surface data)
+            // Now initialize LSM with the properly filled atmospheric state.
+            // The LSM will read its soil/vegetation initial state from nc_init_file
+            // (e.g., Noah-MP reads via the noahmpio library in Fortran).
             if (solverChoice.lsm_type != LandSurfaceType::None) {
                 amrex::Print() << "Initializing LSM at level " << lev << " after FillCoarsePatch\n";
 
