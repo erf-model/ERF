@@ -1021,6 +1021,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               // faces by ERF_MakeMomSources.cpp, and this fix is not meant to move the
               // Coriolis source. So sin_arr/cos_arr do not track lat_m in that one row.
               int vf_j_hi = var_fab.box().bigEnd(1);
+              // XLAT_V / XLONG_U are edge staggered, so a consumer that wants
+              // the mass point has to average the two bracketing edges.  Record
+              // that here rather than leaving every consumer to infer it from
+              // init_type, which a restart deck need not repeat.
+              latlon_are_edge_staggered = true;
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);

@@ -791,8 +791,12 @@ ERF::resolve_station_positions ()
         // NOTE: init_from_wrfinput reads WRF's staggered XLAT_V / XLONG_U into
         //       lat_m / lon_m (see the staggering contract in ERF.H), so the mass
         //       point is the average of the two bracketing edges.  init_from_metgrid
-        //       reads mass-point values already.
-        const bool destagger = (solverChoice.init_type == InitType::WRFInput);
+        //       reads mass-point values already.  Which it is comes from whichever
+        //       path filled the arrays, carried across a restart in the
+        //       checkpoint: reading it off init_type instead would be wrong for a
+        //       restart deck that does not repeat init_type, and would move every
+        //       station half a cell without saying so.
+        const bool destagger = latlon_are_edge_staggered;
 
         MultiFab latlon(ba2d[0], dmap[0], 2, 0);
         for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {

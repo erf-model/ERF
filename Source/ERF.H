@@ -1143,6 +1143,15 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
 
+    // Whether lat_m/lon_m hold WRF's edge-staggered XLAT_V/XLONG_U rather than
+    // mass-point values -- see the staggering contract on
+    // GetOceanToAtmosCornerCoordinates above.  Both carry CELL index type either
+    // way, so nothing about the MultiFabs themselves says which it is; a
+    // consumer that needs the mass point has to be told.  Set by whichever init
+    // path filled the arrays, carried across a restart in the checkpoint, and
+    // meaningless when lat_m is null.
+    bool latlon_are_edge_staggered = false;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
     // Struct for working with the sounding data we take as an input

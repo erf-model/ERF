@@ -533,6 +533,8 @@ ERF::init_from_metgrid (int lev)
         }
 
         if (itime == 0) {
+            // XLAT_M / XLONG_M are mass-point values already
+            latlon_are_edge_staggered = false;
             lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
             cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
