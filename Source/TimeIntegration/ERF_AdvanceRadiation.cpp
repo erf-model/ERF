@@ -66,19 +66,40 @@ void ERF::advance_radiation (int lev,
     //   * the first step of a level built by interp_atmos_from_coarse, whose atmospheric
     //     state came from FillCoarsePatch and is not yet thermodynamically consistent.
     //
-    // NOTE: the coarse MultiFabs are handed to InterpFromCoarseLevel directly rather than
-    //       being copied into a ghosted temporary first.  InterpFromCoarseLevel builds its
-    //       own coarse patch and fills it with a ParallelCopy that takes the source's VALID
-    //       region only (send_ghost = recv_ghost = 0), so a temporary carrying ghost cells
-    //       contributes nothing to the result -- it only costs an allocation, a copy and,
-    //       where FillBoundary was called on it, a round of communication per field per step.
+    // NOTE: the coarse MultiFabs are handed to InterpFromCoarseLevel directly, with no
+    //       intermediate ghosted temporary.  That is only correct because each of them
+    //       carries -- and has filled -- the ghost cells this overload reads.  It builds a
+    //       PhysBCFunctUseCoarseGhost, whose constructor derives the coarse halo the
+    //       interpolation stencil needs and then asserts
+    //
+    //           cghost = min(cmf.nGrowVect(), src_ghost);
+    //           AMREX_ALWAYS_ASSERT(cghost.allGE(src_ghost_outside_domain));
+    //
+    //       and the ParallelCopy that fills the coarse patch runs with send_ghost = cghost,
+    //       i.e. it reads the coarse source's GHOST region, not only its valid region.  A
+    //       coarse source with too few ghost cells therefore aborts on that assert, and one
+    //       whose halo was never filled silently feeds garbage to the interpolation.  This
+    //       is why qheating_rates and rad_fluxes are both defined with a (1,1,1) halo in
+    //       ERF_MakeNewArrays.cpp, zeroed there, and FillBoundary'd below.
     auto interp_rad_from_coarse = [&] ()
     {
         // Ensure the parent level's ghost cells are filled before interpolation.  This is
         // needed even when radiation did not run this step, especially with two-way coupling
-        // where the grid structure may have changed.
+        // where the grid structure may have changed.  A nested patch is exempt: it never
+        // runs radiation itself, so its halo is already whatever its own pass through this
+        // lambda interpolated into it.
         if (!rad[lev-1]->is_nested_patch()) {
             qheating_rates[lev-1]->FillBoundary(geom[lev-1].periodicity());
+            if (rad_fluxes[lev-1]) {
+                // The whole halo, as for qheating_rates -- the z ghosts matter too, since
+                // grids split in z (amr.no_box_split_dir = -1) put interior z interfaces in
+                // them -- but with z forced non-periodic.  The z-ghost at khi+1 holds the
+                // top-of-atmosphere interface, physical data rather than a halo (see below);
+                // it lies outside the domain, so no ordinary exchange reaches it, but a
+                // z-periodic one would overwrite it with the bottom of the column.
+                const IntVect& per = geom[lev-1].periodicity().intVect();
+                rad_fluxes[lev-1]->FillBoundary(Periodicity(IntVect(per[0],per[1],0)));
+            }
         }
 
         InterpFromCoarseLevel(*qheating_rates[lev], qheating_rates[lev]->nGrowVect(),
@@ -101,11 +122,14 @@ void ERF::advance_radiation (int lev,
 
             // The interpolation above cannot carry the top-of-atmosphere interface.
             // RRTMGP's layout puts the TOA fluxes in the z-ghost cell at k = khi+1 (see
-            // ERF_MakeNewArrays.cpp), which is physical data rather than a halo, and it is
-            // invisible to InterpFromCoarseLevel from both ends: the coarse TOA sits outside
-            // the valid region its ParallelCopy reads, and on a level that spans the full
-            // column the fine TOA sits outside the fine domain it writes.  A nested patch
-            // does not reach the model top, so its top plane is an ordinary interior
+            // ERF_MakeNewArrays.cpp), which is physical data rather than a halo.  On the
+            // coarse side that cell does now fall inside the ghost region the ParallelCopy
+            // reads, so it serves as the stencil's neighbor above the top layer -- the right
+            // value for that role, being the next interface up in the same sequence -- but
+            // it is only ever read there.  On the fine side, a level that spans the full
+            // column has its TOA outside the fine domain, and the call above is asked for no
+            // ghost cells outside the domain, so nothing is written there at all.  A nested
+            // patch does not reach the model top, so its top plane is an ordinary interior
             // interface that the call above has already filled.
             //
             // Move both planes into valid index space -- a single layer at the coarse domain
@@ -115,27 +139,60 @@ void ERF::advance_radiation (int lev,
                 const int khi_c = geom[lev-1].Domain().bigEnd(2);
                 const int khi_f = geom[lev  ].Domain().bigEnd(2);
 
-                auto top_slab = [&] (const BoxArray& ba_in) {
+                // Flatten a level's grids onto the single layer at k = khi_c, keeping only
+                // the boxes that reach the top of their own domain.  A box that stops short
+                // of it carries no TOA plane at all: flattening it would put a duplicate box
+                // in the BoxArray, for which FillBoundary is ill-defined, and would ask the
+                // copy below to read a z index outside the fab.  Every box spans the column
+                // under the default amr.no_box_split_dir = 2, so this filter keeps all of
+                // them there; it matters only for amr.no_box_split_dir = -1.  idx_out maps a
+                // slab box back to the box it came from, since dropping boxes breaks the
+                // one-to-one correspondence an MFIter would otherwise rely on.
+                auto top_slab = [&] (const MultiFab& mf_in, int khi_in, BoxArray& ba_out,
+                                     DistributionMapping& dm_out, Vector<int>& idx_out)
+                {
+                    const BoxArray&            ba_in = mf_in.boxArray();
+                    const DistributionMapping& dm_in = mf_in.DistributionMap();
                     BoxList bl;
-                    for (int i = 0, n = ba_in.size(); i < n; ++i) {
+                    Vector<int> pmap;
+                    for (int i = 0, n = int(ba_in.size()); i < n; ++i) {
+                        if (ba_in[i].bigEnd(2) != khi_in) { continue; }
                         Box b = ba_in[i];
                         b.setSmall(2, khi_c); b.setBig(2, khi_c);
                         bl.push_back(b);
+                        pmap.push_back(dm_in[i]);
+                        idx_out.push_back(i);
                     }
-                    return BoxArray(std::move(bl));
+                    ba_out = BoxArray(std::move(bl));
+                    dm_out = DistributionMapping(std::move(pmap));
                 };
 
-                MultiFab toa_crse(top_slab(rad_fluxes[lev-1]->boxArray()),
-                                  rad_fluxes[lev-1]->DistributionMap(), nc, 0);
-                MultiFab toa_fine(top_slab(rad_fluxes[lev  ]->boxArray()),
-                                  rad_fluxes[lev  ]->DistributionMap(), nc, 0);
+                BoxArray            ba_toa_c, ba_toa_f;
+                DistributionMapping dm_toa_c, dm_toa_f;
+                Vector<int>         idx_toa_c, idx_toa_f;
+                top_slab(*rad_fluxes[lev-1], khi_c, ba_toa_c, dm_toa_c, idx_toa_c);
+                top_slab(*rad_fluxes[lev  ], khi_f, ba_toa_f, dm_toa_f, idx_toa_f);
+
+                // toa_crse is the coarse source of an InterpFromCoarseLevel, so it must carry
+                // the halo that stencil reads -- (1,1,0), the z ratio being one -- and that
+                // halo must be defined.  Unlike rad_fluxes it is freshly allocated here and
+                // the loop below writes valid boxes only, so zero it first: FillBoundary can
+                // define only the ghosts backed by another box's valid data, and the ones
+                // outside the domain are left to the setVal.
+                MultiFab toa_crse(ba_toa_c, dm_toa_c, nc, IntVect(1,1,0));
+                MultiFab toa_fine(ba_toa_f, dm_toa_f, nc, 0);
+                toa_crse.setVal(Real(0.0));
 
                 for (MFIter mfi(toa_crse); mfi.isValid(); ++mfi) {
                     const Box& dbx = mfi.validbox();
                     Box sbx(dbx); sbx.shift(2, 1);   // the coarse TOA, one above the top layer
-                    toa_crse[mfi].template copy<RunOn::Device>((*rad_fluxes[lev-1])[mfi],
-                                                               sbx, 0, dbx, 0, nc);
+                    toa_crse[mfi].template copy<RunOn::Device>(
+                        (*rad_fluxes[lev-1])[idx_toa_c[mfi.index()]], sbx, 0, dbx, 0, nc);
                 }
+                // Unconditional, unlike the exchange at the top of this lambda: toa_crse is a
+                // new MultiFab every step, so its halo is undefined here whatever the parent
+                // level is -- being a nested patch says nothing about it.
+                toa_crse.FillBoundary(geom[lev-1].periodicity());
 
                 // Both planes live at the same z index, so the ratio in z is one and the
                 // interpolation is purely horizontal.
@@ -150,8 +207,8 @@ void ERF::advance_radiation (int lev,
                 for (MFIter mfi(toa_fine); mfi.isValid(); ++mfi) {
                     const Box& sbx = mfi.validbox();
                     Box dbx(sbx); dbx.shift(2, khi_f + 1 - khi_c);
-                    (*rad_fluxes[lev])[mfi].template copy<RunOn::Device>(toa_fine[mfi],
-                                                                         sbx, 0, dbx, 0, nc);
+                    (*rad_fluxes[lev])[idx_toa_f[mfi.index()]].template copy<RunOn::Device>(
+                        toa_fine[mfi], sbx, 0, dbx, 0, nc);
                 }
             }
         }
