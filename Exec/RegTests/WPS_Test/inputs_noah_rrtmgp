@@ -1,7 +1,7 @@
 # ===== Problem Setup ==========
 max_step = 1
 
-erf.prob_name        = ABL
+erf.prob_name        = WPS
 prob.KE_0            = 0.4
 prob.KE_decay_height = 1000.
 prob.KE_decay_order  = 3
