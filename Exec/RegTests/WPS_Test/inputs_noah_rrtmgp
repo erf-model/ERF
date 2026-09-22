@@ -1,0 +1,144 @@
+# ===== Problem Setup ==========
+max_step = 1
+
+erf.prob_name        = WPS
+prob.KE_0            = 0.4
+prob.KE_decay_height = 1000.
+prob.KE_decay_order  = 3
+
+start_datetime = "2024-08-05 00:00:00"
+stop_datetime  = "2024-08-10 00:00:00"
+
+
+# ============================================================
+# Domain Geometry (Level 0)
+# ============================================================
+
+geometry.prob_extent = 2500000.0 2500000.0 10000.0
+amr.n_cell           = 100 100 79
+
+geometry.is_periodic = 0 0 0
+
+
+# ============================================================
+# AMR / Nesting
+# ============================================================
+
+amr.max_level      = 0
+
+
+# ============================================================
+# Boundary Conditions
+# ============================================================
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+zlo.type = "surface_layer"
+zhi.type = "Slipwall"
+
+erf.most.z0   = 0.1
+erf.most.zref = 10.0
+erf.most.average_policy = 1
+erf.most.radius = 0
+
+
+# ============================================================
+# Numerics
+# ============================================================
+
+erf.dycore_horiz_adv_type  = Upwind_5th
+erf.dycore_vert_adv_type   = Upwind_3rd
+
+erf.dryscal_horiz_adv_type = WENO5
+erf.dryscal_vert_adv_type  = WENO5
+
+erf.fixed_dt = 5.0
+erf.fixed_mri_dt_ratio = 6
+
+
+# ============================================================
+# WRF Initialization
+# ============================================================
+
+erf.use_real_bcs   = true
+erf.real_width     = 5
+erf.init_type      = "WRFInput"
+erf.nc_init_file_0 = "wrfinput_d01"
+erf.nc_bdy_file    = "wrfbdy_d01"
+
+erf.avg_grid_faces_to_nodes  = false
+erf.terrain_smoothing        = 1
+erf.use_wrf_bdy_density      = true
+erf.bdy_moist_nudge_type     = 1
+erf.bdy_nudge_factor         = 10.0
+
+
+# ============================================================
+# Physics
+# ============================================================
+
+erf.moisture_model = MoistNoCondensation
+erf.buoyancy_type  = 1
+
+erf.les_type = "Smagorinsky2D"
+erf.Cs       = 0.1
+
+erf.pbl_type = "MYNN25"
+
+erf.land_surface_model = "NOAHMP"
+
+erf.terrain_type = StaticFittedMesh
+
+erf.implicit_before_substep     = true
+erf.implicit_thermal_diffusion  = true
+erf.implicit_moisture_diffusion = true
+erf.implicit_momentum_diffusion = true
+erf.vert_implicit_fac           = 1. 1. 0.
+
+erf.use_coriolis      = true
+erf.variable_coriolis = true
+erf.coriolis_3d       = true
+
+erf.rayleigh_damping_type = FastImplicit
+erf.rayleigh_damp_W   = true
+erf.rayleigh_zdamp    = 5000.0
+erf.rayleigh_dampcoef = 0.2
+
+erf.radiation_model        = "RRTMGP"
+erf.rad_freq_in_steps      = 100
+erf.rad_do_subcol_sampling = true
+erf.rad_write_fluxes       = false
+erf.rad_t_sfc              = 290.0
+erf.co2vmr                 = 0.00036
+erf.o3vmr                  = 3.0e-8
+erf.n2ovmr                 = 3.2e-7
+erf.covmr                  = 1.5e-7
+erf.ch4vmr                 = 1.7e-6
+erf.o2vmr                  = 0.209
+erf.n2vmr                  = 0.7906
+erf.rrtmgp_file_path       = .  # Path to data-files
+erf.rrtmgp_coeffs_sw       = rrtmgp-gas-sw-g112.nc
+erf.rrtmgp_coeffs_lw       = rrtmgp-gas-lw-g128.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc
+
+
+# ============================================================
+# Output
+# ============================================================
+
+amr.v = 1
+erf.v = 1
+erf.sum_interval = 1
+
+erf.check_file = chk
+erf.check_int  = -1
+
+erf.plot_file_1 = plt
+erf.plot_int_1  = 1
+
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta temp qv qc z_phys

@@ -12,7 +12,7 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_EOS.H>
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
 #include <ERF_Interpolation_1D.H>
 #include <ERF_HSEUtils.H>
 #include <ERF_InputSoundingData.H>

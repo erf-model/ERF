@@ -5,7 +5,6 @@
 #include <AMReX_GpuContainers.H>
 #include <AMReX_REAL.H>
 #include <AMReX_Array4.H>
-#include "ERF_Constants.H"
 #include "ERF_TerrainConversion.H"
 
 /**

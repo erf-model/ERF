@@ -14,6 +14,20 @@ uses the native AMReX format for reading and writing checkpoints.
 Each native checkpoint contains a provenance block in ``job_info``. The block
 records the checkpoint artifact, the ERF execution that wrote it, and the
 known restart ancestry. See :ref:`sec:Provenance`.
+New native checkpoints also contain a small ``surface_temperature_contract``
+marker with value ``1``. This records that Metgrid SST and skin temperature
+arrays already use the current SurfaceLayer potential-temperature convention
+and can be restored directly. For a markerless checkpoint containing ``SST_0``
+or ``TSK_0``, ERF uses that checkpoint's own ``job_info``
+``erf.init_type`` provenance: legacy WRFInput arrays remain compatible, while
+legacy Metgrid arrays are rejected because they contain absolute temperature.
+Markerless SST/TSK arrays with missing or unrecognized provenance are rejected
+rather than guessed. The restart deck's current ``erf.init_type`` does not
+override this compatibility check, and a conflicting explicit assertion cannot
+override known checkpoint provenance. For very old markerless checkpoints that
+predate usable ``job_info`` provenance, the original source can be asserted
+explicitly with ``erf.legacy_surface_temperature_init_type = WRFInput``.
+Markerless checkpoints without SST/TSK arrays remain compatible.
 In the inputs file, the following options control the generation of
 checkpoint files (which are really directories):
 
@@ -63,6 +77,10 @@ Restarting
      - Checkpoint directory from which to restart. ``amr.restart`` takes precedence if both are set.
      - String
      - Not used if unset
+   * - ``erf.legacy_surface_temperature_init_type``
+     - Explicit provenance assertion used only for markerless checkpoints with ``SST_0``/``TSK_0`` when checkpoint ``job_info`` cannot establish the original initialization source. ``WRFInput`` permits the known-safe legacy theta representation; ``Metgrid`` remains rejected because its arrays are absolute temperature and the checkpoint lacks the pressure needed to convert them safely. This setting must identify the actual old source and is not a general override of checkpoint metadata.
+     - ``WRFInput`` or ``Metgrid`` (case-insensitive)
+     - Unset
 
 .. _examples-of-usage-7:
 

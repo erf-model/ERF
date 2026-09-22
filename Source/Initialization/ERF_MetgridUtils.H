@@ -4,15 +4,97 @@
 #ifndef ERF_METGRIDUTIL_H_
 #define ERF_METGRIDUTIL_H_
 
+#include <AMReX_Math.H>
+
 #include <cmath>
+#include "ERF_Constants.H"
 #include <limits>
 
 #include <ERF.H>
 #include <ERF_EOS.H>
+#include <ERF_SurfaceTemperature.H>
 #include <ERF_Utils.H>
 #include <ERF_ProbCommon.H>
 #include <ERF_HSEUtils.H>
 #include <ERF_BaseStateParams.H>
+
+/**
+ * Return the physical surface pressure used by the Metgrid initialization.
+ *
+ * A debug pressure deliberately overrides file data.  Otherwise a PSFC value
+ * from the current forcing file is preferred; when PSFC is absent, invert the
+ * standard-atmosphere temperature profile at the physical terrain height.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool
+metgrid_surface_pressure (const bool debug_psfc,
+                          const int flag_psfc,
+                          const amrex::Real file_psfc,
+                          const amrex::Real z_sfc,
+                          const amrex::Real P00,
+                          const amrex::Real T00,
+                          const amrex::Real TLP,
+                          amrex::Real& pressure)
+{
+    pressure = std::numeric_limits<amrex::Real>::quiet_NaN();
+    if (debug_psfc) {
+        pressure = amrex::Real(100000.0);
+        return true;
+    }
+    if (flag_psfc == 1) {
+        if (!amrex::Math::isfinite(file_psfc) || file_psfc <= amrex::Real(0.0)) {
+            return false;
+        }
+        pressure = file_psfc;
+        return true;
+    }
+
+    if (!amrex::Math::isfinite(z_sfc) || !amrex::Math::isfinite(P00) || P00 <= amrex::Real(0.0) ||
+        !amrex::Math::isfinite(T00) || T00 <= amrex::Real(0.0) ||
+        !amrex::Math::isfinite(TLP) || TLP <= amrex::Real(0.0)) {
+        return false;
+    }
+    const amrex::Real ToA = T00 / TLP;
+    const amrex::Real radicand =
+        ToA*ToA - amrex::Real(2.0) * CONST_GRAV * z_sfc / (TLP * R_d);
+    if (!amrex::Math::isfinite(radicand) || radicand < amrex::Real(0.0)) {
+        return false;
+    }
+    const amrex::Real exponent = -ToA + std::sqrt(radicand);
+    const amrex::Real result = P00 * std::exp(exponent);
+    if (!amrex::Math::isfinite(result) || result <= amrex::Real(0.0)) {
+        return false;
+    }
+    pressure = result;
+    return true;
+}
+
+/**
+ * Convert an absolute Metgrid surface temperature to the canonical
+ * SurfaceLayer potential-temperature representation using the selected
+ * physical surface pressure.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool
+metgrid_surface_theta (const amrex::Real temperature,
+                        const bool debug_psfc,
+                        const int flag_psfc,
+                        const amrex::Real file_psfc,
+                        const amrex::Real z_sfc,
+                        const amrex::Real P00,
+                        const amrex::Real T00,
+                        const amrex::Real TLP,
+                        const amrex::Real rdOcp,
+                        amrex::Real& theta)
+{
+    amrex::Real surface_pressure;
+    if (!metgrid_surface_pressure(debug_psfc, flag_psfc, file_psfc, z_sfc,
+                                  P00, T00, TLP, surface_pressure)) {
+        return false;
+    }
+    return erf_surface_temperature::temperature_to_theta(
+        temperature, surface_pressure, rdOcp, theta);
+}
 
 /**
  * Read metgrid NetCDF data and populate ERF initialization FABs.
@@ -137,6 +219,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               amrex::FArrayBox& z_phys_nd_fab,
                               amrex::FArrayBox& z_phys_cc_fab,
                               const amrex::FArrayBox& NC_psfc_fab,
+                              int* base_state_column_failed,
                               const BaseStateParams& bsp);
 
 /**

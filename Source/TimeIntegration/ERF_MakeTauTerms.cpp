@@ -22,7 +22,7 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
-                         std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
+                         const amrex::Vector<std::unique_ptr<SurfaceLayer>>& /*SurfLayer*/,
                          Gpu::DeviceVector<Real>& stretched_dz_d,
                          const MultiFab& detJ,
                          Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -120,15 +120,15 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<const Real> apy{};
             Array4<const Real> apz{};
             if (solverChoice.terrain_type == TerrainType::EB) {
-                EBCellFlagFab const& cflag_fab = (ebfact.get_const_factory())->getMultiEBCellFlagFab()[mfi];
+                auto const& eb_factory = ebfact.get_const_factory();
+                EBCellFlagFab const& cflag_fab = eb_factory->getMultiEBCellFlagFab()[mfi];
                 cflag  = cflag_fab.const_array();
+                vfrac = eb_factory->getVolFrac().const_array(mfi);
                 if (cflag_fab.getType(valid_bx) == FabType::singlevalued) {
-                    vfrac = (ebfact.get_const_factory())->getVolFrac().const_array(mfi);
-                    apx = (ebfact.get_const_factory())->getAreaFrac()[0]->const_array(mfi);
-                    apy = (ebfact.get_const_factory())->getAreaFrac()[1]->const_array(mfi);
-                    apz = (ebfact.get_const_factory())->getAreaFrac()[2]->const_array(mfi);
+                    apx = eb_factory->getAreaFrac()[0]->const_array(mfi);
+                    apy = eb_factory->getAreaFrac()[1]->const_array(mfi);
+                    apz = eb_factory->getAreaFrac()[2]->const_array(mfi);
                 } else {
-                    vfrac = detJ.const_array(mfi);
                     apx = ax.const_array(mfi);
                     apy = ay.const_array(mfi);
                     apz = az.const_array(mfi);

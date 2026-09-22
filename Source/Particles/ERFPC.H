@@ -6,7 +6,7 @@
 #include <string>
 #include <AMReX_Particles.H>
 #include <AMReX_ParticleUtil.H>
-#include <ERF_Constants.H>
+#include <ERF_NumericalConstants.H>
 
 /** Particle cell-binning functor for DenseBins.  Maps a particle to its
  *  cell-tile index via amrex::getParticleCell + amrex::getTileIndex. */

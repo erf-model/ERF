@@ -4,6 +4,7 @@
 #include "ERF_Constants.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_PBLModels.H"
+#include "ERF_TileNoZ.H"
 
 using namespace amrex;
 
@@ -68,7 +69,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    // TileNoZ, not TilingIfNotGPU: every iterate must span the full column (asserted
+    // below), and the CPU default tile size would split any box of 16+ cells in z.
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
         // Pull out the box we're working on, make sure it covers full domain in z-direction
         const Box &bx = mfi.growntilebox(1);
@@ -83,8 +86,8 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         const auto& vvel = yvel.const_array(mfi);
 
         const auto& z0_arr        = SurfLayer->get_z0(level)->const_array(mfi);
-        const auto& ws10av_arr    = SurfLayer->get_mac_avg(level,5)->const_array(mfi);
-        const auto& t10av_arr     = SurfLayer->get_mac_avg(level,2)->const_array(mfi);
+        const auto& ws10av_arr    = SurfLayer->get_mac_avg(level,6)->const_array(mfi);
+        const auto& t10av_arr     = SurfLayer->get_mac_avg(level,3)->const_array(mfi);
         const auto& t_surf_arr    = SurfLayer->get_t_surf(level)->const_array(mfi);
         const auto& over_land_arr = (SurfLayer->get_lmask(level)) ? SurfLayer->get_lmask(level)->const_array(mfi) :
                                                                   Array4<int> {};

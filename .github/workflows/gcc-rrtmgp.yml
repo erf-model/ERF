@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
   cancel-in-progress: true
 
 jobs:

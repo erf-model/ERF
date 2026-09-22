@@ -61,6 +61,7 @@ public:
     void Define (const int& lev, /*!< AMR level */
                  SolverChoice& sc /*!< Solver choice object */) override
     {
+        m_moist_model[lev]->SetCurrentLevel(lev);
         m_moist_model[lev]->Define(sc);
     }
 

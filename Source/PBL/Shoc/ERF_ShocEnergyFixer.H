@@ -34,10 +34,12 @@ struct ShocEnergyFixerView
     amrex::Array4<const amrex::Real> shoc_ql;
 
     int nlev = 0;
+    bool include_momentum_energy = true;
 };
 
 inline ShocEnergyFixerView
-make_energy_fixer_view (ShocColumnData& col)
+make_energy_fixer_view (ShocColumnData& col,
+                        bool include_momentum_energy)
 {
     return {
         col.rho.const_array(),
@@ -59,7 +61,8 @@ make_energy_fixer_view (ShocColumnData& col)
         col.v.const_array(),
         col.tke.const_array(),
         col.shoc_ql.const_array(),
-        col.layout.nlev
+        col.layout.nlev,
+        include_momentum_energy
     };
 }
 
@@ -114,9 +117,13 @@ apply_energy_fix_column (const ShocEnergyFixerView& v,
         energy_before += mass * moist_energy(tabs_old, v.zt(ic,k,0),
                                              v.qv_base(ic,k,0), v.qc_base(ic,k,0), v.qi_base(ic,k,0),
                                              v.u_base(ic,k,0), v.v_base(ic,k,0), v.tke_base(ic,k,0));
+        const amrex::Real u_after = v.include_momentum_energy
+            ? v.u(ic,k,0) : v.u_base(ic,k,0);
+        const amrex::Real v_after = v.include_momentum_energy
+            ? v.v(ic,k,0) : v.v_base(ic,k,0);
         energy_after += mass * moist_energy(tabs_new, v.zt(ic,k,0),
                                             qv_new, qc_new, qi_new,
-                                            v.u(ic,k,0), v.v(ic,k,0), v.tke(ic,k,0));
+                                            u_after, v_after, v.tke(ic,k,0));
         air_mass += mass;
     }
 

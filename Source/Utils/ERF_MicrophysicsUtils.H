@@ -12,6 +12,42 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Array.H>
 #include <ERF_Constants.H>
+#include "ERF_EOS.H"
+
+/**
+ * Thermodynamic state passed from ERF into an Eulerian microphysics scheme.
+ * Pressure is always in Pa here; schemes with legacy mbar storage convert it
+ * once at their copy-in boundary.
+ */
+struct MicrophysicsThermoState {
+    amrex::Real pressure_pa;
+    amrex::Real temperature;
+};
+
+/**
+ * Diagnose the state used by one Eulerian microphysics cell.
+ *
+ * In anelastic mode, the conserved state supplies theta while the hydrostatic
+ * reference pressure supplied by BaseState supplies the thermodynamic pressure.
+ * In compressible mode, retain ERF's existing local-EOS diagnosis.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+MicrophysicsThermoState diagnose_microphysics_thermo_state (
+    const amrex::Real rho,
+    const amrex::Real rho_theta,
+    const amrex::Real qv,
+    const amrex::Real rdOcp,
+    const bool use_anelastic_reference_pressure,
+    const amrex::Real p0) noexcept
+{
+    if (use_anelastic_reference_pressure) {
+        const amrex::Real theta = rho_theta / rho;
+        return {p0, getTgivenPandTh(p0, theta, rdOcp)};
+    }
+
+    return {getPgivenRTh(rho_theta, qv),
+            getTgivenRandRTh(rho, rho_theta, qv)};
+}
 
 // Positive-argument gamma wrapper. std::lgamma returns log(abs(Gamma(x))) for
 // negative non-integers, so ERF keeps a positive-only contract here.

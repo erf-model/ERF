@@ -61,12 +61,16 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/Buoyancy.rst
    theory/Microphysics.rst
    theory/DNSvsLES.rst
+   theory/RANS.rst
    theory/PBLschemes.rst
    theory/Forcings.rst
+   theory/WindFarmModels.rst
+   theory/Radiation.rst
    Particles.rst
    SuperDroplets.rst
    ProblemInputs.rst
    theory/Forest.rst
+   theory/ImmersedBoundarySEB.rst
    theory/HindCast.rst
    theory/UnitsAndConstants.rst
 

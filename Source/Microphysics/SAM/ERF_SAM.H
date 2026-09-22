@@ -19,6 +19,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include "ERF_Constants.H"
+#include "ERF_MicrophysicsConstants.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_DataStruct.H"
@@ -86,6 +87,7 @@ public:
         m_axis     = sc.ave_plane;
         m_rdOcp    = sc.rdOcp;
         m_do_cond  = (!sc.uses_shoc_family());
+        set_anelastic_reference_pressure_mode(sc);
     }
 
     // init
@@ -108,17 +110,23 @@ public:
     void
     Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in,
+                         const amrex::MultiFab* base_state);
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in,
+                       const amrex::MultiFab* base_state) override;
+
     // Copy state into micro vars
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
-
-    using NullMoist::Update_Micro_Vars;
 
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Compute_Coefficients();
+        this->Compute_Coefficients(m_use_anelastic_reference_pressure);
     }
 
     void
@@ -156,7 +164,7 @@ public:
     }
 
     void
-    Compute_Coefficients ();
+    Compute_Coefficients (bool use_anelastic_reference_pressure = false);
 
     SAMCoefficientRow
     CoefficientRowAt (int k) const;
@@ -361,12 +369,12 @@ private:
     amrex::Real m_fac_cond;
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
-    amrex::Real m_rdOcp;
+    amrex::Real m_rdOcp{RdoCp};
     bool m_do_cond;
     MoistureType m_moisture_type = MoistureType::None;
 
     // Minimum dz at this level
-    amrex::Real m_dzmin;
+    amrex::Real m_dzmin{0.0};   // set by Set_dzmin; the fall routines assert it is positive
 
     // Pointer to terrain data
     amrex::MultiFab* m_z_phys_nd;

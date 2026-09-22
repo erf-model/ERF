@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 using namespace amrex;
 
@@ -22,6 +23,15 @@ namespace
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_pbl_betam () noexcept { return 15.0_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_pbl_sffrac () noexcept { return 0.1_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_kbfs_eps () noexcept { return 1.0e-10_rt; }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool shoc_richardson_values_are_equal (Real lhs, Real rhs) noexcept
+    {
+        const Real scale = amrex::max(Real(1.0),
+                                      amrex::max(amrex::Math::abs(lhs), amrex::Math::abs(rhs)));
+        const Real tolerance = Real(64.0) * std::numeric_limits<Real>::epsilon() * scale;
+        return amrex::Math::abs(lhs - rhs) <= tolerance;
+    }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     Real weighted_linear_interp (Real x0, Real x1, Real y0, Real y1, Real x)
@@ -153,7 +163,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
             const Real rino = CONST_GRAV * (thvk - thv0) * (ztk_agl - zt0_agl) /
                               (amrex::max(thv0, 1.0e-12_rt) * vvk);
             if (rino >= shoc_pbl_ricr()) {
-                if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
+                if (shoc_richardson_values_are_equal(rino, prev_rino)) {
                     pblh_loc = ztk_agl;
                 } else {
                     const Real ztkm1_agl = shoc::height_agl(zt(ic,k-1,0), z_sfc);
@@ -191,7 +201,7 @@ ShocStructure::diagnose_pblh (ShocColumnData& col)
                 const Real rino = CONST_GRAV * (thvk - tlv) * (ztk_agl - zt0_agl) /
                                   (amrex::max(thv0, 1.0e-12_rt) * vvk);
                 if (rino >= shoc_pbl_ricr()) {
-                    if (k == 1 || amrex::Math::abs(rino - prev_rino) <= 1.0e-12_rt) {
+                    if (shoc_richardson_values_are_equal(rino, prev_rino)) {
                         pblh_loc = ztk_agl;
                     } else {
                         const Real ztkm1_agl = shoc::height_agl(zt(ic,k-1,0), z_sfc);

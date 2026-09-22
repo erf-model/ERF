@@ -1,22 +1,39 @@
-matrix_cuda_12.9.1:
+matrix_cuda_13.1.1_build:
+  stage: jobs-stage-1
   parallel:
     matrix:
-      - ERF_PRECISION: [single, double]
+      - ERF_PRECISION: [single]
         ERF_PARTICLES_PRECISION: [single, double]
-  rules:
-    # Build only when using single precision
-    - if: $ERF_PRECISION == "single" || $ERF_PARTICLES_PRECISION == "single"
-      variables:
-        RUN_CTEST: "false"
-    # Default to always test
-    - when: always
-      variables:
-        RUN_CTEST: "true"
+      - ERF_PRECISION: [double]
+        ERF_PARTICLES_PRECISION: [single]
   variables:
+    RUN_CTEST: "false"
+    CI_BUILD_JOBS: 16
+
     MODULE_LIST: cmake/3.30.5 ninja/1.11.1 gcc/13.3.1 cuda/13.1.1
     ERF_ENABLE_CUDA: "ON"
     CUDA_ARCH: "90"
-    BUILD_TYPE: "RelWithDebInfo"
+    BUILD_TYPE: "Release"
     CMAKE_CXX_COMPILER: g++
     CMAKE_C_COMPILER: gcc
+
+    ERF_ENABLE_FFT: "ON"
+  extends: .job_on_matrix
+
+matrix_cuda_13.1.1_test:
+  stage: jobs-stage-2
+  variables:
+    RUN_CTEST: "true"
+    ERF_PRECISION: "double"
+    ERF_PARTICLES_PRECISION: "double"
+    CI_BUILD_JOBS: 64
+
+    MODULE_LIST: cmake/3.30.5 ninja/1.11.1 gcc/13.3.1 cuda/13.1.1
+    ERF_ENABLE_CUDA: "ON"
+    CUDA_ARCH: "90"
+    BUILD_TYPE: "Release"
+    CMAKE_CXX_COMPILER: g++
+    CMAKE_C_COMPILER: gcc
+
+    ERF_ENABLE_FFT: "ON"
   extends: .job_on_matrix

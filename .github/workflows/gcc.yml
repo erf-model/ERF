@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened, closed]
 
 concurrency:
-  group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc
   cancel-in-progress: true
 
 jobs:
@@ -22,8 +22,13 @@ jobs:
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
-          - particles: OFF
+          # Only matching mesh/particle precisions are tested, i.e. DOUBLE mesh
+          # with DOUBLE particles and SINGLE mesh with SINGLE particles.
+          - mesh_precision: DOUBLE
             particles_precision: SINGLE
+          - mesh_precision: SINGLE
+            particles_precision: DOUBLE
+          # SINGLE precision is only exercised in the particle-enabled build.
           - mesh_precision: SINGLE
             particles: OFF
 
@@ -100,6 +105,16 @@ jobs:
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    # Keep the existing DOUBLE unit/regression coverage and add one focused
+    # SINGLE SHOC runtime job.  This exercises the precision-aware SHOC gold and
+    # unit oracles in CI without repeating the full SHOC suite in the DOUBLE
+    # build.
+    - name: Run SINGLE SHOC Tests
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -L shoc --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: Run Parallel Tests

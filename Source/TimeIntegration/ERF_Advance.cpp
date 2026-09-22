@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include "ERF_Constants.H"
 #include <ERF_Utils.H>
 
 #ifdef ERF_USE_WINDFARM
@@ -23,6 +24,10 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
     // We must swap the pointers so the previous step's "new" is now this step's "old"
     std::swap(vars_old[lev], vars_new[lev]);
+
+    // Surface energy balance on the building faces, with the state at the start of the step
+    ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                  vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
 
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
@@ -98,37 +103,43 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 
     // configure SurfaceLayer params if needed
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer) {
-        if (m_SurfaceLayer) {
-            IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
-            if (solverChoice.moisture_type != MoistureType::None) {
-                ng = Qv_prim[lev]->nGrowVect();
+    bool updated_prim = false;
+    for (OrientationIter oit; oit; ++oit) {
+        Orientation ori = oit();
+        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+            if (!updated_prim) {
+                // This only needs to be done once
+                IntVect ng = Theta_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
+                MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+                if (solverChoice.moisture_type != MoistureType::None) {
+                    ng = Qv_prim[lev]->nGrowVect();
 
-                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
-                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                    MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
 
-                if (solverChoice.moisture_indices.qr > -1) {
-                    MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
-                    MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
-                } else {
-                    Qr_prim[lev]->setVal(0);
+                    if (solverChoice.moisture_indices.qr > -1) {
+                        MultiFab::Copy(  *Qr_prim[lev], S_old, solverChoice.moisture_indices.qr, 0, 1, ng);
+                        MultiFab::Divide(*Qr_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+                    } else {
+                        Qr_prim[lev]->setVal(0);
+                    }
                 }
+                updated_prim = true;
             }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_SurfaceLayer->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
-            m_SurfaceLayer->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                        solverChoice.moisture_indices);
+            m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
+            m_SurfaceLayer[ori]->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
+                                             solverChoice.moisture_indices);
 
 #ifdef ERF_USE_NETCDF
             double elapsed_time_since_start_low = time + (start_time - start_low_time);
 #else
             double elapsed_time_since_start_low = time;
 #endif
-            m_SurfaceLayer->update_fluxes(lev, time, elapsed_time_since_start_low,
-                                          S_old, z_phys_nd[lev], walldist[lev]);
+            m_SurfaceLayer[ori]->update_fluxes(lev, time, elapsed_time_since_start_low,
+                                               S_old, z_phys_nd[lev], walldist[lev]);
         }
     }
 
@@ -154,12 +165,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     if (solverChoice.turbChoice[lev].uses_shoc_family()) {
         // Get SFC fluxes from SurfaceLayer
-        if (m_SurfaceLayer) {
+        if (m_SurfaceLayer[Orientation::zlo()]) {
             Vector<const MultiFab*> mfs = {&S_old, &U_old, &V_old, &W_old};
-            m_SurfaceLayer->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
-                                                    SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
-                                                    SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                                                    z_phys_nd[lev].get());
+            m_SurfaceLayer[Orientation::zlo()]->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
+                                                                        SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
+                                                                        SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
+                                                                        z_phys_nd[lev].get());
         }
 
         // Apply SHOC before the dycore so it sees a coherent state.
@@ -179,7 +190,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                            eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
                                            dt_lev);
 
-            if (native_shoc_driver[lev] && native_shoc_driver[lev]->uses_state_update()) {
+            if (native_shoc_driver[lev]) {
                 // Native SHOC updates the old-time state before the dycore reads it.
                 // Re-fill the updated state, velocities, and momenta now so the
                 // pre-dycore checks and strain calculation see coherent fields.
@@ -437,6 +448,28 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
+    // ***********************************************************************************************
+    // Two-stream radiation, post-dycore call: reports the cached flux
+    // diagnostics and advances the force-restore surface state by dt_lev.
+    // No column sweep runs here; that happened in advance_radiation above.
+    // ***********************************************************************************************
+    if (solverChoice.rad_type == RadiationType::TwoStream) {
+#ifdef ERF_USE_NETCDF
+        const MultiFab* lat_ptr = lat_m[lev].get();
+        const MultiFab* lon_ptr = lon_m[lev].get();
+#else
+        const MultiFab* lat_ptr = nullptr;
+        const MultiFab* lon_ptr = nullptr;
+#endif
+        const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
+                               ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
+                               : nullptr;
+        two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
+                               vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
+                               lsm, qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                               t_surf, lat_ptr, lon_ptr,
+                               time + dt_lev + start_time, use_datetime);
+    }
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before
         // accumulating the first sample whose step starts at or beyond the

@@ -1,0 +1,9 @@
+FILE = inputs_deardorff
+
+# Restarted from the step-300 checkpoint to step 600; the dumps must match
+# the straight run's (the previous step's flux, which the convective scale
+# reads, is part of the checkpointed face state).
+erf.restart = chk00300
+max_step = 600
+erf.ibseb.csv_file = "ibseb_deardorff_restart.csv"
+erf.ibseb.dump_faces_file = "faces_deardorff_restart"

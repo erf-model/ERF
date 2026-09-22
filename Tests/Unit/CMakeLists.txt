@@ -56,8 +56,8 @@ function(erf_register_gtest_suite target)
     set(ERF_GTEST_DISCOVERY_TIMEOUT 60)
   endif()
 
-  if(NOT ERF_GTEST_EXECUTION_TIMEOUT)
-    set(ERF_GTEST_EXECUTION_TIMEOUT 900)
+  if(NOT DEFINED ERF_GTEST_EXECUTION_TIMEOUT)
+    set(ERF_GTEST_EXECUTION_TIMEOUT 600)
   endif()
 
   if(NOT DEFINED ERF_GTEST_SKIP_RETURN_CODE)
@@ -113,26 +113,57 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceDiagnosticSource.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerStress.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverage.cpp
+    # Motivation: the MOST reference height must use the true stretched cell
+    # centers, and a query on a mesh face must be found rather than abort.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
+    # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryDensity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryMoisture.cpp
     # Motivation: face-local wall metadata must not inherit a later wall's
     # density representation or treat explicit zero as absent.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWallBCMetadata.cpp
+    # Motivation: where two open lateral boundaries meet, each boundary cell must be
+    # written by exactly one open-BC kernel, and by the same one however the grid is split.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCCorners.cpp
+    # Motivation: the z-momentum box must be shrunk only at the bottom and top of the
+    # domain, so that a grid split in z leaves no w-face without a source term.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestZmomBoxDecomposition.cpp
     # Motivation: the chamber profile and perturbation must remain analytic,
     # bounded, and independent of MPI decomposition and tile shape.
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestCloudChamber.cpp
     # Motivation: production scalar diffusion must use the exact low/high
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTKEBuoyancySource.cpp
+    # Motivation: the k-eqn RANS closure (AL01) must keep its stability
+    # functions finite and its length-scale limits exact for any Rt.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: the two-stream radiation sweep must keep k = 0 as the
+    # surface, cool to space from the top layer, use Exner temperature,
+    # and reflect (1 - eps) of the downwelling LW at a gray surface.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
+    # Motivation: RRTMGP consumes absolute surface temperature; a
+    # SurfaceLayer fallback must convert theta at the physical surface
+    # pressure diagnosed from the lowest atmospheric cell,
+    # respect land/water precedence, and preserve valid land LSM temperatures.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestRRTMGP_SurfaceTemperature.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestOrbitalGeometry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfileSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCheckpoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
@@ -144,6 +175,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Interpolation/ERF_GTestInterpolationWENOKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Microphysics/ERF_GTestMicrophysicsUtilsScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Microphysics/ERF_GTestMicrophysicsUtilsKernel.cpp
+    # Motivation: supported Eulerian microphysics must consume anelastic p0
+    # explicitly while preserving the compressible EOS and SAM plane contract.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Microphysics/ERF_GTestAnelasticMicrophysicsWiring.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjThermo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjCell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjMultiFab.cpp
@@ -180,20 +214,20 @@ target_sources(${erf_exe_name} PRIVATE
 # only available when particles are enabled.
 if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/IceDeposition/ERF_GTestIceDepositionKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Condensation/ERF_GTestCondensationKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Melting/ERF_GTestMeltingKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Freezing/ERF_GTestFreezingKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Coalescence/ERF_GTestCoalescenceKernel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingScalar.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Riming/ERF_GTestRimingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/IceDeposition/ERF_GTestIceDepositionScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/IceDeposition/ERF_GTestIceDepositionKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Condensation/ERF_GTestCondensationScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Condensation/ERF_GTestCondensationKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Melting/ERF_GTestMeltingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Melting/ERF_GTestMeltingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Freezing/ERF_GTestFreezingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Freezing/ERF_GTestFreezingKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Coalescence/ERF_GTestCoalescenceScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Coalescence/ERF_GTestCoalescenceKernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Riming/ERF_GTestRimingScalar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/Riming/ERF_GTestRimingKernel.cpp
   )
 endif()
 
@@ -208,7 +242,7 @@ target_link_libraries(${erf_exe_name} PRIVATE GTest::gtest)
 erf_register_gtest_suite(${erf_exe_name}
   LABELS unit
   DISCOVERY_TIMEOUT 60
-  EXECUTION_TIMEOUT 900
+  EXECUTION_TIMEOUT 600
 )
 
 add_test(NAME erf_unit_tests_shuffle_repeat
@@ -220,7 +254,7 @@ add_test(NAME erf_unit_tests_shuffle_repeat
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
     LABELS "stress"
-    TIMEOUT 2700
+    TIMEOUT 600
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -292,10 +326,26 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestParallelMain.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestParallelHelloWorld.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageParallel.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngParallel.cpp
+      # Motivation: planar surface-layer fields on a BoxArray split in z hold
+      # duplicate 2D boxes, and every copy must be filled from the computed
+      # surface copy, across ranks and periodic boundaries.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestPlanarBoundaryParallel.cpp
+      # Motivation: rebalance_columns integrated each box of a BoxArray split in
+      # z from its own lowest cell, so the hydrostatic base state depended on
+      # where the columns were split.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestRebalanceColumnsParallel.cpp
+      # Motivation: the hydrostatic base state over terrain integrated each box of
+      # a level split in z from the ghost cell below it, so a fine level's base
+      # state depended on where its boxes were split.
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestColumnBandsParallel.cpp
+      # The column boxes are distributed afresh, so check the copies across ranks too
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
   if(ERF_ENABLE_NETCDF)
@@ -382,7 +432,7 @@ endif()
       -DERF_MPI_PREFLAGS=${erf_parallel_test_mpiexec_preflags_arg}
       -DERF_MPI_RANKS=${erf_parallel_test_ranks_arg}
       -DERF_CROSSCOMPILING_EMULATOR=${erf_parallel_test_emulator_arg}
-      -DTEST_TIMEOUT=1800
+      -DTEST_TIMEOUT=600
       -P ${CMAKE_CURRENT_LIST_DIR}/GenerateERFParallelCTest.cmake
     COMMAND_EXPAND_LISTS
     VERBATIM

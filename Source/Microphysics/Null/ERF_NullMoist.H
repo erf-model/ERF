@@ -111,7 +111,11 @@ public:
 
     virtual
     void
-    SetCurrentLevel (const int&) {}
+    SetCurrentLevel (const int& lev)
+    {
+        AMREX_ALWAYS_ASSERT(lev >= 0);
+        m_level = lev;
+    }
 
     virtual
     void
@@ -146,6 +150,29 @@ public:
     // chooses to implement width-sensitive behavior.
     Set_RealWidth (const int /*real_width*/) { }
 
+protected:
+    void
+    set_anelastic_reference_pressure_mode (const SolverChoice& sc)
+    {
+        if (sc.anelastic.empty()) {
+            m_use_anelastic_reference_pressure = false;
+        } else {
+            AMREX_ALWAYS_ASSERT(
+                m_level < static_cast<int>(sc.anelastic.size()));
+            m_use_anelastic_reference_pressure = (sc.anelastic[m_level] == 1);
+        }
+    }
+
+    void
+    assert_base_state_available (const amrex::MultiFab* base_state) const
+    {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !m_use_anelastic_reference_pressure || base_state != nullptr,
+            "Anelastic microphysics requires the hydrostatic base state at copy-in");
+    }
+
+    int m_level{0};
+    bool m_use_anelastic_reference_pressure{false};
 
 private:
     int m_qmoist_size = 0;

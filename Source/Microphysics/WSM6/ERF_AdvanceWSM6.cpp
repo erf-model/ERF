@@ -1,5 +1,7 @@
 #include "ERF_WSM6.H"
 #include "ERF_WSM6_Fortran_Interface.H"
+#include "ERF_MicrophysicsConstants.H"
+#include "ERF_Constants.H"
 #include <AMReX_Reduce.H>
 #include <algorithm>
 #include <array>

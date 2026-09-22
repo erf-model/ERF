@@ -24,6 +24,24 @@ the same way here.
    it is read.  The physical guidance -- which kernel or which time integrator
    to prefer for a given problem -- is not covered here.
 
+.. _superdroplets-anelastic-compatibility:
+
+Anelastic compatibility
+-----------------------
+
+.. warning::
+
+   ``SuperDroplets`` cannot currently be used in a simulation in which any AMR
+   level has ``erf.anelastic = 1``. ERF detects this combination during input
+   validation and exits with an error.
+
+   Use ``SuperDroplets`` with compressible dynamics, or choose a supported
+   Eulerian microphysics scheme for an anelastic simulation.
+
+The current Super-Droplet thermodynamic coupling uses the compressible equation
+of state and does not consume the hydrostatic base-state pressure used by
+anelastic Eulerian microphysics.
+
 Model configuration
 -------------------
 

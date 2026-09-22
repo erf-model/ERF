@@ -2,6 +2,7 @@
  * \file ERF_Plotfile.cpp
  */
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
 #include "ERF_PlotfileSelection.H"
@@ -61,7 +62,10 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
                                                 micro->Get_Qstate_Size());
     capabilities.time_average_storage = solverChoice.time_avg_vel;
     capabilities.interval_mean_storage = solverChoice.compute_mean_vars;
-    capabilities.radiation_heating_storage = solverChoice.rad_type != RadiationType::None;
+    // qsrc_sw / qsrc_lw are available whenever qheating_rates is allocated,
+    // i.e. for any erf.radiation_model other than None.
+    capabilities.radiation_heating_storage =
+        erf_plotfile::radiation_heating_storage_available(solverChoice.rad_type);
     capabilities.eddy_diffusivity_storage = true;
     capabilities.dissipation_storage = true;
     capabilities.wall_distance_storage = true;
@@ -112,6 +116,11 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
             bool ok_to_add = ( (solverChoice.terrain_type == TerrainType::ImmersedForcing || solverChoice.buildings_type == BuildingsType::ImmersedForcing ) ||
                                (derived_names[i] != "terrain_IB_mask") );
+            ok_to_add     &= ( ibseb_params.enable ||
+                               (derived_names[i] != "ibseb_nfaces" && derived_names[i] != "ibseb_tskin" &&
+                                derived_names[i] != "ibseb_sw_abs" && derived_names[i] != "ibseb_shadow" &&
+                                derived_names[i] != "ibseb_lw_net" && derived_names[i] != "ibseb_f_sky" &&
+                                derived_names[i] != "ibseb_H" && derived_names[i] != "ibseb_G") );
             ok_to_add     &= ( (SolverChoice::terrain_type == TerrainType::StaticFittedMesh) ||
                                (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) ||
                                (derived_names[i] != "detJ") );
@@ -341,6 +350,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         containerHasElement(plot_var_names, "magvel"        ) ||
         containerHasElement(plot_var_names, "helicity"      ) ||
         containerHasElement(plot_var_names, "local_helicity") ||
+        containerHasElement(plot_var_names, "vort_stretching") ||
         containerHasElement(plot_var_names, "vorticity_x"   ) ||
         containerHasElement(plot_var_names, "vorticity_y"   ) ||
         containerHasElement(plot_var_names, "vorticity_z"   ) ) {
@@ -354,6 +364,94 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                                                                 &vars_new[lev][Vars::zvel]}, 1);
         } // lev
     } // if (vel or vort)
+
+    Vector<MultiFab> mf_cc_tau(finest_level+1);
+    Vector<MultiFab> mf_cc_fx(finest_level+1);
+
+    if (containerHasElement(plot_var_names, "Tau11" ) ||
+        containerHasElement(plot_var_names, "Tau12" ) ||
+        containerHasElement(plot_var_names, "Tau13" ) ||
+        containerHasElement(plot_var_names, "Tau21" ) ||
+        containerHasElement(plot_var_names, "Tau22" ) ||
+        containerHasElement(plot_var_names, "Tau23" ) ||
+        containerHasElement(plot_var_names, "Tau31" ) ||
+        containerHasElement(plot_var_names, "Tau32" ) ||
+        containerHasElement(plot_var_names, "Tau33" )) {
+
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_tau[lev].define(grids[lev], dmap[lev], 9, IntVect(1,1,1));
+            mf_cc_tau[lev].setVal(bogus_large_value);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf_cc_tau[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // todo - clean this up
+                const Box& bxcc= mfi.tilebox();
+
+                const Array4<Real>& tau12 = (Tau[lev][TauType::tau12]) ? Tau[lev][TauType::tau12]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau21 = (Tau[lev][TauType::tau21]) ? Tau[lev][TauType::tau21]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau13 = (Tau[lev][TauType::tau13]) ? Tau[lev][TauType::tau13]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau31 = (Tau[lev][TauType::tau31]) ? Tau[lev][TauType::tau31]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau23 = (Tau[lev][TauType::tau23]) ? Tau[lev][TauType::tau23]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& tau32 = (Tau[lev][TauType::tau32]) ? Tau[lev][TauType::tau32]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau_cc   = mf_cc_tau[lev].array(mfi);
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_cc(i, j, k, TauType::tau12) = (tau12) ? fourth * (tau12(i, j, k) + tau12(i, j+1, k) + tau12(i+1,j+1,k) + tau12(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau21) = (tau21) ? fourth * (tau21(i, j, k) + tau21(i, j+1, k) + tau21(i+1,j+1,k) + tau21(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau13) = (tau13) ? fourth * (tau13(i, j, k) + tau13(i, j, k+1) + tau13(i+1,j,k+1) + tau13(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau31) = (tau31) ? fourth * (tau31(i, j, k) + tau31(i, j, k+1) + tau31(i+1,j,k+1) + tau31(i+1, j, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau23) = (tau23) ? fourth * (tau23(i, j, k) + tau23(i, j, k+1) + tau23(i,j+1,k+1) + tau23(i, j+1, k)) : zero;
+                    tau_cc(i, j, k, TauType::tau32) = (tau32) ? fourth * (tau32(i, j, k) + tau32(i, j, k+1) + tau32(i,j+1,k+1) + tau32(i, j+1, k)) : zero;
+                });
+            }
+        }
+    }
+
+    if (containerHasElement(plot_var_names, "hfx1" ) ||
+        containerHasElement(plot_var_names, "hfx2" ) ||
+        containerHasElement(plot_var_names, "hfx3" ) ||
+        containerHasElement(plot_var_names, "q1fx1" ) ||
+        containerHasElement(plot_var_names, "q1fx2" ) ||
+        containerHasElement(plot_var_names, "q1fx3" ) ||
+        containerHasElement(plot_var_names, "q2fx3" ))
+    {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_fx[lev].define(grids[lev], dmap[lev], 7, IntVect(1,1,1));
+            mf_cc_fx[lev].setVal(bogus_large_value);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf_cc_fx[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bxcc= mfi.tilebox();
+
+                const Array4<Real>& hfx1 = (SFS_hfx1_lev[lev]) ? SFS_hfx1_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& hfx2 = (SFS_hfx2_lev[lev]) ? SFS_hfx2_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& hfx3 = (SFS_hfx3_lev[lev]) ? SFS_hfx3_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx1 = (SFS_q1fx1_lev[lev]) ? SFS_q1fx1_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx2 = (SFS_q1fx2_lev[lev]) ? SFS_q1fx2_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q1fx3 = (SFS_q1fx3_lev[lev]) ? SFS_q1fx3_lev[lev]->array(mfi) : Array4<Real>{};
+                const Array4<Real>& q2fx3 = (SFS_q2fx3_lev[lev]) ? SFS_q2fx3_lev[lev]->array(mfi) : Array4<Real>{};
+
+                const Array4<Real>& tau_fx   = mf_cc_fx[lev].array(mfi);
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    tau_fx(i, j, k, 0) = (hfx1) ? 0.5 * (hfx1(i, j, k) + hfx1(i+1, j  , k)) : 0.0;
+                    tau_fx(i, j, k, 1) = (hfx2) ? 0.5 * (hfx2(i, j, k) + hfx2(i  , j+1, k)) : 0.0;
+                    tau_fx(i, j, k, 2) = (hfx3) ? 0.5 * (hfx3(i, j, k) + hfx3(i  , j  , k+1)) : 0.0;
+                    tau_fx(i, j, k, 3) = (q1fx1) ? 0.5 * (q1fx1(i, j, k) + q1fx1(i+1, j  , k)) : 0.0;
+                    tau_fx(i, j, k, 4) = (q1fx2) ? 0.5 * (q1fx2(i, j, k) + q1fx2(i  , j+1, k)) : 0.0;
+                    tau_fx(i, j, k, 5) = (q1fx3) ? 0.5 * (q1fx3(i, j, k) + q1fx3(i  , j  , k+1)) : 0.0;
+                    tau_fx(i, j, k, 6) = (q2fx3) ? 0.5 * (q2fx3(i, j, k) + q2fx3(i  , j  , k+1)) : 0.0;
+                });
+            }
+        }
+    }
 
     // We need ghost cells if computing vorticity
     if ( containerHasElement(plot_var_names, "vorticity_x")||
@@ -625,6 +723,7 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
         calculate_derived("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
         calculate_derived("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
         calculate_derived("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
+        calculate_derived("vort_stretching", mf_cc_vel[lev], derived::erf_dervortstretching);
         calculate_derived("magvel",         mf_cc_vel[lev], derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
@@ -1262,6 +1361,22 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             MultiFab::Copy(mf[lev],*shoc_or_host_eddy,EddyDiff::Turb_lengthscale,mf_comp,1,0);
             mf_comp ++;
         }
+        // k-eqn RANS diagnostics (zero unless the closure is running)
+        if (containerHasElement(plot_var_names, "Rt")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_Rt,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "cmu")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_cmu,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "cmu_prime")) {
+            AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::RANS_cmu_prime,mf_comp,1,0);
+            mf_comp ++;
+        }
         auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
             if (src != nullptr) {
                 MultiFab::Copy(mf[lev], *src, 0, mf_comp, 1, 0);
@@ -1537,6 +1652,48 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
             mf_comp ++;
         }
 
+        // Immersed-boundary surface energy balance: faces per cell and their mean skin temperature
+        if (containerHasElement(plot_var_names, "ibseb_nfaces") ||
+            containerHasElement(plot_var_names, "ibseb_tskin"))
+        {
+            MultiFab nfaces(grids[lev], dmap[lev], 1, 0);
+            MultiFab tskin (grids[lev], dmap[lev], 1, 0);
+            if (ibseb_params.enable && lev < static_cast<int>(m_ibseb.size()) && m_ibseb[lev]) {
+                m_ibseb[lev]->scatter_diagnostics(nfaces, tskin);
+            } else {
+                nfaces.setVal(0.0);
+                tskin.setVal(0.0);
+            }
+            if (containerHasElement(plot_var_names, "ibseb_nfaces")) {
+                MultiFab::Copy(mf[lev], nfaces, 0, mf_comp, 1, 0);
+                mf_comp++;
+            }
+            if (containerHasElement(plot_var_names, "ibseb_tskin")) {
+                MultiFab::Copy(mf[lev], tskin, 0, mf_comp, 1, 0);
+                mf_comp++;
+            }
+        }
+        // Radiation on the faces, per-cell means: absorbed shortwave, shadow
+        // flag, net longwave, sky view fraction
+        for (const char* nm : {"ibseb_sw_abs", "ibseb_shadow", "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G"}) {
+            if (!containerHasElement(plot_var_names, nm)) { continue; }
+            MultiFab tmp(grids[lev], dmap[lev], 1, 0);
+            if (ibseb_params.enable && lev < static_cast<int>(m_ibseb.size()) && m_ibseb[lev]) {
+                const std::string s(nm);
+                const auto& v = (s == "ibseb_sw_abs") ? m_ibseb[lev]->d_SW_abs
+                              : (s == "ibseb_shadow") ? m_ibseb[lev]->d_shadow
+                              : (s == "ibseb_lw_net") ? m_ibseb[lev]->d_LW_net
+                              : (s == "ibseb_H")      ? m_ibseb[lev]->d_H
+                              : (s == "ibseb_G")      ? m_ibseb[lev]->d_G
+                              :                         m_ibseb[lev]->d_f_sky;
+                m_ibseb[lev]->scatter_field(v, tmp);
+            } else {
+                tmp.setVal(0.0);
+            }
+            MultiFab::Copy(mf[lev], tmp, 0, mf_comp, 1, 0);
+            mf_comp++;
+        }
+
         if (containerHasElement(plot_var_names, "volfrac")) {
             if ( solverChoice.terrain_type == TerrainType::EB ||
                  solverChoice.terrain_type == TerrainType::ImmersedForcing)
@@ -1726,6 +1883,96 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                 MultiFab::Copy(mf[lev], *(qheating_rates[lev]), 1, mf_comp, 1, 0);
                 mf_comp += 1;
             }
+        }
+
+        const bool plot_tau =
+            containerHasElement(plot_var_names, "Tau11") ||
+            containerHasElement(plot_var_names, "Tau12") ||
+            containerHasElement(plot_var_names, "Tau13") ||
+            containerHasElement(plot_var_names, "Tau21") ||
+            containerHasElement(plot_var_names, "Tau22") ||
+            containerHasElement(plot_var_names, "Tau23") ||
+            containerHasElement(plot_var_names, "Tau31") ||
+            containerHasElement(plot_var_names, "Tau32") ||
+            containerHasElement(plot_var_names, "Tau33");
+        if (plot_tau) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                Tau[lev][TauType::tau11] != nullptr,
+                "Tau plot variables require diffusion to be enabled");
+        }
+
+        if (containerHasElement(plot_var_names, "Tau11")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau11],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau12")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau12,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau13")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau13,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau21")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau21,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau22")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau22],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau23")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau23,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau31")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau31,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau32")) {
+            MultiFab::Copy(mf[lev],mf_cc_tau[lev],TauType::tau32,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Tau33")) {
+            MultiFab::Copy(mf[lev],*Tau[lev][TauType::tau33],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "hfx1")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],0,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "hfx2")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],1,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "hfx3")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],2,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx1")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],3,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx2")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],4,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q1fx3")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],5,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "q2fx3")) {
+            MultiFab::Copy(mf[lev],mf_cc_fx[lev],6,mf_comp,1,0);
+            mf_comp ++;
         }
 
         // *****************************************************************************************

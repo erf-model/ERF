@@ -1,5 +1,7 @@
 #include <random>
-#include "ERF_Constants.H"
+#include <limits>
+#include <cmath>
+#include "ERF_NumericalConstants.H"
 #include "ERF_SuperDropletPC.H"
 
 #ifdef ERF_USE_PARTICLES

@@ -24,8 +24,12 @@ TEST(WrfBoundaryMoisture, RuntimeRepackDoesNotAliasHydrometeors)
 {
     const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
     amrex::Vector<amrex::FArrayBox> data(WRFBdyVars::NumTypes);
+    amrex::Arena* arena_used = amrex::The_Arena();
+#ifdef AMREX_USE_GPU
+    arena_used = amrex::The_Pinned_Arena();
+#endif
     for (int ivar = 0; ivar < WRFBdyVars::NumTypes; ++ivar) {
-        data[ivar].resize(box, 1);
+        data[ivar].resize(box, 1, arena_used);
         data[ivar].template setVal<amrex::RunOn::Host>(static_cast<amrex::Real>(ivar));
     }
 

@@ -14,7 +14,6 @@
 #include <AMReX_ParmParse.H>
 
 #include <ERF_NullSurf.H>
-#include <ERF_Constants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
 #include <ERF_TerrainMetrics.H>

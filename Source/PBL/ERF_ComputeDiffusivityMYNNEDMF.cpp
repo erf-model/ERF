@@ -4207,20 +4207,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const std::unique_ptr<MultiFab>& z_phys_cc,
                             const MoistureComponentIndices& moisture_indices)
 {
-    Print()<<"reached mynnedmf"<<std::endl;
-    {
-      int n=1;
-      Real a=1;
-      Real b=1;
-      Real c=1;
-      Real d=1;
-      Real x=0;
-#if 0
-      tridiag2_cc(n,&a,&b,&c,&d,&x);
-#endif
-      printf("ran tridiag2_cc with n=%d and got %g %g %g %g %g",n,a,b,c,d,x);
-    }
-
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 
@@ -4241,23 +4227,28 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     // NOTE: we must not tile in z here because the body of this loop assumes that each
-    //       iterate spans the entire column: it grows the box by one in z and accumulates
-    //       vertical integrals into a per-iterate qintegral fab (as in MYNN25)
+    //       iterate spans the entire column: it accumulates vertical integrals into a
+    //       per-iterate qintegral fab (as in MYNN25)
     for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.growntilebox(1);
+        // NOTE: the valid box, not a grown box, as in MYNN25.  Growing by one in z put
+        //       k = -1 and k = nz in the loop, and the vertical-derivative stencil below
+        //       reaches k-1 and k+1, so the scheme read cons_in, xvel and yvel two cells
+        //       outside the domain -- ghost cells this routine has no guarantee about.
+        //       The ghost values it computed were thrown away regardless:
+        //       ComputeTurbulentViscosity refills every eddy-viscosity ghost cell after
+        //       this routine returns, by FillBoundary and by extrapolation onto the
+        //       physical-boundary planes.
+        const Box& bx = mfi.tilebox();
         const Array4<Real const>& cell_data = cons_in.array(mfi);
         const Array4<Real      >& K_turb    = eddyViscosity.array(mfi);
         const Array4<Real const>& uvel      = xvel.array(mfi);
         const Array4<Real const>& vvel      = yvel.array(mfi);
 
-        // Compute some quantities that are constant in each column
-        // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
-        // Box includes one ghost cell in each direction
-        const Box &dbx = geom.Domain();
-        Box sbx(bx.smallEnd(), bx.bigEnd());
-        sbx.grow(2,-1);
-        AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
+        // Compute some quantities that are constant in each column: each iterate must
+        // hold a whole column for the vertical integrals below to be complete
+        const Box& dbx = geom.Domain();
+        AMREX_ALWAYS_ASSERT(bx.smallEnd(2) == dbx.smallEnd(2) && bx.bigEnd(2) == dbx.bigEnd(2));
 
         const GeometryData gdata = geom.data();
 
@@ -4265,7 +4256,6 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
         FArrayBox qintegral(xybx,2,The_Async_Arena());
         FArrayBox qturb(bx,1,The_Async_Arena());
-        FArrayBox qturb_old(bx,1,The_Async_Arena());
 
         qintegral.setVal<RunOn::Device>(0);
 
@@ -4281,11 +4271,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                 qvel(i,j,k) = std::sqrt(two * cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp));
                 AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > zero, "KE must have a positive value");
 
-                Real fac = (sbx.contains(i,j,k)) ? one : zero;
                 const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                 const Real dz   = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz*fac);
-                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz);
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*dz);
             });
         } else {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -4295,10 +4284,9 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
-                Real fac = (sbx.contains(i,j,k)) ? one : zero;
                 const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
-                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k)*fac);
-                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k)*fac);
+                Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
+                Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
             });
         }
 
@@ -4309,8 +4297,8 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
         Real d_kappa   = KAPPA;
         Real d_gravity = CONST_GRAV;
 
-        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,4); // theta_v
-        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,3); // q_v
+        const auto& t_mean_mf = SurfLayer->get_mac_avg(level,5); // theta_v
+        const auto& q_mean_mf = SurfLayer->get_mac_avg(level,4); // q_v
         const auto& u_star_mf = SurfLayer->get_u_star(level);
         const auto& t_star_mf = SurfLayer->get_t_star(level);
         const auto& q_star_mf = SurfLayer->get_q_star(level);
@@ -4359,9 +4347,8 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
-            int lk = amrex::max(k,0);
-            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr)
-                                          : gdata.ProbLo(2) + (lk + myhalf)*gdata.CellSize(2);
+            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                                          : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {

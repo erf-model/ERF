@@ -22,7 +22,10 @@
  * Local face sums are held until a configured report interval, then one
  * packed MPI reduction produces the six-face values.  For the anelastic RK2
  * path, nrk=0 is retained and nrk=1 applies the trapezoidal stage weight;
- * this avoids counting both RHS evaluations as two physical timesteps.
+ * this avoids counting both RHS evaluations as two physical timesteps.  For the
+ * anelastic MidPoint path there is nothing to average: the first stage advances
+ * only half a timestep and the second advances the whole timestep with the
+ * source evaluated there, so only nrk=1 contributes.
  */
 class CloudChamberBudget
 {
@@ -33,6 +36,13 @@ public:
     explicit CloudChamberBudget (int interval) : m_interval(interval) {}
 
     bool enabled () const noexcept { return m_interval > 0; }
+
+    static const char* row_status (Scalar scalar, bool cloudy, bool closes) noexcept
+    {
+        if (cloudy && scalar == RhoTheta) { return "UNSUPPORTED_SOURCE"; }
+        return closes ? "PASS" : "FAIL";
+    }
+
     /**
      * Determine if a budget report is due for the given timestep.
      *
@@ -78,13 +88,16 @@ public:
      * @param zflux Fluxes in the z-direction
      * @param geom Geometry used for face area calculation
      * @param flux_comp Component index of the flux
+     * @param trapezoidal True for the RK2 stages, whose two sources are averaged;
+     *                    false for the MidPoint stages, where only nrk=1 counts
      */
     void capture_stage (int scalar, int nrk, amrex::Real dt,
                         const amrex::MultiFab& xflux,
                         const amrex::MultiFab& yflux,
                         const amrex::MultiFab& zflux,
                         const amrex::Geometry& geom,
-                        int flux_comp = 0)
+                        int flux_comp = 0,
+                        bool trapezoidal = true)
     {
         if (!enabled() || scalar < 0 || scalar >= NumScalars) { return; }
         std::array<amrex::Real, NumFaces> current{};
@@ -105,7 +118,16 @@ public:
             current[2*d+1] = flux->sum(high, flux_comp, true) * area * dt;
         }
 
-        if (nrk == 0) {
+        if (!trapezoidal) {
+            // MidPoint: the first stage spans only dt/2 and exists solely to make the
+            // midpoint state, so the second stage alone carries the step's flux.
+            if (nrk == 1) {
+                for (int face = 0; face < NumFaces; ++face) {
+                    m_cumulative[scalar][face] += current[face];
+                }
+            }
+            m_have_stage0[scalar] = false;
+        } else if (nrk == 0) {
             m_stage0[scalar] = current;
             m_have_stage0[scalar] = true;
         } else if (nrk == 1 && m_have_stage0[scalar]) {
@@ -208,8 +230,8 @@ public:
                     std::numeric_limits<amrex::Real>::epsilon() *
                     (effective_operations * scale + boundary_scale + std::abs(internal));
                 const bool status = std::abs(residual) <= tolerance;
-                const char* status_text = status ? "PASS" :
-                    (cloudy && s == RhoTheta ? "UNSUPPORTED_SOURCE" : "FAIL");
+                const char* status_text = row_status(
+                    static_cast<Scalar>(s), cloudy, status);
                 out << m_interval_start_step << ' ' << m_interval_start_time << ' '
                     << step << ' ' << time << ' ' << names[s] << ' ' << units[s];
                 for (const auto value : faces) { out << ' ' << value; }

@@ -19,7 +19,7 @@
 #include "AMReX_Print.H"
 #include "AMReX_REAL.H"
 
-#include "ERF_Constants.H"
+#include "ERF_NumericalConstants.H"
 
 enum class VariationOperator
 {

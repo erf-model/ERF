@@ -122,26 +122,18 @@ non-precipitating cloud liquid, carried cloud ice, and TKE update before the
 dycore sees the state. That keeps the thermodynamic and moisture increments
 together.
 
-The host-diffusion scalar mode is:
-
-```text
-erf.shoc.transport_mode = host_diffusion
-```
-
-In this mode, SHOC exports the full vertical eddy-diffusivity block to ERF's
-host diffusion path. SHOC does not apply the pre-dycore state update. At
-present this mode is only supported for dry/no-moisture configurations, and it
-requires `erf.shoc.momentum_transport = host_diffusion`.
+`host_diffusion` is no longer a valid native SHOC scalar transport value. Old
+input decks using it fail at startup with a targeted migration diagnostic.
 
 The horizontal-momentum transport mode is:
 
 ```text
-erf.shoc.momentum_transport = host_diffusion
+erf.shoc.momentum_transport = state_update
 ```
 
-This is the default. In the mixed native SHOC mode, SHOC exports only the
-momentum diffusivity to ERF's host diffusion path while keeping the scalar
-transport on the `state_update` path.
+This is the default and normal production path. SHOC applies its existing
+horizontal-velocity increment directly to the ERF face velocities and consumes
+the corresponding surface stress.
 
 Other momentum choices are:
 
@@ -150,55 +142,48 @@ erf.shoc.momentum_transport = none
 erf.shoc.momentum_transport = state_update
 ```
 
-`none` disables SHOC momentum transport entirely. `state_update` keeps the
-legacy direct-velocity update available for debugging or targeted experiments,
-but it is not the default.
+`none` disables the Native-SHOC horizontal-momentum transport contribution.
+ERF retains generic host ownership of vertical momentum diffusion in this mode.
+This does not by itself create a nonzero host momentum diffusivity; it only
+leaves the generic ERF momentum-diffusion path eligible to act when another
+configured host closure supplies one.
 
-## Preferred baseline input settings
+`host_diffusion` is no longer a valid native SHOC momentum transport value.
+Use `state_update` to retain SHOC momentum transport or `none` to disable it.
 
-Use `state_update` plus `momentum_transport = host_diffusion` as the baseline
-native SHOC coupling mode. In this mode, native SHOC runs its column physics
-before the ERF dycore. SHOC performs its implicit vertical turbulence solve,
-reconstructs one coupled heat, moisture, cloud, and TKE update, and applies
-that update to the old-time ERF state before acoustic and Runge-Kutta dycore
-integration starts. Horizontal momentum stays on the host diffusion path.
+## Baseline input settings
 
-A minimal preferred native SHOC block is:
+The Sphinx SHOC documentation is the user-facing source of truth for runtime
+options and their defaults.
+
+A minimal Native SHOC setup is:
 
 ```text
-# Native SHOC selection.
 zlo.type = "surface_layer"
 erf.pbl_type = NATIVE_SHOC
-
-# Native SHOC coupling.
-erf.shoc.transport_mode = state_update
-erf.shoc.momentum_transport = host_diffusion
-
-# Preferred TKE-production behavior.
-erf.shoc.signed_tke_production = true
-
-# Useful during development and case bring-up.
-erf.shoc.extra_shoc_diags = true
 ```
 
-`state_update` is the preferred coupled mode for moist native SHOC runs.
-Pair it with `momentum_transport = host_diffusion` unless you are explicitly
-debugging the direct momentum update. This keeps SHOC's thermodynamic,
-moisture, cloud, and TKE increments together before the dycore sees the state
-without forcing a pre-dycore momentum update.
+The Native transport defaults are:
 
-`erf.shoc.signed_tke_production = true` keeps the buoyancy contribution signed in
-the TKE production term. Use it for the baseline unless a case has a specific
-reason to use the clipped behavior.
+```text
+erf.shoc.transport_mode = state_update
+erf.shoc.momentum_transport = state_update
+```
+
+Those transport lines may be written explicitly for clarity, but they are not
+required when the defaults are desired.
+
+Leave closure-tuning and TKE-production options at their documented defaults
+unless the case is intentionally performing a sensitivity experiment.
+In particular, `erf.shoc.signed_tke_production` defaults to `false`;
+setting it to `true` changes the TKE production formulation.
+
+`erf.shoc.extra_shoc_diags = true` may be useful during case development when
+the additional diagnostics are needed. Plot variables must still be requested
+explicitly through the normal ERF plot-variable lists.
 
 Do not use `erf.shoc.transport_mode = tendencies` for native SHOC. That legacy
 mode has been removed and should be rejected by the runtime parser.
-
-`host_diffusion` remains available for dry/no-moisture configurations. In that
-mode, SHOC exports vertical eddy diffusivities to ERF's host diffusion path, but
-it does not apply the coupled pre-dycore state update. Do not use
-`host_diffusion` for moist SHOC runs until microphysics and cloud-macrophysics
-ownership is made transport-mode-aware.
 
 The snippet above does not choose a microphysics package, radiation scheme, land
 surface model, terrain option, grid, or timestep. Those remain case choices.
@@ -248,27 +233,26 @@ Preserve these invariants unless the design changes deliberately:
    as a substitute for runtime checks.
 2. Native SHOC requires full-height AMReX boxes on SHOC-active levels. Do not
    use a vertical box split on those levels.
-3. `state_update` is the default native SHOC transport mode.
-4. `erf.shoc.momentum_transport = host_diffusion` is the default momentum mode.
+3. `erf.shoc.transport_mode = state_update` is the only scalar transport mode
+   and the default.
+4. `erf.shoc.momentum_transport = state_update` is the default momentum mode;
+   `none` is the supported way to disable SHOC momentum transport.
 5. In `state_update`, SHOC applies one coupled pre-dycore update to heat,
    moisture, non-precipitating cloud liquid, carried cloud ice, and TKE.
 6. The `state_update` scalar update does not change density, vertical velocity,
    passive scalars, or precipitating species.
-7. In mixed mode, SHOC consumes lower-boundary heat and moisture flux arrays,
-   while host diffusion still owns the momentum stresses.
-8. `erf.shoc.momentum_transport = state_update` is only for explicit debugging
-   or development. When selected, SHOC also consumes the lower-boundary
-   momentum stresses and performs the direct velocity update.
+7. SHOC consumes the lower-boundary heat and moisture flux arrays and does not
+   hand those consumed fluxes back to generic host diffusion.
+8. When `erf.shoc.momentum_transport = state_update`, SHOC also consumes the
+   lower-boundary momentum stresses and performs the direct velocity update.
 9. In `state_update`, SHOC must not also add fast or slow RHS tendencies.
 10. After native SHOC updates the old-time state, ERF must synchronize boundary
    and halo data before pre-dycore checks, strain, turbulent viscosity, momentum
    conversion, primitive variables, pressure, or fast coefficients read the
    fields.
-11. `host_diffusion` is dry/no-moisture only until microphysics and cloud
-   macrophysics ownership is transport-mode-aware.
-12. Number-aware microphysics layouts with cloud or ice number concentrations
+11. Number-aware microphysics layouts with cloud or ice number concentrations
     must abort until a number closure exists.
-13. Microphysics remains active after SHOC. SHOC owns only non-precipitating
+12. Microphysics remains active after SHOC. SHOC owns only non-precipitating
     liquid-cloud macrophysics under the interim cloud contract. Microphysics owns
     precipitation formation, precipitation sinks and sources, sedimentation,
     deposition, sublimation, freezing, melting, and other phase-change processes
@@ -343,24 +327,17 @@ pre-dycore NaN and temperature checks and before `advance_dycore()` computes
 strain, eddy viscosity, primitive variables, Exner pressure, fast coefficients,
 and the multirate time integrator.
 
-During the dycore step, native SHOC in `state_update` mode does not add fast or
-slow RHS source terms. `ShocDriver::set_eddy_diffs()` clears the SHOC-owned
-vertical diffusivity components from the host eddy-diffusivity arrays, except for
-non-transport diagnostics such as the SHOC length scale. In mixed mode it
-exports only the momentum diffusivity to the host diffusion path. This prevents
-the host from reapplying SHOC scalar vertical transport.
+During the dycore step, native SHOC does not add fast or slow RHS source terms.
+`ShocDriver::set_eddy_diffs()` clears all SHOC-owned vertical diffusivity
+components from the host eddy-diffusivity arrays, except for non-transport
+diagnostics such as the SHOC length scale. This prevents generic host diffusion
+from reapplying SHOC vertical transport.
 
 `ShocDriver::set_diff_stresses()` clears the lower-boundary scalar fluxes that
-SHOC already consumed in `state_update` mode. It clears the momentum stresses as
-well only when native SHOC is explicitly configured to own momentum
-state-update transport.
-
-In `host_diffusion`, SHOC does not apply the pre-dycore state update and does not
-own the surface fluxes. Instead, SHOC exports vertical eddy-diffusivity
-coefficients to ERF's host diffusion path. This mode is currently limited to
-dry/no-moisture configurations because SHOC-family microphysics suppresses
-saturation adjustment or condensation while host-diffusion SHOC does not own the
-cloud-macrophysics mass update.
+SHOC already consumed and clears the momentum stresses when SHOC owns momentum
+state update or momentum transport is disabled. No Native SHOC transport mode
+exports vertical SHOC diffusivities or momentum stresses to generic host
+diffusion.
 
 Microphysics runs after the dycore with the default loose coupling. In that mode,
 `ERF::Advance()` calls `advance_microphysics()` after `advance_dycore()` produces
