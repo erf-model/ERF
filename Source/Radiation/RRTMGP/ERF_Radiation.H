@@ -302,6 +302,7 @@ private:
 
     // Do we have a land surface model?
     bool m_lsm   = false;
+    bool m_is_slm = false;
 
     // List of input parameter names
     amrex::Vector<std::string> m_lsm_input_names = {"t_sfc"          , "sfc_emis"       ,

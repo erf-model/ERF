@@ -276,7 +276,8 @@ void ERF::advance_radiation (int lev,
         Vector<const MultiFab*> lsm_input_ptrs;
         Vector<MultiFab*> lsm_output_ptrs;
 
-        if (m_SurfaceLayer && m_SurfaceLayer->use_sfc_fluxes()) {
+        if (m_SurfaceLayer[Orientation::zlo()] &&
+            m_SurfaceLayer[Orientation::zlo()]->use_sfc_fluxes()) {
             lsm_input_ptrs = {t_surf};
         }
 
