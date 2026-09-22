@@ -14,6 +14,20 @@ constexpr amrex::Real kDefaultTemperature = amrex::Real(280.0);
 
 } // namespace
 
+TEST(RRTMGP_SurfaceTemperature, ConfiguredRdOcpControlsInverseExner)
+{
+    const amrex::Real pressure = amrex::Real(0.73) * p_0;
+    const amrex::Real custom_rdOcp = amrex::Real(0.31);
+    const amrex::Real custom_inverse = rrtmgp::inverse_exner(pressure, custom_rdOcp);
+    const amrex::Real expected_inverse = one / getExnergivenP(pressure, custom_rdOcp);
+    const amrex::Real default_inverse = one / getExnergivenP(pressure, RdoCp);
+    const amrex::Real tolerance = amrex::Real(64.0) *
+        std::numeric_limits<amrex::Real>::epsilon() * std::abs(expected_inverse);
+
+    EXPECT_NEAR(custom_inverse, expected_inverse, tolerance);
+    EXPECT_GT(std::abs(custom_inverse - default_inverse), amrex::Real(100.0) * tolerance);
+}
+
 // Motivation: SurfaceLayer stores potential temperature, but RRTMGP's
 // surface boundary inputs are absolute temperature. At a pressure below p0,
 // using theta directly changes both the surface emission and the bottom
