@@ -830,7 +830,7 @@ void SLM::slm_init()
         const auto& soiltype = *lsm_fab_vars[LsmVar_SLM::soiltype];
         const int soiltype_min = static_cast<int>(soiltype.min(0));
         const int soiltype_max = static_cast<int>(soiltype.max(0));
-        if (soiltype_min < 1 || soiltype_max > num_soil_params)
+        if (soiltype_min < 0 || soiltype_max > num_soil_params)
         {
             amrex::Abort("SLM: soil categories are outside the selected parameter table range [1, " +
                          std::to_string(num_soil_params) + "]! min = " +
