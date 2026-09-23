@@ -847,6 +847,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
                                              sfc_flux_sw_dif_vis_tab, sfc_flux_sw_dif_nir_tab,
                                              sfc_flux_lw_dn_tab     };
 
+    const Real rdOcp = m_rdOcp;
     for (MFIter mfi(*m_cons_in); mfi.isValid(); ++mfi) {
         const auto& vbx      = mfi.validbox();
         const auto& sbx      = makeSlab(vbx,2,vbx.smallEnd(2));
@@ -869,7 +870,7 @@ Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
             q_arr(i,j,k,1) = lw_heating_tab(icol,ilay);
 
             // Convert the dT/dz to dTheta/dz
-            Real iexner = one/getExnergivenP(Real(p_lay_tab(icol,ilay)), RdoCp);
+            Real iexner = rrtmgp::inverse_exner(Real(p_lay_tab(icol,ilay)), rdOcp);
             q_arr(i,j,k,0) *= iexner;
             q_arr(i,j,k,1) *= iexner;
 

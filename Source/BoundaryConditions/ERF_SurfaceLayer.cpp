@@ -1789,8 +1789,7 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
         // the copy whose source box touches the physical z-low face owns the
         // text-SST conversion and may read the 3-D state or terrain.
         if (gtbx.smallEnd(2) != klo ||
-            (m_terrain_type != TerrainType::EB &&
-             !m_planar_bndry[lev].is_surface_copy(mfi.index()))) {
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
             continue;
         }
 
@@ -2114,8 +2113,7 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
         Box gtbx = mfi.growntilebox();
 
         if (gtbx.smallEnd(2) != klo ||
-            (m_terrain_type != TerrainType::EB &&
-             !m_planar_bndry[lev].is_surface_copy(mfi.index()))) {
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
             continue;
         }
 

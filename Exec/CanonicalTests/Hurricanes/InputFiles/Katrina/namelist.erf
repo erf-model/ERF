@@ -2,11 +2,6 @@
 
  ERF_SETUP_FILE_01 = "wrfinput_d01"
 
- START_YEAR  = 2013
- START_MONTH = 11
- START_DAY   = 21
- START_HOUR  = 06
- START_MIN   = 00
 
  KDAY = 2
  SPINUP_LOOPS = 0
@@ -21,7 +16,7 @@
  FROZEN_SOIL_OPTION                = 1
  SUPERCOOLED_WATER_OPTION          = 1
  RADIATIVE_TRANSFER_OPTION         = 3
- SNOW_ALBEDO_OPTION                = 3
+ SNOW_ALBEDO_OPTION                = 1
  PCP_PARTITION_OPTION              = 1
  SNOW_THERMAL_CONDUCTIVITY         = 1
  TBOT_OPTION                       = 2

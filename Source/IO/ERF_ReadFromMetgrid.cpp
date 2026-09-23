@@ -17,19 +17,21 @@ using namespace amrex;
 namespace {
 
 void
-canonicalize_metgrid_psfc (const std::string& fname, FArrayBox& psfc_fab)
+canonicalize_metgrid_missing_values (const std::string& fname,
+                                     const std::string& variable_name,
+                                     FArrayBox& variable_fab)
 {
     GpuArray<Real, 4> invalid_values{};
     int n_invalid = 0;
 
     if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
-        if (ncf.has_var("PSFC")) {
-            const auto psfc = ncf.var("PSFC");
+        if (ncf.has_var(variable_name)) {
+            const auto variable = ncf.var(variable_name);
             for (const std::string& attr_name : {"_FillValue", "missing_value"}) {
-                if (!psfc.has_attr(attr_name)) { continue; }
+                if (!variable.has_attr(attr_name)) { continue; }
                 std::vector<double> values;
-                psfc.get_attr(attr_name, values);
+                variable.get_attr(attr_name, values);
                 for (const double value : values) {
                     if (n_invalid < static_cast<int>(invalid_values.size()) &&
                         std::isfinite(value)) {
@@ -61,18 +63,18 @@ canonicalize_metgrid_psfc (const std::string& fname, FArrayBox& psfc_fab)
     add_invalid(default_double);
     add_invalid(default_float);
 
-    if (psfc_fab.box().isEmpty()) { return; }
-    const Box box = psfc_fab.box();
-    auto psfc = psfc_fab.array();
+    if (variable_fab.box().isEmpty()) { return; }
+    const Box box = variable_fab.box();
+    auto variable = variable_fab.array();
     const Real nan = std::numeric_limits<Real>::quiet_NaN();
     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        const Real value = psfc(i,j,k);
+        const Real value = variable(i,j,k);
         bool invalid = !amrex::Math::isfinite(value);
         for (int n = 0; n < n_invalid; ++n) {
             invalid = invalid || value == invalid_values[n];
         }
-        if (invalid) { psfc(i,j,k) = nan; }
+        if (invalid) { variable(i,j,k) = nan; }
     });
     Gpu::streamSynchronize();
 }
@@ -230,9 +232,13 @@ read_from_metgrid (int lev, int /*itime*/,
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
 
     for (int i = 0; i < success.size(); ++i) {
-        if (NC_fnames[i] == "PSFC" && success[i] == 1) {
-            canonicalize_metgrid_psfc(fname, NC_psfc_fab);
-            break;
+        if (success[i] != 1) { continue; }
+        if (NC_fnames[i] == "PSFC") {
+            canonicalize_metgrid_missing_values(fname, "PSFC", NC_psfc_fab);
+        } else if (NC_fnames[i] == "TT") {
+            canonicalize_metgrid_missing_values(fname, "TT", NC_temp_fab);
+        } else if (NC_fnames[i] == "PRES") {
+            canonicalize_metgrid_missing_values(fname, "PRES", NC_pres_fab);
         }
     }
 
