@@ -170,18 +170,11 @@ public:
     // used to build ocean->atmos remap weights. Sets both to nullptr if
     // unavailable (e.g. idealized/non-WRF configurations).
     //
-    // Staggering contract: both MultiFabs always carry CELL index type, but what
-    // they actually hold depends on the init path, and a caller building a corner
-    // mesh must account for the difference:
-    //   * init_from_wrfinput reads WRF's XLONG_U / XLAT_V, which are edge
-    //     staggered. lon_m(i,j) is the longitude of the west face of cell (i,j)
-    //     -- nodal in i, cell-centred in j -- and lat_m(i,j) is the latitude of
-    //     the south face -- nodal in j, cell-centred in i. The extra staggered
-    //     edge (lon_m at i = nx, lat_m at j = ny) lives in the first ghost cell,
-    //     so a corner mesh must read one ghost beyond the valid box in the nodal
-    //     direction; ghosts further out are duplicates of that edge.
-    //   * init_from_metgrid reads XLONG_M / XLAT_M, which are mass-point values,
-    //     so both are genuinely cell-centred and there is no staggered edge.
+    // Staggering contract: both MultiFabs carry CELL index type and hold
+    // mass-point values whichever init path filled them -- init_from_wrfinput
+    // reads WRF's XLONG / XLAT and init_from_metgrid reads XLONG_M / XLAT_M --
+    // so a caller building a corner mesh must derive the corners itself rather
+    // than expecting a staggered edge in the ghost cells.
     void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
                                            const amrex::MultiFab*& y_corner) const;
 
@@ -1147,16 +1140,11 @@ private:
 
 #endif // ERF_USE_NETCDF
 
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;       // Latitude and Longitude on the grid
-
-    // Whether lat_m/lon_m hold WRF's edge-staggered XLAT_V/XLONG_U rather than
-    // mass-point values -- see the staggering contract on
-    // GetOceanToAtmosCornerCoordinates above.  Both carry CELL index type either
-    // way, so nothing about the MultiFabs themselves says which it is; a
-    // consumer that needs the mass point has to be told.  Set by whichever init
-    // path filled the arrays, carried across a restart in the checkpoint, and
-    // meaningless when lat_m is null.
-    bool latlon_are_edge_staggered = false;
+    // Latitude and Longitude on the grid, always at cell centers: the wrfinput
+    // path reads XLAT / XLONG and the metgrid path reads XLAT_M / XLONG_M, both
+    // of which are mass-point values, so a consumer that wants the mass point
+    // can use these directly.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
