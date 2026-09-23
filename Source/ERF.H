@@ -311,7 +311,8 @@ public:
     void WriteLinePlot(const std::string& filename,
                        amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
-    void HurricaneEyeTracker(const SolverChoice& solverChoice);
+    void HurricaneEyeTracker(const SolverChoice& solverChoice,
+                             const amrex::MultiFab& mf_cc_vel);
 
     void HurricaneEyeTrackerInitial(const SolverChoice& sc,
                                     const amrex::Geometry& geom,
@@ -321,6 +322,7 @@ public:
 
     void HurricaneEyeTrackerNotInitial(const SolverChoice& sc,
                                        const amrex::Geometry& geom,
+                                       const amrex::MultiFab& mf_cc_vel,
                                        const amrex::Vector<amrex::MultiFab>& S_data,
                                        MoistureType moisture_type);
 

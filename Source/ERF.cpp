@@ -568,7 +568,6 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         int levc=finest_level;
 
-        HurricaneEyeTracker(solverChoice);
 
         MultiFab& U_new = vars_new[levc][Vars::xvel];
         MultiFab& V_new = vars_new[levc][Vars::yvel];
@@ -576,6 +575,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
