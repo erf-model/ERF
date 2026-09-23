@@ -444,7 +444,8 @@ TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
 // Motivation: Lateral open-boundary scalar advection previously recovered the
 // primitive component as cons_index-1. A reusable scalar view must preserve
 // the existing boundary formula while reading and writing independently
-// specified scalar and RHS components.
+// specified scalar and RHS components. The native adapter must also preserve
+// ERF's cons-to-primitive mapping when it delegates to that generic operation.
 TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
 {
     const Box domain = test_cell_box();
@@ -456,6 +457,7 @@ TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
     FArrayBox ymom(amrex::surroundingNodes(domain,1), 1);
     FArrayBox zmom(amrex::surroundingNodes(domain,2), 1);
     FArrayBox rhs(domain, kNumComponents);
+    FArrayBox native_rhs(domain, kNumComponents);
     FArrayBox detJ(domain, 1);
     FArrayBox dummy_mx(domain, 1);
     FArrayBox dummy_my(domain, 1);
@@ -465,6 +467,7 @@ TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
     fill_momentum(ymom, 1);
     fill_momentum(zmom, 2);
     fill_rhs_sentinels(rhs);
+    fill_rhs_sentinels(native_rhs);
     fill_metrics(detJ, dummy_mx, dummy_my, false);
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv{{Real(0.45), Real(0.8), Real(1.15)}};
@@ -473,11 +476,20 @@ TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
                                           rhs.array(), scalar.const_array(),
                                           xmom.const_array(), ymom.const_array(), zmom.const_array(),
                                           detJ.const_array(), cellSizeInv);
+    const int cons_comp = kScalarComp + 1;
+    AdvectionSrcForOpenBC_Tangent_Cons(bx, OpenSide::lo, OpenSide::none,
+                                       cons_comp, 1,
+                                       native_rhs.array(), scalar.const_array(),
+                                       xmom.const_array(), ymom.const_array(), zmom.const_array(),
+                                       detJ.const_array(), cellSizeInv);
     gpu_sync();
 
     FArrayBox host_rhs(rhs.box(), rhs.nComp(), amrex::The_Pinned_Arena());
+    FArrayBox host_native_rhs(native_rhs.box(), native_rhs.nComp(), amrex::The_Pinned_Arena());
     copy_to_host(rhs, host_rhs);
+    copy_to_host(native_rhs, host_native_rhs);
     const auto actual_rhs = host_rhs.const_array();
+    const auto actual_native_rhs = host_native_rhs.const_array();
     const int i = 0, j = 1, k = 1;
     const Real dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -503,7 +515,9 @@ TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
     const Real expected = -(x_src + y_src + z_src) / det;
 
     expect_close(actual_rhs(i,j,k,kRhsComp), expected);
+    expect_close(actual_native_rhs(i,j,k,cons_comp), actual_rhs(i,j,k,kRhsComp));
     for (int n = 0; n < kNumComponents; ++n) {
         if (n != kRhsComp) { EXPECT_EQ(actual_rhs(i,j,k,n), rhs_sentinel(n)); }
+        if (n != cons_comp) { EXPECT_EQ(actual_native_rhs(i,j,k,n), rhs_sentinel(n)); }
     }
 }

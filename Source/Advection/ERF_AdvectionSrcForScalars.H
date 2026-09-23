@@ -1,3 +1,6 @@
+#ifndef ERF_ADVECTION_SRC_FOR_SCALARS_H_
+#define ERF_ADVECTION_SRC_FOR_SCALARS_H_
+
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation.H>
 
@@ -327,3 +330,5 @@ ApplyScalarAdvectionFluxDivergence (
         }
     });
 }
+
+#endif // ERF_ADVECTION_SRC_FOR_SCALARS_H_
