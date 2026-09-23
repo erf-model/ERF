@@ -232,45 +232,39 @@ TwoStreamRadiation::define_level (int lev,
     m_rad = &rad_choice;
     m_rdOcp = rdOcp;
 
-    // Every box must hold the whole atmospheric column of its level: the sweep
-    // applies the top-of-atmosphere boundary condition above the top layer and
-    // the surface boundary condition below the bottom one, so a box that stops
-    // short of either end of the domain would have the solar beam injected
-    // part-way down the column and radiate to space from mid-troposphere.
+    // The sweep integrates a whole column in one pass, applying the top-of-atmosphere
+    // boundary condition above the top layer of a box and the surface condition below its
+    // bottom one. Two different situations break that, and only one of them is an error:
     //
-    // Checking here catches every path that produces grids -- tagged refinement
-    // and regrid as well as an explicit erf.boxN (which ERF_RefineBox.cpp
-    // rejects earlier, with the box coordinates in the message) -- and it
-    // catches them when the level is built rather than at the first sweep.
+    //  * a level whose grids, taken together, stop short of the domain top or bottom -- a
+    //    nested patch. No column model can run there, but this is a supported configuration:
+    //    ERF::advance_radiation interpolates this level's heating rates and fluxes from its
+    //    parent instead, the same route RRTMGP takes (is_nested_patch). Not an error.
     //
-    // Note this is a stronger condition than ERF::grids_are_split_in_z, which
-    // only asks whether a level was decomposed in the vertical. A refinement
-    // patch confined to the lower part of the domain is not split in z and
-    // still fails here, which is the case that matters.
-    // The prognostic surface energy balance is a single-level feature. It owns
-    // the surface temperature that the longwave boundary condition reads, and
-    // it runs on level 0 only (see the seb_active gate in advance). A refined
-    // run would therefore give level 0 an evolving force-restore temperature
-    // while every fine level fell back to the surface layer or the scalar
-    // default -- two different surface boundary conditions for one surface.
-    // Refuse that rather than let the levels disagree silently. The column
-    // sweep itself is unaffected and runs on every level.
-    if (lev > 0 && rad_choice.seb_prognostic_enable) {
-        amrex::Abort("erf.radiation.seb_prognostic_enable = true is supported on a single level "
-                     "only: the force-restore surface temperature it evolves is the longwave "
-                     "boundary condition, and fine levels have no copy of it. Set "
-                     "amr.max_level = 0, or turn off erf.radiation.seb_prognostic_enable to run "
-                     "two-stream radiation on a refined hierarchy.");
-    }
-
-    for (int ibox = 0; ibox < ba.size(); ++ibox) {
-        const Box& b = ba[ibox];
-        if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
-            amrex::Abort("erf.radiation_model = TwoStream requires grids that span the domain in z. "
-                         "Level " + std::to_string(lev) + " has a box that does not. "
-                         "For a refined level, set amr.refine_whole_domain_dir = 2 so every "
-                         "refinement patch spans z; for the coarse level, set amr.max_grid_size_z "
-                         "to at least amr.n_cell in z.");
+    //  * a level that does span the domain in z but whose individual boxes do not -- grids
+    //    decomposed in the vertical. Here a box really would have the solar beam injected
+    //    part-way down the column and radiate to space from mid-troposphere, and there is
+    //    nothing to interpolate from. That is the error.
+    //
+    // Checking here catches every path that produces grids: tagged refinement and regrid as
+    // well as an explicit erf.boxN, and at the moment the level is built rather than at the
+    // first sweep.
+    const Box mb = ba.minimalBox();
+    const bool level_is_nested = (mb.smallEnd(2) > domain.smallEnd(2)) ||
+                                 (mb.bigEnd(2)   < domain.bigEnd(2));
+    if (!level_is_nested) {
+        for (int ibox = 0; ibox < ba.size(); ++ibox) {
+            const Box& b = ba[ibox];
+            if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
+                amrex::Abort("erf.radiation_model = TwoStream cannot run on grids that are "
+                             "decomposed in z: level " + std::to_string(lev) + " spans the "
+                             "domain vertically but has a box that does not, so that box holds "
+                             "only part of a column. Set amr.max_grid_size_z to at least the "
+                             "number of cells in z on this level, or leave amr.no_box_split_dir "
+                             "at its default of 2 so grids are never split in z. (A level that "
+                             "does not span the domain in z at all is a nested patch and is "
+                             "supported: its heating rates are interpolated from its parent.)");
+            }
         }
     }
 
@@ -367,6 +361,18 @@ TwoStreamRadiation::advance (int lev,
     // Only proceed if TwoStream radiation is enabled
     if (!active()) { return; }
     const RadChoice& rad_choice = *m_rad;
+
+    // A nested patch carries no complete column, so there is nothing for the sweep or the
+    // surface state to work on; ERF::advance_radiation interpolates this level's fields
+    // from its parent instead. Returning here covers the post-dycore call too, which comes
+    // from ERF::Advance and does not test for it.
+    {
+        const Box mb = cons_old.boxArray().minimalBox();
+        const Box& dom = geom.Domain();
+        if (lev > 0 && ((mb.smallEnd(2) > dom.smallEnd(2)) || (mb.bigEnd(2) < dom.bigEnd(2)))) {
+            return;
+        }
+    }
 
     // ---- Contract checks. Each of these would otherwise surface as a wrong
     // heating rate or an out-of-bounds read several routines away.

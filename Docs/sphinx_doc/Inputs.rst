@@ -3904,15 +3904,16 @@ Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-re
 temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
 the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
 
-The model runs on a refined hierarchy: every level sweeps its own columns and writes its own
-heating rates. The one grid requirement is that each level's boxes span that level's domain in
-:math:`z`, because the sweep applies the top-of-atmosphere and surface boundary conditions at the
-ends of a box. Set ``amr.refine_whole_domain_dir = 2`` so AMReX emits refinement patches that span
-:math:`z`, and ``amr.max_grid_size_z`` to at least ``amr.n_cell`` in :math:`z` for the base grid;
-a run that violates either is refused at start-up with a message naming the input. The surface
-energy balance remains a level-0 feature, so ``erf.radiation.seb_prognostic_enable`` -- which
-evolves the surface temperature that the longwave boundary condition reads -- cannot be combined
-with ``amr.max_level > 0``.
+The model runs on a refined hierarchy. A level that carries complete atmospheric columns sweeps
+them itself; a level whose grids stop short of the domain top or bottom -- a nested patch -- has
+its heating rates and fluxes interpolated from its parent, as they are for RRTMGP. Set
+``amr.refine_whole_domain_dir = 2`` if you would rather every refinement patch span :math:`z` and
+be solved on its own. What is refused is a level that spans :math:`z` while its individual boxes
+do not (grids decomposed in the vertical), which ERF's default ``amr.no_box_split_dir = 2``
+already prevents. The surface energy balance remains a level-0 feature, so
+``erf.radiation.seb_prognostic_enable`` -- which evolves the surface temperature that the longwave
+boundary condition reads -- cannot be combined with ``amr.max_level > 0``; that combination is
+refused when the inputs are read, whether or not a fine level is ever built.
 
 
 

@@ -3,7 +3,7 @@
 # TwoStream radiation on a refined hierarchy. Every level runs its own column
 # sweep, so the vertical structure the single-level case checks must hold on
 # the fine level too; the runner invokes TwoStreamRadiationCheck with
-# CHECK_LEVELS "0;1".
+# CHECK_LEVELS 0 1.
 #
 # What this catches that the single-level cases cannot:
 #  - a fine level that is never swept. qheating_rates[lev] is allocated and

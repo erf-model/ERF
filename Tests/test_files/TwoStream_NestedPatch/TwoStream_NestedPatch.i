@@ -1,12 +1,16 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 # Regression motivation:
-# An explicit refinement box that stops short of the top of the domain in z.
-# The TwoStream column sweep applies the top-of-atmosphere boundary condition
-# above the top layer of a box, so such a box would have the solar beam
-# injected part-way down the column. ERF_RefineBox.cpp must refuse it at
-# start-up -- the same check the column-based PBL schemes already have.
+# A nested patch -- a fine level that stops below the domain top -- is a
+# supported configuration, not an error. ERF interpolates its heating rates and
+# fluxes from the parent, the same route RRTMGP takes (is_nested_patch).
 #
-# This deck is expected to ABORT; it is driven by add_test_abort.
+# The runner checks levels 0 and 1. On level 1 the checker detects the nested
+# patch from the data and asserts what remains meaningful there: finite,
+# non-negative, and not identically zero -- which is exactly what fails if the
+# interpolation never happens and qheating_rates keeps the zeros it was
+# allocated with. The column-structure assertions are skipped there because a
+# patch that does not contain the top of the atmosphere has no such layer.
+
 erf.prob_name = "ABL"
 
 max_step = 2
@@ -33,14 +37,17 @@ erf.v = 1
 amr.v = 1
 amr.max_level = 1
 amr.ref_ratio_vect = 2 2 1
+amr.n_error_buf = 0
 
-# in_box_* with three values: the z extent is given explicitly and stops at
-# 512 m of a 1024 m domain. A two-value form would default to the full domain
-# in z and be accepted.
-erf.refinement_indicators = box1
-erf.box1.max_level = 1
-erf.box1.in_box_lo = 256 256 0
-erf.box1.in_box_hi = 768 768 512
+# No amr.refine_whole_domain_dir here: tagging on theta (which increases with
+# height) tags only the lower part of the column, so level 1 comes out as a
+# shallow patch -- k = 0..7 of the 32-cell domain. That is a nested patch: it
+# carries no complete column, so the sweep cannot run on it and its heating
+# rates are interpolated from level 0 instead.
+erf.refinement_indicators = lowth
+erf.lowth.max_level = 1
+erf.lowth.field_name = theta
+erf.lowth.value_less = 301.0
 
 erf.check_file = chk
 erf.check_int = -1

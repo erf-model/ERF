@@ -249,34 +249,43 @@ is enough to satisfy this. The model aborts with a message naming this input if 
 vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
 depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
 
-The same requirement applies to every level of a refined run, where it is a real constraint
-rather than a formality: a refinement patch is free to cover only part of the column. Setting
+On a refined run a level is free to cover only part of the column, and that is supported: a
+level whose grids do not reach the domain top or bottom is a *nested patch*, and rather than
+sweeping it ERF interpolates its heating rates and fluxes from its parent -- the same route
+RRTMGP takes (``is_nested_patch``). Nothing needs to be set for this.
+
+What is refused is a level that *does* span the domain in :math:`z` but whose individual boxes
+do not, i.e. grids decomposed in the vertical: such a box holds only part of a column and there
+is no parent solution to fall back on. ERF's default ``amr.no_box_split_dir = 2`` already
+forbids that decomposition, so this is a backstop rather than something a normal deck meets.
+
+If you would rather a refinement patch be solved on its own than interpolated, setting
 
 .. code-block:: none
 
    amr.refine_whole_domain_dir = 2
 
 makes AMReX cluster the tagged cells in the horizontal only and emit refinement boxes that span
-the whole domain in :math:`z`, which satisfies the requirement by construction. A refinement box
-given explicitly through ``erf.boxN.in_box_lo``/``in_box_hi`` satisfies it too when the :math:`z`
-extent is omitted, since the two-value form defaults to the full domain; giving a third value
-that stops short is refused at start-up. This is the same requirement the column-based PBL
-schemes already impose on refinement boxes, and it is checked in the same place.
+the whole domain in :math:`z`, so every level carries complete columns and every level runs its
+own sweep. A refinement box given explicitly through ``erf.boxN.in_box_lo``/``in_box_hi`` spans
+:math:`z` already when the :math:`z` extent is omitted, since the two-value form defaults to the
+full domain.
 
 Multiple Levels
 --------------------------------------
 
-Every level runs its own column sweep over its own state, terrain and surface properties, and
-writes its own heating rates into ``qheating_rates[lev]``; the RhoTheta source applies them at
-every level. There is no coarse-fine treatment of the radiative fluxes and none is needed in the
+Every level that carries complete columns runs its own column sweep over its own state, terrain
+and surface properties, and writes its own heating rates into ``qheating_rates[lev]``; a nested
+patch is interpolated from its parent instead. The RhoTheta source applies them at every level. There is no coarse-fine treatment of the radiative fluxes and none is needed in the
 usual sense -- radiation is a source term, not a conserved flux that is refluxed -- but two
 consequences follow and are worth stating plainly:
 
 - **A lateral seam.** Across the edge of a patch, the coarse and the fine solution of the same
   physical column differ slightly, because they are computed on different grids. For a smooth
-  broadband two-stream model the difference is small, but nothing smooths it. Coarse cells
-  underneath a patch have their state replaced by the fine solution at the end of each step
-  (``AverageDown``), so the discrepancy does not accumulate there.
+  broadband two-stream model the difference is small, but nothing smooths it. Under
+  ``erf.coupling_type = TwoWay`` (the default) coarse cells underneath a patch have their state
+  replaced by the fine solution at the end of each step (``AverageDown``), so the discrepancy
+  does not accumulate there; under ``OneWay`` there is no such replacement and it does.
 - **No feedback upward.** The fine level's own structure does not influence the coarse level's
   radiation.
 

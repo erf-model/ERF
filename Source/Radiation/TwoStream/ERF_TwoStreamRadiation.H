@@ -28,7 +28,8 @@
  *
  * Lifecycle:
  *  - resize(nlevs) once at construction (before the inputs are read);
- *  - define_level(lev, radChoice, rdOcp, ba2d, dm) whenever a level is (re)built;
+ *  - define_level(lev, radChoice, rdOcp, ba2d, dm, ba, domain) whenever a level is
+ *    (re)built;
  *  - advance(...) twice per step: "pre_dycore" runs the column sweep on the
  *    old state and writes the heating rates, "post_dycore" reuses that
  *    sweep's flux diagnostics and advances the SEB state by dt_step;

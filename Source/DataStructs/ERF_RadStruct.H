@@ -724,7 +724,7 @@ public:
     }
   }
 
-  void init_params(bool two_stream_selected, std::string pp_prefix)
+  void init_params(bool two_stream_selected, int max_level, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
     enabled = two_stream_selected;
@@ -1099,6 +1099,24 @@ public:
           amrex::Real tmp = seb_prognostic_q_min;
           seb_prognostic_q_min = seb_prognostic_q_max;
           seb_prognostic_q_max = tmp;
+      }
+
+      // The prognostic surface energy balance is a single-level feature: it evolves the
+      // surface temperature that the longwave boundary condition reads, and it runs on
+      // level 0 only, so a refined run would give level 0 and its fine levels two
+      // different surface boundary conditions for one surface.
+      //
+      // This belongs here rather than where the fine level is built, because
+      // amr.max_level is known now and the combination is wrong regardless of whether a
+      // fine level ever materialises: with a refinement criterion that tags nothing the
+      // run would otherwise proceed, and with erf.regrid_int > 0 it would abort at the
+      // first regrid, hours in.
+      if (seb_prognostic_enable && max_level > 0) {
+          amrex::Abort("erf.radiation.seb_prognostic_enable = true is supported on a single level "
+                       "only: the force-restore surface temperature it evolves is the longwave "
+                       "boundary condition, and fine levels have no copy of it. Set "
+                       "amr.max_level = 0, or turn off erf.radiation.seb_prognostic_enable to run "
+                       "two-stream radiation on a refined hierarchy.");
       }
   }
 

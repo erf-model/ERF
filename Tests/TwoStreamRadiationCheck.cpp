@@ -151,13 +151,27 @@ int run_checks (const std::string& plotfile_path, int lev)
     if (!lw_bad.empty()) { return fail("qsrc_lw is not finite: " + lw_bad); }
 
     const amrex::Box domain = plotfile.probDomain(lev);
+
+    // A nested patch -- a level whose grids stop short of the domain top or bottom -- carries
+    // no complete column, so its heating rates are interpolated from its parent rather than
+    // swept. The structural assertions below are about where a *column* puts its strongest
+    // heating and cooling, and a patch that does not contain the top of the atmosphere has no
+    // such layer. Detect that from the data and assert only what remains meaningful: finite,
+    // non-negative shortwave, and not identically zero -- which is exactly what fails if the
+    // interpolation never happened and the arrays keep the zeros they were allocated with.
+    const amrex::Box patch = plotfile.boxArray(lev).minimalBox();
+    const bool nested_patch = (patch.smallEnd(2) > domain.smallEnd(2)) ||
+                              (patch.bigEnd(2)   < domain.bigEnd(2));
+
     const std::vector<Real> sw = horizontal_mean_profile(qsrc_sw, domain);
     const std::vector<Real> lw = horizontal_mean_profile(qsrc_lw, domain);
     const int nz = static_cast<int>(sw.size());
     if (nz < 3) { return fail("need at least 3 vertical levels"); }
 
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::cout << "level " << lev << " of " << plotfile.finestLevel() << "\n";
+        std::cout << "level " << lev << " of " << plotfile.finestLevel()
+                  << (nested_patch ? "  (nested patch: interpolated from the parent,"
+                                     " column-structure checks skipped)" : "") << "\n";
         std::cout << "k  <qsrc_sw> [K/s]  <qsrc_lw> [K/s]\n";
         for (int k = 0; k < nz; ++k) {
             std::cout << k << "  " << sw[k] << "  " << lw[k] << "\n";
@@ -172,6 +186,16 @@ int run_checks (const std::string& plotfile_path, int lev)
     }
     if (!(sw_max > Real(0.0))) {
         return fail("qsrc_sw is zero everywhere; radiation heating was not applied");
+    }
+
+    if (nested_patch) {
+        // Everything below this point asks where the column's top is. Done.
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            std::cout << "TwoStreamRadiationCheck: level " << lev
+                      << " is a nested patch; finite, non-negative and non-zero heating"
+                         " verified, column-structure checks skipped\n";
+        }
+        return 0;
     }
 
     // 3. Orientation: SW heating at the top layer exceeds the bottom layer.
