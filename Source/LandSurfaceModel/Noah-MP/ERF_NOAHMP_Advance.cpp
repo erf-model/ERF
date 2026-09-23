@@ -68,6 +68,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
 // ---------------------------------------------------------------------------
 //  Subcycling gate. Uses the broadcast class members so every rank (including
 //  land-free ones) decides identically and enters FillBoundary collectively.
+//  The counter is advanced by the caller once the blocks have consumed it.
 // ---------------------------------------------------------------------------
 bool
 NOAHMP::time_to_fire (const Real& elapsed_time)
@@ -79,7 +80,6 @@ NOAHMP::time_to_fire (const Real& elapsed_time)
     }
 
     m_updated = true;
-    m_itimestep += 1;   // advance once per firing, in lockstep on every rank
     return true;
 }
 
@@ -429,6 +429,10 @@ NOAHMP::Advance_With_State (const int& lev,
             // (5-6) NoahmpIO results -> pinned output -> ERF coupling fields.
             read_results(mfi, blk, bx, gbx, cons_in);
         }
+
+        // Retire the firing index only after every block has consumed it, so the first
+        // firing reports ITIMESTEP == 1 and reaches Noah-MP's first-call init (#3618).
+        m_itimestep += 1;   // once per firing, in lockstep on every rank
 
         // Advance the snapshots now that this call's RAINBL/SR have been consumed.
         advance_precip_snapshots(lev, precip);
