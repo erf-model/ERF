@@ -594,12 +594,18 @@ TEST(MetgridSurfacePressure, InvalidInputsDefineNaNOutput)
     EXPECT_TRUE(std::isnan(pressure));
 }
 
-TEST(MetgridSurfacePressure, InvalidFilePressureFailsDeterministicallyOnDevice)
+namespace {
+
+// The extended __device__ lambda must live in a free function: nvcc rejects
+// one whose enclosing function has private or protected access, which is
+// exactly what gtest's TEST() macro generates for TestBody().
+void
+run_invalid_file_pressure_on_device (int& status, amrex::Real& pressure)
 {
     amrex::Gpu::DeviceScalar<int> d_status(0);
     amrex::Gpu::DeviceScalar<amrex::Real> d_pressure(amrex::Real(12345.0));
-    int* status = d_status.dataPtr();
-    amrex::Real* pressure = d_pressure.dataPtr();
+    int* status_p = d_status.dataPtr();
+    amrex::Real* pressure_p = d_pressure.dataPtr();
     const amrex::Box box(amrex::IntVect(0), amrex::IntVect(0));
     amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int) noexcept
     {
@@ -607,13 +613,25 @@ TEST(MetgridSurfacePressure, InvalidFilePressureFailsDeterministicallyOnDevice)
         const bool valid = metgrid_surface_pressure(
             false, 1, amrex::Real(0.0), amrex::Real(0.0),
             p_0, amrex::Real(290.0), amrex::Real(50.0), local_pressure);
-        *status = valid ? 1 : 0;
-        *pressure = local_pressure;
+        *status_p = valid ? 1 : 0;
+        *pressure_p = local_pressure;
     });
     amrex::Gpu::streamSynchronize();
 
-    EXPECT_EQ(d_status.dataValue(), 0);
-    EXPECT_TRUE(std::isnan(d_pressure.dataValue()));
+    status = d_status.dataValue();
+    pressure = d_pressure.dataValue();
+}
+
+} // namespace
+
+TEST(MetgridSurfacePressure, InvalidFilePressureFailsDeterministicallyOnDevice)
+{
+    int status = -1;
+    amrex::Real pressure = amrex::Real(12345.0);
+    run_invalid_file_pressure_on_device(status, pressure);
+
+    EXPECT_EQ(status, 0);
+    EXPECT_TRUE(std::isnan(pressure));
 }
 
 // Motivation: the pressure-selection policy is only useful if the production
