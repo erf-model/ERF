@@ -149,6 +149,11 @@ ERF::WriteCheckpointFile () const
 {
     auto dCheckTime0 = amrex::second();
 
+    // Station rows are buffered, and a restart from this checkpoint appends to
+    // the station files: without this the rows between the last flush and the
+    // checkpoint would be missing from the series the restart continues.
+    flush_stations();
+
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
     //                     the BoxArrays at each level
