@@ -365,8 +365,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     NC_names.push_back("C1H");
     NC_names.push_back("C2H");
     NC_names.push_back("RDNW");
-    NC_names.push_back("XLAT_V");
-    NC_names.push_back("XLONG_U");
+    NC_names.push_back("XLAT");
+    NC_names.push_back("XLONG");
     if (use_moist) {
         NC_names.push_back("QVAPOR");
         NC_names.push_back("QCLOUD");
@@ -592,24 +592,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 }
 
                 Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
-
-                // XLONG_U and XLAT_V are edge-staggered in the file (west_east_stag /
-                // south_north_stag, so nx+1 / ny+1 entries) but their fabs carry CELL
-                // index type, so the typed subdomain -- and hence the intersection copy
-                // below -- would drop the last staggered column/row. Keep it here so the
-                // ghost fill further down can pick up the true east/north edge: a coupled
-                // ocean model consumes lon_m/lat_m as a corner mesh through
-                // ERF::GetOceanToAtmosCornerCoordinates, and duplicating the neighbour
-                // instead collapses the outermost corner quads to zero area.
-                // NOTE: var_fab keeps CELL index type; only its extent is widened.
-                if (var_name == "XLONG_U" &&
-                    var_fab_from_file.box().bigEnd(0) > subdomain_to_fill_typed.bigEnd(0)) {
-                    subdomain_to_fill_typed.growHi(0,1);
-                }
-                if (var_name == "XLAT_V" &&
-                    var_fab_from_file.box().bigEnd(1) > subdomain_to_fill_typed.bigEnd(1)) {
-                    subdomain_to_fill_typed.growHi(1,1);
-                }
 
                 // *********************************************************************
                 // Decide whether this particular field has to be interpolated in the
@@ -1012,15 +994,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
           }
 
           // Initialize Latitude & Coriolis factors
-          if ( var_name == "XLAT_V" ) {
-              // var_fab retains XLAT_V's staggered row at j = ny (see the growHi above),
-              // so clamp lat_m against var_fab's own extent to give the j = ny ghost the
-              // true north edge instead of a copy of row ny-1.
-              // sinPhi_m/cosPhi_m deliberately stay on the cell-domain clamp: they are
-              // cell-centred Coriolis factors whose ghosts are read at the hi domain
-              // faces by ERF_MakeMomSources.cpp, and this fix is not meant to move the
-              // Coriolis source. So sin_arr/cos_arr do not track lat_m in that one row.
-              int vf_j_hi = var_fab.box().bigEnd(1);
+          if ( var_name == "XLAT" ) {
+              // XLAT is cell centered, so a consumer that wants the mass point
+              // can use it directly.  Record that here rather than leaving every
+              // consumer to infer it from init_type, which a restart deck need
+              // not repeat.
+              latlon_are_edge_staggered = false;
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -1034,8 +1013,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                   {
                       int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                      int sj = amrex::min(amrex::max(j, j_lo), vf_j_hi);
-                      dst_arr(i,j,0) = src_arr(li,sj,0);
+                      dst_arr(i,j,0) = src_arr(li,lj,0);
 
                       Real lat_rad = src_arr(li,lj,0) * (PI/Real(180.));
                       sin_arr(i,j,0) = std::sin(lat_rad);
@@ -1045,11 +1023,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
           }
 
           // Initialize Longitude
-          if ( var_name == "XLONG_U" ) {
-              // var_fab retains XLONG_U's staggered column at i = nx (see the growHi
-              // above), so clamp lon_m against var_fab's own extent to give the i = nx
-              // ghost the true east edge instead of a copy of column nx-1.
-              int vf_i_hi = var_fab.box().bigEnd(0);
+          if ( var_name == "XLONG" ) {
+              // XLONG is cell centered too; see the comment on XLAT above
               lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                   Box gtbx = mfi.growntilebox();
@@ -1057,7 +1032,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                   const Array4<const Real>& src_arr = var_fab.const_array();
                   ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                   {
-                      int li = amrex::min(amrex::max(i, i_lo), vf_i_hi);
+                      int li = amrex::min(amrex::max(i, i_lo), i_hi);
                       int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                       dst_arr(i,j,0) = src_arr(li,lj,0);
                   });
