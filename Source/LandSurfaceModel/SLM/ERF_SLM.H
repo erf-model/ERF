@@ -431,6 +431,11 @@ public:
 
     void init_from_params();
 
+    /**
+     * Loads built-in Noah-MP radiation lookup values for idealized SLM cases.
+     */
+    void load_builtin_radiation_parameters();
+
     void UpdateLAI(const amrex::MFIter &mfi);
 
     void UpdateLAIParameters(const amrex::MFIter &mfi);
@@ -799,8 +804,6 @@ private:
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
     bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
-
-    RadiationScheme radiation_scheme = RadiationScheme::NoahMP;
 
     // NOAHMP radiation parameters
     int opt_rad = 1;  // Radiation option: 1=modified two-stream (default), 2=two-stream, 3=gap=f(veg)

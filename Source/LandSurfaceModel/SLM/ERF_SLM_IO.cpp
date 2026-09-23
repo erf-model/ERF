@@ -585,15 +585,6 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     MultiFab::Copy(mf,hs_rc,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "hs_rc"));
 
-    MultiFab::Copy(mf,rootL,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "rootL"));
-
-    MultiFab::Copy(mf,root_a,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "root_a"));
-
-    MultiFab::Copy(mf,root_b,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "root_b"));
-
     MultiFab::Copy(mf,precip_extinc,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "precip_extinc"));
 
@@ -875,15 +866,6 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "hs_rc"));
     MultiFab::Copy(hs_rc,mf,0,0,1,ng);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "rootL"));
-    MultiFab::Copy(rootL,mf,0,0,1,ng);
-
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "root_a"));
-    MultiFab::Copy(root_a,mf,0,0,1,ng);
-
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "root_b"));
-    MultiFab::Copy(root_b,mf,0,0,1,ng);
-
     VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "precip_extinc"));
     MultiFab::Copy(precip_extinc,mf,0,0,1,ng);
 
@@ -970,7 +952,6 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
 
     // Initialize common parameters
     init_layer_depths();
-    vege_root_init();
     init_soil_vars();
     rebuild_restart_fields();
 

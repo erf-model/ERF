@@ -1,4 +1,5 @@
 #include <ERF_SLM.H>
+#include "ERF_SLM_DefaultParams.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_MicrophysicsUtils.H"
@@ -472,25 +473,6 @@ void SLM::init_from_inputs()
     pp.query("soil_dataset", soil_dataset);
     pp.query("use_param_tbl", use_wrf_lai);
 
-    std::string radiation_scheme_name = "NoahMP";
-    pp.query("radiation_scheme", radiation_scheme_name);
-    const std::string radiation_scheme_lower = amrex::toLower(radiation_scheme_name);
-    if (radiation_scheme_lower == "slm") {
-        radiation_scheme = RadiationScheme::SLM;
-        radiation_scheme_name = "SLM";
-    } else if (radiation_scheme_lower == "noahmp") {
-        radiation_scheme = RadiationScheme::NoahMP;
-        radiation_scheme_name = "NoahMP";
-        if (!use_param_file) {
-            amrex::Abort("slm.radiation_scheme=noahmp requires "
-                         "slm.use_parameter_file=true");
-        }
-    } else {
-        amrex::Abort("Invalid slm.radiation_scheme='" + radiation_scheme_lower +
-                     "'. Expected 'SLM' or 'NoahMP'");
-    }
-    amrex::Print() << " SLM radiation scheme: " << radiation_scheme_name << std::endl;
-
     if (use_param_file) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(parameter_file != "", "Using parameter file, but file path is empty!");
@@ -614,6 +596,8 @@ void SLM::init_from_inputs()
         Gpu::streamSynchronize();
 
         amrex::Print() << " SLM: NOAHMP radiation parameters loaded from " << parameter_file << std::endl;
+    } else {
+        load_builtin_radiation_parameters();
     }
 
     if (interpolate_lai) {
@@ -783,6 +767,43 @@ void SLM::init_from_inputs()
 
     mw_inc.setVal(0.0);
     evapo_dry.setVal(0.0);
+}
+
+/**
+ * Loads the Noah-MP radiation lookup values used when no parameter file is supplied.
+ */
+void SLM::load_builtin_radiation_parameters()
+{
+    auto load_params = [](auto& params, const char* name, const auto& values)
+    {
+        auto d_var = std::make_unique<Gpu::DeviceVector<Real>>(values.size());
+        auto* d_var_ptr = d_var.get();
+        Gpu::copyAsync(Gpu::hostToDevice, values.data(), values.data() + values.size(), d_var_ptr->data());
+        params.emplace(name, std::move(d_var));
+    };
+
+    load_params(d_veg_params, "cwpvt", SLMDefaultParams::cwpvt);
+    load_params(d_veg_params, "den", SLMDefaultParams::den);
+    load_params(d_veg_params, "hvb", SLMDefaultParams::hvb);
+    load_params(d_veg_params, "rc", SLMDefaultParams::rc);
+    load_params(d_veg_params, "rhol_vis", SLMDefaultParams::rhol_vis);
+    load_params(d_veg_params, "rhol_nir", SLMDefaultParams::rhol_nir);
+    load_params(d_veg_params, "rhos_vis", SLMDefaultParams::rhos_vis);
+    load_params(d_veg_params, "rhos_nir", SLMDefaultParams::rhos_nir);
+    load_params(d_veg_params, "taul_vis", SLMDefaultParams::taul_vis);
+    load_params(d_veg_params, "taul_nir", SLMDefaultParams::taul_nir);
+    load_params(d_veg_params, "taus_vis", SLMDefaultParams::taus_vis);
+    load_params(d_veg_params, "taus_nir", SLMDefaultParams::taus_nir);
+
+    load_params(d_rad_params, "albsat_vis", SLMDefaultParams::albsat_vis);
+    load_params(d_rad_params, "albsat_nir", SLMDefaultParams::albsat_nir);
+    load_params(d_rad_params, "albdry_vis", SLMDefaultParams::albdry_vis);
+    load_params(d_rad_params, "albdry_nir", SLMDefaultParams::albdry_nir);
+    load_params(d_rad_params, "alblak", SLMDefaultParams::alblak);
+    load_params(d_rad_params, "omegas", SLMDefaultParams::omegas);
+
+    Gpu::streamSynchronize();
+    amrex::Print() << " SLM: Using built-in Noah-MP radiation parameters" << std::endl;
 }
 
 /**
@@ -2102,34 +2123,32 @@ void SLM::validate_parameter_tables()
         }
     }
 
-    if (radiation_scheme == RadiationScheme::NoahMP) {
-        const ParameterBlock& rad_params = require_block("noahmp_rad_parameters");
-        const Vector<std::pair<std::string, int>> required_rad_parameters = {
-            {"albsat_vis", 8}, {"albsat_nir", 8},
-            {"albdry_vis", 8}, {"albdry_nir", 8},
-            {"alblak", 2}, {"omegas", 2},
-            {"betads", 1}, {"betais", 1}
-        };
-        for (const auto& parameter : required_rad_parameters) {
-            require_parameter(rad_params, "noahmp_rad_parameters", parameter.first, parameter.second);
+    const ParameterBlock& rad_params = require_block("noahmp_rad_parameters");
+    const Vector<std::pair<std::string, int>> required_rad_parameters = {
+        {"albsat_vis", 8}, {"albsat_nir", 8},
+        {"albdry_vis", 8}, {"albdry_nir", 8},
+        {"alblak", 2}, {"omegas", 2},
+        {"betads", 1}, {"betais", 1}
+    };
+    for (const auto& parameter : required_rad_parameters) {
+        require_parameter(rad_params, "noahmp_rad_parameters", parameter.first, parameter.second);
+    }
+    for (const auto& parameter : rad_params) {
+        if (parameter.second.empty()) {
+            amrex::Abort("SLM: parameter '" + parameter.first + "' in block 'noahmp_rad_parameters' is empty");
         }
-        for (const auto& parameter : rad_params) {
-            if (parameter.second.empty()) {
-                amrex::Abort("SLM: parameter '" + parameter.first + "' in block 'noahmp_rad_parameters' is empty");
-            }
-            for (const Real value : parameter.second) {
-                validate_parameter_value("noahmp_rad_parameters", parameter.first, value, 0.0, 1.0);
-            }
+        for (const Real value : parameter.second) {
+            validate_parameter_value("noahmp_rad_parameters", parameter.first, value, 0.0, 1.0);
         }
+    }
 
-        const Vector<std::string> required_veg_parameters = {
-            "rhol_vis", "rhol_nir", "rhos_vis", "rhos_nir",
-            "taul_vis", "taul_nir", "taus_vis", "taus_nir",
-            "rc", "hvb", "den"
-        };
-        for (const std::string& parameter_name : required_veg_parameters) {
-            require_parameter(veg_params, veg_param_key, parameter_name, num_veg_params);
-        }
+    const Vector<std::string> required_veg_parameters = {
+        "rhol_vis", "rhol_nir", "rhos_vis", "rhos_nir",
+        "taul_vis", "taul_nir", "taus_vis", "taus_nir",
+        "rc", "hvb", "den"
+    };
+    for (const std::string& parameter_name : required_veg_parameters) {
+        require_parameter(veg_params, veg_param_key, parameter_name, num_veg_params);
     }
 }
 

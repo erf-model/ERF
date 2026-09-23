@@ -124,7 +124,6 @@ slm.Rc_max  = 5000.0  # maximum stomatal resistance
 slm.T_opt   = 298.0   # optimum temperature for transpiration
 slm.zref    = 15.0    # height of reference level (m)
 
-slm.radiation_scheme   = "NoahMP"            # internal SLM canopy/soil radiation treatment
 slm.use_parameter_file = true                # load SLM soil/vegetation parameters from a Noah-MP .TBL file
 slm.parameter_file     = "NoahmpTable.TBL"   # TBL file containing parameters for SLM
 slm.veg_dataset        = "modis"             # Vegetation parameter dataset to use from the parameter_file

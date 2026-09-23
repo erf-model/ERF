@@ -113,10 +113,8 @@ Parameter tables and external forcing
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values    | Default          |
 +==================================+==========================================================+======================+==================+
-| **slm.use_parameter_file**       | initialize soil and vegetation parameters from the       | Boolean              | false            |
-|                                  | Noah-MP-format parameter file                            |                      |                  |
-+----------------------------------+----------------------------------------------------------+----------------------+------------------+
-| **slm.radiation_scheme**         | internal SLM canopy/soil radiation treatment             | ``SLM``, ``NoahMP``  | ``NoahMP``       |
+| **slm.use_parameter_file**       | use values from the parameter file; otherwise use        | Boolean              | false            |
+|                                  | built-in MODIS/STAS radiation values                     |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **slm.parameter_file**           | parameter-table filename used when                       | String               | NoahmpTable.TBL  |
 |                                  | ``use_parameter_file`` is true                           |                      |                  |
@@ -145,6 +143,10 @@ Parameter tables and external forcing
 | **slm.rad_input_file**           | NetCDF radiation-forcing file containing SW/LW and       | String               | empty            |
 |                                  | cosine-zenith-angle fields; requires NetCDF support      |                      |                  |
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
+
+When ``use_parameter_file`` is false, SLM uses built-in typical MODIS/STAS
+values for vegetation optical properties, canopy parameters, and soil albedos.
+When it is true, values from the parameter file are used directly.
 
 ``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  When
 ``use_param_tbl`` is true, SLM reads the ``slm.vegparam`` table for
