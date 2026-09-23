@@ -2,6 +2,7 @@
 #define ERF_SIMPLIFIED_SEB_H_
 
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_FArrayBox.H>
 #include <cmath>
 
@@ -41,7 +42,7 @@
  * @brief Diagnose the surface energy balance residual.
  *
  * Computes the SEB residual from net radiative flux and turbulent/ground
- * heat fluxes. All inputs are guarded with std::isfinite() to safely handle
+ * heat fluxes. All inputs are guarded with amrex::Math::isfinite() to safely handle
  * NaN/Inf; if any input is non-finite, returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
@@ -67,8 +68,8 @@ amrex::Real diagnose_seb_residual(amrex::Real sw_net,
                                    amrex::Real grdflx)
 {
     // Guard all inputs against non-finite values (NaN, Inf)
-    if (!std::isfinite(sw_net) || !std::isfinite(lw_net) ||
-        !std::isfinite(hfx) || !std::isfinite(lh) || !std::isfinite(grdflx)) {
+    if (!amrex::Math::isfinite(sw_net) || !amrex::Math::isfinite(lw_net) ||
+        !amrex::Math::isfinite(hfx) || !amrex::Math::isfinite(lh) || !amrex::Math::isfinite(grdflx)) {
         return 0.0;  // Safe no-op: return zero residual if any input is invalid
     }
 
@@ -87,7 +88,7 @@ amrex::Real diagnose_seb_residual(amrex::Real sw_net,
  * Computes dT_s/dt from SEB residual and restoring term toward deep soil temperature:
  *   dT_s/dt = SEB_residual / C_s - (2*pi/tau) * (T_s - T_deep)
  *
- * All inputs are guarded with std::isfinite() to safely handle NaN/Inf; if any input
+ * All inputs are guarded with amrex::Math::isfinite() to safely handle NaN/Inf; if any input
  * is non-finite, any parameter is non-positive (C_s <= 0, tau <= 0), returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
@@ -113,8 +114,8 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
                                amrex::Real tau)
 {
     // Guard all inputs against non-finite values
-    if (!std::isfinite(seb_residual) || !std::isfinite(t_s) ||
-        !std::isfinite(t_deep) || !std::isfinite(c_s) || !std::isfinite(tau)) {
+    if (!amrex::Math::isfinite(seb_residual) || !amrex::Math::isfinite(t_s) ||
+        !amrex::Math::isfinite(t_deep) || !amrex::Math::isfinite(c_s) || !amrex::Math::isfinite(tau)) {
         return 0.0;  // Safe no-op
     }
 
@@ -141,7 +142,7 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
  * - L_v = 2.5e6 J/kg (latent heat of vaporization)
  * - rhor = 1000.0 kg/m^3 (water density, from ERF_Constants.H)
  *
- * All inputs are guarded with std::isfinite() to safely handle NaN/Inf; if any input
+ * All inputs are guarded with amrex::Math::isfinite() to safely handle NaN/Inf; if any input
  * is non-finite, any parameter is non-positive (d_s <= 0, tau_q <= 0), returns 0.0 (safe no-op).
  *
  * **GPU Safety**:
@@ -167,8 +168,8 @@ amrex::Real prognostic_dqs_dt(amrex::Real le,
                                amrex::Real tau_q)
 {
     // Guard all inputs against non-finite values
-    if (!std::isfinite(le) || !std::isfinite(q_s) ||
-        !std::isfinite(q_deep) || !std::isfinite(d_s) || !std::isfinite(tau_q)) {
+    if (!amrex::Math::isfinite(le) || !amrex::Math::isfinite(q_s) ||
+        !amrex::Math::isfinite(q_deep) || !amrex::Math::isfinite(d_s) || !amrex::Math::isfinite(tau_q)) {
         return 0.0;  // Safe no-op
     }
 

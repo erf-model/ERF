@@ -6,14 +6,17 @@
 #include "ERF_Constants.H"
 #include <fstream>
 #include <cmath>
+#include <sstream>
 #include <vector>
 #include <string>
 
 #include "ERF.H"
+#include "AMReX_ParmParse.H"
 #include "AMReX_PlotFileUtil.H"
 #include "ERF_ReadFromERFBdy.H"
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
+#include "ERF_CheckpointSurfaceTemperature.H"
 
 using namespace amrex;
 
@@ -21,6 +24,110 @@ namespace
 {
 
 bool provenance_warning_emitted = false;
+
+constexpr const char* surface_temperature_contract_file =
+    "surface_temperature_contract";
+
+void
+write_surface_temperature_contract (const std::string& checkpointname)
+{
+    const std::string filename = checkpointname + "/" + surface_temperature_contract_file;
+    std::ofstream output(filename, std::ofstream::out |
+                                   std::ofstream::trunc |
+                                   std::ofstream::binary);
+    if (!output.good()) {
+        amrex::FileOpenFailed(filename);
+    }
+    erf_checkpoint_surface_temperature::write_contract_version(output);
+}
+
+void
+validate_surface_temperature_contract (const std::string& checkpointname,
+                                       const int finest_level)
+{
+    const std::string marker_name = checkpointname + "/" + surface_temperature_contract_file;
+    const bool marker_present = amrex::FileExists(marker_name);
+
+    if (marker_present) {
+        amrex::Vector<char> marker_chars;
+        amrex::ParallelDescriptor::ReadAndBcastFile(marker_name, marker_chars);
+        std::istringstream marker_stream(std::string(marker_chars.dataPtr()),
+                                          std::istringstream::in);
+        int version = 0;
+        const auto status = erf_checkpoint_surface_temperature::read_contract_version(
+            marker_stream, version);
+        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::Malformed) {
+            amrex::Abort("Malformed surface-temperature contract marker in '" + marker_name + "'");
+        }
+        if (status == erf_checkpoint_surface_temperature::ContractReadStatus::UnknownVersion) {
+            amrex::Abort("Unsupported surface-temperature contract version " +
+                         std::to_string(version) + " in '" + marker_name + "'");
+        }
+        return;
+    }
+
+    const int legacy_level = erf_checkpoint_surface_temperature::first_legacy_surface_temperature_level(
+        checkpointname, finest_level);
+    if (legacy_level < 0) {
+        return;
+    }
+
+    const std::string job_info_name = checkpointname + "/job_info";
+    erf_checkpoint_surface_temperature::LegacyInitType legacy_init_type =
+        erf_checkpoint_surface_temperature::LegacyInitType::Unknown;
+    if (amrex::FileExists(job_info_name)) {
+        amrex::Vector<char> job_info_chars;
+        amrex::ParallelDescriptor::ReadAndBcastFile(job_info_name, job_info_chars);
+        std::istringstream job_info_stream(std::string(job_info_chars.dataPtr()),
+                                            std::istringstream::in);
+        legacy_init_type =
+            erf_checkpoint_surface_temperature::parse_legacy_init_type_from_job_info(
+                job_info_stream);
+    }
+
+    if (legacy_init_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
+        amrex::ParmParse pp_erf("erf");
+        constexpr const char* key = "legacy_surface_temperature_init_type";
+        if (pp_erf.countval(key) > 0) {
+            std::string asserted_source;
+            pp_erf.get(key, asserted_source);
+            const auto asserted_type =
+                erf_checkpoint_surface_temperature::parse_legacy_init_type_value(asserted_source);
+            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::Unknown) {
+                amrex::Abort("Invalid erf." + std::string(key) + " value '" + asserted_source +
+                             "'; accepted values are WRFInput and Metgrid (case-insensitive).");
+            }
+            legacy_init_type = asserted_type;
+            if (asserted_type == erf_checkpoint_surface_temperature::LegacyInitType::WRFInput) {
+                amrex::Print() << "WARNING: checkpoint '" << checkpointname
+                               << "' has no usable legacy surface-temperature provenance; "
+                               << "trusting the explicit erf." << key
+                               << " = WRFInput assertion.\n";
+            }
+        }
+    }
+
+    const auto compatibility =
+        erf_checkpoint_surface_temperature::classify_legacy_surface_temperature_checkpoint(
+            false, true, legacy_init_type);
+    if (compatibility ==
+        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnsafeMetgrid) {
+        amrex::Abort("Legacy Metgrid checkpoint '" + checkpointname +
+                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
+                     " without a surface-temperature contract marker; the legacy absolute-"
+                     "temperature arrays cannot be safely restored as the current potential-"
+                     "temperature representation.");
+    }
+    if (compatibility ==
+        erf_checkpoint_surface_temperature::LegacySurfaceTemperatureCompatibility::UnknownProvenance) {
+        amrex::Abort("Markerless checkpoint '" + checkpointname +
+                     "' contains SST_0/TSK_0 at AMR level " + std::to_string(legacy_level) +
+                     ", but the original initialization source cannot be established from checkpoint job_info. "
+                     "If and only if the old checkpoint was written from WRFInput, set "
+                     "erf.legacy_surface_temperature_init_type = WRFInput; legacy Metgrid arrays "
+                     "cannot be repaired from checkpoint contents.");
+    }
+}
 
 } // namespace
 
@@ -41,6 +148,11 @@ void
 ERF::WriteCheckpointFile () const
 {
     auto dCheckTime0 = amrex::second();
+
+    // Station rows are buffered, and a restart from this checkpoint appends to
+    // the station files: without this the rows between the last flush and the
+    // checkpoint would be missing from the series the restart continues.
+    flush_stations();
 
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
@@ -63,6 +175,10 @@ ERF::WriteCheckpointFile () const
     // ---- after all directories are built
     // ---- ParallelDescriptor::IOProcessor() creates the directories
     PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+
+    if (ParallelDescriptor::IOProcessor()) {
+        write_surface_temperature_contract(checkpointname);
+    }
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
@@ -756,6 +872,8 @@ ERF::ReadCheckpointFile ()
     // read in finest_level
     is >> finest_level;
     GotoNextLine(is);
+
+    validate_surface_temperature_contract(restart_chkfile, finest_level);
 
     // read the number of components
     // for each variable we store
@@ -1731,6 +1849,11 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                         // fill as many ghost cells as both sides have
                         IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                         dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                        // The file's ghost cells may be stale (never filled before the
+                        // write). As copy sources they reach valid cells through periodic
+                        // images, so copy again from the valid cells alone; only
+                        // domain-boundary ghosts keep the file's values.
+                        dst->ParallelCopy(m_var, 0, 0, 1, IntVect(0), ng, geom[lev].periodicity());
                         return true;
                     }
                     return false;

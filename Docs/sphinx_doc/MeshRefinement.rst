@@ -77,8 +77,9 @@ that region, i.e. the grids are not decomposed in the z direction; see
    **The vertical decomposition of that region into individual grids** -- whether
    the region is chopped in z into several boxes so that they can be distributed
    across processors -- is yet another question, controlled by
-   ``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``; see
-   :ref:`subsec:no-vertical-decomposition`.
+   ``amr.no_box_split_dir``, which ERF sets to 2 by default so that no such
+   chopping occurs, and, when that is disabled, by ``amr.max_grid_size_z`` and
+   ``amr.refine_grid_layout_z``; see :ref:`subsec:no-vertical-decomposition`.
 
    A level can therefore be created with the same dz as its parent, spanning the
    full depth of the domain, in boxes that are not split vertically -- and each of
@@ -422,11 +423,14 @@ Because the clustering is then carried out in one fewer dimension,
 perpendicular to that direction -- here, the fraction of tagged columns in the
 x-y plane.
 
-The region covering the domain in z may still be *chopped* in z into several
-boxes by ``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``: their union
-always covers the full depth, but an individual box then does not.  With the ERF
-defaults for those two parameters (see :ref:`subsec:no-vertical-decomposition`)
-no such chopping occurs, so each box by itself reaches from the bottom of the
+If splitting in z is allowed -- that is, if ``amr.no_box_split_dir`` is set to
+-1 rather than left at its ERF default of 2, which ERF permits only when no level
+uses implicit acoustic substepping -- then the region covering the
+domain in z may still be *chopped* in z into several boxes by
+``amr.max_grid_size_z`` and ``amr.refine_grid_layout_z``: their union always
+covers the full depth, but an individual box then does not.  With the ERF
+defaults for those parameters (see :ref:`subsec:no-vertical-decomposition`) no
+such chopping occurs, so each box by itself reaches from the bottom of the
 domain to the top, which is what the PBL models and the column-integral
 diagnostics require.
 

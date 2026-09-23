@@ -2,6 +2,7 @@
 #define ERF_TWO_STREAM_LW_H_
 
 #include <AMReX_GpuControl.H>
+#include <AMReX_Math.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_REAL.H>
 #include <cmath>
@@ -243,7 +244,7 @@ compute_lw_heating_rate(amrex::Real F_net_top, amrex::Real F_net_bot,
   // Heating rate: -(W/m^3) / (kg/m^3 * J/(kg*K)) = K/s
   // Check for NaN/Inf as defensive sanity check
   amrex::Real heating = -flux_divergence / (rho * cp);
-  if (!std::isfinite(heating)) {
+  if (!amrex::Math::isfinite(heating)) {
     return 0.0;
   }
   return heating;

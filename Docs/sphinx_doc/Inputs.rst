@@ -491,6 +491,11 @@ List of Parameters
 | **amr.refine_grid_layout_z**                     | chop in z when refining the grid layout                  | 0 if false, 1 if   | 0                    |
 |                                                  |                                                          | true               |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **amr.no_box_split_dir**                         | direction (0 for x, 1 for y, 2 for z) in which grids are | -1, 0, 1 or 2      | 2                    |
+|                                                  | never split, so that **max_grid_size** and               |                    |                      |
+|                                                  | **refine_grid_layout** are ignored in that direction;    |                    |                      |
+|                                                  | -1 allows grids to be split in every direction           |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **amr.refine_whole_domain_dir**                  | direction (0 for x, 1 for y, 2 for z) in which every     | -1, 0, 1 or 2      | -1                   |
 |                                                  | level greater than 0 covers the entire domain, no matter |                    |                      |
 |                                                  | where cells are tagged; -1 disables this                 |                    |                      |
@@ -570,8 +575,9 @@ Notes
    above are the ERF defaults, and they are set in ``add_par`` in
    ``Source/main.cpp``.  In particular **amr.max_grid_size** defaults to a very
    large value (so that grids are chopped only when there are more processors
-   than grids), **amr.blocking_factor** defaults to 1, and
-   **amr.refine_grid_layout_z** defaults to 0 (the AMReX default is 1).
+   than grids), **amr.blocking_factor** defaults to 1,
+   **amr.refine_grid_layout_z** defaults to 0 (the AMReX default is 1), and
+   **amr.no_box_split_dir** defaults to 2 (the AMReX default is -1).
 
 -  **amr.n_error_buf**, **amr.max_grid_size** and
    **amr.blocking_factor** can be read in as a single value which is
@@ -581,6 +587,14 @@ Notes
    entire domain in the specified direction, whatever the refinement indicators
    tagged; setting it to 2 is the simplest way to guarantee full-depth refined
    grids.  See :ref:`subsec:refine-whole-domain-dir`.
+
+-  **amr.no_box_split_dir** tells the grid generator never to split a box in
+   the specified direction, at any level; **amr.max_grid_size** and
+   **amr.refine_grid_layout** are then ignored in that direction.  ERF defaults
+   this to 2 so that no grid is decomposed in the vertical.  Set it to -1 to
+   recover the AMReX behavior of allowing boxes to be split in every direction;
+   this is also necessary in builds that use bittree, which does not support
+   **amr.no_box_split_dir**.  See :ref:`subsec:no-vertical-decomposition`.
 
 -  **amr.n_error_buf**, **amr.max_grid_size** and **amr.blocking_factor** apply
    to all coordinate directions; the per-direction forms
@@ -650,6 +664,17 @@ Examples of Usage
      horizontally when there are more processors than grids.  This is *not*
      the ERF default.
 
+-  | **amr.no_box_split_dir** = 2
+   | No grid, at any level, is split in the vertical direction; the grid
+     generator merges the boxes it creates along z, and **amr.max_grid_size_z**
+     and **amr.refine_grid_layout_z** are ignored.  This is the ERF default.
+
+-  | **amr.no_box_split_dir** = -1
+   | Restore the AMReX behavior, in which grids may be split in any direction
+     subject to **amr.max_grid_size** and **amr.refine_grid_layout_x/_y/_z**.
+     This is only allowed if no level uses implicit acoustic substepping; see
+     the note below.
+
 .. _subsec:no-vertical-decomposition:
 
 Avoiding Decomposition in the Vertical Direction
@@ -659,7 +684,29 @@ Many ERF workflows want each box to span the full vertical extent of the domain
 or of the refined region -- for example because a physics package operates on
 entire columns.  (Native SHOC requires this and will abort if any box is split
 in z.)  ERF is set up so that this is the default behavior, in both places where
-grids are created:
+grids are created.
+
+The simplest and strongest control is **amr.no_box_split_dir**, which names a
+single direction in which the grid generator is never allowed to split a box.
+ERF sets this to 2 (the z-direction) by default, so out of the box no grid at
+any level is decomposed in the vertical.  When it is set:
+
+-  the boxes produced by clustering the tagged cells are merged along that
+   direction, so no two grids share a face normal to it;
+
+-  **amr.max_grid_size** is ignored in that direction (it is effectively
+   relaxed to the extent of the domain), as is the corresponding
+   **amr.refine_grid_layout** flag, so neither the box-size limit nor the
+   load-balancing step can reintroduce a split there.
+
+Setting **amr.no_box_split_dir** = -1 turns this off and restores the AMReX
+behavior in which grids may be split in any direction.  ERF only accepts that if
+every level has **erf.substepping_type** = None (which an anelastic level is
+given automatically): the implicit substep solve inverts one tridiagonal system
+per column, so no column may be chopped at a box seam, just as for the implicit
+vertical diffusion, and the code aborts rather than run with a value other than 2
+while any level substeps implicitly.  With **amr.no_box_split_dir** = -1, the two places
+where grids are created behave as follows:
 
 -  **When the level 0 grids are created**, ERF decomposes the domain across the
    processors itself (see ``ERFPostProcessBaseGrids``).  It decomposes in the
@@ -674,10 +721,10 @@ grids are created:
    **amr.refine_grid_layout_z** to 0, this load-balancing step never splits a
    box in the vertical direction.
 
-The usual way to *accidentally* introduce a vertical decomposition is to set
-**amr.max_grid_size** as a single value, since that limits the box size in all
-three directions.  To limit the box size horizontally only, use the
-per-direction forms, e.g.
+With **amr.no_box_split_dir** = -1, the usual way to *accidentally* introduce a
+vertical decomposition is to set **amr.max_grid_size** as a single value, since
+that limits the box size in all three directions.  To limit the box size
+horizontally only, use the per-direction forms, e.g.
 
 ::
 
@@ -685,7 +732,9 @@ per-direction forms, e.g.
      amr.max_grid_size_y = 64
 
 and leave **amr.max_grid_size_z** at its (large) default.  The same holds for
-**amr.blocking_factor** versus **amr.blocking_factor_x/_y**.
+**amr.blocking_factor** versus **amr.blocking_factor_x/_y**.  With the default
+**amr.no_box_split_dir** = 2 these z-direction settings are ignored, so a single
+**amr.max_grid_size** still limits the box size in x and y only.
 
 Note that this is a different question from *how much of the depth* a refined
 level covers.  Whether the grids at levels greater than 0 reach from the bottom
@@ -880,6 +929,17 @@ Notes
      (equivalently **erf.vert_implicit = false**), turn off
      **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
      grids that are not split in z.
+
+-  | The implicit acoustic substepping is subject to the same requirement, and for the
+     same reason: its vertical solve is one tridiagonal system per column.  Rather than
+     test the grids after they have been made, ERF refuses at input-parsing time to
+     combine **erf.substepping_type** = Implicit with any **amr.no_box_split_dir** other
+     than 2, since that parameter is what keeps two grids from sharing a face normal to
+     z in the first place.  This is not a requirement of one grid per column: several
+     grids may sit over the same column, as they do where the refined region is a
+     staircase in z, as long as they do not touch, so that each contiguous run of cells
+     in the column is solved by itself.  A run that must be decomposed in the vertical
+     has to set **erf.substepping_type** = None (or be anelastic, which sets it to None).
 
 -  | A column may, however, end below the top of the domain, as it does on a refined level that
      does not reach the domain top, or where the refined region is a staircase in z.  In that
@@ -1357,8 +1417,10 @@ Data Sampling Outputs
    the native AMReX output using postprocessing tools provided in Exec/Tools if
    using gmake, or with the ``ERF_ENABLE_TOOLS`` flag if using cmake.
 
-   The ERF analog of **tslist** output is the line sampling described in this
-   section.
+   The ERF analog of **tslist** output is the station time series described in
+   :ref:`inputs-station-time-series` below, which samples named points given in
+   latitude and longitude.  The line and plane sampling described first in this
+   section writes whole lines and planes rather than points.
 
 Data along query lines or planes may be output during the simulation if
 ``erf.do_line_sampling = true`` or  ``erf.do_plane_sampling = true``, respectively.
@@ -1491,6 +1553,224 @@ Example of Usage
    erf.sample_plane_lo   =  48.0  48.0  32.0 # Lo points for one plane
    erf.sample_plane_hi   = 320.0 320.0  32.0 # Hi points for one plane
    erf.sample_plane_dir  = 2                 # One plane with z normal
+
+
+.. _inputs-station-time-series:
+
+Station Time Series
+===================
+
+A station is a named set of points at which a chosen set of variables is written
+to an ASCII time series, one file per station, for comparison against
+meteorological tower and surface-station observations.  This is the ERF analog
+of WRF's **tslist**.
+
+Stations are declared the way refinement indicators are: ``erf.station_names``
+lists the names, and the keys of each station live under its own prefix.
+
+::
+
+   erf.station_names = Lake1 Forests
+
+   erf.Lake1.field    = rain_accum
+   erf.Lake1.lat      = 45.13
+   erf.Lake1.long     = -122.34
+
+   erf.Forests.field  = magvel local_helicity
+   erf.Forests.lat    = 45.20 45.41
+   erf.Forests.long   = -122.10 -122.02
+   erf.Forests.height_agl = 10.0 80.0
+
+   erf.station_sampling_interval = 10
+
+How often the stations are written has no default and must be given, as it must
+for the line and plane samplers: either ``erf.station_sampling_interval`` in
+steps or ``erf.station_sampling_per`` in seconds.  A sample is not free -- see
+the note on cost below -- so a run with a short time step should not be made to
+guess at it.
+
+``lat`` and ``long`` are paired positionally, so ``Forests`` above is two
+locations, not four; the two lists must have the same number of values.  ``lon``
+is accepted as a synonym for ``long``.  A station may instead be placed with
+``.x`` and ``.y`` in domain coordinates, which is the only option for a run that
+has no latitude/longitude arrays; a station uses one form or the other, never
+both.
+
+Heights are given one of two ways, and apply to every location of the station.
+``height_agl`` is in metres above the local terrain, which is what a tower
+measurement is; ``height_abs`` is in metres in the model's own vertical
+coordinate, the one ``geometry.prob_lo`` and ``geometry.prob_hi`` are given in,
+which is what an aircraft or a sounding level is.  A station uses one or the
+other, never both.  One of them is required if the station requests any 3D
+variable; both are ignored by 2D variables, which are surface quantities.
+
+The variable names accepted are the names of the 3D plotfile variables
+(``erf.plot_vars_1``) and of the built-in 2D diagnostics (``erf.plot2d_vars_1``),
+and the values are produced by the same code, so a station column and the
+corresponding plotfile component cannot disagree.  A 2D plotfile can also carry
+sampled-level fields, named for the field and the level such as ``theta_z100m``;
+those are the one thing it can write that a station cannot be asked for, since a
+station asks for the 3D variable and a height directly.  A name that is none of
+these stops the run and says so, as does a 3D name that this configuration
+cannot produce; a 2D diagnostic that is valid but not computed in this run is
+written as the missing value it would have in a 2D plotfile (0 or -999 depending
+on the diagnostic) rather than being dropped.
+
+Values are interpolated bilinearly in the horizontal and linearly in the
+vertical, taken from the finest level that covers the interpolation stencil from
+the bottom of the domain up through the requested heights.  Coverage is required
+from the bottom because ``height_agl`` is measured from the local terrain, but not
+above the heights asked for, so a level that refines only the lower part of the
+domain still supplies a station within it.  Within the outer half cell of a
+non-periodic boundary there is no second cell to interpolate from, so the
+horizontal stencil collapses to the edge cell; below the first cell centre and
+above the top of the domain the vertical interpolation likewise uses the nearest
+value.
+
+.. warning::
+
+   Below the first cell centre there is nothing to interpolate, so a height
+   there returns the first cell centre's value unchanged -- it is not
+   extrapolated to the requested height by surface-layer similarity.  In a run
+   whose first cell is 100 m deep, ``height_agl = 10.0`` and ``height_agl = 40.0`` both
+   report the value 50 m up.  For 2 m and 10 m quantities, ask for the 2D
+   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m`` and the
+   surface-layer diagnostics), which are computed from the surface-layer
+   parameterization; the run warns once if a requested height falls in that
+   first half cell.
+
+.. warning::
+
+   Which level supplies a station follows from the grids, so on a run that
+   regrids it can change mid-series: a station that the refined region grows to
+   cover starts being read from the finer level, at that level's resolution and
+   from that level's solution.  The series steps at that point rather than
+   changing smoothly, which matters when it is being compared against an
+   observed record.  Run with ``erf.v = 1`` to see which level each station was
+   resolved to.  A station whose level should not change can be kept on one by
+   placing it away from a refinement boundary, or by refining on a fixed box
+   rather than on a moving indicator.
+
+Each station is written to ``Output_Stations/<name>.dat``.  The header names
+every column, with its units where they are known, the requested position, the
+position actually sampled, and the height.  Columns are ordered by location:
+for each location, the 2D variables first, then, for each height in the order
+requested, the 3D variables in the order requested.  When ``erf.use_datetime``
+is set, a UTC timestamp column follows the elapsed-time column.
+
+The series starts at the initial condition, as WRF's tslist output does; a
+restart does not repeat that row, since the run that wrote the file before
+already has it.
+
+Rows are buffered in memory and written out every ``erf.station_buffer_steps``
+output steps, whenever a checkpoint is written, and at the end of the run.  A
+restart appends to the file the earlier run wrote, so the series is continuous
+across a restart; the resumption is marked by a comment line.  Because the
+buffer is flushed with every checkpoint, a restart from any checkpoint picks the
+series up where that checkpoint left it: rows the earlier run wrote past that
+point are dropped, so the series never runs backwards, and the run reports how
+many were dropped.  A restart into a file whose header describes a different set
+of columns -- a changed ``field``, location or height list -- stops the run
+rather than appending columns the header does not describe.
+
+That comparison is of one line, not of the header as a whole.  Each file carries
+a ``# format:`` line holding a format tag and a hash of what the columns are: the
+variables, their units, the locations as the inputs file asked for them, the
+heights, and their order.  A restart recomputes that signature and compares it,
+which means rewording the rest of the header does not make an existing series
+un-restartable, and neither does a coordinate that the setup resolves to a value
+differing in its last digits -- a resolved position is derived from the
+latitude/longitude arrays, so it can move with the build without the
+configuration having changed.  The check runs at setup, as soon as the columns
+are resolved, so a configuration that cannot continue an existing series costs a
+setup rather than a run.  When it does fail, the human-readable part of the
+header is read to report which column differs.
+
+Station names are used as file names, so they are limited to letters, digits,
+``_``, ``-`` and ``.``, must begin with a letter or an underscore, and must be
+distinct.
+
+.. note::
+
+   Station output is enabled by naming stations; setting
+   ``erf.do_station_sampling = false`` turns it off again without removing the
+   stations from the inputs file.  Naming stations without giving
+   ``erf.station_sampling_interval`` or ``erf.station_sampling_per`` stops the
+   run: there is no default cadence.
+
+.. note::
+
+   A station column costs more than its one value.  Each *sampled* step fills
+   the requested 3D and 2D plot variables over the whole of every level that
+   hosts a station, in the same way a plotfile does, and interpolates a 2x2
+   column out of the result; it also fillpatches the state on every level up to
+   the highest one a station is on, and re-derives which level and which cells
+   each station is read from, whether or not the grids have moved since the last
+   sample.  The cost of a sample therefore scales with the number of ``field``
+   names and the size of the levels, not with the number of stations, and asking
+   for one velocity component fills all three.  None of it happens on a step
+   that is not sampled, so the cadence is the control that matters: ask for the
+   variables you will use, and set ``erf.station_sampling_interval`` or
+   ``erf.station_sampling_per`` to the rate the series actually needs rather
+   than to the time step.  The fill is a diagnostic: it does not change the
+   solution, and a run with station output turned on gives the same answer as
+   one without.  That is tested rather than asserted -- the
+   ``StationSampling_AnswerParity*`` regression tests run a deck with the
+   stations off and on and require the plotfiles to be identical bit for bit,
+   on a two-level dry case, on a surface-layer case and on a case with
+   Lagrangian microphysics -- with one gap: no test covers a run driven by
+   time-dependent lateral boundary data, because no such deck can run in CI.
+   See :ref:`RegressionTests`.
+
+.. _list-of-parameters-10c:
+
+List of Parameters
+------------------
+
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                          | Definition                                               | Acceptable Values  | Default          |
++====================================+==========================================================+====================+==================+
+| **erf.station_names**              | Names of the stations to write                           | List of Strings    | None             |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.do_station_sampling**        | Write station output at all; naming stations turns this  | Boolean            | true if stations |
+|                                    | on, setting it false turns it back off                   |                    | are named        |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.field**               | Variables to write at this station; 3D or 2D plotfile    | List of Strings    | None             |
+|                                    | variable names                                           |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.lat**,                | Locations of this station, paired positionally; not to   | List of Reals,     | None             |
+| **erf.<name>.long**                | be combined with ``.x`` / ``.y``                         | degrees            |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.x**,                  | Locations of this station in domain coordinates, paired  | List of Reals      | None             |
+| **erf.<name>.y**                   | positionally; not to be combined with ``.lat`` /         |                    |                  |
+|                                    | ``.long``                                                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.height_agl**          | Heights above the local terrain at which the 3D          | List of Reals,     | None             |
+|                                    | variables are sampled; not to be combined with           | metres             |                  |
+|                                    | ``.height_abs``                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.<name>.height_abs**          | Heights in the model's vertical coordinate at which the  | List of Reals,     | None             |
+|                                    | 3D variables are sampled; not to be combined with        | metres             |                  |
+|                                    | ``.height_agl``                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_sampling_interval**  | Output frequency (steps); one of this and                | Integer            | None             |
+|                                    | ``station_sampling_per`` is required                     |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_sampling_per**       | Output frequency (time); one of this and                 | Real, seconds      | None             |
+|                                    | ``station_sampling_interval`` is required                |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_buffer_steps**       | Output steps buffered before the files are written       | Integer            | 100              |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_output_dir**         | Directory the station files are written to               | String             | Output_Stations  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+.. note::
+
+   Latitude and longitude need a run that has them: an initialization from a WRF
+   or metgrid file, or a restart from one.  Both paths store mass-point values --
+   ``XLAT`` and ``XLONG`` from ``wrfinput``, ``XLAT_M`` and ``XLONG_M`` from
+   ``met_em`` -- so the station sampler uses them directly and a station lands on
+   the cell its coordinates name.
 
 
 .. _inputs-advection-schemes:
@@ -1820,9 +2100,6 @@ List of Parameters
 | **erf.pbl_mrf_const_b**                  | Coefficient for the countergradient term                 | Real               | 7.8              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mrf_sf**                       | ratio of surface layer height to boundary layer height   | Real               | 0.1              |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.mrf_moistvars**                    | Diffuse moisture variables using modeled eddy            | Boolean            | false            |
-|                                          | diffusivity                                              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_mrf_countergradient**       | Enable countergradient correction terms in MRF PBL       | Boolean            | false            |
 |                                          | scheme                                                   |                    |                  |
@@ -2644,6 +2921,20 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
+|                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
+|                                   | theta, density, moisture) from coarse level via          |                              |                    |
+|                                   | ``FillCoarsePatch`` instead of reading from file.        |                              |                    |
+|                                   | Terrain, surface fields (SST, TSK, land masks), and LSM  |                              |                    |
+|                                   | variables are still read from the fine-level wrfinput    |                              |                    |
+|                                   | file. **Intended for time-mismatched WRF input files**   |                              |                    |
+|                                   | (e.g., wrfinput_d01 at t=0h, wrfinput_d02 at t=6h) or    |                              |                    |
+|                                   | regridding during runtime. When starting from scratch    |                              |                    |
+|                                   | with both files at the same time, this option is         |                              |                    |
+|                                   | ignored (with a warning) and atmospheric state is read   |                              |                    |
+|                                   | from file. Only applies to lev > 0 with WRFInput;        |                              |                    |
+|                                   | level 0 always reads full atmospheric state.             |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.real_extrap_w**             | First-order extrapolation of vertical velocities on      | Boolean                      | true               |
 |                                   | lateral boundaries (instead of setting to 0) if          |                              |                    |
 |                                   | use_real_bcs is true                                     |                              |                    |
@@ -2810,8 +3101,15 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.amr_terrain_refinement**   | terrain refinement strategy for AMR with STF/Sullivan    | "interpolate",     | "interpolate"    |
-|                                  |                                                          | "transform"        |                  |
+| **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
+|                                  | ``terrain_smoothing`` = 1 or 2. "interpolate" uses       | "transform"        |                  |
+|                                  | coarse-interpolated mesh as-is. "transform" reads fine   |                    |                  |
+|                                  | terrain from wrfinput and blends with interpolated mesh  |                    |                  |
+|                                  | using height-dependent decay. When ``terrain_smoothing`` |                    |                  |
+|                                  | = 1 or 2 with WRFInput initialization on multilevel      |                    |                  |
+|                                  | grids, "transform" is **required** (code will abort if   |                    |                  |
+|                                  | "interpolate" is used). Ignored when                     |                    |                  |
+|                                  | ``terrain_smoothing`` = 0.                               |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name**        | filename                                                 | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2866,10 +3164,14 @@ Examples of Usage
 **erf.amr_terrain_refinement** is read only on levels finer than level 0 and only when
 ``erf.terrain_smoothing`` is 1 or 2; it is ignored otherwise. Any value other than
 ``"interpolate"`` or ``"transform"`` is an error, so that a misspelled mode cannot
-silently leave the fine mesh untransformed. Both modes are currently supported only for
-the idealized initialization types: with ``erf.init_type`` = ``WRFInput`` or ``Metgrid``,
-using ``erf.terrain_smoothing`` = 1 or 2 together with refinement still aborts, and
-support for those is planned for future work.
+silently leave the fine mesh untransformed.
+
+**For WRFInput initialization with multilevel AMR:**
+When using ``erf.init_type`` = ``WRFInput`` with ``terrain_smoothing`` = 1 or 2 on multilevel
+grids, "transform" mode is **required**. Using "interpolate" mode will cause the code to abort
+with an error. This requirement ensures fine-scale terrain features from the wrfinput file are
+properly blended with the smoothed coarse mesh while maintaining C0 continuity at coarse-fine
+interfaces.
 
 -  **erf.amr_terrain_refinement**  = "interpolate"
     Default mode for AMR with STF/Sullivan terrain smoothing (``terrain_smoothing=1`` or ``2``).
@@ -3173,14 +3475,14 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surf_temp**                | prescribed surface temperature [K]; a positive value     | Real > 0            | -1.0 (not set)   |
-|                                       | selects the surface-temperature formulation              |                     |                  |
+| **erf.most.surf_temp**                | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
+|                                       | value selects the surface-temperature formulation        |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | temperature; may not be combined with                    |                     |                  |
+|                                       | potential temperature; may not be combined with          |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |
@@ -3473,6 +3775,14 @@ Notes
 -  | For idealized studies, constant latitude/longitude may be specified through **erf.rad_cons_lat**
    | and **erf.rad_cons_lon**.
 
+-  | **Multilevel/AMR with WRF initialization**: When initializing multilevel simulations from WRF input files
+   | (``erf.init_type = WRFInput``), radiation computations depend on the vertical extent of each refinement level.
+   | Finer levels that extend to the model top (or match the vertical extent of level 0) compute radiation normally.
+   | For finer levels that do not extend to the same height as level 0, heating rates and radiation fluxes are
+   | interpolated from the parent coarse level rather than computed directly, since the radiative transfer solver
+   | requires a complete atmospheric column. ERF automatically detects this configuration and applies the appropriate
+   | method. Full radiation calculations on such partial-column refinement levels are subject to ongoing development work.
+
 
 
 List of Parameters
@@ -3608,7 +3918,8 @@ distance factor of the date, or the unscaled 1360.9 W/m² when the zenith angle 
 start date is known), ``erf.rad_t_sfc`` (required; with a land-surface model or a surface layer
 present it is the initial value of the prognostic surface temperature when the surface energy
 balance evolves one and unused otherwise, and the surface layer's potential temperature is
-converted with the Exner function of the lowest cell), ``start_datetime`` and the
+converted with the Exner function at the physical surface pressure diagnosed from the lowest
+atmospheric cell), ``start_datetime`` and the
 ``erf.rad_orbital_*`` overrides. A deck that still sets one of the former two-stream-only keys
 (``erf.radiation.solar_zenith``, ``erf.radiation.S0``, ``erf.radiation.surface_temp_k``,
 ``erf.radiation.latitude_deg``, ``erf.radiation.longitude_deg``, ``erf.radiation.day_of_year``,

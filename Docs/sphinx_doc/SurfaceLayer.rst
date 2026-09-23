@@ -190,9 +190,9 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP [K]
+   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
    erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
-   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE POTENTIAL TEMP CHANGE [K/h]
    erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
    erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
@@ -372,6 +372,7 @@ where ``erf.most.sfc_file`` is the path to a text file with the following exampl
    205.583 298.40 104.08 154.39 0.00
 
 This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model or EB.
+The existing text-file forcing restriction with EB remains in effect.
 
 
 **For prescribing sea-surface temperature:**
@@ -390,8 +391,28 @@ or purely time and SST information, such as:
    203.000000  292.800
    204.000000  294.580
 
+The SST column in this file is absolute temperature in kelvin. ERF converts
+it to the SurfaceLayer's canonical potential-temperature field using the
+physical surface pressure diagnosed from the lowest atmospheric cell. In
+contrast, ``erf.most.surf_temp`` and ``erf.most.surf_heating_rate`` are already
+specified in the SurfaceLayer potential-temperature convention. SST and
+skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
+that same convention at ingestion; coupled SST is converted when it enters
+the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
+radiation path and is not adopted as the SurfaceLayer field.
+
 Notes
 ^^^^^
+
+With ``erf.terrain_type = EB``, SurfaceLayer does not support planar SST/TSK
+from real-data input, coupled-ocean SST, or LSM surface-temperature or
+surface-flux providers because those LSM flux arrays are planar and the helper
+only writes their ``k=0`` slab, while EB MOST consumes surface parameters on
+arbitrary cut-cell ``k``; no 2-D-to-cut-cell mapping is defined. Custom/file-
+driven roughness (``most.roughness_file_name``) is also unsupported under EB
+for the same planar-provider compatibility policy. Ordinary EB SurfaceLayer
+operation using SurfaceLayer-native prescribed or default state remains
+supported.
 
 - For both flux and sst modes, the time column is reset relative to the simulation elapsed time (t=0s). This might cause issues with simulations initialized with real data, such as WRFInput.
 - The sst mode only applies the surface temperature where there are ocean cells (landmask=0). This can be forced with ``erf.is_land = 0``.

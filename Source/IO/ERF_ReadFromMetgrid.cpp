@@ -3,12 +3,83 @@
  */
 #include <ERF_NCWpsFile.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_IArrayBox.H>
+#include <AMReX_Math.H>
 #include <ERF_MetgridUtils.H>
+
+#include <limits>
 
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+namespace {
+
+void
+canonicalize_metgrid_missing_values (const std::string& fname,
+                                     const std::string& variable_name,
+                                     FArrayBox& variable_fab)
+{
+    GpuArray<Real, 4> invalid_values{};
+    int n_invalid = 0;
+
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+        if (ncf.has_var(variable_name)) {
+            const auto variable = ncf.var(variable_name);
+            for (const std::string& attr_name : {"_FillValue", "missing_value"}) {
+                if (!variable.has_attr(attr_name)) { continue; }
+                std::vector<double> values;
+                variable.get_attr(attr_name, values);
+                for (const double value : values) {
+                    if (n_invalid < static_cast<int>(invalid_values.size()) &&
+                        std::isfinite(value)) {
+                        invalid_values[n_invalid++] = static_cast<Real>(value);
+                    }
+                }
+            }
+        }
+        ncf.close();
+    }
+
+    ParallelDescriptor::Bcast(&n_invalid, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(invalid_values.data(), static_cast<int>(invalid_values.size()),
+                              ParallelDescriptor::IOProcessorNumber());
+
+    // NetCDF applies a type-dependent default fill value when no explicit
+    // attribute is present. Include both Real representations because the
+    // input file type and the ERF build precision need not be identical.
+    const Real default_double = static_cast<Real>(NC_FILL_DOUBLE);
+    const Real default_float = static_cast<Real>(NC_FILL_FLOAT);
+    auto add_invalid = [&] (const Real value) {
+        for (int i = 0; i < n_invalid; ++i) {
+            if (invalid_values[i] == value) { return; }
+        }
+        if (n_invalid < static_cast<int>(invalid_values.size())) {
+            invalid_values[n_invalid++] = value;
+        }
+    };
+    add_invalid(default_double);
+    add_invalid(default_float);
+
+    if (variable_fab.box().isEmpty()) { return; }
+    const Box box = variable_fab.box();
+    auto variable = variable_fab.array();
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        const Real value = variable(i,j,k);
+        bool invalid = !amrex::Math::isfinite(value);
+        for (int n = 0; n < n_invalid; ++n) {
+            invalid = invalid || value == invalid_values[n];
+        }
+        if (invalid) { variable(i,j,k) = nan; }
+    });
+    Gpu::streamSynchronize();
+}
+
+} // namespace
 
 Box
 read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
@@ -44,7 +115,7 @@ read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, i
 }
 
 void
-read_from_metgrid (int lev, int itime,
+read_from_metgrid (int lev, int /*itime*/,
                    const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, double& NC_epochTime,
                    int& flag_psfc, int& flag_msf,
@@ -145,9 +216,7 @@ read_from_metgrid (int lev, int itime,
     NC_fabs.push_back(&NC_LON_fab);       NC_fnames.push_back("XLONG_M");   NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_hgt_fab);       NC_fnames.push_back("HGT_M");     NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
-    if (itime == 0) {
-        NC_fabs.push_back(&NC_psfc_fab);  NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
-    }
+    NC_fabs.push_back(&NC_psfc_fab);  NC_fnames.push_back("PSFC");      NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfu_fab);      NC_fnames.push_back("MAPFAC_U");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfv_fab);      NC_fnames.push_back("MAPFAC_V");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfm_fab);      NC_fnames.push_back("MAPFAC_M");  NC_fdim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -161,6 +230,17 @@ read_from_metgrid (int lev, int itime,
 
     Vector<int> success; success.resize(NC_fabs.size());
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs, success);
+
+    for (int i = 0; i < success.size(); ++i) {
+        if (success[i] != 1) { continue; }
+        if (NC_fnames[i] == "PSFC") {
+            canonicalize_metgrid_missing_values(fname, "PSFC", NC_psfc_fab);
+        } else if (NC_fnames[i] == "TT") {
+            canonicalize_metgrid_missing_values(fname, "TT", NC_temp_fab);
+        } else if (NC_fnames[i] == "PRES") {
+            canonicalize_metgrid_missing_values(fname, "PRES", NC_pres_fab);
+        }
+    }
 
     // Default values
     flag_psfc = 0;
@@ -185,7 +265,6 @@ read_from_metgrid (int lev, int itime,
     if (!flag_hgt) {
         Abort("HGT_M was not found in " + fname + "; it is required to build the terrain.");
     }
-
     // Read the netcdf file and fill these IABs
     Print() << "Building initial IABS from file " << fname << std::endl;
     Vector<int> success_i; success_i.resize(NC_iabs.size());

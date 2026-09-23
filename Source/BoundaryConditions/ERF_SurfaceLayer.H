@@ -25,6 +25,24 @@
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
+namespace erf_surface_layer {
+
+inline bool
+planar_sources_supported_for_terrain (TerrainType terrain_type,
+                                       bool use_sst,
+                                       bool use_tsk,
+                                       bool use_coupled_sst,
+                                       bool has_lsm_tsurf,
+                                       bool has_lsm_fluxes,
+                                       bool has_custom_roughness)
+{
+    return terrain_type != TerrainType::EB ||
+           !(use_sst || use_tsk || use_coupled_sst || has_lsm_tsurf ||
+             has_lsm_fluxes || has_custom_roughness);
+}
+
+} // namespace erf_surface_layer
+
 
 /** Abstraction layer for different surface layer schemes (e.g. MOST, Cd)
  *
@@ -54,6 +72,7 @@ public:
    * @param[in]     a_mesh_type         mesh type
    * @param[in]     a_terrain_type      terrain representation
    * @param[in]     a_turb_choice       turbulence-model options
+   * @param[in]     a_rdOcp             configured Rd/cp exponent for T-theta conversions
    * @param[in]     start_low_time      first available low-boundary-data time
    * @param[in]     final_low_time      final available low-boundary-data time
    * @param[in]     low_time_interval   low-boundary-data time interval
@@ -69,6 +88,7 @@ public:
                          const MeshType& a_mesh_type,
                          const TerrainType& a_terrain_type,
                          const TurbChoice& a_turb_choice,
+                         amrex::Real a_rdOcp,
                          double start_low_time,
                          double final_low_time,
                          double low_time_interval = 0.0,
@@ -82,6 +102,7 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
+    m_rdOcp(a_rdOcp),
     m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
          zlevels_stag, eb_vec)
   {
@@ -475,7 +496,8 @@ public:
       m_eddyDiffs_lev[lev] = eddyDiffs;
 
       // Text-file driven surface forcing modes. The file always contains at
-      // least time(day) and sst(K); prescribed-flux mode also uses H, LE, USTAR.
+      // least time(day) and absolute sst(K); the value is normalized to the
+      // canonical SurfaceLayer theta field at the z-low surface.
       pp.queryAdd("most.use_sfc_fluxes", m_use_sfc_fluxes);
       pp.queryAdd("most.use_sfc_sst", m_use_sfc_sst);
       if (m_use_sfc_fluxes && m_use_sfc_sst) {
@@ -560,6 +582,9 @@ public:
                            (n_valid_lsm_flux==1 && has_soil_t_flux)));
       if (n_valid_lsm_flux>=4) { m_has_lsm_fluxes = true; }
 
+      const bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
+      const bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
+
       // Check if there is a user-specified roughness file to be read
       std::string fname;
       bool read_z0 = false;
@@ -585,6 +610,18 @@ public:
           AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
               m_face.coordDir() == 2 && m_face.isLow(),
               "Custom MOST roughness is supported only on the z-low face.");
+      }
+
+      // LSM flux arrays are planar and compute_sfc_params_from_lsm_fluxes only
+      // writes the k=0 slab, while EB MOST consumes surface parameters at
+      // arbitrary cut-cell k; no valid planar-to-cut-cell mapping exists yet.
+      if (!erf_surface_layer::planar_sources_supported_for_terrain(
+              m_terrain_type, use_sst, use_tsk, m_use_coupled_sst,
+              m_has_lsm_tsurf, m_has_lsm_fluxes, read_z0)) {
+          amrex::Abort(
+              "EB SurfaceLayer does not support planar SST/TSK, coupled SST, LSM surface "
+              "temperature or fluxes, or custom/file-driven roughness; no mapping exists "
+              "from those planar inputs to arbitrary EB cut cells.");
       }
 
       // Attributes for MFs and FABs
@@ -707,8 +744,6 @@ public:
 
       // TODO: Do we want an enum struct for indexing?
 
-      bool use_sst = (!m_sst_lev[lev].empty() && m_sst_lev[lev][0]);
-      bool use_tsk = (!m_tsk_lev[lev].empty() && m_tsk_lev[lev][0]);
       if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst) {
           // Valid SST, TSK, LSM or coupled-ocean data; t_surf set before computing
           // fluxes (avoids extended lambda capture) Note that land temp will be set
@@ -951,7 +986,9 @@ public:
    * @param[in] time interpolation time
    */
   void fill_tsurf_with_sfc_sst (const int& lev,
-                                const double& time);
+                                const double& time,
+                                const amrex::MultiFab& cons_in,
+                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Overwrite surface temperature with coupled ocean SST where the coupler
@@ -963,7 +1000,9 @@ public:
    *
    * @param[in] lev level index
    */
-  void fill_tsurf_with_coupled_sst (const int& lev);
+  void fill_tsurf_with_coupled_sst (const int& lev,
+                                    const amrex::MultiFab& cons_in,
+                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Fill surface moisture from saturation specific humidity.
@@ -1469,11 +1508,11 @@ private:
   amrex::Real m_Cd = zero;
   amrex::Real m_Ch = zero;
   amrex::Real m_Cq = zero;
-
   bool m_ignore_sst = false;
 
   amrex::Vector<const eb_*> m_eb_vec;
   TerrainType m_terrain_type;
+  amrex::Real m_rdOcp = RdoCp;
   MOSTAverage m_ma;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;

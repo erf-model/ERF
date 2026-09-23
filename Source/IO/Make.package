@@ -10,11 +10,13 @@ CEXE_sources += ERF_Plotfile2DSampledField.cpp
 CEXE_sources += ERF_Plotfile2DSampledLevel.cpp
 CEXE_sources += ERF_Plotfile2DInterpolator.cpp
 CEXE_sources += ERF_Plotfile2DUtils.cpp
+CEXE_sources += ERF_StationSampler.cpp
 CEXE_sources += ERF_Checkpoint.cpp
 CEXE_sources += ERF_Provenance.cpp
 CEXE_sources += ERF_WriteJobInfo.cpp
 CEXE_headers += ERF_Provenance.H
 CEXE_headers += ERF_IntervalMeansCheckpoint.H
+CEXE_headers += ERF_CheckpointSurfaceTemperature.H
 
 CEXE_headers += ERF_WriteBndryPlanes.H
 CEXE_headers += ERF_ReadBndryPlanes.H
@@ -53,3 +55,4 @@ ifeq ($(USE_NETCDF), TRUE)
   CEXE_headers += ERF_ReadFromWRFBdy.H
   CEXE_headers += ERF_ReadFromWRFInput.H
 endif
+CEXE_headers += ERF_StationSampler.H

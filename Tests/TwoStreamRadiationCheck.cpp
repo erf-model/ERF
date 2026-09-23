@@ -1,4 +1,6 @@
 #include <AMReX.H>
+#include <AMReX_Arena.H>
+#include <AMReX_GpuDevice.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -48,9 +50,21 @@ bool has_variable (const PlotFileData& plotfile, const std::string& name)
     return std::find(names.begin(), names.end(), name) != names.end();
 }
 
-// Horizontal mean of a field at each k of the level-0 domain.
-std::vector<Real> horizontal_mean_profile (const MultiFab& mf, const amrex::Box& domain)
+// PlotFileData::get() hands back a MultiFab in The_Arena, which is device
+// memory in a GPU build, so the host scans below cannot read it directly.
+MultiFab to_host (const MultiFab& mf)
 {
+    MultiFab host_mf(mf.boxArray(), mf.DistributionMap(), mf.nComp(), 0,
+                     amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()));
+    amrex::Copy(host_mf, mf, 0, 0, mf.nComp(), 0);
+    amrex::Gpu::streamSynchronize();
+    return host_mf;
+}
+
+// Horizontal mean of a field at each k of the level-0 domain.
+std::vector<Real> horizontal_mean_profile (const MultiFab& mf_in, const amrex::Box& domain)
+{
+    const MultiFab mf = to_host(mf_in);
     const int kmin = domain.smallEnd(2);
     const int kmax = domain.bigEnd(2);
     const int nz = kmax - kmin + 1;
@@ -82,8 +96,16 @@ std::vector<Real> horizontal_mean_profile (const MultiFab& mf, const amrex::Box&
 // Returns an empty string when every valid cell is finite, and otherwise a
 // description of the first offending cell. CI only sees this message, so it
 // has to say where the bad value is, not just that one exists.
-std::string first_nonfinite (const MultiFab& mf)
+std::string first_nonfinite (const MultiFab& mf_in)
 {
+    // Device-side test first, if inf/nan found pull the field to the host to
+    // locate the culprit.
+    if (!mf_in.contains_nan(0, mf_in.nComp(), 0) &&
+        !mf_in.contains_inf(0, mf_in.nComp(), 0)) {
+        return std::string();
+    }
+
+    const MultiFab mf = to_host(mf_in);
     for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
         const auto& arr = mf.const_array(mfi);

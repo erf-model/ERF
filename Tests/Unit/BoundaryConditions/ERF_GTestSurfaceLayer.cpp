@@ -14,13 +14,18 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <filesystem>
 #include <initializer_list>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
+#include <utility>
 
 using namespace amrex;
 using erf_surface_layer_test::expected_qsat;
+using erf_surface_layer_test::expected_surface_pressure;
 using erf_surface_layer_test::qsat_tolerance;
 using erf_surface_layer_test::stress_has_expected_sign;
 using erf_surface_layer_test::stress_is_antisymmetric;
@@ -129,6 +134,20 @@ single_value (const MultiFab& mf, const Box& box, int comp)
     Gpu::streamSynchronize();
     return get<0>(reduce_data.value());
 }
+
+struct ScopedTestFile
+{
+    explicit ScopedTestFile (std::filesystem::path path_in)
+        : path(std::move(path_in)) {}
+
+    ~ScopedTestFile ()
+    {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+    }
+
+    std::filesystem::path path;
+};
 
 bool
 is_changed (const Real value)
@@ -255,6 +274,9 @@ struct SurfaceLayerFields
     MultiFab yvel;
     MultiFab zvel;
     std::unique_ptr<MultiFab> theta;
+    std::unique_ptr<MultiFab> lsm_tsurf;
+    std::unique_ptr<MultiFab> coupled_sst;
+    std::unique_ptr<iMultiFab> coupled_valid;
 
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -267,12 +289,13 @@ struct SurfaceLayerFields
     Vector<MultiFab*> state;
 
     explicit SurfaceLayerFields (const Geometry& geometry = make_geometry(),
-                                 const bool split_lateral = false)
+                                 const bool split_lateral = false,
+                                 const int ncons = RhoQ1_comp + 1)
         : geom(geometry),
           domain(geom.Domain()),
           ba(split_lateral ? make_qsurf_box_array(domain) : BoxArray(domain)),
           dm(ba),
-          cons(ba, dm, RhoQ1_comp + 1, test_state_ng),
+          cons(ba, dm, ncons, test_state_ng),
           xvel(convert(ba, IntVect(AMREX_D_DECL(1, 0, 0))), dm, 1,
                test_velocity_ng),
           yvel(convert(ba, IntVect(AMREX_D_DECL(0, 1, 0))), dm, 1,
@@ -290,7 +313,9 @@ struct SurfaceLayerFields
         cons.setVal(Real(0.0));
         cons.setVal(test_rho, Rho_comp, 1);
         cons.setVal(test_rho_theta, RhoTheta_comp, 1);
-        cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        if (cons.nComp() > RhoQ1_comp) {
+            cons.setVal(test_rho * test_qv, RhoQ1_comp, 1);
+        }
         xvel.setVal(test_u);
         yvel.setVal(test_v);
         zvel.setVal(test_w);
@@ -345,12 +370,32 @@ struct SurfaceLayerFields
         Gpu::streamSynchronize();
     }
 
+    void set_surface_cell_pressure (const Real pressure, const Real qv = Real(0.0))
+    {
+        const Real rho_theta = (p_0 / R_d) *
+            std::pow(pressure / p_0, Real(1.0) / Gamma) /
+            (Real(1.0) + RvoRd * qv);
+        for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
+            auto& fab = cons[mfi];
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(rho_theta, fab.box(), RhoTheta_comp, 1);
+            if (fab.nComp() > RhoQ1_comp) {
+                fab.setVal<RunOn::Device>(test_rho * qv, fab.box(), RhoQ1_comp, 1);
+            }
+        }
+        Gpu::streamSynchronize();
+    }
+
     std::unique_ptr<SurfaceLayer>
     prepare_layer (const Orientation face,
                    const GpuArray<int, AMREX_SPACEDIM*2>& active_faces,
                    const std::string& prefix,
                    const bool with_moisture = false,
-                   const bool update_fluxes = true)
+                   const bool update_fluxes = true,
+                   const std::string& lsm_name = "",
+                   const Real lsm_value = Real(0.0),
+                   const bool coupled_active = false,
+                   const Real rdOcp = RdoCp)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
@@ -366,19 +411,43 @@ struct SurfaceLayerFields
         auto layer = std::make_unique<SurfaceLayer>(
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             Vector<Vector<Real>>{},
-            MeshType::ConstantDz, TerrainType::None, TurbChoice{},
+            MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
             0.0, 0.0);
         layer->set_surface_layer_faces(active_faces);
+        if (coupled_active) {
+            layer->set_coupled_sst_active(true);
+            coupled_sst = std::make_unique<MultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(0, 0, 0)));
+            coupled_sst->setVal(Real(290.0));
+            coupled_valid = std::make_unique<iMultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(0, 0, 0)));
+            coupled_valid->setVal(0);
+        }
 
         std::unique_ptr<MultiFab> qr_prim;
         Vector<MultiFab*> empty_mfs;
         Vector<std::string> empty_names;
+        Vector<MultiFab*> lsm_data;
+        Vector<std::string> lsm_names;
+        if (!lsm_name.empty()) {
+            lsm_tsurf = std::make_unique<MultiFab>(
+                collapse_z(ba), dm, 1,
+                IntVect(AMREX_D_DECL(test_state_ng, test_state_ng, 0)));
+            lsm_tsurf->setVal(lsm_value);
+            lsm_data.push_back(lsm_tsurf.get());
+            lsm_names.push_back(lsm_name);
+        }
         Vector<std::unique_ptr<MultiFab>> sst;
         Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
-            nullptr, nullptr, nullptr, empty_mfs, empty_names,
+            nullptr, nullptr, nullptr, lsm_data, lsm_names,
             empty_mfs, empty_names, sst, tsk, lmask);
+        if (coupled_active) {
+            layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
+        }
         if (with_moisture) {
             layer->get_q_surf(0)->setVal(tau_sentinel);
         }
@@ -463,7 +532,54 @@ Long check_qsurf_values (const SurfaceLayerFields& fields,
     return selected_count;
 }
 
+// nvcc rejects an extended __device__ lambda whose enclosing function has
+// private access, and gtest generates TestBody() as a private member, so the
+// device fills below live here rather than inside the TEST bodies.
+void set_quadratic_node_heights (MultiFab& z_phys_nd)
+{
+    for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
+        auto z_arr = z_phys_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            z_arr(i,j,k) = static_cast<Real>(k * k);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
+
+TEST(SurfaceLayerCompatibility, EBAllowsNativeStateWithoutPlanarProviders)
+{
+    EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
+        TerrainType::EB, false, false, false, false, false, false));
+}
+
+TEST(SurfaceLayerCompatibility, EBRejectsPlanarSurfaceProviders)
+{
+    const std::array<std::array<bool, 6>, 6> providers{{
+        {{true, false, false, false, false, false}},
+        {{false, true, false, false, false, false}},
+        {{false, false, true, false, false, false}},
+        {{false, false, false, true, false, false}},
+        {{false, false, false, false, true, false}},
+        {{false, false, false, false, false, true}}}};
+    for (const auto& provider : providers) {
+        EXPECT_FALSE(erf_surface_layer::planar_sources_supported_for_terrain(
+            TerrainType::EB, provider[0], provider[1], provider[2], provider[3], provider[4],
+            provider[5]));
+    }
+}
+
+TEST(SurfaceLayerCompatibility, NonEBAllowsPlanarSurfaceProviders)
+{
+    const std::array<TerrainType, 3> terrain_types{
+        TerrainType::None, TerrainType::StaticFittedMesh, TerrainType::MovingFittedMesh};
+    for (const auto terrain_type : terrain_types) {
+        EXPECT_TRUE(erf_surface_layer::planar_sources_supported_for_terrain(
+            terrain_type, true, true, true, true, true, true));
+    }
+}
 
 // Motivation: the Moeng stress functor has separate x-, y-, and z-wall
 // interpolation paths.  Exercise each path at both wall orientations so the
@@ -555,7 +671,10 @@ TEST(SurfaceLayer, FaceStressIsConsistentForNonconstantInputs)
 // This is the serial counterpart of the distributed qsurf ownership test.
 TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
 {
-    ScopedSurfaceLayerParams params("unit_surface_layer_qsurf_serial");
+    const std::string prefix = "unit_surface_layer_qsurf_serial";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
 
     for (const auto& face : all_faces()) {
         SCOPED_TRACE(std::string("direction=") +
@@ -566,15 +685,473 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
             face, active_faces({face}), "unit_surface_layer_qsurf_serial",
             true, false);
         fields.lmask[0]->setVal(0);
-        layer->get_t_surf(0)->setVal(test_surface_temperature);
+        const Real pressure = expected_surface_pressure(fields.geom, face);
+        const Real surface_theta = test_surface_temperature *
+            std::pow(p_0 / pressure, RdoCp);
+        layer->get_t_surf(0)->setVal(surface_theta);
         std::unique_ptr<MultiFab> z_phys_nd;
+        // The qsurf boundary fill intentionally visits vertical state ghosts;
+        // initialize those cells so this test exercises qsat rather than an
+        // unrelated invalid-density path.
+        for (MFIter mfi(fields.cons, false); mfi.isValid(); ++mfi) {
+            auto& fab = fields.cons[mfi];
+            fab.setVal<RunOn::Device>(test_rho, fab.box(), Rho_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho_theta, fab.box(), RhoTheta_comp, 1);
+            fab.setVal<RunOn::Device>(test_rho * test_qv, fab.box(), RhoQ1_comp, 1);
+        }
+        Gpu::streamSynchronize();
         layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
         const MultiFab* qsurf = layer->get_q_surf(0);
-        const Real expected = expected_qsat(fields.geom);
+        const Real expected = expected_qsat(fields.geom, face);
         const Long selected_count = check_qsurf_values(
             fields, *qsurf, face, expected);
         EXPECT_GT(selected_count, 0);
     }
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: a terrain-following z-high boundary must use the local upper
+// W-face height with a negative signed offset. This independent oracle makes
+// the upper-face pressure differ materially from both p_cc and the old
+// ground-relative Compute_Zrel_AtCellCenter path.
+TEST(SurfaceLayer, QsurfUsesLocalSignedZHighFacePressure)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_zhigh_geometry";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::high);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_qsurf_zhigh_geometry",
+        true, false);
+
+    BoxArray node_ba(fields.ba);
+    node_ba.convert(IntVect::TheNodeVector());
+    auto z_phys_nd = std::make_unique<MultiFab>(node_ba, fields.dm, 1, 0);
+    set_quadratic_node_heights(*z_phys_nd);
+
+    // For the three-cell fixture, z_cc(k=2)-z_upper_face(k=3) = 6.5-9 = -2.5.
+    constexpr Real local_delta_z = Real(-2.5);
+    const Real pressure = expected_surface_pressure(geom, face, local_delta_z);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+    layer->fill_qsurf_with_qsat(0, fields.cons, z_phys_nd);
+
+    const Real expected = expected_qsat(geom, face, local_delta_z);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected), Long(0));
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: lateral and tangential ghost cells are not authoritative
+// physical surface state. An invalid halo must be ignored without raising the
+// collective fatal flag, while the valid physical z-high slab still receives
+// qsat values.
+TEST(SurfaceLayer, QsurfInvalidHaloIsNonfatal)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_invalid_halo";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::high);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_qsurf_invalid_halo",
+        true, false);
+    const Real pressure = expected_surface_pressure(geom, face);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+
+    bool injected = false;
+    for (MFIter mfi(fields.cons, false); mfi.isValid() && !injected; ++mfi) {
+        Box ghost = mfi.validbox();
+        ghost.grow(1);
+        const IntVect point(ghost.bigEnd(0), ghost.smallEnd(1), mfi.validbox().bigEnd(2));
+        if (mfi.fabbox().contains(point) && !mfi.validbox().contains(point)) {
+            fields.cons[mfi].setVal<RunOn::Device>(
+                Real(0.0), Box(point, point), Rho_comp, 1);
+            injected = true;
+        }
+    }
+    ASSERT_TRUE(injected);
+    layer->fill_qsurf_with_qsat(0, fields.cons, nullptr);
+
+    const Real expected = expected_qsat(geom, face);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected), Long(0));
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: lateral-face qsat uses a grown tangential halo, so an invalid
+// state value just outside the physical face must be ignored rather than
+// treated as an authoritative conversion failure. This direct x-low case
+// complements the z-high halo regression and verifies that the physical slab
+// still receives the independent p_cc pressure oracle.
+TEST(SurfaceLayer, QsurfLateralInvalidHaloIsNonfatal)
+{
+    const std::string prefix = "unit_surface_layer_qsurf_lateral_invalid_halo";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::x, Orientation::low);
+    SurfaceLayerFields fields(geom, true);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, true, false);
+    const Real pressure = expected_surface_pressure(geom, face);
+    const Real surface_theta = test_surface_temperature *
+        std::pow(p_0 / pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+
+    bool injected = false;
+    for (MFIter mfi(fields.cons, false); mfi.isValid() && !injected; ++mfi) {
+        const Box& source = mfi.validbox();
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const IntVect point(source.smallEnd(0), source.smallEnd(1) - 1,
+                            source.smallEnd(2));
+        if (mfi.fabbox().contains(point) && !source.contains(point)) {
+            fields.cons[mfi].setVal<RunOn::Device>(
+                Real(0.0), Box(point, point), Rho_comp, 1);
+            injected = true;
+        }
+    }
+    ASSERT_TRUE(injected);
+
+    layer->fill_qsurf_with_qsat(0, fields.cons, nullptr);
+    EXPECT_GT(check_qsurf_values(
+        fields, *layer->get_q_surf(0), face, expected_qsat(geom, face)), Long(0));
+    pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: MOST's prescribed surface value is already potential
+// temperature. A pressure-dependent conversion at this producer would change
+// the long-standing MOST flux contract.
+TEST(SurfaceLayer, PrescribedMostSurfaceTemperatureRemainsPotentialTemperature)
+{
+    ScopedSurfaceLayerParams params("unit_surface_layer_most_theta");
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_most_theta");
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: the prescribed MOST heating rate is a tendency of the stored
+// potential temperature, so it must not be Exner-converted either.
+TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
+{
+    const std::string prefix = "unit_surface_layer_most_heating";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.surf_heating_rate", Real(3600.0));
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+    layer->update_fluxes(0, 2.0, 2.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature + Real(2.0));
+    pp.remove("most.surf_heating_rate");
+}
+
+// Motivation: Noah-MP's t_sfc is an absolute radiative temperature owned by
+// the radiation path, not a SurfaceLayer theta-like input. It must not be
+// adopted as MOST's thermal boundary; the configured MOST theta remains the
+// fallback when no recognized theta-like LSM field is present.
+TEST(SurfaceLayer, NoahRadiativeSurfaceTemperatureIsNotAdoptedBySurfaceLayer)
+{
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_noah_t_sfc");
+    SurfaceLayerFields fields;
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_noah_t_sfc",
+        false, true, "t_sfc", Real(290.0));
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: SLM exposes its surface field as theta. The SurfaceLayer must
+// preserve that canonical value, rather than treating every LSM temperature
+// field as an absolute-temperature Noah-MP field.
+TEST(SurfaceLayer, PotentialTemperatureLsmFieldRemainsUnchanged)
+{
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_lsm_theta");
+    SurfaceLayerFields fields(geom);
+    fields.set_surface_cell_pressure(Real(0.9) * p_0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_lsm_theta",
+        false, true, "theta", Real(275.0));
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), Real(275.0));
+}
+
+// Motivation: the text-file SST contract is absolute temperature, while the
+// SurfaceLayer field consumed by MOST is theta. This exercises the actual
+// z-low forcing path at reduced pressure rather than only testing the EOS
+// helper in isolation.
+TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
+{
+    const std::string prefix = "unit_surface_layer_text_sst";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+}
+
+// Motivation: production dry conserved state has four components and no
+// moisture density. The text-SST conversion must therefore obtain qv=0
+// without reading the out-of-range RhoQ1_comp slot.
+TEST(SurfaceLayer, DryTextSstDoesNotReadMoistureComponent)
+{
+    const std::string prefix = "unit_surface_layer_dry_text_sst";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp);
+    ASSERT_EQ(fields.cons.nComp(), RhoQ1_comp);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+}
+
+// Motivation: coupled SST is an absolute-temperature producer with partial
+// water coverage. Only covered cells should be converted into theta; an
+// uncovered water cell must retain the existing SurfaceLayer fallback.
+TEST(SurfaceLayer, CoupledSstConvertsOnlyCoveredWaterCells)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+
+    const IntVect covered = face_point(fields.domain, face);
+    fields.coupled_valid->setVal(1, Box(covered, covered), 0, 1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), covered), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+    const IntVect uncovered(0, 0, 0);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), uncovered), test_surface_temperature);
+}
+
+// Motivation: production dry coupled-SST state has no RhoQ1_comp component.
+// The covered conversion must use qv=0 without reading beyond the four
+// conserved components while still applying the pressure-dependent oracle.
+TEST(SurfaceLayer, DryCoupledSstDoesNotReadMoistureComponent)
+{
+    const std::string prefix = "unit_surface_layer_dry_coupled_sst";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp);
+    ASSERT_EQ(fields.cons.nComp(), RhoQ1_comp);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+}
+
+// Motivation: production coupled-SST donors have no lateral ghost cells, but
+// the SurfaceLayer destination carries a one-cell grown halo. A covered
+// nonperiodic edge must therefore sample the clamped physical donor rather
+// than be dropped when the target is grown. Repeating the update without
+// coverage also verifies that the edge retains the existing fallback.
+TEST(SurfaceLayer, CoupledSstZeroGhostDonorClampsNonperiodicEdge)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst_zero_ghost_edge";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+    fields.coupled_valid->setVal(1);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    bool checked_edge = false;
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const Box target = t_surf->boxArray()[ibox];
+        const IntVect interior = target.smallEnd();
+        IntVect edge = interior;
+        edge[0] -= 1;
+        ASSERT_TRUE((*t_surf)[ibox].box().contains(edge));
+        const auto t_arr = (*t_surf)[ibox].const_array();
+        EXPECT_NEAR(t_arr(interior[0], interior[1], interior[2]),
+                    expected_theta, Real(64.0) * std::numeric_limits<Real>::epsilon() *
+                    expected_theta);
+        EXPECT_NEAR(t_arr(edge[0], edge[1], edge[2]),
+                    expected_theta, Real(64.0) * std::numeric_limits<Real>::epsilon() *
+                    expected_theta);
+        checked_edge = true;
+    }
+    ASSERT_TRUE(checked_edge);
+
+    fields.coupled_valid->setVal(0);
+    layer->get_t_surf(0)->setVal(test_surface_temperature);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+    for (int ibox = 0; ibox < fields.ba.size(); ++ibox) {
+        const Box& source = fields.ba[ibox];
+        if (source.smallEnd(0) != geom.Domain().smallEnd(0)) { continue; }
+        const Box target = t_surf->boxArray()[ibox];
+        const IntVect edge(target.smallEnd(0) - 1,
+                           target.smallEnd(1), target.smallEnd(2));
+        const auto t_arr = (*t_surf)[ibox].const_array();
+        const Real fallback = t_arr(edge[0], edge[1], edge[2]);
+        EXPECT_EQ(fallback, test_surface_temperature);
+    }
+}
+
+// Motivation: a coupled SST pointer without a coverage mask carries no
+// evidence that any cell has an ocean donor. The SurfaceLayer fallback must
+// therefore remain untouched instead of treating the null mask as all-valid.
+TEST(SurfaceLayer, CoupledSstWithoutCoverageMaskLeavesFallbackUnchanged)
+{
+    const std::string prefix = "unit_surface_layer_coupled_sst_no_mask";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, false, "", Real(0.0), true);
+
+    layer->update_coupled_sst_ptr(0, fields.coupled_sst.get(), nullptr);
+    layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: the atmospheric thermodynamic exponent is solver configuration,
+// so the actual text-SST producer path must use a non-default cp rather than
+// silently reverting to the hard-coded dry-air exponent.
+TEST(SurfaceLayer, ConfiguredRdOcpControlsTextSstConversion)
+{
+    const std::string prefix = "unit_surface_layer_text_sst_custom_rdOcp";
+    const auto file = std::filesystem::current_path() /
+        ("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real)) + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    fields.lmask[0]->setVal(0);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    const Real rdOcp = R_d / Real(1100.0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), prefix, false, true, "", Real(0.0), false, rdOcp);
+
+    const Real expected_theta = Real(290.0) * std::pow(pressure / p_0, -rdOcp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
 }
 
 // Motivation: tau31 and tau32 are optional away from their corresponding
