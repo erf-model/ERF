@@ -86,14 +86,32 @@ if(NRANKS GREATER 1)
     endif()
 endif()
 
-two_stream_launcher(1 checker_launcher)
-execute_process(
-    COMMAND ${checker_launcher} ${CHECKER} ${PLOTFILE}
-    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
-    OUTPUT_FILE "${CHECKER_LOG}"
-    ERROR_FILE "${CHECKER_LOG}"
-    RESULT_VARIABLE checker_result)
-if(NOT checker_result EQUAL 0)
-    two_stream_report_log("checker log" "${CHECKER_LOG}")
-    message(FATAL_ERROR "TwoStream radiation column check failed: ${checker_result}")
+# Levels to run the column check on: a comma-separated string, default "0". A
+# multi-level case passes "0,1" so the fine level's own sweep is verified and
+# not just the coarse one's; each level gets the same assertions. Comma rather
+# than semicolon because a semicolon in a -D argument is split when the
+# COMMAND is built, which silently reduced this to level 0 only.
+if(NOT DEFINED CHECK_LEVELS OR "${CHECK_LEVELS}" STREQUAL "")
+    set(CHECK_LEVELS "0")
 endif()
+string(REPLACE "," ";" check_level_list "${CHECK_LEVELS}")
+message(STATUS "TwoStream column check will run on level(s): ${check_level_list}")
+
+two_stream_launcher(1 checker_launcher)
+foreach(check_level IN LISTS check_level_list)
+    set(level_log "${CHECKER_LOG}.lev${check_level}")
+    execute_process(
+        COMMAND ${checker_launcher} ${CHECKER} ${PLOTFILE} ${check_level}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${level_log}"
+        ERROR_FILE "${level_log}"
+        RESULT_VARIABLE checker_result)
+    # Keep the un-suffixed log too, so an existing single-level test's attached
+    # file name still resolves.
+    configure_file("${level_log}" "${CHECKER_LOG}" COPYONLY)
+    if(NOT checker_result EQUAL 0)
+        two_stream_report_log("checker log (level ${check_level})" "${level_log}")
+        message(FATAL_ERROR
+            "TwoStream radiation column check failed at level ${check_level}: ${checker_result}")
+    endif()
+endforeach()

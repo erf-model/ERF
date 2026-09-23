@@ -3904,6 +3904,16 @@ Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-re
 temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
 the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
 
+The model runs on a refined hierarchy: every level sweeps its own columns and writes its own
+heating rates. The one grid requirement is that each level's boxes span that level's domain in
+:math:`z`, because the sweep applies the top-of-atmosphere and surface boundary conditions at the
+ends of a box. Set ``amr.refine_whole_domain_dir = 2`` so AMReX emits refinement patches that span
+:math:`z`, and ``amr.max_grid_size_z`` to at least ``amr.n_cell`` in :math:`z` for the base grid;
+a run that violates either is refused at start-up with a message naming the input. The surface
+energy balance remains a level-0 feature, so ``erf.radiation.seb_prognostic_enable`` -- which
+evolves the surface temperature that the longwave boundary condition reads -- cannot be combined
+with ``amr.max_level > 0``.
+
 
 
 Two-Stream Radiation Model Parameters
@@ -4063,6 +4073,7 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
+|                                                    | single level only; refused with amr.max_level > 0          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

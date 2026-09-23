@@ -249,12 +249,56 @@ is enough to satisfy this. The model aborts with a message naming this input if 
 vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
 depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
 
+The same requirement applies to every level of a refined run, where it is a real constraint
+rather than a formality: a refinement patch is free to cover only part of the column. Setting
+
+.. code-block:: none
+
+   amr.refine_whole_domain_dir = 2
+
+makes AMReX cluster the tagged cells in the horizontal only and emit refinement boxes that span
+the whole domain in :math:`z`, which satisfies the requirement by construction. A refinement box
+given explicitly through ``erf.boxN.in_box_lo``/``in_box_hi`` satisfies it too when the :math:`z`
+extent is omitted, since the two-value form defaults to the full domain; giving a third value
+that stops short is refused at start-up. This is the same requirement the column-based PBL
+schemes already impose on refinement boxes, and it is checked in the same place.
+
+Multiple Levels
+--------------------------------------
+
+Every level runs its own column sweep over its own state, terrain and surface properties, and
+writes its own heating rates into ``qheating_rates[lev]``; the RhoTheta source applies them at
+every level. There is no coarse-fine treatment of the radiative fluxes and none is needed in the
+usual sense -- radiation is a source term, not a conserved flux that is refluxed -- but two
+consequences follow and are worth stating plainly:
+
+- **A lateral seam.** Across the edge of a patch, the coarse and the fine solution of the same
+  physical column differ slightly, because they are computed on different grids. For a smooth
+  broadband two-stream model the difference is small, but nothing smooths it. Coarse cells
+  underneath a patch have their state replaced by the fine solution at the end of each step
+  (``AverageDown``), so the discrepancy does not accumulate there.
+- **No feedback upward.** The fine level's own structure does not influence the coarse level's
+  radiation.
+
+A subcycled fine level calls radiation once per level step, so it runs ``nsubsteps[lev]`` times
+as often as its parent -- twice as often for a refinement ratio of two. This matches the RRTMGP
+path and is physically correct, since the heating is recomputed from the current old state each
+time; there is no call-interval input to reduce it.
+
+The surface energy balance runs on level 0 only. The surface is one physical object whose
+force-restore state is prognostic and checkpointed, so it has a single owner, and only level 0
+writes or reads that state in a checkpoint. The diagnostic SEB residual is likewise reported for
+level 0. Because the prognostic surface temperature *is* the longwave boundary condition,
+combining ``erf.radiation.seb_prognostic_enable`` with ``amr.max_level > 0`` would leave level 0
+and its fine levels with two different surface boundary conditions for one surface; that
+combination is refused at start-up rather than allowed to disagree silently.
+
 Limitations
 --------------------------------------
 
-- **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
-  never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
-  ``amr.max_level = 0``. The run stops at start-up with a message saying so.
+- **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
+  requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
+  subcycled call cadence, and the single-level restrictions on the surface energy balance.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
@@ -276,7 +320,8 @@ Limitations
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
-  ``post_dycore`` row per step. The file is appended to rather than truncated, as ERF's other
+  ``post_dycore`` row per step and per level. Every level appends to the one file and the
+  last column, ``level``, tells the rows apart. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
 
 Surface Energy Balance

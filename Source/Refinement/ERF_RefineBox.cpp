@@ -188,8 +188,19 @@ ERF::read_box_for_refinement (std::string& ref_prefix, int& lev_for_box, RealBox
                               solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::YSU      ||
                               solverChoice.turbChoice[lev_for_box].pbl_type == PBLType::MRF);
 
-            if ( using_pbl && ( (rbox_lo[2] > plo[2]) || (rbox_hi[2] < phi[2]) ) ) {
-                amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+            // The two-stream radiation model has the same column requirement as the
+            // PBL schemes: its sweep imposes the top-of-atmosphere and surface boundary
+            // conditions at the ends of a box, so a box that stops short of either end
+            // of the domain would have the solar beam injected part-way down the column.
+            bool using_two_stream = solverChoice.radChoice.uses_two_stream_radiation();
+
+            if ( (using_pbl || using_two_stream) && ( (rbox_lo[2] > plo[2]) || (rbox_hi[2] < phi[2]) ) ) {
+                if (using_pbl) {
+                    amrex::Print() << "PBL models need refinement boxes that go from the bottom to the top of the domain for calculation of PBLH" << std::endl;
+                }
+                if (using_two_stream) {
+                    amrex::Print() << "erf.radiation_model = TwoStream needs refinement boxes that go from the bottom to the top of the domain: the column sweep applies the top-of-atmosphere and surface boundary conditions at the ends of a box" << std::endl;
+                }
                 amrex::Print() << "Please set in_box_lo to geometry.prob_lo in z and in_box_hi to geometry.prob_hi in z and try again" << std::endl;
                 amrex::Abort();
             }

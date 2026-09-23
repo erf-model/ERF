@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -127,9 +128,14 @@ std::string first_nonfinite (const MultiFab& mf_in)
     return std::string();
 }
 
-int run_checks (const std::string& plotfile_path)
+int run_checks (const std::string& plotfile_path, int lev)
 {
     PlotFileData plotfile(plotfile_path);
+    if (lev < 0 || lev > plotfile.finestLevel()) {
+        return fail("plotfile has no level " + std::to_string(lev) +
+                    " (finest level is " + std::to_string(plotfile.finestLevel()) +
+                    "); the run did not refine as the deck asked");
+    }
     if (!has_variable(plotfile, "qsrc_sw")) {
         return fail("plotfile has no qsrc_sw (TwoStream heating not written)");
     }
@@ -137,20 +143,21 @@ int run_checks (const std::string& plotfile_path)
         return fail("plotfile has no qsrc_lw (TwoStream heating not written)");
     }
 
-    MultiFab qsrc_sw = plotfile.get(0, "qsrc_sw");
-    MultiFab qsrc_lw = plotfile.get(0, "qsrc_lw");
+    MultiFab qsrc_sw = plotfile.get(lev, "qsrc_sw");
+    MultiFab qsrc_lw = plotfile.get(lev, "qsrc_lw");
     const std::string sw_bad = first_nonfinite(qsrc_sw);
     if (!sw_bad.empty()) { return fail("qsrc_sw is not finite: " + sw_bad); }
     const std::string lw_bad = first_nonfinite(qsrc_lw);
     if (!lw_bad.empty()) { return fail("qsrc_lw is not finite: " + lw_bad); }
 
-    const amrex::Box domain = plotfile.probDomain(0);
+    const amrex::Box domain = plotfile.probDomain(lev);
     const std::vector<Real> sw = horizontal_mean_profile(qsrc_sw, domain);
     const std::vector<Real> lw = horizontal_mean_profile(qsrc_lw, domain);
     const int nz = static_cast<int>(sw.size());
     if (nz < 3) { return fail("need at least 3 vertical levels"); }
 
     if (amrex::ParallelDescriptor::IOProcessor()) {
+        std::cout << "level " << lev << " of " << plotfile.finestLevel() << "\n";
         std::cout << "k  <qsrc_sw> [K/s]  <qsrc_lw> [K/s]\n";
         for (int k = 0; k < nz; ++k) {
             std::cout << k << "  " << sw[k] << "  " << lw[k] << "\n";
@@ -203,10 +210,25 @@ int run_checks (const std::string& plotfile_path)
 int main (int argc, char** argv)
 {
     if (argc < 2) {
-        std::cerr << "usage: " << argv[0] << " <plotfile>\n";
+        std::cerr << "usage: " << argv[0] << " <plotfile> [level]\n";
         return 2;
     }
     const std::string plotfile_path(argv[1]);
+
+    // Optional AMR level to check; default 0. The same vertical-structure
+    // assertions hold on every level, because every level runs its own column
+    // sweep -- so a fine level whose heating was never written (left at the
+    // allocation's zeros) fails the "zero everywhere" assertion below.
+    int lev = 0;
+    if (argc >= 3) {
+        try {
+            lev = std::stoi(argv[2]);
+        } catch (const std::exception&) {
+            std::cerr << "usage: " << argv[0] << " <plotfile> [level]"
+                      << "  (level must be an integer, got \"" << argv[2] << "\")\n";
+            return 2;
+        }
+    }
 
     // build_parm_parse = false: the plotfile path is a directory, and letting
     // AMReX treat argv[1] as an inputs file makes it read that directory as
@@ -218,7 +240,7 @@ int main (int argc, char** argv)
             result = fail("no plotfile at " + plotfile_path +
                           " (the simulation did not write one)");
         } else {
-            result = run_checks(plotfile_path);
+            result = run_checks(plotfile_path, lev);
         }
     }
     amrex::Finalize();

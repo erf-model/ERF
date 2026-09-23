@@ -55,12 +55,27 @@ public:
      * @brief Allocate the 2D surface fields of one level on the given
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
      * unless rad_choice.rad_type == TwoStream.
+     *
+     * Also enforces the model's one grid requirement: every box of @p ba must
+     * span @p domain in z, because the column sweep applies the
+     * top-of-atmosphere and surface boundary conditions at the ends of a box.
+     * Aborting here means a bad refinement patch is rejected when the level is
+     * built (including on regrid), not at the first radiation call.
+     *
+     * @param lev        level
+     * @param rad_choice the model's inputs
+     * @param ba2d       horizontal BoxArray the 2D surface fields live on
+     * @param dm         distribution mapping shared with the level's state
+     * @param ba         the level's 3D BoxArray, checked for the z span
+     * @param domain     the level's domain Box
      */
     void define_level (int lev,
                        const RadChoice& rad_choice,
                        amrex::Real rdOcp,
                        const amrex::BoxArray& ba2d,
-                       const amrex::DistributionMapping& dm);
+                       const amrex::DistributionMapping& dm,
+                       const amrex::BoxArray& ba,
+                       const amrex::Box& domain);
 
     /**
      * @brief One radiation call at one level.
@@ -148,9 +163,12 @@ private:
     amrex::Real m_rdOcp = RdoCp;
     OrbitalCache m_orbit;
 
-    // CSV / console diagnostics writer, created on the first advance() so its
-    // header and duplicate-row state persist across calls.
-    std::unique_ptr<RadiationDiagnostics> m_diag;
+    // CSV / console diagnostics writer, one per level, created on that level's
+    // first advance() so its header and duplicate-row state persist across
+    // calls. Per level because every level of a hierarchy reports the same
+    // step, call_site and time, and a shared duplicate guard would suppress
+    // all but the first to report.
+    amrex::Vector<std::unique_ptr<RadiationDiagnostics>> m_diag;
 
     // Fallback surface properties when no LSM supplies them (2D: i,j).
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_alb_sw;
