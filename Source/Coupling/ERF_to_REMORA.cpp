@@ -273,17 +273,17 @@ ERF::GetOceanToAtmosSurfaceLayout (amrex::BoxArray& ba,
 }
 
 void
-ERF::GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
-                                       const amrex::MultiFab*& y_corner) const
+ERF::GetOceanToAtmosCellCenterLonLat (const amrex::MultiFab*& lon_cc,
+                                      const amrex::MultiFab*& lat_cc) const
 {
     if (lon_m.empty() || lat_m.empty() ||
         lon_m[0] == nullptr || lat_m[0] == nullptr) {
-        x_corner = nullptr;
-        y_corner = nullptr;
+        lon_cc = nullptr;
+        lat_cc = nullptr;
         return;
     }
-    x_corner = lon_m[0].get();
-    y_corner = lat_m[0].get();
+    lon_cc = lon_m[0].get();
+    lat_cc = lat_m[0].get();
 }
 
 void
