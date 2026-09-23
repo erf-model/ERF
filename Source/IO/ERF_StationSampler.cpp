@@ -837,17 +837,7 @@ ERF::resolve_station_positions ()
         //
         // NOTE: every init path fills lat_m / lon_m with mass-point values --
         //       init_from_wrfinput reads WRF's XLAT / XLONG and init_from_metgrid
-        //       reads XLAT_M / XLONG_M (see the staggering contract in ERF.H) --
-        //       so no averaging is needed.  The one case that still needs it is a
-        //       restart from a checkpoint written back when the wrfinput path
-        //       stored the edge-staggered XLAT_V / XLONG_U, where the mass point
-        //       is the average of the two bracketing edges.  Which it is comes
-        //       from whichever path filled the arrays, carried across a restart in
-        //       the checkpoint: reading it off init_type instead would be wrong
-        //       for a restart deck that does not repeat init_type, and would move
-        //       every station half a cell without saying so.
-        const bool destagger = latlon_are_edge_staggered;
-
+        //       reads XLAT_M / XLONG_M -- so no averaging is needed here.
         MultiFab latlon(ba2d[0], dmap[0], 2, 0);
         for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
@@ -856,8 +846,8 @@ ERF::resolve_station_positions ()
             const Array4<const Real>& lon = lon_m[0]->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                ll(i,j,k,0) = destagger ? Real(0.5)*(lat(i,j,0) + lat(i,j+1,0)) : lat(i,j,0);
-                ll(i,j,k,1) = destagger ? Real(0.5)*(lon(i,j,0) + lon(i+1,j,0)) : lon(i,j,0);
+                ll(i,j,k,0) = lat(i,j,0);
+                ll(i,j,k,1) = lon(i,j,0);
             });
         }
 
