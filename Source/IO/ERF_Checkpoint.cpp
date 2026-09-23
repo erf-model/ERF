@@ -1849,6 +1849,11 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                         // fill as many ghost cells as both sides have
                         IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                         dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                        // The file's ghost cells may be stale (never filled before the
+                        // write). As copy sources they reach valid cells through periodic
+                        // images, so copy again from the valid cells alone; only
+                        // domain-boundary ghosts keep the file's values.
+                        dst->ParallelCopy(m_var, 0, 0, 1, IntVect(0), ng, geom[lev].periodicity());
                         return true;
                     }
                     return false;
