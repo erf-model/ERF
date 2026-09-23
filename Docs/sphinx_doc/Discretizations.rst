@@ -154,6 +154,50 @@ Contributions from different directions
 .. image:: figures/grid_discretization/scalar_advec_z.PNG
   :width: 400
 
+Scalar-advection field interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF evaluates cell-centered scalar advection by reconstructing the primitive
+scalar to each cell face, multiplying the reconstructed value by the
+time-averaged mass flux through that face, and taking the finite-volume
+divergence of the resulting scalar fluxes.
+
+For the regular-grid and terrain-following scalar operator, the mapped
+divergence has the form
+
+.. math::
+
+   \left.\frac{\partial (\rho C)}{\partial t}\right|_{\mathrm{adv}}
+   =
+   -\frac{m_x m_y}{J}
+   \left(
+       \frac{\partial F_x}{\partial x}
+       +
+       \frac{\partial F_y}{\partial y}
+       +
+       \frac{\partial F_z}{\partial z}
+   \right),
+
+where :math:`J` is the metric Jacobian, :math:`m_x` and :math:`m_y` are the
+cell-centered map factors, and each :math:`F_d` is the time-averaged mass flux
+in direction :math:`d` multiplied by the reconstructed scalar value on that
+face.
+
+The scalar-advection implementation treats the scalar input field, face-flux
+storage, and output tendency as independent component views. ERF's native
+state adapter maps the model's primitive-scalar layout onto those views, but
+the numerical reconstruction and divergence operators do not require the
+scalar to occupy a native conserved-state component. This separation allows
+the same regular scalar-advection implementation to be reused by future
+cell-centered scalar fields without first staging those fields into the
+native conserved state.
+
+This is an implementation interface rather than a new runtime option. It does
+not change the available advection schemes, their configured inputs, or the
+numerical treatment of ERF's existing scalar state. This change does not add
+an auxiliary tracer. Embedded-boundary scalar reconstruction and cut-cell
+divergence retain their specialized EB implementation.
+
 Diagnostic Variables
 --------------------
 
