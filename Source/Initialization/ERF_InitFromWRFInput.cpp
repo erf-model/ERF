@@ -996,10 +996,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
           // Initialize Latitude & Coriolis factors
           if ( var_name == "XLAT" ) {
               // XLAT is cell centered, so a consumer that wants the mass point
-              // can use it directly.  Record that here rather than leaving every
-              // consumer to infer it from init_type, which a restart deck need
-              // not repeat.
-              latlon_are_edge_staggered = false;
+              // can use it directly.
               lat_m[lev]    = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               sinPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
               cosPhi_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
