@@ -4,6 +4,49 @@
 
 using namespace amrex;
 
+void
+BelowGroundGhostSync::operator() (MultiFab& mf, int icomp, int ncomp,
+                                  const IntVect& nghost, const Geometry& geom)
+{
+    if (nghost[2] <= 0 || geom.isPeriodic(2)) { return; }
+
+    const IndexType typ = mf.ixType();
+    const Box dom = amrex::convert(geom.Domain(), typ);
+    const int klo = dom.smallEnd(2);
+
+    // The owning slab of each box: the cells below the domain under its valid
+    // columns, extended laterally over the ghost columns outside a non-periodic
+    // side of the domain that the box touches.  The slabs of different boxes
+    // meet only where face-centred boxes share a face, and there both compute
+    // the value with a centred stencil.
+    if (!(m_src_ba == mf.boxArray()) || !(m_src_dm == mf.DistributionMap()) || m_nghost != nghost)
+    {
+        const BoxArray& ba = mf.boxArray();
+        BoxList bl(typ);
+        for (int n = 0; n < static_cast<int>(ba.size()); ++n) {
+            Box b = ba[n];
+            for (int d = 0; d < 2; ++d) {
+                if (geom.isPeriodic(d)) { continue; }
+                if (b.smallEnd(d) == dom.smallEnd(d)) { b.growLo(d, nghost[d]); }
+                if (b.bigEnd(d)   == dom.bigEnd(d))   { b.growHi(d, nghost[d]); }
+            }
+            b.setRange(2, klo - nghost[2], nghost[2]);
+            bl.push_back(b);
+        }
+        m_slab_ba = BoxArray(std::move(bl));
+        m_src_ba  = mf.boxArray();
+        m_src_dm  = mf.DistributionMap();
+        m_nghost  = nghost;
+    }
+
+    MultiFab slab(m_slab_ba, m_src_dm, ncomp, 0);
+    for (MFIter mfi(slab); mfi.isValid(); ++mfi) {
+        const Box& sbx = mfi.validbox();
+        slab[mfi].template copy<RunOn::Device>(mf[mfi], sbx, icomp, sbx, 0, ncomp);
+    }
+    mf.ParallelCopy(slab, 0, icomp, ncomp, IntVect(0), nghost, geom.periodicity());
+}
+
 /**
  * Impose physical boundary conditions at domain boundaries
  *
@@ -88,6 +131,12 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree
+    if (do_terrain_adjustment && m_z_phys_nd) {
+        m_below_ground_sync(mf, icomp, ncomp, nghost, m_geom);
+    }
 } // operator()
 
 /**
@@ -168,6 +217,12 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             }
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree
+    if (m_z_phys_nd) {
+        m_below_ground_sync(mf, 0, 1, nghost, m_geom);
+    }
 } // operator()
 
 /**
@@ -249,6 +304,12 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree
+    if (m_z_phys_nd) {
+        m_below_ground_sync(mf, 0, 1, nghost, m_geom);
+    }
 } // operator()
 
 /**

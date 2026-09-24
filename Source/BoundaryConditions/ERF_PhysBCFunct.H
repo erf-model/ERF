@@ -20,6 +20,35 @@
 #include <ERF_EddyViscosity.H>
 #include <ERF_TerrainMetrics.H>
 
+/**
+ * Make the ghost cells below the bottom of the domain agree between boxes.
+ *
+ * On a terrain-fitted mesh the zero-gradient condition at the bottom is corrected
+ * by the slope of the terrain times the lateral gradient of the variable at the
+ * first cell (impose_vertical_*_bcs).  Each box computes that for its own ghost
+ * cells, and in the outermost ring of its lateral ghost cells the gradient can
+ * only be one-sided, so the same ghost cell below the ground holds different
+ * values in different boxes.  The fill of a finer level copies ghost cells of
+ * this level, taking whichever box's copy it meets, so the finer level then
+ * depends on the box decomposition.
+ *
+ * This replaces every ghost cell below the domain with the value computed by the
+ * box whose valid columns contain it (or, outside the domain laterally, the box
+ * at that boundary), where the lateral stencil is always centred.  Values in the
+ * owning box are unchanged.  The layout of the owning slabs is cached.
+ */
+struct BelowGroundGhostSync
+{
+    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
+                     const amrex::IntVect& nghost, const amrex::Geometry& geom);
+
+private:
+    amrex::BoxArray            m_src_ba;
+    amrex::DistributionMapping m_src_dm;
+    amrex::IntVect             m_nghost;
+    amrex::BoxArray            m_slab_ba;
+};
+
 class ERFPhysBCFunct_cons
 {
 public:
@@ -127,6 +156,7 @@ private:
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_th_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_u
@@ -228,6 +258,7 @@ private:
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_u_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_v
@@ -329,6 +360,7 @@ private:
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_v_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_w
