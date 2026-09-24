@@ -12,11 +12,37 @@
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
-
+/**
+ * @brief Interface between ERF and land-surface and urban models.
+ *
+ * SurfaceModel collects data and fluxes from the LSM and urban models,
+ * performs the land-urban weight averaging and exposes the resulting fields
+ * for use by ERF boundary-condition and physics components.
+ *
+ * Models may register data and mappings independently, without requiring a
+ * fixed ordering or one-to-one correspondence between their fields.
+ *
+ * Model-specific field names can also be registered under a common name for
+ * consumers such as RRTMGP and MOST.
+ *
+ * This class supports its own checkpoint state, ensuring the mappings are
+ * restored correctly on restart. This class also provides a surface plotfile
+ * for weight-averaged model data for the fields registered.
+ */
 class SurfaceModel
 {
 public:
 
+    /**
+     * @brief Constructs a surface-model interface for the supplied AMR levels.
+     *
+     * @param nlevs Number of AMR levels initially available.
+     * @param ba Cell-centered box arrays for each level.
+     * @param geom Geometry for each level.
+     * @param dm Distribution mappings for each level.
+     * @param solverChoice ERF solver configuration.
+     * @param lmask_lev Land-mask data for each level.
+     */
     explicit SurfaceModel(int nlevs,
                           const amrex::Vector<amrex::BoxArray> &ba,
                           const amrex::Vector<amrex::Geometry> &geom,
@@ -48,6 +74,20 @@ public:
         urban_fields = amrex::Vector<int>{4, -1};
     }
 
+    /**
+     * @brief Initializes storage and boundary data for an AMR level.
+     *
+     * Existing coarser-level data are interpolated when a finer level is
+     * initialized.
+     *
+     * @param lev AMR level to initialize.
+     * @param ba Cell-centered box array for the level.
+     * @param geom Geometry for the level.
+     * @param dm Distribution mapping for the level.
+     * @param lmask_lev Land-mask data used by the level.
+     * @param domain_bcs_type Boundary conditions for interpolation.
+     * @param refRatio Refinement ratios between adjacent levels.
+     */
     void initialize_for_level(int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
     {
         if (lev >= m_nlevs) {
@@ -195,7 +235,12 @@ public:
     }
 
     /**
-     * Sets the urban or land data pointers that are used to compute weight averages
+     * @brief Registers model variables used in weighted averaging.
+     *
+     * @param lev AMR level associated with the data.
+     * @param model_data Pointers to the model variables.
+     * @param data_names Names corresponding to @p model_data.
+     * @param type Whether the data belong to the land or urban model.
      */
     void set_model_data(const int lev, const amrex::Vector<amrex::MultiFab*> model_data, const amrex::Vector<std::string>& data_names, SurfaceModelType type)
     {
@@ -234,7 +279,12 @@ public:
     }
 
     /**
-     * Adds model flux data to the fields that can be weight averaged.
+     * @brief Registers model fluxes as additional weighted-average inputs.
+     *
+     * @param lev AMR level associated with the fluxes.
+     * @param model_fluxes Pointers to the model flux fields.
+     * @param flux_names Names corresponding to @p model_fluxes.
+     * @param type Whether the fluxes belong to the land or urban model.
      */
     void set_model_fluxes(const int lev, const amrex::Vector<amrex::MultiFab*> model_fluxes,
                           const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
@@ -270,10 +320,16 @@ public:
     }
 
     /**
-     * Sets the fields to average for each model. When using fluxes, the first five elements map to
-     *   u-stress, v-stress, heat flux, vapor flux, tsurf.
-     * Otherwise, the first four elements map to ustar, tstar, qstar, tsurf.
-     * If a field is set to -1, then it is skipped in the weight average.
+     * @brief Selects the model fields that participate in weighted averaging.
+     *
+     * When using fluxes, the first five elements map to u-stress, v-stress,
+     * heat flux, vapor flux, and surface temperature. Otherwise, the first
+     * four elements map to ustar, tstar, qstar, and surface temperature. A
+     * field index of -1 skips that field.
+     *
+     * @param type Whether the fields belong to the land or urban model.
+     * @param fields Indices of the fields to average.
+     * @param use_fluxes Whether the selected fields are fluxes.
      */
     void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &fields, const bool use_fluxes = true)
     {
@@ -295,52 +351,119 @@ public:
     }
 
     /**
-     * Apply the weighted average to a pair of land and urban data, regardless of whether they are in the field list
-     * If one of the pointers is null, then it is skipped. Both pointers cannot be null.
-     * This applies weights to ALL elements in the multifab.
-     * lsm_data and urban_data can have different underlying grids - weights are applied to each separately
+     * @brief Applies land and urban weights to a pair of data fields.
+     *
+     * A null land or urban pointer is skipped, but both pointers cannot be
+     * null. The fields may use different underlying grids.
+     *
+     * @param lev AMR level whose weights are used.
+     * @param lsm_data Land-model data to weight.
+     * @param urban_data Urban-model data to weight.
      */
     void apply_weight_average(int lev, amrex::MultiFab *lsm_data, amrex::MultiFab *urban_data);
 
     /**
-     * Calculates the weight average and applies the weights to all the fields to average for each model.
+     * @brief Computes land and urban weights and applies them to registered fields.
+     *
+     * @param lev AMR level to update.
+     * @param urban_frac Urban fraction used to compute the weights.
      */
     void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac);
 
+    /**
+     * @brief Returns whether the interface exports fluxes rather than MOST variables.
+     * @return True when weighted outputs are fluxes.
+     */
     bool are_fluxes() { return m_export_fluxes; }
 
+    /**
+     * @brief Returns the weighted horizontal momentum output for a level.
+     * @param lev AMR level to query.
+     * @return Pointer to the weighted u-star or momentum-flux field.
+     */
     amrex::MultiFab* get_ustar(const int& lev) {
         return u_star[lev].get();
     }
 
+    /**
+     * @brief Returns the weighted thermal output for a level.
+     * @param lev AMR level to query.
+     * @return Pointer to the weighted t-star or heat-flux field.
+     */
     amrex::MultiFab* get_tstar(const int& lev) {
         return t_star[lev].get();
     }
 
+    /**
+     * @brief Returns the weighted moisture output for a level.
+     * @param lev AMR level to query.
+     * @return Pointer to the weighted q-star or vapor-flux field.
+     */
     amrex::MultiFab* get_qstar(const int& lev) {
         return q_star[lev].get();
     }
 
+    /**
+     * @brief Returns the weighted surface-temperature output for a level.
+     * @param lev AMR level to query.
+     * @return Pointer to the weighted surface-temperature field.
+     */
     amrex::MultiFab* get_tsurf(const int& lev) {
         return t_surf[lev].get();
     }
 
+    /**
+     * @brief Returns the land and urban weighting factors for a level.
+     * @param lev AMR level to query.
+     * @return Pointer to the weighting-factor field.
+     */
     amrex::MultiFab* get_wavg_factors(const int &lev) {
         return wavg[lev].get();
     }
 
+    /**
+     * @brief Writes registered surface-model fields to plotfile output.
+     * @param finest_lev Finest AMR level to write.
+     * @param time Simulation time associated with the output.
+     * @param plot_prefix Output plotfile prefix.
+     * @param level_steps Number of steps represented at each level.
+     * @param ref_ratio Refinement ratios between adjacent levels.
+     */
     void write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio);
 
+    /**
+     * @brief Registers a field map using land and urban field indices.
+     * @param name Common name used to retrieve the mapped field.
+     * @param lsm_urb_map Pair of land and urban field indices.
+     * @param fill_boundary Whether to fill mapped-field boundaries.
+     */
     void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 
+    /**
+     * @brief Registers a field map using per-level land and urban pointers.
+     * @param name Common name used to retrieve the mapped field.
+     * @param lsm_lev_mf Land-model fields, indexed by AMR level.
+     * @param urb_lev_mf Urban-model fields, indexed by AMR level.
+     * @param fill_boundary Whether to fill mapped-field boundaries.
+     */
     void register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
 
     /**
-     * Updates a pointer-based field mapping for one level.
+     * @brief Updates a pointer-based field mapping for one level.
+     * @param name Common name of the mapped field.
+     * @param lev AMR level to update.
+     * @param lsm_mf Land-model field pointer, or nullptr.
+     * @param urban_mf Urban-model field pointer, or nullptr.
      */
     void set_field_map_pointers(const std::string& name, int lev,
                                 amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
 
+    /**
+     * @brief Retrieves a registered field by its common name.
+     * @param name Registered field name.
+     * @param lev AMR level to query.
+     * @return Pointer to the registered field, or nullptr if it is unknown.
+     */
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
         if (auto field = fieldmap.find(name); field != fieldmap.end()) {
             AMREX_ASSERT(field->second.mf_ind != -1);
@@ -350,6 +473,16 @@ public:
         }
     }
 
+    /**
+     * @brief Returns fields registered under the RRTMGP radiation names.
+     *
+     * The resulting map is cached after the first call for reuse on subsequent timesteps.
+     * When an expected field is missing, it is marked nullptr for the RRTMGP implementation
+     * to apply its fallback values.
+     *
+     * @param lev AMR level to query.
+     * @return Radiation fields in the order expected by RRTMGP.
+     */
     const amrex::Vector<const amrex::MultiFab*> get_radiation_fields(int lev = 0) {
         // check if we need to build the radiation list (for first time step,)
         if (rad_fields[lev].size() == 0) {
@@ -358,19 +491,40 @@ public:
         return rad_fields[lev];
     }
 
-    // utility to skip to next line in Header
-    //  -- taken from ERF_Checkpoint
+    /**
+     * @brief Advances an input stream to the next line.
+     *
+     * taken from ERF_Checkpoint, reuse?
+     *
+     * @param is Input stream to advance.
+     */
     static void GotoNextLine (std::istream& is);
 
+    /**
+     * @brief Writes surface-model state to a checkpoint file.
+     * @param checkpointname Checkpoint file name.
+     */
     void WriteCheckpoint(const std::string &checkpointname);
 
+    /**
+     * @brief Restores surface-model state from a checkpoint file.
+     * @param checkpointname Checkpoint file name.
+     */
     void ReadCheckpoint(const std::string &checkpointname);
 
 private:
 
-    // Internal function to update weights using urban fraction
+    /**
+     * @brief Computes simple land and urban weights from the urban fraction.
+     * @param lev AMR level to update.
+     * @param urban_frac Urban fraction used to compute the weights.
+     */
     void calculate_simple_average(int lev, amrex::MultiFab* const urban_frac);
 
+    /**
+     * @brief Builds the ordered radiation-field list for one AMR level.
+     * @param lev AMR level to update.
+     */
     void build_radiation_fieldlist(int lev) {
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
@@ -389,8 +543,21 @@ private:
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields[lev].size() == radnames.size(), "Did not find all radiation fields");
     }
 
+    /**
+     * @brief Applies the current land and urban weights to selected model fields.
+     * @param lev AMR level to update.
+     * @param urban_frac Urban fraction used to compute the weights.
+     */
     void weight_average_fields(int lev, amrex::MultiFab* const urban_frac);
 
+    /**
+     * @brief Checks whether a model field participates in a registered mapping.
+     * @param lev AMR level to query.
+     * @param type Land or urban model owning the field.
+     * @param field_idx Index of the model field.
+     * @param mf Field pointer to test.
+     * @return True when the field is part of a registered mapping.
+     */
     bool is_field_mapped(int lev, SurfaceModelType type, int field_idx,
                          const amrex::MultiFab* mf) const;
 
@@ -433,13 +600,27 @@ private:
     amrex::Vector<int> lsm_fields;
     amrex::Vector<int> urban_fields;
 
+    // These are the names to be consumed in RRTMGP, but the mapped LSM/Urban names can be different
     inline static const std::vector<std::string> radnames = {"tskin", "emiss", "albedo_vis", "albedo_nir", "albedo_vis_diff", "albedo_nir_diff"};
 
+    /**
+     * @brief Describes a registered land/urban field mapping.
+     *
+     * A Field associates the common name used by ERF consumers with either
+     * model-specific field indices or per-level field pointers. The mapped
+     * fields are stored in the SurfaceModel-owned field array and the source
+     * pointers remain owned by their respective surface models.
+     */
     struct Field {
+        /// Land and urban model field indices, respectively.
         std::pair<int, int> map;
+        /// Per-level land-model field pointers.
         amrex::Vector<amrex::MultiFab*> lsm_ptr;
+        /// Per-level urban-model field pointers.
         amrex::Vector<amrex::MultiFab*> urb_ptr;
+        /// Index of the mapped field in the SurfaceModel field array.
         int mf_ind;
+        /// Whether boundaries are filled after mapping the field.
         bool fill_bound;
     };
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> fields; // NOTE: this is stored in inverse order: (field, nlev)
