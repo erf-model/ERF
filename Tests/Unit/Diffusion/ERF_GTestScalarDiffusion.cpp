@@ -12,6 +12,45 @@
 
 using namespace amrex;
 
+// NVCC requires extended device lambdas to be enclosed by a public member.
+// GTEST_TEST_ makes TestBody private, so keep the same registration with a
+// public TestBody for tests that launch GPU kernels.
+#define ERF_GPU_TEST(test_suite_name, test_name)                              \
+  static_assert(sizeof(GTEST_STRINGIFY_(test_suite_name)) > 1,                 \
+                "test_suite_name must not be empty");                        \
+  static_assert(sizeof(GTEST_STRINGIFY_(test_name)) > 1,                      \
+                "test_name must not be empty");                              \
+  class GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)                    \
+      : public ::testing::Test {                                              \
+   public:                                                                    \
+    GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)() = default;           \
+    ~GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)() override = default; \
+    GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)                       \
+    (const GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) &) = delete;    \
+    GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) & operator=(           \
+        const GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) &) = delete; \
+    GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)                       \
+    (GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) &&) noexcept = delete; \
+    GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) & operator=(           \
+        GTEST_TEST_CLASS_NAME_(test_suite_name, test_name) &&) noexcept =     \
+      delete;                                                                 \
+    void TestBody() override;                                                 \
+    [[maybe_unused]] static ::testing::TestInfo* const test_info_;            \
+  };                                                                          \
+  ::testing::TestInfo* const GTEST_TEST_CLASS_NAME_(test_suite_name,          \
+                                                    test_name)::test_info_ =  \
+      ::testing::internal::MakeAndRegisterTestInfo(                           \
+          #test_suite_name, #test_name, nullptr, nullptr,                    \
+          ::testing::internal::CodeLocation(__FILE__, __LINE__),              \
+          ::testing::internal::GetTestTypeId(),                              \
+          ::testing::internal::SuiteApiResolver<                             \
+              ::testing::Test>::GetSetUpCaseOrSuite(__FILE__, __LINE__),     \
+          ::testing::internal::SuiteApiResolver<                             \
+              ::testing::Test>::GetTearDownCaseOrSuite(__FILE__, __LINE__),  \
+          new ::testing::internal::TestFactoryImpl<                          \
+              GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)>);          \
+  void GTEST_TEST_CLASS_NAME_(test_suite_name, test_name)::TestBody()
+
 namespace {
 
 constexpr int kScalarComp = 2;
@@ -191,6 +230,28 @@ struct NativeTerrainScalarCase
     ay.setVal<RunOn::Device>(c);
     detj.setVal<RunOn::Device>(c);
 
+    initialize_fields();
+
+    bcs.resize(NBCVAR_max);
+    for (auto& bc : bcs) {
+      for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        bc.setLo(d, ERFBCType::foextrap);
+        bc.setHi(d, ERFBCType::foextrap);
+      }
+    }
+    bcs_device.resize(bcs.size());
+    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_device.begin());
+    surface.resize(6);
+
+    solver.diffChoice.molec_diff_type = MolecDiffType::Constant;
+    solver.diffChoice.rhoAlpha_C = K;
+    solver.diffChoice.rhoAlpha_T = K;
+    solver.turbChoice.resize(1);
+    solver.turbChoice[0].use_kturb = false;
+  }
+
+  void initialize_fields()
+  {
     const int scalar_comp = qty_comp - 1;
     auto cons = conserved.array();
     auto prim = primitive.array();
@@ -219,23 +280,6 @@ struct NativeTerrainScalarCase
                       cc * (Real(k) + Real(0.5));
     });
     Gpu::streamSynchronize();
-
-    bcs.resize(NBCVAR_max);
-    for (auto& bc : bcs) {
-      for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-        bc.setLo(d, ERFBCType::foextrap);
-        bc.setHi(d, ERFBCType::foextrap);
-      }
-    }
-    bcs_device.resize(bcs.size());
-    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_device.begin());
-    surface.resize(6);
-
-    solver.diffChoice.molec_diff_type = MolecDiffType::Constant;
-    solver.diffChoice.rhoAlpha_C = K;
-    solver.diffChoice.rhoAlpha_T = K;
-    solver.turbChoice.resize(1);
-    solver.turbChoice[0].use_kturb = false;
   }
 
   void run(const Real implicit_fac)
@@ -564,7 +608,7 @@ fill_ones(FArrayBox& fab)
 // Motivation: Explicit state diffusion used positional coefficient tables
 // through Q11. Appended q-state needs the Q eddy category and zero molecular
 // coefficient without indexing past them.
-TEST(
+ERF_GPU_TEST(
   ScalarDiffusionPolicy,
   NativeMappingPreservesLegacyCategoriesAndExtendedQIsBounded)
 {
@@ -627,7 +671,7 @@ TEST(
 // Motivation: Exercise appended q components through the public N adapter so
 // a fixed Q1-Q11 coefficient lookup, stale primitive extent, or wrong Q eddy
 // component produces a finite, independently checkable failure.
-TEST(
+ERF_GPU_TEST(
   ScalarDiffusionPolicy,
   ExtendedQStateRunsThroughNativeAdapterWithoutFixedTableLookup)
 {
@@ -779,7 +823,7 @@ TEST(
 // Motivation: unrelated scalar, density, flux, and RHS components expose
 // accidental native cons-1 inference, component-zero writes, and wrong
 // horizontal/vertical eddy selection.
-TEST(ScalarDiffusionPrimitives, NExplicitComponentsAndCoefficientModes)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, NExplicitComponentsAndCoefficientModes)
 {
   const Box bx(IntVect(1, 1, 1), IntVect(2, 2, 2));
   Box data_box = bx;
@@ -820,7 +864,7 @@ TEST(ScalarDiffusionPrimitives, NExplicitComponentsAndCoefficientModes)
 // Motivation: Native ERF must delegate N, S, and T spatial work to the same
 // component-explicit kernels while preserving its native state and geometry
 // mapping.
-TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
 {
   const Box cells(IntVect(1, 1, 1), IntVect(2, 2, 2));
   Box data_box = cells;
@@ -1049,7 +1093,7 @@ TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
 // Motivation: stretched vertical gradients use adjacent cell-center distance
 // while divergence uses the receiving cell width; uniform dz must recover N's
 // boundary stencil.
-TEST(ScalarDiffusionPrimitives, StretchedUniformLimitMatchesN)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, StretchedUniformLimitMatchesN)
 {
   const auto w = StretchedDiffusionDirichletWeights(Real(1.0), Real(1.0));
   EXPECT_NEAR(w.c1, Real(-8.0 / 3.0), tolerance());
@@ -1135,7 +1179,7 @@ TEST(ScalarDiffusionPrimitives, StretchedUniformLimitMatchesN)
 // Motivation: On a stretched mesh the scalar gradient uses adjacent cell-center
 // spacing while divergence uses the receiving cell width. Unequal dz values
 // make confusing these two metrics produce a resolvable error.
-TEST(ScalarDiffusionPrimitives, StretchedVariableDzUsesCellAndFaceSpacing)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, StretchedVariableDzUsesCellAndFaceSpacing)
 {
   const Box box(IntVect(0, 0, -1), IntVect(0, 0, 4));
   FArrayBox scalar(box, 4);
@@ -1219,7 +1263,7 @@ TEST(ScalarDiffusionPrimitives, StretchedVariableDzUsesCellAndFaceSpacing)
 // Motivation: Terrain-following diffusion needs both h_xi and h_eta cross
 // terms in the transformed vertical transfer. This independent affine-terrain
 // quadratic oracle detects either missing term and map-factor misplacement.
-TEST(ScalarDiffusionPrimitives, TerrainMappedQuadraticManufacturedSolution)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainMappedQuadraticManufacturedSolution)
 {
   const Real a = Real(0.31), b = Real(-0.23), c = Real(1.4);
   const Real mx = Real(1.7), my = Real(0.82), K = Real(0.61);
@@ -1329,7 +1373,7 @@ TEST(ScalarDiffusionPrimitives, TerrainMappedQuadraticManufacturedSolution)
 // Motivation: Exercise the public terrain adapter with analytic affine z and
 // quadratic chi; independent RHS and face-flux oracles expose either missing
 // terrain cross term rather than only testing the pointwise helpers.
-TEST(
+ERF_GPU_TEST(
   ScalarDiffusionPrimitives,
   NativeTerrainAdapterMatchesAffineQuadraticManufacturedSolution)
 {
@@ -1382,7 +1426,7 @@ TEST(
 
 // Motivation: ERF's semi-implicit terrain split scales only raw F_z. The
 // lateral terrain cross terms remain explicit and must not receive that scale.
-TEST(ScalarDiffusionPrimitives, TerrainImplicitSplitScalesOnlyRawVerticalFlux)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainImplicitSplitScalesOnlyRawVerticalFlux)
 {
   const Real a = Real(0.37), b = Real(-0.29), mx = Real(1.6), my = Real(0.75);
   const Real explicit_fac = Real(0.6), implicit_fac = Real(0.4);
@@ -1427,7 +1471,7 @@ TEST(ScalarDiffusionPrimitives, TerrainImplicitSplitScalesOnlyRawVerticalFlux)
 // Motivation: The public T adapter must retain complete Q1 diagnostic F_z,
 // scale only raw F_z for the explicit RHS, and leave both terrain cross terms
 // explicit for every implicit fraction.
-TEST(ScalarDiffusionPrimitives, NativeTerrainImplicitSplitScalesOnlyRawFz)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeTerrainImplicitSplitScalesOnlyRawFz)
 {
   NativeTerrainScalarCase test(
     Real(0.37), Real(0.29), Real(1.25), Real(1.7), Real(0.8), Real(0.61),
@@ -1505,7 +1549,7 @@ TEST(ScalarDiffusionPrimitives, NativeTerrainImplicitSplitScalesOnlyRawFz)
 
 // The external mapped-transfer boundary must share the exact terrain
 // interpolation and bottom/top extrapolation used by native ERF.
-TEST(ScalarDiffusionPrimitives, TerrainMappedKFaceTransfer)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainMappedKFaceTransfer)
 {
   const Box domain(IntVect(0, 0, 0), IntVect(4, 4, 3));
   const Box xbox = surroundingNodes(domain, 0);
@@ -1612,7 +1656,7 @@ TEST(ScalarDiffusionPrimitives, TerrainMappedKFaceTransfer)
 
 // Fused/chunked callers can use the same raw terrain face stencils as the
 // field builder, with independent scalar, density, and output components.
-TEST(ScalarDiffusionPrimitives, TerrainPointwiseFaceFluxPrimitives)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainPointwiseFaceFluxPrimitives)
 {
   constexpr int scalar_comp = 2;
   constexpr int rho_comp = 1;
@@ -1782,7 +1826,7 @@ TEST(ScalarDiffusionPrimitives, TerrainPointwiseFaceFluxPrimitives)
 
 // Materialized mapped transfers must reproduce the established native
 // divergence for N, nonuniform S, and sloped T geometry.
-TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
+ERF_GPU_TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
 {
   const Box domain(IntVect(0, 0, 0), IntVect(4, 4, 4));
   const Box bx(IntVect(1, 1, 1), IntVect(3, 3, 3));
@@ -1906,7 +1950,7 @@ TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
   }
 }
 
-TEST(
+ERF_GPU_TEST(
   ScalarDiffusionPrimitives, AcceptedMappedTerrainTransfersMatchNativeAdapter)
 {
   NativeTerrainScalarCase test(
@@ -1991,7 +2035,7 @@ TEST(
 // A limiter-owned transfer must cross the API boundary unchanged. The
 // reconstructed high-order terrain transfer and raw Fz are both deliberate
 // negative controls for the accepted mapped-z input.
-TEST(
+ERF_GPU_TEST(
   ScalarDiffusionPrimitives,
   AcceptedMappedTerrainTransferUsesModifiedComponents)
 {
@@ -2302,3 +2346,5 @@ TEST(
     }
   }
 }
+
+#undef ERF_GPU_TEST
