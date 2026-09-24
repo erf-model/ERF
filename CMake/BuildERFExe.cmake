@@ -558,6 +558,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceDycore.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceMicrophysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceLSM.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceUrban.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceRadiation.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MakeFastCoeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
@@ -677,6 +678,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/UrbanModel>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/UrbanModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/Simple>)
 

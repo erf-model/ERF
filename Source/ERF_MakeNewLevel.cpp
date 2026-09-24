@@ -121,6 +121,27 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // prevent the surface-only initialization path from being selected.
     make_lsm_at_level(lev, true, -1, solverChoice.init_type == InitType::WRFInput);
 
+    // *******************************************************************************************
+    // Urban Model
+    // *******************************************************************************************
+    const int urban_size = urban.Get_Data_Size();
+    urban_data[lev].resize(urban_size);
+    urban_flux[lev].resize(urban_size);
+    if (solverChoice.urban_enabled_lev[lev] == 1) {
+        urban_data_name.resize(urban_size);
+        urban.Define(lev, solverChoice);
+        if (solverChoice.urban_type != UrbanType::None) {
+            urban.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel], Geom(lev), zero, *z_phys_nd[lev],
+                       *land_type_lev[lev][0], *urb_frac_lev[lev][0]);
+        }
+        for (int mvar = 0; mvar < urban_size; ++mvar) {
+            urban_data[lev][mvar] = urban.Get_Data_Ptr(lev, mvar);
+            urban_data_name[mvar] = urban.Get_DataName(mvar);
+            urban_flux[lev][mvar] = urban.Get_Flux_Ptr(lev, mvar);
+        }
+    }
+
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************
@@ -640,6 +661,27 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         make_lsm_at_level(lev, false, lev-1, false, initialize_now);
     }
 
+    // *******************************************************************************************
+    // Urban Model
+    // *******************************************************************************************
+    const int urban_size = urban.Get_Data_Size();
+    urban_data[lev].resize(urban_size);
+    urban_flux[lev].resize(urban_size);
+    if (solverChoice.urban_enabled_lev[lev] == 1) {
+        urban_data_name.resize(urban_size);
+        urban.Define(lev, solverChoice);
+        if (solverChoice.urban_type != UrbanType::None) {
+            urban.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel], Geom(lev), zero, *z_phys_nd[lev],
+                       *land_type_lev[lev][0], *urb_frac_lev[lev][0]);
+        }
+        for (int mvar = 0; mvar < urban_size; ++mvar) {
+            urban_data[lev][mvar] = urban.Get_Data_Ptr(lev, mvar);
+            urban_data_name[mvar] = urban.Get_DataName(mvar);
+            urban_flux[lev][mvar] = urban.Get_Flux_Ptr(lev, mvar);
+        }
+    }
+
     // Update Surface Model arrays for this new level
     if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
         m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
@@ -1108,6 +1150,27 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    // *******************************************************************************************
+    // Urban Model
+    // *******************************************************************************************
+    const int urban_size = urban.Get_Data_Size();
+    urban_data[lev].resize(urban_size);
+    urban_flux[lev].resize(urban_size);
+    if (solverChoice.urban_enabled_lev[lev] == 1) {
+        urban_data_name.resize(urban_size);
+        urban.Define(lev, solverChoice);
+        if (solverChoice.urban_type != UrbanType::None) {
+            urban.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
+                       vars_new[lev][Vars::yvel], Geom(lev), zero, *z_phys_nd[lev],
+                       *land_type_lev[lev][0], *urb_frac_lev[lev][0]);
+        }
+        for (int mvar = 0; mvar < urban_size; ++mvar) {
+            urban_data[lev][mvar] = urban.Get_Data_Ptr(lev, mvar);
+            urban_data_name[mvar] = urban.Get_DataName(mvar);
+            urban_flux[lev][mvar] = urban.Get_Flux_Ptr(lev, mvar);
+        }
+    }
 
     // Update Surface Model arrays for this new level
     if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {

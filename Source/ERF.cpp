@@ -3361,6 +3361,9 @@ ERF::ReadParameters ()
         Abort("Dont know this LandSurfaceType!") ;
     }
 
+    urban.ReSize(max_level+1, solverChoice.urban_enabled_lev);
+    urban.SetModel<NullUrban>();
+
     if (verbose > 0) {
         solverChoice.display(max_level,pp_prefix);
     }

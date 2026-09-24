@@ -143,7 +143,9 @@ public:
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
          amrex::MultiFab* lon_ptr,
-         const bool updated_lsm) override
+         const bool updated_lsm,
+         amrex::Real& declin,
+         amrex::Real& calday) override
     {
         // Skip radiation computation on nested patches - heating rates will be
         // filled via interpolation from coarser level in ERF::FillPatch
@@ -163,6 +165,8 @@ public:
                   rad_fluxes, z_phys, lat_ptr, lon_ptr,
                   updated_lsm);
         rad_run_impl(lsm_output_ptrs);
+        declin = m_declin;
+        calday = m_calday;
     }
 
     // Set the grid info for columnar data in KOKKOS
@@ -422,6 +426,9 @@ private:
     // Fixed solar zenith angle to use for shortwave calculations
     // This is only used if a positive value is supplied
     amrex::Real m_fixed_solar_zenith_angle = -amrex::Real(9999.);
+
+    amrex::Real m_declin = 0.0;
+    amrex::Real m_calday = 0.0;
 
     // Dimensions to be read from lookup data
     int m_nswbands;

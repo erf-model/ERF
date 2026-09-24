@@ -41,7 +41,9 @@ void RadiationSimple::Run (int& /*level*/,
                            amrex::MultiFab* z_phys,
                            amrex::MultiFab* /*lat*/,
                            amrex::MultiFab* /*lon*/,
-                           const bool /*updated_lsm*/)
+                           const bool /*updated_lsm*/,
+                           amrex::Real& /*declin*/,
+                           amrex::Real& /*calday*/)
 {
 
     constexpr amrex::Real cp_spec = 1015.0;

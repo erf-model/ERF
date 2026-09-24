@@ -51,7 +51,9 @@ public:
                       amrex::MultiFab* z_phys,
                       amrex::MultiFab* lat,
                       amrex::MultiFab* lon,
-                      const bool updated_lsm) override;
+                      const bool updated_lsm,
+                      amrex::Real& declin,
+                      amrex::Real& calday) override;
 
     virtual void WriteDataLog (const double &time) override;
 

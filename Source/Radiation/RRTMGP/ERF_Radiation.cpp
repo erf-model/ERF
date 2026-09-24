@@ -1256,6 +1256,8 @@ Radiation::run_impl ()
     // Day of the year plus fraction, calday 1 == Jan 1 0Z (leap-aware)
     double calday = orbital_calday(m_orbital_year, m_orbital_mon, m_orbital_day, m_orbital_sec);
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
+    m_calday = calday;
+    m_declin = delta;
 
     // Overwrite eccf if using a fixed solar constant.
     auto fixed_total_solar_irradiance = m_fixed_total_solar_irradiance;

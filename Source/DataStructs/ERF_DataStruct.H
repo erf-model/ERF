@@ -165,6 +165,13 @@ AMREX_ENUM(LandSurfaceType,
 );
 
 /**
+ * @brief Urban model.
+ */
+AMREX_ENUM(UrbanType,
+    None
+);
+
+/**
  * @brief Radiation model.
  */
 AMREX_ENUM(RadiationType,
@@ -731,6 +738,16 @@ struct SolverChoice {
         // What type of land surface model to use
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
+
+        // What type of urban model to use and whether it is active at the given level
+        urban_type = UrbanType::None;
+        pp.query_enum_case_insensitive("urban_model", urban_type);
+        read_int_string(max_level, "urban_lev_active", urban_enabled_lev, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (urban_enabled_lev[lev] != 0 && urban_enabled_lev[lev] != 1) {
+                amrex::Error("urban_lev_active should be 0 or 1");
+            }
+        }
 
         // Will an external ocean coupler supply SST for part or all of the water
         // cells this run? The surface layer needs to know this it in time to select
@@ -2258,6 +2275,8 @@ struct SolverChoice {
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
+    UrbanType urban_type;
+    amrex::Vector<int> urban_enabled_lev;
     RadiationType rad_type;
 
     /** @brief True for the models that run through the IRadiation interface

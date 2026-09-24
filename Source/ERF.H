@@ -68,6 +68,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 
 #ifdef ERF_USE_WINDFARM
@@ -590,6 +591,15 @@ public:
                       amrex::MultiFab& yvel_in,
                       const double& time,
                       const double& dt_advance);
+
+    void advance_urban (int lev,
+                        amrex::MultiFab& cons_in,
+                        amrex::MultiFab& u_in,
+                        amrex::MultiFab& v_in,
+                        const amrex::Real& dt_advance,
+                        const amrex::Geometry& geom,
+                        const amrex::MultiFab& z_phys_nd,
+                        amrex::MultiFab& eddyDiffs_lev);
 
     void advance_radiation (int lev,
                             amrex::MultiFab& cons_in,
@@ -1236,10 +1246,14 @@ private:
     std::unique_ptr<SurfaceModel> m_SurfaceModel = nullptr;
 
     LandSurface lsm;
+    Urban urban;
     amrex::Vector<std::string> lsm_data_name;                // (ncomp) -- e.g., sw_dn_dir/dif_vis/nir, lw_dn, cos_zen
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Data for LSM coupling
     amrex::Vector<std::string> lsm_flux_name;                // (ncomp) -- e.g., hfx3, q1fx3, tau13, tau23
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Fluxes from LSM needed by DYCORE
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> urban_data; // (lev,ncomp) Data for urban coupling
+    amrex::Vector<std::string> urban_data_name;                // (ncomp) Urban coupling field names
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> urban_flux; // (lev,ncomp) Fluxes from urban model
 
     LargeScaleForcingData lsf;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
@@ -1253,6 +1267,9 @@ private:
     // the z-ghost cell k = khi + 1, so the array has one ghost cell in z.
     // Both RRTMGP and the two-stream model fill all nz + 1 levels.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> rad_fluxes;
+
+    amrex::Real solar_declin = 0.0;
+    amrex::Real calday = 0.0;
 
     // Two-stream radiation model (erf.radiation_model = TwoStream): owns its
     // surface and SEB state; every call from ERF is behind a test of
