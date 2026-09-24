@@ -517,7 +517,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-    if (solverChoice.rad_type != RadiationType::None || solverChoice.do_radiation)
+    // Every radiation model (RRTMGP, Simple, TwoStream) writes the same
+    // 2-component (SW, LW) heating rates, so the arrays are shaped the same
+    // way whichever one erf.radiation_model selects.
+    if (solverChoice.rad_type != RadiationType::None)
     {
         // Allocate with 1 ghost cell for interpolation stencil (cell_cons_interp)
         // and FillBoundary operations (needed for nested patches)

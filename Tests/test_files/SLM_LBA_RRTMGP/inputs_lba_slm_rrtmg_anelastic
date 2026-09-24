@@ -173,9 +173,6 @@ slm.T_opt   = 298.0   # optimum temperature for transpiration
 #slm.rad_input_file = "CASS_256x256x156_50m_50m_1s_rad_coszrs_combined.nc"
 #slm.rad_input_file = "CASS_128x128x156_50m_50m_1s_rad_coszrs_combined.nc"
 #slm.rad_input_file = "CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
-#erf.do_radiation = true
-erf.do_radiation = false
-#erf.radiation_qsrc_file = "CASS_128x128x156_50m_50m_1s_QRAD.nc"
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC

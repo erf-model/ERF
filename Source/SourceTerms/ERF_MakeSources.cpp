@@ -292,14 +292,6 @@ void make_sources (int level,
                 // Computed once per slow step from the old state (t^n)
                 cell_src(i,j,k,RhoTheta_comp) += cell_data(i,j,k,Rho_comp) * ( qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1) );
             });
-        } else if (solverChoice.do_radiation && is_slow_step) {
-            auto const& qheating_arr = qheating_rates->const_array(mfi);
-            const int nr = Rho_comp;
-            const int n = RhoTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_src(i,j,k,n) += cell_data(i, j, k, nr) * (qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1));
-            });
         }
 
         // *************************************************************************************
