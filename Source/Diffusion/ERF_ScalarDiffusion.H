@@ -523,7 +523,7 @@ TerrainScalarDiffusionMappedTransferAtKFace(
   const int klo = domain.smallEnd(2);
   const int khi = domain.bigEnd(2) + 1;
   const amrex::Real half = amrex::Real(0.5);
-  const amrex::Real fourth = amrex::Real(0.25);
+  const amrex::Real quarter = amrex::Real(0.25);
   amrex::Real xbar, ybar;
 
   if (kface == klo) {
@@ -549,11 +549,11 @@ TerrainScalarDiffusionMappedTransferAtKFace(
                                     raw_yflux(i, j + 1, khi - 1, flux_comp));
     ybar = amrex::Real(1.5) * yhi - half * ylo;
   } else {
-    xbar = fourth * (raw_xflux(i, j, kface, flux_comp) +
+    xbar = quarter * (raw_xflux(i, j, kface, flux_comp) +
                      raw_xflux(i + 1, j, kface, flux_comp) +
                      raw_xflux(i, j, kface - 1, flux_comp) +
                      raw_xflux(i + 1, j, kface - 1, flux_comp));
-    ybar = fourth * (raw_yflux(i, j, kface, flux_comp) +
+    ybar = quarter * (raw_yflux(i, j, kface, flux_comp) +
                      raw_yflux(i, j + 1, kface, flux_comp) +
                      raw_yflux(i, j, kface - 1, flux_comp) +
                      raw_yflux(i, j + 1, kface - 1, flux_comp));
