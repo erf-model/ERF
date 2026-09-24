@@ -159,9 +159,11 @@ AdvectionSrcForScalars (const Box& bx,
         // Native ERF stores primitive scalar components one slot below their
         // conserved counterparts. Keep that mapping at this adapter boundary.
         const int scalar_comp = cons_comp - 1;
-        // Regular scalar advection historically reuses flux component 0 as
-        // per-scalar scratch; preserve that native storage convention here.
-        constexpr int flux_comp = 0;
+        // The face fluxes are stored in the component matching the conserved
+        // variable they carry, because the flux registers index them that way:
+        // CrseAdd/FineAdd are called with srccomp == destcomp == the state
+        // component being refluxed.  (The EB path already does this.)
+        const int flux_comp = cons_comp;
 
         BuildScalarAdvectionFluxes(bx, cell_prim, scalar_comp, flx_arr, flux_comp,
                                    avg_xmom, avg_ymom, avg_zmom,
