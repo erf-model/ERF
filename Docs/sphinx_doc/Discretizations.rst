@@ -456,6 +456,76 @@ Scalar Diffusion
 **Note**: In WRF, the diffusion coefficients specified in the input file (:math:`K_h` and :math:`K_v` for horizontal and vertical diffusion) get divided by the Prandtl number for
 the potential temperature and the scalars. For the momentum, they are used as it is. In ERF, the coefficients specified in the inputs (:math:`\alpha_T` and :math:`\alpha_C`) are used as it is, and no division by Prandtl number is done.
 
+Scalar-diffusion field interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a cell-centered intensive scalar :math:`\chi`, ERF writes the signed
+diffusive flux as
+
+.. math::
+
+   \mathbf{F}^D = -K \nabla \chi,
+
+so its contribution to the conservative scalar equation is
+
+.. math::
+
+   \left.\frac{\partial(\rho\chi)}{\partial t}\right|_D
+   = -\nabla\cdot\mathbf{F}^D.
+
+The effective transport coefficient :math:`K` may contain molecular and
+turbulent contributions. Coefficient selection is separate from scalar
+identity: the native state adapter selects the thermal, TKE, passive-scalar,
+or moisture coefficient category, while the numerical operator consumes an
+explicit scalar component and coefficient policy. The scalar component,
+density component, face-flux component, and output-tendency component are
+independent. The non-embedded-boundary N, S, and T spatial operators therefore
+do not require an arbitrary intensive scalar to be staged in ERF's conserved
+state layout.
+
+On terrain-following coordinates with lateral map factors :math:`m_x` and
+:math:`m_y`, the Jacobian is
+
+.. math::
+
+   J = \frac{h_\zeta}{m_xm_y}.
+
+The conservative face transfers are
+
+.. math::
+
+   \begin{aligned}
+   \widetilde F_\xi &= \frac{h_\zeta}{m_y}F_x^D, \\
+   \widetilde F_\eta &= \frac{h_\zeta}{m_x}F_y^D, \\
+   \widetilde F_\zeta &= \frac{G_\zeta}{m_xm_y}, \\
+   G_\zeta &= F_z^D - m_x h_\xi\overline{F_x^D}
+                       - m_y h_\eta\overline{F_y^D}.
+   \end{aligned}
+
+The lateral fluxes in :math:`G_\zeta` are interpolated from the x/y faces to
+the corresponding vertical face by the terrain discretization, including its
+one-sided bottom and top extrapolations. The raw vertical diffusion flux
+:math:`F_z^D` is not by itself the complete mapped vertical transfer
+:math:`\widetilde F_\zeta` on sloping terrain.
+
+For semi-implicit vertical diffusion, ERF first constructs the full spatial
+diffusion flux. The explicit/implicit split scales only the raw
+:math:`F_z^D` contribution. The terrain cross terms remain explicit, so the
+explicit transformed numerator is
+
+.. math::
+
+   G_{\zeta,\mathrm{explicit}} =
+   (1-f_{\mathrm{implicit}})F_z^D
+   -m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}.
+
+Heat and moisture diagnostics continue to store the full raw vertical face
+flux independently of this integration fraction. This is an implementation
+interface and does not add a runtime option or change the configured diffusion
+schemes. Embedded-boundary diffusion and the implicit tridiagonal solvers keep
+their specialized implementations; diffusion refluxing is not implemented by
+this interface.
+
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================
 

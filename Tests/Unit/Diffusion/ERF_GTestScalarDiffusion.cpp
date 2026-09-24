@@ -1,0 +1,1025 @@
+#include <AMReX_FArrayBox.H>
+#include <AMReX_Gpu.H>
+
+#include <ERF_Diffusion.H>
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+using namespace amrex;
+
+namespace {
+
+constexpr int kScalarComp = 2;
+constexpr int kRhoComp = 1;
+constexpr int kFluxComp = 3;
+constexpr int kRhsComp = 5;
+
+Real
+tolerance(Real scale = Real(1.0))
+{
+  return Real(96.0) * std::numeric_limits<Real>::epsilon() *
+         std::max(Real(1.0), std::abs(scale));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+chi(int i, int j, int k) noexcept
+{
+  return Real(0.7) + Real(0.13) * i - Real(0.09) * j + Real(0.11) * k +
+         Real(0.017) * i * j - Real(0.012) * i * k + Real(0.023) * j * k;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+rho_value(int i, int j, int k) noexcept
+{
+  return Real(1.1) + Real(0.03) * i + Real(0.02) * j + Real(0.01) * k;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+mu_value(int comp, int i, int j, int k) noexcept
+{
+  const Real base = comp == EddyDiff::Theta_h    ? Real(0.17)
+                    : comp == EddyDiff::Scalar_h ? Real(0.31)
+                    : comp == EddyDiff::Q_h      ? Real(0.47)
+                    : comp == EddyDiff::Theta_v  ? Real(0.23)
+                    : comp == EddyDiff::Scalar_v ? Real(0.39)
+                    : comp == EddyDiff::Q_v      ? Real(0.53)
+                                                 : Real(0.07);
+  return base + Real(0.004) * i + Real(0.003) * j + Real(0.002) * k;
+}
+
+void
+copy_to_host(const FArrayBox& src, FArrayBox& dst)
+{
+  Gpu::copy(
+    Gpu::deviceToHost, src.dataPtr(0), src.dataPtr(0) + src.size(),
+    dst.dataPtr(0));
+  Gpu::streamSynchronize();
+}
+
+template <bool MultiplyMolecularByDensity, bool AddTurbulence>
+void
+build_n_and_check(
+  const Box& bx,
+  const FArrayBox& scalar,
+  const FArrayBox& rho,
+  const FArrayBox& mu,
+  const FArrayBox& mf_ux,
+  const FArrayBox& mf_uy,
+  const FArrayBox& mf_vy,
+  const FArrayBox& mf_vx,
+  const FArrayBox& mf_mx,
+  const FArrayBox& mf_my,
+  FArrayBox& xflux,
+  FArrayBox& yflux,
+  FArrayBox& zflux,
+  FArrayBox& rhs,
+  const ScalarDiffusionCoefficients& coefficients)
+{
+  const Real dx_inv = Real(0.7), dy_inv = Real(0.9), dz_inv = Real(1.2);
+  const auto scalar4 = scalar.const_array();
+  const auto rho4 = rho.const_array();
+  const auto mu4 = mu.const_array();
+  const auto mx4 = mf_mx.const_array();
+  const auto my4 = mf_my.const_array();
+  const auto ux4 = mf_ux.const_array();
+  const auto uy4 = mf_uy.const_array();
+  const auto vy4 = mf_vy.const_array();
+  const auto vx4 = mf_vx.const_array();
+  const auto fx4 = xflux.array();
+  const auto fy4 = yflux.array();
+  const auto fz4 = zflux.array();
+  const auto rhs4 = rhs.array();
+  const Box xbx = surroundingNodes(bx, 0);
+  const Box ybx = surroundingNodes(bx, 1);
+  const Box zbx = surroundingNodes(bx, 2);
+
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real kx =
+      ScalarDiffusionFaceCoefficient<MultiplyMolecularByDensity, AddTurbulence>(
+        rho4, kRhoComp, mu4, coefficients, i, j, k, 1, 0, 0,
+        coefficients.eddy_h_comp);
+    fx4(i, j, k, kFluxComp) = ScalarDiffusionFlux_N<0>(
+      scalar4, kScalarComp, i, j, k, kx, dx_inv, ux4(i, j, 0) / uy4(i, j, 0),
+      false, false);
+  });
+  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real ky =
+      ScalarDiffusionFaceCoefficient<MultiplyMolecularByDensity, AddTurbulence>(
+        rho4, kRhoComp, mu4, coefficients, i, j, k, 0, 1, 0,
+        coefficients.eddy_h_comp);
+    fy4(i, j, k, kFluxComp) = ScalarDiffusionFlux_N<1>(
+      scalar4, kScalarComp, i, j, k, ky, dy_inv, vy4(i, j, 0) / vx4(i, j, 0),
+      false, false);
+  });
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real kz =
+      ScalarDiffusionFaceCoefficient<MultiplyMolecularByDensity, AddTurbulence>(
+        rho4, kRhoComp, mu4, coefficients, i, j, k, 0, 0, 1,
+        coefficients.eddy_v_comp);
+    fz4(i, j, k, kFluxComp) = ScalarDiffusionFlux_N<2>(
+      scalar4, kScalarComp, i, j, k, kz, dz_inv, Real(1.0), false, false);
+  });
+  auto rhs_reset = rhs.array();
+  ParallelFor(
+    rhs.box(), rhs.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      rhs_reset(i, j, k, n) = Real(-800.0) - n;
+    });
+  ApplyScalarDiffusionFluxDivergence_N(
+    bx, xflux.const_array(), yflux.const_array(), zflux.const_array(),
+    kFluxComp, rhs4, kRhsComp,
+    GpuArray<Real, AMREX_SPACEDIM>{{dx_inv, dy_inv, dz_inv}}, mx4, my4);
+  Gpu::streamSynchronize();
+
+  FArrayBox hscalar(scalar.box(), scalar.nComp(), The_Pinned_Arena());
+  FArrayBox hrho(rho.box(), rho.nComp(), The_Pinned_Arena());
+  FArrayBox hmu(mu.box(), mu.nComp(), The_Pinned_Arena());
+  FArrayBox hux(mf_ux.box(), mf_ux.nComp(), The_Pinned_Arena());
+  FArrayBox huy(mf_uy.box(), mf_uy.nComp(), The_Pinned_Arena());
+  FArrayBox hvy(mf_vy.box(), mf_vy.nComp(), The_Pinned_Arena());
+  FArrayBox hvx(mf_vx.box(), mf_vx.nComp(), The_Pinned_Arena());
+  FArrayBox hmx(mf_mx.box(), mf_mx.nComp(), The_Pinned_Arena());
+  FArrayBox hmy(mf_my.box(), mf_my.nComp(), The_Pinned_Arena());
+  FArrayBox hfx(xflux.box(), xflux.nComp(), The_Pinned_Arena());
+  FArrayBox hfy(yflux.box(), yflux.nComp(), The_Pinned_Arena());
+  FArrayBox hfz(zflux.box(), zflux.nComp(), The_Pinned_Arena());
+  FArrayBox hrhs(rhs.box(), rhs.nComp(), The_Pinned_Arena());
+  copy_to_host(scalar, hscalar);
+  copy_to_host(rho, hrho);
+  copy_to_host(mu, hmu);
+  copy_to_host(mf_ux, hux);
+  copy_to_host(mf_uy, huy);
+  copy_to_host(mf_vy, hvy);
+  copy_to_host(mf_vx, hvx);
+  copy_to_host(mf_mx, hmx);
+  copy_to_host(mf_my, hmy);
+  copy_to_host(xflux, hfx);
+  copy_to_host(yflux, hfy);
+  copy_to_host(zflux, hfz);
+  copy_to_host(rhs, hrhs);
+  const auto hs = hscalar.const_array();
+  const auto hd = hrho.const_array();
+  const auto hm = hmu.const_array();
+  const auto hux4 = hux.const_array();
+  const auto huy4 = huy.const_array();
+  const auto hvy4 = hvy.const_array();
+  const auto hvx4 = hvx.const_array();
+  const auto hmx4 = hmx.const_array();
+  const auto hmy4 = hmy.const_array();
+  const auto hfx4 = hfx.const_array();
+  const auto hfy4 = hfy.const_array();
+  const auto hfz4 = hfz.const_array();
+  const auto hrhs4 = hrhs.const_array();
+  const auto hscalar4 = hscalar.const_array();
+
+  auto expected_k = [&](int i, int j, int k, int di, int dj, int dk, int eddy) {
+    Real value = coefficients.molecular_coeff;
+    if constexpr (MultiplyMolecularByDensity) {
+      value *=
+        Real(0.5) * (rho_value(i, j, k) + rho_value(i - di, j - dj, k - dk));
+    }
+    if constexpr (AddTurbulence) {
+      value += Real(0.5) * (mu_value(eddy, i, j, k) +
+                            mu_value(eddy, i - di, j - dj, k - dk));
+    }
+    return value;
+  };
+
+  for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+    for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+      for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+        const Real mx = Real(0.91) + Real(0.025) * i + Real(0.01) * j;
+        const Real my = Real(1.13) + Real(0.02) * j;
+        const auto expected_xflux = [&](int fi) {
+          const Real K =
+            expected_k(fi, j, k, 1, 0, 0, coefficients.eddy_h_comp);
+          const Real ratio =
+            (Real(0.88) + Real(0.03) * fi) / (Real(1.07) + Real(0.02) * j);
+          return -K * (chi(fi, j, k) - chi(fi - 1, j, k)) * dx_inv * ratio;
+        };
+        const auto expected_yflux = [&](int fj) {
+          const Real K =
+            expected_k(i, fj, k, 0, 1, 0, coefficients.eddy_h_comp);
+          const Real ratio =
+            (Real(1.04) + Real(0.025) * fj) / (Real(0.93) + Real(0.015) * i);
+          return -K * (chi(i, fj, k) - chi(i, fj - 1, k)) * dy_inv * ratio;
+        };
+        const auto expected_zflux = [&](int fk) {
+          const Real K =
+            expected_k(i, j, fk, 0, 0, 1, coefficients.eddy_v_comp);
+          return -K * (chi(i, j, fk) - chi(i, j, fk - 1)) * dz_inv;
+        };
+        EXPECT_NEAR(
+          hfx4(i, j, k, kFluxComp), expected_xflux(i),
+          tolerance(expected_xflux(i)));
+        EXPECT_NEAR(
+          hfy4(i, j, k, kFluxComp), expected_yflux(j),
+          tolerance(expected_yflux(j)));
+        EXPECT_NEAR(
+          hfz4(i, j, k, kFluxComp), expected_zflux(k),
+          tolerance(expected_zflux(k)));
+        const Real tendency =
+          -((expected_xflux(i + 1) - expected_xflux(i)) * dx_inv * mx * my +
+            (expected_yflux(j + 1) - expected_yflux(j)) * dy_inv * mx * my +
+            (expected_zflux(k + 1) - expected_zflux(k)) * dz_inv);
+        const Real expected = Real(-800.0) - kRhsComp + tendency;
+        EXPECT_NEAR(hrhs4(i, j, k, kRhsComp), expected, tolerance(expected));
+        for (int n = 0; n < scalar.nComp(); ++n) {
+          if (n != kScalarComp) {
+            EXPECT_DOUBLE_EQ(hscalar4(i, j, k, n), Real(200.0) + n);
+          }
+        }
+        for (int n = 0; n < rhs.nComp(); ++n) {
+          if (n != kRhsComp)
+            EXPECT_DOUBLE_EQ(hrhs4(i, j, k, n), Real(-800.0) - n);
+        }
+      }
+    }
+  }
+  for (int k = xflux.box().smallEnd(2); k <= xflux.box().bigEnd(2); ++k) {
+    for (int j = xflux.box().smallEnd(1); j <= xflux.box().bigEnd(1); ++j) {
+      for (int i = xflux.box().smallEnd(0); i <= xflux.box().bigEnd(0); ++i) {
+        for (int n = 0; n < xflux.nComp(); ++n) {
+          if (n != kFluxComp)
+            EXPECT_DOUBLE_EQ(hfx4(i, j, k, n), Real(900.0) + n);
+        }
+      }
+    }
+  }
+  for (int k = yflux.box().smallEnd(2); k <= yflux.box().bigEnd(2); ++k) {
+    for (int j = yflux.box().smallEnd(1); j <= yflux.box().bigEnd(1); ++j) {
+      for (int i = yflux.box().smallEnd(0); i <= yflux.box().bigEnd(0); ++i) {
+        for (int n = 0; n < yflux.nComp(); ++n) {
+          if (n != kFluxComp)
+            EXPECT_DOUBLE_EQ(hfy4(i, j, k, n), Real(900.0) + n);
+        }
+      }
+    }
+  }
+  for (int k = zflux.box().smallEnd(2); k <= zflux.box().bigEnd(2); ++k) {
+    for (int j = zflux.box().smallEnd(1); j <= zflux.box().bigEnd(1); ++j) {
+      for (int i = zflux.box().smallEnd(0); i <= zflux.box().bigEnd(0); ++i) {
+        for (int n = 0; n < zflux.nComp(); ++n) {
+          if (n != kFluxComp)
+            EXPECT_DOUBLE_EQ(hfz4(i, j, k, n), Real(900.0) + n);
+        }
+      }
+    }
+  }
+}
+
+void
+initialize_n_case(
+  const Box& bx,
+  FArrayBox& scalar,
+  FArrayBox& rho,
+  FArrayBox& mu,
+  FArrayBox& mf_ux,
+  FArrayBox& mf_uy,
+  FArrayBox& mf_vy,
+  FArrayBox& mf_vx,
+  FArrayBox& mf_mx,
+  FArrayBox& mf_my,
+  FArrayBox& xflux,
+  FArrayBox& yflux,
+  FArrayBox& zflux,
+  FArrayBox& rhs)
+{
+  auto s = scalar.array();
+  ParallelFor(
+    scalar.box(), scalar.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      s(i, j, k, n) = n == kScalarComp ? chi(i, j, k) : Real(200.0) + n;
+    });
+  auto r = rho.array();
+  ParallelFor(rho.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    r(i, j, k, kRhoComp) = rho_value(i, j, k);
+    r(i, j, k, 0) = Real(4.0);
+  });
+  auto m = mu.array();
+  ParallelFor(
+    mu.box(), mu.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      const Real base = n == EddyDiff::Theta_h    ? Real(0.17)
+                        : n == EddyDiff::Scalar_h ? Real(0.31)
+                        : n == EddyDiff::Q_h      ? Real(0.47)
+                        : n == EddyDiff::Theta_v  ? Real(0.23)
+                        : n == EddyDiff::Scalar_v ? Real(0.39)
+                        : n == EddyDiff::Q_v      ? Real(0.53)
+                                                  : Real(0.07);
+      m(i, j, k, n) =
+        base + Real(0.004) * i + Real(0.003) * j + Real(0.002) * k;
+    });
+  auto ux = mf_ux.array();
+  auto uy = mf_uy.array();
+  auto vy = mf_vy.array();
+  auto vx = mf_vx.array();
+  ParallelFor(mf_ux.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    ux(i, j, k) = Real(0.88) + Real(0.03) * i;
+    uy(i, j, k) = Real(1.07) + Real(0.02) * j;
+  });
+  ParallelFor(mf_vy.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    vy(i, j, k) = Real(1.04) + Real(0.025) * j;
+    vx(i, j, k) = Real(0.93) + Real(0.015) * i;
+  });
+  auto mx = mf_mx.array();
+  auto my = mf_my.array();
+  ParallelFor(mf_mx.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    mx(i, j, k) = Real(0.91) + Real(0.025) * i + Real(0.01) * j;
+    my(i, j, k) = Real(1.13) + Real(0.02) * j;
+  });
+  auto fx = xflux.array();
+  auto fy = yflux.array();
+  auto fz = zflux.array();
+  auto q = rhs.array();
+  ParallelFor(
+    xflux.box(), xflux.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      fx(i, j, k, n) = Real(900.0) + n;
+    });
+  ParallelFor(
+    yflux.box(), yflux.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      fy(i, j, k, n) = Real(900.0) + n;
+    });
+  ParallelFor(
+    zflux.box(), zflux.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      fz(i, j, k, n) = Real(900.0) + n;
+    });
+  ParallelFor(
+    rhs.box(), rhs.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      q(i, j, k, n) = Real(-800.0) - n;
+    });
+  Gpu::streamSynchronize();
+}
+
+void
+fill_ones(FArrayBox& fab)
+{
+  auto a = fab.array();
+  ParallelFor(
+    fab.box(), fab.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      a(i, j, k, n) = Real(1.0);
+    });
+}
+
+} // namespace
+
+// Motivation: Explicit state diffusion used positional coefficient tables
+// through Q11. Appended q-state needs the Q eddy category and zero molecular
+// coefficient without indexing past them.
+TEST(
+  ScalarDiffusionPolicy,
+  NativeMappingPreservesLegacyCategoriesAndExtendedQIsBounded)
+{
+  DiffChoice choice;
+  choice.molec_diff_type = MolecDiffType::ConstantAlpha;
+  choice.alpha_T = Real(0.21);
+  choice.alpha_C = Real(0.34);
+
+  const auto theta = ResolveNativeScalarDiffusionPolicy(RhoTheta_comp, choice);
+  EXPECT_EQ(theta.scalar_comp, RhoTheta_comp - 1);
+  EXPECT_EQ(theta.coefficients.eddy_h_comp, EddyDiff::Theta_h);
+  EXPECT_EQ(theta.coefficients.eddy_v_comp, EddyDiff::Theta_v);
+  EXPECT_DOUBLE_EQ(theta.coefficients.molecular_coeff, choice.alpha_T);
+  const auto ke = ResolveNativeScalarDiffusionPolicy(RhoKE_comp, choice);
+  EXPECT_DOUBLE_EQ(ke.coefficients.molecular_coeff, Real(0.0));
+  EXPECT_EQ(ke.coefficients.eddy_h_comp, EddyDiff::KE_h);
+  EXPECT_EQ(ke.coefficients.eddy_v_comp, EddyDiff::KE_v);
+  const auto scalar =
+    ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice);
+  EXPECT_DOUBLE_EQ(scalar.coefficients.molecular_coeff, choice.alpha_C);
+  EXPECT_EQ(scalar.coefficients.eddy_h_comp, EddyDiff::Scalar_h);
+  EXPECT_EQ(scalar.coefficients.eddy_v_comp, EddyDiff::Scalar_v);
+
+  for (int qcomp : {RhoQ1_comp, RhoQ6_comp}) {
+    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+    EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, choice.alpha_C);
+    EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
+    EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
+  }
+  for (int qcomp : {RhoQ7_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
+    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+    EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, Real(0.0));
+    EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
+    EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
+    EXPECT_EQ(q.scalar_comp, qcomp - 1);
+  }
+
+  choice.molec_diff_type = MolecDiffType::Constant;
+  choice.rhoAlpha_T = Real(0.47);
+  choice.rhoAlpha_C = Real(0.59);
+  EXPECT_DOUBLE_EQ(
+    ResolveNativeScalarDiffusionPolicy(RhoTheta_comp, choice)
+      .coefficients.molecular_coeff,
+    choice.rhoAlpha_T);
+  EXPECT_DOUBLE_EQ(
+    ResolveNativeScalarDiffusionPolicy(RhoQ6_comp, choice)
+      .coefficients.molecular_coeff,
+    choice.rhoAlpha_C);
+  choice.molec_diff_type = MolecDiffType::None;
+  EXPECT_DOUBLE_EQ(
+    ResolveNativeScalarDiffusionPolicy(RhoTheta_comp, choice)
+      .coefficients.molecular_coeff,
+    Real(0.0));
+  EXPECT_DOUBLE_EQ(
+    ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice)
+      .coefficients.molecular_coeff,
+    Real(0.0));
+}
+
+// Motivation: unrelated scalar, density, flux, and RHS components expose
+// accidental native cons-1 inference, component-zero writes, and wrong
+// horizontal/vertical eddy selection.
+TEST(ScalarDiffusionPrimitives, NExplicitComponentsAndCoefficientModes)
+{
+  const Box bx(IntVect(1, 1, 1), IntVect(2, 2, 2));
+  Box data_box = bx;
+  data_box.grow(1);
+  Box map_cell(IntVect(0, 0, 0), IntVect(4, 4, 0));
+  Box xmap = surroundingNodes(map_cell, 0),
+      ymap = surroundingNodes(map_cell, 1);
+  FArrayBox scalar(data_box, 4), rho(data_box, 2),
+    mu(data_box, EddyDiff::NumDiffs);
+  FArrayBox mf_ux(xmap, 1), mf_uy(xmap, 1), mf_vy(ymap, 1), mf_vx(ymap, 1);
+  FArrayBox mf_mx(map_cell, 1), mf_my(map_cell, 1);
+  FArrayBox xflux(surroundingNodes(bx, 0), 4),
+    yflux(surroundingNodes(bx, 1), 4);
+  FArrayBox zflux(surroundingNodes(bx, 2), 4), rhs(bx, 6);
+  initialize_n_case(
+    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    zflux, rhs);
+
+  ScalarDiffusionCoefficients coeff{
+    Real(0.28), EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+  build_n_and_check<true, false>(
+    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    zflux, rhs, coeff);
+  coeff.molecular_coeff = Real(0.42);
+  build_n_and_check<false, false>(
+    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    zflux, rhs, coeff);
+  coeff.molecular_coeff = Real(0.0);
+  build_n_and_check<false, true>(
+    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    zflux, rhs, coeff);
+  coeff.molecular_coeff = Real(0.19);
+  build_n_and_check<true, true>(
+    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    zflux, rhs, coeff);
+}
+
+// Motivation: Native ERF must delegate N, S, and T spatial work to the same
+// component-explicit kernels while preserving its native state and geometry
+// mapping.
+TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
+{
+  const Box cells(IntVect(1, 1, 1), IntVect(2, 2, 2));
+  Box data_box = cells;
+  data_box.grow(1);
+  const Box xfaces = surroundingNodes(cells, 0);
+  const Box yfaces = surroundingNodes(cells, 1);
+  const Box zfaces = surroundingNodes(cells, 2);
+  const Box map_cells(IntVect(0, 0, 0), IntVect(4, 4, 0));
+  FArrayBox conserved(data_box, NVAR_max), primitive(data_box, NPRIMVAR_max);
+  FArrayBox rhs(cells, NVAR_max), direct_rhs(cells, 1);
+  FArrayBox u(xfaces, 1), v(yfaces, 1);
+  FArrayBox xflux(xfaces, 1), yflux(yfaces, 1), zflux(zfaces, 1);
+  FArrayBox direct_x(xfaces, 1), direct_y(yfaces, 1), direct_z(zfaces, 1);
+  FArrayBox smn(data_box, 1), mu(data_box, EddyDiff::NumDiffs);
+  FArrayBox mf_mx(map_cells, 1), mf_my(map_cells, 1);
+  FArrayBox mf_ux(surroundingNodes(map_cells, 0), 1),
+    mf_uy(surroundingNodes(map_cells, 0), 1),
+    mf_vx(surroundingNodes(map_cells, 1), 1),
+    mf_vy(surroundingNodes(map_cells, 1), 1);
+  FArrayBox hfx_x(xfaces, 1), hfx_y(yfaces, 1), hfx_z(zfaces, 1);
+  FArrayBox qfx1_x(xfaces, 1), qfx1_y(yfaces, 1), qfx1_z(zfaces, 1),
+    qfx2_z(zfaces, 1), diss(data_box, 1), tm(data_box, 1);
+  FArrayBox ax(xfaces, 1), ay(yfaces, 1), detj(data_box, 1);
+  Box znd_box = surroundingNodes(data_box, 2);
+  znd_box.grow(0, 1);
+  znd_box.grow(1, 1);
+  FArrayBox z_nd(znd_box, 1), z_cc(data_box, 1);
+
+  auto cons = conserved.array();
+  ParallelFor(
+    data_box, conserved.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      cons(i, j, k, n) = n == Rho_comp ? rho_value(i, j, k) : Real(0.0);
+    });
+  auto prim = primitive.array();
+  ParallelFor(
+    data_box, primitive.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      prim(i, j, k, n) = n == kScalarComp ? chi(i, j, k) : Real(100.0) + n;
+    });
+  auto rhs_a = rhs.array();
+  ParallelFor(
+    cells, rhs.nComp(),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      rhs_a(i, j, k, n) = Real(-200.0) - n;
+    });
+  direct_rhs.setVal(Real(-200.0) - RhoScalar_comp);
+  for (FArrayBox* field :
+       {&u, &v, &smn, &mu, &hfx_x, &hfx_y, &hfx_z, &qfx1_x, &qfx1_y, &qfx1_z,
+        &qfx2_z, &diss, &tm}) {
+    field->setVal(Real(0.0));
+  }
+  fill_ones(mf_mx);
+  fill_ones(mf_my);
+  fill_ones(mf_ux);
+  fill_ones(mf_uy);
+  fill_ones(mf_vx);
+  fill_ones(mf_vy);
+  fill_ones(ax);
+  fill_ones(ay);
+  fill_ones(detj);
+  auto znd = z_nd.array();
+  ParallelFor(znd_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    znd(i, j, k) = Real(k);
+  });
+  auto zcc = z_cc.array();
+  ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    zcc(i, j, k) = Real(k) + Real(0.5);
+  });
+  Gpu::streamSynchronize();
+
+  SolverChoice solver;
+  solver.diffChoice.molec_diff_type = MolecDiffType::Constant;
+  solver.diffChoice.rhoAlpha_C = Real(0.38);
+  solver.turbChoice.resize(1);
+  solver.turbChoice[0].use_kturb = false;
+  auto native_policy =
+    ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, solver.diffChoice);
+  const auto cell = conserved.const_array();
+  const auto prim4 = primitive.const_array();
+  const auto mu4 = mu.const_array();
+  const auto dfx = direct_x.array();
+  const auto dfy = direct_y.array();
+  const auto dfz = direct_z.array();
+  const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
+  ParallelFor(xfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real K = ScalarDiffusionFaceCoefficient<false, false>(
+      cell, Rho_comp, mu4, native_policy.coefficients, i, j, k, 1, 0, 0,
+      native_policy.coefficients.eddy_h_comp);
+    dfx(i, j, k) = ScalarDiffusionFlux_N<0>(
+      prim4, kScalarComp, i, j, k, K, inv[0], Real(1.0), false, false);
+  });
+  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real K = ScalarDiffusionFaceCoefficient<false, false>(
+      cell, Rho_comp, mu4, native_policy.coefficients, i, j, k, 0, 1, 0,
+      native_policy.coefficients.eddy_h_comp);
+    dfy(i, j, k) = ScalarDiffusionFlux_N<1>(
+      prim4, kScalarComp, i, j, k, K, inv[1], Real(1.0), false, false);
+  });
+  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real K = ScalarDiffusionFaceCoefficient<false, false>(
+      cell, Rho_comp, mu4, native_policy.coefficients, i, j, k, 0, 0, 1,
+      native_policy.coefficients.eddy_v_comp);
+    dfz(i, j, k) = ScalarDiffusionFlux_N<2>(
+      prim4, kScalarComp, i, j, k, K, inv[2], Real(1.0), false, false);
+  });
+  ApplyScalarDiffusionFluxDivergence_N(
+    cells, direct_x.const_array(), direct_y.const_array(),
+    direct_z.const_array(), 0, direct_rhs.array(), 0, inv, mf_mx.const_array(),
+    mf_my.const_array());
+  Gpu::streamSynchronize();
+
+  Vector<BCRec> bcs(NBCVAR_max);
+  for (auto& bc : bcs) {
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+      bc.setLo(d, ERFBCType::foextrap);
+      bc.setHi(d, ERFBCType::foextrap);
+    }
+  }
+  Gpu::DeviceVector<BCRec> bcs_device(bcs.size());
+  Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_device.begin());
+  Vector<std::unique_ptr<SurfaceLayer>> surface(6);
+  auto hfx_x_arr = hfx_x.array(), hfx_y_arr = hfx_y.array(),
+       hfx_z_arr = hfx_z.array();
+  auto qfx1_x_arr = qfx1_x.array(), qfx1_y_arr = qfx1_y.array(),
+       qfx1_z_arr = qfx1_z.array(), qfx2_z_arr = qfx2_z.array();
+  auto diss_arr = diss.array();
+  const GpuArray<Real, AMREX_SPACEDIM> gravity{
+    {Real(0.0), Real(0.0), Real(-9.81)}};
+  const bool rotate = false, use_surface_layer = false;
+
+  auto compare = [&]() {
+    Gpu::streamSynchronize();
+    FArrayBox hx(xfaces, 1, The_Pinned_Arena());
+    FArrayBox hy(yfaces, 1, The_Pinned_Arena());
+    FArrayBox hz(zfaces, 1, The_Pinned_Arena());
+    FArrayBox hr(cells, NVAR_max, The_Pinned_Arena());
+    FArrayBox hdx(xfaces, 1, The_Pinned_Arena());
+    FArrayBox hdy(yfaces, 1, The_Pinned_Arena());
+    FArrayBox hdz(zfaces, 1, The_Pinned_Arena());
+    FArrayBox hdr(cells, 1, The_Pinned_Arena());
+    copy_to_host(xflux, hx);
+    copy_to_host(yflux, hy);
+    copy_to_host(zflux, hz);
+    copy_to_host(rhs, hr);
+    copy_to_host(direct_x, hdx);
+    copy_to_host(direct_y, hdy);
+    copy_to_host(direct_z, hdz);
+    copy_to_host(direct_rhs, hdr);
+    const auto hx4 = hx.const_array(), hy4 = hy.const_array(),
+               hz4 = hz.const_array(), hr4 = hr.const_array();
+    const auto hdx4 = hdx.const_array(), hdy4 = hdy.const_array(),
+               hdz4 = hdz.const_array(), hdr4 = hdr.const_array();
+    for (int k = 1; k <= 2; ++k) {
+      for (int j = 1; j <= 2; ++j) {
+        for (int i = 1; i <= 3; ++i)
+          EXPECT_NEAR(hx4(i, j, k), hdx4(i, j, k), tolerance());
+      }
+    }
+    for (int k = 1; k <= 2; ++k) {
+      for (int j = 1; j <= 3; ++j) {
+        for (int i = 1; i <= 2; ++i)
+          EXPECT_NEAR(hy4(i, j, k), hdy4(i, j, k), tolerance());
+      }
+    }
+    for (int k = 1; k <= 3; ++k) {
+      for (int j = 1; j <= 2; ++j) {
+        for (int i = 1; i <= 2; ++i)
+          EXPECT_NEAR(hz4(i, j, k), hdz4(i, j, k), tolerance());
+      }
+    }
+    for (int k = 1; k <= 2; ++k) {
+      for (int j = 1; j <= 2; ++j) {
+        for (int i = 1; i <= 2; ++i)
+          EXPECT_NEAR(hr4(i, j, k, RhoScalar_comp), hdr4(i, j, k), tolerance());
+      }
+    }
+  };
+
+  auto reset_rhs = [&]() {
+    rhs.setVal(Real(-200.0) - RhoScalar_comp);
+    xflux.setVal(Real(-900.0));
+    yflux.setVal(Real(-900.0));
+    zflux.setVal(Real(-900.0));
+  };
+  DiffusionSrcForState_N(
+    cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
+    prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), inv,
+    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
+    mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
+    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
+    Real(0.0));
+  compare();
+
+  reset_rhs();
+  Vector<Real> dz_host(6, Real(1.0));
+  Gpu::DeviceVector<Real> dz(6);
+  Gpu::copy(Gpu::hostToDevice, dz_host.begin(), dz_host.end(), dz.begin());
+  DiffusionSrcForState_S(
+    cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
+    prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), dz, inv,
+    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
+    mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
+    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
+    Real(0.0));
+  compare();
+
+  reset_rhs();
+  DiffusionSrcForState_T(
+    cells, cells, RhoScalar_comp, 1, rotate, u.const_array(), v.const_array(),
+    cell, prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(),
+    z_nd.const_array(), z_cc.const_array(), ax.const_array(), ay.const_array(),
+    ax.const_array(), detj.const_array(), inv, smn.const_array(),
+    mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
+    mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr,
+    hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
+    diss_arr, mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
+  compare();
+}
+
+// Motivation: stretched vertical gradients use adjacent cell-center distance
+// while divergence uses the receiving cell width; uniform dz must recover N's
+// boundary stencil.
+TEST(ScalarDiffusionPrimitives, StretchedUniformLimitMatchesN)
+{
+  const auto w = StretchedDiffusionDirichletWeights(Real(1.0), Real(1.0));
+  EXPECT_NEAR(w.c1, Real(-8.0 / 3.0), tolerance());
+  EXPECT_NEAR(w.c2, Real(3.0), tolerance());
+  EXPECT_NEAR(w.c3, Real(-1.0 / 3.0), tolerance());
+
+  const Box cells(IntVect(0, 0, 0), IntVect(0, 0, 2));
+  Box scalar_box = cells;
+  scalar_box.grow(1);
+  FArrayBox scalar(scalar_box, 3), fx(surroundingNodes(cells, 0), 1),
+    fy(surroundingNodes(cells, 1), 1), fn(surroundingNodes(cells, 2), 1),
+    fs(surroundingNodes(cells, 2), 1), rhsn(cells, 1), rhss(cells, 1),
+    mf(cells, 1);
+  const Real K = Real(0.73);
+  auto s = scalar.array();
+  ParallelFor(scalar_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real z = k < 0 ? Real(0.0) : k > 2 ? Real(3.0) : Real(k) + Real(0.5);
+    s(i, j, k, kScalarComp) = Real(0.4) - Real(0.2) * z + Real(0.08) * z * z;
+  });
+  auto m = mf.array();
+  ParallelFor(cells, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    m(i, j, k) = Real(1.0);
+  });
+  auto ax = fx.array();
+  auto ay = fy.array();
+  ParallelFor(fx.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    ax(i, j, k) = Real(0.0);
+  });
+  ParallelFor(fy.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    ay(i, j, k) = Real(0.0);
+  });
+  Vector<Real> dz_host(3, Real(1.0));
+  Gpu::DeviceVector<Real> dz(3);
+  Gpu::copy(Gpu::hostToDevice, dz_host.begin(), dz_host.end(), dz.begin());
+  const auto sp = scalar.const_array();
+  const auto fn4 = fn.array();
+  const auto fs4 = fs.array();
+  const auto dzp = dz.data();
+  const Box faces = surroundingNodes(cells, 2);
+  ParallelFor(faces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const bool lo = k == 0, hi = k == 3;
+    fn4(i, j, k) = ScalarDiffusionFlux_N<2>(
+      sp, kScalarComp, i, j, k, K, Real(1.0), Real(1.0), lo, hi);
+    fs4(i, j, k) =
+      -K * StretchedScalarGradient(sp, kScalarComp, i, j, k, dzp, 0, 2, lo, hi);
+  });
+  auto rhsn4 = rhsn.array();
+  auto rhss4 = rhss.array();
+  ParallelFor(cells, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    rhsn4(i, j, k) = Real(0.0);
+    rhss4(i, j, k) = Real(0.0);
+  });
+  ApplyScalarDiffusionFluxDivergence_N(
+    cells, fx.const_array(), fy.const_array(), fn.const_array(), 0,
+    rhsn.array(), 0,
+    GpuArray<Real, AMREX_SPACEDIM>{{Real(1.0), Real(1.0), Real(1.0)}},
+    mf.const_array(), mf.const_array());
+  ApplyScalarDiffusionFluxDivergence_S(
+    cells, fx.const_array(), fy.const_array(), fs.const_array(), 0,
+    rhss.array(), 0, mf.const_array(), mf.const_array(), Real(1.0), Real(1.0),
+    dzp);
+  Gpu::streamSynchronize();
+  FArrayBox hfn(fn.box(), 1, The_Pinned_Arena());
+  FArrayBox hfs(fs.box(), 1, The_Pinned_Arena());
+  FArrayBox hrn(rhsn.box(), 1, The_Pinned_Arena());
+  FArrayBox hrs(rhss.box(), 1, The_Pinned_Arena());
+  copy_to_host(fn, hfn);
+  copy_to_host(fs, hfs);
+  copy_to_host(rhsn, hrn);
+  copy_to_host(rhss, hrs);
+  const auto hfn4 = hfn.const_array();
+  const auto hfs4 = hfs.const_array();
+  const auto hrn4 = hrn.const_array();
+  const auto hrs4 = hrs.const_array();
+  for (int k = 0; k <= 3; ++k) {
+    EXPECT_NEAR(hfn4(0, 0, k), hfs4(0, 0, k), tolerance(K));
+  }
+  for (int k = 0; k <= 2; ++k) {
+    EXPECT_NEAR(hrn4(0, 0, k), hrs4(0, 0, k), tolerance(K));
+  }
+}
+
+// Motivation: On a stretched mesh the scalar gradient uses adjacent cell-center
+// spacing while divergence uses the receiving cell width. Unequal dz values
+// make confusing these two metrics produce a resolvable error.
+TEST(ScalarDiffusionPrimitives, StretchedVariableDzUsesCellAndFaceSpacing)
+{
+  const Box box(IntVect(0, 0, -1), IntVect(0, 0, 4));
+  FArrayBox scalar(box, 4);
+  constexpr Real a = Real(1.7), b = Real(-0.42), c = Real(0.11);
+  Vector<Real> dz_host{Real(0.5), Real(1.2), Real(0.8), Real(1.5)};
+  Gpu::DeviceVector<Real> dz(4);
+  Gpu::copy(Gpu::hostToDevice, dz_host.begin(), dz_host.end(), dz.begin());
+  const Real z0 = Real(0.0);
+  const Real z1 = dz_host[0];
+  const Real z2 = dz_host[0] + dz_host[1];
+  const Real z3 = dz_host[0] + dz_host[1] + dz_host[2];
+  auto s = scalar.array();
+  const auto dptr = dz.data();
+  ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    Real z = 0;
+    if (k == -1)
+      z = z0;
+    else if (k == 0)
+      z = Real(0.5) * dptr[0];
+    else if (k == 1)
+      z = z1 + Real(0.5) * dptr[1];
+    else if (k == 2)
+      z = z2 + Real(0.5) * dptr[2];
+    else if (k == 3)
+      z = z3;
+    else
+      z = z3 + Real(0.5) * dptr[3];
+    s(i, j, k, kScalarComp) = a + b * z + c * z * z;
+  });
+  Gpu::streamSynchronize();
+  const auto s4 = scalar.const_array();
+  FArrayBox gradients(Box(IntVect(0, 0, 0), IntVect(0, 0, 3)), 1);
+  auto g = gradients.array();
+  ParallelFor(
+    gradients.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      const bool low = k == 0, high = k == 3;
+      g(i, j, k, 0) = StretchedScalarGradient(
+        s4, kScalarComp, i, j, k, dptr, 0, 2, low, high);
+    });
+  Gpu::streamSynchronize();
+  constexpr Real K = Real(0.72);
+  FArrayBox flux(gradients.box(), 1),
+    rhs(Box(IntVect(0, 0, 0), IntVect(0, 0, 2)), 1);
+  const auto gradient = gradients.const_array();
+  const auto flux4 = flux.array();
+  ParallelFor(
+    gradients.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      flux4(i, j, k) = -K * gradient(i, j, k, 0);
+    });
+  const auto flux_in = flux.const_array();
+  const auto rhs4 = rhs.array();
+  ParallelFor(rhs.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    rhs4(i, j, k) = -(flux_in(i, j, k + 1) - flux_in(i, j, k)) / dptr[k];
+  });
+  Gpu::streamSynchronize();
+  FArrayBox hg(gradients.box(), gradients.nComp(), The_Pinned_Arena());
+  FArrayBox hr(rhs.box(), 1, The_Pinned_Arena());
+  copy_to_host(gradients, hg);
+  copy_to_host(rhs, hr);
+  const auto hg4 = hg.const_array();
+  const auto hr4 = hr.const_array();
+  const Real zc0 = Real(0.5) * dz_host[0];
+  const Real zc1 = z1 + Real(0.5) * dz_host[1];
+  const Real zc2 = z2 + Real(0.5) * dz_host[2];
+  const Real face_z[] = {
+    z0, Real(0.5) * (zc0 + zc1), Real(0.5) * (zc1 + zc2), z3};
+  for (int k = 0; k < 4; ++k) {
+    const Real expected_gradient = b + Real(2.0) * c * face_z[k];
+    EXPECT_NEAR(
+      hg4(0, 0, k, 0), expected_gradient, tolerance(expected_gradient));
+  }
+  for (int k = 0; k < 3; ++k) {
+    const Real expected =
+      K *
+      (b + Real(2.0) * c * face_z[k + 1] - (b + Real(2.0) * c * face_z[k])) /
+      dz_host[k];
+    EXPECT_NEAR(hr4(0, 0, k), expected, tolerance(expected));
+  }
+}
+
+// Motivation: Terrain-following diffusion needs both h_xi and h_eta cross
+// terms in the transformed vertical transfer. This independent affine-terrain
+// quadratic oracle detects either missing term and map-factor misplacement.
+TEST(ScalarDiffusionPrimitives, TerrainMappedQuadraticManufacturedSolution)
+{
+  const Real a = Real(0.31), b = Real(-0.23), c = Real(1.4);
+  const Real mx = Real(1.7), my = Real(0.82), K = Real(0.61);
+  const Box cells(IntVect(1, 1, 1), IntVect(2, 2, 2));
+  FArrayBox result(cells, 8);
+  auto out = result.array();
+  ParallelFor(cells, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real xi = Real(i), eta = Real(j), zeta = Real(k);
+    const Real z_xlo = a * xi + b * (eta + Real(0.5)) + c * (zeta + Real(0.5));
+    const Real z_xhi =
+      a * (xi + Real(1.0)) + b * (eta + Real(0.5)) + c * (zeta + Real(0.5));
+    const Real z_ylo = a * (xi + Real(0.5)) + b * eta + c * (zeta + Real(0.5));
+    const Real z_yhi =
+      a * (xi + Real(0.5)) + b * (eta + Real(1.0)) + c * (zeta + Real(0.5));
+    const Real grad_xi_lo =
+      Real(2.0) * xi / (mx * mx) +
+      Real(2.0) * (a * xi + b * (eta + Real(0.5)) + c * (zeta + Real(0.5))) * a;
+    const Real grad_xi_hi = Real(2.0) * (xi + Real(1.0)) / (mx * mx) +
+                            Real(2.0) *
+                              (a * (xi + Real(1.0)) + b * (eta + Real(0.5)) +
+                               c * (zeta + Real(0.5))) *
+                              a;
+    const Real grad_eta_lo =
+      Real(2.0) * eta / (my * my) +
+      Real(2.0) * (a * (xi + Real(0.5)) + b * eta + c * (zeta + Real(0.5))) * b;
+    const Real grad_eta_hi = Real(2.0) * (eta + Real(1.0)) / (my * my) +
+                             Real(2.0) *
+                               (a * (xi + Real(0.5)) + b * (eta + Real(1.0)) +
+                                c * (zeta + Real(0.5))) *
+                               b;
+    const Real Fxlo =
+      ScalarDiffusionFlux_Tx(K, mx, grad_xi_lo, a, Real(2.0) * z_xlo);
+    const Real Fxhi =
+      ScalarDiffusionFlux_Tx(K, mx, grad_xi_hi, a, Real(2.0) * z_xhi);
+    const Real Fylo =
+      ScalarDiffusionFlux_Ty(K, my, grad_eta_lo, b, Real(2.0) * z_ylo);
+    const Real Fyhi =
+      ScalarDiffusionFlux_Ty(K, my, grad_eta_hi, b, Real(2.0) * z_yhi);
+    const Real xi_cc = xi + Real(0.5), eta_cc = eta + Real(0.5);
+    const Real zeta_lo = zeta, zeta_hi = zeta + Real(1.0);
+    const Real Fzlo = -Real(2.0) * K * (a * xi_cc + b * eta_cc + c * zeta_lo);
+    const Real Fzhi = -Real(2.0) * K * (a * xi_cc + b * eta_cc + c * zeta_hi);
+    const Real barx = Real(0.5) * (Fxlo + Fxhi);
+    const Real bary = Real(0.5) * (Fylo + Fyhi);
+    const Real Glo = TerrainDiffusionGz(Fzlo, mx, a, barx, my, b, bary);
+    const Real Ghi = TerrainDiffusionGz(Fzhi, mx, a, barx, my, b, bary);
+    const Real divergence = TerrainDiffusionDivergence_T(
+      Fxhi, c, my, Fxlo, c, my, Fyhi, c, mx, Fylo, c, mx, Ghi, Glo, Real(1.0),
+      Real(1.0), Real(1.0), mx, my, c);
+    const Real Fx_rep = ScalarDiffusionFlux_Tx(
+      K, mx,
+      Real(2.0) * xi / (mx * mx) +
+        Real(2.0) * (a * xi + b * (eta + Real(0.5)) + c * (zeta + Real(0.5))) *
+          a,
+      a, Real(2.0) * z_xlo);
+    const Real Fy_rep = ScalarDiffusionFlux_Ty(
+      K, my,
+      Real(2.0) * eta / (my * my) +
+        Real(2.0) * (a * (xi + Real(0.5)) + b * eta + c * (zeta + Real(0.5))) *
+          b,
+      b, Real(2.0) * z_ylo);
+    const Real Fz_rep = -Real(2.0) * K * (a * xi_cc + b * eta_cc + c * zeta_lo);
+    out(i, j, k, 0) = Fx_rep;
+    out(i, j, k, 1) = Fy_rep;
+    out(i, j, k, 2) = Fz_rep;
+    out(i, j, k, 3) = Glo;
+    out(i, j, k, 4) = TerrainDiffusionMappedTz(Glo, mx, my);
+    out(i, j, k, 5) = -divergence;
+    out(i, j, k, 6) = TerrainDiffusionMappedTx(Fxlo, c, my);
+    out(i, j, k, 7) = TerrainDiffusionMappedTy(Fylo, c, mx);
+  });
+  Gpu::streamSynchronize();
+  FArrayBox host(result.box(), result.nComp(), The_Pinned_Arena());
+  copy_to_host(result, host);
+  const auto h = host.const_array();
+  for (int k = cells.smallEnd(2); k <= cells.bigEnd(2); ++k) {
+    for (int j = cells.smallEnd(1); j <= cells.bigEnd(1); ++j) {
+      for (int i = cells.smallEnd(0); i <= cells.bigEnd(0); ++i) {
+        const Real xi = Real(i), eta = Real(j), zeta = Real(k);
+        const Real xface = xi / mx;
+        const Real yface = eta / my;
+        const Real Fz =
+          -Real(2.0) * K *
+          (a * (xi + Real(0.5)) + b * (eta + Real(0.5)) + c * zeta);
+        const Real Gz = -Real(2.0) * K * c * zeta;
+        EXPECT_NEAR(h(i, j, k, 0), -Real(2.0) * K * xface, tolerance(K));
+        EXPECT_NEAR(h(i, j, k, 1), -Real(2.0) * K * yface, tolerance(K));
+        EXPECT_NEAR(h(i, j, k, 2), Fz, tolerance(K));
+        EXPECT_NEAR(h(i, j, k, 3), Gz, tolerance(K));
+        EXPECT_NEAR(h(i, j, k, 4), Gz / (mx * my), tolerance(K));
+        EXPECT_NEAR(h(i, j, k, 5), Real(6.0) * K, tolerance(K));
+        EXPECT_NEAR(
+          h(i, j, k, 6), -Real(2.0) * K * c * xi / (mx * my), tolerance(K));
+        EXPECT_NEAR(
+          h(i, j, k, 7), -Real(2.0) * K * c * eta / (mx * my), tolerance(K));
+        EXPECT_GT(std::abs(Fz - Gz), tolerance(K));
+      }
+    }
+  }
+}
+
+// Motivation: ERF's semi-implicit terrain split scales only raw F_z. The
+// lateral terrain cross terms remain explicit and must not receive that scale.
+TEST(ScalarDiffusionPrimitives, TerrainImplicitSplitScalesOnlyRawVerticalFlux)
+{
+  const Real a = Real(0.37), b = Real(-0.29), mx = Real(1.6), my = Real(0.75);
+  const Real explicit_fac = Real(0.6), implicit_fac = Real(0.4);
+  const Box zbx(IntVect(0, 0, 0), IntVect(0, 0, 1));
+  FArrayBox zflux(zbx, 3);
+  auto z = zflux.array();
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    z(i, j, k, 0) = Real(31.0);
+    z(i, j, k, 1) = -Real(0.8) - Real(0.21) * k;
+    z(i, j, k, 2) = Real(-17.0);
+  });
+  const Real barx = Real(0.44), bary = Real(-0.63);
+  const auto G_exp =
+    TerrainDiffusionGz(explicit_fac * Real(-0.8), mx, a, barx, my, b, bary);
+  const auto G_wrong =
+    explicit_fac * TerrainDiffusionGz(Real(-0.8), mx, a, barx, my, b, bary);
+  ScaleScalarDiffusionVerticalFlux(zbx, zflux.array(), 1, explicit_fac);
+  Gpu::streamSynchronize();
+  FArrayBox host(zbx, 3, The_Pinned_Arena());
+  copy_to_host(zflux, host);
+  const auto h = host.const_array();
+  for (int k = 0; k <= 1; ++k) {
+    const Real raw = -Real(0.8) - Real(0.21) * k;
+    const Real expected = explicit_fac * raw - mx * a * barx - my * b * bary;
+    const Real incorrectly_scaled =
+      explicit_fac * (raw - mx * a * barx - my * b * bary);
+    EXPECT_NEAR(h(0, 0, k, 1), explicit_fac * raw, tolerance());
+    EXPECT_NEAR(
+      TerrainDiffusionGz(h(0, 0, k, 1), mx, a, barx, my, b, bary), expected,
+      tolerance());
+    EXPECT_GT(std::abs(expected - incorrectly_scaled), tolerance());
+    EXPECT_DOUBLE_EQ(h(0, 0, k, 0), Real(31.0));
+    EXPECT_DOUBLE_EQ(h(0, 0, k, 2), Real(-17.0));
+  }
+  EXPECT_NEAR(G_exp, -Real(0.48) - mx * a * barx - my * b * bary, tolerance());
+  EXPECT_NEAR(
+    G_wrong, explicit_fac * (-Real(0.8) - mx * a * barx - my * b * bary),
+    tolerance());
+  EXPECT_DOUBLE_EQ(explicit_fac + implicit_fac, Real(1.0));
+}
