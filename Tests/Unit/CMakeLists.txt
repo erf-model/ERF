@@ -128,6 +128,9 @@ target_sources(${erf_exe_name}
     # Motivation: where two open lateral boundaries meet, each boundary cell must be
     # written by exactly one open-BC kernel, and by the same one however the grid is split.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCCorners.cpp
+    # Motivation: reusable scalar advection must honor explicit source, flux, and
+    # tendency components instead of inferring primitive storage from native cons layout.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestScalarAdvection.cpp
     # Motivation: the z-momentum box must be shrunk only at the bottom and top of the
     # domain, so that a grid split in z leaves no w-face without a source term.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestZmomBoxDecomposition.cpp
