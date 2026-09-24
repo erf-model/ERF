@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 # Observation-nudging regression driver.
 #
@@ -26,12 +27,10 @@ if(NOT DEFINED NRANKS OR "${NRANKS}" STREQUAL "")
     set(NRANKS 1)
 endif()
 
-file(GLOB test_exe_candidates "${TEST_EXE}")
-list(LENGTH test_exe_candidates test_exe_count)
-if(NOT test_exe_count EQUAL 1)
-    message(FATAL_ERROR "The test executable pattern must resolve to exactly one file: ${TEST_EXE}")
-endif()
-list(GET test_exe_candidates 0 TEST_EXE)
+# On Windows the executable is named with a wildcard for the config subdirectory
+# a multi-config generator picks; execute_process does not expand it
+erf_resolve_executable(TEST_EXE "${TEST_EXE}" CONFIG "${CONFIG}"
+    CONTEXT "RunObsNudging.cmake: ERF executable")
 
 function(obs_report_log label path)
     if(EXISTS "${path}")
@@ -88,7 +87,7 @@ function(obs_check args)
     message(STATUS "${out}${err}")
     file(APPEND "${LOG}.checker" "${out}${err}")
     if(NOT result EQUAL 0)
-        message(FATAL_ERROR "Observation-nudging check failed: ${args}")
+        message(FATAL_ERROR "Observation-nudging check failed (${result}): ${CHECKER} ${args}")
     endif()
 endfunction()
 

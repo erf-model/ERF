@@ -120,6 +120,10 @@ LatLonStatus locate_latlon_on_grid (const amrex::Array4<const amrex::Real>& ll,
                                     amrex::Real req_lat, amrex::Real req_lon,
                                     LatLonLocation& loc);
 
+// Copy lat and lon (2D, one component each) into the two components of latlon,
+// all three on the same BoxArray and DistributionMapping
+void pack_latlon (amrex::MultiFab& latlon, const amrex::MultiFab& lat, const amrex::MultiFab& lon);
+
 //
 // The level-0 lat/lon arrays gathered onto the I/O rank, with the two
 // questions asked of them answered there and broadcast.  Every member function

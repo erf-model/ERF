@@ -22,11 +22,72 @@ using namespace amrex;
 namespace obs_nudging {
 
 //
-// The kernels.  Free functions in a named namespace, capturing nothing but
-// values, so that the device lambdas are legal in every GPU build.  HasZnd
-// selects the terrain-fitted height (from z_phys_nd) over the uniform one.
+// Where a nudged quantity lives and what it needs there: the position (x, y, z)
+// of face Dir (0, 1, 2 for u, v, w) or of the cell centre (Dir = -1), the
+// terrain height zg under it and the density on it.  HasZnd selects the
+// terrain-fitted height (from z_phys_nd) over the uniform one.
 //
-// Dir is the face the momentum component lives on: 0, 1, 2 for u, v, w.
+// This is a device function rather than part of the kernels' lambdas because
+// nvcc does not let an extended device lambda first-capture a variable inside
+// an if-constexpr branch; the lambdas below only call it.
+//
+template <int Dir, bool HasZnd>
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void
+nudged_point (int i, int j, int k,
+              const Array4<const Real>& cons, const Array4<const Real>& znd,
+              const Array4<const Real>& zs,
+              const GpuArray<Real, AMREX_SPACEDIM>& problo,
+              const GpuArray<Real, AMREX_SPACEDIM>& dx,
+              Real& x, Real& y, Real& z, Real& zg, Real& rho) noexcept
+{
+    if constexpr (Dir == 0) {
+        x   = problo[0] + Real(i) * dx[0];
+        y   = problo[1] + (Real(j) + Real(0.5)) * dx[1];
+        zg  = Real(0.5) * (zs(i,j,0) + zs(i,j+1,0));
+        rho = Real(0.5) * (cons(i-1,j,k,Rho_comp) + cons(i,j,k,Rho_comp));
+        if constexpr (HasZnd) {
+            z = Real(0.25) * (znd(i,j,k) + znd(i,j+1,k) + znd(i,j,k+1) + znd(i,j+1,k+1));
+        } else {
+            z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
+        }
+    } else if constexpr (Dir == 1) {
+        x   = problo[0] + (Real(i) + Real(0.5)) * dx[0];
+        y   = problo[1] + Real(j) * dx[1];
+        zg  = Real(0.5) * (zs(i,j,0) + zs(i+1,j,0));
+        rho = Real(0.5) * (cons(i,j-1,k,Rho_comp) + cons(i,j,k,Rho_comp));
+        if constexpr (HasZnd) {
+            z = Real(0.25) * (znd(i,j,k) + znd(i+1,j,k) + znd(i,j,k+1) + znd(i+1,j,k+1));
+        } else {
+            z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
+        }
+    } else if constexpr (Dir == 2) {
+        x   = problo[0] + (Real(i) + Real(0.5)) * dx[0];
+        y   = problo[1] + (Real(j) + Real(0.5)) * dx[1];
+        zg  = Real(0.25) * (zs(i,j,0) + zs(i+1,j,0) + zs(i,j+1,0) + zs(i+1,j+1,0));
+        rho = Real(0.5) * (cons(i,j,k-1,Rho_comp) + cons(i,j,k,Rho_comp));
+        if constexpr (HasZnd) {
+            z = Real(0.25) * (znd(i,j,k) + znd(i+1,j,k) + znd(i,j+1,k) + znd(i+1,j+1,k));
+        } else {
+            z = problo[2] + Real(k) * dx[2];
+        }
+    } else {
+        x   = problo[0] + (Real(i) + Real(0.5)) * dx[0];
+        y   = problo[1] + (Real(j) + Real(0.5)) * dx[1];
+        zg  = Real(0.25) * (zs(i,j,0) + zs(i+1,j,0) + zs(i,j+1,0) + zs(i+1,j+1,0));
+        rho = cons(i,j,k,Rho_comp);
+        if constexpr (HasZnd) {
+            z = Real(0.125) * (znd(i,j,k  ) + znd(i+1,j,k  ) + znd(i,j+1,k  ) + znd(i+1,j+1,k  ) +
+                               znd(i,j,k+1) + znd(i+1,j,k+1) + znd(i,j+1,k+1) + znd(i+1,j+1,k+1));
+        } else {
+            z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
+        }
+    }
+}
+
+//
+// The kernels.  Free functions in a named namespace, capturing nothing but
+// values, so that the device lambdas are legal in every GPU build.
 //
 template <int Dir, bool HasZnd>
 void
@@ -37,45 +98,15 @@ add_face_source (const Box& bx, const Array4<Real>& src, const Array4<const Real
                  const GpuArray<Real, AMREX_SPACEDIM> dx,
                  int klo, int khi, const ObsNudgingView v, int comp)
 {
+    // w on the bottom and top of the domain is set by the boundary conditions
+    const bool skip_walls = (Dir == 2);
+
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        // w on the bottom and top of the domain is set by the boundary conditions
-        if constexpr (Dir == 2) {
-            if (k <= klo || k > khi) { return; }
-        }
+        if (skip_walls && (k <= klo || k > khi)) { return; }
 
         Real x, y, z, zg, rho;
-        if constexpr (Dir == 0) {
-            x   = problo[0] + Real(i) * dx[0];
-            y   = problo[1] + (Real(j) + Real(0.5)) * dx[1];
-            zg  = Real(0.5) * (zs(i,j,0) + zs(i,j+1,0));
-            rho = Real(0.5) * (cons(i-1,j,k,Rho_comp) + cons(i,j,k,Rho_comp));
-            if constexpr (HasZnd) {
-                z = Real(0.25) * (znd(i,j,k) + znd(i,j+1,k) + znd(i,j,k+1) + znd(i,j+1,k+1));
-            } else {
-                z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
-            }
-        } else if constexpr (Dir == 1) {
-            x   = problo[0] + (Real(i) + Real(0.5)) * dx[0];
-            y   = problo[1] + Real(j) * dx[1];
-            zg  = Real(0.5) * (zs(i,j,0) + zs(i+1,j,0));
-            rho = Real(0.5) * (cons(i,j-1,k,Rho_comp) + cons(i,j,k,Rho_comp));
-            if constexpr (HasZnd) {
-                z = Real(0.25) * (znd(i,j,k) + znd(i+1,j,k) + znd(i,j,k+1) + znd(i+1,j,k+1));
-            } else {
-                z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
-            }
-        } else {
-            x   = problo[0] + (Real(i) + Real(0.5)) * dx[0];
-            y   = problo[1] + (Real(j) + Real(0.5)) * dx[1];
-            zg  = Real(0.25) * (zs(i,j,0) + zs(i+1,j,0) + zs(i,j+1,0) + zs(i+1,j+1,0));
-            rho = Real(0.5) * (cons(i,j,k-1,Rho_comp) + cons(i,j,k,Rho_comp));
-            if constexpr (HasZnd) {
-                z = Real(0.25) * (znd(i,j,k) + znd(i+1,j,k) + znd(i,j+1,k) + znd(i+1,j+1,k));
-            } else {
-                z = problo[2] + Real(k) * dx[2];
-            }
-        }
+        nudged_point<Dir, HasZnd>(i, j, k, cons, znd, zs, problo, dx, x, y, z, zg, rho);
 
         Real tend = obs_nudging_tendency(v, comp, x, y, z, zg, vel(i,j,k));
         if (has_blank) { tend *= (Real(1.0) - blank(i,j,k)); }
@@ -94,18 +125,9 @@ add_cell_theta_source (const Box& bx, const Array4<Real>& src,
 {
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        const Real x  = problo[0] + (Real(i) + Real(0.5)) * dx[0];
-        const Real y  = problo[1] + (Real(j) + Real(0.5)) * dx[1];
-        const Real zg = Real(0.25) * (zs(i,j,0) + zs(i+1,j,0) + zs(i,j+1,0) + zs(i+1,j+1,0));
-        Real z;
-        if constexpr (HasZnd) {
-            z = Real(0.125) * (znd(i,j,k  ) + znd(i+1,j,k  ) + znd(i,j+1,k  ) + znd(i+1,j+1,k  ) +
-                               znd(i,j,k+1) + znd(i+1,j,k+1) + znd(i,j+1,k+1) + znd(i+1,j+1,k+1));
-        } else {
-            z = problo[2] + (Real(k) + Real(0.5)) * dx[2];
-        }
+        Real x, y, z, zg, rho;
+        nudged_point<-1, HasZnd>(i, j, k, cons, znd, zs, problo, dx, x, y, z, zg, rho);
 
-        const Real rho   = cons(i,j,k,Rho_comp);
         const Real theta = cons(i,j,k,RhoTheta_comp) / rho;
 
         Real tend = obs_nudging_tendency(v, Theta, x, y, z, zg, theta);

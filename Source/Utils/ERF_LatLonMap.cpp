@@ -38,6 +38,26 @@ gradient_stencil (const Box& dom, int i, int j)
 
 } // namespace
 
+//
+// Copy the latitude and longitude into the two components of latlon.  A free
+// function: nvcc does not allow an extended device lambda in a constructor.
+//
+void
+pack_latlon (MultiFab& latlon, const MultiFab& lat, const MultiFab& lon)
+{
+    for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<Real>&       ll  = latlon.array(mfi);
+        const Array4<const Real>& lat_arr = lat.const_array(mfi);
+        const Array4<const Real>& lon_arr = lon.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            ll(i,j,k,0) = lat_arr(i,j,0);
+            ll(i,j,k,1) = lon_arr(i,j,0);
+        });
+    }
+}
+
 void
 grid_rotation_from_latlon (const Array4<const Real>& ll, const Box& dom, int i, int j,
                            Real& cos_alpha, Real& sin_alpha)
@@ -141,17 +161,7 @@ LatLonMap::LatLonMap (const MultiFab& lat, const MultiFab& lon,
     // so for the largest domains ERF is run on -- and a search of that array
     // per point, once.
     MultiFab latlon(ba2d, dm, 2, 0);
-    for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
-        const Array4<Real>&       ll  = latlon.array(mfi);
-        const Array4<const Real>& lat_arr = lat.const_array(mfi);
-        const Array4<const Real>& lon_arr = lon.const_array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            ll(i,j,k,0) = lat_arr(i,j,0);
-            ll(i,j,k,1) = lon_arr(i,j,0);
-        });
-    }
+    pack_latlon(latlon, lat, lon);
 
     BoxArray ba_one(m_dom);
     Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());

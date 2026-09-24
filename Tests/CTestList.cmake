@@ -1681,17 +1681,21 @@ function(add_test_obs_nudging TEST_NAME TEST_FILES_DIR MODE)
     if("${MODE}" STREQUAL "abort")
         set(_nranks 1)
     endif()
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    # The checker is named by its target file, which is exact under every
+    # generator; the ERF executable is resolved by the runner (it may carry a
+    # wildcard for the config subdirectory on Windows)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${_nranks}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DLOG=${test_log}"
         "-DMODE=${MODE}"
-        "-DCHECKER=${OBS_NUDGING_CHECKER}"
+        "-DCHECKER=$<TARGET_FILE:erf_obs_nudging_check>"
         "-DSTATION=${ADD_TEST_ON_STATION}"
         "-DCHECKS=${ADD_TEST_ON_CHECKS}"
         "-DRUNTIME_OPTIONS=${ADD_TEST_ON_RUNTIME_OPTIONS}"

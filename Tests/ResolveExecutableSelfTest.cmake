@@ -38,7 +38,9 @@ foreach(_config Debug Release)
     file(MAKE_DIRECTORY "${WORK_DIR}/Exec/${_config}")
     file(WRITE "${WORK_DIR}/Exec/${_config}/erf_exec.exe" "not really a program\n")
 endforeach()
-file(MAKE_DIRECTORY "${WORK_DIR}/Exec/Stale/erf_exec.exe")
+# The directory's name sorts before every config, so a resolver that took it
+# for a program would choose it over Debug
+file(MAKE_DIRECTORY "${WORK_DIR}/Exec/ABandoned/erf_exec.exe")
 file(MAKE_DIRECTORY "${WORK_DIR}/Single")
 file(WRITE "${WORK_DIR}/Single/RelWithDebInfo/amrex_fcompare.exe" "not really a program\n")
 
@@ -74,7 +76,7 @@ expect_resolved(config_not_built
 # A directory that matches the pattern is not a program
 expect_resolved(directory_ignored
     "${WORK_DIR}/Exec/Debug/erf_exec.exe"
-    "${WORK_DIR}/Exec/[SD]*/erf_exec.exe")
+    "${WORK_DIR}/Exec/*/erf_exec.exe")
 
 # Nothing built at all must fail here, with the pattern named, rather than as an exec error
 # inside a test log.  The failure is fatal, so it is provoked in a child cmake.
