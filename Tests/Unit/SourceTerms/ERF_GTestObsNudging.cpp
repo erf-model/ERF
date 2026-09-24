@@ -504,6 +504,36 @@ TEST(ObsNudgingSources, LandOnEveryFaceOverFlatGround)
     EXPECT_EQ(a_w(3,3,8), Real(0.0));
 }
 
+TEST(ObsNudgingSources, SitOnTheStaggeredPositions)
+{
+    // A station 100 m wide at (400, 400): each component's weight depends on
+    // where its face is, u at (i dx, (j+1/2) dy), v at ((i+1/2) dx, j dy), w and
+    // theta at the cell centre column
+    write_file("erf_unit_obs_nudging_faces.txt", profile_file);
+    set_inputs("erf_unit_obs_nudging_faces.txt", Real(100.0), Real(25.0), Real(10.0));
+
+    ObsNudging nudging(TerrainType::None, nullptr, false, 0.0);
+    Grid g;
+    nudging.resolve_positions(g.geom, nullptr);
+    nudging.add_momentum_sources(0, 0.0, Real(1.0), g.geom, g.cons, g.u, g.v, g.w,
+                                 g.su, g.sv, g.sw, nullptr, nullptr, nullptr, nullptr);
+    nudging.add_theta_source(0, 0.0, Real(1.0), g.geom, g.cons, g.scc, nullptr, nullptr);
+    amrex::Gpu::streamSynchronize();
+
+    auto w = [] (Real dx, Real dy) {
+        return std::exp(Real(-0.25)*(dx*dx + dy*dy)/Real(1.0e4));
+    };
+    const Real ftol = Real(1.0e-6);
+    // u face (4,3): x = 400, y = 350;  (5,3): x = 500, y = 350
+    EXPECT_NEAR(g.su.const_array(0)(4,3,2), Real(0.4)*w(Real(0.0),  Real(50.0)), ftol);
+    EXPECT_NEAR(g.su.const_array(0)(5,3,2), Real(0.4)*w(Real(100.0),Real(50.0)), ftol);
+    // v face (3,4): x = 350, y = 400
+    EXPECT_NEAR(g.sv.const_array(0)(3,4,2), Real(-0.2)*w(Real(50.0), Real(0.0)), ftol);
+    // w face and cell (3,3): x = 350, y = 350
+    EXPECT_NEAR(g.sw.const_array(0)(3,3,2), Real(0.1)*w(Real(50.0), Real(50.0)), ftol);
+    EXPECT_NEAR(g.scc.const_array(0)(3,3,2,RhoTheta_comp), Real(0.2)*w(Real(50.0), Real(50.0)), ftol);
+}
+
 TEST(ObsNudgingSources, MeasureHeightsFromTheBottomOfAFittedMesh)
 {
     // A profile only between 0 and 50 m above the ground, which slopes up in x

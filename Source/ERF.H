@@ -729,6 +729,9 @@ public:
     void resolve_station_stencils ();
     void sample_stations (amrex::Real time);
     void flush_stations () const;
+    // The nodes a station's terrain elevation is read from, at k = the bottom of
+    // the domain: z_phys_nd, or with immersed-forcing terrain the immersed surface
+    const amrex::MultiFab& station_ground (int lev);
 
     // Nudging towards observations at stations
     void init_obs_nudging ();
@@ -2133,6 +2136,8 @@ private:
     // routines produce their components
     amrex::Vector<std::string> station_vars_3d;
     amrex::Vector<std::string> station_vars_2d;
+    // The immersed-forcing terrain surface under each level's grids, for the stations
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> station_ib_ground;
 
     // Nudging towards observations at stations; built only when
     // solverChoice.nudging_from_observations is true

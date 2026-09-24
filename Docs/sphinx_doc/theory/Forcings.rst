@@ -12,7 +12,8 @@ Physical Forcings
 
 Physical forcings available in ERF comprise the standard source terms for atmospheric modeling.
 These include Coriolis and geostrophic forcing; Rayleigh damping and sponge layer(s); subsidence;
-simplified radiative thermal sources; and solution nudging towards a prescribed input sounding.
+simplified radiative thermal sources; solution nudging towards a prescribed input sounding; and
+nudging towards observations at stations (:ref:`sec:ObsNudging`).
 
 ERF also supports models for wind farm parametrization in which the effects of wind turbines are represented
 by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE).
@@ -374,6 +375,83 @@ Note that the volume fraction is calculated prior to the grid transformation; th
 An example of immersed forcing for a building located on top of a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
 Additional examples are in ``Exec/RegTests/ImmersedForcingTest/wall_model`` demonstrating the wall model and different idealized thermal boundary conditions.
 
+
+.. _sec:ObsNudging:
+
+Nudging towards observations at stations
+----------------------------------------
+
+Measurements from met masts, lidars and profilers can be used to nudge the flow near
+them.  Each station is a horizontal position and a time series of measured profiles
+of :math:`u`, :math:`v`, :math:`w` and :math:`\theta` (any subset), optionally with the
+standard deviation :math:`\sigma` of each.  A met mast is a profile of one or a few
+heights, and a lidar a profile of many gates.  Only points near a station are nudged,
+with a weight that falls off with the distance from it.
+
+For one of the nudged quantities :math:`\phi`, station :math:`s` has the weight
+
+.. math::
+
+    w_s = \exp\left(-\frac{1}{4}\left[\frac{r_s^2}{R_h^2} + \frac{d_s^2}{R_z^2}\right]\right),
+
+where :math:`r_s` is the horizontal distance from the point to the station (to its
+nearest image in a periodic direction) and :math:`d_s` is the vertical distance from
+the point to the measured height range, zero inside it.  :math:`R_h` and :math:`R_z` are
+``erf.obs_nudging.horizontal_radius`` and ``erf.obs_nudging.vertical_radius``, and a
+station further than ``erf.obs_nudging.cutoff`` radii away (:math:`r_s^2/R_h^2 +
+d_s^2/R_z^2` above the square of the cutoff) is not used.
+
+The target of station :math:`s` is the measured mean :math:`\bar\phi_s`, interpolated
+linearly in height (and held at its end values above and below the measured range) and in
+time, widened to a band of :math:`\pm\alpha\sigma_s`.  Only the part of the local value
+outside the band is nudged:
+
+.. math::
+
+    t_s = \min\left(\max\left(\phi,\ \bar\phi_s - \alpha\sigma_s\right),\ \bar\phi_s + \alpha\sigma_s\right),
+
+with :math:`\alpha` = ``erf.obs_nudging.sigma_factor``; :math:`\alpha = 0` nudges towards the
+mean.  The stations are combined into one relaxation,
+
+.. math::
+
+    \frac{\partial \phi}{\partial t} = -\min\left(\frac{W}{\tau},\ \frac{1}{\Delta t}\right)\left(\phi - \bar t\right),
+    \qquad W = \min\left(1,\ \sum_s w_s\right),
+    \qquad \bar t = \frac{\sum_s w_s t_s}{\sum_s w_s},
+
+where :math:`\tau` is ``erf.obs_nudging.tau`` and :math:`\Delta t` the time over which the
+stage of the time step is taken.  The cap :math:`W \le 1` keeps a point from relaxing faster
+than :math:`1/\tau` however many stations are near it, and the cap at :math:`1/\Delta t`
+keeps it from overshooting its target within a stage when :math:`\tau < \Delta t`.  The
+source added to the equation of :math:`\rho\phi` is :math:`\rho\,\partial\phi/\partial t`,
+with :math:`\rho` averaged to the face of a velocity component.  For a single station at a
+single height with :math:`\sigma = 0` and :math:`\tau \ge \Delta t` this is the classical
+relaxation :math:`-w\,(\phi - \bar\phi)/\tau`.
+
+The heights of a station are measured above the local terrain (or, with
+``height_ref = msl``, above :math:`z = 0`).  On a terrain-fitted mesh the terrain is the
+bottom of the mesh; with immersed-forcing terrain it is the terrain surface the immersed
+boundary is built from, and cells inside the immersed terrain or buildings are not nudged
+(the tendency is multiplied by the fluid fraction :math:`1 - \beta_r`).  EB terrain is not
+supported.  The vertical velocity is not nudged on the bottom and top of the domain, where
+the boundary conditions set it.
+
+A station is placed by ``x``/``y`` in domain coordinates or, in a run with
+latitude/longitude arrays (a WRF or metgrid initialization, or a restart from one), by
+``lat``/``long``.  A latitude/longitude is placed with the same local inverse of the
+level-0 latitude/longitude arrays as the station time-series output, so it works for any
+projection.  An earth-relative wind (``wind_frame = earth``, the default) is rotated into
+the grid frame with the angle :math:`\alpha_g` of the grid's :math:`x` axis from true east
+at the station, measured from the same arrays:
+
+.. math::
+
+    u_{grid} = u_{east}\cos\alpha_g + v_{north}\sin\alpha_g, \qquad
+    v_{grid} = -u_{east}\sin\alpha_g + v_{north}\cos\alpha_g.
+
+In a run without latitude/longitude arrays the grid is taken to be aligned with east and
+north.  The inputs and the station file are described in :ref:`Nudging towards observations
+<inputs-obs-nudging>`.
 
 Problem-Specific Forcing
 ========================

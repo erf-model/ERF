@@ -10,6 +10,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 #                   (in off/), then run the checker for every check in CHECKS
 #                   with on= and off= set to the station series of each run
 #                   that the check names with series=<station>.
+# MODE = single   : run the deck once, then run the checker with every check
+#                   in CHECKS as it is, @RUN@ replaced by the run directory.
 # MODE = abort    : run the deck with RUNTIME_OPTIONS and require that it
 #                   aborts during start-up with EXPECTED_MESSAGE in its output.
 #
@@ -126,6 +128,16 @@ if("${MODE}" STREQUAL "analytic")
     endif()
     foreach(check IN LISTS check_list)
         obs_check("analytic file=${WORKING_DIRECTORY}/run/Output_Stations/${STATION}.dat ${check}")
+    endforeach()
+elseif("${MODE}" STREQUAL "single")
+    obs_run("${WORKING_DIRECTORY}/run" "${RUNTIME_OPTIONS}" "${LOG}" result)
+    if(NOT result EQUAL 0)
+        obs_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The simulation failed: ${result}")
+    endif()
+    foreach(check IN LISTS check_list)
+        string(REPLACE "@RUN@" "${WORKING_DIRECTORY}/run" check "${check}")
+        obs_check("${check}")
     endforeach()
 elseif("${MODE}" STREQUAL "approach")
     obs_run("${WORKING_DIRECTORY}/on" "${RUNTIME_OPTIONS}" "${LOG}" result)

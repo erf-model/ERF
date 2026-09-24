@@ -24,6 +24,11 @@
 //       than factor times the distance of the run without it (off), and the
 //       two runs must differ, so that the check cannot pass on a no-op.
 //
+//   equal a=F:C b=G:D tol=E
+//       Column C of F and column D of G must agree row by row to within tol,
+//       at the same times, and must not be constant, so that two series that
+//       should sample the same point are compared on something that moves.
+//
 // col counts from 1, as the header of the file does, and column 1 is time.
 
 namespace {
@@ -139,11 +144,51 @@ int check_approach (const std::map<std::string, std::string>& args)
     return 0;
 }
 
+bool split_file_col (const std::string& spec, std::string& file, std::size_t& col)
+{
+    const auto colon = spec.rfind(':');
+    if (colon == std::string::npos) { return false; }
+    file = spec.substr(0, colon);
+    col  = static_cast<std::size_t>(std::strtol(spec.substr(colon+1).c_str(), nullptr, 10));
+    return col >= 2;
+}
+
+int check_equal (const std::map<std::string, std::string>& args)
+{
+    std::string a, b, fa, fb;
+    double tol = 0;
+    std::size_t ca = 0, cb = 0;
+    if (!get(args, "a", a) || !get(args, "b", b) || !get(args, "tol", tol) ||
+        !split_file_col(a, fa, ca) || !split_file_col(b, fb, cb)) {
+        return fail("equal needs a=FILE:COL b=FILE:COL tol= with COL >= 2");
+    }
+    std::vector<std::vector<double>> ra, rb;
+    std::string error;
+    if (!read_series(fa, ra, error)) { return fail(error); }
+    if (!read_series(fb, rb, error)) { return fail(error); }
+    if (ra.size() != rb.size()) { return fail("the two series have different numbers of rows"); }
+
+    double max_diff = 0.0, lo = 1.0e300, hi = -1.0e300;
+    for (std::size_t n = 0; n < ra.size(); ++n) {
+        if (ra[n].size() < ca || rb[n].size() < cb) { return fail("a row is missing the column"); }
+        if (ra[n][0] != rb[n][0]) { return fail("the two series are at different times"); }
+        const double va = ra[n][ca-1], vb = rb[n][cb-1];
+        max_diff = std::max(max_diff, std::abs(va - vb));
+        lo = std::min(lo, va); hi = std::max(hi, va);
+    }
+    std::cout << "ObsNudgingCheck: equal " << a << " vs " << b << ": " << ra.size()
+              << " rows, max |difference| = " << max_diff << ", range of the first " << hi - lo << "\n";
+    if (hi - lo <= tol) { return fail("the series is constant, so the comparison is vacuous"); }
+    if (max_diff > tol) { return fail("the series differ by more than tol"); }
+    std::cout << "ObsNudgingCheck: PASS\n";
+    return 0;
+}
+
 } // namespace
 
 int main (int argc, char* argv[])
 {
-    if (argc < 2) { return fail("usage: ObsNudgingCheck analytic|approach key=value ..."); }
+    if (argc < 2) { return fail("usage: ObsNudgingCheck analytic|approach|equal key=value ..."); }
     const std::string mode = argv[1];
     std::map<std::string, std::string> args;
     for (int i = 2; i < argc; ++i) {
@@ -154,5 +199,6 @@ int main (int argc, char* argv[])
     }
     if (mode == "analytic") { return check_analytic(args); }
     if (mode == "approach") { return check_approach(args); }
+    if (mode == "equal")    { return check_equal(args); }
     return fail("unknown mode '" + mode + "'");
 }

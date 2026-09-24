@@ -1767,6 +1767,23 @@ add_test_obs_nudging(ObsNudging_HillIF ObsNudging_HillIF approach
     OFF_OPTIONS "erf.nudging_from_observations=false"
     CHECKS "series=mast col=2 target=7.0167 factor=0.85|series=mast col=3 target=0.5083 factor=0.85|series=mast col=4 target=300.5083 factor=0.7|series=gate col=2 target=6.4083 factor=0.65|series=gate col=3 target=0.4 factor=0.9")
 
+# Station output over terrain: a height above the local terrain is measured
+# from the ground at the station, so the mast series asked for 40 m above the
+# terrain must be the series asked for at 93.08 m above z = 0 (the ground is
+# 53.08 m up there).  They agree to 1e-4 m/s and 3e-6 K.  Two faults each fail
+# this: with immersed terrain the height was measured from the flat bottom of
+# the mesh (the series was the flow inside the hill, 3 to 4 m/s away), and the
+# ground was interpolated from cell averages between cell centres, 3.4 m too
+# low on the flank of the hill (0.36 m/s away over the immersed hill, 0.04 m/s
+# on the fitted mesh; the old code fails both tests).
+add_test_obs_nudging(StationSampling_ImmersedTerrain ObsNudging_HillIF single
+    RUNTIME_OPTIONS "erf.station_names=mast gate mastagl erf.mastagl.field=x_velocity y_velocity theta erf.mastagl.x=700.0 erf.mastagl.y=400.0 erf.mastagl.height_agl=40.0"
+    CHECKS "equal a=@RUN@/Output_Stations/mastagl.dat:2 b=@RUN@/Output_Stations/mast.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mastagl.dat:4 b=@RUN@/Output_Stations/mast.dat:4 tol=0.001")
+
+add_test_obs_nudging(StationSampling_FittedTerrain ObsNudging_Hill single
+    RUNTIME_OPTIONS "amr.max_level=0 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
 function(obs_nudging_hillif_files TEST_NAME OUT_VAR)
     set(_d "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
     set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)

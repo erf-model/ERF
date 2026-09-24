@@ -56,7 +56,7 @@ amrex::Real
 periodic_separation (amrex::Real d, amrex::Real L) noexcept
 {
     if (L > amrex::Real(0.0)) {
-        d -= L * std::round(d / L);
+        d -= L * amrex::Math::round(d / L);
     }
     return d;
 }

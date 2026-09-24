@@ -25,6 +25,7 @@
 #include <ERF_Constants.H>
 #include <ERF_EpochTime.H>
 #include <ERF_LatLonMap.H>
+#include <ERF_TerrainSurfaceSlab.H>
 #include <ERF_Utils.H>
 
 using namespace amrex;
@@ -799,6 +800,33 @@ ERF::init_stations ()
 }
 
 //
+// The terrain elevation at a station: bilinear in the elevations of the nodes
+// of the bottom of the mesh (or of the immersed terrain surface) around it.
+// The nodes gathered for a station are those of its cell-centred stencil,
+// i0..i1+1 by j0..j1+1, which always contain the cell of nodes around (x, y).
+//
+// This is the elevation of the ground at the station itself.  Interpolating
+// the cell averages of the elevation between cell centres instead flattens a
+// curved hill, and put a mast on the flank of a 100 m hill 3.4 m too low at
+// 50 m resolution.
+//
+static Real
+terrain_at_station (const Array4<const Real>& nd, int klo, Real x, Real y,
+                    const GpuArray<Real,AMREX_SPACEDIM>& problo,
+                    const GpuArray<Real,AMREX_SPACEDIM>& dx,
+                    int i0, int i1, int j0, int j1)
+{
+    const Real fx = (x - problo[0]) / dx[0];
+    const Real fy = (y - problo[1]) / dx[1];
+    const int  in = std::clamp(static_cast<int>(std::floor(fx)), i0, i1);
+    const int  jn = std::clamp(static_cast<int>(std::floor(fy)), j0, j1);
+    const Real tx = std::clamp(fx - Real(in), Real(0.0), Real(1.0));
+    const Real ty = std::clamp(fy - Real(jn), Real(0.0), Real(1.0));
+    return (Real(1.0)-ty) * ( (Real(1.0)-tx)*nd(in,jn  ,klo) + tx*nd(in+1,jn  ,klo) )
+         +            ty  * ( (Real(1.0)-tx)*nd(in,jn+1,klo) + tx*nd(in+1,jn+1,klo) );
+}
+
+//
 // Turn every requested lat/lon into a position in domain coordinates, and check
 // that every station lies inside the domain.  Done once: the level-0 geometry
 // and the lat/lon arrays do not change.
@@ -1055,7 +1083,7 @@ ERF::resolve_station_stencils ()
         if (z_phys_nd[lev]) {
             znd[lev].define(BoxArray(bl_nd), dm_io, 1, 0, pinned);
             znd[lev].setVal(Real(0.0));
-            znd[lev].ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+            znd[lev].ParallelCopy(station_ground(lev), 0, 0, 1, IntVect(0), IntVect(0), period);
         }
     }
 
@@ -1117,12 +1145,9 @@ ERF::resolve_station_stencils ()
                 // height is measured from
                 Real z_surf = problo[2];
                 if (z_phys_nd[lev]) {
-                    const Array4<const Real>& nd = znd[lev].const_array(ib);
-                    auto corner_avg = [&](int i, int j) {
-                        return Real(0.25) * (nd(i,j,klo) + nd(i+1,j,klo) + nd(i,j+1,klo) + nd(i+1,j+1,klo));
-                    };
-                    z_surf = (Real(1.0)-c.wy) * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j0) + c.wx*corner_avg(c.i1,c.j0) )
-                           +            c.wy  * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j1) + c.wx*corner_avg(c.i1,c.j1) );
+                    const StationLoc& sloc = station.locs[all_locs[ip].second];
+                    z_surf = terrain_at_station(znd[lev].const_array(ib), klo, sloc.x, sloc.y,
+                                                problo, dx, c.i0, c.i1, c.j0, c.j1);
                 }
 
                 // Every requested height must be bracketed within the covered
@@ -1359,7 +1384,7 @@ ERF::sample_stations (Real time)
             BoxArray ba(bl_nd);
             stznd[lev].define(ba, dm_io, 1, 0, pinned);
             stznd[lev].setVal(Real(0.0));
-            stznd[lev].ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+            stznd[lev].ParallelCopy(station_ground(lev), 0, 0, 1, IntVect(0), IntVect(0), period);
         }
     }
 
@@ -1408,12 +1433,8 @@ ERF::sample_stations (Real time)
                 // Terrain elevation under the station
                 Real z_surf = problo[2];
                 if (z_phys_nd[lev]) {
-                    const Array4<const Real>& nd = stznd[lev].const_array(ib);
-                    auto corner_avg = [&](int i, int j) {
-                        return Real(0.25) * (nd(i,j,klo) + nd(i+1,j,klo) + nd(i,j+1,klo) + nd(i+1,j+1,klo));
-                    };
-                    z_surf = (Real(1.0)-wy) * ( (Real(1.0)-wx)*corner_avg(i0,j0) + wx*corner_avg(i1,j0) )
-                           +            wy  * ( (Real(1.0)-wx)*corner_avg(i0,j1) + wx*corner_avg(i1,j1) );
+                    z_surf = terrain_at_station(stznd[lev].const_array(ib), klo, loc.x, loc.y,
+                                                problo, dx, i0, i1, j0, j1);
                 }
 
                 Array4<const Real> a3, a2;
@@ -1458,6 +1479,35 @@ ERF::sample_stations (Real time)
     }
 
     ss.appendRow(time, static_cast<Real>(start_time) + time, row);
+}
+
+//
+// The nodes a station's terrain elevation is read from.  On a terrain-fitted
+// mesh (and on a flat one) that is the bottom of the mesh, z_phys_nd.  With
+// immersed-forcing terrain the mesh is flat and the terrain is immersed in it,
+// so a height above the local terrain has to be measured from the surface the
+// immersed boundary is built from; that is built here once per set of grids.
+//
+const MultiFab&
+ERF::station_ground (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
+    if (solverChoice.terrain_type != TerrainType::ImmersedForcing) {
+        return *z_phys_nd[lev];
+    }
+
+    if (static_cast<int>(station_ib_ground.size()) <= lev) {
+        station_ib_ground.resize(lev+1);
+    }
+    const BoxArray slab = bottom_node_slab(grids[lev], geom[lev]);
+    if (!station_ib_ground[lev] ||
+        !(station_ib_ground[lev]->boxArray() == slab) ||
+        !(station_ib_ground[lev]->DistributionMap() == dmap[lev]))
+    {
+        station_ib_ground[lev] = std::make_unique<MultiFab>(slab, dmap[lev], 1, 0);
+        fill_terrain_surface_slab(*station_ib_ground[lev], geom[lev], *prob, t_new[lev]);
+    }
+    return *station_ib_ground[lev];
 }
 
 void

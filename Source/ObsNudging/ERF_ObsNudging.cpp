@@ -15,6 +15,7 @@
 #include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_ProbCommon.H"
+#include "ERF_TerrainSurfaceSlab.H"
 
 using namespace amrex;
 
@@ -485,16 +486,10 @@ ObsNudging::surface (int lev, const Geometry& geom, const MultiFab& cons,
         return *m_zsurf[lev];
     }
 
-    // The nodes of the k = klo slab under every grid of the level, laid out
+    // The nodes of the bottom slab under every grid of the level, laid out
     // like the level so that an MFIter over the state indexes it too
-    const int klo = geom.Domain().smallEnd(2);
-    BoxList bl = cons.boxArray().boxList();
-    bl.convert(IndexType::TheNodeType());   // the list's index type as well as each box's
-    for (auto& b : bl) {
-        b.setRange(2, klo);
-    }
-    BoxArray ba_surf(std::move(bl));
-    m_zsurf[lev] = std::make_unique<MultiFab>(ba_surf, cons.DistributionMap(), 1, 0);
+    m_zsurf[lev] = std::make_unique<MultiFab>(bottom_node_slab(cons.boxArray(), geom),
+                                              cons.DistributionMap(), 1, 0);
     MultiFab& zs = *m_zsurf[lev];
 
     if (fitted)
@@ -518,15 +513,7 @@ ObsNudging::surface (int lev, const Geometry& geom, const MultiFab& cons,
         // The terrain surface the immersed boundary is built from, at this
         // level's resolution
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_prob != nullptr, "ObsNudging: no problem object");
-        Box bx(surroundingNodes(geom.Domain()));
-        FArrayBox terrain_fab(makeSlab(bx, 2, klo), 1);
-        m_prob->init_terrain_surface(geom, terrain_fab, time);
-        for (MFIter mfi(zs); mfi.isValid(); ++mfi) {
-            const Box isect = terrain_fab.box() & zs[mfi].box();
-            if (!isect.isEmpty()) {
-                zs[mfi].template copy<RunOn::Device>(terrain_fab, isect, 0, isect, 0, 1);
-            }
-        }
+        fill_terrain_surface_slab(zs, geom, *m_prob, time);
     }
     else
     {
