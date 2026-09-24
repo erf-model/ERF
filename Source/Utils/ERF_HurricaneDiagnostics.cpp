@@ -647,7 +647,6 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
     static bool is_start = true;
     int levc=finest_level;
 
-    const MoistureType moisture_type   = sc.moisture_type;
     const Real hurricane_eye_latitude  = sc.hurricane_eye_latitude;
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
 
