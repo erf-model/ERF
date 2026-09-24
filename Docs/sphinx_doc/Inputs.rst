@@ -1032,8 +1032,8 @@ List of Parameters
 | **erf.v**                  | verbosity of     | 0, 1 or 2;     | 0              |
 |                            | ERF.cpp          | 2 also prints  |                |
 |                            |                  | the coupled SST|                |
-|                            |                  | summary every  |                |
-|                            |                  | exchange       |                |
+|                            |                  | check every    |                |
+|                            |                  | ERF step       |                |
 +----------------------------+------------------+----------------+----------------+
 | **erf.sum_interval**       | if               |                |                |
 |                            | :math:`> 0,`     |                |                |
