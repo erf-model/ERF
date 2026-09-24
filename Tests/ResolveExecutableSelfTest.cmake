@@ -2,8 +2,11 @@
 #
 # The resolution runs on Windows, where a wrong answer shows up as a regression test that
 # fails to start an hour into a CI job, so it is tested here instead, on whatever platform
-# happens to be running: the wildcard expansion is file-system work that behaves the same
-# everywhere, and the multi-config layout it has to cope with is just a directory tree.
+# happens to be running: the multi-config layout it has to cope with is just a directory
+# tree, and the patterns the ERF build actually hands to erf_resolve_executable expand the
+# same way everywhere.  Glob matching is not wholly portable, though -- it is case-folded
+# on macOS and Windows and not on Linux -- so the patterns used below stay inside the
+# subset that is, which is the `*` the build itself uses.  See the directory_ignored case.
 #
 # Pure CMake, no ERF run.  Run with
 #   cmake -DWORK_DIR=<scratch directory> -P Tests/ResolveExecutableSelfTest.cmake
@@ -33,12 +36,15 @@ endfunction()
 
 # The multi-config layout: the same program built in two configurations, and a directory
 # whose name matches the pattern as well, so that a match that cannot be run is seen to be
-# skipped rather than merely absent.
+# skipped rather than merely absent.  That directory is named so that it sorts ahead of
+# every config directory: it is then what the first-in-sorted-order fallback would return
+# if directories were not filtered out, so a regression in the filtering fails a case
+# rather than passing unnoticed behind a config that happened to sort first anyway.
 foreach(_config Debug Release)
     file(MAKE_DIRECTORY "${WORK_DIR}/Exec/${_config}")
     file(WRITE "${WORK_DIR}/Exec/${_config}/erf_exec.exe" "not really a program\n")
 endforeach()
-file(MAKE_DIRECTORY "${WORK_DIR}/Exec/Stale/erf_exec.exe")
+file(MAKE_DIRECTORY "${WORK_DIR}/Exec/Aborted/erf_exec.exe")
 file(MAKE_DIRECTORY "${WORK_DIR}/Single")
 file(WRITE "${WORK_DIR}/Single/RelWithDebInfo/amrex_fcompare.exe" "not really a program\n")
 
@@ -71,10 +77,17 @@ expect_resolved(config_not_built
     "${WORK_DIR}/Exec/Debug/erf_exec.exe"
     "${WORK_DIR}/Exec/*/erf_exec.exe" CONFIG "MinSizeRel")
 
-# A directory that matches the pattern is not a program
+# A directory that matches the pattern is not a program: Aborted/erf_exec.exe is the first
+# match in sorted order and must not be the one that comes back.
+#
+# The pattern deliberately uses only `*`.  A [...] character class would not do: kwsys
+# lower-cases each file name before matching it on macOS and Windows (KWSYS_GLOB_CASE_INDEPENDENT
+# in Source/kwsys/Glob.cxx) and folds the case of literal pattern characters to suit, but
+# copies the contents of a character class through untouched -- so [SD] is tested against
+# "debug" and "aborted" there and matches nothing, while matching on Linux.
 expect_resolved(directory_ignored
     "${WORK_DIR}/Exec/Debug/erf_exec.exe"
-    "${WORK_DIR}/Exec/[SD]*/erf_exec.exe")
+    "${WORK_DIR}/Exec/*/erf_exec.exe")
 
 # Nothing built at all must fail here, with the pattern named, rather than as an exec error
 # inside a test log.  The failure is fatal, so it is provoked in a child cmake.
