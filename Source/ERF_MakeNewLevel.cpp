@@ -683,7 +683,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // Update Surface Model arrays for this new level
-    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1)) {
         m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
@@ -695,18 +696,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             }
         }
 
-        /*
         if (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1) {
             m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name, SurfaceModelType::URBAN);
         }
-        */
 
-        /*
-        if (solverChoice.lsm_type != LandSurfaceType::None ||
-            (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1)) {
-            m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
-        }
-        */
         m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
     }
 
@@ -1173,7 +1166,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     // Update Surface Model arrays for this new level
-    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1)) {
         m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
     }
 
@@ -1236,15 +1230,24 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         lsm.Set_Source_Ptrs(lev, lev-1);
     }
 
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
+    const bool urban_enabled = solverChoice.urban_type != UrbanType::None &&
+                               solverChoice.urban_enabled_lev[lev] == 1;
+    if (solverChoice.lsm_type != LandSurfaceType::None || urban_enabled) {
         const int first_lev = (lev == 0) ? 0 : lev;
         const int last_lev = (lev == 0) ? finest_level : lev;
+
+        if (urban_enabled) {
+            m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name,
+                                           SurfaceModelType::URBAN);
+        }
         for (int k = first_lev; k <= last_lev; ++k) {
-            m_SurfaceModel->set_model_data(k, lsm_data[k], lsm_data_name, SurfaceModelType::LAND);
-            m_SurfaceModel->set_model_fluxes(k, lsm_flux[k], lsm_flux_name, SurfaceModelType::LAND);
-            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
-                m_SurfaceModel->set_field_map_pointers("olen", k,
-                                                       lsm_flux[k][lsm.Get_FluxIdx(k, "olen")], nullptr);
+            if (solverChoice.lsm_type != LandSurfaceType::None) {
+                m_SurfaceModel->set_model_data(k, lsm_data[k], lsm_data_name, SurfaceModelType::LAND);
+                m_SurfaceModel->set_model_fluxes(k, lsm_flux[k], lsm_flux_name, SurfaceModelType::LAND);
+                if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                    m_SurfaceModel->set_field_map_pointers("olen", k,
+                                                           lsm_flux[k][lsm.Get_FluxIdx(k, "olen")], nullptr);
+                }
             }
             m_SurfaceModel->calculate_weight_average(k, urb_frac_lev[k][0].get());
         }

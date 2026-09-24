@@ -1250,7 +1250,8 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.lsm_type != LandSurfaceType::None) { // || solverChoice.urban_type != UrbanType::None) {
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        solverChoice.urban_type != UrbanType::None) {
         m_SurfaceModel = std::make_unique<SurfaceModel>(finest_level+1, grids, geom, dmap, solverChoice, lmask_lev);
         for (int lev = 0; lev <= finest_level; ++lev) {
             m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
@@ -1271,11 +1272,17 @@ ERF::InitData_post ()
 
         }
 
-        /*
         if (solverChoice.urban_type != UrbanType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
+                if (solverChoice.urban_enabled_lev[lev] == 0) {
+                    continue;
+                }
                 m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name, SurfaceModelType::URBAN);
             }
+        }
+
+        /*
+        if (solverChoice.urban_type != UrbanType::None) {
             m_SurfaceModel->set_model_fields(SurfaceModelType::URBAN, amrex::Vector<int>{UrbanVar_BEP::tau13,
                                                                                          UrbanVar_BEP::tau23,
                                                                                          UrbanVar_BEP::hfx,
@@ -1298,13 +1305,11 @@ ERF::InitData_post ()
 
         // Populate weighted outputs after all active surface models are registered.
         for (int lev = 0; lev <= finest_level; ++lev) {
-            /*
             if (solverChoice.lsm_type == LandSurfaceType::None &&
                 (solverChoice.urban_type == UrbanType::None ||
                  solverChoice.urban_enabled_lev[lev] == 0)) {
                 continue;
             }
-            */
             m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
         }
 
