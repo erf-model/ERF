@@ -411,9 +411,8 @@ void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, 
     std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_steps[0], 5);
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
-    const int nlsm_fields = (m_use_land) ? (lsm_fields.size() - nfields) : 0;
-    const int nurb_fields = (m_use_urban) ? (urban_fields.size() - nfields) : 0;
-    const int noutput = nfields + 2 + fieldmap.size(); // + nlsm_fields + nurb_fields; // MOST, lmask, urb frac, lsm fields, urban fields
+    // Surface outputs, land mask, urban fraction, and mapped fields.
+    const int noutput = nfields + 2 + fieldmap.size();
     IntVect ng(0, 0, 0);
 
     amrex::Vector<std::string> varnames(nfields);
