@@ -525,6 +525,11 @@ ERF::WriteCheckpointFile () const
             }
 
             if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                VisMF::Write(*precip[lev],
+                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SlmPrecip"));
+            }
+
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
                 lsm.WriteCheckpoint(lev, checkpointname);
             } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
                 // Write the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
@@ -1350,6 +1355,35 @@ ERF::ReadCheckpointFile ()
                 MultiFab lsm_vars(ba,dm,nvar,ng);
                 VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
                 MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
+            }
+
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                const std::string precip_file =
+                    MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SlmPrecip");
+                if (amrex::FileExists(precip_file + "_H")) {
+                    VisMF::Read(*precip[lev], precip_file);
+                } else {
+                    amrex::Warning("Checkpoint has no SLM precipitation baseline; "
+                                   "seeding it from the cumulative precipitation field");
+                    precip[lev]->setVal(0.0);
+                    const auto precip_sources = micro
+                        ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                        : SurfacePrecipAccumulationSources{};
+                    const bool use_total = surface_precip_has_total_source(precip_sources);
+                    for (MFIter mfi(*precip[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+                        const Box& box2d = mfi.tilebox();
+                        auto precip_arr = precip[lev]->array(mfi);
+                        const MultiFab* source = use_total ? precip_sources.total.accum
+                                                           : precip_sources.rain.accum;
+                        auto source_arr = source ? source->const_array(mfi) : Array4<const Real>{};
+                        const Real factor = use_total ? precip_sources.total.native_to_kg_m2
+                                                      : precip_sources.rain.native_to_kg_m2;
+                        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            precip_arr(i,j,k) = source_arr ? source_arr(i,j,k) * factor : Real(0.0);
+                        });
+                    }
+                }
             }
 
             lsm.ReadCheckpoint(lev, restart_chkfile);

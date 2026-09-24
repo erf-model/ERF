@@ -815,6 +815,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     std::unique_ptr<iMultiFab> old_lmask     = retain(    lmask_lev,lev);
     std::unique_ptr<iMultiFab> old_land_type = retain(land_type_lev,lev);
     std::unique_ptr<iMultiFab> old_soil_type = retain(soil_type_lev,lev);
+    std::unique_ptr<MultiFab>  old_precip    = std::move(precip[lev]);
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
@@ -1143,6 +1144,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Note that ba2d is constructed already in init_stuff, but we have not yet defined dmap[lev]
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
+
+    if (precip[lev] && old_precip) {
+        IntVect ngv = precip[lev]->nGrowVect(); ngv[2] = 0;
+        precip[lev]->ParallelCopy(*old_precip, 0, 0, 1, ngv, ngv,
+                                  geom[lev].periodicity());
+        precip[lev]->FillBoundary(geom[lev].periodicity());
+    }
 
     // *******************************************************************************************
     // Urban Model

@@ -1371,7 +1371,15 @@ ERF::InitData_post ()
 
         if (restart_chkfile != "") {
             // Update surface fields if needed (and available)
-            m_SurfaceModel->ReadCheckpoint(restart_chkfile);
+            const std::string surface_model_header = restart_chkfile + "/SurfaceModel_Header";
+            if (amrex::FileExists(surface_model_header)) {
+                m_SurfaceModel->ReadCheckpoint(restart_chkfile);
+            } else {
+                amrex::Warning("Checkpoint has no SurfaceModel state; rebuilding it from LSM fields");
+                for (int lev = 0; lev <= finest_level; ++lev) {
+                    m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+                }
+            }
         }
     }
 
@@ -2222,6 +2230,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         interp_mapfac_from_coarse(lev);
         interp_psfc_from_coarse(lev);
         interp_land_masks_from_coarse(lev);
+    }
+
+    if (solverChoice.lsm_type == LandSurfaceType::SLM &&
+        precip[lev-1] && precip[lev]) {
+        IntVect ngv = precip[lev]->nGrowVect(); ngv[2] = 0;
+        InterpFromCoarseLevel(*precip[lev], ngv, IntVect(0,0,0),
+                              *precip[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              rr2d, &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
     }
 
     if (lon_m[lev-1] && !lon_m[lev]) {
