@@ -106,6 +106,15 @@ if(ERF_ENABLE_TESTS)
     ${PROJECT_SOURCE_DIR}/Source)
   target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
 
+  # Motivation: observation nudging has a closed-form answer in a uniform flow
+  # and a measurable one near a station; this checker reads the station time
+  # series ERF writes and compares one column with either.  Plain C++, no AMReX.
+  add_executable(erf_obs_nudging_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ObsNudgingCheck.cpp)
+  target_compile_features(erf_obs_nudging_check PRIVATE cxx_std_17)
+  set(OBS_NUDGING_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_obs_nudging_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
         erf_shoc_plotfile_check

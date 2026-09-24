@@ -58,6 +58,7 @@
 #include <ERF_FillPatcher.H>
 #include <ERF_SampleData.H>
 #include <ERF_StationSampler.H>
+#include <ERF_ObsNudging.H>
 #include <ERF_ForestDrag.H>
 #include <ERF_IBFaceSet.H>
 #include <ERF_Provenance.H>
@@ -728,6 +729,9 @@ public:
     void resolve_station_stencils ();
     void sample_stations (amrex::Real time);
     void flush_stations () const;
+
+    // Nudging towards observations at stations
+    void init_obs_nudging ();
 
     void erf_enforce_hse (int lev,
                           amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
@@ -2129,6 +2133,10 @@ private:
     // routines produce their components
     amrex::Vector<std::string> station_vars_3d;
     amrex::Vector<std::string> station_vars_2d;
+
+    // Nudging towards observations at stations; built only when
+    // solverChoice.nudging_from_observations is true
+    std::unique_ptr<ObsNudging> obs_nudging = nullptr;
 
     amrex::Vector<std::unique_ptr<std::fstream> >       datalog;
     amrex::Vector<std::unique_ptr<std::fstream> >   der_datalog;

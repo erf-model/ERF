@@ -24,6 +24,7 @@
 #include <ERF_Plotfile2DWaterPath.H>
 #include <ERF_Constants.H>
 #include <ERF_EpochTime.H>
+#include <ERF_LatLonMap.H>
 #include <ERF_Utils.H>
 
 using namespace amrex;
@@ -814,8 +815,6 @@ ERF::resolve_station_positions ()
 
     const auto  problo = geom[0].ProbLoArray();
     const auto  probhi = geom[0].ProbHiArray();
-    const auto  dx0    = geom[0].CellSizeArray();
-    const Box&  dom0   = geom[0].Domain();
 
     if (any_latlon)
     {
@@ -825,44 +824,10 @@ ERF::resolve_station_positions ()
                   "stations with .x and .y in domain coordinates instead");
         }
 
-        // Gather the level-0 mass-point latitude and longitude onto the IO rank.
-        // This is a setup-time, level-0, 2D array, so the gather is affordable and
-        // keeps the search and the inverse map as plain host code.
-        //
-        // The ceiling is one rank holding 2 Reals per level-0 cell -- 100 MB or so
-        // for the largest domains ERF is run on, a few hundred million cells -- and
-        // a search of that array per station location, once.  If either ever
-        // matters, the search is what to distribute: the array is gathered once
-        // for all the locations, but each location scans all of it.
-        //
         // NOTE: every init path fills lat_m / lon_m with mass-point values --
         //       init_from_wrfinput reads WRF's XLAT / XLONG and init_from_metgrid
         //       reads XLAT_M / XLONG_M -- so no averaging is needed here.
-        MultiFab latlon(ba2d[0], dmap[0], 2, 0);
-        for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.tilebox();
-            const Array4<Real>&       ll  = latlon.array(mfi);
-            const Array4<const Real>& lat = lat_m[0]->const_array(mfi);
-            const Array4<const Real>& lon = lon_m[0]->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                ll(i,j,k,0) = lat(i,j,0);
-                ll(i,j,k,1) = lon(i,j,0);
-            });
-        }
-
-        Box dom2d(dom0); dom2d.setRange(2,0);
-        BoxArray ba_one(dom2d);
-        Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
-        DistributionMapping dm_one(pmap);
-        MultiFab latlon_all(ba_one, dm_one, 2, 0, MFInfo().SetArena(The_Pinned_Arena()));
-        latlon_all.ParallelCopy(latlon, 0, 0, 2);
-
-        // The copy is device-side in a GPU build; the search below is host code
-        Gpu::streamSynchronize();
-
-        const int ilo = dom0.smallEnd(0), ihi = dom0.bigEnd(0);
-        const int jlo = dom0.smallEnd(1), jhi = dom0.bigEnd(1);
+        const LatLonMap latlon_map(*lat_m[0], *lon_m[0], ba2d[0], dmap[0], geom[0]);
 
         for (auto& station : stations)
         {
@@ -870,70 +835,24 @@ ERF::resolve_station_positions ()
             {
                 if (!loc.use_latlon) { continue; }
 
-                Real out[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
+                LatLonLocation where;
+                const LatLonStatus status = latlon_map.locate(loc.req_lat, loc.req_lon, where);
 
-                if (ParallelDescriptor::IOProcessor())
-                {
-                    const Array4<const Real>& ll = latlon_all.const_array(0);
-
-                    auto cosfac = std::cos(loc.req_lat * PI / Real(180.0));
-                    auto dist2  = [&](int i, int j) {
-                        const Real dlat = ll(i,j,0,0) - loc.req_lat;
-                        const Real dlon = (ll(i,j,0,1) - loc.req_lon) * cosfac;
-                        return dlat*dlat + dlon*dlon;
-                    };
-
-                    int  bi = ilo, bj = jlo;
-                    Real best = dist2(ilo,jlo);
-                    for (int j = jlo; j <= jhi; ++j) {
-                        for (int i = ilo; i <= ihi; ++i) {
-                            const Real d = dist2(i,j);
-                            if (d < best) { best = d; bi = i; bj = j; }
-                        }
-                    }
-
-                    // One linear solve in index space inverts the map: over a cell
-                    // the projection is linear to well below a cell width.
-                    const int im = std::max(bi-1, ilo), ip = std::min(bi+1, ihi);
-                    const int jm = std::max(bj-1, jlo), jp = std::min(bj+1, jhi);
-                    const Real inv_di = (ip > im) ? Real(1.0)/Real(ip-im) : Real(0.0);
-                    const Real inv_dj = (jp > jm) ? Real(1.0)/Real(jp-jm) : Real(0.0);
-
-                    const Real dlat_di = (ll(ip,bj,0,0) - ll(im,bj,0,0)) * inv_di;
-                    const Real dlon_di = (ll(ip,bj,0,1) - ll(im,bj,0,1)) * inv_di;
-                    const Real dlat_dj = (ll(bi,jp,0,0) - ll(bi,jm,0,0)) * inv_dj;
-                    const Real dlon_dj = (ll(bi,jp,0,1) - ll(bi,jm,0,1)) * inv_dj;
-
-                    const Real rlat = loc.req_lat - ll(bi,bj,0,0);
-                    const Real rlon = loc.req_lon - ll(bi,bj,0,1);
-                    Real di = Real(0.0), dj = Real(0.0);
-                    if (!invert_latlon_offset(rlat, rlon, dlat_di, dlon_di, dlat_dj, dlon_dj, di, dj)) {
-                        Abort("Station '" + station.name + "': the latitude/longitude arrays are "
-                              "degenerate near the requested point, so it cannot be inverted");
-                    }
-
-                    // The solve places the station relative to the nearest grid
-                    // point, so more than a cell away means the request cannot be
-                    // trusted: either it is outside the domain, or the lat/lon map
-                    // is too poorly conditioned near it for one linear solve.
-                    if (std::abs(di) > Real(1.0) || std::abs(dj) > Real(1.0)) {
-                        Abort("Station '" + station.name + "': requested lat=" +
-                              std::to_string(loc.req_lat) + " long=" + std::to_string(loc.req_lon) +
-                              " resolved to a point more than one cell from the nearest grid "
-                              "point (lat=" + std::to_string(ll(bi,bj,0,0)) + " long=" +
-                              std::to_string(ll(bi,bj,0,1)) + "), which means it is outside the "
-                              "domain, or that the latitude/longitude arrays are too distorted "
-                              "near it to invert");
-                    }
-
-                    out[0] = problo[0] + (Real(bi) + Real(0.5) + di) * dx0[0];
-                    out[1] = problo[1] + (Real(bj) + Real(0.5) + dj) * dx0[1];
-                    out[2] = ll(bi,bj,0,0) + dlat_di*di + dlat_dj*dj;
-                    out[3] = ll(bi,bj,0,1) + dlon_di*di + dlon_dj*dj;
+                if (status == LatLonStatus::Degenerate) {
+                    Abort("Station '" + station.name + "': the latitude/longitude arrays are "
+                          "degenerate near the requested point, so it cannot be inverted");
+                }
+                if (status == LatLonStatus::TooFar) {
+                    Abort("Station '" + station.name + "': requested lat=" +
+                          std::to_string(loc.req_lat) + " long=" + std::to_string(loc.req_lon) +
+                          " resolved to a point more than one cell from the nearest grid "
+                          "point (lat=" + std::to_string(where.near_lat) + " long=" +
+                          std::to_string(where.near_lon) + "), which means it is outside the "
+                          "domain, or that the latitude/longitude arrays are too distorted "
+                          "near it to invert");
                 }
 
-                ParallelDescriptor::Bcast(out, 4, ParallelDescriptor::IOProcessorNumber());
-                loc.x = out[0]; loc.y = out[1]; loc.got_lat = out[2]; loc.got_lon = out[3];
+                loc.x = where.x; loc.y = where.y; loc.got_lat = where.lat; loc.got_lon = where.lon;
             }
         }
     }

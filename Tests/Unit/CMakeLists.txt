@@ -148,6 +148,11 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: observation nudging must read a station file exactly, relax
+    # to the closed-form target with the right weight, sigma band and rate cap,
+    # put its sources on the right faces over flat, fitted and immersed
+    # terrain, and place a latitude/longitude on a rotated grid.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestObsNudging.cpp
     # Motivation: the two-stream radiation sweep must keep k = 0 as the
     # surface, cool to space from the top layer, use Exner temperature,
     # and reflect (1 - eps) of the downwelling LW at a gray surface.
