@@ -19,8 +19,6 @@ tuolumne_hip_6.4.0_build:
 
     ERF_ENABLE_FFT: "ON"
 
-    #FFT:
-    ERF_ENABLE_FFT: "ON"
     # HDF5+NetCDF:
     ERF_ENABLE_NETCDF: "ON"
     HDF5_ROOT: "/usr/workspace/accatm/software/tuolumne/hdf5-1.14.5"

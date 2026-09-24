@@ -1476,7 +1476,7 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
-        std::string LTypeFileName(restart_chkfile + "/Level_0/LANDTYPE_0_H");
+        std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");
         if (amrex::FileExists(LTypeFileName))
         {
             amrex::Print() << "Reading LANDTYPE data" << std::endl;
@@ -1498,7 +1498,7 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        std::string STypeFileName(restart_chkfile + "/Level_0/SOILTYPE_0_H");
+        std::string STypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SOILTYPE_0_H");
         if (amrex::FileExists(STypeFileName))
         {
             amrex::Print() << "Reading SOILTYPE data" << std::endl;
@@ -1520,7 +1520,7 @@ ERF::ReadCheckpointFile ()
             }
         }
 
-        std::string FirstUrbanFracFileName(restart_chkfile + "/Level_0/URBAN_FRAC_0_H");
+        std::string FirstUrbanFracFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "URBAN_FRAC_0_H");
         if (amrex::FileExists(FirstUrbanFracFileName))
         {
             amrex::Print() << "Reading Urban fraction" << std::endl;

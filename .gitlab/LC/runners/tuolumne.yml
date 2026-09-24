@@ -123,7 +123,7 @@ allocate_resources:
   stage: allocate-resources
   script:
     - echo -e "Allocating resources for ${ALLOC_NAME} on the ${ALLOC_QUEUE} queue for ${ALLOC_TIME} minutes"
-    - flux alloc -N 1 -q ${ALLOC_QUEUE} --bank=${ALLOC_BANK} --time-limit=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always --setattr=gpumode=CPX --conf=resource.rediscover=true
+    - flux alloc -N 1 -q ${ALLOC_QUEUE} --bank=${ALLOC_BANK} --time-limit=${ALLOC_TIME} --bg --exclusive --job-name=${ALLOC_NAME} --setattr=thp=always
 
 # Deallocate resources for build and test
 # Note: in the rules above this is always run

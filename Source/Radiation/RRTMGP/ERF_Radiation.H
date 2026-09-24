@@ -404,11 +404,6 @@ private:
     int m_orbital_mon  = -9999;
     int m_orbital_day  = -9999;
     int m_orbital_sec  = -9999;
-    
-	// start time in seconds: If the simulation start time is 1999 Feb 23 7:30AM(LST)
-	// day of the year for 1999 Feb.23 is 53. Assuming LST=UTC-4hr, rad_day0 becomes 
-	// (53day*86400sec/day) + (11hr*3600sec/hr) + (30min*60sec/min) = 4620600 
-	int rad_day0 = 0;
 
     // Orbital parameters, used for zenith angle calculations.  Each is honored
     // independently of the others:

@@ -380,7 +380,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     }
 
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         BoxList precip_bl = ba.boxList();
         for (auto& b : precip_bl) { b.setRange(2, b.smallEnd(2)); }
         precip[lev] = std::make_unique<MultiFab>(BoxArray(std::move(precip_bl)), dm, 1, ngrow_state);

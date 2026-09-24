@@ -271,7 +271,6 @@ build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_${CI_JOB
 echo "Build directory: ${build_dir}"
 
 # Parse test labels (if any)
-printenv
 echo "COMMIT: '${CI_COMMIT_MESSAGE}'"
 if [[ "${CI_COMMIT_MESSAGE}" =~ \[run-ci[[:space:]]*([[:alpha:]]*)[[:space:]]*\] ]];
 then
@@ -414,12 +413,11 @@ cmake \
      -D ERF_TEST_ENABLE_EXTRA_SDM_TESTS="${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}" \
      -D ERF_TEST_FCOMPARE_RTOL="${ERF_TEST_FCOMPARE_RTOL:-"5.0e-9"}" \
      -D ERF_TEST_FCOMPARE_ATOL="${ERF_TEST_FCOMPARE_ATOL:-"2.0e-10"}" \
-     -D ERF_TEST_EXTRA_FILES_DIRECTORY="/usr/workspace/accatm/CI_TestInputs/" \
      -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
      -D CMAKE_JOB_POOLS:STRING="link=${link_jobs}" \
      -D CMAKE_JOB_POOL_LINK:STRING=link \
-    "${EXTRA_CMAKE_ARGS:-""}" \
-     -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
+     -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF \
+    "${EXTRA_CMAKE_ARGS:-""}"
 
 phase_end
 
@@ -441,7 +439,7 @@ if [[ "$RUN_CTEST" == "true" ]]; then
     # printed, so take the status by hand and re-raise it below.
     ctest_junit="${build_dir}/ctest_results.xml"
     ctest_rc=0
-    ctest --test-dir "${build_dir}" -j 6 --extra-verbose --output-on-failure \
+    ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure \
           -LE "manual" -L "${ctest_label:-}" \
           --no-tests=error --output-junit "${ctest_junit}" || ctest_rc=$?
 
