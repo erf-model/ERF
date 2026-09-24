@@ -529,95 +529,87 @@ state layout.
 
 The field-level entry points are ``BuildScalarDiffusionFluxes_N``,
 ``BuildScalarDiffusionFluxes_S``, and ``BuildScalarDiffusionFluxes_T`` in
-``ERF_ScalarDiffusion.H``. Each accepts independent field views and component
-indices, a coefficient policy, boundary-condition selection, and its grid and
-map-factor data. The raw signed diffusion flux is
-:math:`\mathbf{F}^D=-K\nabla\chi`. A **mapped face transfer** is the conservative
-flux rate whose computational-coordinate difference enters the tendency; it
-is not multiplied by :math:`dt`. Native divergence operations consume the
-component-explicit face fluxes and geometry directly. Native conserved-state
-mapping remains in ``ERF_NativeScalarDiffusion.H``.
+``ERF_ScalarDiffusion.H``. They construct the existing raw signed spatial
+diffusion flux :math:`\mathbf{F}^D=-K\nabla\chi`. Separate
+``BuildScalarDiffusionMappedTransfers_N/S/T`` operations expose those
+candidates in the same mapped face-transfer space used by reusable scalar
+advection. The mapped transfer :math:`\widetilde F_d` is an instantaneous
+rate; it is not multiplied by :math:`dt`.
 
-For N geometry, current x/y builder outputs already include the horizontal
-map factors (``mf_ux/mf_uy`` and ``mf_vy/mf_vx``), so they are the mapped x/y
-transfers. For N and S, map the raw vertical face flux once as
+The authoritative discrete contract for a cell is
 
 .. math::
 
-   \widetilde F_z = \frac{F_z^D}{m_xm_y}.
+   \frac{\partial U_i}{\partial t} = -\frac{m_{x,i}m_{y,i}}{J_i}
+   \left[
+   \frac{\widetilde F_{x,i+1/2}-\widetilde F_{x,i-1/2}}{\Delta\xi}+
+   \frac{\widetilde F_{y,j+1/2}-\widetilde F_{y,j-1/2}}{\Delta\eta}+
+   \frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}{\Delta\zeta}
+   \right], \qquad
+   H_i=\frac{J_i}{m_{x,i}m_{y,i}}U_i.
 
-N divergence is
+Here :math:`J_i` is ERF's ``detJ`` representation supplied to the mapped
+divergence, and :math:`m_x,m_y` are its cell-centered ``mf_mx`` and ``mf_my``
+map factors. The mapped equation gives
+:math:`\partial H_i/\partial t=-\sum_d\Delta_d\widetilde F_d/\Delta\xi_d`.
+Geometry represented inside a face transfer must not be applied again. Each
+shared face uses one supplied value for both neighboring cells, and callers
+may modify a candidate before passing the accepted face arrays to
+``ApplyScalarMappedFluxDivergence``. That operation reads only those arrays
+and the mapped cell geometry. Its convention is the same as
+``ApplyScalarAdvectionFluxDivergence``.
 
-.. math::
-
-   R_D = -m_xm_y\left[
-       \delta_x\widetilde F_x\,\Delta x^{-1}
-      +\delta_y\widetilde F_y\,\Delta y^{-1}
-      +\delta_z\widetilde F_z\,\Delta z^{-1}\right].
-
-S uses the same x/y and vertical map convention, but its vertical difference
-is divided by the receiving cell's stretched width :math:`\Delta z_k`; it is
-not a uniform-:math:`dz` operator:
-
-.. math::
-
-   R_D = -m_xm_y\left[
-       \delta_x\widetilde F_x\,\Delta x^{-1}
-      +\delta_y\widetilde F_y\,\Delta y^{-1}
-      +\frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}
-             {\Delta z_k}\right].
-
-On terrain-following coordinates with lateral map factors :math:`m_x` and
-:math:`m_y`, ERF stores face :math:`h_\zeta` in ``ax`` / ``ay`` (x-face /
-y-face respectively). The full coordinate Jacobian is
-
-.. math::
-
-   J = \frac{h_\zeta}{m_xm_y}.
-
-In this scalar-diffusion implementation, the cell array ``detJ`` stores
-:math:`h_\zeta`, not the full coordinate Jacobian :math:`J`; the horizontal
-:math:`m_xm_y` factor is applied separately by the native discrete divergence.
-The mapped x/y face quantities include the face heights and the opposite
-lateral map factor:
+The pointwise conversion helpers are GPU-callable so callers can materialize
+transfers in fused or component-chunked kernels. The whole-array operations are
+convenience wrappers around those helpers. For N geometry, the builder's x/y
+outputs already contain the horizontal map-factor ratios and are copied as the
+x/y transfers; the vertical transfer is
+:math:`\widetilde F_z=F_z^D/(m_xm_y)`. For S geometry, restore the vertical
+Jacobian measure in the side faces and map the vertical flux as
 
 .. math::
 
-   \widetilde F_x = \frac{a_x}{m_{u,y}}F_x^D, \qquad
-   \widetilde F_y = \frac{a_y}{m_{v,x}}F_y^D.
+   \widetilde F_x=a_xF_x^S,\qquad
+   \widetilde F_y=a_yF_y^S,\qquad
+   \widetilde F_z=F_z^S/(m_xm_y).
 
-At a k face, distinguish the raw physical vertical flux :math:`F_z^D`, the
-terrain numerator :math:`G_\zeta`, and the mathematical mapped vertical
-transfer :math:`\widetilde F_\zeta`:
+Here ``ax`` and ``ay`` are the side-area/Jacobian measures, and ``detJ`` and
+the computational :math:`\Delta\zeta` supplied to the mapped divergence must
+describe the same stretched coordinate. For a purely vertically stretched
+mesh, :math:`a_x=a_y=J`; this restores the native S-grid divergence, including
+nonuniform physical cell widths.
 
-.. math::
-
-   \begin{aligned}
-   G_\zeta &= F_z^D - m_x h_\xi\overline{F_x^D}
-                       - m_y h_\eta\overline{F_y^D}, \\
-   \widetilde F_\zeta &= \frac{G_\zeta}{m_xm_y}.
-   \end{aligned}
-
-Here :math:`\overline{F_x^D}` and :math:`\overline{F_y^D}` use ERF's four-face
-interior averages and one-sided physical bottom/top extrapolations. The terrain
-face-flux helpers own the raw x/y/z gradient stencils. The native T divergence
-constructs :math:`G_\zeta` and consumes it directly; it does not divide by
-:math:`m_xm_y` and multiply that value back in the cell divergence.
-
-The native discrete T contribution is
+For terrain-following coordinates, x/y transfers use the existing
+``TerrainDiffusionMappedTx`` and ``TerrainDiffusionMappedTy`` operations:
 
 .. math::
 
-   D = \frac{
-       (\widetilde F_{x,hi}-\widetilde F_{x,lo})\Delta x^{-1}m_xm_y
-      +(\widetilde F_{y,hi}-\widetilde F_{y,lo})\Delta y^{-1}m_xm_y
-      +(G_{\zeta,hi}-G_{\zeta,lo})\Delta z^{-1}
-      }{\mathrm{detJ}}.
+   \widetilde F_x=F_x^T a_x/m_{u,y},\qquad
+   \widetilde F_y=F_y^T a_y/m_{v,x}.
 
-Here :math:`\widetilde F_{x,hi/lo}` and :math:`\widetilde F_{y,hi/lo}` are the
-mapped x/y face quantities defined above, and :math:`G_{\zeta,hi/lo}` are the
-terrain numerators at the upper and lower k faces. The raw :math:`F_z^D` alone
-does not include the terrain cross terms on sloping terrain.
+At a k face, ``TerrainScalarDiffusionGzAtKFace`` remains the sole owner of
+x/y-to-z interpolation, bottom/top extrapolation, terrain metrics, and cross
+terms. It constructs
+
+.. math::
+
+   G_\zeta=F_z^T-m_xh_\xi\overline{F_x^T}
+                     -m_yh_\eta\overline{F_y^T},\qquad
+   \widetilde F_z=G_\zeta/(m_xm_y).
+
+``TerrainScalarDiffusionMappedTransferAtKFace`` exposes the complete mapped
+vertical transfer. Its explicit suppression argument sets the complete lower
+transfer to zero when the resolved native boundary policy requires that
+behavior; it does not merely zero raw :math:`F_z` while retaining cross terms.
+
+The native N/S/T source routines continue to consume their existing raw
+representations and divergence paths. The external mapping API does not route
+native ERF diffusion through the changed arithmetic association of mapped
+transfers. Semi-implicit integration weights remain outside this mapping
+layer: the conversion operates on whichever raw spatial candidate the caller
+supplies, while ERF retains its existing scaling and diagnostic behavior.
+This interface does not claim direct compatibility with ``YAFluxRegister`` or
+another AMR flux register.
 
 For semi-implicit vertical diffusion, ERF first constructs the full spatial
 diffusion flux. The explicit/implicit split scales only the raw
