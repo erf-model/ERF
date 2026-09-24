@@ -141,8 +141,9 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
     // Write the survivors beside the file and move them into place, rather than
     // truncating the file and refilling it.  The rewrite is the one moment the
     // whole series exists only in this process's memory, and a crash there would
-    // take the run's history with it; a rename is atomic, so the worst a crash
-    // can leave behind is the original file and a stray .tmp.
+    // take the run's history with it; where the move replaces the file in one
+    // step the worst a crash can leave behind is the original file and a stray
+    // .tmp.
     if (dropped > 0) {
         const std::string tmpname = filename + ".tmp";
         {
@@ -152,9 +153,17 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
             os.flush();
             if (!os.good()) { amrex::FileOpenFailed(tmpname); }
         }
+        // std::rename replaces an existing destination on POSIX and fails on it on
+        // Windows, where a restart that had rows to drop would otherwise abort here.
+        // The one-step replace is tried first, so nothing is lost to a crash on the
+        // platforms that offer it, and only the platforms that do not pay for the
+        // moment between the remove and the rename in which the series is the .tmp.
         if (std::rename(tmpname.c_str(), filename.c_str()) != 0) {
-            amrex::Abort("Station output: could not move " + tmpname + " onto " + filename +
-                         " while dropping the rows written past the restart point");
+            std::remove(filename.c_str());
+            if (std::rename(tmpname.c_str(), filename.c_str()) != 0) {
+                amrex::Abort("Station output: could not move " + tmpname + " onto " + filename +
+                             " while dropping the rows written past the restart point");
+            }
         }
     }
     return dropped;

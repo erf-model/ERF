@@ -1722,9 +1722,10 @@ distinct.
    one without.  That is tested rather than asserted -- the
    ``StationSampling_AnswerParity*`` regression tests run a deck with the
    stations off and on and require the plotfiles to be identical bit for bit,
-   on a two-level dry case, on a surface-layer case and on a case with
-   Lagrangian microphysics -- with one gap: no test covers a run driven by
-   time-dependent lateral boundary data, because no such deck can run in CI.
+   on a two-level dry case and on a surface-layer case -- with two gaps: no
+   test covers a case with Lagrangian microphysics, and none covers a run
+   driven by time-dependent lateral boundary data, for which no deck can run
+   in CI.
    See :ref:`RegressionTests`.
 
 .. _list-of-parameters-10c:

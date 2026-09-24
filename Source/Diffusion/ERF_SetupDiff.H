@@ -57,6 +57,6 @@
     Gpu::copy(Gpu::hostToDevice, eddy_diff_idy.begin(), eddy_diff_idy.end(), eddy_diff_idy_d.begin());
 
     // Capture pointers for device code
-    int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
-    int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
+    [[maybe_unused]] int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
+    [[maybe_unused]] int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
 /** \endcond */
