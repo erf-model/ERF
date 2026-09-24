@@ -7,6 +7,7 @@
 #include "AMReX_FArrayBox.H"
 #include "AMReX_Gpu.H"
 #include "ERF_DiffStruct.H"
+#include "ERF_NumericalConstants.H"
 #include "ERF_TerrainMetrics.H"
 
 /**
@@ -41,24 +42,6 @@ struct ScalarDiffusionFieldViews
   amrex::Array4<amrex::Real> rhs;
   int rhs_comp = 0;
 };
-
-/**
- * Canonical mapped scalar-diffusion face-transfer contract
- * --------------------------------------------------------
- * A raw face flux is the signed spatial flux F^D=-K grad(chi); a mapped face
- * transfer is the conservative flux rate whose computational-coordinate
- * difference is multiplied by the receiving cell's map/Jacobian factor.
- * It is not multiplied by dt. For N/S, builder x/y faces are already mapped
- * and mapped z is raw F_z/(m_x*m_y). S uses the receiving-cell dz[k] in its
- * vertical divergence. For T, mapped x/y are raw Fx*ax/mf_uy and raw Fy*ay/
- * mf_vx; mapped z is (F_z-m_x*h_xi*Fbar_x-m_y*h_eta*Fbar_y)/(m_x*m_y), with
- * ax/ay storing face h_zeta. T divergence multiplies all mapped differences
- * by cell m_x*m_y/detJ; detJ supplies the vertical terrain metric while the
- * horizontal map-factor contribution is applied separately. These factors
- * have already been included at the mapped-transfer boundary and must not be
- * applied again. Accepted-transfer divergence consumes the supplied mapped
- * arrays without terrain reconstruction or replacement.
- */
 
 /** Host-side coefficient form; dispatches to compile-time face kernels. */
 struct ScalarDiffusionCoefficientMode
@@ -170,9 +153,10 @@ StretchedDiffusionDirichletWeights(
 /**
  * Compute the existing N-grid signed face flux, F^D=-K grad(chi). `scalar_comp`
  * selects the intensive scalar and `flux_comp` is applied by the caller to its
- * independent face-flux view.  `metric` is mf_x/mf_y for N horizontal faces,
- * or one vertically.  Physical Dirichlet flags select the legacy one-sided
- * stencil; ext_dir_upwind selection stays in the adapter.
+ * independent face-flux view. Horizontal map-factor numerator and denominator
+ * remain separate to preserve the native arithmetic association. Physical
+ * Dirichlet flags select the legacy one-sided stencil; ext_dir_upwind selection
+ * stays in the adapter.
  */
 template <int Direction>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
@@ -184,7 +168,8 @@ ScalarDiffusionFlux_N(
   const int k,
   const amrex::Real coeff,
   const amrex::Real inv_spacing,
-  const amrex::Real metric,
+  const amrex::Real map_numerator,
+  const amrex::Real map_denominator,
   const bool ext_dir_lo,
   const bool ext_dir_hi) noexcept
 {
@@ -239,7 +224,11 @@ ScalarDiffusionFlux_N(
       grad = scalar(i, j, k, scalar_comp) - scalar(i, j, k - 1, scalar_comp);
     }
   }
-  return -coeff * grad * inv_spacing * metric;
+  if constexpr (Direction == 2) {
+    return -coeff * grad * inv_spacing;
+  } else {
+    return -coeff * grad * inv_spacing * map_numerator / map_denominator;
+  }
 }
 
 /** Existing S-grid vertical-center gradient, including boundary and tile-edge
@@ -464,13 +453,6 @@ TerrainDiffusionGz(
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainDiffusionMappedTz(
-  const amrex::Real Gz, const amrex::Real mx, const amrex::Real my) noexcept
-{
-  return Gz / (mx * my);
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 TerrainDiffusionMappedTx(
   const amrex::Real raw_Fx,
   const amrex::Real h_zeta,
@@ -489,24 +471,12 @@ TerrainDiffusionMappedTy(
 }
 
 /**
- * Convert raw N/S vertical flux to the canonical mapped vertical transfer.
- * N/S horizontal builder outputs are already mapped and must not be scaled
- * again.
+ * Construct the native terrain numerator G_z at one vertical face. This
+ * helper owns x/y-face interpolation, physical-boundary extrapolation, and
+ * terrain cross terms; native divergence consumes G_z directly.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionMappedVerticalTransfer(
-  const amrex::Real raw_Fz, const amrex::Real mx, const amrex::Real my) noexcept
-{
-  return raw_Fz / (mx * my);
-}
-
-/**
- * Complete terrain-normal mapped transfer at one vertical face. This is the
- * sole implementation of x/y-face interpolation, physical-boundary
- * extrapolation, terrain cross terms, and division by m_x*m_y.
- */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionMappedTransferAtKFace(
+TerrainScalarDiffusionGzAtKFace(
   const int i,
   const int j,
   const int kface,
@@ -522,38 +492,36 @@ TerrainScalarDiffusionMappedTransferAtKFace(
 {
   const int klo = domain.smallEnd(2);
   const int khi = domain.bigEnd(2) + 1;
-  const amrex::Real half = amrex::Real(0.5);
-  const amrex::Real quarter = amrex::Real(0.25);
   amrex::Real xbar, ybar;
 
   if (kface == klo) {
-    const amrex::Real xlo = half * (raw_xflux(i, j, klo, flux_comp) +
+    const amrex::Real xlo = myhalf * (raw_xflux(i, j, klo, flux_comp) +
                                     raw_xflux(i + 1, j, klo, flux_comp));
-    const amrex::Real xhi = half * (raw_xflux(i, j, klo + 1, flux_comp) +
+    const amrex::Real xhi = myhalf * (raw_xflux(i, j, klo + 1, flux_comp) +
                                     raw_xflux(i + 1, j, klo + 1, flux_comp));
-    xbar = amrex::Real(1.5) * xlo - half * xhi;
-    const amrex::Real ylo = half * (raw_yflux(i, j, klo, flux_comp) +
+    xbar = amrex::Real(1.5) * xlo - myhalf * xhi;
+    const amrex::Real ylo = myhalf * (raw_yflux(i, j, klo, flux_comp) +
                                     raw_yflux(i, j + 1, klo, flux_comp));
-    const amrex::Real yhi = half * (raw_yflux(i, j, klo + 1, flux_comp) +
+    const amrex::Real yhi = myhalf * (raw_yflux(i, j, klo + 1, flux_comp) +
                                     raw_yflux(i, j + 1, klo + 1, flux_comp));
-    ybar = amrex::Real(1.5) * ylo - half * yhi;
+    ybar = amrex::Real(1.5) * ylo - myhalf * yhi;
   } else if (kface == khi) {
-    const amrex::Real xlo = half * (raw_xflux(i, j, khi - 2, flux_comp) +
+    const amrex::Real xlo = myhalf * (raw_xflux(i, j, khi - 2, flux_comp) +
                                     raw_xflux(i + 1, j, khi - 2, flux_comp));
-    const amrex::Real xhi = half * (raw_xflux(i, j, khi - 1, flux_comp) +
+    const amrex::Real xhi = myhalf * (raw_xflux(i, j, khi - 1, flux_comp) +
                                     raw_xflux(i + 1, j, khi - 1, flux_comp));
-    xbar = amrex::Real(1.5) * xhi - half * xlo;
-    const amrex::Real ylo = half * (raw_yflux(i, j, khi - 2, flux_comp) +
+    xbar = amrex::Real(1.5) * xhi - myhalf * xlo;
+    const amrex::Real ylo = myhalf * (raw_yflux(i, j, khi - 2, flux_comp) +
                                     raw_yflux(i, j + 1, khi - 2, flux_comp));
-    const amrex::Real yhi = half * (raw_yflux(i, j, khi - 1, flux_comp) +
+    const amrex::Real yhi = myhalf * (raw_yflux(i, j, khi - 1, flux_comp) +
                                     raw_yflux(i, j + 1, khi - 1, flux_comp));
-    ybar = amrex::Real(1.5) * yhi - half * ylo;
+    ybar = amrex::Real(1.5) * yhi - myhalf * ylo;
   } else {
-    xbar = quarter * (raw_xflux(i, j, kface, flux_comp) +
+    xbar = fourth * (raw_xflux(i, j, kface, flux_comp) +
                      raw_xflux(i + 1, j, kface, flux_comp) +
                      raw_xflux(i, j, kface - 1, flux_comp) +
                      raw_xflux(i + 1, j, kface - 1, flux_comp));
-    ybar = quarter * (raw_yflux(i, j, kface, flux_comp) +
+    ybar = fourth * (raw_yflux(i, j, kface, flux_comp) +
                      raw_yflux(i, j + 1, kface, flux_comp) +
                      raw_yflux(i, j, kface - 1, flux_comp) +
                      raw_yflux(i, j + 1, kface - 1, flux_comp));
@@ -566,30 +534,30 @@ TerrainScalarDiffusionMappedTransferAtKFace(
     Compute_h_eta_AtKface(i, j, kface, cellSizeInv, z_nd);
   const amrex::Real Gz = TerrainDiffusionGz(
     raw_zflux(i, j, kface, flux_comp), mx, h_xi, xbar, my, h_eta, ybar);
-  return TerrainDiffusionMappedTz(Gz, mx, my);
+  return Gz;
 }
 
-/** Cell contribution from already mapped T-grid transfers; no reconstruction.
- */
+/** Native terrain divergence in the legacy arithmetic association. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionMappedDivergence_T(
+TerrainDiffusionDivergence_T(
   const amrex::Real mapped_Fx_hi,
   const amrex::Real mapped_Fx_lo,
   const amrex::Real mapped_Fy_hi,
   const amrex::Real mapped_Fy_lo,
-  const amrex::Real mapped_Fz_hi,
-  const amrex::Real mapped_Fz_lo,
+  const amrex::Real Gz_hi,
+  const amrex::Real Gz_lo,
   const amrex::Real dx_inv,
   const amrex::Real dy_inv,
   const amrex::Real dz_inv,
-  const amrex::Real mx_cell,
-  const amrex::Real my_cell,
+  const amrex::Real mfsq,
   const amrex::Real detJ_cell) noexcept
 {
-  const amrex::Real map_over_jacobian = mx_cell * my_cell / detJ_cell;
-  return map_over_jacobian * ((mapped_Fx_hi - mapped_Fx_lo) * dx_inv +
-                              (mapped_Fy_hi - mapped_Fy_lo) * dy_inv +
-                              (mapped_Fz_hi - mapped_Fz_lo) * dz_inv);
+  amrex::Real stateContrib =
+    (mapped_Fx_hi - mapped_Fx_lo) * dx_inv * mfsq +
+    (mapped_Fy_hi - mapped_Fy_lo) * dy_inv * mfsq +
+    (Gz_hi - Gz_lo) * dz_inv;
+  stateContrib /= detJ_cell;
+  return stateContrib;
 }
 
 /**
@@ -661,17 +629,17 @@ BuildScalarDiffusionFluxes_N_Impl(
     if (ext_lo) {
       xflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<0>(
         scalar, scalar_comp, i, j, k, coeff, dx_inv,
-        mf_ux(i, j, 0) / mf_uy(i, j, 0), true, false);
+        mf_ux(i, j, 0), mf_uy(i, j, 0), true, false);
     } else if (ext_hi) {
       xflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<0>(
         scalar, scalar_comp, i, j, k, coeff, dx_inv,
-        mf_ux(i, j, 0) / mf_uy(i, j, 0), false, true);
+        mf_ux(i, j, 0), mf_uy(i, j, 0), false, true);
     } else if (on_surface && prescribed.use_x_on_side) {
       xflux(i, j, k, flux_comp) = prescribed.x(i, j, k, prescribed.x_comp);
     } else {
       xflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<0>(
         scalar, scalar_comp, i, j, k, coeff, dx_inv,
-        mf_ux(i, j, 0) / mf_uy(i, j, 0), false, false);
+        mf_ux(i, j, 0), mf_uy(i, j, 0), false, false);
     }
   });
 
@@ -699,17 +667,17 @@ BuildScalarDiffusionFluxes_N_Impl(
     if (ext_lo) {
       yflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<1>(
         scalar, scalar_comp, i, j, k, coeff, dy_inv,
-        mf_vy(i, j, 0) / mf_vx(i, j, 0), true, false);
+        mf_vy(i, j, 0), mf_vx(i, j, 0), true, false);
     } else if (ext_hi) {
       yflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<1>(
         scalar, scalar_comp, i, j, k, coeff, dy_inv,
-        mf_vy(i, j, 0) / mf_vx(i, j, 0), false, true);
+        mf_vy(i, j, 0), mf_vx(i, j, 0), false, true);
     } else if (on_surface && prescribed.use_y_on_side) {
       yflux(i, j, k, flux_comp) = prescribed.y(i, j, k, prescribed.y_comp);
     } else {
       yflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<1>(
         scalar, scalar_comp, i, j, k, coeff, dy_inv,
-        mf_vy(i, j, 0) / mf_vx(i, j, 0), false, false);
+        mf_vy(i, j, 0), mf_vx(i, j, 0), false, false);
     }
   });
 
@@ -732,17 +700,20 @@ BuildScalarDiffusionFluxes_N_Impl(
 
     if (ext_lo) {
       zflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<2>(
-        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), true, false);
+        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), Real(1.0),
+        true, false);
     } else if (ext_hi) {
       zflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<2>(
-        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), false, true);
+        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), Real(1.0),
+        false, true);
     } else if (on_surface && prescribed.use_z_on_side) {
       zflux(i, j, k, flux_comp) = prescribed.z(i, j, k, prescribed.z_comp);
     } else if (on_surface) {
       zflux(i, j, k, flux_comp) = Real(0.0);
     } else {
       zflux(i, j, k, flux_comp) = ScalarDiffusionFlux_N<2>(
-        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), false, false);
+        scalar, scalar_comp, i, j, k, coeff, dz_inv, Real(1.0), Real(1.0),
+        false, false);
     }
 
     if (diagnostic.enabled && (diagnostic.write_on_surface || !on_surface)) {
@@ -1135,114 +1106,19 @@ ApplyScalarDiffusionMappedDivergence_T(
       yflux(i, j, k, flux_comp), ay(i, j, k), mf_vx(i, j, 0));
     const Real mapped_Fy_hi = TerrainDiffusionMappedTy(
       yflux(i, j + 1, k, flux_comp), ay(i, j + 1, k), mf_vx(i, j + 1, 0));
-    const Real mapped_Fz_lo = (suppress_lower_surface_z_flux && k == dom_lo.z)
-                                ? Real(0.0)
-                                : TerrainScalarDiffusionMappedTransferAtKFace(
-                                    i, j, k, domain, xflux, yflux, zflux,
-                                    flux_comp, z_nd, cellSizeInv, mf_mx, mf_my);
-    const Real mapped_Fz_hi = TerrainScalarDiffusionMappedTransferAtKFace(
+    const Real Gz_lo = (suppress_lower_surface_z_flux && k == dom_lo.z)
+                         ? Real(0.0)
+                         : TerrainScalarDiffusionGzAtKFace(
+                             i, j, k, domain, xflux, yflux, zflux, flux_comp,
+                             z_nd, cellSizeInv, mf_mx, mf_my);
+    const Real Gz_hi = TerrainScalarDiffusionGzAtKFace(
       i, j, k + 1, domain, xflux, yflux, zflux, flux_comp, z_nd, cellSizeInv,
       mf_mx, mf_my);
-
-    const Real contribution = ScalarDiffusionMappedDivergence_T(
-      mapped_Fx_hi, mapped_Fx_lo, mapped_Fy_hi, mapped_Fy_lo, mapped_Fz_hi,
-      mapped_Fz_lo, dx_inv, dy_inv, dz_inv, mf_mx(i, j, 0), mf_my(i, j, 0),
-      detJ(i, j, k));
-    rhs(i, j, k, rhs_comp) -= contribution;
-  });
-}
-
-/**
- * Add the conservative N-grid divergence of already accepted mapped face
- * transfers. x/y inputs are the builder's horizontally mapped values and z
- * is raw F_z divided by m_x*m_y before any external acceptance operation.
- */
-inline void
-ApplyAcceptedScalarMappedTransferDivergence_N(
-  const amrex::Box& bx,
-  const amrex::Array4<const amrex::Real>& mapped_x,
-  const amrex::Array4<const amrex::Real>& mapped_y,
-  const amrex::Array4<const amrex::Real>& mapped_z,
-  const int flux_comp,
-  const amrex::Array4<amrex::Real>& rhs,
-  const int rhs_comp,
-  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-  const amrex::Array4<const amrex::Real>& mf_mx,
-  const amrex::Array4<const amrex::Real>& mf_my)
-{
-  const amrex::Real dx_inv = cellSizeInv[0];
-  const amrex::Real dy_inv = cellSizeInv[1];
-  const amrex::Real dz_inv = cellSizeInv[2];
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real mxmy = mf_mx(i, j, 0) * mf_my(i, j, 0);
-    const amrex::Real divergence =
-      (mapped_x(i + 1, j, k, flux_comp) - mapped_x(i, j, k, flux_comp)) *
-        dx_inv +
-      (mapped_y(i, j + 1, k, flux_comp) - mapped_y(i, j, k, flux_comp)) *
-        dy_inv +
-      (mapped_z(i, j, k + 1, flux_comp) - mapped_z(i, j, k, flux_comp)) *
-        dz_inv;
-    rhs(i, j, k, rhs_comp) -= mxmy * divergence;
-  });
-}
-
-/** S-grid accepted-transfer divergence; vertical divergence uses dz[k]. */
-inline void
-ApplyAcceptedScalarMappedTransferDivergence_S(
-  const amrex::Box& bx,
-  const amrex::Array4<const amrex::Real>& mapped_x,
-  const amrex::Array4<const amrex::Real>& mapped_y,
-  const amrex::Array4<const amrex::Real>& mapped_z,
-  const int flux_comp,
-  const amrex::Array4<amrex::Real>& rhs,
-  const int rhs_comp,
-  const amrex::Array4<const amrex::Real>& mf_mx,
-  const amrex::Array4<const amrex::Real>& mf_my,
-  const amrex::Real dx_inv,
-  const amrex::Real dy_inv,
-  const amrex::Real* dz)
-{
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real mxmy = mf_mx(i, j, 0) * mf_my(i, j, 0);
-    const amrex::Real divergence =
-      (mapped_x(i + 1, j, k, flux_comp) - mapped_x(i, j, k, flux_comp)) *
-        dx_inv +
-      (mapped_y(i, j + 1, k, flux_comp) - mapped_y(i, j, k, flux_comp)) *
-        dy_inv +
-      (mapped_z(i, j, k + 1, flux_comp) - mapped_z(i, j, k, flux_comp)) / dz[k];
-    rhs(i, j, k, rhs_comp) -= mxmy * divergence;
-  });
-}
-
-/**
- * Add the divergence of already accepted T-grid mapped transfers. The inputs
- * are consumed exactly as supplied; this kernel has no terrain reconstruction
- * inputs or access to the original raw high-order candidate.
- */
-inline void
-ApplyAcceptedScalarMappedTransferDivergence_T(
-  const amrex::Box& bx,
-  const amrex::Array4<const amrex::Real>& mapped_x,
-  const amrex::Array4<const amrex::Real>& mapped_y,
-  const amrex::Array4<const amrex::Real>& mapped_z,
-  const int flux_comp,
-  const amrex::Array4<amrex::Real>& rhs,
-  const int rhs_comp,
-  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-  const amrex::Array4<const amrex::Real>& mf_mx,
-  const amrex::Array4<const amrex::Real>& mf_my,
-  const amrex::Array4<const amrex::Real>& detJ)
-{
-  const amrex::Real dx_inv = cellSizeInv[0];
-  const amrex::Real dy_inv = cellSizeInv[1];
-  const amrex::Real dz_inv = cellSizeInv[2];
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real divergence = ScalarDiffusionMappedDivergence_T(
-      mapped_x(i + 1, j, k, flux_comp), mapped_x(i, j, k, flux_comp),
-      mapped_y(i, j + 1, k, flux_comp), mapped_y(i, j, k, flux_comp),
-      mapped_z(i, j, k + 1, flux_comp), mapped_z(i, j, k, flux_comp), dx_inv,
-      dy_inv, dz_inv, mf_mx(i, j, 0), mf_my(i, j, 0), detJ(i, j, k));
-    rhs(i, j, k, rhs_comp) -= divergence;
+    const Real mfsq = mf_mx(i, j, 0) * mf_my(i, j, 0);
+    const Real stateContrib = TerrainDiffusionDivergence_T(
+      mapped_Fx_hi, mapped_Fx_lo, mapped_Fy_hi, mapped_Fy_lo, Gz_hi, Gz_lo,
+      dx_inv, dy_inv, dz_inv, mfsq, detJ(i, j, k));
+    rhs(i, j, k, rhs_comp) -= stateContrib;
   });
 }
 
