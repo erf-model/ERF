@@ -2362,9 +2362,9 @@ ERF_GPU_TEST(
     hc(test.bx, NVAR_max, The_Pinned_Arena()),
     hr(test.bx, 5, The_Pinned_Arena()), hw(test.bx, 5, The_Pinned_Arena()),
     ha(test.bx, 5, The_Pinned_Arena());
-  FArrayBox hex(accepted_x.box(), 3, The_Pinned_Arena()),
-    hay(accepted_y.box(), 3, The_Pinned_Arena()),
-    haz(accepted_z.box(), 3, The_Pinned_Arena()),
+  FArrayBox host_x(accepted_x.box(), 3, The_Pinned_Arena()),
+    host_y(accepted_y.box(), 3, The_Pinned_Arena()),
+    host_z(accepted_z.box(), 3, The_Pinned_Arena()),
     hdet(test.detj.box(), 1, The_Pinned_Arena()),
     hmx(test.mf_mx.box(), 1, The_Pinned_Arena()),
     hmy(test.mf_my.box(), 1, The_Pinned_Arena());
@@ -2373,9 +2373,9 @@ ERF_GPU_TEST(
   copy_to_host(raw_wrong, hr);
   copy_to_host(cross_wrong, hw);
   copy_to_host(accepted_rhs, ha);
-  copy_to_host(accepted_x, hex);
-  copy_to_host(accepted_y, hay);
-  copy_to_host(accepted_z, haz);
+  copy_to_host(accepted_x, host_x);
+  copy_to_host(accepted_y, host_y);
+  copy_to_host(accepted_z, host_z);
   copy_to_host(test.detj, hdet);
   copy_to_host(test.mf_mx, hmx);
   copy_to_host(test.mf_my, hmy);
@@ -2384,9 +2384,9 @@ ERF_GPU_TEST(
   const auto raw_control = hr.const_array();
   const auto cross_control = hw.const_array();
   const auto accepted = ha.const_array();
-  const auto accx = hex.const_array();
-  const auto accy = hay.const_array();
-  const auto accz = haz.const_array();
+  const auto accx = host_x.const_array();
+  const auto accy = host_y.const_array();
+  const auto accz = host_z.const_array();
   const auto det = hdet.const_array();
   const auto mxh = hmx.const_array();
   const auto myh = hmy.const_array();
