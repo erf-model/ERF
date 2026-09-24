@@ -753,8 +753,6 @@ BuildScalarDiffusionFluxes_T_Impl(
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
   const amrex::Array4<const amrex::Real>& mf_ux,
-  const amrex::Array4<const amrex::Real>& mf_uy,
-  const amrex::Array4<const amrex::Real>& mf_vx,
   const amrex::Array4<const amrex::Real>& mf_vy,
   const amrex::BCRec* bc_ptr,
   const int bc_comp)
@@ -929,8 +927,6 @@ BuildScalarDiffusionFluxes_T(
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
   const amrex::Array4<const amrex::Real>& mf_ux,
-  const amrex::Array4<const amrex::Real>& mf_uy,
-  const amrex::Array4<const amrex::Real>& mf_vx,
   const amrex::Array4<const amrex::Real>& mf_vy,
   const amrex::BCRec* bc_ptr,
   const int bc_comp)
@@ -940,20 +936,20 @@ BuildScalarDiffusionFluxes_T(
     if (mode.add_turbulence) {
       BuildScalarDiffusionFluxes_T_Impl<true, true>(
         bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-        mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+        mf_vy, bc_ptr, bc_comp);
     } else {
       BuildScalarDiffusionFluxes_T_Impl<true, false>(
         bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-        mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+        mf_vy, bc_ptr, bc_comp);
     }
   } else if (mode.add_turbulence) {
     BuildScalarDiffusionFluxes_T_Impl<false, true>(
       bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-      mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+      mf_vy, bc_ptr, bc_comp);
   } else {
     BuildScalarDiffusionFluxes_T_Impl<false, false>(
       bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-      mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+      mf_vy, bc_ptr, bc_comp);
   }
 }
 

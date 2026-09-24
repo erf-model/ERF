@@ -159,7 +159,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         BuildScalarDiffusionFluxes_T(
             bx, domain, field, flux_policy, rotate, z_nd, z_cc, cellSizeInv,
-            mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, native_policy.bc_comp);
+            mf_ux, mf_vy, bc_ptr, native_policy.bc_comp);
         if (native_policy.scale_raw_vertical_flux) {
             ScaleScalarDiffusionVerticalFlux(
                 zbx, zflux, field.flux_comp, explicit_fac);

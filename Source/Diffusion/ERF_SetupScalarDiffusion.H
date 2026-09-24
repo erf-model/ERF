@@ -3,16 +3,11 @@
 // explicit numerical path deliberately does not allocate positional
 // coefficient maps; each native state is resolved to a small policy in the
 // adapter immediately before its kernels are launched.
-const auto& dom_lo = lbound(domain);
-const auto& dom_hi = ubound(domain);
-
 DiffChoice diffChoice = solverChoice.diffChoice;
 TurbChoice turbChoice = solverChoice.turbChoice[level];
 const bool l_consA = diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha;
 const bool l_turb = turbChoice.use_kturb;
 
-const Real dx_inv = cellSizeInv[0];
-const Real dy_inv = cellSizeInv[1];
 [[maybe_unused]] const bool SurfLayer_xlo =
   use_SurfLayer && SurfLayer[amrex::Orientation::xlo()] != nullptr;
 [[maybe_unused]] const bool SurfLayer_ylo =

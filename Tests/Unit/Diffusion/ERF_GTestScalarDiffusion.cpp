@@ -22,7 +22,18 @@ constexpr int kRhsComp = 5;
 Real
 tolerance(Real scale = Real(1.0))
 {
-  return Real(1024.0) * std::numeric_limits<Real>::epsilon() *
+  return Real(96.0) * std::numeric_limits<Real>::epsilon() *
+         std::max(Real(1.0), std::abs(scale));
+}
+
+// The public terrain adapter composes face gradients, affine metric
+// corrections, vertical-face interpolation, and mapped divergence. Its
+// analytic RHS comparisons accumulate about 290 eps, so keep 384 eps
+// of headroom here while the pointwise primitive checks retain 96 eps.
+Real
+integrated_terrain_tolerance(Real scale = Real(1.0))
+{
+  return Real(384.0) * std::numeric_limits<Real>::epsilon() *
          std::max(Real(1.0), std::abs(scale));
 }
 
@@ -434,8 +445,9 @@ build_n_and_check(
           }
         }
         for (int n = 0; n < rhs.nComp(); ++n) {
-          if (n != kRhsComp)
+          if (n != kRhsComp) {
             EXPECT_DOUBLE_EQ(hrhs4(i, j, k, n), Real(-800.0) - n);
+          }
         }
       }
     }
@@ -444,8 +456,9 @@ build_n_and_check(
     for (int j = xflux.box().smallEnd(1); j <= xflux.box().bigEnd(1); ++j) {
       for (int i = xflux.box().smallEnd(0); i <= xflux.box().bigEnd(0); ++i) {
         for (int n = 0; n < xflux.nComp(); ++n) {
-          if (n != kFluxComp)
+          if (n != kFluxComp) {
             EXPECT_DOUBLE_EQ(hfx4(i, j, k, n), Real(900.0) + n);
+          }
         }
       }
     }
@@ -454,8 +467,9 @@ build_n_and_check(
     for (int j = yflux.box().smallEnd(1); j <= yflux.box().bigEnd(1); ++j) {
       for (int i = yflux.box().smallEnd(0); i <= yflux.box().bigEnd(0); ++i) {
         for (int n = 0; n < yflux.nComp(); ++n) {
-          if (n != kFluxComp)
+          if (n != kFluxComp) {
             EXPECT_DOUBLE_EQ(hfy4(i, j, k, n), Real(900.0) + n);
+          }
         }
       }
     }
@@ -464,8 +478,9 @@ build_n_and_check(
     for (int j = zflux.box().smallEnd(1); j <= zflux.box().bigEnd(1); ++j) {
       for (int i = zflux.box().smallEnd(0); i <= zflux.box().bigEnd(0); ++i) {
         for (int n = 0; n < zflux.nComp(); ++n) {
-          if (n != kFluxComp)
+          if (n != kFluxComp) {
             EXPECT_DOUBLE_EQ(hfz4(i, j, k, n), Real(900.0) + n);
+          }
         }
       }
     }
@@ -474,7 +489,6 @@ build_n_and_check(
 
 void
 initialize_n_case(
-  const Box& bx,
   FArrayBox& scalar,
   FArrayBox& rho,
   FArrayBox& mu,
@@ -807,7 +821,7 @@ TEST(ScalarDiffusionPrimitives, NExplicitComponentsAndCoefficientModes)
     yflux(surroundingNodes(bx, 1), 4);
   FArrayBox zflux(surroundingNodes(bx, 2), 4), rhs(bx, 6);
   initialize_n_case(
-    bx, scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
+    scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
     zflux, rhs);
 
   ScalarDiffusionCoefficients coeff{
@@ -1363,7 +1377,7 @@ TEST(
       for (int i = test.bx.smallEnd(0); i <= test.bx.bigEnd(0); ++i) {
         EXPECT_NEAR(
           rhs(i, j, k, RhoScalar_comp), Real(6.0) * test.K,
-          tolerance(Real(6.0) * test.K));
+          integrated_terrain_tolerance(Real(6.0) * test.K));
       }
     }
   }
@@ -1371,10 +1385,6 @@ TEST(
   const int i = 3, j = 3, k = 3;
   const Real xface = Real(i) / test.mx;
   const Real yface = Real(j) / test.my;
-  const Real xface_z = test.a * Real(i) + test.b * (Real(j) + Real(0.5)) +
-                       test.c * (Real(k) + Real(0.5));
-  const Real yface_z = test.a * (Real(i) + Real(0.5)) + test.b * Real(j) +
-                       test.c * (Real(k) + Real(0.5));
   const Real zface_z = test.a * (Real(i) + Real(0.5)) +
                        test.b * (Real(j) + Real(0.5)) + test.c * Real(k);
   EXPECT_NEAR(fx(i, j, k), -Real(2.0) * test.K * xface, tolerance(test.K));
@@ -1446,9 +1456,6 @@ TEST(ScalarDiffusionPrimitives, NativeTerrainImplicitSplitScalesOnlyRawFz)
   const int i = 3, j = 3, k = 3;
   const Real xcell = (Real(i) + Real(0.5)) / test.mx;
   const Real ycell = (Real(j) + Real(0.5)) / test.my;
-  const Real zcell = test.a * (Real(i) + Real(0.5)) +
-                     test.b * (Real(j) + Real(0.5)) +
-                     test.c * (Real(k) + Real(0.5));
   const Real xface = Real(i) / test.mx;
   const Real yface = Real(j) / test.my;
   const Real xface_z = test.a * Real(i) + test.b * (Real(j) + Real(0.5)) +
@@ -1487,14 +1494,15 @@ TEST(ScalarDiffusionPrimitives, NativeTerrainImplicitSplitScalesOnlyRawFz)
     const auto fz = zflux_host.const_array();
     const auto qdiag = qfx1_host.const_array();
 
-    EXPECT_NEAR(fx(i, j, k), expected_x, tolerance(test.K));
+    EXPECT_NEAR(fx(i, j, k), expected_x,
+                integrated_terrain_tolerance(expected_x));
     EXPECT_NEAR(fy(i, j, k), expected_y, tolerance(test.K));
     EXPECT_NEAR(qdiag(i, j, k), expected_raw_z, tolerance(test.K));
     EXPECT_NEAR(fz(i, j, k), explicit_fac * expected_raw_z, tolerance(test.K));
-    EXPECT_NEAR(
-      rhs(i, j, k, RhoQ1_comp),
-      Real(4.0) * test.K + Real(2.0) * test.K * explicit_fac,
-      tolerance(test.K));
+    const Real expected_rhs =
+      Real(4.0) * test.K + Real(2.0) * test.K * explicit_fac;
+    EXPECT_NEAR(rhs(i, j, k, RhoQ1_comp), expected_rhs,
+                integrated_terrain_tolerance(expected_rhs));
 
     if (have_first_diagnostic) {
       EXPECT_NEAR(qdiag(i, j, k), first_diagnostic, tolerance(test.K));

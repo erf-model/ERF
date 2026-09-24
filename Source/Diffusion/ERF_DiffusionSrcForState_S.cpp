@@ -141,6 +141,8 @@ DiffusionSrcForState_S (const Box& bx, const Box& domain,
             flux_policy.diagnostic.z = qfx2_z;
         }
 
+        const Real dx_inv = cellSizeInv[0];
+        const Real dy_inv = cellSizeInv[1];
         BuildScalarDiffusionFluxes_S(
             bx, domain, field, flux_policy, dx_inv, dy_inv, dz_ptr, klo, khi,
             mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, native_policy.bc_comp);
