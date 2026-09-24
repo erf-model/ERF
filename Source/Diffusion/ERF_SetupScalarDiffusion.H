@@ -20,8 +20,6 @@ const bool l_turb = turbChoice.use_kturb;
   use_SurfLayer && SurfLayer[amrex::Orientation::yhi()] != nullptr;
 [[maybe_unused]] const bool SurfLayer_zhi =
   use_SurfLayer && SurfLayer[amrex::Orientation::zhi()] != nullptr;
-const Box xbx = surroundingNodes(bx, 0);
-const Box ybx = surroundingNodes(bx, 1);
 const Box zbx = surroundingNodes(bx, 2);
 
 [[maybe_unused]] const int end_comp = start_comp + num_comp - 1;

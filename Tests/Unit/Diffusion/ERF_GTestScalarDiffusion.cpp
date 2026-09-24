@@ -347,40 +347,15 @@ build_n_and_check(
   Gpu::streamSynchronize();
 
   FArrayBox hscalar(scalar.box(), scalar.nComp(), The_Pinned_Arena());
-  FArrayBox hrho(rho.box(), rho.nComp(), The_Pinned_Arena());
-  FArrayBox hmu(mu.box(), mu.nComp(), The_Pinned_Arena());
-  FArrayBox hux(mf_ux.box(), mf_ux.nComp(), The_Pinned_Arena());
-  FArrayBox huy(mf_uy.box(), mf_uy.nComp(), The_Pinned_Arena());
-  FArrayBox hvy(mf_vy.box(), mf_vy.nComp(), The_Pinned_Arena());
-  FArrayBox hvx(mf_vx.box(), mf_vx.nComp(), The_Pinned_Arena());
-  FArrayBox hmx(mf_mx.box(), mf_mx.nComp(), The_Pinned_Arena());
-  FArrayBox hmy(mf_my.box(), mf_my.nComp(), The_Pinned_Arena());
   FArrayBox hfx(xflux.box(), xflux.nComp(), The_Pinned_Arena());
   FArrayBox hfy(yflux.box(), yflux.nComp(), The_Pinned_Arena());
   FArrayBox hfz(zflux.box(), zflux.nComp(), The_Pinned_Arena());
   FArrayBox hrhs(rhs.box(), rhs.nComp(), The_Pinned_Arena());
   copy_to_host(scalar, hscalar);
-  copy_to_host(rho, hrho);
-  copy_to_host(mu, hmu);
-  copy_to_host(mf_ux, hux);
-  copy_to_host(mf_uy, huy);
-  copy_to_host(mf_vy, hvy);
-  copy_to_host(mf_vx, hvx);
-  copy_to_host(mf_mx, hmx);
-  copy_to_host(mf_my, hmy);
   copy_to_host(xflux, hfx);
   copy_to_host(yflux, hfy);
   copy_to_host(zflux, hfz);
   copy_to_host(rhs, hrhs);
-  const auto hs = hscalar.const_array();
-  const auto hd = hrho.const_array();
-  const auto hm = hmu.const_array();
-  const auto hux4 = hux.const_array();
-  const auto huy4 = huy.const_array();
-  const auto hvy4 = hvy.const_array();
-  const auto hvx4 = hvx.const_array();
-  const auto hmx4 = hmx.const_array();
-  const auto hmy4 = hmy.const_array();
   const auto hfx4 = hfx.const_array();
   const auto hfy4 = hfy.const_array();
   const auto hfz4 = hfz.const_array();
@@ -707,7 +682,6 @@ TEST(
 
   constexpr Real Kh = Real(2.1), Kv = Real(4.3);
   auto cons = conserved.array();
-  auto prim = primitive.array();
   auto turb = mu.array();
   ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     cons(i, j, k, Rho_comp) = Real(3.0);
