@@ -324,8 +324,7 @@ public:
     void HurricaneEyeTrackerNotInitial(const SolverChoice& sc,
                                        const amrex::Geometry& geom,
                                        const amrex::MultiFab& mf_cc_vel,
-                                       const amrex::Vector<amrex::MultiFab>& S_data,
-                                       MoistureType moisture_type);
+                                       const amrex::Vector<amrex::MultiFab>& S_data);
 
     void ComputeGlobalMinLocation(const SolverChoice& sc,
                                   const amrex::Geometry& geom,

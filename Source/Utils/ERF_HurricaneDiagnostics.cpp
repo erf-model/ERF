@@ -368,8 +368,7 @@ void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
                                     const MultiFab& mf_cc_vel,
-                                    const Vector<MultiFab>& S_data,
-                                    MoistureType moisture_type)
+                                    const Vector<MultiFab>& S_data)
 {
 
     if (hurricane_eye_track_xy.empty()) {
@@ -664,8 +663,7 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
         }
         HurricaneEyeTrackerNotInitial(sc, geom[levc],
                                       mf_cc_vel,
-                                      vars_new[levc],
-                                      moisture_type);
+                                      vars_new[levc]);
     }
     HurricaneTrackerCircle();
 }
@@ -688,6 +686,9 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     Gpu::DeviceVector<Real> d_val_max(1, -bogus_large_value);
     d_val_max_ptr = d_val_max.data();
 
+    if(hurricane_eye_track_xy.empty()){
+        return;
+    }
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
@@ -704,7 +705,7 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
-            if(k==1 && dist < 200e3) {
+            if(k==0 && dist < 200e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -752,7 +753,9 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
     Real* d_val_min_ptr;
     Gpu::DeviceVector<Real> d_val_min(1, bogus_large_value);
     d_val_min_ptr = d_val_min.data();
-
+    if(hurricane_eye_track_xy.empty()){
+        return;
+    }
     const Real x_last = hurricane_eye_track_xy.back()[0];
     const Real y_last = hurricane_eye_track_xy.back()[1];
     const auto dx = lev_geom.CellSizeArray();
@@ -770,7 +773,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
-            if(k==1 && dist2 < 200e3*200e3) {
+            if(k==0 && dist2 < 200e3*200e3) {
                 const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                 const Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                 const Real pressure = getPgivenRTh(rhotheta,qv_for_p);
