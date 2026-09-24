@@ -193,6 +193,17 @@ void set_synthetic_reference_atmosphere (
 
 class SLMInterfaceTest : public ::testing::Test {
 protected:
+    static amrex::Vector<amrex::BCRec> make_domain_bcs_type ()
+    {
+        const amrex::BCRec interior_bc(
+            AMREX_D_DECL(amrex::BCType::int_dir, amrex::BCType::int_dir,
+                         amrex::BCType::int_dir),
+            AMREX_D_DECL(amrex::BCType::int_dir, amrex::BCType::int_dir,
+                         amrex::BCType::int_dir));
+        return amrex::Vector<amrex::BCRec>(AMREX_SPACEDIM + NBCVAR_max,
+                                           interior_bc);
+    }
+
     static void SetUpTestSuite ()
     {
         configure_slm_parameters();
@@ -210,7 +221,7 @@ protected:
         land_surface.Define(0, solver_choice);
 
         std::unique_ptr<amrex::MultiFab> z_phys_nd;
-        amrex::Vector<amrex::BCRec> domain_bcs_type;
+        amrex::Vector<amrex::BCRec> domain_bcs_type = make_domain_bcs_type();
         amrex::IntVect ref_ratio(1);
         amrex::Vector<amrex::Vector<std::string>> nc_init_file;
         land_surface.Init(0, state->cons, state->uvel, state->vvel,
@@ -228,7 +239,89 @@ protected:
         state->vvel.setVal(0.1);
     }
 
+    void initialize_multilevel (const int nlevels,
+                                const InitType init_type = InitType::Input_Sounding)
+    {
+        solver_choice.init_type = init_type;
+        multilevel_states.clear();
+        multilevel_states.reserve(nlevels);
+
+        for (int lev = 0; lev < nlevels; ++lev) {
+            const int xy_hi = (1 << (lev + 1)) - 1;
+            const amrex::Box level_box(
+                amrex::IntVect(AMREX_D_DECL(0, 0, 0)),
+                amrex::IntVect(AMREX_D_DECL(xy_hi, xy_hi, 7)));
+            multilevel_states.push_back(std::make_unique<SLMTestState>(level_box));
+        }
+
+        land_surface.ReSize(nlevels);
+        land_surface.SetModel<SLM>();
+        for (int lev = 0; lev < nlevels; ++lev) {
+            land_surface.Define(lev, solver_choice);
+        }
+
+        for (int lev = 0; lev < nlevels; ++lev) {
+            std::unique_ptr<amrex::MultiFab> z_phys_nd;
+            amrex::Vector<amrex::BCRec> domain_bcs_type = make_domain_bcs_type();
+            amrex::IntVect ref_ratio = (lev == 0) ? amrex::IntVect(1) : amrex::IntVect(2);
+            amrex::Vector<amrex::Vector<std::string>> nc_init_file;
+            land_surface.Init(lev, multilevel_states[lev]->cons,
+                              multilevel_states[lev]->uvel,
+                              multilevel_states[lev]->vvel,
+                              multilevel_states[lev]->geom,
+                              multilevel_states[0]->geom,
+                              domain_bcs_type, ref_ratio, amrex::Real(1.0),
+                              z_phys_nd, nc_init_file);
+        }
+    }
+
+    void seed_transfer_state (const int lev,
+                              const amrex::Real tsurf,
+                              const amrex::Real soil_temperature,
+                              const amrex::Real soil_moisture,
+                              const amrex::Real flux)
+    {
+        get_slm_data(land_surface, lev, "tsurf")->setVal(tsurf);
+        get_slm_data(land_surface, lev, "tsoil")->setVal(soil_temperature);
+        get_slm_data(land_surface, lev, "wsoil")->setVal(soil_moisture);
+        get_slm_data(land_surface, lev, "vegtype")->setVal(10.0);
+        get_slm_data(land_surface, lev, "soiltype")->setVal(1.0);
+        get_slm_data(land_surface, lev, "lai")->setVal(2.0);
+        get_slm_data(land_surface, lev, "veg_frac")->setVal(1.0);
+        get_slm_data(land_surface, lev, "veg_frac_min")->setVal(0.0);
+        get_slm_data(land_surface, lev, "veg_frac_max")->setVal(0.0);
+        for (int var = 0; var < land_surface.Get_Flux_Size(); ++var) {
+            land_surface.Get_Flux_Ptr(lev, var)->setVal(flux);
+        }
+    }
+
+    void set_surface_temperature_gradient (const int lev,
+                                           const amrex::Real base_temperature)
+    {
+        auto* tsurf = get_slm_data(land_surface, lev, "tsurf");
+        for (amrex::MFIter mfi(*tsurf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const amrex::Box box = mfi.validbox();
+            auto tsurf_arr = tsurf->array(mfi);
+            amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                tsurf_arr(i, j, k) = base_temperature + i + 2.0 * j;
+            });
+        }
+    }
+
+    amrex::Real surface_temperature_at (const int lev,
+                                        const amrex::IntVect& iv)
+    {
+        auto* tsurf = get_slm_data(land_surface, lev, "tsurf");
+        for (amrex::MFIter mfi(*tsurf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            if (mfi.validbox().contains(iv)) {
+                return tsurf->const_array(mfi)(iv[0], iv[1], iv[2]);
+            }
+        }
+        return amrex::Real(-1.0);
+    }
+
     std::unique_ptr<SLMTestState> state;
+    std::vector<std::unique_ptr<SLMTestState>> multilevel_states;
     SolverChoice solver_choice;
     LandSurface land_surface;
 };
@@ -786,6 +879,97 @@ TEST_F(SLMInterfaceTest, InitializesIndependentMultilevelSLMState)
     get_slm_data(multilevel, 0, "tsurf")->setVal(271.0);
     EXPECT_NE(get_slm_data(multilevel, 1, "tsurf")->max(0),
               amrex::Real(271.0));
+}
+
+TEST_F(SLMInterfaceTest, TransfersRawInputStateFromLevelZero)
+{
+    initialize_multilevel(2, InitType::WRFInput);
+    seed_transfer_state(0, amrex::Real(285.0), amrex::Real(290.0),
+                        amrex::Real(0.4), amrex::Real(3.0));
+
+    land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                         LSMTransferMode::RawInput);
+
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "tsurf")->max(0),
+                amrex::Real(285.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "tsoil")->max(0),
+                amrex::Real(290.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "wsoil")->max(0),
+                amrex::Real(0.4), amrex::Real(1.0e-12));
+    EXPECT_NEAR(land_surface.Get_Flux_Ptr(1, LsmFlux_SLM::t_flux)->max(0),
+                amrex::Real(3.0), amrex::Real(1.0e-12));
+}
+
+TEST_F(SLMInterfaceTest, TransfersProcessedStateFromLevelZero)
+{
+    initialize_multilevel(2);
+    seed_transfer_state(0, amrex::Real(286.0), amrex::Real(291.0),
+                        amrex::Real(0.45), amrex::Real(4.0));
+
+    land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                         LSMTransferMode::ProcessedState);
+
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "tsurf")->max(0),
+                amrex::Real(286.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "tsoil")->max(0),
+                amrex::Real(291.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 1, "wsoil")->max(0),
+                amrex::Real(0.45), amrex::Real(1.0e-12));
+    EXPECT_NEAR(land_surface.Get_Flux_Ptr(1, LsmFlux_SLM::t_flux)->max(0),
+                amrex::Real(4.0), amrex::Real(1.0e-12));
+    EXPECT_FALSE(get_slm_data(land_surface, 1, "tsurf")->contains_nan());
+    EXPECT_FALSE(land_surface.Get_Flux_Ptr(1, LsmFlux_SLM::olen)->contains_nan());
+}
+
+TEST_F(SLMInterfaceTest, UsesCumulativeAndParentSourceRatios)
+{
+    initialize_multilevel(3);
+    seed_transfer_state(0, amrex::Real(287.0), amrex::Real(292.0),
+                        amrex::Real(0.5), amrex::Real(5.0));
+    seed_transfer_state(1, amrex::Real(288.0), amrex::Real(293.0),
+                        amrex::Real(0.55), amrex::Real(6.0));
+    set_surface_temperature_gradient(0, amrex::Real(287.0));
+    set_surface_temperature_gradient(1, amrex::Real(288.0));
+
+    land_surface.Initialize_From_Source(2, 0, amrex::IntVect(4),
+                                         LSMTransferMode::ProcessedState);
+    EXPECT_NEAR(surface_temperature_at(
+                    2, amrex::IntVect(AMREX_D_DECL(4, 4, -1))),
+                amrex::Real(290.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(land_surface.Get_Flux_Ptr(2, LsmFlux_SLM::t_flux)->max(0),
+                amrex::Real(5.0), amrex::Real(1.0e-12));
+
+    land_surface.Initialize_From_Source(2, 1, amrex::IntVect(2),
+                                         LSMTransferMode::ProcessedState);
+    EXPECT_NEAR(surface_temperature_at(
+                    2, amrex::IntVect(AMREX_D_DECL(6, 6, -1))),
+                amrex::Real(297.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(land_surface.Get_Flux_Ptr(2, LsmFlux_SLM::t_flux)->max(0),
+                amrex::Real(6.0), amrex::Real(1.0e-12));
+}
+
+TEST_F(SLMInterfaceTest, RemakePreservesProcessedState)
+{
+    seed_transfer_state(0, amrex::Real(289.0), amrex::Real(294.0),
+                        amrex::Real(0.6), amrex::Real(7.0));
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    amrex::Vector<amrex::BCRec> domain_bcs_type = make_domain_bcs_type();
+    amrex::IntVect ref_ratio(1);
+    amrex::Vector<amrex::Vector<std::string>> nc_init_file;
+    land_surface.Remake_Level(0, state->cons, state->uvel, state->vvel,
+                              state->geom, state->geom, domain_bcs_type,
+                              ref_ratio, amrex::Real(1.0), z_phys_nd,
+                              nc_init_file);
+
+    EXPECT_NEAR(get_slm_data(land_surface, 0, "tsurf")->max(0),
+                amrex::Real(289.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 0, "tsoil")->max(0),
+                amrex::Real(294.0), amrex::Real(1.0e-12));
+    EXPECT_NEAR(get_slm_data(land_surface, 0, "wsoil")->max(0),
+                amrex::Real(0.6), amrex::Real(1.0e-12));
+    EXPECT_NEAR(land_surface.Get_Flux_Ptr(0, LsmFlux_SLM::t_flux)->max(0),
+                amrex::Real(7.0), amrex::Real(1.0e-12));
 }
 
 TEST_F(SLMInterfaceTest, CheckpointWritesAndReadsSyntheticState)

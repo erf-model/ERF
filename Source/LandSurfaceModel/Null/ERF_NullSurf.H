@@ -7,6 +7,11 @@
 #include "ERF_DataStruct.H"
 #include "ERF_SurfacePrecipitation.H"
 
+enum class LSMTransferMode {
+    RawInput,
+    ProcessedState
+};
+
 class NullSurf {
 
  public:
@@ -143,6 +148,87 @@ class NullSurf {
     void
     Lsm_Set_Lev0_Flux_Ptr (const int& /*varIdx*/,
                            amrex::MultiFab* /*lev0_flux_ptr*/)
+    {}
+
+    /**
+     * Registers an exposed source data field.
+     */
+    virtual
+    void
+    Lsm_Set_Source_Data_Ptr (const int& /*varIdx*/,
+                             amrex::MultiFab* /*source_data_ptr*/)
+    {}
+
+    /**
+     * Registers an exposed source flux field.
+     */
+    virtual
+    void
+    Lsm_Set_Source_Flux_Ptr (const int& /*varIdx*/,
+                             amrex::MultiFab* /*source_flux_ptr*/)
+    {}
+
+    /**
+     * Returns the number of private state fields required for transfer.
+     */
+    virtual
+    int
+    Lsm_Unmapped_Size () { return 0; }
+
+    /**
+     * Returns a private state field required for transfer.
+     */
+    virtual
+    amrex::MultiFab*
+    Lsm_Unmapped_Ptr (const int& /*varIdx*/) { return nullptr; }
+
+    /**
+     * Registers a private source state field.
+     */
+    virtual
+    void
+    Lsm_Set_Source_Unmapped_Ptr (const int& /*varIdx*/,
+                                  amrex::MultiFab* /*source_data_ptr*/)
+    {}
+
+    /**
+     * Returns the atmospheric geometry used by coupling fields.
+     */
+    virtual
+    amrex::Geometry
+    Lsm_Atmos_Geom () { return m_lsm_geom; }
+
+    /**
+     * Transfers exposed state from a source AMR level.
+     */
+    virtual
+    void
+    Lsm_Interpolate_From_Source (const amrex::Geometry& /*source_geom*/,
+                                 const amrex::Geometry& /*source_lsm_geom*/,
+                                 const amrex::IntVect& /*ref_ratio*/,
+                                 LSMTransferMode /*mode*/)
+    {}
+
+    /**
+     * Rebuilds a land-surface level after its atmospheric grid changes.
+     */
+    virtual
+    void
+    Lsm_Regrid_Level (const int& /*lev*/,
+                      const amrex::MultiFab& /*cons_in*/,
+                      const amrex::MultiFab& /*u_in*/,
+                      const amrex::MultiFab& /*v_in*/,
+                      const amrex::Geometry& /*geom*/,
+                      const amrex::Geometry& /*geom0*/,
+                      amrex::Vector<amrex::BCRec>& /*domain_bcs_type*/,
+                      amrex::IntVect& /*refRatio*/,
+                      const amrex::Real& /*dt_advance*/,
+                      std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                      amrex::Vector<amrex::Vector<std::string>>& /*nc_init_file*/,
+                      const amrex::Geometry& /*source_geom*/,
+                      const amrex::Geometry& /*source_lsm_geom*/,
+                      const amrex::IntVect& /*source_ref_ratio*/,
+                      const bool /*has_source*/)
     {}
 
     virtual

@@ -10,6 +10,7 @@
 
 using namespace amrex;
 
+
 /* Initialize lsm data structures */
 void
 SLM::Init (const int& /*lev*/,
@@ -17,8 +18,8 @@ SLM::Init (const int& /*lev*/,
            const MultiFab& u_in,
            const MultiFab& v_in,
            const Geometry& geom,
-           const Geometry& /*geom0*/,
-           Vector<BCRec>& /*domain_bcs_type*/,
+           const Geometry& geom0,
+           Vector<BCRec>& domain_bcs_type,
            IntVect& /*refRatio*/,
            const Real& dt,
            std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
@@ -26,6 +27,8 @@ SLM::Init (const int& /*lev*/,
 {
     m_dt = dt;
     m_geom = geom;
+    m_geom0 = geom0;
+    m_domain_bcs_type = domain_bcs_type;
     z_phys_nd = z_phys_nd_in.get();
 
     ParmParse pp("slm");
@@ -124,6 +127,23 @@ SLM::Init (const int& /*lev*/,
     lsm_dom.setBig(2, khi_lsm);
     m_lsm_geom.define(lsm_dom, lsm_rb, m_geom.Coord(), m_geom.isPeriodic());
 
+    const RealBox& dom_rb0 = m_geom0.ProbDomain();
+    RealBox lsm_rb0 = dom_rb0;
+    Real lsm_z_hi0 = dom_rb0.lo(2);
+    Real lsm_z_lo0 = lsm_z_hi0;
+    for (int k = 0; k < m_nz_lsm; ++k) {
+        lsm_z_lo0 -= m_dz_lsm[k];
+    }
+    lsm_rb0.setHi(2, lsm_z_hi0);
+    lsm_rb0.setLo(2, lsm_z_lo0);
+
+    Box lsm_dom0 = m_geom0.Domain();
+    const int khi_lsm0 = lsm_dom0.smallEnd(2) - 1;
+    const int klo_lsm0 = khi_lsm0 - m_nz_lsm + 1;
+    lsm_dom0.setSmall(2, klo_lsm0);
+    lsm_dom0.setBig(2, khi_lsm0);
+    m_lsm_geom0.define(lsm_dom0, lsm_rb0, m_geom0.Coord(), m_geom0.isPeriodic());
+
     BoxList bl_lsm_2d = ba_lsm.boxList();
     for (auto& b : bl_lsm_2d) {
         b.setRange(2, 0, 1);
@@ -146,6 +166,7 @@ SLM::Init (const int& /*lev*/,
     }
 
     // build list for checkpointing extra variables not mapped to ERF in lsm_fab_vars
+    unmapped_fields.clear();
     for (int i = 0; i < LsmVar_SLM::NumVars; i++) {
         int found = 0;
         for (int j = 0; j < m_lsm_data_size; j++) {
@@ -1000,7 +1021,8 @@ void SLM::init_wrfinput_vars()
             in_vegfrac_max_arr(i, j, d_khi_lsm) *= 0.01;
             in_vegfrac_max_arr(i, j, 0) = in_vegfrac_max_arr(i, j, d_khi_lsm);
 
-            if (landtype_arr(i, j, 0) == 17 || landtype_arr(i, j, 0) == islake) {
+            if (landtype_arr(i, j, 0) == 0 ||
+                landtype_arr(i, j, 0) == 17 || landtype_arr(i, j, 0) == islake) {
                 //amrex::Print() << "     -- water cell - setting landtype=0 landmask=0" << std::endl;
                 landmask_arr(i, j, 0) = 0;
                 landtype_arr(i, j, 0) = 0;
@@ -1058,6 +1080,256 @@ void SLM::init_wrfinput_vars()
 
     init_slm_vars();
     wrfinput_initialized = true;
+}
+
+/**
+ * Rebuilds SLM arrays on a remade atmospheric grid and transfers state.
+ */
+void
+SLM::Lsm_Regrid_Level (const int& lev,
+                       const MultiFab& cons_in,
+                       const MultiFab& u_in,
+                       const MultiFab& v_in,
+                       const Geometry& geom,
+                       const Geometry& geom0,
+                       Vector<BCRec>& domain_bcs_type,
+                       IntVect& refRatio,
+                       const Real& dt,
+                       std::unique_ptr<MultiFab>& z_phys_nd_in,
+                       Vector<Vector<std::string>>& nc_init_file,
+                       const Geometry& source_geom,
+                       const Geometry& source_lsm_geom,
+                       const IntVect& source_ref_ratio,
+                       const bool has_source)
+{
+    const Geometry old_geom = m_geom;
+    const Geometry old_lsm_geom = m_lsm_geom;
+    Vector<std::unique_ptr<MultiFab>> saved_data(m_lsm_data_size);
+    Vector<std::unique_ptr<MultiFab>> saved_flux(m_lsm_flux_size);
+    Vector<std::unique_ptr<MultiFab>> saved_unmapped(unmapped_fields.size());
+
+    for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+        saved_data[ivar] = std::make_unique<MultiFab>(Lsm_Data_Ptr(ivar)->deepCopy());
+    }
+    for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
+        saved_flux[ivar] = std::make_unique<MultiFab>(Lsm_Flux_Ptr(ivar)->deepCopy());
+    }
+    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        saved_unmapped[ivar] = std::make_unique<MultiFab>(
+            lsm_fab_vars[unmapped_fields[ivar]]->deepCopy());
+    }
+
+    Init(lev, cons_in, u_in, v_in, geom, geom0, domain_bcs_type,
+         refRatio, dt, z_phys_nd_in, nc_init_file);
+
+    if (has_source) {
+        Lsm_Interpolate_From_Source(source_geom, source_lsm_geom,
+                                    source_ref_ratio, LSMTransferMode::ProcessedState);
+
+        for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+            lsm_fab_vars[LsmDataMap[ivar]]->ParallelCopy(*saved_data[ivar], 0, 0, 1);
+        }
+        for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
+            lsm_fab_flux[LsmFluxMap[ivar]]->ParallelCopy(*saved_flux[ivar], 0, 0, 1);
+        }
+    } else {
+        source_data.resize(m_lsm_data_size, nullptr);
+        source_flux.resize(m_lsm_flux_size, nullptr);
+        source_unmapped.resize(unmapped_fields.size(), nullptr);
+        for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+            source_data[ivar] = saved_data[ivar].get();
+        }
+        for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
+            source_flux[ivar] = saved_flux[ivar].get();
+        }
+        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+            source_unmapped[ivar] = saved_unmapped[ivar].get();
+        }
+
+        Lsm_Interpolate_From_Source(old_geom, old_lsm_geom,
+                                    IntVect(1), LSMTransferMode::ProcessedState);
+    }
+
+    // ERF checkpoints the mapped fields and this registry of otherwise-private
+    // SLM fields. Restore the latter after rebuilding the level so a remake
+    // does not discard state which ERF does not expose through lsm_data.
+    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        lsm_fab_vars[unmapped_fields[ivar]]->ParallelCopy(*saved_unmapped[ivar], 0, 0, 1);
+    }
+    initialize_processed_state(true);
+    initialize_zrefxy();
+
+    source_data.clear();
+    source_flux.clear();
+    source_unmapped.clear();
+}
+
+/**
+ * Transfers SLM fields from a source AMR level.
+ */
+void
+SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
+                                  const Geometry& source_lsm_geom,
+                                  const IntVect& ref_ratio,
+                                  const LSMTransferMode mode)
+{
+    AMREX_ALWAYS_ASSERT(source_data.size() == m_lsm_data_size);
+    AMREX_ALWAYS_ASSERT(source_flux.size() == m_lsm_flux_size);
+    AMREX_ALWAYS_ASSERT(source_unmapped.size() == unmapped_fields.size());
+
+    const IntVect rr2d(ref_ratio[0], ref_ratio[1], 1);
+    for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+        AMREX_ALWAYS_ASSERT(source_data[ivar] != nullptr);
+        InterpFromCoarseLevel(*lsm_fab_vars[LsmDataMap[ivar]],
+                              lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect(),
+                              IntVect(0,0,0), *source_data[ivar], 0, 0, 1,
+                              source_lsm_geom, m_lsm_geom, rr2d,
+                              &cell_cons_interp, m_domain_bcs_type,
+                              BCVars::cons_bc);
+    }
+
+    for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
+        AMREX_ALWAYS_ASSERT(source_flux[ivar] != nullptr);
+        InterpFromCoarseLevel(*lsm_fab_flux[LsmFluxMap[ivar]],
+                              lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
+                              IntVect(0,0,0), *source_flux[ivar], 0, 0, 1,
+                              source_geom, m_geom, rr2d,
+                              &cell_cons_interp, m_domain_bcs_type,
+                              BCVars::cons_bc);
+    }
+
+    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        AMREX_ALWAYS_ASSERT(source_unmapped[ivar] != nullptr);
+        InterpFromCoarseLevel(*lsm_fab_vars[unmapped_fields[ivar]],
+                              lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
+                              IntVect(0,0,0), *source_unmapped[ivar], 0, 0, 1,
+                              source_lsm_geom, m_lsm_geom, rr2d,
+                              &cell_cons_interp, m_domain_bcs_type,
+                              BCVars::cons_bc);
+    }
+
+    if (mode == LSMTransferMode::RawInput) {
+        first_step = true;
+        wrfinput_initialized = false;
+    } else {
+        initialize_processed_state();
+        initialize_zrefxy();
+        first_step = false;
+        wrfinput_initialized = use_wrfinput;
+    }
+}
+
+/**
+ * Initializes the canopy-adjusted reference height on the current grid.
+ */
+void
+SLM::initialize_zrefxy()
+{
+    const Real zlo = m_geom.ProbLo(2);
+    const Real dz = m_geom.CellSize(2);
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box& xybx = mfi.growntilebox(0);
+        const Array4<const Real>& z_nd_arr = use_terrain
+            ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+        auto ztop_arr = ztop.array(mfi);
+        auto zrefxy_arr = zrefxy.array(mfi);
+        auto landmask_arr = landmask.const_array(mfi);
+
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            if (landmask_arr(i, j, 0) == 1) {
+                const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr)
+                                           : zlo + Real(0.5) * dz;
+                zrefxy_arr(i, j, 0) = ztop_arr(i, j, 0) + znd;
+            }
+        });
+    }
+}
+
+/**
+ * Reconstructs local SLM fields after a processed-state transfer.
+ */
+void
+SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
+{
+    const int d_khi_lsm = khi_lsm;
+    const int islake = 21;
+
+    MultiFab saved_tsurf = lsm_fab_vars[LsmVar_SLM::tsurf]->deepCopy();
+    MultiFab saved_soilt = lsm_fab_vars[LsmVar_SLM::soilt]->deepCopy();
+    MultiFab saved_soilw = lsm_fab_vars[LsmVar_SLM::soilw]->deepCopy();
+    Vector<std::unique_ptr<MultiFab>> saved_data;
+    Vector<std::unique_ptr<MultiFab>> saved_unmapped;
+    if (preserve_checkpoint_fields) {
+        saved_data.resize(m_lsm_data_size);
+        for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+            saved_data[ivar] = std::make_unique<MultiFab>(
+                lsm_fab_vars[LsmDataMap[ivar]]->deepCopy());
+        }
+        saved_unmapped.resize(unmapped_fields.size());
+        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+            saved_unmapped[ivar] = std::make_unique<MultiFab>(
+                lsm_fab_vars[unmapped_fields[ivar]]->deepCopy());
+        }
+    }
+
+    for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        auto vegtype_arr = lsm_fab_vars[LsmVar_SLM::vegtype]->const_array(mfi);
+        auto lai_in_arr = lsm_fab_vars[LsmVar_SLM::lai]->const_array(mfi);
+        auto tsurf_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->const_array(mfi);
+
+        auto landmask_arr = landmask.array(mfi);
+        auto landtype_arr = landtype.array(mfi);
+        auto lai_arr = LAI.array(mfi);
+        auto sstxy_arr = sstxy.array(mfi);
+        auto tskin_arr = t_skin.array(mfi);
+        auto vegetype_arr = vegetype.array(mfi);
+        auto vege_yes_arr = vege_YES.array(mfi);
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            const int input_landtype = static_cast<int>(vegtype_arr(i, j, d_khi_lsm));
+            const bool water = input_landtype <= 0 || input_landtype == 17 || input_landtype == islake;
+            const int normalized_landtype = (input_landtype > 16) ? 14 : input_landtype;
+
+            landmask_arr(i, j, 0) = water ? 0 : 1;
+            landtype_arr(i, j, 0) = water ? 0 : normalized_landtype;
+            lai_arr(i, j, 0) = lai_in_arr(i, j, d_khi_lsm);
+            sstxy_arr(i, j, 0) = tsurf_arr(i, j, d_khi_lsm);
+            tskin_arr(i, j, 0) = tsurf_arr(i, j, d_khi_lsm);
+            vegetype_arr(i, j, 0) = water ? 0 : 1;
+            vege_yes_arr(i, j, 0) = water ? 0.0 : 1.0;
+        });
+    }
+
+    slm_init();
+
+    const IntVect state_ng = lsm_fab_vars[LsmVar_SLM::tsurf]->nGrowVect();
+    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::tsurf], saved_tsurf, 0, 0, 1, state_ng);
+    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt], saved_soilt, 0, 0, 1, state_ng);
+    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw], saved_soilw, 0, 0, 1, state_ng);
+
+    for (MFIter mfi(*lsm_fab_vars[LsmVar_SLM::tsurf], TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox().makeSlab(2, 0);
+        auto tsurf_arr = lsm_fab_vars[LsmVar_SLM::tsurf]->array(mfi);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            tsurf_arr(i, j, 0) = tsurf_arr(i, j, d_khi_lsm);
+        });
+    }
+
+    init_slm_vars();
+
+    if (preserve_checkpoint_fields) {
+        for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+            const IntVect ng = lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect();
+            MultiFab::Copy(*lsm_fab_vars[LsmDataMap[ivar]], *saved_data[ivar],
+                           0, 0, 1, ng);
+        }
+        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+            const IntVect ng = lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect();
+            MultiFab::Copy(*lsm_fab_vars[unmapped_fields[ivar]], *saved_unmapped[ivar],
+                           0, 0, 1, ng);
+        }
+    }
 }
 
 /**

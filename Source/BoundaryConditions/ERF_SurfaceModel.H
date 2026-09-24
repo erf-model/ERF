@@ -150,14 +150,20 @@ public:
         wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
 
-        // Create new level for all registered fields
+        // Recreate registered fields on the current level layout. This is also
+        // needed when an existing AMR level is remade with a new grid layout.
         for (int field=0; field < fields.size(); field++) {
             if (fields[field].size() < m_nlevs) {
                 fields[field].resize(m_nlevs);
-                fields[field][lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
-                fields[field][lev]->setVal(0.0);
             }
+            fields[field][lev] = std::make_unique<amrex::MultiFab>(
+                m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
+            fields[field][lev]->setVal(0.0);
         }
+
+        // Cached radiation fields point into the registered storage above.
+        // Rebuild the cache when this level's fields have been replaced.
+        rad_fields[lev].clear();
 
         // Interpolate the new finer level using coarse data
         if (lev > 0) {

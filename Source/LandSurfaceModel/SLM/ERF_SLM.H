@@ -222,6 +222,26 @@ public:
           std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
           amrex::Vector<amrex::Vector<std::string>>& nc_init_file) override;
 
+    /**
+     * Rebuilds SLM arrays on a remade atmospheric grid and transfers state.
+     */
+    void
+    Lsm_Regrid_Level (const int& lev,
+                      const amrex::MultiFab& cons_in,
+                      const amrex::MultiFab& u_in,
+                      const amrex::MultiFab& v_in,
+                      const amrex::Geometry& geom,
+                      const amrex::Geometry& geom0,
+                      amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                      amrex::IntVect& refRatio,
+                      const amrex::Real& dt,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
+                      amrex::Vector<amrex::Vector<std::string>>& nc_init_file,
+                      const amrex::Geometry& source_geom,
+                      const amrex::Geometry& source_lsm_geom,
+                      const amrex::IntVect& source_ref_ratio,
+                      const bool has_source) override;
+
     // Wrapper to do all the updating
     void
     Advance (const double& dt) override
@@ -247,23 +267,7 @@ public:
                 this->init_wrfinput_vars();
             }
 
-            // update zref using updated z_phys_nd
-            amrex::Real zlo      = m_geom.ProbLo(2);
-            amrex::Real dz       = m_geom.CellSize(2);
-            for ( amrex::MFIter mfi(landtype,TileNoZ()); mfi.isValid(); ++mfi) {
-                const amrex::Box& xybx      = mfi.growntilebox(0);
-                const amrex::Array4<const amrex::Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : amrex::Array4<amrex::Real>{};
-                auto ztop_arr = ztop.array(mfi);
-                auto zrefxy_arr = zrefxy.array(mfi);
-                auto landmask_arr = landmask.const_array(mfi);
-
-                ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                    if (landmask_arr(i,j,0) == 1) {
-                        amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
-                        zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
-                    }
-                });
-            }
+            initialize_zrefxy();
         }
 
         this->AdvanceSLM();
@@ -298,6 +302,79 @@ public:
     // Get lsm geometry
     amrex::Geometry
     Lsm_Geom ( ) override { return m_lsm_geom; }
+
+    /**
+     * Returns the atmospheric geometry used by SLM coupling fields.
+     */
+    amrex::Geometry
+    Lsm_Atmos_Geom () override { return m_geom; }
+
+    /**
+     * Registers an exposed source data field.
+     */
+    void
+    Lsm_Set_Source_Data_Ptr (const int& varIdx,
+                             amrex::MultiFab* source_data_ptr) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_data_size);
+        if (source_data.size() != m_lsm_data_size) {
+            source_data.resize(m_lsm_data_size, nullptr);
+        }
+        source_data[varIdx] = source_data_ptr;
+    }
+
+    /**
+     * Registers an exposed source flux field.
+     */
+    void
+    Lsm_Set_Source_Flux_Ptr (const int& varIdx,
+                             amrex::MultiFab* source_flux_ptr) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_flux_size);
+        if (source_flux.size() != m_lsm_flux_size) {
+            source_flux.resize(m_lsm_flux_size, nullptr);
+        }
+        source_flux[varIdx] = source_flux_ptr;
+    }
+
+    /**
+     * Returns the number of private SLM state fields.
+     */
+    int
+    Lsm_Unmapped_Size () override { return unmapped_fields.size(); }
+
+    /**
+     * Returns a private SLM state field.
+     */
+    amrex::MultiFab*
+    Lsm_Unmapped_Ptr (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < unmapped_fields.size());
+        return lsm_fab_vars[unmapped_fields[varIdx]].get();
+    }
+
+    /**
+     * Registers a private source SLM state field.
+     */
+    void
+    Lsm_Set_Source_Unmapped_Ptr (const int& varIdx,
+                                  amrex::MultiFab* source_data_ptr) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < unmapped_fields.size());
+        if (source_unmapped.size() != unmapped_fields.size()) {
+            source_unmapped.resize(unmapped_fields.size(), nullptr);
+        }
+        source_unmapped[varIdx] = source_data_ptr;
+    }
+
+    /**
+     * Transfers exposed state from a source AMR level.
+     */
+    void
+    Lsm_Interpolate_From_Source (const amrex::Geometry& source_geom,
+                                 const amrex::Geometry& source_lsm_geom,
+                                 const amrex::IntVect& ref_ratio,
+                                 LSMTransferMode mode) override;
 
     // Get number of vars lsm class contains
     int
@@ -561,6 +638,16 @@ public:
     void ReadCheckpoint(const int &lev, const std::string &checkpointname) override;
 
 private:
+    /**
+     * Initializes the canopy-adjusted reference height on the current grid.
+     */
+    void initialize_zrefxy();
+
+    /**
+     * Rebuilds SLM-local fields after transferring an evolved state.
+     */
+    void initialize_processed_state(const bool preserve_checkpoint_fields = false);
+
     // number of lsm variables (theta)
     int m_lsm_data_size = 44;
 
@@ -578,8 +665,17 @@ private:
     // geometry for atmosphere
     amrex::Geometry m_geom;
 
+    // geometry for atmospheric level 0
+    amrex::Geometry m_geom0;
+
     // geometry for lsm
     amrex::Geometry m_lsm_geom;
+
+    // geometry for the level-0 soil grid
+    amrex::Geometry m_lsm_geom0;
+
+    // domain boundary conditions used by interpolation
+    amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
     amrex::BoxArray ba_lsm_2d;
 
@@ -596,6 +692,11 @@ private:
 
     // flux array for conjugate transfer
     amrex::Array<FabPtr, LsmFlux_SLM::NumVars> lsm_fab_flux;
+
+    // Source fields used to transfer SLM state between AMR levels.
+    amrex::Vector<amrex::MultiFab*> source_data;
+    amrex::Vector<amrex::MultiFab*> source_flux;
+    amrex::Vector<amrex::MultiFab*> source_unmapped;
 
     // Number of grid points in z
     int m_nz_lsm = 7;

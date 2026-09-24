@@ -1269,10 +1269,6 @@ ERF::InitData_post ()
                                                                                         flux_offset + lsm.Get_FluxIdx(0, "q_flux"),
                                                                                         lsm.Get_DataIdx(0, tsurf_name)}, true);
 
-            // Populate weighted outputs before the initial surface-layer update.
-            for (int lev = 0; lev <= finest_level; ++lev) {
-                m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
-            }
         }
 
         /*
@@ -1299,6 +1295,18 @@ ERF::InitData_post ()
                                                                                          UrbanVar_BEP::vl}, true);
         }
         */
+
+        // Populate weighted outputs after all active surface models are registered.
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            /*
+            if (solverChoice.lsm_type == LandSurfaceType::None &&
+                (solverChoice.urban_type == UrbanType::None ||
+                 solverChoice.urban_enabled_lev[lev] == 0)) {
+                continue;
+            }
+            */
+            m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+        }
 
         // Define surface value mapping between SLM and BEM_BEP
         if (solverChoice.lsm_type == LandSurfaceType::SLM) {
@@ -1993,7 +2001,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
 // update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the LSM reads it as well.
+// into a potential temperature for the surface layer, and the active land-surface model
+// consumes it as well.
 //
 void
 ERF::interp_psfc_from_coarse (int lev)

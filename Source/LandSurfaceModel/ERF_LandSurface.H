@@ -182,6 +182,85 @@ public:
     int
     Get_DataIdx (const int& lev, const std::string& varname) { return m_lsm_model[lev]->Lsm_DataIndex(varname); }
 
+    /**
+     * Registers a source level's exposed state with a destination level.
+     */
+    void
+    Set_Source_Ptrs (const int& lev, const int& source_lev)
+    {
+        AMREX_ALWAYS_ASSERT(lev > 0);
+        AMREX_ALWAYS_ASSERT(source_lev >= 0);
+        AMREX_ALWAYS_ASSERT(m_lsm_model[lev]->Lsm_Type() == m_lsm_model[source_lev]->Lsm_Type());
+
+        const int ndata = m_lsm_model[lev]->Lsm_Data_Size();
+        AMREX_ALWAYS_ASSERT(ndata == m_lsm_model[source_lev]->Lsm_Data_Size());
+        for (int varIdx(0); varIdx<ndata; ++varIdx) {
+            m_lsm_model[lev]->Lsm_Set_Source_Data_Ptr(
+                varIdx, m_lsm_model[source_lev]->Lsm_Data_Ptr(varIdx));
+        }
+
+        const int nflux = m_lsm_model[lev]->Lsm_Flux_Size();
+        AMREX_ALWAYS_ASSERT(nflux == m_lsm_model[source_lev]->Lsm_Flux_Size());
+        for (int varIdx(0); varIdx<nflux; ++varIdx) {
+            m_lsm_model[lev]->Lsm_Set_Source_Flux_Ptr(
+                varIdx, m_lsm_model[source_lev]->Lsm_Flux_Ptr(varIdx));
+        }
+
+        const int nunmapped = m_lsm_model[lev]->Lsm_Unmapped_Size();
+        AMREX_ALWAYS_ASSERT(nunmapped == m_lsm_model[source_lev]->Lsm_Unmapped_Size());
+        for (int varIdx(0); varIdx<nunmapped; ++varIdx) {
+            m_lsm_model[lev]->Lsm_Set_Source_Unmapped_Ptr(
+                varIdx, m_lsm_model[source_lev]->Lsm_Unmapped_Ptr(varIdx));
+        }
+    }
+
+    /**
+     * Initializes a level from a source level using the requested state mode.
+     */
+    void
+    Initialize_From_Source (const int& lev, const int& source_lev,
+                            const amrex::IntVect& ref_ratio,
+                            const LSMTransferMode mode)
+    {
+        Set_Source_Ptrs(lev, source_lev);
+        m_lsm_model[lev]->Lsm_Interpolate_From_Source(
+            m_lsm_model[source_lev]->Lsm_Atmos_Geom(),
+            m_lsm_model[source_lev]->Lsm_Geom(), ref_ratio, mode);
+    }
+
+    /**
+     * Rebuilds a land-surface level after ERF remakes its atmospheric grid.
+     */
+    void
+    Remake_Level (const int& lev,
+                  const amrex::MultiFab& cons_in,
+                  const amrex::MultiFab& u_in,
+                  const amrex::MultiFab& v_in,
+                  const amrex::Geometry& geom,
+                  const amrex::Geometry& geom0,
+                  amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                  amrex::IntVect& ref_ratio,
+                  const amrex::Real& dt_advance,
+                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                  amrex::Vector<amrex::Vector<std::string>>& nc_init_file,
+                  const int source_lev = -1,
+                  const amrex::IntVect& source_ref_ratio = amrex::IntVect(1))
+    {
+        const bool has_source = source_lev >= 0;
+        if (has_source) {
+            Set_Source_Ptrs(lev, source_lev);
+        }
+
+        const amrex::Geometry& source_geom = has_source
+            ? m_lsm_model[source_lev]->Lsm_Atmos_Geom() : geom;
+        const amrex::Geometry& source_lsm_geom = has_source
+            ? m_lsm_model[source_lev]->Lsm_Geom() : geom;
+        m_lsm_model[lev]->Lsm_Regrid_Level(
+            lev, cons_in, u_in, v_in, geom, geom0, domain_bcs_type,
+            ref_ratio, dt_advance, z_phys_nd, nc_init_file,
+            source_geom, source_lsm_geom, source_ref_ratio, has_source);
+    }
+
     void
     Set_Lev0_Data_Ptr (const int& lev) {
         // Ensure the same type of model for copy in place of flux data
