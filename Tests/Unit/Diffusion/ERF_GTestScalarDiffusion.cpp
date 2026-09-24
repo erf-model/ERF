@@ -2255,8 +2255,9 @@ TEST(
     for (int j = xfaces.smallEnd(1); j <= xfaces.bigEnd(1); ++j) {
       for (int i = xfaces.smallEnd(0); i <= xfaces.bigEnd(0); ++i) {
         for (int n = 0; n < raw_x.nComp(); ++n) {
-          if (n != raw_flux_comp)
+          if (n != raw_flux_comp) {
             EXPECT_DOUBLE_EQ(hrawx4(i, j, k, n), Real(800.0) + n);
+          }
         }
       }
     }
@@ -2265,8 +2266,9 @@ TEST(
     for (int j = yfaces.smallEnd(1); j <= yfaces.bigEnd(1); ++j) {
       for (int i = yfaces.smallEnd(0); i <= yfaces.bigEnd(0); ++i) {
         for (int n = 0; n < raw_y.nComp(); ++n) {
-          if (n != raw_flux_comp)
+          if (n != raw_flux_comp) {
             EXPECT_DOUBLE_EQ(hrawy4(i, j, k, n), Real(810.0) + n);
+          }
         }
       }
     }
@@ -2275,8 +2277,9 @@ TEST(
     for (int j = zfaces.smallEnd(1); j <= zfaces.bigEnd(1); ++j) {
       for (int i = zfaces.smallEnd(0); i <= zfaces.bigEnd(0); ++i) {
         for (int n = 0; n < raw_z.nComp(); ++n) {
-          if (n != raw_flux_comp)
+          if (n != raw_flux_comp) {
             EXPECT_DOUBLE_EQ(hrawz4(i, j, k, n), Real(820.0) + n);
+          }
         }
         for (int n = 0; n < reconstructed_z.nComp(); ++n) {
           if (n != mapped_flux_comp) {
