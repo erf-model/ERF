@@ -335,9 +335,13 @@ TEST(ScalarAdvectionPrimitives, HigherOrderFluxUsesRequestedScalarAndFluxCompone
 }
 
 // Motivation: Native ERF stores primitive scalar n one component below its
-// conserved counterpart. The public native adapter must preserve that legacy
-// mapping while delegating numerical work to the component-explicit scalar
-// primitives.
+// conserved counterpart, and stores the face flux in the component matching
+// the conserved counterpart, because the flux registers reflux state
+// component n from flux component n. The public native adapter must preserve
+// both mappings while delegating numerical work to the component-explicit
+// scalar primitives, and must not clobber the flux components belonging to
+// other conserved variables (in particular component 0, which carries the
+// density flux built just before the scalars in the pre-RHS).
 TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
 {
     const Box bx = test_cell_box();
@@ -347,12 +351,12 @@ TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
     FArrayBox xmom(amrex::surroundingNodes(bx,0), 1);
     FArrayBox ymom(amrex::surroundingNodes(bx,1), 1);
     FArrayBox zmom(amrex::surroundingNodes(bx,2), 1);
-    FArrayBox native_xflux(amrex::surroundingNodes(bx,0), 2);
-    FArrayBox native_yflux(amrex::surroundingNodes(bx,1), 2);
-    FArrayBox native_zflux(amrex::surroundingNodes(bx,2), 2);
-    FArrayBox explicit_xflux(amrex::surroundingNodes(bx,0), 2);
-    FArrayBox explicit_yflux(amrex::surroundingNodes(bx,1), 2);
-    FArrayBox explicit_zflux(amrex::surroundingNodes(bx,2), 2);
+    FArrayBox native_xflux(amrex::surroundingNodes(bx,0), kNumComponents);
+    FArrayBox native_yflux(amrex::surroundingNodes(bx,1), kNumComponents);
+    FArrayBox native_zflux(amrex::surroundingNodes(bx,2), kNumComponents);
+    FArrayBox explicit_xflux(amrex::surroundingNodes(bx,0), kNumComponents);
+    FArrayBox explicit_yflux(amrex::surroundingNodes(bx,1), kNumComponents);
+    FArrayBox explicit_zflux(amrex::surroundingNodes(bx,2), kNumComponents);
     FArrayBox native_rhs(bx, kNumComponents + 1);
     FArrayBox explicit_rhs(bx, kNumComponents + 1);
     FArrayBox detJ(bx, 1);
@@ -394,8 +398,8 @@ TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
                            AdvType::Centered_2nd, AdvType::Centered_2nd,
                            Real(0.0), Real(0.0), native_flux, bx, closed_bcs.data());
     BuildScalarAdvectionFluxesCentered2(bx, scalar.const_array(), kScalarComp, explicit_flux,
-                                        0, xmom.const_array(), ymom.const_array(), zmom.const_array());
-    ApplyScalarAdvectionFluxDivergence(bx, explicit_flux, 0, explicit_rhs.array(), cons_comp,
+                                        cons_comp, xmom.const_array(), ymom.const_array(), zmom.const_array());
+    ApplyScalarAdvectionFluxDivergence(bx, explicit_flux, cons_comp, explicit_rhs.array(), cons_comp,
                                        detJ.const_array(), cellSizeInv,
                                        mf_mx.const_array(), mf_my.const_array());
     gpu_sync();
@@ -434,7 +438,13 @@ TEST(ScalarAdvectionPrimitives, NativeAdapterMatchesExplicitPrimitiveMapping)
         for (int k = flux_box.smallEnd(2); k <= flux_box.bigEnd(2); ++k) {
             for (int j = flux_box.smallEnd(1); j <= flux_box.bigEnd(1); ++j) {
                 for (int i = flux_box.smallEnd(0); i <= flux_box.bigEnd(0); ++i) {
-                    expect_close(native_arr(i,j,k,0), explicit_arr(i,j,k,0));
+                    expect_close(native_arr(i,j,k,cons_comp), explicit_arr(i,j,k,cons_comp));
+                    // Every other flux component -- component 0 above all --
+                    // must be left exactly as the caller supplied it.
+                    for (int n = 0; n < native_flux_fab[dir]->nComp(); ++n) {
+                        if (n == cons_comp) { continue; }
+                        expect_close(native_arr(i,j,k,n), flux_sentinel(n));
+                    }
                 }
             }
         }

@@ -1,6 +1,8 @@
 #ifndef ERF_ADVECTION_SRC_FOR_SCALARS_H_
 #define ERF_ADVECTION_SRC_FOR_SCALARS_H_
 
+#include <AMReX.H>
+
 #include <ERF_IndexDefines.H>
 #include <ERF_Interpolation.H>
 
@@ -171,7 +173,12 @@ BuildScalarAdvectionFluxesVert (
             avg_xmom, avg_ymom, avg_zmom, horiz_upw_frac, vert_upw_frac);
         break;
     default:
-        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown vertical advection scheme!");
+        // Not an assert: under NDEBUG that would compile away and leave the
+        // face fluxes unwritten, so the divergence below would silently
+        // consume whatever stale data is in this flux component.  Note that
+        // the WENO schemes have no vertical-only variant -- they must be
+        // selected for both the horizontal and the vertical direction.
+        amrex::Abort("Unknown or unsupported vertical advection scheme!");
     }
 }
 
@@ -283,7 +290,9 @@ BuildScalarAdvectionFluxes (
             avg_xmom, avg_ymom, avg_zmom, horiz_upw_frac, vert_upw_frac);
         break;
     default:
-        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
+        // See the note in BuildScalarAdvectionFluxesVert: an assert here would
+        // vanish under NDEBUG and leave stale fluxes in place of an error.
+        amrex::Abort("Unknown horizontal advection scheme!");
     }
 }
 
