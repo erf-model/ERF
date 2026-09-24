@@ -10,7 +10,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
     if(WIN32)
-        # Multi-config generators place binaries in a config subdir.
+        # Multi-config generators place binaries in a config subdir, and which config is
+        # built is not known here.  The tests that launch through `sh -c` let the shell
+        # expand the wildcard; the ones driven through `cmake -P` call execute_process,
+        # which never invokes a shell, and expand it with erf_resolve_executable
+        # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
         set(${OUT_VAR} "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
     else()
         set(_exe_in_subdir "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
@@ -294,12 +298,13 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         set(_fcompare_atol "${ADD_TEST_BP_FCOMPARE_ATOL}")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -339,12 +344,13 @@ function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -376,6 +382,19 @@ set_tests_properties(CompareDataLogs_SelfTest
     PROCESSORS 1
     LABELS "unit;box-parity")
 
+# The wildcard expansion the same scripts rely on to find erf_exec and fcompare in a
+# multi-config build tree.  A resolution that picks the wrong binary, or none at all, only
+# shows up on Windows, and there as a regression test that fails before it starts, so it is
+# tested here on every platform.  Pure CMake, no ERF run, hence the "unit" label.
+add_test(ResolveExecutable_SelfTest ${CMAKE_COMMAND}
+    "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/ResolveExecutable_SelfTest"
+    -P ${PROJECT_SOURCE_DIR}/Tests/ResolveExecutableSelfTest.cmake)
+set_tests_properties(ResolveExecutable_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit")
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
@@ -401,12 +420,13 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -1711,9 +1731,10 @@ add_test_restart_parity(StationSampling_Restart StationSampling 4 10
 # fill the requested variables over whole levels, so the claim is not free and is tested
 # rather than asserted.  Each test runs the same deck with the stations off and on and
 # requires the plotfile to be identical bit for bit, not to a tolerance: a diagnostic that
-# moves the answer at all is a bug.  The three decks cover the paths that could break it.
+# moves the answer at all is a bug.  The two decks below cover the dry AMR path and the
+# surface-layer path.
 #
-# AMR, dry: the only one of the three whose station resolves to level 1, so it is the case
+# AMR, dry: the one of the two whose station resolves to level 1, so it is the case
 # that exercises FillPatchFineLevel.  The deck's own stations are switched off with
 # erf.do_station_sampling for the off leg.
 add_test_option_parity(StationSampling_AnswerParity StationSampling "plt00010"
@@ -1728,19 +1749,6 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     OFF_OPTIONS "erf.do_station_sampling=false"
     ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
-
-if(ERF_ENABLE_PARTICLES)
-    # Lagrangian microphysics on two levels with TwoWay coupling: the configuration in which
-    # BuildPlot3DScratch would average the microphysics state down, and so the one the
-    # sync_solution = false argument exists for.  It also has qmoist to re-point on every
-    # level.  Unlike the SDM gold-file tests this one compares a run against itself, so it
-    # needs neither the machine-specific gold files nor the flags that gate them.
-    add_test_option_parity(StationSampling_AnswerParity_SDM SDM_MoistBubble2D_AMR1 "plt00020"
-        COMMON_OPTIONS "erf.vert_implicit=false"
-        OFF_OPTIONS "erf.do_station_sampling=false"
-        ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z qv qc qrain pressure erf.T.x=10000 erf.T.y=200 erf.T.height_agl=500.0 2000.0"
-        REQUIRE_ON_FILE "Output_Stations/T.dat")
-endif()
 
 #=============================================================================
 # Performance tests

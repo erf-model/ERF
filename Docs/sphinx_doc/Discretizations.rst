@@ -154,6 +154,50 @@ Contributions from different directions
 .. image:: figures/grid_discretization/scalar_advec_z.PNG
   :width: 400
 
+Scalar-advection field interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ERF evaluates cell-centered scalar advection by reconstructing the primitive
+scalar to each cell face, multiplying the reconstructed value by the
+time-averaged mass flux through that face, and taking the finite-volume
+divergence of the resulting scalar fluxes.
+
+For the regular-grid and terrain-following scalar operator, the mapped
+divergence has the form
+
+.. math::
+
+   \left.\frac{\partial (\rho C)}{\partial t}\right|_{\mathrm{adv}}
+   =
+   -\frac{m_x m_y}{J}
+   \left(
+       \frac{\partial F_x}{\partial x}
+       +
+       \frac{\partial F_y}{\partial y}
+       +
+       \frac{\partial F_z}{\partial z}
+   \right),
+
+where :math:`J` is the metric Jacobian, :math:`m_x` and :math:`m_y` are the
+cell-centered map factors, and each :math:`F_d` is the time-averaged mass flux
+in direction :math:`d` multiplied by the reconstructed scalar value on that
+face.
+
+The scalar-advection implementation treats the scalar input field, face-flux
+storage, and output tendency as independent component views. ERF's native
+state adapter maps the model's primitive-scalar layout onto those views, but
+the numerical reconstruction and divergence operators do not require the
+scalar to occupy a native conserved-state component. This separation allows
+the same regular scalar-advection implementation to be reused by future
+cell-centered scalar fields without first staging those fields into the
+native conserved state.
+
+This is an implementation interface rather than a new runtime option. It does
+not change the available advection schemes, their configured inputs, or the
+numerical treatment of ERF's existing scalar state. This change does not add
+an auxiliary tracer. Embedded-boundary scalar reconstruction and cut-cell
+divergence retain their specialized EB implementation.
+
 Diagnostic Variables
 --------------------
 
@@ -455,6 +499,143 @@ Scalar Diffusion
 
 **Note**: In WRF, the diffusion coefficients specified in the input file (:math:`K_h` and :math:`K_v` for horizontal and vertical diffusion) get divided by the Prandtl number for
 the potential temperature and the scalars. For the momentum, they are used as it is. In ERF, the coefficients specified in the inputs (:math:`\alpha_T` and :math:`\alpha_C`) are used as it is, and no division by Prandtl number is done.
+
+Scalar-diffusion field interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a cell-centered intensive scalar :math:`\chi`, ERF writes the signed
+diffusive flux as
+
+.. math::
+
+   \mathbf{F}^D = -K \nabla \chi,
+
+so its contribution to the conservative scalar equation is
+
+.. math::
+
+   \left.\frac{\partial(\rho\chi)}{\partial t}\right|_D
+   = -\nabla\cdot\mathbf{F}^D.
+
+The effective transport coefficient :math:`K` may contain molecular and
+turbulent contributions. Coefficient selection is separate from scalar
+identity: the native state adapter selects the thermal, TKE, passive-scalar,
+or moisture coefficient category, while the numerical operator consumes an
+explicit scalar component and coefficient policy. The scalar component,
+density component, face-flux component, and output-tendency component are
+independent. The non-embedded-boundary N, S, and T spatial operators therefore
+do not require an arbitrary intensive scalar to be staged in ERF's conserved
+state layout.
+
+The field-level entry points are ``BuildScalarDiffusionFluxes_N``,
+``BuildScalarDiffusionFluxes_S``, and ``BuildScalarDiffusionFluxes_T`` in
+``ERF_ScalarDiffusion.H``. Each accepts independent field views and component
+indices, a coefficient policy, boundary-condition selection, and its grid and
+map-factor data. The raw signed diffusion flux is
+:math:`\mathbf{F}^D=-K\nabla\chi`. A **mapped face transfer** is the conservative
+flux rate whose computational-coordinate difference enters the tendency; it
+is not multiplied by :math:`dt`. Native divergence operations consume the
+component-explicit face fluxes and geometry directly. Native conserved-state
+mapping remains in ``ERF_NativeScalarDiffusion.H``.
+
+For N geometry, current x/y builder outputs already include the horizontal
+map factors (``mf_ux/mf_uy`` and ``mf_vy/mf_vx``), so they are the mapped x/y
+transfers. For N and S, map the raw vertical face flux once as
+
+.. math::
+
+   \widetilde F_z = \frac{F_z^D}{m_xm_y}.
+
+N divergence is
+
+.. math::
+
+   R_D = -m_xm_y\left[
+       \delta_x\widetilde F_x\,\Delta x^{-1}
+      +\delta_y\widetilde F_y\,\Delta y^{-1}
+      +\delta_z\widetilde F_z\,\Delta z^{-1}\right].
+
+S uses the same x/y and vertical map convention, but its vertical difference
+is divided by the receiving cell's stretched width :math:`\Delta z_k`; it is
+not a uniform-:math:`dz` operator:
+
+.. math::
+
+   R_D = -m_xm_y\left[
+       \delta_x\widetilde F_x\,\Delta x^{-1}
+      +\delta_y\widetilde F_y\,\Delta y^{-1}
+      +\frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}
+             {\Delta z_k}\right].
+
+On terrain-following coordinates with lateral map factors :math:`m_x` and
+:math:`m_y`, ERF stores face :math:`h_\zeta` in ``ax`` / ``ay`` (x-face /
+y-face respectively). The full coordinate Jacobian is
+
+.. math::
+
+   J = \frac{h_\zeta}{m_xm_y}.
+
+In this scalar-diffusion implementation, the cell array ``detJ`` stores
+:math:`h_\zeta`, not the full coordinate Jacobian :math:`J`; the horizontal
+:math:`m_xm_y` factor is applied separately by the native discrete divergence.
+The mapped x/y face quantities include the face heights and the opposite
+lateral map factor:
+
+.. math::
+
+   \widetilde F_x = \frac{a_x}{m_{u,y}}F_x^D, \qquad
+   \widetilde F_y = \frac{a_y}{m_{v,x}}F_y^D.
+
+At a k face, distinguish the raw physical vertical flux :math:`F_z^D`, the
+terrain numerator :math:`G_\zeta`, and the mathematical mapped vertical
+transfer :math:`\widetilde F_\zeta`:
+
+.. math::
+
+   \begin{aligned}
+   G_\zeta &= F_z^D - m_x h_\xi\overline{F_x^D}
+                       - m_y h_\eta\overline{F_y^D}, \\
+   \widetilde F_\zeta &= \frac{G_\zeta}{m_xm_y}.
+   \end{aligned}
+
+Here :math:`\overline{F_x^D}` and :math:`\overline{F_y^D}` use ERF's four-face
+interior averages and one-sided physical bottom/top extrapolations. The terrain
+face-flux helpers own the raw x/y/z gradient stencils. The native T divergence
+constructs :math:`G_\zeta` and consumes it directly; it does not divide by
+:math:`m_xm_y` and multiply that value back in the cell divergence.
+
+The native discrete T contribution is
+
+.. math::
+
+   D = \frac{
+       (\widetilde F_{x,hi}-\widetilde F_{x,lo})\Delta x^{-1}m_xm_y
+      +(\widetilde F_{y,hi}-\widetilde F_{y,lo})\Delta y^{-1}m_xm_y
+      +(G_{\zeta,hi}-G_{\zeta,lo})\Delta z^{-1}
+      }{\mathrm{detJ}}.
+
+Here :math:`\widetilde F_{x,hi/lo}` and :math:`\widetilde F_{y,hi/lo}` are the
+mapped x/y face quantities defined above, and :math:`G_{\zeta,hi/lo}` are the
+terrain numerators at the upper and lower k faces. The raw :math:`F_z^D` alone
+does not include the terrain cross terms on sloping terrain.
+
+For semi-implicit vertical diffusion, ERF first constructs the full spatial
+diffusion flux. The explicit/implicit split scales only the raw
+:math:`F_z^D` contribution. The terrain cross terms remain explicit, so the
+explicit transformed numerator is
+
+.. math::
+
+   G_{\zeta,\mathrm{explicit}} =
+   (1-f_{\mathrm{implicit}})F_z^D
+   -m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}.
+
+Heat and moisture diagnostics continue to store the full raw vertical face
+flux independently of this integration fraction. This is an implementation
+interface and does not add a runtime option or change the configured diffusion
+schemes. Embedded-boundary diffusion, implicit flux recovery, and AMR
+diffusion reflux remain future work; the implicit tridiagonal solvers keep
+their specialized implementations.
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================

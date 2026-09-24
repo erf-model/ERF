@@ -96,6 +96,6 @@
     Gpu::copy(Gpu::hostToDevice, eddy_diff_idz.begin(), eddy_diff_idz.end(), eddy_diff_idz_d.begin());
 
     // Capture pointers for device code
-    Real* d_alpha_eff     = alpha_eff_d.data();
+    [[maybe_unused]] Real* d_alpha_eff     = alpha_eff_d.data();
     [[maybe_unused]] int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
 /** \endcond */

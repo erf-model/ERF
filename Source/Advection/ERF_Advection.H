@@ -393,9 +393,45 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const int domhi_z);
 
+/** Compute advection tendencies for scalar fields tangential to open BC.
+ *
+ * @param[in] bx box over which scalar tendencies are updated
+ * @param[in] x_side lateral x boundary, if any
+ * @param[in] y_side lateral y boundary, if any
+ * @param[in] scalar_icomp first component of the supplied scalar view to read
+ * @param[in] rhs_icomp first component of the supplied tendency view to write
+ * @param[in] ncomp number of components to update
+ * @param[out] rhs tendency view
+ * @param[in] scalar supplied scalar view
+ * @param[in] avg_xmom x-component of time-averaged mass flux
+ * @param[in] avg_ymom y-component of time-averaged mass flux
+ * @param[in] avg_zmom z-component of time-averaged mass flux
+ * @param[in] detJ metric Jacobian
+ * @param[in] cellSizeInv inverse grid spacing
+ *
+ * At a corner both sides are set, so neither direction is differenced across
+ * its open boundary.
+ */
+void
+AdvectionSrcForOpenBC_Tangent_Scalars (const amrex::Box& bx,
+                                       const OpenSide x_side,
+                                       const OpenSide y_side,
+                                       const int scalar_icomp,
+                                       const int rhs_icomp,
+                                       const int ncomp,
+                                       const amrex::Array4<      amrex::Real>& rhs,
+                                       const amrex::Array4<const amrex::Real>& scalar,
+                                       const amrex::Array4<const amrex::Real>& avg_xmom,
+                                       const amrex::Array4<const amrex::Real>& avg_ymom,
+                                       const amrex::Array4<const amrex::Real>& avg_zmom,
+                                       const amrex::Array4<const amrex::Real>& detJ,
+                                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
 /** Compute advection tendencies for conserved variables tangential to open BC
  *  `x_side` and `y_side` say which lateral boundaries the cells being updated lie on;
- *  both are set at a corner, where neither direction may be differenced across. */
+ *  both are set at a corner, where neither direction may be differenced across.
+ *  This native adapter maps conserved component `icomp + n` to primitive component
+ *  `icomp + n - 1` before calling the component-explicit scalar operation. */
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const OpenSide x_side,
