@@ -750,12 +750,6 @@ struct SolverChoice {
         }
 
         // What type of radiation model to use
-        pp.query("do_radiation", do_radiation);
-        pp.query("radiation_qsrc_file", qrad_file);
-#ifdef ERF_USE_RRTMGP
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(do_radiation == false, "do_radiation forcing option incompatible with RRTMG!");
-#endif
-
         rad_type = RadiationType::None; // Default
         pp.query_enum_case_insensitive("radiation_model", rad_type);
 
@@ -2265,10 +2259,6 @@ struct SolverChoice {
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
     RadiationType rad_type;
-
-    // Radiation model params
-    bool do_radiation {false};
-    std::string qrad_file;
 
     /** @brief True for the models that run through the IRadiation interface
      *  (RRTMGP, Simple); the two-stream model has its own class. */

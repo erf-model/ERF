@@ -137,9 +137,6 @@ Radiation::Radiation (const int& lev,
     pp.queryAdd("rad_orbital_year", m_orbital_year);
     m_fixed_orbital_year = (m_orbital_year >= 0);
 
-	// Determin start time 
-    pp.query("rad_day0",rad_day0);
-
     // Get orbital parameters from inputs file
     pp.queryAdd("rad_orbital_eccentricity", m_orbital_eccen);
     pp.queryAdd("rad_orbital_obliquity"   , m_orbital_obliq);
@@ -307,8 +304,6 @@ Radiation::set_grids (int& level,
         m_orbital_day  = timeinfo->tm_mday;
         m_orbital_sec  = timeinfo->tm_hour*3600 + timeinfo->tm_min*60 + timeinfo->tm_sec;
     }
-
-    amrex::Print() << "  RADIATION timestamp = " << timestamp << " orbital year = " << m_orbital_year << " mon = " << m_orbital_mon << " day = " << m_orbital_day << " sec = " << m_orbital_sec << std::endl;
 
     // Only allocate and proceed if we are going to update radiation
     m_update_rad = false;
@@ -1318,38 +1313,6 @@ Radiation::run_impl ()
         Kokkos::fence();
     }
 
-    //m_gas_concs.print_norms();
-
-    // TODO: No LSM so leaving comment for code
-    // Calculate T_int from longwave flux up from the surface, assuming
-    // blackbody emission with emissivity of 1.
-    /*
-    if (!m_lsm) {
-        // If no LSM, set default values for surface emissivity and LW src
-        yakl::memset(emis_sfc, 0.98);
-        yakl::memset(lw_src, 0.0);
-        //yakl::memset(lw_sfc_src, 0.0);
-
-        // if no LSM, then surface temp is lowest atmosphere temperature
-        const bool top_at_1 = false; // TODO: this assumes bottom is at 1
-        parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
-        {
-            t_sfc(icol) = t_lev(icol, yakl::intrinsics::merge(nlay+1, 1, top_at_1));
-        });
-    }
-
-    if (m_lsm)
-    {
-        // update t_lev at bottom with LSM surface temperature
-        const int kbot = 1; // TODO: assumes bottom is at 1
-        parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA(int icol)
-        {
-            //t_lev(icol, 1) = t_sfc(icol);
-            //t_lay(icol, 1) = 0.5 * (t_lev(icol, 1) + t_lev(icol, 2));
-        });
-    }
-    */
-
     // Determine the cosine zenith angle.
     // Populate mu0 1D array
     // This must be done on HOST and copied to device.
@@ -1378,7 +1341,6 @@ Radiation::run_impl ()
     // Compute layer cloud mass per unit area (populates lwp/iwp)
     rrtmgp::mixing_ratio_to_cloud_mass(qc_lay, cldfrac_tot, r_lay, z_del, lwp);
     rrtmgp::mixing_ratio_to_cloud_mass(qi_lay, cldfrac_tot, r_lay, z_del, iwp);
-
 
     // Convert to g/m2 (needed by RRTMGP)
     Table2D<Real,Order::C> lwp_tab(lwp.data(), {0,0}, {static_cast<int>(lwp.extent(0)),static_cast<int>(lwp.extent(1))});

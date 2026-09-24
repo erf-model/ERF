@@ -1257,9 +1257,6 @@ private:
     // solverChoice.rad_type == RadiationType::TwoStream.
     TwoStreamRadiation two_stream_rad;
 
-    int num_rad_times = -1;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qrad_forcings; // qrad src over time
-    amrex::Vector<amrex::Real> rad_times;
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
 #endif

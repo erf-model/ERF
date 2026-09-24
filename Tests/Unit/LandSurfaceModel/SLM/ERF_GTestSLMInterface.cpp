@@ -70,7 +70,6 @@ struct SLMTestState {
 void configure_slm_parameters ()
 {
     amrex::ParmParse pp("slm");
-    pp.add("radiation_scheme", "SLM");
     pp.add("nsoil", 7);
     pp.addarr("soil_dz", std::vector<amrex::Real>{
         amrex::Real(0.1), amrex::Real(0.2), amrex::Real(0.3),

@@ -67,5 +67,4 @@
                 cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
             }
         });
-
     }

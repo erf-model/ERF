@@ -1,7 +1,7 @@
 dane-build-and-test:
   variables:
     CI_MACHINE: "dane"
-    ON_DANE: "OFF"
+    ON_DANE: "ON"
   extends: [.build-and-test]
   rules:
     # Runs unless we explicitly deactivate this system
@@ -10,7 +10,7 @@ dane-build-and-test:
 matrix-build-and-test:
   variables:
     CI_MACHINE: "matrix"
-    ON_MATRIX: "OFF"
+    ON_MATRIX: "ON"
   extends: [.build-and-test]
   rules:
     # Runs unless we explicitly deactivate this system
@@ -19,7 +19,7 @@ matrix-build-and-test:
 tioga-build-and-test:
   variables:
     CI_MACHINE: "tioga"
-    ON_TIOGA: "OFF"
+    ON_TIOGA: "ON"
   extends: [.build-and-test]
   rules:
     # Runs unless we explicitly deactivate this system

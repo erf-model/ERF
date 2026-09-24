@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 169200 
+stop_time = 169200
 max_step = 25200
 
 amrex.fpe_trap_invalid = 0
@@ -10,7 +10,7 @@ amrex.the_arena_init_size = 5368709120 #10737418240 #can help with memory issues
 
 erf.check_for_nans = 2 # for debugging
 
-# PROBLEM SIZE & GEOMETRY 
+# PROBLEM SIZE & GEOMETRY
 geometry.prob_extent = 400000.        400000.       17500.
 amr.n_cell           = 400            400           47
 
@@ -24,7 +24,7 @@ yhi.type = "Outflow"
 
 zlo.type = "surface_layer"
 erf.most.z0                = 0.001  # for water body features when using SLM
-erf.most.surf_temp_flux    = 0.0  
+erf.most.surf_temp_flux    = 0.0
 erf.most.zref              = 15.0 # half first dz
 erf.most.average_policy    = 1
 erf.most.radius            = 0
@@ -94,13 +94,13 @@ erf.coriolis_3d       = true
 erf.terrain_type = "StaticFittedMesh"
 erf.terrain_smoothing = 2
 
-# Rayleigh 
+# Rayleigh
 erf.rayleigh_damping_type = FastImplicit
 erf.rayleigh_damp_W   = true
 erf.rayleigh_zdamp    = 5000.0
 erf.rayleigh_dampcoef = 0.2
 
-# Moisture 
+# Moisture
 erf.moisture_model = "MoistNoCondensation"
 
 # INITIALIZATION WITH ATM DATA
@@ -124,7 +124,6 @@ slm.Rc_max  = 5000.0  # maximum stomatal resistance
 slm.T_opt   = 298.0   # optimum temperature for transpiration
 slm.zref    = 15.0    # height of reference level (m)
 
-slm.radiation_scheme   = "NoahMP"            # internal SLM canopy/soil radiation treatment
 slm.use_parameter_file = true                # load SLM soil/vegetation parameters from a Noah-MP .TBL file
 slm.parameter_file     = "NoahmpTable.TBL"   # TBL file containing parameters for SLM
 slm.veg_dataset        = "modis"             # Vegetation parameter dataset to use from the parameter_file

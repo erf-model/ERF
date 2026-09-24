@@ -4,7 +4,7 @@
 #stop_time = 7200    #  2 hours
 stop_time = 43200   #  12 hours
 
-max_step = 2 
+max_step = 2
 
 amrex.fpe_trap_invalid = 0
 
@@ -63,7 +63,7 @@ zhi.type = "SlipWall"
 erf.fixed_dt           = 10.0 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 erf.use_mono_adv       = true
-    
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -107,7 +107,7 @@ erf.dryscal_vert_adv_type    = Upwind_3rd
 erf.moistscal_horiz_adv_type = WENO5
 erf.moistscal_vert_adv_type  = WENO5
 
-erf.terrain_z_levels = 0.0      75.0     153.3     241.1     341.7     457.7     593.8     755.7     953.0    1197.0    1498.4    1860.2    2274.2    2729.5    3212.6    3709.2    4209.2    4709.2    5209.2    5709.2    6209.2    6709.2    7209.2    7709.2    8209.2    8709.2    9209.2    9709.2   10209.2   10709.2   11209.2   11709.2   12209.2   12709.2   13209.2   13709.2   14209.2   14709.2   15209.2   15709.2   16209.2   16709.2   17209.2   17709.2   18209.2   18709.2   19209.2   19709.2   20209.2   20709.2   21209.2   21709.2   22209.2   22709.2   23209.2   23709.2   24209.2 
+erf.terrain_z_levels = 0.0      75.0     153.3     241.1     341.7     457.7     593.8     755.7     953.0    1197.0    1498.4    1860.2    2274.2    2729.5    3212.6    3709.2    4209.2    4709.2    5209.2    5709.2    6209.2    6709.2    7209.2    7709.2    8209.2    8709.2    9209.2    9709.2   10209.2   10709.2   11209.2   11709.2   12209.2   12709.2   13209.2   13709.2   14209.2   14709.2   15209.2   15709.2   16209.2   16709.2   17209.2   17709.2   18209.2   18709.2   19209.2   19709.2   20209.2   20709.2   21209.2   21709.2   22209.2   22709.2   23209.2   23709.2   24209.2
 #erf.moisture_model  = "SAM_NoIce"
 erf.moisture_model  = "SAM"
 #erf.buoyancy_type   = 4
@@ -138,7 +138,7 @@ erf.tau_nudging = 3600.0 # tautqls
 #erf.nudging_q_z2 = 15900.0
 
 # large scale forcing
-erf.large_scale_forcing = false 
+erf.large_scale_forcing = false
 #erf.forcing_timescale = 3600.0 #tauls
 #erf.large_scale_forcing_file = "lsf_cass"
 
@@ -173,14 +173,11 @@ slm.T_opt   = 298.0   # optimum temperature for transpiration
 #slm.rad_input_file = "CASS_256x256x156_50m_50m_1s_rad_coszrs_combined.nc"
 #slm.rad_input_file = "CASS_128x128x156_50m_50m_1s_rad_coszrs_combined.nc"
 #slm.rad_input_file = "CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
-#erf.do_radiation = true
-erf.do_radiation = false
-#erf.radiation_qsrc_file = "CASS_128x128x156_50m_50m_1s_QRAD.nc"
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.00
-prob.V_0_Pert_Mag = 0.00 
+prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1000.0
@@ -192,11 +189,11 @@ prob.custom_TKE      = false
 
 ## Radiation
 # RADIATION INPUTS
-erf.rad_freq_in_steps      = 30 
+erf.rad_freq_in_steps      = 30
 erf.rad_do_subcol_sampling = true
 erf.rad_write_fluxes       = false
-erf.rad_orbital_year       = 1999 
-erf.rad_cons_lat           =  -10. 
+erf.rad_orbital_year       = 1999
+erf.rad_cons_lat           =  -10.
 erf.rad_cons_lon           = -63.0
 erf.co2vmr                 = 0.00036
 erf.o3vmr                  = 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 3.0e-8 4.0e-8 4.25e-8 4.5e-8 4.9e-8 5.4e-8 6.0e-8 6.9e-8 8.0e-8 9.25e-8 1.07e-7 1.25e-7 1.63e-7 2.7e-7 5.4e-7 1.0e-6 1.7e-6 2.6e-6 4.0e-6 5.75e-6 7.5e-6 9.0e-6 9.6e-6 9.34e-6 7.83e-6 5.4e-6 3.3e-6 1.9e-6 9.1e-7
@@ -209,7 +206,7 @@ erf.nswbands               = 14
 erf.nlwbands               = 16
 erf.nswgpts                = 224
 erf.nlwgpts                = 256
-erf.rrtmgp_file_path       = /g/g90/lee1046/RRTMGP_data 
+erf.rrtmgp_file_path       = /g/g90/lee1046/RRTMGP_data
 erf.rrtmgp_coeffs_sw       = rrtmgp-data-sw-g224-2018-12-04.nc
 erf.rrtmgp_coeffs_lw       = rrtmgp-data-lw-g256-2018-12-04.nc
 erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc

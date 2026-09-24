@@ -170,8 +170,6 @@ slm.T_opt   = 298.0   # optimum temperature for transpiration
 
 
 #slm.rad_input_file = "LBA_240x240x250_default_rad_coszrs_combined.nc"
-erf.do_radiation = false
-#erf.radiation_qsrc_file = "LBA_240x240x250_default_QRAD.nc"
 
 ## Radiation
 # RADIATION INPUTS

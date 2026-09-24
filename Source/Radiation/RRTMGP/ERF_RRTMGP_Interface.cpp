@@ -1037,8 +1037,6 @@ rrtmgp_lw (const int ncol,
     limit_to_bounds_2d(t_lev, k_dist.get_temp_min(),
                        k_dist.get_temp_max(), t_lev_limited);
 
-    //amrex::Print() << " k_dist_lw temp min = " << k_dist_lw.get_temp_min() << " temp max = " << k_dist_lw.get_temp_max() << std::endl;
-
     // Do gas optics
     real3d_k col_gas("col_gas", ncol, nlay, k_dist.get_ngas()+1);
     k_dist.gas_optics(ncol, nlay, top_at_1, p_lay, p_lev, t_lay_limited,
@@ -1246,4 +1244,3 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
 }
 
 }  // namespace rrtmgp
-

@@ -888,6 +888,16 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     cmake_parse_arguments(ADD_TEST_LSM "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
 
+    # Check additional external files before creating the test directory.
+    foreach(EXTRA_FILE IN LISTS ADD_TEST_LSM_EXTRA_FILES)
+        if(NOT EXISTS "${EXTRA_FILE}")
+            message(WARNING
+                "Skipping LSM test '${TEST_NAME}': extra file does not exist: "
+                "'${EXTRA_FILE}'")
+            return()
+        endif()
+    endforeach()
+
     setup_test()
 
     set(RUNTIME_OPTIONS "${ADD_TEST_LSM_RUNTIME_OPTIONS}")
@@ -896,12 +906,10 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     endif()
 
     # Copy any additional external files needed to the test directory
-    if (ADD_TEST_LSM_EXTRA_FILES)
-        foreach(EXTRA_FILE ${ADD_TEST_LSM_EXTRA_FILES})
-            message(STATUS " -- Copying extra file '${EXTRA_FILE}' to test directory '${CURRENT_TEST_BINARY_DIR}'")
-            file(COPY ${EXTRA_FILE} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-        endforeach()
-    endif()
+    foreach(EXTRA_FILE IN LISTS ADD_TEST_LSM_EXTRA_FILES)
+        message(DEBUG " -- Copying extra file '${EXTRA_FILE}' to test directory '${CURRENT_TEST_BINARY_DIR}'")
+        file(COPY "${EXTRA_FILE}" DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    endforeach()
 
     if (ADD_TEST_LSM_LABELS)
         set(test_labels "")
@@ -925,7 +933,7 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
         set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
     endforeach()
-    message(STATUS "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
+    message(DEBUG "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -1283,32 +1291,39 @@ add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OP
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 
-# test w/out plotfile comparisons
-add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
-                                              LABELS "slm"
-                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
-                                                          "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
-                                              PLTFILES "plt34500"
-                                                       "plt_lsm_34500"
-                                                       "plt_lsm_2D_34500")
+# LSM tests are gated because they require large input files (wrfinput, etc)
+# and can take several hours to run.
+if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
+    # test w/out plotfile comparisons
+    # CASS case with external-driven radiation fluxes to SLM (no RRTMGP)
+    add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
+                                                  LABELS "slm"
+                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
+                                                              "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
+                                                  PLTFILES "plt34500"
+                                                           "plt_lsm_34500"
+                                                           "plt_lsm_2D_34500")
 
-add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
-                                              LABELS "slm" "manual"
-                                              EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+    # LBA case using RRTMGP radiation
+    add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
+                                                  LABELS "slm" "manual"
+                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
 
-add_test_lsm(SLM_AWAKEN                       "" "erf_exec"
-                                              LABELS "slm" "manual"
-                                              EXTRA_FILES "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfinput_d01"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfbdy_d01"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
-                                                          "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+    # AWAKEN case testing the fully coupled real pathway
+    add_test_lsm(SLM_AWAKEN                       "" "erf_exec"
+                                                  LABELS "slm" "manual"
+                                                  EXTRA_FILES "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfinput_d01"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfbdy_d01"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+endif()
 
 if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling.

@@ -311,10 +311,6 @@ fill_fab_from_arrays (int iv,
         // soil variables are staggered in z
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
     }
-    else if (var_name == "TSLB" || var_name == "SMOIS" || var_name == "SH2O" || var_name == "ZS" || var_name == "DZS") {
-        // soil variables are staggered in z
-        my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
-    }
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU

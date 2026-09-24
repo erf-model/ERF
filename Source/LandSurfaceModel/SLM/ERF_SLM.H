@@ -42,7 +42,6 @@ namespace LsmVar_SLM {
       swdsnirdxyref,   // downwelling SW radiation, diffuse near-IR flux
       lwref,           // downwelling LW radiation
       coszrsxy,        // zenith angle
-      //tsurf,           // surface temperature
       // model variables
       tv,              // vegetation temperature
       mv,              // vegetation moisture storage
@@ -61,7 +60,6 @@ namespace LsmVar_SLM {
       soilt_obs,
       soilw_obs,
        // vegetation
-       rootF,           // fraction of total root length of a vegetation in each soil layer
        soil_transp_frac,// normalized fraction of transpiration extracted from each soil layer
        w_s_FC,          // wetness at field capacity
       w_s_WP,          // wetness at wilting point
@@ -169,7 +167,21 @@ namespace SLM_DSW {
 
 using SLMParameterTable = std::unordered_map<std::string, amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>>;
 
-/* See Chen & Dudhia (2001) https://doi.org/10.1175/1520-0493(2001)129<0569:CAALSH>2.0.CO;2 */
+/**
+ * The Simple Land-surface Model (SLM) supplies lower-boundary
+ * sensible-heat, latent-heat, and momentum fluxes for land cells.
+ *
+ * The original formulation and evaluation of SLM are documented in Lee and
+ * Khairoutdinov (2015), "A Simplified Land Model (SLM) for use in
+ * cloud-resolving models: Formulation and evaluation," Journal of Advances
+ * in Modeling Earth Systems, 7, 1368--1392,
+ * https://doi.org/10.1002/2014MS000419.
+ *
+ * SLM includes selected formulations adapted from NoahMP, updates inherited
+ * from gSAM-SLM, and SLM-specific corrections to the surface energy and water
+ * budgets. It remains a simplified land model and is not a complete
+ * implementation of NoahMP.
+ */
 class SLM : public NullSurf {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -185,10 +197,6 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        // NOTE: We should parse things from sc here,
-        //       but they are hard coded because this
-        //       is a demonstration for now.
-
         use_terrain = sc.terrain_type != TerrainType::None;
 
         // Check if initializing from WRFInput
@@ -228,14 +236,11 @@ public:
     {
         m_updated = false;
         m_dt = dt;
-        //time += m_dt;
         time = t_new;
         start_time = t_start;
 
         if (first_step)
         {
-            // initialize values using first reference data
-            //this->init_slm_vars();
             first_step = false;
 
             if (use_wrfinput && !wrfinput_initialized) {
@@ -256,7 +261,6 @@ public:
                     if (landmask_arr(i,j,0) == 1) {
                         amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + 0.5*dz;
                         zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
-                        //amrex::Print() << " i = " << i << " j = " << j << ": zrefxy = " << zrefxy_arr(i,j,0) << std::endl;
                     }
                 });
             }
@@ -368,10 +372,7 @@ public:
             } else if (!use_wrfinput) {
                 this->init_slm_vars();
             }
-            //time += m_dt; // update time here so that first timestep time is correct
         }
-        //this->Diagnose();
-        //this->Compute_Coefficients();
     }
 
     bool Get_Update_Status () override { return m_updated; }
@@ -408,8 +409,6 @@ public:
 
     void init_soil_tw();
 
-    void vege_root_init();
-
     void init_slm_vars();
 
     /**
@@ -436,11 +435,14 @@ public:
 
     void init_from_params();
 
+    /**
+     * Loads built-in Noah-MP radiation lookup values for idealized SLM cases.
+     */
+    void load_builtin_radiation_parameters();
+
     void UpdateLAI(const amrex::MFIter &mfi);
 
     void UpdateLAIParameters(const amrex::MFIter &mfi);
-
-    void radiative_fluxes(const amrex::MFIter &mfi);
 
     // NOAHMP radiation functions
     void radiation_noahmp(const amrex::MFIter &mfi);
@@ -503,7 +505,7 @@ public:
     void resistances(const amrex::MFIter &mfi);
 
     void fluxes_canopy(const amrex::MFIter &mfi);
-    
+
     void solve_ground_skin_temperature(const amrex::MFIter &mfi);
 
     void soil_water(const amrex::MFIter &mfi);
@@ -589,43 +591,20 @@ private:
 
     int klo_lsm;
 
-    // constants
-    // amrex::Real m_fac_cond;
-    // amrex::Real m_fac_fus;
-    // amrex::Real m_fac_sub;
-
     // independent variables
     amrex::Array<FabPtr, LsmVar_SLM::NumVars> lsm_fab_vars;
 
     // flux array for conjugate transfer
     amrex::Array<FabPtr, LsmFlux_SLM::NumVars> lsm_fab_flux;
 
-    // Vars that should be parsed
-    // ==========================
     // Number of grid points in z
     int m_nz_lsm = 7;
 
     // Size of grid spacing in z
-    //amrex::Real m_dz_lsm = 0.1; // 3 [m] below surface
     std::vector<amrex::Real> m_dz_lsm;
-
-    // Specific heat
-    amrex::Real m_cp_soil =  amrex::Real(1.26e6); // [J/m^3 K]
-
-    // Conductivity
-    amrex::Real m_k_soil = amrex::Real(0.2); // dry soil [W/m K]
-
-    // Theta Dirichlet value at lowest point below surface
-    amrex::Real m_theta_dir = amrex::Real(400.0); // [K]
-
-    // Thermal diffusivity
-    amrex::Real m_d_soil = m_k_soil / m_cp_soil; // [m^2/s]
-
-    std::string soil_file; // file for reading in initial soil values at each later
     std::string rad_input_file;
 
     // Input variables
-    // TODO: move these to inputs parsing
     int landtype0 = 16; // landtype over whole domain
 
     amrex::Real LAI0 = 0.0; // default leaf area index
@@ -641,12 +620,6 @@ private:
 
     bool use_terrain = false;
 
-    //   TODO: implement reading these input files
-    bool readlandtype = false; // read landtype map from file
-    bool readLAI = false; // read LAI file
-    std::string landtypefile;
-    std::string LAIfile;
-
     bool dosoilwnudging = false;
     bool dosoiltnudging = false;
     amrex::Real tausoil = 86400.0;
@@ -657,12 +630,9 @@ private:
 
     static constexpr amrex::Real epsv = 0.61;
 
-    amrex::Real pres0 = p_0; // reference surface pressure [Pa]
-
     static constexpr amrex::Real cp = 1004.0; // specific heat of air [J/kg/K]
     static constexpr amrex::Real cp_water = 4.1796e6; // heat capacity of water [J/m^3K]
-    static constexpr amrex::Real leaf_thickness = 1.; // typical leaf thickness (mm) - used for heat capacity 
-    
+
     static constexpr amrex::Real sigma = 5.67e-8; // Stefen-Boltzmann constant [W/m^2/K^4]
 
     // parameters for stomatal resistance
@@ -681,10 +651,10 @@ private:
     amrex::MultiFab t_skin; // skin temperature, surface level viewed from atmosphere
     amrex::MultiFab t_ground_skin; // massless ground-atmosphere interface temperature
     amrex::MultiFab t_sfc; // 'surface' level temperature. for vegetated, t_sfc = t_cas, for non-vegetated = t_sfc=top soil t
-	amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity 
+	amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity
     amrex::MultiFab t_cas; // canopy air space temperature
     amrex::MultiFab q_cas; // canopy air space specific humidity
-    
+
 	amrex::MultiFab q_gr; // soil pore space specific humidity
     amrex::MultiFab sdew; // soil dew condition
 
@@ -714,15 +684,12 @@ private:
     amrex::MultiFab Rgl; // parameter for stomatal resistance
     amrex::MultiFab Rc_min; // minimum stomatal resistance
     amrex::MultiFab hs_rc; // parameter for stomatal resistance
-    amrex::MultiFab rootL; // root length
-    amrex::MultiFab root_a; // coef a for root density
-    amrex::MultiFab root_b; // coef b for root density
     amrex::MultiFab precip_extinc; // precipitation extinction coef
     amrex::MultiFab precip_sfc; // precipitation reaching to soil top through canopy
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
     amrex::MultiFab BAI; // Basal area index, sq.feet/acre
-    amrex::MultiFab IMPERV; 
+    amrex::MultiFab IMPERV;
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
     //  soilt: st_cond, st_capa, st_eff_cond, alpha, beta
@@ -731,13 +698,6 @@ private:
     amrex::MultiFab soilw_vars;
 
     amrex::MultiFab mw_inc;
-
-    //amrex::MultiFab ustar, tstar;
-
-    //amrex::Real mom_trans_coef; // surface momentum transfer coef.
-    //amrex::Real heat_trans_coef; // surface heat transfer coef.
-    amrex::Real xsi; // M-O stability parameter
-    amrex::Real RiB; // bulk Richardson number
 
     // Soil hydrology variables
     amrex::MultiFab evapo_dry;
@@ -762,13 +722,12 @@ private:
 
 
     // Resistances
-    //   TODO: in the fortran version, these are scalar quantities but are updated over i,j?
     amrex::MultiFab r_a; // aerodynamic resistance between surface and ref level
     amrex::MultiFab r_b; // leaf boundary layer resistance
     amrex::MultiFab r_c; // leaf-level stomatal resistance
     amrex::MultiFab r_d; // undercanopy aerodynamic resistance
     amrex::MultiFab r_soil;
-    static constexpr amrex::Real r_litter = 0.0; // not used currently
+    static constexpr amrex::Real r_litter = 0.0; // litter resistance [s/m]
 
 
     amrex::MultiFab net_rad;
@@ -795,8 +754,6 @@ private:
     std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_veg_params;
     std::unordered_map<std::string, std::unique_ptr<amrex::Gpu::DeviceVector<amrex::Real>>> d_rad_params;
 
-    //amrex::Vector<amrex::Vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
-    //amrex::Vector<amrex::Vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
     std::vector<std::vector<amrex::Real>> sai_table; // table containing monthly SAI values for each land type
     std::vector<std::vector<amrex::Real>> lai_table; // table containing monthly LAI values for each land type
 
@@ -809,9 +766,6 @@ private:
     bool interpolate_lai = false; // whether to interpolate LAI+SAI between monthly values for each landtype (Noah-MP style, dynamic veg=4)
     bool use_wrf_lai = false;     // whether to use WRF-Noah style LAI (interpolate between min and max lai)
     bool params_updated = false;  // whether soil/vegetation parameters have been updated from file to recompute
-
-    enum class RadiationScheme { SLM, NoahMP };
-    RadiationScheme radiation_scheme = RadiationScheme::NoahMP;
 
     // NOAHMP radiation parameters
     int opt_rad = 1;  // Radiation option: 1=modified two-stream (default), 2=two-stream, 3=gap=f(veg)
@@ -891,7 +845,7 @@ private:
         {"TSLB", "tsoil"},
         {"SMOIS", "wsoil"},
         {"LAI", "lai"},
-        {"IVGTYP", "vegtype"}, // TODO: these two should be replaced by ERF input directly
+        {"IVGTYP", "vegtype"},
         {"ISLTYP", "soiltype"},
         {"TSK", "tsurf"},
         {"VEGFRA", "veg_frac"},
@@ -963,7 +917,7 @@ private:
       "tsurf", "ustar", "tstar", "qstar", "ref_t", "ref_q", "ref_p", "ref_d", "ref_u", "ref_v", "ref_precip",
       "SW_dw_dir_vis", "SW_dw_dir_nir", "SW_dw_dif_vis", "SW_dw_dif_nir", "LW_dw", "zenith",
       "tveg", "mv", "tsoil", "wsoil", "sand", "clay", "soil_thickness", "node_z", "interface_z",
-      "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "rootF", "soil_transp_frac", "w_s_FC", "w_s_WP",
+      "soilw_nudge", "soilt_nudge", "sw_over_sat", "soil_relax_hgt", "soilt_obs", "soilw_obs", "soil_transp_frac", "w_s_FC", "w_s_WP",
       "sst_capa", "sst_cond", "poro_soil", "theta_FC", "theta_WP", "m_pot_sat", "Bconst", "ks","lai","vegtype","soiltype",
       "veg_frac", "veg_frac_min", "veg_frac_max", "surface_u", "surface_v", "surface_vapor", "surface_heat", "precip_soil", "emis_sfc", "alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff", "alb_vis_sfc_diff"
     };
@@ -971,8 +925,6 @@ private:
     static_assert(sizeof(LsmVarName_Full)/sizeof(*LsmVarName_Full) == LsmVar_SLM::NumVars);
 
 #ifdef ERF_USE_NETCDF
-    int ncfid = -1;
-
     // List of output variables that are constant in time
     inline static const std::unordered_set<int> const_vars = {
       LsmVar_SLM::sand,
@@ -984,7 +936,6 @@ private:
       LsmVar_SLM::soil_relax_hgt,
       LsmVar_SLM::soilt_obs,
       LsmVar_SLM::soilw_obs,
-      LsmVar_SLM::rootF,
       LsmVar_SLM::w_s_FC,
       LsmVar_SLM::w_s_WP,
       LsmVar_SLM::sst_capa,
