@@ -36,7 +36,7 @@ zhi.type = "SlipWall"
 erf.fixed_dt           = 1.0 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 erf.use_mono_adv       = true
-    
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -65,7 +65,7 @@ erf.use_coriolis    = false
 #erf.use_coriolis    = true
 erf.coriolis_3d     = false
 erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
-    
+
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd
 erf.dryscal_horiz_adv_type   = Upwind_3rd
@@ -122,7 +122,7 @@ erf.rayleigh_zdamp = 500. # from Beare et al. 2006, "most models applied gravity
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.00
-prob.V_0_Pert_Mag = 0.00 
+prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 1600.0
@@ -139,7 +139,7 @@ prob.moisture_source_cutoff_transition 	= 200.0
 
 prob.wbar_sub_max    = -0.0065
 prob.wbar_cutoff_max = 1500.0
-prob.wbar_cutoff_min = 2100.0   
+prob.wbar_cutoff_min = 2100.0
 
 prob.custom_TKE      = false
 #prob.custom_TKE      = true
@@ -147,4 +147,3 @@ prob.custom_TKE      = false
 prob.large_scale_forcing_file = "lsf_cass"
 prob.sounding_file = "snd_cass"
 prob.forcing_timescale = 1.0
-

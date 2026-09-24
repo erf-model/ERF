@@ -46,7 +46,7 @@ erf.fixed_dt           = 0.3 # fixed time step depending on grid resolution
 #erf.fixed_dt           = 1.0 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
 erf.use_mono_adv       = true
-    
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -170,7 +170,7 @@ slm.T_opt   = 298.0   # optimum temperature for transpiration
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.00
-prob.V_0_Pert_Mag = 0.00 
+prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 200.0

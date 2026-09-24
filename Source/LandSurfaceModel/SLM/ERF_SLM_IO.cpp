@@ -173,7 +173,6 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
                       const std::string name, Real time, bool write_ghost)
 {
     IntVect ngrow = mf->nGrowVect();
-    int num_times;
 
     bool var_2d = false;
     if (mf->boxArray().minimalBox().length(2) == 1) var_2d = true;
@@ -343,7 +342,6 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
             auto tmp_arr = tmp.array(comp);
             if (var_2d)
             {
-                const int d_khi_lsm = khi_lsm;
                 ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     tmp_arr(i, j, k) = mf_arr(i, j, khi);
@@ -688,8 +686,6 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     std::istringstream is(fileCharPtrString, std::istringstream::in);
 
     std::string line, word;
-
-    int chk_ncomp_cons, chk_ncomp;
 
     // read in title line
     std::getline(is, line);

@@ -44,7 +44,7 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt           = 1.0 # fixed time step depending on grid resolution
 erf.fixed_mri_dt_ratio = 4
-    
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 0       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
@@ -62,8 +62,8 @@ erf.check_int       = -1    # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 300  #2300  # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta qt qp qv qc qsrc z_phys 
- 
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta qt qp qv qc qsrc z_phys
+
 erf.plotfile_type = "amrex"
 erf.plot_lsm = true
 
@@ -154,7 +154,7 @@ slm.rad_input_file = "CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
 prob.U_0_Pert_Mag = 0.00
-prob.V_0_Pert_Mag = 0.00 
+prob.V_0_Pert_Mag = 0.00
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 200.0
