@@ -160,36 +160,36 @@ struct NativeTerrainScalarCase
       z_nd(znd_box, 1),
       z_cc(data_box, 1)
   {
-    conserved.setVal(Real(0.0));
-    primitive.setVal(Real(0.0));
-    rhs.setVal(Real(0.0));
-    u.setVal(Real(0.0));
-    v.setVal(Real(0.0));
-    xflux.setVal(Real(0.0));
-    yflux.setVal(Real(0.0));
-    zflux.setVal(Real(0.0));
-    smn.setVal(Real(0.0));
-    mu.setVal(Real(0.0));
-    mf_mx.setVal(mx);
-    mf_my.setVal(my);
-    mf_ux.setVal(mx);
-    mf_vx.setVal(mx);
-    mf_uy.setVal(my);
-    mf_vy.setVal(my);
-    hfx_x.setVal(Real(0.0));
-    hfx_y.setVal(Real(0.0));
-    hfx_z.setVal(Real(0.0));
-    qfx1_x.setVal(Real(0.0));
-    qfx1_y.setVal(Real(0.0));
-    qfx1_z.setVal(Real(0.0));
-    qfx2_z.setVal(Real(0.0));
-    diss.setVal(Real(0.0));
-    tm.setVal(Real(0.0));
+    conserved.setVal<RunOn::Device>(Real(0.0));
+    primitive.setVal<RunOn::Device>(Real(0.0));
+    rhs.setVal<RunOn::Device>(Real(0.0));
+    u.setVal<RunOn::Device>(Real(0.0));
+    v.setVal<RunOn::Device>(Real(0.0));
+    xflux.setVal<RunOn::Device>(Real(0.0));
+    yflux.setVal<RunOn::Device>(Real(0.0));
+    zflux.setVal<RunOn::Device>(Real(0.0));
+    smn.setVal<RunOn::Device>(Real(0.0));
+    mu.setVal<RunOn::Device>(Real(0.0));
+    mf_mx.setVal<RunOn::Device>(mx);
+    mf_my.setVal<RunOn::Device>(my);
+    mf_ux.setVal<RunOn::Device>(mx);
+    mf_vx.setVal<RunOn::Device>(mx);
+    mf_uy.setVal<RunOn::Device>(my);
+    mf_vy.setVal<RunOn::Device>(my);
+    hfx_x.setVal<RunOn::Device>(Real(0.0));
+    hfx_y.setVal<RunOn::Device>(Real(0.0));
+    hfx_z.setVal<RunOn::Device>(Real(0.0));
+    qfx1_x.setVal<RunOn::Device>(Real(0.0));
+    qfx1_y.setVal<RunOn::Device>(Real(0.0));
+    qfx1_z.setVal<RunOn::Device>(Real(0.0));
+    qfx2_z.setVal<RunOn::Device>(Real(0.0));
+    diss.setVal<RunOn::Device>(Real(0.0));
+    tm.setVal<RunOn::Device>(Real(0.0));
     // Terrain horizontal face areas are dz/dzeta for the affine mesh, as in
     // make_areas; detJ and zeta spacing use the same c scale.
-    ax.setVal(c);
-    ay.setVal(c);
-    detj.setVal(c);
+    ax.setVal<RunOn::Device>(c);
+    ay.setVal<RunOn::Device>(c);
+    detj.setVal<RunOn::Device>(c);
 
     const int scalar_comp = qty_comp - 1;
     auto cons = conserved.array();
@@ -240,13 +240,13 @@ struct NativeTerrainScalarCase
 
   void run(const Real implicit_fac)
   {
-    rhs.setVal(Real(0.0));
-    xflux.setVal(Real(-91.0));
-    yflux.setVal(Real(-92.0));
-    zflux.setVal(Real(-93.0));
-    hfx_z.setVal(Real(-94.0));
-    qfx1_z.setVal(Real(-95.0));
-    qfx2_z.setVal(Real(-96.0));
+    rhs.setVal<RunOn::Device>(Real(0.0));
+    xflux.setVal<RunOn::Device>(Real(-91.0));
+    yflux.setVal<RunOn::Device>(Real(-92.0));
+    zflux.setVal<RunOn::Device>(Real(-93.0));
+    hfx_z.setVal<RunOn::Device>(Real(-94.0));
+    qfx1_z.setVal<RunOn::Device>(Real(-95.0));
+    qfx2_z.setVal<RunOn::Device>(Real(-96.0));
     auto hfx_x_arr = hfx_x.array();
     auto hfx_y_arr = hfx_y.array();
     auto hfx_z_arr = hfx_z.array();
@@ -679,31 +679,31 @@ TEST(
   FArrayBox qfx1_x(xfaces, 1), qfx1_y(yfaces, 1), qfx1_z(zfaces, 1),
     qfx2_z(zfaces, 1), diss(data_box, 1), tm(data_box, 1);
 
-  conserved.setVal(Real(0.0));
-  primitive.setVal(Real(-77.0));
-  rhs.setVal(Real(-123.0));
-  u.setVal(Real(0.0));
-  v.setVal(Real(0.0));
-  xflux.setVal(Real(0.0));
-  yflux.setVal(Real(0.0));
-  zflux.setVal(Real(0.0));
-  smn.setVal(Real(0.0));
-  mu.setVal(Real(0.0));
-  mf_mx.setVal(Real(1.0));
-  mf_my.setVal(Real(1.0));
-  mf_ux.setVal(Real(1.0));
-  mf_uy.setVal(Real(1.0));
-  mf_vx.setVal(Real(1.0));
-  mf_vy.setVal(Real(1.0));
-  hfx_x.setVal(Real(0.0));
-  hfx_y.setVal(Real(0.0));
-  hfx_z.setVal(Real(0.0));
-  qfx1_x.setVal(Real(0.0));
-  qfx1_y.setVal(Real(0.0));
-  qfx1_z.setVal(Real(0.0));
-  qfx2_z.setVal(Real(0.0));
-  diss.setVal(Real(0.0));
-  tm.setVal(Real(0.0));
+  conserved.setVal<RunOn::Device>(Real(0.0));
+  primitive.setVal<RunOn::Device>(Real(-77.0));
+  rhs.setVal<RunOn::Device>(Real(-123.0));
+  u.setVal<RunOn::Device>(Real(0.0));
+  v.setVal<RunOn::Device>(Real(0.0));
+  xflux.setVal<RunOn::Device>(Real(0.0));
+  yflux.setVal<RunOn::Device>(Real(0.0));
+  zflux.setVal<RunOn::Device>(Real(0.0));
+  smn.setVal<RunOn::Device>(Real(0.0));
+  mu.setVal<RunOn::Device>(Real(0.0));
+  mf_mx.setVal<RunOn::Device>(Real(1.0));
+  mf_my.setVal<RunOn::Device>(Real(1.0));
+  mf_ux.setVal<RunOn::Device>(Real(1.0));
+  mf_uy.setVal<RunOn::Device>(Real(1.0));
+  mf_vx.setVal<RunOn::Device>(Real(1.0));
+  mf_vy.setVal<RunOn::Device>(Real(1.0));
+  hfx_x.setVal<RunOn::Device>(Real(0.0));
+  hfx_y.setVal<RunOn::Device>(Real(0.0));
+  hfx_z.setVal<RunOn::Device>(Real(0.0));
+  qfx1_x.setVal<RunOn::Device>(Real(0.0));
+  qfx1_y.setVal<RunOn::Device>(Real(0.0));
+  qfx1_z.setVal<RunOn::Device>(Real(0.0));
+  qfx2_z.setVal<RunOn::Device>(Real(0.0));
+  diss.setVal<RunOn::Device>(Real(0.0));
+  tm.setVal<RunOn::Device>(Real(0.0));
 
   constexpr Real Kh = Real(2.1), Kv = Real(4.3);
   auto cons = conserved.array();
@@ -749,7 +749,7 @@ TEST(
       prim_target(i, j, k, scalar_comp) = x * x + Real(2.0) * y * y +
                                            Real(3.0) * z * z;
     });
-    rhs.setVal(Real(-123.0));
+    rhs.setVal<RunOn::Device>(Real(-123.0));
     auto hfx_x_arr = hfx_x.array();
     auto hfx_y_arr = hfx_y.array();
     auto hfx_z_arr = hfx_z.array();
@@ -893,11 +893,11 @@ TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
       rhs_a(i, j, k, n) = Real(-200.0) - n;
     });
-  direct_rhs.setVal(Real(-200.0) - RhoScalar_comp);
+  direct_rhs.setVal<RunOn::Device>(Real(-200.0) - RhoScalar_comp);
   for (FArrayBox* field :
        {&u, &v, &smn, &mu, &hfx_x, &hfx_y, &hfx_z, &qfx1_x, &qfx1_y, &qfx1_z,
         &qfx2_z, &diss, &tm}) {
-    field->setVal(Real(0.0));
+    field->setVal<RunOn::Device>(Real(0.0));
   }
   fill_ones(mf_mx);
   fill_ones(mf_my);
@@ -1027,10 +1027,10 @@ TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
   };
 
   auto reset_rhs = [&]() {
-    rhs.setVal(Real(-200.0) - RhoScalar_comp);
-    xflux.setVal(Real(-900.0));
-    yflux.setVal(Real(-900.0));
-    zflux.setVal(Real(-900.0));
+    rhs.setVal<RunOn::Device>(Real(-200.0) - RhoScalar_comp);
+    xflux.setVal<RunOn::Device>(Real(-900.0));
+    yflux.setVal<RunOn::Device>(Real(-900.0));
+    zflux.setVal<RunOn::Device>(Real(-900.0));
   };
   DiffusionSrcForState_N(
     cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
@@ -1573,8 +1573,8 @@ TEST(ScalarDiffusionPrimitives, TerrainMappedKFaceTransfer)
   ParallelFor(nodes, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     zn(i, j, k) = a * i + b * j + c * k;
   });
-  mx.setVal(mx_value);
-  my.setVal(my_value);
+  mx.setVal<RunOn::Device>(mx_value);
+  my.setVal<RunOn::Device>(my_value);
   Gpu::streamSynchronize();
 
   const auto fx4 = raw_x.const_array();
@@ -1679,11 +1679,11 @@ TEST(ScalarDiffusionPrimitives, TerrainPointwiseFaceFluxPrimitives)
     zc(i, j, k) = a * (Real(i) + Real(0.5)) + b * (Real(j) + Real(0.5)) +
                   c * (Real(k) + Real(0.5));
   });
-  mf_ux.setVal(Real(1.27));
-  mf_vy.setVal(Real(0.83));
-  xflux.setVal(Real(600.0));
-  yflux.setVal(Real(610.0));
-  zflux.setVal(Real(620.0));
+  mf_ux.setVal<RunOn::Device>(Real(1.27));
+  mf_vy.setVal<RunOn::Device>(Real(0.83));
+  xflux.setVal<RunOn::Device>(Real(600.0));
+  yflux.setVal<RunOn::Device>(Real(610.0));
+  zflux.setVal<RunOn::Device>(Real(620.0));
   Gpu::streamSynchronize();
 
   const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
@@ -1831,8 +1831,8 @@ TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
   initialize_n_case(
     scalar, rho, mu, mf_ux, mf_uy, mf_vy, mf_vx, mf_mx, mf_my, xflux, yflux,
     zflux, rhs_native);
-  u.setVal(Real(0.0));
-  v.setVal(Real(0.0));
+  u.setVal<RunOn::Device>(Real(0.0));
+  v.setVal<RunOn::Device>(Real(0.0));
 
   Vector<BCRec> bcs(NBCVAR_max);
   for (auto& bc : bcs) {
@@ -1872,8 +1872,8 @@ TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
     bx, domain, field, policy, inv, u.const_array(), v.const_array(),
     mf_ux.const_array(), mf_uy.const_array(), mf_vx.const_array(),
     mf_vy.const_array(), bcs_device.data(), 0);
-  rhs_native.setVal(Real(-41.0));
-  rhs_accepted.setVal(Real(-41.0));
+  rhs_native.setVal<RunOn::Device>(Real(-41.0));
+  rhs_accepted.setVal<RunOn::Device>(Real(-41.0));
   ApplyScalarDiffusionFluxDivergence_N(
     bx, xflux.const_array(), yflux.const_array(), zflux.const_array(),
     kFluxComp, rhs_native.array(), kRhsComp, inv, mx4, my4);
@@ -1909,8 +1909,8 @@ TEST(ScalarDiffusionPrimitives, AcceptedMappedTransfersMatchNativeNAndS)
     bx, domain, field, policy, inv[0], inv[1], dzptr, 0, 4, mf_ux.const_array(),
     mf_uy.const_array(), mf_vx.const_array(), mf_vy.const_array(),
     bcs_device.data(), 0);
-  rhs_native.setVal(Real(-52.0));
-  rhs_accepted.setVal(Real(-52.0));
+  rhs_native.setVal<RunOn::Device>(Real(-52.0));
+  rhs_accepted.setVal<RunOn::Device>(Real(-52.0));
   ApplyScalarDiffusionFluxDivergence_S(
     bx, xflux.const_array(), yflux.const_array(), zflux.const_array(),
     kFluxComp, rhs_native.array(), kRhsComp, mx4, my4, inv[0], inv[1], dzptr);
@@ -1990,7 +1990,7 @@ TEST(
   Gpu::streamSynchronize();
 
   FArrayBox rhs_accepted(test.bx, 1);
-  rhs_accepted.setVal(Real(0.0));
+  rhs_accepted.setVal<RunOn::Device>(Real(0.0));
   ApplyAcceptedScalarMappedTransferDivergence_T(
     test.bx, mapped_x.const_array(), mapped_y.const_array(),
     mapped_z.const_array(), 0, rhs_accepted.array(), 0, test.inv, mx, my,
@@ -2048,8 +2048,8 @@ TEST(
   FArrayBox reconstructed_z(zfaces, 4), raw_z_as_mapped(zfaces, 4);
   FArrayBox z_nd(nodes, 1), mx(mapbox, 1), my(mapbox, 1), detj(domain, 1);
   FArrayBox rhs(bx, 8), rhs_reconstructed(bx, 8), rhs_rawz(bx, 8);
-  reconstructed_z.setVal(Real(950.0));
-  raw_z_as_mapped.setVal(Real(960.0));
+  reconstructed_z.setVal<RunOn::Device>(Real(950.0));
+  raw_z_as_mapped.setVal<RunOn::Device>(Real(960.0));
 
   auto s = scalar.array();
   auto r = rho.array();
@@ -2068,8 +2068,8 @@ TEST(
   ParallelFor(nodes, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     zn(i, j, k) = a * i + b * j + c * k;
   });
-  mf_ux.setVal(Real(1.13));
-  mf_vy.setVal(Real(0.91));
+  mf_ux.setVal<RunOn::Device>(Real(1.13));
+  mf_vy.setVal<RunOn::Device>(Real(0.91));
 
   auto fill_transfer = [=] AMREX_GPU_DEVICE(
                          int i, int j, int k, int n, const bool xdir,
@@ -2168,15 +2168,15 @@ TEST(
         rfz(i, j, k, n) = Real(820.0) + n;
       }
     });
-  mx.setVal(mx_value);
-  my.setVal(my_value);
+  mx.setVal<RunOn::Device>(mx_value);
+  my.setVal<RunOn::Device>(my_value);
   auto dj = detj.array();
   ParallelFor(domain, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     dj(i, j, k) = Real(0.9) + Real(0.01) * i + Real(0.02) * j;
   });
-  rhs.setVal(Real(-300.0));
-  rhs_reconstructed.setVal(Real(-300.0));
-  rhs_rawz.setVal(Real(-300.0));
+  rhs.setVal<RunOn::Device>(Real(-300.0));
+  rhs_reconstructed.setVal<RunOn::Device>(Real(-300.0));
+  rhs_rawz.setVal<RunOn::Device>(Real(-300.0));
   Gpu::streamSynchronize();
 
   const auto raw_x4 = raw_x.const_array();
