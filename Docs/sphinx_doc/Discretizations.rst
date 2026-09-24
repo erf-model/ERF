@@ -531,20 +531,94 @@ The field-level entry points are ``BuildScalarDiffusionFluxes_N``,
 ``BuildScalarDiffusionFluxes_S``, and ``BuildScalarDiffusionFluxes_T`` in
 ``ERF_ScalarDiffusion.H``. Each accepts independent field views and component
 indices, a coefficient policy, boundary-condition selection, and its grid and
-map-factor data. ``ApplyScalarDiffusionFluxDivergence_N`` and
-``ApplyScalarDiffusionFluxDivergence_S`` apply the regular-grid divergences;
-``ApplyScalarDiffusionMappedDivergence_T`` also owns the terrain x/y-to-z-face
-interpolation, boundary extrapolation, mapped transfers, and RHS update. The
-native conserved-state mapping remains in ``ERF_NativeScalarDiffusion.H``.
+map-factor data. The raw signed diffusion flux is
+:math:`\mathbf{F}^D=-K\nabla\chi`. A **mapped face transfer** is the conservative
+flux rate whose computational-coordinate difference enters the tendency; it
+is not multiplied by :math:`dt`. The ``ApplyAcceptedScalarMappedTransferDivergence_N/S/T``
+operations consume already accepted mapped transfers exactly as supplied and
+only take their divergence. They do not rebuild terrain metrics, interpolate
+raw x/y fluxes, or replace a modified transfer with its original candidate.
+Native conserved-state mapping remains in ``ERF_NativeScalarDiffusion.H``.
+
+For N geometry, current x/y builder outputs already include the horizontal
+map factors (``mf_ux/mf_uy`` and ``mf_vy/mf_vx``), so they are the mapped x/y
+transfers. For N and S, map the raw vertical face flux once as
+
+.. math::
+
+   \widetilde F_z = \frac{F_z^D}{m_xm_y}.
+
+N divergence is
+
+.. math::
+
+   R_D = -m_xm_y\left[
+       \delta_x\widetilde F_x\,\Delta x^{-1}
+      +\delta_y\widetilde F_y\,\Delta y^{-1}
+      +\delta_z\widetilde F_z\,\Delta z^{-1}\right].
+
+S uses the same x/y and vertical map convention, but its vertical difference
+is divided by the receiving cell's stretched width :math:`\Delta z_k`; it is
+not a uniform-:math:`dz` operator:
+
+.. math::
+
+   R_D = -m_xm_y\left[
+       \delta_x\widetilde F_x\,\Delta x^{-1}
+      +\delta_y\widetilde F_y\,\Delta y^{-1}
+      +\frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}
+             {\Delta z_k}\right].
 
 On terrain-following coordinates with lateral map factors :math:`m_x` and
-:math:`m_y`, the Jacobian is
+:math:`m_y`, ERF stores face :math:`h_\zeta` in ``ax`` / ``ay`` (x-face /
+y-face respectively) and cell :math:`h_\zeta` in the Jacobian view ``detJ``.
+The conservative mapped x/y transfers include
+these face heights and the opposite lateral map factor:
+
+.. math::
+
+   \widetilde F_x = \frac{a_x}{m_{u,y}}F_x^D, \qquad
+   \widetilde F_y = \frac{a_y}{m_{v,x}}F_y^D.
+
+At a k face, the complete mapped vertical transfer includes both terrain
+cross terms:
+
+.. math::
+
+   \begin{aligned}
+   G_\zeta &= F_z^D - m_x h_\xi\overline{F_x^D}
+                       - m_y h_\eta\overline{F_y^D}, \\
+   \widetilde F_z &= \frac{G_\zeta}{m_xm_y}.
+   \end{aligned}
+
+Here :math:`\overline{F_x^D}` and :math:`\overline{F_y^D}` use ERF's four-face
+interior averages and one-sided physical bottom/top extrapolations. The public
+pointwise helper ``TerrainScalarDiffusionMappedTransferAtKFace`` owns this
+mapping, and the terrain face-flux helpers own the raw x/y/z gradient
+stencils. Native ERF calls the same mapping inline in its fused divergence
+kernel without allocating a mapped-flux field.
+
+The mapped T divergence is
+
+.. math::
+
+   R_D = -\frac{m_xm_y}{\mathrm{detJ}}
+   \left[\delta_x\widetilde F_x\,\Delta x^{-1}
+        +\delta_y\widetilde F_y\,\Delta y^{-1}
+        +\delta_z\widetilde F_z\,\Delta z^{-1}\right].
+
+In this layout ``detJ`` supplies the vertical terrain metric while the
+horizontal map-factor contribution is applied separately. All factors above
+are already included in the mapped transfers or their receiving-cell
+divergence and must not be applied a second time.
+
+The terrain Jacobian is
 
 .. math::
 
    J = \frac{h_\zeta}{m_xm_y}.
 
-The conservative face transfers are
+The equivalent terrain transfer definitions are
 
 .. math::
 
@@ -559,8 +633,10 @@ The conservative face transfers are
 The lateral fluxes in :math:`G_\zeta` are interpolated from the x/y faces to
 the corresponding vertical face by the terrain discretization, including its
 one-sided bottom and top extrapolations. The raw vertical diffusion flux
-:math:`F_z^D` is not by itself the complete mapped vertical transfer
-:math:`\widetilde F_\zeta` on sloping terrain.
+:math:`F_z^D` is not by itself the complete mapped vertical transfer on
+sloping terrain. The mapped-transfer operation is a spatial flux rate; the
+downstream application owns limiting, accounting, projection, and acceptance
+before calling the accepted-transfer divergence.
 
 For semi-implicit vertical diffusion, ERF first constructs the full spatial
 diffusion flux. The explicit/implicit split scales only the raw
@@ -576,9 +652,9 @@ explicit transformed numerator is
 Heat and moisture diagnostics continue to store the full raw vertical face
 flux independently of this integration fraction. This is an implementation
 interface and does not add a runtime option or change the configured diffusion
-schemes. Embedded-boundary diffusion and the implicit tridiagonal solvers keep
-their specialized implementations; diffusion refluxing is not implemented by
-this interface.
+schemes. Embedded-boundary diffusion, implicit flux recovery, and AMR
+diffusion reflux remain future work; the implicit tridiagonal solvers keep
+their specialized implementations.
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================
