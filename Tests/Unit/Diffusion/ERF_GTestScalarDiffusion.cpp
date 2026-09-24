@@ -2362,7 +2362,7 @@ ERF_GPU_TEST(
     hc(test.bx, NVAR_max, The_Pinned_Arena()),
     hr(test.bx, 5, The_Pinned_Arena()), hw(test.bx, 5, The_Pinned_Arena()),
     ha(test.bx, 5, The_Pinned_Arena());
-  FArrayBox hax(accepted_x.box(), 3, The_Pinned_Arena()),
+  FArrayBox hex(accepted_x.box(), 3, The_Pinned_Arena()),
     hay(accepted_y.box(), 3, The_Pinned_Arena()),
     haz(accepted_z.box(), 3, The_Pinned_Arena()),
     hdet(test.detj.box(), 1, The_Pinned_Arena()),
@@ -2373,7 +2373,7 @@ ERF_GPU_TEST(
   copy_to_host(raw_wrong, hr);
   copy_to_host(cross_wrong, hw);
   copy_to_host(accepted_rhs, ha);
-  copy_to_host(accepted_x, hax);
+  copy_to_host(accepted_x, hex);
   copy_to_host(accepted_y, hay);
   copy_to_host(accepted_z, haz);
   copy_to_host(test.detj, hdet);
@@ -2384,7 +2384,7 @@ ERF_GPU_TEST(
   const auto raw_control = hr.const_array();
   const auto cross_control = hw.const_array();
   const auto accepted = ha.const_array();
-  const auto accx = hax.const_array();
+  const auto accx = hex.const_array();
   const auto accy = hay.const_array();
   const auto accz = haz.const_array();
   const auto det = hdet.const_array();
