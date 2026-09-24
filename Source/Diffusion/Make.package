@@ -26,4 +26,5 @@ CEXE_headers += ERF_SetupScalarDiffusion.H
 CEXE_headers += ERF_SetupImplicitDiff.H
 CEXE_headers += ERF_Diffusion.H
 CEXE_headers += ERF_ScalarDiffusion.H
+CEXE_headers += ERF_NativeScalarDiffusion.H
 CEXE_headers += ERF_EddyViscosity.H

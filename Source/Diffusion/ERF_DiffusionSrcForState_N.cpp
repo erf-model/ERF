@@ -1,5 +1,6 @@
 #include "ERF_Diffusion.H"
 #include "ERF_ScalarDiffusion.H"
+#include "ERF_NativeScalarDiffusion.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_PBLModels.H"
 
@@ -85,476 +86,65 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
 #include "ERF_SetupScalarDiffusion.H"
     Real l_abs_g      = std::abs(grav_gpu[2]);
 
-    const Real dz_inv = cellSizeInv[2];
-
     for (int n(0); n<num_comp; ++n) {
         const int qty_index = start_comp + n;
         const NativeScalarDiffusionPolicy native_policy =
             ResolveNativeScalarDiffusionPolicy(qty_index, diffChoice);
-        const int scalar_comp = native_policy.scalar_comp;
-        const int rhs_comp = native_policy.rhs_comp;
-        constexpr int flux_comp = 0;
-        const int rho_comp = Rho_comp;
-        const Array4<const Real>& scalar = cell_prim;
 
-    // Constant alpha & Turb model
-    if (l_consA && l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,1,0,0,native_policy.coefficients.eddy_h_comp);
-            bool ext_dir_on_xlo = ( (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) );
-            ext_dir_on_xlo &= (i == dom_lo.x);
+        ScalarDiffusionFieldViews field;
+        field.scalar = cell_prim;
+        field.scalar_comp = native_policy.scalar_comp;
+        field.density = cell_data;
+        field.rho_comp = Rho_comp;
+        field.mu_turb = mu_turb;
+        field.xflux = xflux;
+        field.yflux = yflux;
+        field.zflux = zflux;
+        field.flux_comp = native_policy.flux_comp;
+        field.rhs = cell_rhs;
+        field.rhs_comp = native_policy.rhs_comp;
 
-            bool ext_dir_on_xhi = ( (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xhi &= (i == dom_hi.x+1);
-            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
+        ScalarDiffusionFluxPolicy flux_policy;
+        flux_policy.coefficients = native_policy.coefficients;
+        flux_policy.coefficient_mode = {l_consA, l_turb};
+        flux_policy.surface = {
+            SurfLayer_xlo, SurfLayer_xhi, SurfLayer_ylo, SurfLayer_yhi,
+            SurfLayer_zlo, SurfLayer_zhi
+        };
+        if (native_policy.is_theta) {
+            flux_policy.prescribed.use_x_on_side = true;
+            flux_policy.prescribed.use_y_on_side = true;
+            flux_policy.prescribed.use_z_on_side = true;
+            flux_policy.prescribed.x = Array4<const Real>(hfx_x);
+            flux_policy.prescribed.y = Array4<const Real>(hfx_y);
+            flux_policy.prescribed.z = Array4<const Real>(hfx_z);
+            flux_policy.diagnostic.enabled = true;
+            flux_policy.diagnostic.z = hfx_z;
+        } else if (native_policy.is_q1) {
+            flux_policy.prescribed.use_x_on_side = true;
+            flux_policy.prescribed.use_y_on_side = true;
+            flux_policy.prescribed.use_z_on_side = true;
+            flux_policy.prescribed.x = Array4<const Real>(qfx1_x);
+            flux_policy.prescribed.y = Array4<const Real>(qfx1_y);
+            flux_policy.prescribed.z = Array4<const Real>(qfx1_z);
+            flux_policy.diagnostic.enabled = true;
+            flux_policy.diagnostic.z = qfx1_z;
+        } else if (native_policy.is_q2) {
+            flux_policy.diagnostic.enabled = true;
+            flux_policy.diagnostic.write_on_surface = true;
+            flux_policy.diagnostic.z = qfx2_z;
+        }
 
-            if (ext_dir_on_xlo) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),true,false);
-            } else if (ext_dir_on_xhi) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,true);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_theta)) {
-                xflux(i,j,k,flux_comp) = hfx_x(i,j,k);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_q1)) {
-                xflux(i,j,k,flux_comp) = qfx1_x(i,j,k);
-            } else {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,1,0,native_policy.coefficients.eddy_h_comp);
-            bool ext_dir_on_ylo = ( (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) );
-            ext_dir_on_ylo &= (j == dom_lo.y);
-            bool ext_dir_on_yhi = ( (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) );
-            ext_dir_on_yhi &= (j == dom_hi.y+1);
-
-            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
-            if (ext_dir_on_ylo) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),true,false);
-            } else if (ext_dir_on_yhi) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,true);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_theta)) {
-                yflux(i,j,k,flux_comp) = hfx_y(i,j,k);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_q1)) {
-                yflux(i,j,k,flux_comp) = qfx1_y(i,j,k);
-            } else {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,0,1,native_policy.coefficients.eddy_v_comp);
-            bool ext_dir_on_zlo = ( ((bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
-
-            if (ext_dir_on_zlo) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,true,false);
-            } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,true);
-            } else if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
-                if (native_policy.is_theta) {
-                    zflux(i,j,k,flux_comp) = hfx_z(i,j,k);
-                } else if (native_policy.is_q1) {
-                    zflux(i,j,k,flux_comp) = qfx1_z(i,j,k);
-                } else {
-                    zflux(i,j,k,flux_comp) = zero;
-                }
-            } else {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,false);
-            }
-
-            if (native_policy.is_theta) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q1) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q2) {
-                qfx2_z(i,j,k) = zflux(i,j,k,flux_comp);
-            }
-        });
-    // Constant rho*alpha & Turb model
-    } else if (l_turb) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,1,0,0,native_policy.coefficients.eddy_h_comp);
-            bool ext_dir_on_xlo = ( (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) );
-            ext_dir_on_xlo &= (i == dom_lo.x);
-
-            bool ext_dir_on_xhi = ( (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xhi &= (i == dom_hi.x+1);
-
-            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
-            if (ext_dir_on_xlo) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),true,false);
-            } else if (ext_dir_on_xhi) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,true);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_theta)) {
-                xflux(i,j,k,flux_comp) = hfx_x(i,j,k);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_q1)) {
-                xflux(i,j,k,flux_comp) = qfx1_x(i,j,k);
-            } else {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,1,0,native_policy.coefficients.eddy_h_comp);
-            bool ext_dir_on_ylo = ( (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) );
-            ext_dir_on_ylo &= (j == dom_lo.y);
-
-            bool ext_dir_on_yhi = ( (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) );
-            ext_dir_on_yhi &= (j == dom_hi.y+1);
-
-            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
-            if (ext_dir_on_ylo) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),true,false);
-            } else if (ext_dir_on_yhi) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,true);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_theta)) {
-                yflux(i,j,k,flux_comp) = hfx_y(i,j,k);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_q1)) {
-                yflux(i,j,k,flux_comp) = qfx1_y(i,j,k);
-            } else {
-              yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,true>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,0,1,native_policy.coefficients.eddy_v_comp);
-            bool ext_dir_on_zlo = ( ((bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
-
-            if (ext_dir_on_zlo) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,true,false);
-            } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,true);
-            } else if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
-                if (native_policy.is_theta) {
-                    zflux(i,j,k,flux_comp) = hfx_z(i,j,k);
-                } else if (native_policy.is_q1) {
-                    zflux(i,j,k,flux_comp) = qfx1_z(i,j,k);
-                } else {
-                    zflux(i,j,k,flux_comp) = zero;
-                }
-            } else {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,false);
-            }
-
-            if (native_policy.is_theta) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q1) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q2) {
-                qfx2_z(i,j,k) = zflux(i,j,k,flux_comp);
-            }
-        });
-    // Constant alpha & no LES/PBL model
-    } else if(l_consA) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,1,0,0,0);
-            bool ext_dir_on_xlo = ( (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) );
-            ext_dir_on_xlo &= (i == dom_lo.x);
-
-            bool ext_dir_on_xhi = ( (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xhi &= (i == dom_hi.x+1);
-            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
-
-            if (ext_dir_on_xlo) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),true,false);
-            } else if (ext_dir_on_xhi) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,true);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_theta)) {
-                xflux(i,j,k,flux_comp) = hfx_x(i,j,k);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_q1)) {
-                xflux(i,j,k,flux_comp) = qfx1_x(i,j,k);
-            } else {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,1,0,0);
-            bool ext_dir_on_ylo = ( (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) );
-            ext_dir_on_ylo &= (j == dom_lo.y);
-
-            bool ext_dir_on_yhi = ( (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) );
-            ext_dir_on_yhi &= (j == dom_hi.y+1);
-            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
-
-            if (ext_dir_on_ylo) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),true,false);
-            } else if (ext_dir_on_yhi) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,true);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_theta)) {
-                yflux(i,j,k,flux_comp) = hfx_y(i,j,k);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_q1)) {
-                yflux(i,j,k,flux_comp) = qfx1_y(i,j,k);
-            } else {
-              yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<true,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients,
-                i,j,k,0,0,1,0);
-            bool ext_dir_on_zlo = ( ((bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
-
-            if (ext_dir_on_zlo) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,true,false);
-            } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,true);
-            } else if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
-                if (native_policy.is_theta) {
-                    zflux(i,j,k,flux_comp) = hfx_z(i,j,k);
-                } else if (native_policy.is_q1) {
-                    zflux(i,j,k,flux_comp) = qfx1_z(i,j,k);
-                } else {
-                    zflux(i,j,k,flux_comp) = zero;
-                }
-            } else {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,false);
-            }
-
-            if (native_policy.is_theta) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q1) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q2) {
-                qfx2_z(i,j,k) = zflux(i,j,k,flux_comp);
-            }
-        });
-    // Constant rho*alpha & no LES/PBL model
-    } else {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients, i,j,k,0,0,0,0);
-            bool ext_dir_on_xlo = ( (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) );
-            ext_dir_on_xlo &= (i == dom_lo.x);
-
-            bool ext_dir_on_xhi = ( (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xhi &= (i == dom_hi.x+1);
-            bool SurfLayer_on_xlo = ( SurfLayer_xlo && i == dom_lo.x);
-            bool SurfLayer_on_xhi = ( SurfLayer_xhi && i == dom_hi.x + 1);
-
-            if (ext_dir_on_xlo) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),true,false);
-            } else if (ext_dir_on_xhi) {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,true);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_theta)) {
-                xflux(i,j,k,flux_comp) = hfx_x(i,j,k);
-            } else if ((SurfLayer_on_xlo || SurfLayer_on_xhi) && (native_policy.is_q1)) {
-                xflux(i,j,k,flux_comp) = qfx1_x(i,j,k);
-            } else {
-                xflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<0>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dx_inv,mf_ux(i,j,0)/mf_uy(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients, i,j,k,0,0,0,0);
-            bool ext_dir_on_ylo = ( (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) );
-            ext_dir_on_ylo &= (j == dom_lo.y);
-
-            bool ext_dir_on_yhi = ( (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[native_policy.bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) );
-            ext_dir_on_yhi &= (j == dom_hi.y+1);
-            bool SurfLayer_on_ylo = ( SurfLayer_ylo && j == dom_lo.y);
-            bool SurfLayer_on_yhi = ( SurfLayer_yhi && j == dom_hi.y + 1);
-
-            if (ext_dir_on_ylo) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),true,false);
-            } else if (ext_dir_on_yhi) {
-                yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,true);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_theta)) {
-                yflux(i,j,k,flux_comp) = hfx_y(i,j,k);
-            } else if ((SurfLayer_on_ylo || SurfLayer_on_yhi) && (native_policy.is_q1)) {
-                yflux(i,j,k,flux_comp) = qfx1_y(i,j,k);
-            } else {
-              yflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<1>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dy_inv,mf_vy(i,j,0)/mf_vx(i,j,0),false,false);
-            }
-
-        });
-        ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhoAlpha = ScalarDiffusionFaceCoefficient<false,false>(
-                cell_data, rho_comp, mu_turb, native_policy.coefficients, i,j,k,0,0,0,0);
-            bool ext_dir_on_zlo = ( ((bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_lo.z);
-            bool ext_dir_on_zhi = ( ((bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir) ||
-                                     (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::ext_dir_prim))
-                                    && k == dom_hi.z+1);
-            bool SurfLayer_on_zlo = ( SurfLayer_zlo && k == dom_lo.z);
-            bool SurfLayer_on_zhi = ( SurfLayer_zhi && k == dom_hi.z + 1);
-
-            if (ext_dir_on_zlo) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,true,false);
-            } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,true);
-            } else if (SurfLayer_on_zlo || SurfLayer_on_zhi) {
-                if (native_policy.is_theta) {
-                    zflux(i,j,k,flux_comp) = hfx_z(i,j,k);
-                } else if (native_policy.is_q1) {
-                    zflux(i,j,k,flux_comp) = qfx1_z(i,j,k);
-                } else {
-                    zflux(i,j,k,flux_comp) = zero;
-                }
-            } else {
-                zflux(i,j,k,flux_comp) = ScalarDiffusionFlux_N<2>(
-                    scalar, scalar_comp, i,j,k,rhoAlpha,dz_inv,one,false,false);
-            }
-
-            if (native_policy.is_theta) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    hfx_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q1) {
-                if (!(SurfLayer_on_zlo || SurfLayer_on_zhi)) {
-                    qfx1_z(i,j,k) = zflux(i,j,k,flux_comp);
-                }
-            } else  if (native_policy.is_q2) {
-                qfx2_z(i,j,k) = zflux(i,j,k,flux_comp);
-            }
-        });
-    }
-
-    // This allows us to do semi-implicit discretization of the vertical diffusive terms
-    if (native_policy.scale_raw_vertical_flux) {
-        ScaleScalarDiffusionVerticalFlux(zbx, zflux, flux_comp, explicit_fac);
-    }
-
-    // Apply the component-explicit conservative divergence.
-    ApplyScalarDiffusionFluxDivergence_N(bx, xflux, yflux, zflux, flux_comp,
-                                         cell_rhs, rhs_comp, cellSizeInv, mf_mx, mf_my);
+        BuildScalarDiffusionFluxes_N(
+            bx, domain, field, flux_policy, cellSizeInv, u, v, mf_ux, mf_uy,
+            mf_vx, mf_vy, bc_ptr, native_policy.bc_comp);
+        if (native_policy.scale_raw_vertical_flux) {
+            ScaleScalarDiffusionVerticalFlux(
+                zbx, zflux, field.flux_comp, explicit_fac);
+        }
+        ApplyScalarDiffusionFluxDivergence_N(
+            bx, xflux, yflux, zflux, field.flux_comp, cell_rhs, field.rhs_comp,
+            cellSizeInv, mf_mx, mf_my);
     } // n
 
     const PBLDerivativeDzInv_N pbl_derivative_dz_inv{cellSizeInv[2]};

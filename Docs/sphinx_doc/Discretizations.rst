@@ -527,6 +527,16 @@ independent. The non-embedded-boundary N, S, and T spatial operators therefore
 do not require an arbitrary intensive scalar to be staged in ERF's conserved
 state layout.
 
+The field-level entry points are ``BuildScalarDiffusionFluxes_N``,
+``BuildScalarDiffusionFluxes_S``, and ``BuildScalarDiffusionFluxes_T`` in
+``ERF_ScalarDiffusion.H``. Each accepts independent field views and component
+indices, a coefficient policy, boundary-condition selection, and its grid and
+map-factor data. ``ApplyScalarDiffusionFluxDivergence_N`` and
+``ApplyScalarDiffusionFluxDivergence_S`` apply the regular-grid divergences;
+``ApplyScalarDiffusionMappedDivergence_T`` also owns the terrain x/y-to-z-face
+interpolation, boundary extrapolation, mapped transfers, and RHS update. The
+native conserved-state mapping remains in ``ERF_NativeScalarDiffusion.H``.
+
 On terrain-following coordinates with lateral map factors :math:`m_x` and
 :math:`m_y`, the Jacobian is
 
