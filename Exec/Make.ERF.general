@@ -321,6 +321,7 @@ ifeq ($(USE_NOAHMP), TRUE)
   # than the one we link against, the mangled module symbols still resolve and the
   # link succeeds -- but the procedure signatures disagree, and calls arrive with
   # their arguments (including the hidden character lengths) in the wrong slots.
+  NETCDF_FORTRAN_CFLAGS :=
   has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
   ifeq ($(has_netcdf_fortran),0)
     NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
@@ -331,18 +332,20 @@ ifeq ($(USE_NOAHMP), TRUE)
       NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
       LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
     else
-      $(warning NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel)
+      $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel; set PKG_CONFIG_PATH to the directory holding netcdf-fortran.pc)
     endif
   endif
 
   includes += $(NETCDF_FORTRAN_CFLAGS)
 
-  # Only override the sub-make's own netCDF probe when pkg-config actually told us
-  # something; an empty NETCDF_INCFLAGS= on the command line would silently defeat
-  # the nf-config fallback in the Noah-MP Makefile.
-  ifneq ($(strip $(NETCDF_FORTRAN_CFLAGS)),)
-    NOAHMP_SUBMAKE_NETCDF := NETCDF_INCFLAGS="$(NETCDF_FORTRAN_CFLAGS)"
-  endif
+  # Hand the sub-make exactly what pkg-config told us, even when that is the empty
+  # string: pkg-config omits include directories the compiler already searches, so
+  # an install under /usr legitimately yields no -I flags. Passing an empty
+  # NETCDF_INCFLAGS= is the correct answer there -- leaving the override off would
+  # let the sub-make fall back to whichever nf-config happens to be first on PATH,
+  # which is the mixed-install mismatch we are trying to prevent. We only get here
+  # if one of the two pkg-config probes above succeeded.
+  NOAHMP_SUBMAKE_NETCDF := NETCDF_INCFLAGS="$(NETCDF_FORTRAN_CFLAGS)"
 
   NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
 
@@ -677,6 +680,10 @@ endif
 ifeq ($(USE_NOAHMP), TRUE)
 ERF_PREBUILD_TARGETS += build_noahmp
 
+# NOTE: the Noah-MP object rules depend only on their sources and .d files, not on
+# these flags, so changing NETCDF_INCFLAGS (e.g. by pointing PKG_CONFIG_PATH at a
+# different netCDF-Fortran) does not by itself trigger a recompile. Run
+# `make realclean`, or clean $(NOAHMP_HOME)/drivers/erf, when switching installs.
 build_noahmp:
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)" $(NOAHMP_SUBMAKE_NETCDF)
 
