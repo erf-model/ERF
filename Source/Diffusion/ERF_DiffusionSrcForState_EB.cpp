@@ -90,13 +90,12 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                        BCVars::RhoScalar_bc_comp : qty_index;
         if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-        const Real alpha_mol = d_alpha_eff[eff_index];
-        const int  eddy_x    = d_eddy_diff_idx[eff_index];
-        const int  eddy_y    = d_eddy_diff_idy[eff_index];
-        const int  eddy_z    = d_eddy_diff_idz[eff_index];
 
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real alpha_mol = d_alpha_eff[eff_index];
+            const int  eddy_x    = d_eddy_diff_idx[eff_index];
+
             Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
@@ -139,6 +138,9 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real alpha_mol = d_alpha_eff[eff_index];
+            const int  eddy_y    = d_eddy_diff_idy[eff_index];
+
             Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
@@ -181,6 +183,9 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         });
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real alpha_mol = d_alpha_eff[eff_index];
+            const int  eddy_z    = d_eddy_diff_idz[eff_index];
+
             Real rhoFace  = l_consA ? myhalf * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) ) : one;
             Real rhoAlpha = rhoFace * alpha_mol;
             if (l_turb) {
