@@ -230,6 +230,8 @@ ERF::Evolve ()
 
     WriteAtFinalTime();
 
+    flush_stations();
+
     BL_PROFILE_VAR_STOP(evolve);
 }
 
@@ -547,6 +549,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
         plane_sampler->get_sample_data(geom, vars_new);
         plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+
+    // Write station time series
+    if (station_sampler &&
+        is_it_time_for_action(nstep+1, time, dt_lev0, station_sampling_interval, station_sampling_per)) {
+        sample_stations(static_cast<Real>(time));
     }
 
     // Moving terrain
@@ -1897,6 +1905,38 @@ ERF::InitData_post ()
         plane_sampler = std::make_unique<PlaneSampler>();
     }
 
+    // Create the object that writes station time series if any stations are named
+    {
+        // Naming stations turns the output on; an explicit erf.do_station_sampling
+        // = false turns it back off, so a deck can keep its stations and have the
+        // output switched off from the command line.
+        bool do_station = (pp.countval("station_names") > 0);
+        pp.queryAdd("do_station_sampling", do_station);
+        if (do_station && pp.countval("station_names") == 0) {
+            Abort("erf.do_station_sampling is true but erf.station_names is empty, "
+                  "so there is nothing to sample");
+        }
+        if (do_station) {
+            if (station_sampling_interval < 0 && station_sampling_per < 0) {
+                // No default, as for the line and plane samplers above.  A
+                // sample costs a fillpatch and a fill of every requested
+                // variable over every level that hosts a station, so defaulting
+                // to every step would make a run with a one-second time step
+                // pay for output nobody asked for, and write a row a second.
+                Abort("Need to specify station_sampling_interval or station_sampling_per");
+            }
+            station_sampler = std::make_unique<StationSampler>(pp_prefix);
+            station_sampler->setRestart(!restart_chkfile.empty());
+            init_stations();
+            // Start the series at the initial condition, as WRF's tslist does.
+            // A restart does not repeat it: the row at that time is already in
+            // the file the earlier run wrote.
+            if (restart_chkfile.empty()) {
+                sample_stations(static_cast<Real>(t_new[0]));
+            }
+        }
+    }
+
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
          solverChoice.buildings_type == BuildingsType::ImmersedForcing )
@@ -3053,6 +3093,8 @@ ERF::ReadParameters ()
         pp.queryAdd("line_sampling_interval", line_sampling_interval);
         pp.queryAdd("plane_sampling_per", plane_sampling_per);
         pp.queryAdd("plane_sampling_interval", plane_sampling_interval);
+        pp.queryAdd("station_sampling_per", station_sampling_per);
+        pp.queryAdd("station_sampling_interval", station_sampling_interval);
 
         // Specify information about outputting planes of data
         pp.queryAdd("output_bndry_planes", output_bndry_planes);

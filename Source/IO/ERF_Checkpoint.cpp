@@ -149,6 +149,11 @@ ERF::WriteCheckpointFile () const
 {
     auto dCheckTime0 = amrex::second();
 
+    // Station rows are buffered, and a restart from this checkpoint appends to
+    // the station files: without this the rows between the last flush and the
+    // checkpoint would be missing from the series the restart continues.
+    flush_stations();
+
     // chk00010            write a checkpoint file with this root directory
     // chk00010/Header     this contains information you need to save (e.g., finest_level, t_new, etc.) and also
     //                     the BoxArrays at each level
@@ -1936,6 +1941,11 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                         // fill as many ghost cells as both sides have
                         IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                         dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                        // The file's ghost cells may be stale (never filled before the
+                        // write). As copy sources they reach valid cells through periodic
+                        // images, so copy again from the valid cells alone; only
+                        // domain-boundary ghosts keep the file's values.
+                        dst->ParallelCopy(m_var, 0, 0, 1, IntVect(0), ng, geom[lev].periodicity());
                         return true;
                     }
                     return false;

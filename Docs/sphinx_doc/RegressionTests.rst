@@ -630,6 +630,92 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Station time series
+-------------------
+``StationSampling_BoxParity`` and ``StationSampling_Restart`` cover the station
+time series written by ``erf.station_names`` (see :ref:`sec:Inputs`). A station
+value is an interpolation from whichever level and whichever box happens to
+cover the point, so the two things most likely to break it are a change of
+decomposition and a restart, and both are checked against the run that does it
+in one piece. Beyond the plotfile comparison every parity test makes, each
+compares ``Output_Stations/Center.dat`` line by line, to the ten significant
+digits the series prints rather than the six a data log prints
+(``DATALOG_SIGDIGITS`` in ``Tests/RunBoxParity.cmake`` and
+``Tests/RunRestartParity.cmake``). ``Center.dat`` is the series compared because
+it is the one that varies; the stations in the still air away from the bubble
+would compare a constant against a constant. The restart comparison strips the
+comment lines first, since the restarted run marks the seam with a comment the
+straight run does not have.
+
+The deck is the Straka density current refined over the lower middle of the
+domain, with four stations chosen so that the run touches every path the sampler
+has: ``Center``, two locations inside the refined region with two heights each,
+so the values come from level 1 and the vertical interpolation runs; ``Edge``,
+inside the outer half cell of the non-periodic ``x`` boundary, where the
+horizontal stencil collapses onto the edge cell; ``Wrap``, inside the outer half
+cell of the periodic ``y`` boundary, where the stencil reaches across the
+periodic image; and ``Surface``, a 2D diagnostic, which has no height and is
+filled by the 2D plotfile path rather than the 3D one. The refined box stops
+halfway up the domain, so the deck also pins down the level test: a level
+supplies a station when it covers the column from the bottom of the domain up
+through the cells the vertical interpolation reads, not when it covers the whole
+column, and with ``erf.v = 1`` the sampler prints the level it chose for each
+station. The deck lowers ``erf.station_buffer_steps`` to 2, well below its
+default of 100, so that a ten-step run exercises the flush path and, on the
+restart, the header check that fires with the first flush of the restarted run.
+
+Test Location: `Tests/test_files/StationSampling`_
+
+.. _`Tests/test_files/StationSampling`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/StationSampling
+
+Station output does not change the answer
+-----------------------------------------
+The three ``StationSampling_AnswerParity*`` tests (label ``option-parity``) hold
+the sampler to the claim made in :ref:`sec:Inputs`, that turning station output
+on does not change the solution. Each runs one deck twice, once with the
+stations off and once with them on, and requires the plotfile to be identical
+**bit for bit** -- ``--rel_tol 0 --abs_tol 0``, not the tolerances the gold-file
+tests use, because a diagnostic that moves the answer at all is a bug rather
+than a tolerance question (``Tests/RunOptionParity.cmake``, no gold file). Both
+legs run on the same number of ranks with the same decomposition, so anything
+that survives is the sampler's own doing. Each names a file the "on" leg must
+write and the "off" leg must not, so a misspelled option cannot pass as
+agreement, and the harness refuses two legs given the same options.
+
+The claim is not free, which is why it is tested. The sampler asks
+``BuildPlot3DScratch`` not to average the microphysics state down
+(``sync_solution = false``), since that call modifies the coarse solution. What
+it still does at every sampled step is fillpatch the state on every level up to
+the highest one a station is on, re-point the ``qmoist`` pointers on every
+level, and fill the requested variables over whole levels. The three decks cover
+the paths that could break:
+
+* ``StationSampling_AnswerParity`` on the ``StationSampling`` deck -- two
+  levels, dry. The only one of the three whose station resolves to level 1, so
+  it is the case that exercises ``FillPatchFineLevel``.
+* ``StationSampling_AnswerParity_MOST`` on ``ABL_MOST`` -- the surface layer.
+  ``u_star`` and ``t_star`` are 2D diagnostics of the MOST path, so the "on" leg
+  reads what the surface layer computed as well as the 3D state.
+* ``StationSampling_AnswerParity_SDM`` on ``SDM_MoistBubble2D_AMR1`` (MPI builds
+  with ``ERF_ENABLE_PARTICLES``) -- Lagrangian microphysics on two levels with
+  ``CouplingType::TwoWay``, which is the configuration in which
+  ``BuildPlot3DScratch`` would average the microphysics state down, and so the
+  one the ``sync_solution = false`` argument exists for. Unlike the SDM
+  gold-file tests this one compares a run against itself, so it needs neither
+  the machine-specific gold files nor the flags that gate them.
+
+One gap is left open deliberately. A run driven by time-dependent lateral
+boundary data is the remaining case where an extra fill at ``t_new`` could in
+principle matter, and it is not covered: there is no ``nc_bdy_file`` fixture
+under ``Tests/test_files``, and the decks that read one
+(``Exec/RegTests/WPS_Test``, ``Exec/RegTests/MetGrid``, the Katrina inputs under
+``Exec/CanonicalTests/Hurricanes``) need NetCDF input that CI does not have. The
+argument that it is safe is that the boundary path reaches
+``ReadBndryPlanes::interp_in_time``, which memoizes on the requested time and is
+otherwise a pure function of it, so a second fill at ``t_new`` re-derives what
+the step already wrote rather than consuming a read. That is an argument, not a
+measurement.
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
