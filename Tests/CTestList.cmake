@@ -1758,6 +1758,16 @@ add_test_box_parity(Terrain2Lev_Hill_BoxParity ObsNudging_Hill "plt00020"
     REFERENCE_OPTIONS "amr.max_grid_size=1024"
     SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
 
+# The same with the refined level starting 100 m up, so that none of its boxes
+# reaches the ground: the synchronisation has no cells below the ground to own
+# on that level and must leave it alone (a first version copied from boxes
+# that do not reach the bottom, and the run aborted in Debug).
+obs_nudging_hill_files(Terrain2Lev_HillAloft_BoxParity _obs_files)
+add_test_box_parity(Terrain2Lev_HillAloft_BoxParity ObsNudging_Hill "plt00020"
+    COMMON_OPTIONS "${_obs_files} erf.nudging_from_observations=false erf.box1.in_box_lo=400.0 200.0 100.0"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+
 # The same hill as an immersed boundary in a flat mesh: the station heights are
 # measured from the immersed terrain surface, 53 m up at the stations, so the
 # nudging reaches the station series (placed at the absolute heights 93.08 and

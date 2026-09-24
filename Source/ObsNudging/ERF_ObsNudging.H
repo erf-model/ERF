@@ -114,8 +114,6 @@ public:
                                const amrex::MultiFab* blank_x, const amrex::MultiFab* blank_y,
                                const amrex::MultiFab* blank_z);
 
-    [[nodiscard]] const amrex::Vector<ObsNudgingStation>& stations () const { return m_stations; }
-
 private:
     // Interpolate every station in time and copy the profiles to the device
     void update_targets (double time);

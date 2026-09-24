@@ -683,6 +683,38 @@ TEST(LatLonMap, PlacesAPointAndMeasuresTheGridRotation)
               LatLonStatus::TooFar);
 }
 
+TEST(LatLonMap, PlacesAPointOnAGridAcrossTheAntimeridian)
+{
+    // 40 x 40 cells of 0.005 degrees in longitude centred on 180 E, given as a
+    // WRF file gives them: 179.9 ... 180 and then -179.995 ... -179.9
+    const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
+    amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
+    const auto a = fab.array();
+    amrex::LoopOnCpu(dom, [&](int i, int j, int) {
+        Real lon = Real(179.9) + (Real(i) + Real(0.5))*Real(0.005);
+        if (lon > Real(180.0)) { lon -= Real(360.0); }
+        a(i,j,0,0) = Real(-17.0) + (Real(j) + Real(0.5))*Real(0.005);
+        a(i,j,0,1) = lon;
+    });
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> problo{Real(0.0), Real(0.0), Real(0.0)};
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> dx{Real(500.0), Real(500.0), Real(100.0)};
+
+    // x = 20.3 cells, y = 12.6 cells: longitude -179.99835 on the far side of 180
+    LatLonLocation loc;
+    ASSERT_EQ(locate_latlon_on_grid(fab.const_array(), dom, problo, dx,
+                                    Real(-17.0) + Real(12.6)*Real(0.005),
+                                    Real(179.9) + Real(20.3)*Real(0.005) - Real(360.0), loc),
+              LatLonStatus::Ok);
+    // A float holds a longitude near 180 to 1e-5 degrees, about 1 m here
+    const Real xtol = (sizeof(Real) == 8) ? Real(1.0e-3) : Real(5.0);
+    const Real atol = (sizeof(Real) == 8) ? Real(1.0e-9) : Real(1.0e-2);
+    EXPECT_NEAR(loc.x, Real(20.3)*Real(500.0), xtol);
+    EXPECT_NEAR(loc.y, Real(12.6)*Real(500.0), xtol);
+    // The grid is aligned with east and north
+    EXPECT_NEAR(loc.cos_alpha, Real(1.0), atol);
+    EXPECT_NEAR(loc.sin_alpha, Real(0.0), atol);
+}
+
 TEST(LatLonMap, LongitudeDifferencesWrapAtTheAntimeridian)
 {
     EXPECT_NEAR(wrap_longitude_difference(Real(359.0)),  Real(-1.0), tol);

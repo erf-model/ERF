@@ -47,6 +47,8 @@ private:
     amrex::DistributionMapping m_src_dm;
     amrex::IntVect             m_nghost;
     amrex::BoxArray            m_slab_ba;
+    amrex::DistributionMapping m_slab_dm;
+    amrex::Vector<int>         m_src_index;   // the box of mf each slab lies under
 };
 
 class ERFPhysBCFunct_cons
