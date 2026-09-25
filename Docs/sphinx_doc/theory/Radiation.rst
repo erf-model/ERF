@@ -254,10 +254,16 @@ level whose grids do not reach the domain top or bottom is a *nested patch*, and
 sweeping it ERF interpolates its heating rates and fluxes from its parent -- the same route
 RRTMGP takes (``is_nested_patch``). Nothing needs to be set for this.
 
-What is refused is a level that *does* span the domain in :math:`z` but whose individual boxes
-do not, i.e. grids decomposed in the vertical: such a box holds only part of a column and there
-is no parent solution to fall back on. ERF's default ``amr.no_box_split_dir = 2`` already
-forbids that decomposition, so this is a backstop rather than something a normal deck meets.
+The requirement is per box, not per level: the sweep needs a whole column inside one box. Several
+layouts fail it -- a level that stops short of the domain top, a level tagged at different heights
+in different horizontal regions (surface convection in one place, cloud tops in another), or grids
+decomposed in the vertical -- and above level 0 they all take the same route, interpolation from
+the parent. None of them is an error.
+
+Level 0 is the exception, because it has no parent. It always covers the domain, so a box there
+that does not span :math:`z` is decomposed in the vertical, and that is refused at start-up.
+ERF's default ``amr.no_box_split_dir = 2`` already forbids that decomposition, so the refusal is
+a backstop rather than something a normal deck meets.
 
 If you would rather a refinement patch be solved on its own than interpolated, setting
 

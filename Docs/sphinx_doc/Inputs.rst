@@ -3908,9 +3908,11 @@ The model runs on a refined hierarchy. A level that carries complete atmospheric
 them itself; a level whose grids stop short of the domain top or bottom -- a nested patch -- has
 its heating rates and fluxes interpolated from its parent, as they are for RRTMGP. Set
 ``amr.refine_whole_domain_dir = 2`` if you would rather every refinement patch span :math:`z` and
-be solved on its own. What is refused is a level that spans :math:`z` while its individual boxes
-do not (grids decomposed in the vertical), which ERF's default ``amr.no_box_split_dir = 2``
-already prevents. The surface energy balance remains a level-0 feature, so
+be solved on its own. The requirement is per box -- the sweep needs a whole column inside one box
+-- so a level tagged at different heights in different horizontal regions is interpolated too,
+not just one that stops below the domain top. The only refusal is on level 0, which has no parent
+to interpolate from: a box there that does not span :math:`z` means grids decomposed in the
+vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance remains a level-0 feature, so
 ``erf.radiation.seb_prognostic_enable`` -- which evolves the surface temperature that the longwave
 boundary condition reads -- cannot be combined with ``amr.max_level > 0``; that combination is
 refused when the inputs are read, whether or not a fine level is ever built.

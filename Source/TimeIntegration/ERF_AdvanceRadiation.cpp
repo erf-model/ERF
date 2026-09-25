@@ -81,21 +81,30 @@ void ERF::advance_radiation (int lev,
     //       whose halo was never filled silently feeds garbage to the interpolation.  This
     //       is why qheating_rates and rad_fluxes are both defined with a (1,1,1) halo in
     //       ERF_MakeNewArrays.cpp, zeroed there, and FillBoundary'd below.
-    // Is this level a nested patch -- a fine level whose grids do not span the domain in z?
-    // Such a level has no complete atmospheric column, so no column model can run on it and
-    // its radiation fields are interpolated from the parent instead.
+    // Can no column model run on this level, so that its radiation fields must be
+    // interpolated from the parent instead?
     //
-    // RRTMGP records the same predicate on its own object at Init; the two-stream model has
-    // no IRadiation object, so derive it from the grids the way RRTMGP derives it
-    // (ERF_Radiation.H: minimalBox against the domain in z). Reading rad[] here would
-    // dereference a null pointer under erf.radiation_model = TwoStream.
-    auto level_is_nested_patch = [&] (int l) -> bool
+    // RRTMGP records its own predicate at Init and it stays authoritative for that model.
+    // The two-stream model has no IRadiation object -- reading rad[] would dereference a
+    // null pointer -- so derive it from the grids.
+    //
+    // The test is per box, not on the level's bounding box. A column sweep needs a whole
+    // column inside ONE box, so the question is whether every box spans the domain in z,
+    // not whether the boxes together do. A bounding-box test gets three layouts right and
+    // one wrong: a level tagged at genuinely different heights in different horizontal
+    // regions -- surface convection near klo here, cloud tops near khi there -- has a
+    // bounding box that reaches both domain ends while no single box holds a column. That
+    // level is no more sweepable than a shallow nest, and this sends it down the same path.
+    auto level_needs_interpolation = [&] (int l) -> bool
     {
         if (l <= 0) { return false; }
         if (solverChoice.rad_uses_interface() && rad[l]) { return rad[l]->is_nested_patch(); }
         const Box& dom = geom[l].Domain();
-        const Box  mb  = grids[l].minimalBox();
-        return (mb.smallEnd(2) > dom.smallEnd(2)) || (mb.bigEnd(2) < dom.bigEnd(2));
+        for (int ibox = 0; ibox < grids[l].size(); ++ibox) {
+            const Box& b = grids[l][ibox];
+            if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+        }
+        return false;
     };
 
     auto interp_rad_from_coarse = [&] ()
@@ -105,7 +114,7 @@ void ERF::advance_radiation (int lev,
         // where the grid structure may have changed.  A nested patch is exempt: it never
         // runs radiation itself, so its halo is already whatever its own pass through this
         // lambda interpolated into it.
-        if (!level_is_nested_patch(lev-1)) {
+        if (!level_needs_interpolation(lev-1)) {
             qheating_rates[lev-1]->FillBoundary(geom[lev-1].periodicity());
             if (rad_fluxes[lev-1]) {
                 // The whole halo, as for qheating_rates -- the z ghosts matter too, since
@@ -152,7 +161,7 @@ void ERF::advance_radiation (int lev,
             // Move both planes into valid index space -- a single layer at the coarse domain
             // top -- so the ordinary machinery can interpolate them horizontally, then put
             // the result back in the fine level's ghost cell.
-            if (!level_is_nested_patch(lev)) {
+            if (!level_needs_interpolation(lev)) {
                 const int khi_c = geom[lev-1].Domain().bigEnd(2);
                 const int khi_f = geom[lev  ].Domain().bigEnd(2);
 
@@ -320,13 +329,13 @@ void ERF::advance_radiation (int lev,
 
         // Fill ghost cells after radiation computes (needed for interpolation to finer levels)
         // This should be fast since it only fills this level's own ghost cells
-        if (solverChoice.rad_type != RadiationType::None && !level_is_nested_patch(lev)) {
+        if (solverChoice.rad_type != RadiationType::None && !level_needs_interpolation(lev)) {
             qheating_rates[lev]->FillBoundary(geom[lev].periodicity());
         }
 
         // For nested patches (fine levels that don't reach model top), radiation
         // was skipped. Interpolate the radiation fields from the parent level.
-        if (lev > 0 && level_is_nested_patch(lev)) {
+        if (lev > 0 && level_needs_interpolation(lev)) {
             interp_rad_from_coarse();
         }
     }
@@ -348,7 +357,7 @@ void ERF::advance_radiation (int lev,
         // same route RRTMGP takes: interpolate this level's heating rates and fluxes from
         // the parent rather than refusing the configuration. The two models now differ only
         // in how a level that *does* span the column is solved.
-        if (lev > 0 && level_is_nested_patch(lev)) {
+        if (lev > 0 && level_needs_interpolation(lev)) {
             interp_rad_from_coarse();
             return;
         }

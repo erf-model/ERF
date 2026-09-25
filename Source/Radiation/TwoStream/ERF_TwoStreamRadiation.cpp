@@ -232,38 +232,30 @@ TwoStreamRadiation::define_level (int lev,
     m_rad = &rad_choice;
     m_rdOcp = rdOcp;
 
-    // The sweep integrates a whole column in one pass, applying the top-of-atmosphere
-    // boundary condition above the top layer of a box and the surface condition below its
-    // bottom one. Two different situations break that, and only one of them is an error:
+    // The sweep integrates a whole column in one pass inside a single box, applying the
+    // top-of-atmosphere boundary condition above the top layer and the surface condition
+    // below the bottom one. So the requirement is per box: every box must span the domain
+    // in z. Levels that do not meet it come in several shapes -- a shallow nest, a level
+    // tagged at different heights in different horizontal regions, grids decomposed in z --
+    // and they all have the same consequence, that no box holds a column to sweep.
     //
-    //  * a level whose grids, taken together, stop short of the domain top or bottom -- a
-    //    nested patch. No column model can run there, but this is a supported configuration:
-    //    ERF::advance_radiation interpolates this level's heating rates and fluxes from its
-    //    parent instead, the same route RRTMGP takes (is_nested_patch). Not an error.
+    // Above level 0 that is not an error: ERF::advance_radiation interpolates the level's
+    // heating rates and fluxes from its parent, the route RRTMGP takes for a nested patch,
+    // and level_needs_interpolation() there applies this same per-box test so the two agree.
     //
-    //  * a level that does span the domain in z but whose individual boxes do not -- grids
-    //    decomposed in the vertical. Here a box really would have the solar beam injected
-    //    part-way down the column and radiate to space from mid-troposphere, and there is
-    //    nothing to interpolate from. That is the error.
-    //
-    // Checking here catches every path that produces grids: tagged refinement and regrid as
-    // well as an explicit erf.boxN, and at the moment the level is built rather than at the
-    // first sweep.
-    const Box mb = ba.minimalBox();
-    const bool level_is_nested = (mb.smallEnd(2) > domain.smallEnd(2)) ||
-                                 (mb.bigEnd(2)   < domain.bigEnd(2));
-    if (!level_is_nested) {
+    // On level 0 there is no parent to interpolate from, so it is fatal. Level 0 always
+    // covers the domain, which makes a box that does not span z there exactly the
+    // decomposed-in-z case -- and the remedies below are the ones that apply to it.
+    if (lev == 0) {
         for (int ibox = 0; ibox < ba.size(); ++ibox) {
             const Box& b = ba[ibox];
             if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
-                amrex::Abort("erf.radiation_model = TwoStream cannot run on grids that are "
-                             "decomposed in z: level " + std::to_string(lev) + " spans the "
-                             "domain vertically but has a box that does not, so that box holds "
-                             "only part of a column. Set amr.max_grid_size_z to at least the "
-                             "number of cells in z on this level, or leave amr.no_box_split_dir "
-                             "at its default of 2 so grids are never split in z. (A level that "
-                             "does not span the domain in z at all is a nested patch and is "
-                             "supported: its heating rates are interpolated from its parent.)");
+                amrex::Abort("erf.radiation_model = TwoStream cannot run on a level 0 whose "
+                             "grids are decomposed in z: a box there holds only part of a "
+                             "column, and level 0 has no parent to interpolate from. Set "
+                             "amr.max_grid_size_z to at least the number of cells in z, or "
+                             "leave amr.no_box_split_dir at its default of 2 so grids are "
+                             "never split in z.");
             }
         }
     }
@@ -362,15 +354,18 @@ TwoStreamRadiation::advance (int lev,
     if (!active()) { return; }
     const RadChoice& rad_choice = *m_rad;
 
-    // A nested patch carries no complete column, so there is nothing for the sweep or the
-    // surface state to work on; ERF::advance_radiation interpolates this level's fields
-    // from its parent instead. Returning here covers the post-dycore call too, which comes
-    // from ERF::Advance and does not test for it.
-    {
-        const Box mb = cons_old.boxArray().minimalBox();
+    // A level on which no box holds a whole column has nothing for the sweep or the surface
+    // state to work on; ERF::advance_radiation interpolates its fields from the parent
+    // instead. Returning here covers the post-dycore call too, which comes from ERF::Advance
+    // and does not test for it. Per box, and identical to level_needs_interpolation() there:
+    // if the two tests disagreed, one of them would try to sweep a level the other had
+    // already interpolated.
+    if (lev > 0) {
+        const BoxArray& lev_ba = cons_old.boxArray();
         const Box& dom = geom.Domain();
-        if (lev > 0 && ((mb.smallEnd(2) > dom.smallEnd(2)) || (mb.bigEnd(2) < dom.bigEnd(2)))) {
-            return;
+        for (int ibox = 0; ibox < lev_ba.size(); ++ibox) {
+            const Box& b = lev_ba[ibox];
+            if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return; }
         }
     }
 
