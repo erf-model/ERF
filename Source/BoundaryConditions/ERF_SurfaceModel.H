@@ -48,8 +48,8 @@ public:
                           const amrex::Vector<amrex::BoxArray> &ba,
                           const amrex::Vector<amrex::Geometry> &geom,
                           const amrex::Vector<amrex::DistributionMapping> &dm,
-                          const SolverChoice &solverChoice,
-                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev)
+                          const SolverChoice &/*solverChoice*/,
+                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
 
         u_star.resize(m_nlevs);
@@ -731,7 +731,7 @@ private:
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
      */
-    void weight_average_fields(int lev, amrex::MultiFab* const urban_frac);
+    void weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/);
 
     /**
      * @brief Checks whether a model field participates in a registered mapping.

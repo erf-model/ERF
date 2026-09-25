@@ -1402,6 +1402,9 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
                         int source_lev, bool source_is_raw_input,
                         bool initialize_now)
 {
+#ifndef ERF_USE_NETCDF
+    amrex::ignore_unused(from_regrid, initialize_now);
+#endif
     int lsm_data_size  = lsm.Get_Data_Size();
     int lsm_flux_size  = lsm.Get_Flux_Size();
     lsm_data[lev].resize(lsm_data_size);

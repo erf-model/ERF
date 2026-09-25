@@ -15,8 +15,8 @@ using namespace amrex;
 void
 SLM::Init (const int& /*lev*/,
            const MultiFab& cons_in,
-           const MultiFab& u_in,
-           const MultiFab& v_in,
+           const MultiFab& /*u_in*/,
+           const MultiFab& /*v_in*/,
            const Geometry& geom,
            const Geometry& geom0,
            Vector<BCRec>& domain_bcs_type,
@@ -4987,7 +4987,7 @@ void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
         auto pres_array  = lsm_fab_vars[LsmVar_SLM::pref]->array(mfi);
 
         // get potential total density, temperature, qt, qp
-        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int /*i*/, int /*j*/, int /*k*/)
         {
             // TODO
             /*
@@ -5003,8 +5003,11 @@ void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
     cons_in.FillBoundary(m_geom.periodicity());
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
+void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
+#ifndef ERF_USE_NETCDF
+    amrex::ignore_unused(time, plot_prefix, level_step);
+#endif
     geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
     amrex::Vector<amrex::MultiFab*> mf_data;
@@ -5221,7 +5224,7 @@ void SLM::snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, am
 // SUBROUTINE SNOWALB_BATS
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
+void SLM::snowalb_bats_noahmp(int /*nband*/, amrex::Real /*fsno*/, amrex::Real cosz, amrex::Real fage,
                               amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
                               amrex::Real bats_vis_age, amrex::Real bats_nir_age,
                               amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
@@ -5276,7 +5279,7 @@ void SLM::snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amr
 // SUBROUTINE GROUNDALB
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::groundalb_noahmp(int nsoil, int nband, int ice, int ist, amrex::Real fsno,
+void SLM::groundalb_noahmp(int /*nsoil*/, int nband, int /*ice*/, int ist, amrex::Real fsno,
                            const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
                            amrex::Real cosz, amrex::Real tg,
                            const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
@@ -5338,11 +5341,11 @@ void SLM::groundalb_noahmp(int nsoil, int nband, int ice, int ist, amrex::Real f
 // flux given an underlying surface with known albedo.
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
+void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amrex::Real vai,
                            amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
                            const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
                            amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
-                           int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
+                           int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
                            amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
                            amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
                            amrex::Real& bgap, amrex::Real& wgap,

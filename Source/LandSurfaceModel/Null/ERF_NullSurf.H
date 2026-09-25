@@ -38,11 +38,11 @@ class NullSurf {
                        std::unique_ptr<amrex::MultiFab>&) { }
 
     virtual void Init (const int& lev, const amrex::MultiFab& cons_in,
-                       const amrex::MultiFab& u_in, const amrex::MultiFab& v_in,
+                       const amrex::MultiFab& /*u_in*/, const amrex::MultiFab& /*v_in*/,
                        const amrex::Geometry& geom, const amrex::Geometry& geom0,
                        amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        amrex::IntVect& refRatio, const amrex::Real& dt_advance,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                        amrex::Vector<amrex::Vector<std::string>>& nc_init_file)
     {
         Init(lev, cons_in, geom, geom0, domain_bcs_type, refRatio,

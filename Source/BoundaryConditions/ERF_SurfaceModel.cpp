@@ -426,7 +426,7 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
         auto urban_frac_arr = (urban_frac != nullptr) ? urban_frac->const_array(mfi) : Array4<const Real>{};
         auto weights_arr = wavg[lev]->array(mfi);
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
             if (use_land && use_urban) {
                 // Weights are proportional to urban fraction coverage in the current cell.
@@ -529,7 +529,7 @@ void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
     field.urb_ptr[lev] = urban_mf;
 }
 
-void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const urban_frac)
+void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/)
 {
     for (auto &field : fieldmap)
     {
