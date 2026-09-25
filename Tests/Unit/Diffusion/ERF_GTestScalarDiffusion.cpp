@@ -2590,11 +2590,11 @@ ERF_GPU_TEST(
   ParallelFor(xfaces, [=] AMREX_GPU_DEVICE(int i, int, int) noexcept {
     fx(i, 0, 0) = Real(2.0) * i;
   });
-  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int, int j, int) noexcept {
-    fy(0, j, 0) = Real(3.0) * j;
+  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+    fy(i, j, 0) = Real(3.0) * j;
   });
-  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int, int, int k) noexcept {
-    fz(0, 0, k) = Real(5.0) * k;
+  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int i, int, int k) noexcept {
+    fz(i, 0, k) = Real(5.0) * k;
   });
   const auto d = detj.array();
   const auto mx4 = mx.array();
