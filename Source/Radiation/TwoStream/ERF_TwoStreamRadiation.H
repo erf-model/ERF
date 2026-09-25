@@ -152,6 +152,12 @@ private:
     // Domain-mean flux diagnostics of the last column sweep, per level, so the
     // post-dycore call can report them without sweeping again.
     struct FluxDiag {
+        // False until a column sweep has filled this level's entry. The post-dycore call
+        // reports the cached values rather than sweeping again, and a level whose
+        // pre-dycore sweep was skipped -- the interp-from-coarse-pending path, which
+        // returns before the sweep -- would otherwise report the zero-initialised struct
+        // as though the fluxes really were zero.
+        bool valid = false;
         amrex::Real SW_surface = 0.0;
         amrex::Real SW_TOA = 0.0;      // domain-mean incident SW at the top
         amrex::Real SW_up_TOA = 0.0;

@@ -10,10 +10,12 @@
 #    setVal(zero) for every level, and the RhoTheta source applies it with no
 #    level gate, so a missed fine level is silently zero heating -- which fails
 #    the checker's "qsrc_sw is zero everywhere" assertion at level 1.
-#  - the refinement patch is tagged on a field, not an explicit erf.boxN, so it
-#    exercises the path ERF_RefineBox.cpp does not cover. Without
-#    amr.refine_whole_domain_dir the tagged patch stops short of the domain top
-#    and TwoStreamRadiation::define_level aborts; with it the patch spans z.
+#  - the refinement patch is tagged on a field, not an explicit erf.boxN.
+#    amr.refine_whole_domain_dir = 2 is what makes it span z, so every level here
+#    carries complete columns and sweeps them itself. Without that setting the
+#    same tagging gives a shallow patch that is interpolated from its parent
+#    instead -- that is the companion deck, TwoStream_NestedPatch, which is this
+#    deck minus the one line and is expected to run, not to abort.
 erf.prob_name = "ABL"
 
 max_step = 2

@@ -152,16 +152,28 @@ int run_checks (const std::string& plotfile_path, int lev)
 
     const amrex::Box domain = plotfile.probDomain(lev);
 
-    // A nested patch -- a level whose grids stop short of the domain top or bottom -- carries
-    // no complete column, so its heating rates are interpolated from its parent rather than
-    // swept. The structural assertions below are about where a *column* puts its strongest
-    // heating and cooling, and a patch that does not contain the top of the atmosphere has no
-    // such layer. Detect that from the data and assert only what remains meaningful: finite,
-    // non-negative shortwave, and not identically zero -- which is exactly what fails if the
-    // interpolation never happened and the arrays keep the zeros they were allocated with.
-    const amrex::Box patch = plotfile.boxArray(lev).minimalBox();
-    const bool nested_patch = (patch.smallEnd(2) > domain.smallEnd(2)) ||
-                              (patch.bigEnd(2)   < domain.bigEnd(2));
+    // A level on which no box holds a whole column is interpolated from its parent rather
+    // than swept. The structural assertions below are about where a *column* puts its
+    // strongest heating and cooling, and such a level has no such layer to point at, so
+    // assert only what stays meaningful there: finite, non-negative shortwave, and not
+    // identically zero -- exactly what fails if the interpolation never happened and the
+    // arrays keep the zeros they were allocated with.
+    //
+    // Per box, matching ERF::advance_radiation's level_needs_interpolation and the guard in
+    // TwoStreamRadiation::advance. A bounding-box test would disagree with the model on a
+    // level tagged at different heights in different horizontal regions: its bounding box
+    // reaches both domain ends, so the box test calls it a full column while the model
+    // interpolates it. horizontal_mean_profile leaves a mean of zero at every k the level
+    // does not cover, so checks 3-5 would then fail on a layout the model handles correctly.
+    const amrex::BoxArray& lev_ba = plotfile.boxArray(lev);
+    bool nested_patch = false;
+    for (int ibox = 0; ibox < lev_ba.size(); ++ibox) {
+        const amrex::Box& b = lev_ba[ibox];
+        if (b.smallEnd(2) != domain.smallEnd(2) || b.bigEnd(2) != domain.bigEnd(2)) {
+            nested_patch = true;
+            break;
+        }
+    }
 
     const std::vector<Real> sw = horizontal_mean_profile(qsrc_sw, domain);
     const std::vector<Real> lw = horizontal_mean_profile(qsrc_lw, domain);

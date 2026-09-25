@@ -1186,11 +1186,22 @@ TwoStreamRadiation::advance (int lev,
                 LW_up_TOA      = lw_up_toa_sum * inv_n;
             }
             heating_rate_max = max_heating_global;
-            m_flux_diag[lev] = FluxDiag{SW_surface, SW_TOA, SW_up_TOA,
-                                                         LW_net_surface, LW_up_TOA,
-                                                         heating_rate_max};
+            m_flux_diag[lev] = FluxDiag{true, SW_surface, SW_TOA, SW_up_TOA,
+                                        LW_net_surface, LW_up_TOA,
+                                        heating_rate_max};
         } else {
             const FluxDiag& cached = m_flux_diag[lev];
+            if (!cached.valid) {
+                // No sweep has run on this level yet, so there is nothing to report. This
+                // happens on the first step of a level built by interp_atmos_from_coarse:
+                // ERF::advance_radiation interpolates that level's fields and returns
+                // before the pre-dycore sweep, while this post-dycore call still arrives
+                // from ERF::Advance. Emitting here would write a row of zeros that reads
+                // exactly like a real zero-flux result. A nested patch already contributes
+                // no rows for the same reason; this is the same rule for a level that
+                // simply has not swept yet.
+                return;
+            }
             SW_surface       = cached.SW_surface;
             SW_TOA           = cached.SW_TOA;
             SW_up_TOA        = cached.SW_up_TOA;

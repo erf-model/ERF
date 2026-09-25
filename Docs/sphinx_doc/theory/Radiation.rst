@@ -335,8 +335,11 @@ Limitations
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
-  ``post_dycore`` row per step and per level. Every level appends to the one file and the
-  last column, ``level``, tells the rows apart. The file is appended to rather than truncated, as ERF's other
+  ``post_dycore`` row per step for every level that sweeps. Each of them appends to the one
+  file and the last column, ``level``, tells the rows apart. A level interpolated from its
+  parent contributes no rows at all -- it runs no sweep, so it has no fluxes of its own to
+  report -- so on a refined run the rows present are those of the sweeping levels, not one
+  set per level in the hierarchy. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
 
 Surface Energy Balance

@@ -109,29 +109,36 @@ message(STATUS "TwoStream column check will run on level(s): ${check_level_list}
 # every fine-level row is dropped in both runs, which is precisely the defect the per-level
 # writer fixes (one shared writer deduplicates on (step, call_site, time), which every level
 # reports identically). So assert the content, not only that two runs agree.
-if(EXISTS "${diag_nranks}")
-    file(STRINGS "${diag_nranks}" diag_lines)
-    list(POP_FRONT diag_lines diag_header)
-    if(NOT diag_header MATCHES ",level$")
-        message(FATAL_ERROR
-            "TwoStream diagnostics CSV header does not end with the level column: ${diag_header}")
-    endif()
-    foreach(check_level IN LISTS diag_level_list)
-        set(found_level FALSE)
-        foreach(row IN LISTS diag_lines)
-            if(row MATCHES ",${check_level}$")
-                set(found_level TRUE)
-                break()
-            endif()
-        endforeach()
-        if(NOT found_level)
-            message(FATAL_ERROR
-                "TwoStream diagnostics CSV has no row for level ${check_level}; the per-level "
-                "writer is not emitting one row set per level")
+# A missing file is a failure, not a skip: the runner forces
+# erf.radiation.diag_csv_enable=true above, so no file at all means the writer produced
+# nothing -- a superset of the defect this block exists to catch, and exactly the "passes
+# vacuously" mode the CHECK_LEVELS plumbing was fixed for.
+if(NOT EXISTS "${diag_nranks}")
+    message(FATAL_ERROR
+        "TwoStream diagnostics CSV ${diag_nranks} was not written, though the runner forces "
+        "erf.radiation.diag_csv_enable=true; the diagnostics writer produced nothing")
+endif()
+file(STRINGS "${diag_nranks}" diag_lines)
+list(POP_FRONT diag_lines diag_header)
+if(NOT diag_header MATCHES ",level$")
+    message(FATAL_ERROR
+        "TwoStream diagnostics CSV header does not end with the level column: ${diag_header}")
+endif()
+foreach(check_level IN LISTS diag_level_list)
+    set(found_level FALSE)
+    foreach(row IN LISTS diag_lines)
+        if(row MATCHES ",${check_level}$")
+            set(found_level TRUE)
+            break()
         endif()
     endforeach()
-    message(STATUS "TwoStream diagnostics CSV carries rows for level(s): ${diag_level_list}")
-endif()
+    if(NOT found_level)
+        message(FATAL_ERROR
+            "TwoStream diagnostics CSV has no row for level ${check_level}; the per-level "
+            "writer is not emitting one row set per level")
+    endif()
+endforeach()
+message(STATUS "TwoStream diagnostics CSV carries rows for level(s): ${diag_level_list}")
 
 two_stream_launcher(1 checker_launcher)
 foreach(check_level IN LISTS check_level_list)
