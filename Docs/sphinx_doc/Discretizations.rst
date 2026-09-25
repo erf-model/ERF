@@ -540,24 +540,31 @@ The authoritative discrete contract for a cell is
 
 .. math::
 
-   \frac{\partial U_i}{\partial t} = -\frac{m_{x,i}m_{y,i}}{J_i}
-   \left[
-   \frac{\widetilde F_{x,i+1/2}-\widetilde F_{x,i-1/2}}{\Delta\xi}+
-   \frac{\widetilde F_{y,j+1/2}-\widetilde F_{y,j-1/2}}{\Delta\eta}+
-   \frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}{\Delta\zeta}
-   \right], \qquad
-   H_i=\frac{J_i}{m_{x,i}m_{y,i}}U_i.
+  \frac{\partial U_i}{\partial t} =
+  -\frac{m_{x,i}m_{y,i}}{\mathrm{detJ}_i}
+  \left[
+  \frac{\widetilde F_{x,i+1/2}-\widetilde F_{x,i-1/2}}{\Delta\xi}+
+  \frac{\widetilde F_{y,j+1/2}-\widetilde F_{y,j-1/2}}{\Delta\eta}+
+  \frac{\widetilde F_{z,k+1/2}-\widetilde F_{z,k-1/2}}{\Delta\zeta}
+  \right], \qquad
+  H_i=\frac{\mathrm{detJ}_i}{m_{x,i}m_{y,i}}U_i.
 
-Here :math:`J_i` is ERF's ``detJ`` representation supplied to the mapped
-divergence, and :math:`m_x,m_y` are its cell-centered ``mf_mx`` and ``mf_my``
-map factors. The mapped equation gives
+Here ``detJ`` is the ERF cell metric supplied to the mapped divergence; for
+terrain it stores :math:`h_\zeta`, while
+:math:`\mathrm{detJ}/(m_xm_y)` is the complete mapped cell-volume Jacobian
+factor. The map factors :math:`m_x,m_y` are the cell-centered ``mf_mx`` and
+``mf_my`` values. The mapped equation gives
 :math:`\partial H_i/\partial t=-\sum_d\Delta_d\widetilde F_d/\Delta\xi_d`.
 Geometry represented inside a face transfer must not be applied again. Each
 shared face uses one supplied value for both neighboring cells, and callers
 may modify a candidate before passing the accepted face arrays to
 ``ApplyScalarMappedFluxDivergence``. That operation reads only those arrays
-and the mapped cell geometry. Its convention is the same as
-``ApplyScalarAdvectionFluxDivergence``.
+and the mapped cell geometry. The face arrays and geometry convention match
+``ApplyScalarAdvectionFluxDivergence``. Their RHS semantics differ:
+``ApplyScalarMappedFluxDivergence`` accumulates :math:`-\mathrm{div}` into the
+existing RHS and leaves cells with nonpositive ``detJ`` unchanged, while
+``ApplyScalarAdvectionFluxDivergence`` assigns its output and sets such cells
+to zero.
 
 The pointwise conversion helpers are GPU-callable so callers can materialize
 transfers in fused or component-chunked kernels. The whole-array operations are
@@ -576,7 +583,7 @@ Jacobian measure in the side faces and map the vertical flux as
 Here ``ax`` and ``ay`` are the side-area/Jacobian measures, and ``detJ`` and
 the computational :math:`\Delta\zeta` supplied to the mapped divergence must
 describe the same stretched coordinate. For a purely vertically stretched
-mesh, :math:`a_x=a_y=J`; this restores the native S-grid divergence, including
+mesh, ``ax = ay = detJ``; this restores the native S-grid divergence, including
 nonuniform physical cell widths.
 
 For terrain-following coordinates, x/y transfers use the existing
@@ -601,6 +608,19 @@ terms. It constructs
 vertical transfer. Its explicit suppression argument sets the complete lower
 transfer to zero when the resolved native boundary policy requires that
 behavior; it does not merely zero raw :math:`F_z` while retaining cross terms.
+At an interior k face, its raw x/y inputs must be valid at ``kface`` and
+``kface-1``. For whole-array materialization over cell box ``bx``, when
+``bx.smallEnd(2)`` is above the domain bottom, raw x/y must include
+``bx.smallEnd(2)-1``; when ``bx.bigEnd(2)`` is below the domain top, raw x/y
+must include ``bx.bigEnd(2)+1``. No outside-domain z layer is required at a
+physical bottom or top face because the authoritative helper uses one-sided
+extrapolation. Raw candidates from ``BuildScalarDiffusionFluxes_T`` already
+meet this coverage requirement.
+
+The whole-array T materializer launches its z mapping before its x/y mappings,
+so corresponding raw and mapped directional arrays may alias in place,
+including the same component. The launches use AMReX's ordered execution
+stream; cross-direction aliasing is not supported.
 
 The native N/S/T source routines continue to consume their existing raw
 representations and divergence paths. The external mapping API does not route

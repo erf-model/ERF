@@ -565,6 +565,10 @@ TerrainScalarDiffusionGzAtKFace(
  * boundary extrapolation and cross terms remain owned by the Gz helper above.
  * Set suppress_transfer when the caller's resolved boundary policy suppresses
  * the complete lower terrain-normal transfer.
+ *
+ * At an interior k face, raw_xflux and raw_yflux must be valid at kface and
+ * kface-1. At the physical bottom or top face, the authoritative Gz helper
+ * uses one-sided extrapolation and needs no out-of-domain z layer.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 TerrainScalarDiffusionMappedTransferAtKFace(
@@ -590,7 +594,11 @@ TerrainScalarDiffusionMappedTransferAtKFace(
     Gz, mf_mx(i, j, 0), mf_my(i, j, 0));
 }
 
-/** Pointwise mapped divergence shared semantically with scalar advection. */
+/**
+ * Return the positive geometry-weighted mapped flux divergence. For
+ * detJ_cell <= 0, return zero without dividing. The diffusion array wrapper
+ * subtracts this value from the existing RHS.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 ScalarDiffusionMappedFluxDivergence(
   const amrex::Real fx_hi,
@@ -606,6 +614,8 @@ ScalarDiffusionMappedFluxDivergence(
   const amrex::Real my,
   const amrex::Real detJ_cell) noexcept
 {
+  if (detJ_cell <= amrex::Real(0.0))
+    return amrex::Real(0.0);
   const amrex::Real map_over_jacobian = (mx * my) / detJ_cell;
   return map_over_jacobian *
          ((fx_hi - fx_lo) * dx_inv + (fy_hi - fy_lo) * dy_inv +
@@ -1241,6 +1251,19 @@ BuildScalarDiffusionMappedTransfers_S(
  * Materialize the canonical terrain-following transfers using ERF's existing
  * face mappings and authoritative Gz construction. The lower suppression
  * switch zeros the complete lower transfer, including terrain cross terms.
+ *
+ * Corresponding directional inputs and outputs may alias in place, including
+ * the same component. The z transfer is launched first on AMReX's ordered
+ * execution stream so it reads raw x/y fluxes before the x/y mapping launches
+ * can overwrite them. Cross-direction aliasing is not supported.
+ *
+ * For each interior z face mapped from bx, raw_x and raw_y must be valid at
+ * both kface and kface-1. Thus, if bx.smallEnd(2) is above the domain bottom,
+ * raw_x/raw_y must include bx.smallEnd(2)-1; if bx.bigEnd(2) is below the
+ * domain top, they must include bx.bigEnd(2)+1. No outside-domain layer is
+ * required at a physical bottom/top face because the Gz helper uses one-sided
+ * extrapolation. Raw candidates produced by BuildScalarDiffusionFluxes_T
+ * already provide this z coverage.
  */
 inline void
 BuildScalarDiffusionMappedTransfers_T(
@@ -1269,16 +1292,6 @@ BuildScalarDiffusionMappedTransfers_T(
   const amrex::Box xbx = amrex::surroundingNodes(bx, 0);
   const amrex::Box ybx = amrex::surroundingNodes(bx, 1);
   const amrex::Box zbx = amrex::surroundingNodes(bx, 2);
-  amrex::ParallelFor(
-    xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      mapped_x(i, j, k, mapped_x_comp) = TerrainDiffusionMappedTx(
-        raw_x(i, j, k, raw_flux_comp), ax(i, j, k), mf_uy(i, j, 0));
-    });
-  amrex::ParallelFor(
-    ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      mapped_y(i, j, k, mapped_y_comp) = TerrainDiffusionMappedTy(
-        raw_y(i, j, k, raw_flux_comp), ay(i, j, k), mf_vx(i, j, 0));
-    });
   const amrex::Array4<const amrex::Real> xflux(raw_x);
   const amrex::Array4<const amrex::Real> yflux(raw_y);
   const amrex::Array4<const amrex::Real> zflux(raw_z);
@@ -1291,13 +1304,25 @@ BuildScalarDiffusionMappedTransfers_T(
           i, j, k, domain, xflux, yflux, zflux, raw_flux_comp, z_nd,
           cellSizeInv, mf_mx, mf_my, suppress);
     });
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    mapped_x(i, j, k, mapped_x_comp) = TerrainDiffusionMappedTx(
+      raw_x(i, j, k, raw_flux_comp), ax(i, j, k), mf_uy(i, j, 0));
+  });
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    mapped_y(i, j, k, mapped_y_comp) = TerrainDiffusionMappedTy(
+      raw_y(i, j, k, raw_flux_comp), ay(i, j, k), mf_vx(i, j, 0));
+  });
 }
 
 /**
  * Add the divergence of caller-supplied mapped transfers to rhs. Inputs are
  * only the accepted face arrays and the mapped cell geometry; in particular,
  * this operation cannot reconstruct a raw or terrain diffusion candidate.
- * Its face convention is the same as ApplyScalarAdvectionFluxDivergence.
+ * The supplied face arrays and mapped-geometry convention are the same as
+ * ApplyScalarAdvectionFluxDivergence. This diffusion operation differs in RHS
+ * semantics: it accumulates -divergence into an existing RHS and leaves cells
+ * with nonpositive detJ unchanged, whereas advection assigns its output and
+ * zeroes such cells.
  */
 inline void
 ApplyScalarMappedFluxDivergence(

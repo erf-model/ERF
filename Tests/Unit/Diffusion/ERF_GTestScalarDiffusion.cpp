@@ -1263,8 +1263,16 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalNTransfersMatchNativeDivergence
   mapped_z.setVal<RunOn::Device>(Real(-203.0));
   native_rhs.setVal<RunOn::Device>(Real(-301.0));
   mapped_rhs.setVal<RunOn::Device>(Real(-301.0));
-  wrong_rhs.setVal<RunOn::Device>(Real(-303.0));
+  wrong_rhs.setVal<RunOn::Device>(Real(-301.0));
   detj.setVal<RunOn::Device>(Real(1.0));
+  const auto native_rhs_init = native_rhs.array();
+  const auto mapped_rhs_init = mapped_rhs.array();
+  const auto wrong_rhs_init = wrong_rhs.array();
+  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    native_rhs_init(i, j, k, rhs_comp) = Real(0.0);
+    mapped_rhs_init(i, j, k, rhs_comp) = Real(0.0);
+    wrong_rhs_init(i, j, k, rhs_comp) = Real(0.0);
+  });
   Gpu::streamSynchronize();
 
   ScalarDiffusionFieldViews field;
@@ -1340,7 +1348,9 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalNTransfersMatchNativeDivergence
                   Real(100.0) * tolerance());
         for (int comp = 0; comp < 6; ++comp) {
           if (comp != rhs_comp) {
+            EXPECT_DOUBLE_EQ(n(i, j, k, comp), Real(-301.0));
             EXPECT_DOUBLE_EQ(c(i, j, k, comp), Real(-301.0));
+            EXPECT_DOUBLE_EQ(w(i, j, k, comp), Real(-301.0));
           }
         }
       }
@@ -2427,6 +2437,207 @@ ERF_GPU_TEST(
   EXPECT_NEAR(low_weight + lambda, Real(1.0), tolerance());
 }
 
+ERF_GPU_TEST(
+  ScalarDiffusionPrimitives,
+  TerrainMappedTransfersSupportInPlaceAndLowerSuppression)
+{
+  NativeTerrainScalarCase terrain(
+    Real(0.31), Real(-0.23), Real(1.4), Real(1.7), Real(0.82), Real(0.61),
+    RhoScalar_comp, true);
+  const Box& domain = terrain.domain;
+  const Box xfaces = surroundingNodes(domain, 0);
+  const Box yfaces = surroundingNodes(domain, 1);
+  const Box zfaces = surroundingNodes(domain, 2);
+  FArrayBox raw_x(xfaces, 1), raw_y(yfaces, 1), raw_z(zfaces, 1);
+  FArrayBox mapped_x(xfaces, 1), mapped_y(yfaces, 1), mapped_z(zfaces, 1);
+  FArrayBox suppressed_x(xfaces, 1), suppressed_y(yfaces, 1),
+    suppressed_z(zfaces, 1);
+  FArrayBox inplace_x(xfaces, 1), inplace_y(yfaces, 1), inplace_z(zfaces, 1);
+
+  auto fx = raw_x.array();
+  ParallelFor(xfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    fx(i, j, k) = Real(1.3) + Real(0.07) * i + Real(0.03) * j + Real(0.11) * k +
+                  Real(0.005) * i * k;
+  });
+  auto fy = raw_y.array();
+  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    fy(i, j, k) = -Real(1.0) + Real(0.02) * i - Real(0.03) * j - Real(0.05) * k;
+  });
+  auto fz = raw_z.array();
+  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    fz(i, j, k) = Real(0.4) + Real(0.06) * i - Real(0.025) * j + Real(0.02) * k;
+  });
+
+  const auto copy_x_src = raw_x.const_array();
+  const auto copy_y_src = raw_y.const_array();
+  const auto copy_z_src = raw_z.const_array();
+  auto copy_x_dst = inplace_x.array();
+  auto copy_y_dst = inplace_y.array();
+  auto copy_z_dst = inplace_z.array();
+  ParallelFor(xfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    copy_x_dst(i, j, k) = copy_x_src(i, j, k);
+  });
+  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    copy_y_dst(i, j, k) = copy_y_src(i, j, k);
+  });
+  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    copy_z_dst(i, j, k) = copy_z_src(i, j, k);
+  });
+
+  BuildScalarDiffusionMappedTransfers_T(
+    domain, domain, raw_x.const_array(), raw_y.const_array(),
+    raw_z.const_array(), 0, mapped_x.array(), 0, mapped_y.array(), 0,
+    mapped_z.array(), 0, terrain.z_nd.const_array(), terrain.ax.const_array(),
+    terrain.ay.const_array(), terrain.inv, terrain.mf_mx.const_array(),
+    terrain.mf_uy.const_array(), terrain.mf_my.const_array(),
+    terrain.mf_vx.const_array(), false);
+  BuildScalarDiffusionMappedTransfers_T(
+    domain, domain, raw_x.const_array(), raw_y.const_array(),
+    raw_z.const_array(), 0, suppressed_x.array(), 0, suppressed_y.array(), 0,
+    suppressed_z.array(), 0, terrain.z_nd.const_array(),
+    terrain.ax.const_array(), terrain.ay.const_array(), terrain.inv,
+    terrain.mf_mx.const_array(), terrain.mf_uy.const_array(),
+    terrain.mf_my.const_array(), terrain.mf_vx.const_array(), true);
+
+  // The z launch must read raw x/y before the in-place x/y conversions.
+  BuildScalarDiffusionMappedTransfers_T(
+    domain, domain, inplace_x.const_array(), inplace_y.const_array(),
+    inplace_z.const_array(), 0, inplace_x.array(), 0, inplace_y.array(), 0,
+    inplace_z.array(), 0, terrain.z_nd.const_array(), terrain.ax.const_array(),
+    terrain.ay.const_array(), terrain.inv, terrain.mf_mx.const_array(),
+    terrain.mf_uy.const_array(), terrain.mf_my.const_array(),
+    terrain.mf_vx.const_array(), false);
+  Gpu::streamSynchronize();
+
+  FArrayBox hmapped_x(xfaces, 1, The_Pinned_Arena());
+  FArrayBox hmapped_y(yfaces, 1, The_Pinned_Arena());
+  FArrayBox hmapped_z(zfaces, 1, The_Pinned_Arena());
+  FArrayBox hsuppressed_z(zfaces, 1, The_Pinned_Arena());
+  FArrayBox hinplace_x(xfaces, 1, The_Pinned_Arena());
+  FArrayBox hinplace_y(yfaces, 1, The_Pinned_Arena());
+  FArrayBox hinplace_z(zfaces, 1, The_Pinned_Arena());
+  copy_to_host(mapped_x, hmapped_x);
+  copy_to_host(mapped_y, hmapped_y);
+  copy_to_host(mapped_z, hmapped_z);
+  copy_to_host(suppressed_z, hsuppressed_z);
+  copy_to_host(inplace_x, hinplace_x);
+  copy_to_host(inplace_y, hinplace_y);
+  copy_to_host(inplace_z, hinplace_z);
+  const auto mx_ref = hmapped_x.const_array();
+  const auto my_ref = hmapped_y.const_array();
+  const auto mz_ref = hmapped_z.const_array();
+  const auto mz_suppressed = hsuppressed_z.const_array();
+  const auto mx_inplace = hinplace_x.const_array();
+  const auto my_inplace = hinplace_y.const_array();
+  const auto mz_inplace = hinplace_z.const_array();
+  for (int k = xfaces.smallEnd(2); k <= xfaces.bigEnd(2); ++k) {
+    for (int j = xfaces.smallEnd(1); j <= xfaces.bigEnd(1); ++j) {
+      for (int i = xfaces.smallEnd(0); i <= xfaces.bigEnd(0); ++i) {
+        EXPECT_NEAR(
+          mx_ref(i, j, k), mx_inplace(i, j, k), tolerance(mx_ref(i, j, k)));
+      }
+    }
+  }
+  for (int k = yfaces.smallEnd(2); k <= yfaces.bigEnd(2); ++k) {
+    for (int j = yfaces.smallEnd(1); j <= yfaces.bigEnd(1); ++j) {
+      for (int i = yfaces.smallEnd(0); i <= yfaces.bigEnd(0); ++i) {
+        EXPECT_NEAR(
+          my_ref(i, j, k), my_inplace(i, j, k), tolerance(my_ref(i, j, k)));
+      }
+    }
+  }
+  for (int k = zfaces.smallEnd(2); k <= zfaces.bigEnd(2); ++k) {
+    for (int j = zfaces.smallEnd(1); j <= zfaces.bigEnd(1); ++j) {
+      for (int i = zfaces.smallEnd(0); i <= zfaces.bigEnd(0); ++i) {
+        EXPECT_NEAR(
+          mz_ref(i, j, k), mz_inplace(i, j, k), tolerance(mz_ref(i, j, k)));
+      }
+    }
+  }
+
+  constexpr int sample_i = 2, sample_j = 3;
+  const int klo = domain.smallEnd(2);
+  const int khi = domain.bigEnd(2) + 1;
+  const Real raw_lower_z = Real(0.4) + Real(0.06) * sample_i -
+                           Real(0.025) * sample_j + Real(0.02) * klo;
+  const Real raw_lower_transfer =
+    ScalarDiffusionMappedVerticalTransfer(raw_lower_z, terrain.mx, terrain.my);
+  EXPECT_DOUBLE_EQ(mz_suppressed(sample_i, sample_j, klo), Real(0.0));
+  EXPECT_GT(
+    std::abs(mz_ref(sample_i, sample_j, klo)),
+    Real(100.0) * tolerance(mz_ref(sample_i, sample_j, klo)));
+  EXPECT_GT(
+    std::abs(mz_ref(sample_i, sample_j, klo) - raw_lower_transfer),
+    Real(100.0) * tolerance(raw_lower_transfer));
+  for (int k = klo + 1; k <= khi; ++k) {
+    EXPECT_DOUBLE_EQ(
+      mz_suppressed(sample_i, sample_j, k), mz_ref(sample_i, sample_j, k));
+  }
+}
+
+ERF_GPU_TEST(
+  ScalarDiffusionPrimitives, MappedDivergenceAccumulationAndInvalidJacobian)
+{
+  const Box cells(IntVect(0, 0, 0), IntVect(2, 0, 0));
+  const Box xfaces = surroundingNodes(cells, 0);
+  const Box yfaces = surroundingNodes(cells, 1);
+  const Box zfaces = surroundingNodes(cells, 2);
+  FArrayBox x(xfaces, 1), y(yfaces, 1), z(zfaces, 1);
+  FArrayBox rhs(cells, 1), detj(cells, 1), mx(cells, 1), my(cells, 1);
+  const auto fx = x.array();
+  const auto fy = y.array();
+  const auto fz = z.array();
+  ParallelFor(xfaces, [=] AMREX_GPU_DEVICE(int i, int, int) noexcept {
+    fx(i, 0, 0) = Real(2.0) * i;
+  });
+  ParallelFor(yfaces, [=] AMREX_GPU_DEVICE(int, int j, int) noexcept {
+    fy(0, j, 0) = Real(3.0) * j;
+  });
+  ParallelFor(zfaces, [=] AMREX_GPU_DEVICE(int, int, int k) noexcept {
+    fz(0, 0, k) = Real(5.0) * k;
+  });
+  const auto d = detj.array();
+  const auto mx4 = mx.array();
+  const auto my4 = my.array();
+  ParallelFor(cells, [=] AMREX_GPU_DEVICE(int i, int, int) noexcept {
+    d(i, 0, 0) = i == 0 ? Real(4.0) : (i == 1 ? Real(0.0) : Real(-1.0));
+    mx4(i, 0, 0) = Real(2.0);
+    my4(i, 0, 0) = Real(3.0);
+  });
+  rhs.setVal<RunOn::Device>(Real(7.0));
+  const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(0.5), Real(0.25), Real(0.1)}};
+  Gpu::streamSynchronize();
+
+  EXPECT_DOUBLE_EQ(
+    ScalarDiffusionMappedFluxDivergence(
+      Real(2.0), Real(0.0), Real(3.0), Real(0.0), Real(5.0), Real(0.0), inv[0],
+      inv[1], inv[2], Real(2.0), Real(3.0), Real(0.0)),
+    Real(0.0));
+  EXPECT_DOUBLE_EQ(
+    ScalarDiffusionMappedFluxDivergence(
+      Real(2.0), Real(0.0), Real(3.0), Real(0.0), Real(5.0), Real(0.0), inv[0],
+      inv[1], inv[2], Real(2.0), Real(3.0), Real(-1.0)),
+    Real(0.0));
+  EXPECT_DOUBLE_EQ(
+    ScalarDiffusionMappedFluxDivergence(
+      Real(2.0), Real(0.0), Real(3.0), Real(0.0), Real(5.0), Real(0.0), inv[0],
+      inv[1], inv[2], Real(2.0), Real(3.0), Real(4.0)),
+    Real(3.375));
+
+  ApplyScalarMappedFluxDivergence(
+    cells, x.const_array(), 0, y.const_array(), 0, z.const_array(), 0,
+    rhs.array(), 0, detj.const_array(), inv, mx.const_array(),
+    my.const_array());
+  Gpu::streamSynchronize();
+
+  FArrayBox host_rhs(cells, 1, The_Pinned_Arena());
+  copy_to_host(rhs, host_rhs);
+  const auto result = host_rhs.const_array();
+  EXPECT_DOUBLE_EQ(result(0, 0, 0), Real(3.625));
+  EXPECT_DOUBLE_EQ(result(1, 0, 0), Real(7.0));
+  EXPECT_DOUBLE_EQ(result(2, 0, 0), Real(7.0));
+}
+
 ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalMappedDivergenceTelescopes)
 {
   const Box cells(IntVect(0, 0, 0), IntVect(2, 2, 1));
@@ -2437,6 +2648,8 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalMappedDivergenceTelescopes)
   x.setVal<RunOn::Device>(Real(-1.0));
   y.setVal<RunOn::Device>(Real(-2.0));
   z.setVal<RunOn::Device>(Real(-3.0));
+  // Zero baselines make this compare only the shared face/geometry
+  // convention; diffusion accumulates while advection assigns its RHS.
   rhs.setVal<RunOn::Device>(Real(0.0));
   advection_rhs.setVal<RunOn::Device>(Real(0.0));
   auto fx = x.array();
