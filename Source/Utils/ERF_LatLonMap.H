@@ -29,6 +29,11 @@
 // Longitude differences are taken the short way round, so a grid that crosses
 // the antimeridian is handled like any other.
 //
+// The same arrays give the orientation of the grid: the direction in which the
+// i index grows, measured counterclockwise from true east, is the angle alpha
+// by which an earth-relative (east, north) wind has to be rotated to become a
+// grid-relative (u, v) wind.
+//
 
 //
 // Invert the latitude/longitude map locally.  Given the difference between the
@@ -91,6 +96,10 @@ struct LatLonLocation
     // The nearest mass point, reported when the request cannot be placed
     amrex::Real near_lat = amrex::Real(0.0);
     amrex::Real near_lon = amrex::Real(0.0);
+
+    // Orientation of the grid x axis, counterclockwise from true east
+    amrex::Real cos_alpha = amrex::Real(1.0);
+    amrex::Real sin_alpha = amrex::Real(0.0);
 };
 
 enum class LatLonStatus {
@@ -98,6 +107,15 @@ enum class LatLonStatus {
     Degenerate, // the lat/lon gradients are parallel near the point
     TooFar      // more than one cell from the nearest mass point: outside the domain
 };
+
+//
+// The orientation of the grid at mass point (i,j) of a lat/lon array ll
+// (component 0 latitude, component 1 longitude, both in degrees) over the 2D
+// domain dom: the direction of increasing i, counterclockwise from true east.
+//
+void grid_rotation_from_latlon (const amrex::Array4<const amrex::Real>& ll,
+                                const amrex::Box& dom, int i, int j,
+                                amrex::Real& cos_alpha, amrex::Real& sin_alpha);
 
 //
 // Place (req_lat, req_lon) on the grid described by the lat/lon array ll over
@@ -116,9 +134,9 @@ LatLonStatus locate_latlon_on_grid (const amrex::Array4<const amrex::Real>& ll,
 void pack_latlon (amrex::MultiFab& latlon, const amrex::MultiFab& lat, const amrex::MultiFab& lon);
 
 //
-// The level-0 lat/lon arrays gathered onto the I/O rank, with the question
-// asked of them answered there and broadcast.  Every member function is
-// collective: call it on every rank with the same arguments.
+// The level-0 lat/lon arrays gathered onto the I/O rank, with the two
+// questions asked of them answered there and broadcast.  Every member function
+// is collective: call it on every rank with the same arguments.
 //
 class LatLonMap
 {
@@ -131,6 +149,10 @@ public:
 
     // Place a latitude/longitude on the grid
     LatLonStatus locate (amrex::Real req_lat, amrex::Real req_lon, LatLonLocation& loc) const;
+
+    // Orientation of the grid at domain coordinates (x, y), from the cell that contains it
+    void rotation_at (amrex::Real x, amrex::Real y,
+                      amrex::Real& cos_alpha, amrex::Real& sin_alpha) const;
 
 private:
     amrex::MultiFab m_ll;   // one box on the I/O rank, lat and lon

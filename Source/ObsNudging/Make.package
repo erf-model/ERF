@@ -1,0 +1,6 @@
+CEXE_sources += ERF_ObsNudging.cpp
+CEXE_sources += ERF_ObsNudgingSeries.cpp
+
+CEXE_headers += ERF_ObsNudging.H
+CEXE_headers += ERF_ObsNudgingKernel.H
+CEXE_headers += ERF_ObsNudgingSeries.H

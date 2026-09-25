@@ -1755,13 +1755,27 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
 #=============================================================================
 
 # Run a deck and check its station series (see Tests/RunStationSeries.cmake):
-# MODE single runs it once and hands CHECKS, separated by '|', to the checker.
+# MODE single runs it once and hands CHECKS, separated by '|', to the checker;
+# analytic compares the series STATION with a closed-form answer, approach
+# compares it between runs with and without nudging (OFF_OPTIONS), and abort
+# requires a start-up abort containing EXPECTED_MESSAGE.
 function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
-    set(oneValueArgs "RUNTIME_OPTIONS" "CHECKS")
-    cmake_parse_arguments(ADD_TEST_SS "" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "RUNTIME_OPTIONS" "CHECKS" "OFF_OPTIONS" "STATION" "EXPECTED_MESSAGE" "LABELS")
+    # PARSE_ARGV takes the arguments from ARGV verbatim, so a value that itself
+    # holds a ';' (LABELS "regression;obs-nudging") stays one argument.  Passing
+    # an unquoted ${ARGN} instead would split it and drop all but the first word.
+    cmake_parse_arguments(PARSE_ARGV 3 ADD_TEST_SS "" "${oneValueArgs}" "")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(_nranks ${NP})
+    if("${MODE}" STREQUAL "abort")
+        set(_nranks 1)
+    endif()
+    set(_labels "regression;station")
+    if(NOT "${ADD_TEST_SS_LABELS}" STREQUAL "")
+        set(_labels "${ADD_TEST_SS_LABELS}")
+    endif()
     # The checker is named by its target file, which is exact under every
     # generator; the ERF executable is resolved by the runner (it may carry a
     # wildcard for the config subdirectory on Windows)
@@ -1769,7 +1783,7 @@ function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
-        "-DNRANKS=${NP}"
+        "-DNRANKS=${_nranks}"
         "-DTEST_EXE=${TEST_EXE}"
         "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
@@ -1778,15 +1792,18 @@ function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
         "-DMODE=${MODE}"
         "-DCHECKER=$<TARGET_FILE:erf_station_series_check>"
         "-DCHECKS=${ADD_TEST_SS_CHECKS}"
+        "-DSTATION=${ADD_TEST_SS_STATION}"
         "-DRUNTIME_OPTIONS=${ADD_TEST_SS_RUNTIME_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_SS_OFF_OPTIONS}"
+        "-DEXPECTED_MESSAGE=${ADD_TEST_SS_EXPECTED_MESSAGE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunStationSeries.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT 600
-        PROCESSORS ${NP}
+        PROCESSORS ${_nranks}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;station"
-        ATTACHED_FILES_ON_FAIL "${test_log};${test_log}.checker")
+        LABELS "${_labels}"
+        ATTACHED_FILES_ON_FAIL "${test_log};${test_log}.off;${test_log}.checker")
 endfunction(add_test_station_series)
 
 # The parity drivers run each leg in a subdirectory, so the sounding is named by
@@ -1847,6 +1864,125 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 add_test_station_series(StationSampling_EBTerrain HillEB single
     RUNTIME_OPTIONS "erf.station_names=mast mastabs erf.mastabs.field=x_velocity theta erf.mastabs.x=400.0 erf.mastabs.y=10.0 erf.mastabs.height_abs=90.0"
     CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.001")
+
+#=============================================================================
+# Observation nudging
+#=============================================================================
+
+# The obs-nudging tests run through add_test_station_series (above), in its
+# analytic, approach, single and abort modes.
+
+# A uniform flow relaxing to a target linear in time: u, v and theta at three
+# heights of a probe far from the station must follow the closed form (see the
+# deck).  The error is a few 1e-6 at dt / tau = 1/20; 1e-4 still fails a rate,
+# time interpolation or target that is wrong by a percent.
+add_test_station_series(ObsNudging_Uniform ObsNudging_Uniform analytic
+    STATION "probe"
+    LABELS "regression;obs-nudging"
+    CHECKS "col=2 phi0=4.0 a=6.0 b=0.01 tau=20.0 tol=1.0e-4|col=7 phi0=1.0 a=-1.0 b=0.0 tau=20.0 tol=1.0e-4|col=13 phi0=300.0 a=301.0 b=0.005 tau=20.0 tol=1.0e-4")
+
+# The same flow with the band mean +- sigma: u and theta start below the band
+# and v above it, so each relaxes to the near edge, mean - sigma (u: 6 - 0.5,
+# theta: 301 - 0.2) or mean + sigma (v: -1 + 0.25), and never enters it.
+add_test_station_series(ObsNudging_Uniform_SigmaBand ObsNudging_Uniform analytic
+    RUNTIME_OPTIONS "erf.obs_nudging.sigma_factor=1.0"
+    STATION "probe"
+    LABELS "regression;obs-nudging"
+    CHECKS "col=2 phi0=4.0 a=5.5 b=0.01 tau=20.0 tol=1.0e-4|col=7 phi0=1.0 a=-0.75 b=0.0 tau=20.0 tol=1.0e-4|col=13 phi0=300.0 a=300.8 b=0.005 tau=20.0 tol=1.0e-4")
+
+# Over a hill on a terrain-fitted mesh, with a refined level from the ground up:
+# after 10 s the nudged run must be closer than the free one to the measurements
+# interpolated to that time (mast: u 7.0167, v 0.5083, theta 300.5083 at 40 m;
+# lidar gate at 120 m: u 6.4083, w 0.4), by the factors below.  The ratios
+# measured when the test was written are 0.53, 0.60, 0.36, 0.50 and 0.71.
+add_test_station_series(ObsNudging_Hill ObsNudging_Hill approach
+    LABELS "regression;obs-nudging"
+    OFF_OPTIONS "erf.nudging_from_observations=false"
+    CHECKS "series=mast col=2 target=7.0167 factor=0.7|series=mast col=3 target=0.5083 factor=0.75|series=mast col=4 target=300.5083 factor=0.6|series=gate col=2 target=6.4083 factor=0.7|series=gate col=3 target=0.4 factor=0.85")
+
+# The parity drivers run each leg in a subdirectory, so the deck's data files
+# are named by absolute path.
+function(obs_nudging_hill_files TEST_NAME OUT_VAR)
+    set(_d "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)
+endfunction()
+
+# The nudging reads a face's neighbours (the density, the mesh and the terrain
+# under it), the terrain is gathered from the boxes that touch the ground, and
+# the two copies of a face on a periodic boundary must see the same distance to
+# every station, so the answer is checked across a change of decomposition on
+# both levels, with the station series compared as well as the plotfile.
+obs_nudging_hill_files(ObsNudging_Hill_BoxParity _obs_files)
+add_test_box_parity(ObsNudging_Hill_BoxParity ObsNudging_Hill "plt00020"
+    COMMON_OPTIONS "${_obs_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# The same hill as an immersed boundary in a flat mesh: the station heights are
+# measured from the immersed terrain surface, 53 m up at the stations, so the
+# nudging reaches the station series (placed at the absolute heights 93.08 and
+# 173.08 m) only if the terrain under the stations is found.  The ratios
+# measured when the test was written are 0.72, 0.74, 0.52, 0.46 and 0.79.
+add_test_station_series(ObsNudging_HillIF ObsNudging_HillIF approach
+    LABELS "regression;obs-nudging"
+    OFF_OPTIONS "erf.nudging_from_observations=false"
+    CHECKS "series=mast col=2 target=7.0167 factor=0.85|series=mast col=3 target=0.5083 factor=0.85|series=mast col=4 target=300.5083 factor=0.7|series=gate col=2 target=6.4083 factor=0.65|series=gate col=3 target=0.4 factor=0.9")
+
+function(obs_nudging_hillif_files TEST_NAME OUT_VAR)
+    set(_d "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)
+endfunction()
+obs_nudging_hillif_files(ObsNudging_HillIF_BoxParity _obs_files)
+add_test_box_parity(ObsNudging_HillIF_BoxParity ObsNudging_HillIF "plt00020"
+    COMMON_OPTIONS "${_obs_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# Every input the nudging checks must be refused at start-up, before the first
+# step, with a message that names it.  Each test changes one input of a deck
+# that otherwise runs.
+foreach(_case IN ITEMS
+        "NoTau|StationSampling|erf.nudging_from_observations=true|needs erf.obs_nudging.tau"
+        "NoStations|StationSampling|erf.nudging_from_observations=true erf.obs_nudging.tau=10|needs erf.obs_nudging.stations"
+        "EBTerrain|StationSampling|erf.nudging_from_observations=true erf.terrain_type=EB|does not support erf.terrain_type = EB"
+        "NegativeTau|ObsNudging_Uniform|erf.obs_nudging.tau=-1|erf.obs_nudging.tau must be positive"
+        "ZeroRadius|ObsNudging_Uniform|erf.obs_nudging.horizontal_radius=0|horizontal_radius must be positive"
+        "NegativeSigma|ObsNudging_Uniform|erf.obs_nudging.sigma_factor=-1|sigma_factor must not be negative"
+        "NothingNudged|ObsNudging_Uniform|erf.obs_nudging.nudge_wind=false erf.obs_nudging.nudge_w=false erf.obs_nudging.nudge_theta=false|nothing would be nudged"
+        "NoUsableStation|ObsNudging_Uniform|erf.obs_nudging.nudge_wind=false erf.obs_nudging.nudge_theta=false|no station measures any of the quantities"
+        "EpochNoDate|ObsNudging_Uniform|erf.obs_nudging.time_type=epoch|needs the run to know its start date"
+        "BadTimeType|ObsNudging_Uniform|erf.obs_nudging.time_type=utc|must be elapsed or epoch"
+        "BadWindFrame|ObsNudging_Uniform|erf.obs_nudging.mast.wind_frame=north|wind_frame must be earth or grid"
+        "BadHeightRef|ObsNudging_Uniform|erf.obs_nudging.mast.height_ref=asl|height_ref must be agl or msl"
+        "MissingFile|ObsNudging_Uniform|erf.obs_nudging.mast.file=no_such_station.txt|cannot open 'no_such_station.txt'"
+        "BadColumn|ObsNudging_Uniform|erf.obs_nudging.mast.file=bad_columns_station.txt|unknown column 'pressure'"
+        "HeightMismatch|ObsNudging_Uniform|erf.obs_nudging.mast.file=mismatched_heights_station.txt|does not match the heights of the first time"
+        "XYAndLatLon|ObsNudging_Uniform|erf.obs_nudging.mast.lat=40.0 erf.obs_nudging.mast.long=-105.0|give either lat/long or x/y, not both"
+        "LatLonNoArrays|ObsNudging_Uniform|erf.obs_nudging.stations=geo erf.obs_nudging.geo.file=uniform_station.txt erf.obs_nudging.geo.lat=40.0 erf.obs_nudging.geo.long=-105.0|lat/long needs a run with latitude/longitude arrays"
+        "OutsideDomain|ObsNudging_Uniform|erf.obs_nudging.mast.x=5000.0|is outside the problem domain"
+        "LevelOffGround|ObsNudging_Hill|erf.box1.in_box_lo=400.0 200.0 100.0|do not reach the bottom of the domain")
+    string(REPLACE "|" ";" _fields "${_case}")
+    list(GET _fields 0 _name)
+    list(GET _fields 1 _deck)
+    list(GET _fields 2 _options)
+    list(GET _fields 3 _message)
+    add_test_station_series(ObsNudging_Abort_${_name} ${_deck} abort
+        LABELS "regression;obs-nudging"
+        RUNTIME_OPTIONS "${_options}"
+        EXPECTED_MESSAGE "${_message}")
+endforeach()
+
+# The targets are interpolated in time from the run time and the terrain is
+# rebuilt from the grids, so a restart must continue the run exactly.
+obs_nudging_hill_files(ObsNudging_Hill_Restart _obs_files)
+add_test_restart_parity(ObsNudging_Hill_Restart ObsNudging_Hill 10 20
+    COMMON_OPTIONS "${_obs_files}"
+    DATALOG "Output_Stations/mast.dat"
+    DATALOG_SIGDIGITS 10)
 
 #=============================================================================
 # Performance tests

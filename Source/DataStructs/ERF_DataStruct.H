@@ -1142,6 +1142,14 @@ struct SolverChoice {
 
         pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
 
+        // Nudging towards observations at stations; the stations and the
+        // parameters are read by the ObsNudging class, under erf.obs_nudging
+        pp.queryAdd("nudging_from_observations", nudging_from_observations);
+        if (nudging_from_observations && terrain_type == TerrainType::EB) {
+            amrex::Abort("erf.nudging_from_observations does not support erf.terrain_type = EB; "
+                         "use a terrain-fitted mesh or immersed forcing");
+        }
+
         int nudging_u_z1_set = pp.queryAdd("nudging_u_z1", nudging_u_z1);
         int nudging_u_z2_set = pp.queryAdd("nudging_u_z2", nudging_u_z2);
         pp.queryAdd("nudging_t_z1", nudging_t_z1);
@@ -2086,6 +2094,10 @@ struct SolverChoice {
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
 
+    // Do we nudge the solution towards observations at stations (met masts,
+    //    lidars)?  See ERF_ObsNudging.H.
+    bool nudging_from_observations = false;
+
     amrex::Real nudging_u_z1 = amrex::Real(-1.0e36);
     amrex::Real nudging_u_z2 = amrex::Real(1.0e36);
     amrex::Real nudging_t_z1 = zero;
@@ -2496,6 +2508,8 @@ struct SolverChoice {
  * @brief Whether spatially varying moisture forcing is enabled.
  * @var SolverChoice::nudging_from_input_sounding
  * @brief Whether solution fields are nudged toward input sounding data.
+ * @var SolverChoice::nudging_from_observations
+ * @brief Whether solution fields are nudged toward observations at stations.
  * @var SolverChoice::use_rotate_surface_flux
  * @brief Whether MOST surface fluxes are rotated with terrain.
  * @var SolverChoice::use_eamxx_shoc
