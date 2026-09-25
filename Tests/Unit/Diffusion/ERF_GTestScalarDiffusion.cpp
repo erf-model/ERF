@@ -1339,7 +1339,9 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalNTransfersMatchNativeDivergence
         EXPECT_GT(std::abs(n(i, j, k, rhs_comp) - w(i, j, k, rhs_comp)),
                   Real(100.0) * tolerance());
         for (int comp = 0; comp < 6; ++comp) {
-          if (comp != rhs_comp) EXPECT_DOUBLE_EQ(c(i, j, k, comp), Real(-301.0));
+          if (comp != rhs_comp) {
+            EXPECT_DOUBLE_EQ(c(i, j, k, comp), Real(-301.0));
+          }
         }
       }
     }
