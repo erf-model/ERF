@@ -33,6 +33,8 @@ using namespace amrex;
  * @param[in   ] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in   ] Hfx3 heat flux in z-dir
  * @param[in   ] Diss dissipation of turbulent kinetic energy
+ * @param[in   ] Tau13 rho<u'w'>, carrying the surface-layer stress on the zlo face
+ * @param[in   ] Tau23 rho<v'w'>, carrying the surface-layer stress on the zlo face
  * @param[in   ] geom   Container for geometric information
  * @param[in   ] solverChoice  Container for solver parameters
  * @param[in   ] SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
@@ -74,6 +76,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* Q1fx1, MultiFab* Q1fx2,
                         MultiFab* Q1fx3, MultiFab* Q2fx3,
                         MultiFab* Diss,
+                        MultiFab* Tau13, MultiFab* Tau23,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
@@ -424,7 +427,13 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
         Array4<Real> hfx_EB{};
 
+        // The surface-layer stresses on the zlo face, consumed by the MYNN QKE
+        // source at k = klo (see ERF_AddQKESources.H)
+        Array4<const Real> tau13, tau23;
+
         if (l_use_diff) {
+            if (Tau13) { tau13 = Tau13->const_array(mfi); }
+            if (Tau23) { tau23 = Tau23->const_array(mfi); }
             diffflux_x = dflux_x->array(mfi);
             diffflux_y = dflux_y->array(mfi);
             diffflux_z = dflux_z->array(mfi);
@@ -559,6 +568,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               tau13, tau23,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
@@ -570,6 +580,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               tau13, tau23,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_eb) {
@@ -589,6 +600,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                               tau13, tau23,
                                                mu_turb, solverChoice, level,
                                                tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     }

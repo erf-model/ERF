@@ -1802,6 +1802,27 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
                                               dudz, dvdz, moisture_indices);
 
+                // This branch is the free atmosphere above the PBL, so it only
+                // reaches the first fluid cell of the column when the PBL index
+                // collapses to it. The resolved gradients are unusable there
+                // (ERF #4037), so fall back on the MOST profile. The effective
+                // surface scales and the local surface index are used so that an
+                // immersed surface is handled the same way as the domain bottom.
+                if (k == ksrf) {
+                    const Real zrel_sl = amrex::max(zval - zib, Real(1.0e-4));
+                    const Real theta_k = cell_data(i, j, k, RhoTheta_comp) / rho;
+                    const Real qv_k    = (moisture_indices.qv >= 0) ?
+                                         cell_data(i, j, k, moisture_indices.qv) / rho : zero;
+                    PBLSurfaceLayerGradient sl;
+                    sl.u_star  = us_eff_arr(i, j, 0);
+                    sl.tstar_v = ComputeVirtualTStarPBL(ts_eff_arr(i, j, 0),
+                                                        use_moisture ? qs_eff_arr(i, j, 0) : zero,
+                                                        theta_k, qv_k, use_moisture);
+                    sl.zval    = zrel_sl;
+                    sl.zeta    = zrel_sl / obuk_val;
+                    ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
+                }
+
                 // Apply boundary safeguards to avoid numerical instability in calm conditions above PBL
                 const Real dudz_safe = (k < izmax) ? dudz : zero;
                 const Real dvdz_safe = (k < izmax) ? dvdz : zero;

@@ -44,6 +44,8 @@ using namespace amrex;
  * @param[inout]  qfx1_z heat flux in z-dir
  * @param[out]    qfx2_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
+ * @param[in]  tau13 rho<u'w'>; holds the surface-layer stress on the zlo face
+ * @param[in]  tau23 rho<v'w'>; holds the surface-layer stress on the zlo face
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  solverChoice container of solver and diffusion parameters
  * @param[in]  level AMR level
@@ -87,6 +89,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                               Array4<      Real>& qfx1_z,
                               Array4<      Real>& qfx2_z,
                               Array4<      Real>& diss,
+                        const Array4<const Real>& tau13,
+                        const Array4<const Real>& tau23,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const int level,

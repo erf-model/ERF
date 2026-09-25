@@ -34,7 +34,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const TurbChoice& turbChoice,
                        std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
-                       bool /*use_moisture*/,
+                       bool use_moisture,
                        int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
@@ -187,6 +187,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         // -- Compute diffusion coefficients --
 
         const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
+        const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
+        const auto  q_star_arr = (use_moisture) ?
+                                 SurfLayer->get_q_star(level)->const_array(mfi) : Array4<const Real>{};
         const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
         const Array4<Real      > &K_turb = eddyViscosity.array(mfi);
 
@@ -238,6 +241,25 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                               dthetadz, dudz, dvdz, moisture_indices);
+
+                // This branch is the free atmosphere above the PBL, so it only
+                // reaches the first cell when the PBL index collapses to it. The
+                // resolved gradients are unusable there (ERF #4037), so fall back
+                // on the MOST profile; see ApplySurfaceLayerGradientsPBL.
+                if (k == izmin) {
+                    const Real theta_k = cell_data(i,j,k,RhoTheta_comp) / rho;
+                    const Real qv_k    = (moisture_indices.qv >= 0) ?
+                                         cell_data(i,j,k,moisture_indices.qv) / rho : zero;
+                    PBLSurfaceLayerGradient sl;
+                    sl.u_star  = u_star_arr(i,j,0);
+                    sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                        (q_star_arr) ? q_star_arr(i,j,0) : zero,
+                                                        theta_k, qv_k, use_moisture);
+                    sl.zval    = zval;
+                    sl.zeta    = zval / l_obuk_arr(i,j,0);
+                    ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
+                }
+
                 const Real shear_squared = dudz*dudz + dvdz*dvdz + Real(1.0e-9); // Real(1.0e-9) from WRF to avoid divide by zero
                 const Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
                 Real richardson = CONST_GRAV / theta * dthetadz / shear_squared;
