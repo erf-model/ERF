@@ -213,27 +213,48 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        // LSM radiation output fields (surface fluxes needed by NoahMP)
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
-            Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
+        if (m_SurfaceModel && solverChoice.rad_type == RadiationType::RRTMGP) {
+            const auto fine_outputs = m_SurfaceModel->get_radiation_output_fields(lev);
+            const auto coarse_outputs = m_SurfaceModel->get_radiation_output_fields(lev-1);
+            const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+            for (int i = 0; i < fine_outputs.size(); ++i) {
+                if (fine_outputs[i] && coarse_outputs[i]) {
+                    BoxList coarse_boxes = coarse_outputs[i]->boxArray().boxList();
+                    BoxList fine_boxes = fine_outputs[i]->boxArray().boxList();
+                    for (Box& box : coarse_boxes) { box.setRange(2, 0); }
+                    for (Box& box : fine_boxes) { box.setRange(2, 0); }
 
-            for (int i = 0; i < lsm_output_names.size(); ++i) {
-                int varIdx_fine   = lsm.Get_DataIdx(lev  , lsm_output_names[i]);
-                int varIdx_coarse = lsm.Get_DataIdx(lev-1, lsm_output_names[i]);
-                if (varIdx_fine >= 0 && varIdx_coarse >= 0) {
-                    MultiFab* lsm_fine   = lsm.Get_Data_Ptr(lev  , varIdx_fine);
-                    MultiFab* lsm_coarse = lsm.Get_Data_Ptr(lev-1, varIdx_coarse);
-                    if (lsm_fine && lsm_coarse && lsm_coarse->nComp() > 0) {
-                        // LSM data are 2D surface fields: use 2D refinement ratio and pc_interp
-                        // to avoid computing z-slopes from uninitialized ghost cells
-                        IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
-                        InterpFromCoarseLevel(*lsm_fine, IntVect(0,0,0),
-                                              IntVect(0,0,0),
-                                              *lsm_coarse, 0, 0, lsm_coarse->nComp(),
-                                              geom[lev-1], geom[lev],
-                                              rr2d, &pc_interp,
-                                              domain_bcs_type, BCVars::cons_bc);
+                    MultiFab coarse_surface(BoxArray(std::move(coarse_boxes)),
+                                            coarse_outputs[i]->DistributionMap(), 1, 0);
+                    MultiFab fine_surface(BoxArray(std::move(fine_boxes)),
+                                          fine_outputs[i]->DistributionMap(), 1, 0);
+
+                    // Radiation output fields are surface-slab fields even when stored in 3-D.
+                    for (MFIter mfi(coarse_surface); mfi.isValid(); ++mfi) {
+                        const Box& source_box = (*coarse_outputs[i])[mfi.index()].box();
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                            source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0,
+                            "Radiation output destination must contain the k=0 surface plane");
+                        const Box source_slab = makeSlab(source_box, 2, 0);
+                        coarse_surface[mfi].copy((*coarse_outputs[i])[mfi.index()],
+                                                 source_slab, 0, mfi.validbox(), 0, 1);
                     }
+
+                    InterpFromCoarseLevel(fine_surface, IntVect(0,0,0),
+                                          IntVect(0,0,0), coarse_surface, 0, 0, 1,
+                                          geom[lev-1], geom[lev], rr2d, &pc_interp,
+                                          domain_bcs_type, BCVars::cons_bc);
+
+                    for (MFIter mfi(fine_surface); mfi.isValid(); ++mfi) {
+                        const Box& destination_box = (*fine_outputs[i])[mfi.index()].box();
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                            destination_box.smallEnd(2) <= 0 && destination_box.bigEnd(2) >= 0,
+                            "Radiation output destination must contain the k=0 surface plane");
+                        const Box destination_slab = makeSlab(destination_box, 2, 0);
+                        (*fine_outputs[i])[mfi.index()].copy(
+                            fine_surface[mfi], mfi.validbox(), 0, destination_slab, 0, 1);
+                    }
+                    m_SurfaceModel->distribute_radiation_output(lev, i);
                 }
             }
         }
@@ -273,45 +294,13 @@ void ERF::advance_radiation (int lev,
         MultiFab* t_surf = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]) ? m_SurfaceLayer[Orientation(Direction::z, Orientation::low)]->get_t_surf(lev) : nullptr;
 
         // RRTMGP inputs names and pointers
-        Vector<const MultiFab*> lsm_input_ptrs;
+        Vector<const MultiFab*> lsm_input_ptrs(6, nullptr);
         Vector<MultiFab*> lsm_output_ptrs;
 
-        if (m_SurfaceLayer[Orientation::zlo()] &&
-            m_SurfaceLayer[Orientation::zlo()]->use_sfc_fluxes()) {
-            lsm_input_ptrs = {t_surf};
-        }
-
-        if (solverChoice.lsm_type == LandSurfaceType::SLM) {
-            //rad[lev]->set_lsm_inputs(lsm.get_model_lev<SLM>(lev));
-
-            // TODO: rename SLM variables to match those expected by RRMTGP
-            //       for now, pointers are directly returned without name lookup
-            lsm_input_ptrs = lsm.get_model_lev<SLM>(lev)->export_to_RRTMGP();
-
-            auto slm_output_name_map = lsm.get_model_lev<SLM>(lev)->get_rad_output_map();
-            Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
-            lsm_output_ptrs = Vector<MultiFab*>(lsm_output_names.size(), nullptr);
-            for (int i(0); i<lsm_output_ptrs.size(); ++i) {
-                std::string slm_name = slm_output_name_map[lsm_output_names[i]];
-                if (slm_name == "") continue;
-
-                int varIdx = lsm.Get_DataIdx(lev, slm_name);
-                if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev, varIdx); }
-            }
-        } else {
-            Vector<std::string> lsm_input_names = rad[lev]->get_lsm_input_varnames();
-            lsm_input_ptrs.resize(lsm_input_names.size(), nullptr);
-            for (int i(0); i<lsm_input_ptrs.size(); ++i) {
-                int varIdx = lsm.Get_DataIdx(lev, lsm_input_names[i]);
-                if (varIdx >= 0) { lsm_input_ptrs[i] = lsm.Get_Data_Ptr(lev, varIdx); }
-            }
-
-            // RRTMGP output names and pointers
-            Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
-            lsm_output_ptrs = Vector<MultiFab*>(lsm_output_names.size(), nullptr);
-            for (int i(0); i<lsm_output_ptrs.size(); ++i) {
-                int varIdx = lsm.Get_DataIdx(lev, lsm_output_names[i]);
-                if (varIdx >= 0) { lsm_output_ptrs[i] = lsm.Get_Data_Ptr(lev, varIdx); }
+        if (m_SurfaceModel) {
+            lsm_input_ptrs = m_SurfaceModel->get_radiation_fields(lev);
+            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+                lsm_output_ptrs = m_SurfaceModel->get_radiation_output_fields(lev);
             }
         }
 
@@ -327,6 +316,10 @@ void ERF::advance_radiation (int lev,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
                       lsm_updated, solar_declin, calday);
+
+        if (m_SurfaceModel && rad[lev]->radiation_updated()) {
+            m_SurfaceModel->distribute_radiation_outputs(lev);
+        }
 
         // Fill ghost cells after radiation computes (needed for interpolation to finer levels)
         // This should be fast since it only fills this level's own ghost cells
@@ -364,9 +357,15 @@ void ERF::advance_radiation (int lev,
         const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
                                ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
                                : nullptr;
+        Vector<const MultiFab*> radiation_inputs(6, nullptr);
+        bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
+        if (m_SurfaceModel) {
+            radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
+        }
         two_stream_rad.advance(lev, istep[lev], t_old[lev], dt_advance, "pre_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
-                               lsm, qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                               lsm, radiation_inputs, noahmp_active,
+                               qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, lat_ptr, lon_ptr,
                                t_old[lev] + start_time, use_datetime);
     }

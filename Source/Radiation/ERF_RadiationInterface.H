@@ -43,6 +43,12 @@ public:
          amrex::Real& declin,
          amrex::Real& calday) = 0;
 
+    /**
+     * @brief Reports whether the last radiation call updated its outputs.
+     * @return True when the radiation kernel wrote output fields.
+     */
+    virtual bool radiation_updated () const { return true; }
+
     virtual
     void
     WriteDataLog (const double& time) = 0;

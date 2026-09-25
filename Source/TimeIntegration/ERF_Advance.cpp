@@ -472,9 +472,15 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
                                ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
                                : nullptr;
+        Vector<const MultiFab*> radiation_inputs(6, nullptr);
+        const bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
+        if (m_SurfaceModel) {
+            radiation_inputs = m_SurfaceModel->get_radiation_fields(lev);
+        }
         two_stream_rad.advance(lev, iteration, time + dt_lev, dt_lev, "post_dycore",
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
-                               lsm, qheating_rates[lev].get(), rad_fluxes[lev].get(),
+                               lsm, radiation_inputs, noahmp_active,
+                               qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, lat_ptr, lon_ptr,
                                time + dt_lev + start_time, use_datetime);
     }

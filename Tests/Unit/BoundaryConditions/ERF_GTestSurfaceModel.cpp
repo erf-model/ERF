@@ -4,6 +4,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -104,6 +105,21 @@ struct SurfaceModelFixture {
         for (int i = 0; i < 6; ++i) {
             fields[i] = std::make_unique<amrex::MultiFab>(
                 bas[lev], dms[lev], 1, amrex::IntVect(1, 1, ngz));
+            fields[i]->setVal(first + increment * i);
+        }
+        return fields;
+    }
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> make_surface_fields(
+        const Real first, const Real increment)
+    {
+        amrex::BoxList surface_boxes = ba.boxList();
+        for (auto& box : surface_boxes) { box.setRange(2, 0); }
+        const amrex::BoxArray surface_ba(std::move(surface_boxes));
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> fields(6);
+        for (int i = 0; i < 6; ++i) {
+            fields[i] = std::make_unique<amrex::MultiFab>(
+                surface_ba, dm, 1, amrex::IntVect(1, 1, 0));
             fields[i]->setVal(first + increment * i);
         }
         return fields;
@@ -289,13 +305,16 @@ TEST(SurfaceModel, RegridRecreatesMappedFieldsAndRadiationCache)
         0, fixture.pointers(land), {"f0", "f1", "f2", "f3", "f4", "f5"},
         SurfaceModelType::LAND);
     fixture.model->set_model_fields(SurfaceModelType::LAND, {0, 1, 2, 3, 4, 5});
-    fixture.model->register_field_map("tskin", {4, -1});
+    fixture.model->register_radiation_input("tskin", {4, -1});
+    fixture.model->register_radiation_output("lw_flux_dn", {0, -1});
 
     amrex::MultiFab urban_fraction(fixture.ba, fixture.dm, 1, amrex::IntVect(0));
     urban_fraction.setVal(Real(0.0));
     fixture.model->calculate_weight_average(0, &urban_fraction);
     const auto radiation_before = fixture.model->get_radiation_fields(0);
-    ASSERT_EQ(radiation_before[0], fixture.model->get_field("tskin", 0));
+    ASSERT_EQ(radiation_before[0], land[4].get());
+    const auto radiation_outputs_before = fixture.model->get_radiation_output_fields(0);
+    ASSERT_EQ(radiation_outputs_before[6], land[0].get());
 
     amrex::BoxList remade_boxes;
     remade_boxes.push_back(amrex::Box(
@@ -334,15 +353,16 @@ TEST(SurfaceModel, RegridRecreatesMappedFieldsAndRadiationCache)
     remade_fraction.setVal(Real(0.0));
     fixture.model->calculate_weight_average(0, &remade_fraction);
 
-    const auto* new_tskin = fixture.model->get_field("tskin", 0);
-    EXPECT_EQ(new_tskin->boxArray(), remade_masks[0]->boxArray());
-    EXPECT_NEAR(new_tskin->max(0), Real(50.0), 1.e-12);
+    EXPECT_EQ(remade_land[4]->boxArray(), remade_ba);
+    EXPECT_NEAR(remade_land[4]->max(0), Real(50.0), 1.e-12);
 
     const auto radiation_after = fixture.model->get_radiation_fields(0);
-    ASSERT_EQ(radiation_after[0], new_tskin);
+    ASSERT_EQ(radiation_after[0], remade_land[4].get());
+    const auto radiation_outputs_after = fixture.model->get_radiation_output_fields(0);
+    ASSERT_EQ(radiation_outputs_after[6], remade_land[0].get());
 }
 
-TEST(SurfaceModel, RadiationFieldListUsesCommonNamesAndProviderMappings)
+TEST(SurfaceModel, RadiationFieldListUsesCanonicalMappings)
 {
     const std::vector<std::string> radiation_names{
         "tskin", "emiss", "albedo_vis", "albedo_nir",
@@ -350,51 +370,146 @@ TEST(SurfaceModel, RadiationFieldListUsesCommonNamesAndProviderMappings)
 
     {
         SurfaceModelFixture fixture;
+        auto land = fixture.make_fields(Real(10.0), Real(10.0), 1);
+        fixture.model->set_model_data(
+            0, fixture.pointers(land), {"f0", "f1", "f2", "f3", "f4", "f5"},
+            SurfaceModelType::LAND);
         for (int i = 0; i < radiation_names.size(); ++i) {
-            fixture.model->register_field_map(
+            fixture.model->register_radiation_input(
                 radiation_names[i], std::pair<int, int>{i, -1});
         }
 
         const auto radiation_fields = fixture.model->get_radiation_fields(0);
         ASSERT_EQ(radiation_fields.size(), radiation_names.size());
         for (int i = 0; i < radiation_names.size(); ++i) {
-            EXPECT_EQ(radiation_fields[i],
-                      fixture.model->get_field(radiation_names[i], 0));
-            EXPECT_NE(radiation_fields[i], nullptr);
+            EXPECT_EQ(radiation_fields[i], land[i].get());
         }
     }
 
     // The common radiation names can map to different provider-specific
     // indices, as they do for the land and urban surface models.
     SurfaceModelFixture fixture;
+    auto land = fixture.make_fields(Real(10.0), Real(10.0), 1);
+    auto urban = fixture.make_fields(Real(20.0), Real(10.0), 1);
+    fixture.configure_models(land, urban);
     const std::vector<std::pair<int, int>> provider_mappings{
-        {10, 20}, {11, 21}, {12, -1}, {13, -1}, {14, -1}, {15, -1}};
+        {0, 0}, {1, 1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}};
     for (int i = 0; i < radiation_names.size(); ++i) {
-        fixture.model->register_field_map(radiation_names[i], provider_mappings[i]);
+        fixture.model->register_radiation_input(radiation_names[i], provider_mappings[i]);
     }
 
     const auto radiation_fields = fixture.model->get_radiation_fields(0);
     ASSERT_EQ(radiation_fields.size(), radiation_names.size());
     for (int i = 0; i < radiation_names.size(); ++i) {
-        EXPECT_EQ(radiation_fields[i],
-                  fixture.model->get_field(radiation_names[i], 0));
         EXPECT_NE(radiation_fields[i], nullptr);
     }
+    EXPECT_NE(radiation_fields[0], land[0].get());
+    EXPECT_NE(radiation_fields[0], urban[0].get());
 
     // Missing registered fields are represented by nullptr so the radiation
     // backend can use its default RRTMGP values.
     SurfaceModelFixture fallback_fixture;
-    fallback_fixture.model->register_field_map(
+    auto fallback_land = fallback_fixture.make_fields(Real(10.0), Real(10.0), 1);
+    fallback_fixture.model->set_model_data(
+        0, fallback_fixture.pointers(fallback_land),
+        {"f0", "f1", "f2", "f3", "f4", "f5"}, SurfaceModelType::LAND);
+    fallback_fixture.model->register_radiation_input(
         radiation_names[0], std::pair<int, int>{0, -1});
 
     const auto fallback_fields = fallback_fixture.model->get_radiation_fields(0);
     ASSERT_EQ(fallback_fields.size(), radiation_names.size());
-    EXPECT_EQ(fallback_fields[0],
-              fallback_fixture.model->get_field(radiation_names[0], 0));
-    EXPECT_NE(fallback_fields[0], nullptr);
+    EXPECT_EQ(fallback_fields[0], fallback_land[0].get());
     for (int i = 1; i < fallback_fields.size(); ++i) {
         EXPECT_EQ(fallback_fields[i], nullptr);
     }
+}
+
+TEST(SurfaceModel, RadiationInputsResolveProviderModesAndWeights)
+{
+    const std::vector<std::string> names{
+        "tskin", "emiss", "albedo_vis", "albedo_nir",
+        "albedo_vis_diff", "albedo_nir_diff"};
+
+    SurfaceModelFixture fixture;
+    auto land = fixture.make_surface_fields(Real(10.0), Real(1.0));
+    auto urban = fixture.make_surface_fields(Real(20.0), Real(1.0));
+    fixture.configure_models(land, urban);
+
+    std::unordered_map<std::string, std::pair<int, int>> mappings;
+    for (int i = 0; i < names.size(); ++i) {
+        mappings.emplace(names[i], std::pair<int, int>{i, i});
+    }
+    fixture.model->register_radiation_inputs(mappings);
+
+    amrex::MultiFab urban_fraction(
+        fixture.model->get_wavg_factors(0)->boxArray(), fixture.dm, 1,
+        amrex::IntVect(0));
+    urban_fraction.setVal(Real(0.25));
+    fixture.model->calculate_weight_average(0, &urban_fraction);
+
+    const auto fields = fixture.model->get_radiation_fields(0);
+    ASSERT_EQ(fields.size(), names.size());
+    for (int i = 0; i < fields.size(); ++i) {
+        EXPECT_NE(fields[i], land[i].get());
+        EXPECT_NE(fields[i], urban[i].get());
+        EXPECT_NEAR(fields[i]->max(0), Real(12.5) + Real(i), 1.e-12);
+    }
+
+    SurfaceModelFixture land_fixture;
+    auto land_only = land_fixture.make_fields(Real(30.0), Real(1.0), 1);
+    land_fixture.model->set_model_data(
+        0, land_fixture.pointers(land_only), {"f0", "f1", "f2", "f3", "f4", "f5"},
+        SurfaceModelType::LAND);
+    land_fixture.model->register_radiation_input("tskin", {0, -1});
+    EXPECT_EQ(land_fixture.model->get_radiation_fields(0)[0], land_only[0].get());
+
+    SurfaceModelFixture urban_fixture;
+    auto urban_only = urban_fixture.make_fields(Real(40.0), Real(1.0), 0);
+    urban_fixture.model->set_model_data(
+        0, urban_fixture.pointers(urban_only), {"f0", "f1", "f2", "f3", "f4", "f5"},
+        SurfaceModelType::URBAN);
+    urban_fixture.model->register_radiation_input("tskin", {-1, 0});
+    EXPECT_EQ(urban_fixture.model->get_radiation_fields(0)[0], urban_only[0].get());
+}
+
+TEST(SurfaceModel, RadiationOutputsResolveAndDistributeCanonicalMappings)
+{
+    SurfaceModelFixture fixture;
+    auto land = fixture.make_surface_fields(Real(10.0), Real(1.0));
+    auto urban = fixture.make_fields(Real(20.0), Real(1.0), 0);
+    fixture.model->set_model_data(
+        0, fixture.pointers(land), {"f0", "f1", "f2", "f3", "f4", "f5"},
+        SurfaceModelType::LAND);
+    fixture.model->set_model_data(
+        0, fixture.pointers(urban), {"f0", "f1", "f2", "f3", "f4", "f5"},
+        SurfaceModelType::URBAN);
+    land[0]->setVal(7.0);
+    urban[0]->setVal(0.0);
+
+    fixture.model->register_radiation_output("cos_zenith_angle", {0, 0});
+    fixture.model->register_radiation_output("sw_flux_dn_dir_vis", {1, -1});
+    fixture.model->register_radiation_output("lw_flux_dn", {-1, 2});
+
+    const auto outputs = fixture.model->get_radiation_output_fields(0);
+    ASSERT_EQ(outputs.size(), 7);
+    EXPECT_EQ(outputs[0], land[0].get());
+    EXPECT_EQ(outputs[1], nullptr);
+    EXPECT_EQ(outputs[2], land[1].get());
+    EXPECT_EQ(outputs[3], nullptr);
+    EXPECT_EQ(outputs[4], nullptr);
+    EXPECT_EQ(outputs[5], nullptr);
+    EXPECT_EQ(outputs[6], urban[2].get());
+
+    fixture.model->distribute_radiation_outputs(0);
+    EXPECT_EQ(urban[0]->max(0), Real(7.0));
+    EXPECT_EQ(urban[0]->min(0), Real(0.0));
+
+    auto replacement_land = fixture.make_surface_fields(Real(30.0), Real(1.0));
+    fixture.model->set_model_data(
+        0, fixture.pointers(replacement_land),
+        {"f0", "f1", "f2", "f3", "f4", "f5"}, SurfaceModelType::LAND);
+    const auto replacement_outputs = fixture.model->get_radiation_output_fields(0);
+    EXPECT_EQ(replacement_outputs[0], replacement_land[0].get());
 }
 
 TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)

@@ -7,6 +7,7 @@
 #include "AMReX_IntVect.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_FillPatchUtil.H"
+#include "AMReX_GpuLaunch.H"
 
 #include <ERF_DataStruct.H>
 
@@ -68,6 +69,7 @@ public:
         urban_data_lev.resize(m_nlevs);
 
         rad_fields.resize(m_nlevs);
+        rad_output_fields.resize(m_nlevs);
 
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>{4, -1};
@@ -112,6 +114,7 @@ public:
             urban_data_lev.resize(m_nlevs);
 
             rad_fields.resize(m_nlevs);
+            rad_output_fields.resize(m_nlevs);
         }
 
         m_ba[lev] = ba;
@@ -160,10 +163,17 @@ public:
                 m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
             fields[field][lev]->setVal(0.0);
         }
+        for (auto& entry : radiation_input_map) {
+            if (entry.second.weighted.size() < static_cast<std::size_t>(m_nlevs)) {
+                entry.second.weighted.resize(m_nlevs);
+            }
+            entry.second.weighted[lev].reset();
+        }
 
         // Cached radiation fields point into the registered storage above.
         // Rebuild the cache when this level's fields have been replaced.
         rad_fields[lev].clear();
+        rad_output_fields[lev].clear();
 
         // Interpolate the new finer level using coarse data
         if (lev > 0) {
@@ -266,6 +276,13 @@ public:
                 lsm_data_lev[lev][i] = model_data[i];
             }
             m_use_land = true;
+            for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
+            for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
+            for (auto& entry : radiation_input_map) {
+                if (lev < static_cast<int>(entry.second.weighted.size())) {
+                    entry.second.weighted[lev].reset();
+                }
+            }
         } else if (type == SurfaceModelType::URBAN) {
             urban_data_lev[lev].resize(model_data.size());
             if (lev == 0) {
@@ -281,6 +298,13 @@ public:
                 urban_data_lev[lev][i] = model_data[i];
             }
             m_use_urban = true;
+            for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
+            for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
+            for (auto& entry : radiation_input_map) {
+                if (lev < static_cast<int>(entry.second.weighted.size())) {
+                    entry.second.weighted[lev].reset();
+                }
+            }
         }
     }
 
@@ -465,6 +489,36 @@ public:
                                 amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
 
     /**
+     * @brief Registers a canonical radiation input mapping.
+     * @param name Canonical radiation input name.
+     * @param lsm_urb_map Pair of land and urban model field indices.
+     */
+    void register_radiation_input(const std::string& name,
+                                  const std::pair<int, int>& lsm_urb_map);
+
+    /**
+     * @brief Registers canonical radiation input mappings.
+     * @param input_map Canonical names mapped to land and urban indices.
+     */
+    void register_radiation_inputs(
+        const std::unordered_map<std::string, std::pair<int, int>>& input_map);
+
+    /**
+     * @brief Registers a canonical radiation output mapping.
+     * @param name Canonical radiation output name.
+     * @param lsm_urb_map Pair of land and urban model field indices.
+     */
+    void register_radiation_output(const std::string& name,
+                                   const std::pair<int, int>& lsm_urb_map);
+
+    /**
+     * @brief Registers canonical radiation output mappings.
+     * @param output_map Canonical names mapped to land and urban indices.
+     */
+    void register_radiation_outputs(
+        const std::unordered_map<std::string, std::pair<int, int>>& output_map);
+
+    /**
      * @brief Retrieves a registered field by its common name.
      * @param name Registered field name.
      * @param lev AMR level to query.
@@ -498,6 +552,26 @@ public:
     }
 
     /**
+     * @brief Returns canonical radiation output destinations for one level.
+     * @param lev AMR level to query.
+     * @return One destination per canonical radiation output.
+     */
+    const amrex::Vector<amrex::MultiFab*> get_radiation_output_fields(int lev = 0);
+
+    /**
+     * @brief Distributes updated canonical radiation outputs to other providers.
+     * @param lev AMR level to update.
+     */
+    void distribute_radiation_outputs(int lev);
+
+    /**
+     * @brief Distributes one updated canonical radiation output to other providers.
+     * @param lev AMR level to update.
+     * @param output_index Index in the canonical radiation output list.
+     */
+    void distribute_radiation_output(int lev, int output_index);
+
+    /**
      * @brief Advances an input stream to the next line.
      *
      * taken from ERF_Checkpoint, reuse?
@@ -521,6 +595,13 @@ public:
 private:
 
     /**
+     * @brief Validates the layout contract for a canonical radiation output.
+     * @param lev AMR level associated with the destination.
+     * @param mf Radiation output destination to validate.
+     */
+    void validate_radiation_output_layout(int lev, const amrex::MultiFab* mf) const;
+
+    /**
      * @brief Computes simple land and urban weights from the urban fraction.
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
@@ -538,7 +619,53 @@ private:
         for (int i = 0; i < radnames.size(); i++) {
             amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
 
-            auto mf = get_field(radnames[i], lev);
+            amrex::MultiFab* mf = nullptr;
+            auto rad_it = radiation_input_map.find(radnames[i]);
+            if (rad_it != radiation_input_map.end()) {
+                const int land_idx = rad_it->second.map.first;
+                const int urban_idx = rad_it->second.map.second;
+                const bool valid_land = m_use_land && land_idx >= 0 &&
+                    lev < static_cast<int>(lsm_data_lev.size()) &&
+                    land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
+                    lsm_data_lev[lev][land_idx] != nullptr;
+                const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+                    lev < static_cast<int>(urban_data_lev.size()) &&
+                    urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
+                    urban_data_lev[lev][urban_idx] != nullptr;
+                if (valid_land && valid_urban) {
+                    if (!rad_it->second.weighted[lev]) {
+                        rad_it->second.weighted[lev] = std::make_unique<amrex::MultiFab>(
+                            m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
+                    }
+                    auto& weighted = *rad_it->second.weighted[lev];
+                    const auto& land = *lsm_data_lev[lev][land_idx];
+                    const auto& urban = *urban_data_lev[lev][urban_idx];
+                    for (amrex::MFIter mfi(weighted); mfi.isValid(); ++mfi) {
+                        const amrex::Box bx = mfi.tilebox();
+                        const auto weights = wavg[lev]->const_array(mfi);
+                        const auto land_arr = land.const_array(mfi);
+                        const auto urban_arr = urban.const_array(mfi);
+                        // LSM surface fields may be stored at k <= 0; use the top valid LSM
+                        // plane, which matches k=0 when the LSM keeps those fields synchronized
+                        // at the surface (such as SLM). Urban surface fields are stored at k=0.
+                        const int land_k = land.box(mfi.index()).bigEnd(2);
+                        const int urban_k = urban.box(mfi.index()).smallEnd(2);
+                        auto output = weighted.array(mfi);
+                        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                            output(i,j,k) = land_arr(i,j,land_k) *
+                                weights(i,j,0,SurfaceModelType::LAND) +
+                                urban_arr(i,j,urban_k) *
+                                weights(i,j,0,SurfaceModelType::URBAN);
+                        });
+                    }
+                    weighted.FillBoundary(m_geom[lev].periodicity());
+                    mf = rad_it->second.weighted[lev].get();
+                } else if (valid_land) {
+                    mf = lsm_data_lev[lev][land_idx];
+                } else if (valid_urban) {
+                    mf = urban_data_lev[lev][urban_idx];
+                }
+            }
             if (mf) {
                 rad_fields[lev].push_back(mf);
             } else {
@@ -636,6 +763,19 @@ private:
     amrex::Vector<std::string> m_urban_names;
 
     amrex::Vector<amrex::Vector<const amrex::MultiFab*>> rad_fields; // pointers to radiation MFs at each level
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> rad_output_fields;
+
+    inline static const std::vector<std::string> rad_output_names = {
+        "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+        "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+        "lw_flux_dn"};
+
+    struct RadiationField {
+        std::pair<int, int> map;
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> weighted;
+    };
+    std::unordered_map<std::string, RadiationField> radiation_input_map;
+    std::unordered_map<std::string, RadiationField> radiation_output_map;
 
     // plotfile names for outputs
     inline static const std::vector<std::string> field_names = {

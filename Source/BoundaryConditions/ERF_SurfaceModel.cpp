@@ -5,6 +5,8 @@
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_TileNoZ.H"
 
+#include <algorithm>
+
 using namespace amrex;
 
 void SurfaceModel::apply_weight_average(int lev, amrex::MultiFab *lsm_data, amrex::MultiFab *urban_data)
@@ -179,6 +181,198 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     }
 
     weight_average_fields(lev, urban_frac);
+
+    for (auto& entry : radiation_input_map) {
+        const int land_idx = entry.second.map.first;
+        const int urban_idx = entry.second.map.second;
+        const bool valid_land = m_use_land && land_idx >= 0 &&
+            land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
+            lsm_data_lev[lev][land_idx] != nullptr;
+        const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+            urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
+            urban_data_lev[lev][urban_idx] != nullptr;
+        if (!(valid_land && valid_urban)) { continue; }
+
+        if (entry.second.weighted[lev] == nullptr) {
+            entry.second.weighted[lev] = std::make_unique<MultiFab>(
+                m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
+        }
+        MultiFab& output = *entry.second.weighted[lev];
+        const MultiFab& land = *lsm_data_lev[lev][land_idx];
+        const MultiFab& urban = *urban_data_lev[lev][urban_idx];
+        for (MFIter mfi(output, TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto weights = wavg[lev]->const_array(mfi);
+            const auto land_arr = land.const_array(mfi);
+            const auto urban_arr = urban.const_array(mfi);
+            // LSM surface fields may be stored at k <= 0; use the top valid LSM
+            // plane, which matches k=0 when the LSM keeps those fields synchronized
+            // at the surface (such as SLM). Urban surface fields are stored at k=0.
+            const int land_k = land.box(mfi.index()).bigEnd(2);
+            const int urban_k = urban.box(mfi.index()).smallEnd(2);
+            auto out = output.array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                out(i,j,k) = land_arr(i,j,land_k) * weights(i,j,0,SurfaceModelType::LAND) +
+                             urban_arr(i,j,urban_k) * weights(i,j,0,SurfaceModelType::URBAN);
+            });
+        }
+        output.FillBoundary(m_geom[lev].periodicity());
+    }
+}
+
+void SurfaceModel::register_radiation_input(const std::string& name,
+                                            const std::pair<int, int>& map)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
+                                     "A radiation input must have a provider mapping");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::find(radnames.begin(), radnames.end(), name) != radnames.end(),
+        "Unknown canonical radiation input: " + name);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(map.first >= -1 && map.second >= -1,
+                                     "Radiation input indices must be -1 or nonnegative");
+    if (map.first >= 0) {
+        AMREX_ALWAYS_ASSERT(map.first < static_cast<int>(m_lsm_names.size()));
+    }
+    if (map.second >= 0) {
+        AMREX_ALWAYS_ASSERT(map.second < static_cast<int>(m_urban_names.size()));
+    }
+    RadiationField field;
+    field.map = map;
+    field.weighted.resize(m_nlevs);
+    radiation_input_map[name] = std::move(field);
+    for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
+}
+
+void SurfaceModel::register_radiation_inputs(
+    const std::unordered_map<std::string, std::pair<int, int>>& input_map)
+{
+    for (const auto& entry : input_map) {
+        register_radiation_input(entry.first, entry.second);
+    }
+}
+
+void SurfaceModel::register_radiation_output(const std::string& name,
+                                             const std::pair<int, int>& map)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
+                                     "A radiation output must have a provider mapping");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        std::find(rad_output_names.begin(), rad_output_names.end(), name) != rad_output_names.end(),
+        "Unknown canonical radiation output: " + name);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(map.first >= -1 && map.second >= -1,
+                                     "Radiation output indices must be -1 or nonnegative");
+    if (map.first >= 0) {
+        AMREX_ALWAYS_ASSERT(map.first < static_cast<int>(m_lsm_names.size()));
+    }
+    if (map.second >= 0) {
+        AMREX_ALWAYS_ASSERT(map.second < static_cast<int>(m_urban_names.size()));
+    }
+    for (int lev = 0; lev < m_nlevs; ++lev) {
+        if (map.first >= 0 && map.first < static_cast<int>(lsm_data_lev[lev].size())) {
+            validate_radiation_output_layout(lev, lsm_data_lev[lev][map.first]);
+        }
+        if (map.second >= 0 && map.second < static_cast<int>(urban_data_lev[lev].size())) {
+            validate_radiation_output_layout(lev, urban_data_lev[lev][map.second]);
+        }
+    }
+    RadiationField field;
+    field.map = map;
+    radiation_output_map[name] = std::move(field);
+    for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
+}
+
+void SurfaceModel::register_radiation_outputs(
+    const std::unordered_map<std::string, std::pair<int, int>>& output_map)
+{
+    for (const auto& entry : output_map) {
+        register_radiation_output(entry.first, entry.second);
+    }
+}
+
+const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields(int lev)
+{
+    if (!rad_output_fields[lev].empty()) { return rad_output_fields[lev]; }
+    rad_output_fields[lev].resize(rad_output_names.size(), nullptr);
+    for (int i = 0; i < static_cast<int>(rad_output_names.size()); ++i) {
+        auto it = radiation_output_map.find(rad_output_names[i]);
+        if (it == radiation_output_map.end()) { continue; }
+        const int land_idx = it->second.map.first;
+        const int urban_idx = it->second.map.second;
+        const bool valid_land = m_use_land && land_idx >= 0 &&
+            land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
+            lsm_data_lev[lev][land_idx];
+        const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+            urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
+            urban_data_lev[lev][urban_idx];
+        if (valid_land) {
+            validate_radiation_output_layout(lev, lsm_data_lev[lev][land_idx]);
+            rad_output_fields[lev][i] = lsm_data_lev[lev][land_idx];
+        } else if (valid_urban) {
+            rad_output_fields[lev][i] = urban_data_lev[lev][urban_idx];
+        }
+        if (valid_urban) {
+            validate_radiation_output_layout(lev, urban_data_lev[lev][urban_idx]);
+        }
+    }
+    return rad_output_fields[lev];
+}
+
+void SurfaceModel::validate_radiation_output_layout(int lev, const MultiFab* mf) const
+{
+    if (mf == nullptr) { return; }
+    BoxList horizontal_boxes = mf->boxArray().boxList();
+    // include the ghost cells here for SLM: surface values are exchanged at
+    // k = 0 which is a ghost cell for SLM.
+    const int k_grow = mf->nGrowVect()[2];
+    for (Box& box : horizontal_boxes) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            box.smallEnd(2) <= 0 && box.bigEnd(2) + k_grow >= 0,
+            "Radiation output destination must contain the k=0 surface plane "
+            "in its valid or ghost region");
+        box.setRange(2, 0);
+    }
+    const BoxArray horizontal_ba(std::move(horizontal_boxes));
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        horizontal_ba == m_ba2d[lev] && mf->DistributionMap() == m_dmap[lev],
+        "Radiation output destination must match the level horizontal layout");
+}
+
+void SurfaceModel::distribute_radiation_outputs(int lev)
+{
+    for (int i = 0; i < static_cast<int>(rad_output_names.size()); ++i) {
+        distribute_radiation_output(lev, i);
+    }
+}
+
+void SurfaceModel::distribute_radiation_output(int lev, int output_index)
+{
+    AMREX_ALWAYS_ASSERT(output_index >= 0 &&
+                        output_index < static_cast<int>(rad_output_names.size()));
+    auto it = radiation_output_map.find(rad_output_names[output_index]);
+    if (it == radiation_output_map.end()) { return; }
+
+    const int land_idx = it->second.map.first;
+    const int urban_idx = it->second.map.second;
+    MultiFab* lsm = (m_use_land && land_idx >= 0 && land_idx < static_cast<int>(lsm_data_lev[lev].size()))
+        ? lsm_data_lev[lev][land_idx] : nullptr;
+    MultiFab* urban = (m_use_urban && urban_idx >= 0 && urban_idx < static_cast<int>(urban_data_lev[lev].size()))
+        ? urban_data_lev[lev][urban_idx] : nullptr;
+
+    // The LSM destination is always primary when it is available.  Urban
+    // receives the updated surface plane only when both destinations exist.
+    if (lsm && urban && lsm != urban) {
+        for (MFIter mfi(*urban, TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box& source_box = (*lsm)[mfi].box();
+            const Box& target_box = (*urban)[mfi].box();
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0 &&
+                target_box.smallEnd(2) <= 0 && target_box.bigEnd(2) >= 0,
+                "Radiation output destinations must contain the k=0 surface plane");
+            const Box source_slab = makeSlab(source_box, 2, 0);
+            const Box target_slab = makeSlab(target_box, 2, 0);
+            (*urban)[mfi].copy((*lsm)[mfi], source_slab, 0, target_slab, 0, 1);
+        }
+    }
 }
 
 bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx,
@@ -201,6 +395,15 @@ bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx
             if (lev < static_cast<int>(ptrs.size()) && ptrs[lev] == mf) {
                 return true;
             }
+        }
+    }
+
+    for (const auto& entry : radiation_input_map) {
+        const auto& map = entry.second.map;
+        const int mapped_idx = (type == SurfaceModelType::LAND)
+            ? map.first : map.second;
+        if (mapped_idx == field_idx) {
+            return true;
         }
     }
 
@@ -548,6 +751,8 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
 
     const std::string prefix = "SurfaceModel_";
 
+    // Radiation input fields are derived from provider data and are intentionally
+    // rebuilt after restart rather than written to the checkpoint.
     for (int lev = 0; lev < m_nlevs; lev++) {
         IntVect ng(1,1,0);
 

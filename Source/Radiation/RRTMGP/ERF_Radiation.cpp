@@ -97,7 +97,6 @@ Radiation::Radiation (const int& lev,
 
     // Check if we have a land surface model enabled
     if (sc.lsm_type != LandSurfaceType::None) { m_lsm = true; }
-    if (sc.lsm_type == LandSurfaceType::SLM) { m_is_slm = true; }
 
     // Construct parser object for following reads
     ParmParse pp("erf");
@@ -758,12 +757,6 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                                   Array4<const Real> {};
                 const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :
                                                                                 Array4<const Real> {};
-                // SLM inputs are read-only exports - radiation should not modify SLM data;
-                // other LSM inputs retain the upstream fallback writeback behavior.
-                MultiFab* lsm_writeback_mf = (!m_is_slm && lsm_input_ptrs[ivar]) ?
-                    const_cast<MultiFab*>(lsm_input_ptrs[ivar]) : nullptr;
-                const Array4<Real>& lsm_writeback_arr = lsm_writeback_mf ? lsm_writeback_mf->array(mfi) :
-                                                         Array4<Real> {};
                 ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -800,8 +793,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                 z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
                             rdOcp,
                             rrtmgp_default_val,
-                            rrtmgp_to_fill(icol),
-                            lsm_writeback_arr ? &lsm_writeback_arr(i,j,k) : nullptr);
+                            rrtmgp_to_fill(icol));
                     } else {
                         // Have LSM and are over land.
                         const bool valid_lsm_data =
@@ -811,7 +803,6 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                         } else {
                             // Use the default value.
                             rrtmgp_to_fill(icol) = rrtmgp_default_val;
-                            if (lsm_writeback_arr) { lsm_writeback_arr(i,j,k) = rrtmgp_default_val; }
                         }
                     }
                 });

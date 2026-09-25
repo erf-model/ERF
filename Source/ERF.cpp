@@ -1311,6 +1311,48 @@ ERF::InitData_post ()
         }
         */
 
+        if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+            m_SurfaceModel->register_radiation_input("tskin", {lsm.Get_DataIdx(0, "tsurf"), -1});
+            m_SurfaceModel->register_radiation_input("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
+            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+                const amrex::Vector<std::string> rad_output_names = {
+                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                    "lw_flux_dn"};
+                const auto& slm_output_map = lsm.get_model_lev<SLM>(0)->get_rad_output_map();
+                for (const auto& output_name : rad_output_names) {
+                    const auto output_it = slm_output_map.find(output_name);
+                    if (output_it != slm_output_map.end() && !output_it->second.empty()) {
+                        m_SurfaceModel->register_radiation_output(
+                            output_name, {lsm.Get_DataIdx(0, output_it->second), -1});
+                    }
+                }
+            }
+        } else if (solverChoice.lsm_type != LandSurfaceType::None) {
+            const amrex::Vector<std::pair<std::string, std::string>> rad_inputs = {
+                {"tskin", "t_sfc"}, {"emiss", "sfc_emis"},
+                {"albedo_vis", "sfc_alb_dir_vis"}, {"albedo_nir", "sfc_alb_dir_nir"},
+                {"albedo_vis_diff", "sfc_alb_dif_vis"}, {"albedo_nir_diff", "sfc_alb_dif_nir"}};
+            for (const auto& input : rad_inputs) {
+                const int idx = lsm.Get_DataIdx(0, input.second);
+                if (idx >= 0) { m_SurfaceModel->register_radiation_input(input.first, {idx, -1}); }
+            }
+            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+                const amrex::Vector<std::string> rad_output_names = {
+                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                    "lw_flux_dn"};
+                for (const auto& output_name : rad_output_names) {
+                    const int idx = lsm.Get_DataIdx(0, output_name);
+                    if (idx >= 0) { m_SurfaceModel->register_radiation_output(output_name, {idx, -1}); }
+                }
+            }
+        }
+
         // Populate weighted outputs after all active surface models are registered.
         for (int lev = 0; lev <= finest_level; ++lev) {
             if (solverChoice.lsm_type == LandSurfaceType::None &&
@@ -1343,13 +1385,6 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
-                // No urban model, only register SLM fields with the surface model
-                m_SurfaceModel->register_field_map("tskin", {lsm.Get_DataIdx(0, "tsurf"), -1});
-                m_SurfaceModel->register_field_map("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), -1});
-                m_SurfaceModel->register_field_map("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
-                m_SurfaceModel->register_field_map("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
-                m_SurfaceModel->register_field_map("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
-                m_SurfaceModel->register_field_map("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
                 m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
                 m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
                 m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
@@ -1376,9 +1411,9 @@ ERF::InitData_post ()
                 m_SurfaceModel->ReadCheckpoint(restart_chkfile);
             } else {
                 amrex::Warning("Checkpoint has no SurfaceModel state; rebuilding it from LSM fields");
-                for (int lev = 0; lev <= finest_level; ++lev) {
-                    m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
-                }
+            }
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
             }
         }
     }
