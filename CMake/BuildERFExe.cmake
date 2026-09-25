@@ -556,6 +556,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ColumnBands.cpp
+       ${SRC_DIR}/Utils/ERF_LatLonMap.cpp
+       ${SRC_DIR}/Utils/ERF_TerrainSurfaceSlab.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
