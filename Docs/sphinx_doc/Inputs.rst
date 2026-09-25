@@ -1717,9 +1717,10 @@ distinct.
    one without.  That is tested rather than asserted -- the
    ``StationSampling_AnswerParity*`` regression tests run a deck with the
    stations off and on and require the plotfiles to be identical bit for bit,
-   on a two-level dry case, on a surface-layer case and on a case with
-   Lagrangian microphysics -- with one gap: no test covers a run driven by
-   time-dependent lateral boundary data, because no such deck can run in CI.
+   on a two-level dry case and on a surface-layer case -- with two gaps: no
+   test covers a case with Lagrangian microphysics, and none covers a run
+   driven by time-dependent lateral boundary data, for which no deck can run
+   in CI.
    See :ref:`RegressionTests`.
 
 .. _list-of-parameters-10c:
@@ -1767,21 +1768,10 @@ List of Parameters
 .. note::
 
    Latitude and longitude need a run that has them: an initialization from a WRF
-   or metgrid file, or a restart from one.  ERF initialized from ``wrfinput``
-   stores WRF's staggered ``XLAT_V`` and ``XLONG_U``; the station sampler
-   averages the bracketing edges to get the mass-point latitude and longitude,
-   so a station lands on the cell its coordinates name and not half a cell away.
-   An initialization from ``met_em`` stores mass-point values already and needs
-   no such average.
-
-   Which of the two a checkpoint holds is written into the checkpoint, in a
-   ``latlon_staggering`` file, and read back on restart.  It is a property of the
-   run that filled the arrays rather than of the restart deck, so a restart need
-   not repeat ``erf.init_type`` to place its stations correctly.  A checkpoint
-   written before ERF recorded this falls back to what ``erf.init_type`` implies
-   and says so; for such a checkpoint, a restart deck that does not set
-   ``erf.init_type`` as the original run did will place every lat/lon station
-   half a cell off.
+   or metgrid file, or a restart from one.  Both paths store mass-point values --
+   ``XLAT`` and ``XLONG`` from ``wrfinput``, ``XLAT_M`` and ``XLONG_M`` from
+   ``met_em`` -- so the station sampler uses them directly and a station lands on
+   the cell its coordinates name.
 
 
 .. _inputs-advection-schemes:

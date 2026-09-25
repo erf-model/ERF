@@ -139,8 +139,9 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
     // Write the survivors beside the file and move them into place, rather than
     // truncating the file and refilling it.  The rewrite is the one moment the
     // whole series exists only in this process's memory, and a crash there would
-    // take the run's history with it; a rename is atomic, so the worst a crash
-    // can leave behind is the original file and a stray .tmp.
+    // take the run's history with it; where the move replaces the file in one
+    // step the worst a crash can leave behind is the original file and a stray
+    // .tmp.
     if (dropped > 0) {
         const std::string tmpname = filename + ".tmp";
         {
@@ -150,9 +151,17 @@ truncate_station_file (const std::string& filename, amrex::Real t_first)
             os.flush();
             if (!os.good()) { amrex::FileOpenFailed(tmpname); }
         }
+        // std::rename replaces an existing destination on POSIX and fails on it on
+        // Windows, where a restart that had rows to drop would otherwise abort here.
+        // The one-step replace is tried first, so nothing is lost to a crash on the
+        // platforms that offer it, and only the platforms that do not pay for the
+        // moment between the remove and the rename in which the series is the .tmp.
         if (std::rename(tmpname.c_str(), filename.c_str()) != 0) {
-            amrex::Abort("Station output: could not move " + tmpname + " onto " + filename +
-                         " while dropping the rows written past the restart point");
+            std::remove(filename.c_str());
+            if (std::rename(tmpname.c_str(), filename.c_str()) != 0) {
+                amrex::Abort("Station output: could not move " + tmpname + " onto " + filename +
+                             " while dropping the rows written past the restart point");
+            }
         }
     }
     return dropped;
@@ -835,16 +844,9 @@ ERF::resolve_station_positions ()
         // matters, the search is what to distribute: the array is gathered once
         // for all the locations, but each location scans all of it.
         //
-        // NOTE: init_from_wrfinput reads WRF's staggered XLAT_V / XLONG_U into
-        //       lat_m / lon_m (see the staggering contract in ERF.H), so the mass
-        //       point is the average of the two bracketing edges.  init_from_metgrid
-        //       reads mass-point values already.  Which it is comes from whichever
-        //       path filled the arrays, carried across a restart in the
-        //       checkpoint: reading it off init_type instead would be wrong for a
-        //       restart deck that does not repeat init_type, and would move every
-        //       station half a cell without saying so.
-        const bool destagger = latlon_are_edge_staggered;
-
+        // NOTE: every init path fills lat_m / lon_m with mass-point values --
+        //       init_from_wrfinput reads WRF's XLAT / XLONG and init_from_metgrid
+        //       reads XLAT_M / XLONG_M -- so no averaging is needed here.
         MultiFab latlon(ba2d[0], dmap[0], 2, 0);
         for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
@@ -853,8 +855,8 @@ ERF::resolve_station_positions ()
             const Array4<const Real>& lon = lon_m[0]->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                ll(i,j,k,0) = destagger ? Real(0.5)*(lat(i,j,0) + lat(i,j+1,0)) : lat(i,j,0);
-                ll(i,j,k,1) = destagger ? Real(0.5)*(lon(i,j,0) + lon(i+1,j,0)) : lon(i,j,0);
+                ll(i,j,k,0) = lat(i,j,0);
+                ll(i,j,k,1) = lon(i,j,0);
             });
         }
 

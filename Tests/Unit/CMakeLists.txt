@@ -128,6 +128,9 @@ target_sources(${erf_exe_name}
     # Motivation: where two open lateral boundaries meet, each boundary cell must be
     # written by exactly one open-BC kernel, and by the same one however the grid is split.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCCorners.cpp
+    # Motivation: reusable scalar advection must honor explicit source, flux, and
+    # tendency components instead of inferring primitive storage from native cons layout.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestScalarAdvection.cpp
     # Motivation: the z-momentum box must be shrunk only at the bottom and top of the
     # domain, so that a grid split in z leaves no w-face without a source term.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestZmomBoxDecomposition.cpp
@@ -138,6 +141,9 @@ target_sources(${erf_exe_name}
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTKEBuoyancySource.cpp
+    # Motivation: reusable scalar diffusion must honor explicit scalar, coefficient,
+    # flux, and tendency components while preserving ERF's N/S/T mapped discretizations.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestScalarDiffusion.cpp
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp

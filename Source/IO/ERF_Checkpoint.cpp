@@ -269,25 +269,6 @@ ERF::WriteCheckpointFile () const
            BaseStateFile << base_state[0].nGrowVect() << "\n";
        }
 
-       // Persist how the lat/lon arrays written below are staggered.  Both carry
-       // CELL index type whichever init path filled them, and the staggered edge
-       // of the WRF form lives in a ghost cell, so nothing in the arrays
-       // themselves says which they are.  Without this a restart would have to
-       // infer it from init_type, which a restart deck need not set the same way
-       // -- and getting it wrong moves every lat/lon-placed station half a cell.
-       if (!lat_m.empty() && !lon_m.empty() && lat_m[0] && lon_m[0]) {
-           std::string LatLonStagFileName(checkpointname + "/latlon_staggering");
-           std::ofstream LatLonStagFile;
-           LatLonStagFile.open(LatLonStagFileName.c_str(), std::ofstream::out   |
-                                                           std::ofstream::trunc |
-                                                           std::ofstream::binary);
-           if(! LatLonStagFile.good()) {
-               FileOpenFailed(LatLonStagFileName);
-           } else {
-               LatLonStagFile << (latlon_are_edge_staggered ? "edge" : "mass") << "\n";
-           }
-       }
-
        // Persist the LSM scalar step counter (e.g. NoahMP itimestep). Without
        // this, restart resets the substep schedule, which changes the LSM->MOST
        // flux firing times and produces a non-bitwise trajectory vs. cold start.
@@ -1485,39 +1466,6 @@ ERF::ReadCheckpointFile ()
             lon_m[lev] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ngv);
             MultiFab::Copy(*lat_m[lev],lat,0,0,1,ngv);
             MultiFab::Copy(*lon_m[lev],lon,0,0,1,ngv);
-
-            // How those arrays are staggered is a property of the run that wrote
-            // them, not of this deck, so take it from the checkpoint.  A
-            // checkpoint from before this was written says nothing, in which case
-            // fall back to what init_type implies, which is what the code did
-            // before -- correct only for a restart deck that repeats it.
-            if (lev == 0) {
-                std::string LatLonStagFileName(restart_chkfile + "/latlon_staggering");
-                if (amrex::FileExists(LatLonStagFileName)) {
-                    Vector<char> LatLonStagCharPtr;
-                    ParallelDescriptor::ReadAndBcastFile(LatLonStagFileName, LatLonStagCharPtr);
-                    std::istringstream lls_is(std::string(LatLonStagCharPtr.dataPtr()),
-                                              std::istringstream::in);
-                    std::string how;
-                    lls_is >> how;
-                    if (how == "edge") {
-                        latlon_are_edge_staggered = true;
-                    } else if (how == "mass") {
-                        latlon_are_edge_staggered = false;
-                    } else {
-                        Abort("Checkpoint " + restart_chkfile + " says its lat/lon arrays are '" +
-                              how + "' staggered, which this ERF does not understand");
-                    }
-                } else {
-                    latlon_are_edge_staggered = (solverChoice.init_type == InitType::WRFInput);
-                    Print() << "Warning: legacy checkpoint without latlon_staggering file; "
-                            << "assuming the lat/lon arrays are "
-                            << (latlon_are_edge_staggered ? "edge" : "mass")
-                            << " staggered, from erf.init_type.  A deck that does not set "
-                            << "init_type as the original run did will place lat/lon stations "
-                            << "half a cell off." << std::endl;
-                }
-            }
         }
 
 #ifdef ERF_USE_NETCDF
@@ -1901,6 +1849,11 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                         // fill as many ghost cells as both sides have
                         IntVect ng = amrex::min(m_var.nGrowVect(), dst->nGrowVect());
                         dst->ParallelCopy(m_var, 0, 0, 1, ng, ng, geom[lev].periodicity());
+                        // The file's ghost cells may be stale (never filled before the
+                        // write). As copy sources they reach valid cells through periodic
+                        // images, so copy again from the valid cells alone; only
+                        // domain-boundary ghosts keep the file's values.
+                        dst->ParallelCopy(m_var, 0, 0, 1, IntVect(0), ng, geom[lev].periodicity());
                         return true;
                     }
                     return false;

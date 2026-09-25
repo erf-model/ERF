@@ -981,7 +981,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         BL_PROFILE("slow_rhs_pre_fluxreg");
         // We only add to the flux registers in the final RK step
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
-        //       a problem at top and bottom boundaries
+        //       a problem at top and bottom boundaries -- except when rho is held fixed, in which case
+        //       there is no density flux to reflux and we reflux (rho theta) instead.
+        // The flux components are indexed by conserved state component, which is why srccomp and
+        //       destcomp below are both the state component being refluxed.
         if (l_reflux) {
             int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
