@@ -367,8 +367,8 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
-                                    const Vector<MultiFab>& S_data,
-                                    MoistureType moisture_type)
+                                    const MultiFab& mf_cc_vel,
+                                    const Vector<MultiFab>& S_data)
 {
 
     if (hurricane_eye_track_xy.empty()) {
@@ -390,8 +390,7 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
     int* d_i_min_ptr = d_i_min.dataPtr();
     int* d_j_min_ptr = d_j_min.dataPtr();
 
-    bool use_moisture = (moisture_type != MoistureType::None);
-    const int ncomp = S_data[IntVars::cons].nComp();
+    const int ncomp = AMREX_SPACEDIM;
 
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
@@ -405,21 +404,23 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
     Gpu::DeviceScalar<Long> d_idx_min(std::numeric_limits<Long>::max());
     Long* d_idx_min_ptr = d_idx_min.dataPtr();
 
-    for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
-        const Array4<Real const>& S_arr = S_data[IntVars::cons].const_array(mfi);
+        const auto& vel_arr = mf_cc_vel.const_array(mfi);
 
-        ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
-            if(k==0) {
-                Real x =  prob_lo[0] + (i+myhalf)*dx[0];
-                Real y =  prob_lo[1] + (j+myhalf)*dx[1];
-                Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
-                if(dist < 200e3) {
-                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
-                    const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    Real pressure = getPgivenRTh(rhotheta,qv_for_p);
-                    Gpu::Atomic::Min(&d_val_min_ptr[0], pressure);
+        ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real x = prob_lo[0] + (i+myhalf)*dx[0];
+            Real y = prob_lo[1] + (j+myhalf)*dx[1];
+            Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) +
+                                         (y-tmp_y_eye)*(y-tmp_y_eye));
+            if(k==0 && dist < 200e3) {
+                Real velmag = zero;
+                for (int comp = 0; comp < ncomp; ++comp) {
+                    Real vel = vel_arr(i, j, k, comp);
+                    velmag += vel * vel;
                 }
+                velmag = std::sqrt(velmag);
+                Gpu::Atomic::Min(&d_val_min_ptr[0], velmag);
             }
         });
     }
@@ -428,9 +429,9 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
     // locating pass below can test against it.
     Gpu::synchronize();
 
-    for (MFIter mfi(S_data[IntVars::cons]); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(mf_cc_vel); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
-        const Array4<Real const>& S_arr = S_data[IntVars::cons].const_array(mfi);
+        const auto& vel_arr = mf_cc_vel.const_array(mfi);
 
         ParallelFor(box,[=] AMREX_GPU_DEVICE(int i, int j, int k) {
             if(k==0) {
@@ -438,10 +439,13 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                 Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
                 if(dist < 200e3) {
-                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
-                    const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    Real pressure = getPgivenRTh(rhotheta,qv_for_p);
-                    if (pressure == d_val_min_ptr[0]) {
+                    Real velmag = zero;
+                    for (int comp = 0; comp < ncomp; ++comp) {
+                        Real vel = vel_arr(i, j, k, comp);
+                        velmag += vel * vel;
+                    }
+                    velmag = std::sqrt(velmag);
+                    if (std::abs(velmag - d_val_min_ptr[0]) < 1e-6) {
                         Gpu::Atomic::Min(d_idx_min_ptr, pack_ij(i,j,nx,dlo));
                     }
                 }
@@ -637,12 +641,12 @@ ERF::ReadStormTrackerRestart ()
  * @param[in] sc Solver choices
  */
 void
-ERF::HurricaneEyeTracker (const SolverChoice& sc)
+ERF::HurricaneEyeTracker (const SolverChoice& sc,
+                          const MultiFab& mf_cc_vel)
 {
     static bool is_start = true;
     int levc=finest_level;
 
-    const MoistureType moisture_type   = sc.moisture_type;
     const Real hurricane_eye_latitude  = sc.hurricane_eye_latitude;
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
 
@@ -656,8 +660,9 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc)
          if(!restart_chkfile.empty()) {
             ReadStormTrackerRestart();
         }
-        HurricaneEyeTrackerNotInitial(sc, geom[levc], vars_new[levc],
-                                      moisture_type);
+        HurricaneEyeTrackerNotInitial(sc, geom[levc],
+                                      mf_cc_vel,
+                                      vars_new[levc]);
     }
     HurricaneTrackerCircle();
 }
@@ -680,6 +685,9 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     Gpu::DeviceVector<Real> d_val_max(1, -bogus_large_value);
     d_val_max_ptr = d_val_max.data();
 
+    if(hurricane_eye_track_xy.empty()){
+        return;
+    }
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
@@ -696,7 +704,7 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
-            if(k==1 && dist < 200e3) {
+            if(k==0 && dist < 200e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -744,7 +752,9 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
     Real* d_val_min_ptr;
     Gpu::DeviceVector<Real> d_val_min(1, bogus_large_value);
     d_val_min_ptr = d_val_min.data();
-
+    if(hurricane_eye_track_xy.empty()){
+        return;
+    }
     const Real x_last = hurricane_eye_track_xy.back()[0];
     const Real y_last = hurricane_eye_track_xy.back()[1];
     const auto dx = lev_geom.CellSizeArray();
@@ -762,7 +772,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
-            if(k==1 && dist2 < 200e3*200e3) {
+            if(k==0 && dist2 < 200e3*200e3) {
                 const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                 const Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                 const Real pressure = getPgivenRTh(rhotheta,qv_for_p);
