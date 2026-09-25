@@ -21,11 +21,26 @@ include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 # (StationSeriesCheck.cpp); in analytic and approach mode, the key=value
 # arguments only.
 
-if(NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR NOT DEFINED WORKING_DIRECTORY OR
-   NOT DEFINED MODE OR NOT DEFINED LOG)
-    message(FATAL_ERROR "RunStationSeries.cmake missing required argument")
+# -DX= defines X as empty, so test for a value, not for DEFINED: an empty CHECKS
+# would otherwise run the deck and report success without calling the checker
+# once, and an empty EXPECTED_MESSAGE would accept any abort at all
+set(required TEST_EXE INPUT WORKING_DIRECTORY MODE LOG)
+if("${MODE}" STREQUAL "abort")
+    list(APPEND required EXPECTED_MESSAGE)
+else()
+    list(APPEND required CHECKER CHECKS)
+    if("${MODE}" STREQUAL "analytic")
+        list(APPEND required STATION)
+    elseif("${MODE}" STREQUAL "approach")
+        list(APPEND required OFF_OPTIONS)
+    endif()
 endif()
-if(NOT DEFINED NRANKS OR "${NRANKS}" STREQUAL "")
+foreach(arg IN LISTS required)
+    if("${${arg}}" STREQUAL "")
+        message(FATAL_ERROR "RunStationSeries.cmake: ${arg} must be given and non-empty for MODE ${MODE}")
+    endif()
+endforeach()
+if("${NRANKS}" STREQUAL "")
     set(NRANKS 1)
 endif()
 
@@ -111,9 +126,6 @@ if("${MODE}" STREQUAL "abort")
     return()
 endif()
 
-if(NOT DEFINED CHECKER OR NOT DEFINED CHECKS)
-    message(FATAL_ERROR "RunStationSeries.cmake: MODE ${MODE} needs CHECKER and CHECKS")
-endif()
 string(REPLACE "|" ";" check_list "${CHECKS}")
 
 if("${MODE}" STREQUAL "single")

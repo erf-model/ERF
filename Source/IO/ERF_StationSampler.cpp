@@ -1493,15 +1493,25 @@ ERF::sample_stations (Real time)
 //
 // The nodes a station's terrain elevation is read from.  On a terrain-fitted
 // mesh (and on a flat one) that is the bottom of the mesh, z_phys_nd.  With
-// immersed-forcing terrain the mesh is flat and the terrain is immersed in it,
-// so a height above the local terrain has to be measured from the surface the
-// immersed boundary is built from; that is built here once per set of grids.
+// immersed-forcing or embedded-boundary terrain the mesh is flat and the
+// terrain is immersed in it, so a height above the local terrain has to be
+// measured from the surface the immersed boundary is built from; that is built
+// here once per set of grids.  Both build the surface from init_terrain_surface
+// (see ERF::initializeEB and the immersed-boundary setup), so the same slab serves
+// both.
+//
+// An EB run that specifies no terrain surface has a flat boundary, but its
+// z_phys is shifted so that an eb2.geometry = plane boundary lies at zero (the
+// z_offset of init_default_zphys); the ground is that zero, not z_phys_nd,
+// which holds the shifted bottom of the index space.
 //
 const MultiFab&
 ERF::station_ground (int lev)
 {
     AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
-    if (solverChoice.terrain_type != TerrainType::ImmersedForcing) {
+    const bool terrain_is_immersed = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                      solverChoice.terrain_type == TerrainType::EB);
+    if (!terrain_is_immersed) {
         return *z_phys_nd[lev];
     }
 
@@ -1514,7 +1524,11 @@ ERF::station_ground (int lev)
         !(station_ib_ground[lev]->DistributionMap() == dmap[lev]))
     {
         station_ib_ground[lev] = std::make_unique<MultiFab>(slab, dmap[lev], 1, 0);
-        fill_terrain_surface_slab(*station_ib_ground[lev], geom[lev], *prob, t_new[lev]);
+        if (solverChoice.terrain_type == TerrainType::EB && !prob->terrain_is_specified()) {
+            station_ib_ground[lev]->setVal(Real(0.0));
+        } else {
+            fill_terrain_surface_slab(*station_ib_ground[lev], geom[lev], *prob, t_new[lev]);
+        }
     }
     return *station_ib_ground[lev];
 }
