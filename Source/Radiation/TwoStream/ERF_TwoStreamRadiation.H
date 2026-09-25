@@ -28,7 +28,8 @@
  *
  * Lifecycle:
  *  - resize(nlevs) once at construction (before the inputs are read);
- *  - define_level(lev, radChoice, rdOcp, ba2d, dm) whenever a level is (re)built;
+ *  - define_level(lev, radChoice, rdOcp, ba2d, dm, ba, domain) whenever a level is
+ *    (re)built;
  *  - advance(...) twice per step: "pre_dycore" runs the column sweep on the
  *    old state and writes the heating rates, "post_dycore" reuses that
  *    sweep's flux diagnostics and advances the SEB state by dt_step;
@@ -55,12 +56,27 @@ public:
      * @brief Allocate the 2D surface fields of one level on the given
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
      * unless rad_choice.rad_type == TwoStream.
+     *
+     * Also enforces the model's one grid requirement: every box of @p ba must
+     * span @p domain in z, because the column sweep applies the
+     * top-of-atmosphere and surface boundary conditions at the ends of a box.
+     * Aborting here means a bad refinement patch is rejected when the level is
+     * built (including on regrid), not at the first radiation call.
+     *
+     * @param lev        level
+     * @param rad_choice the model's inputs
+     * @param ba2d       horizontal BoxArray the 2D surface fields live on
+     * @param dm         distribution mapping shared with the level's state
+     * @param ba         the level's 3D BoxArray, checked for the z span
+     * @param domain     the level's domain Box
      */
     void define_level (int lev,
                        const RadChoice& rad_choice,
                        amrex::Real rdOcp,
                        const amrex::BoxArray& ba2d,
-                       const amrex::DistributionMapping& dm);
+                       const amrex::DistributionMapping& dm,
+                       const amrex::BoxArray& ba,
+                       const amrex::Box& domain);
 
     /**
      * @brief One radiation call at one level.
@@ -136,6 +152,12 @@ private:
     // Domain-mean flux diagnostics of the last column sweep, per level, so the
     // post-dycore call can report them without sweeping again.
     struct FluxDiag {
+        // False until a column sweep has filled this level's entry. The post-dycore call
+        // reports the cached values rather than sweeping again, and a level whose
+        // pre-dycore sweep was skipped -- the interp-from-coarse-pending path, which
+        // returns before the sweep -- would otherwise report the zero-initialised struct
+        // as though the fluxes really were zero.
+        bool valid = false;
         amrex::Real SW_surface = 0.0;
         amrex::Real SW_TOA = 0.0;      // domain-mean incident SW at the top
         amrex::Real SW_up_TOA = 0.0;
@@ -148,9 +170,12 @@ private:
     amrex::Real m_rdOcp = RdoCp;
     OrbitalCache m_orbit;
 
-    // CSV / console diagnostics writer, created on the first advance() so its
-    // header and duplicate-row state persist across calls.
-    std::unique_ptr<RadiationDiagnostics> m_diag;
+    // CSV / console diagnostics writer, one per level, created on that level's
+    // first advance() so its header and duplicate-row state persist across
+    // calls. Per level because every level of a hierarchy reports the same
+    // step, call_site and time, and a shared duplicate guard would suppress
+    // all but the first to report.
+    amrex::Vector<std::unique_ptr<RadiationDiagnostics>> m_diag;
 
     // Fallback surface properties when no LSM supplies them (2D: i,j).
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_alb_sw;

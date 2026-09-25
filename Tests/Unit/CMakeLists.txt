@@ -151,6 +151,11 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: observation nudging must read a station file exactly, relax
+    # to the closed-form target with the right weight, sigma band and rate cap,
+    # and put its sources on the right faces over flat, fitted and immersed
+    # terrain.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestObsNudging.cpp
     # Motivation: the two-stream radiation sweep must keep k = 0 as the
     # surface, cool to space from the top layer, use Exner temperature,
     # and reflect (1 - eps) of the downwelling LW at a gray surface.
@@ -168,6 +173,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCheckpoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
+    # Motivation: a station placed by latitude/longitude must land where the
+    # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp

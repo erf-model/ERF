@@ -1604,6 +1604,11 @@ which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
 
+The local terrain is the elevation of the ground at the station itself, interpolated
+bilinearly from the terrain at the nodes around it: the bottom of a terrain-fitted
+mesh, or, with ``erf.terrain_type = ImmersedForcing``, the terrain surface the immersed
+boundary is built from (the mesh is then flat, and its bottom is not the ground).
+
 The variable names accepted are the names of the 3D plotfile variables
 (``erf.plot_vars_1``) and of the built-in 2D diagnostics (``erf.plot2d_vars_1``),
 and the values are produced by the same code, so a station column and the
@@ -2529,6 +2534,113 @@ the one file corresponds to time = 0.0.   If the final time supplied in
 ``input_*_sounding_*_time``  is less than the final time in the calculation, the final sounding supplied
 in ``input_*_sounding_*_file`` will be used for all times later than the final value in
 in ``input_*_sounding_*_time``.
+
+.. _inputs-obs-nudging:
+
+Nudging towards Observations
+----------------------------
+
+Near stations such as met masts and lidars, u, v, w and theta can be nudged towards
+their measured profiles; see :ref:`sec:ObsNudging` for the formulation.  A station is
+named in ``erf.obs_nudging.stations`` and given by the keys ``erf.obs_nudging.<name>.*``:
+
+::
+
+    erf.nudging_from_observations     = true
+    erf.obs_nudging.stations          = mast lidar
+    erf.obs_nudging.tau               = 600.0
+    erf.obs_nudging.horizontal_radius = 500.0
+    erf.obs_nudging.vertical_radius   = 25.0
+    erf.obs_nudging.mast.file         = mast.txt
+    erf.obs_nudging.mast.x            = 700.0
+    erf.obs_nudging.mast.y            = 400.0
+    erf.obs_nudging.lidar.file        = lidar.txt
+    erf.obs_nudging.lidar.lat         = 39.91
+    erf.obs_nudging.lidar.long        = -105.23
+
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                              | Definition                                               | Acceptable Values  | Default          |
++========================================+==========================================================+====================+==================+
+| **erf.nudging_from_observations**      | Nudge the solution towards observations at the stations  | Boolean            | false            |
+|                                        | below                                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.stations**           | Names of the stations                                    | List of strings    | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.tau**                | Relaxation time scale                                    | Real > 0 [s]       | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.horizontal_radius**  | Horizontal radius R_h of a station's weight              | Real > 0 [m]       | 500              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.vertical_radius**    | Vertical radius R_z of the taper outside the measured    | Real > 0 [m]       | 25               |
+|                                        | height range                                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.cutoff**             | Stations further than this many radii away are not used  | Real > 0           | 6                |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.sigma_factor**       | Half-width alpha of the band mean +- alpha sigma inside  | Real >= 0          | 1                |
+|                                        | which the value is left alone; 0 nudges to the mean      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_wind**         | Nudge u and v where a station measures them              | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_w**            | Nudge w where a station measures it                      | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_theta**        | Nudge theta where a station measures it                  | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.time_type**          | Clock of the time column: elapsed (seconds of run time)  | elapsed, epoch     | elapsed          |
+|                                        | or epoch (seconds since 1970, needs start_datetime or a  |                    |                  |
+|                                        | WRF/metgrid start)                                       |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.missing_value**      | Entry of a station file that marks a missing measurement | Real               | -9999            |
+|                                        | (as does nan)                                            |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.file**        | The station file                                         | String             | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.x, .y**       | Position in domain coordinates                           | Real [m]           | x/y or lat/long  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.lat, .long**  | Latitude and longitude (needs latitude/longitude         | Real [deg]         | x/y or lat/long  |
+|                                        | arrays); .lon is accepted for .long                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.wind_frame**  | earth: the file's wind is east/north and is rotated into | earth, grid        | earth            |
+|                                        | the grid; grid: it is already along the grid axes        |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.height_ref**  | agl: heights above the local terrain; msl: above z = 0   | agl, msl           | agl              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+A station file is plain text.  Everything from a ``#`` to the end of a line is a
+comment.  The first line that is not blank names the columns, in any order, from
+``time z u v w theta su sv sw stheta speed direction``: ``time`` and ``z`` are required,
+the wind is given as ``u v`` or as ``speed direction`` (m/s, and the meteorological
+direction the wind blows from, in degrees clockwise from north), and ``su sv sw stheta``
+are the standard deviations.  A quantity with no column is not nudged at that station.
+Each following row is one height at one time; the rows are grouped by time in increasing
+order, with the heights of each time increasing and the same at every time.  An entry
+that is not a number (``nan``) or equals ``erf.obs_nudging.missing_value`` is missing: that
+quantity is not nudged at that height and time, and a missing standard deviation is 0.
+For example, a lidar with no temperature:
+
+::
+
+    # time [s]  z [m]  u v w [m/s]      su sv sw [m/s]
+    time    z       u     v     w      su    sv    sw
+    0.0     40.0    6.0   0.0   0.40   0.3   0.3   0.05
+    0.0     80.0    6.2   0.0   0.40   0.3   0.3   0.05
+    600.0   40.0    6.5   0.5   0.40   0.3   0.3   0.05
+    600.0   80.0    nan   nan   nan    nan   nan   nan
+
+A file with one time holds for the whole run.  A file with several is interpolated
+linearly in time, a height being used only where both bracketing times have it, and the
+station is inactive before its first time and after its last.  A station none of whose
+quantities are nudged in the run (a lidar without temperature when only theta is nudged)
+is skipped with a warning.
+
+Every input is checked at start-up: a missing ``tau`` or station list, a value out of
+range, a malformed file (with the line), a station outside the domain, a ``lat``/``long``
+station in a run without latitude/longitude arrays, ``time_type = epoch`` without a start
+date, EB terrain, and, on a terrain-fitted mesh, a refined level whose grids do not reach
+the ground under them all abort with a message naming the input.  The terrain under each
+level is found again after every regrid, so a refined level that its tagging later moves
+off the ground aborts at that regrid rather than part-way through the following step.
+The run prints each station with its position, the rotation of its wind, its heights and
+times and what it nudges.  To compare the model with the measurements, write station
+time series at the same positions (``erf.station_names``, :ref:`Station time series <inputs-station-time-series>`).
 
 .. _sec:LateralBoundaryNudgingInputs:
 
@@ -3905,6 +4017,19 @@ Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-re
 temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
 the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
 
+The model runs on a refined hierarchy. A level that carries complete atmospheric columns sweeps
+them itself; a level whose grids stop short of the domain top or bottom -- a nested patch -- has
+its heating rates and fluxes interpolated from its parent, as they are for RRTMGP. Set
+``amr.refine_whole_domain_dir = 2`` if you would rather every refinement patch span :math:`z` and
+be solved on its own. The requirement is per box -- the sweep needs a whole column inside one box
+-- so a level tagged at different heights in different horizontal regions is interpolated too,
+not just one that stops below the domain top. The only refusal is on level 0, which has no parent
+to interpolate from: a box there that does not span :math:`z` means grids decomposed in the
+vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance remains a level-0 feature, so
+``erf.radiation.seb_prognostic_enable`` -- which evolves the surface temperature that the longwave
+boundary condition reads -- cannot be combined with ``amr.max_level > 0``; that combination is
+refused when the inputs are read, whether or not a fine level is ever built.
+
 
 
 Two-Stream Radiation Model Parameters
@@ -4064,6 +4189,7 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
+|                                                    | single level only; refused with amr.max_level > 0          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
