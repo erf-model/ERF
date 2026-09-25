@@ -1,0 +1,4 @@
+# Used by the ObsNudging_Abort_BadColumn test: pressure is not a column a
+# station file can have, and the run must say so rather than ignore it.
+time    z       u     v     pressure
+0.0     10.0    6.0  -1.0   1000.0

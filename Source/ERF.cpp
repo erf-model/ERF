@@ -1807,6 +1807,11 @@ ERF::InitData_post ()
         }
     }
 
+    // Nudging towards observations at stations
+    if (solverChoice.nudging_from_observations) {
+        init_obs_nudging();
+    }
+
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing  ||
          solverChoice.buildings_type == BuildingsType::ImmersedForcing )
@@ -1819,6 +1824,33 @@ ERF::InitData_post ()
             }
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
         }
+    }
+}
+
+//
+// Build the observation nudging: read the stations, place them on the grid and
+// set the rotation of their winds.  The latitude/longitude arrays exist by now
+// on every initialization path that has them, restarts included.
+//
+void
+ERF::init_obs_nudging ()
+{
+    AMREX_ALWAYS_ASSERT(solverChoice.nudging_from_observations);
+
+    obs_nudging = std::make_unique<ObsNudging>(solverChoice.terrain_type, prob.get(),
+                                               use_datetime, start_time);
+
+    const bool have_latlon = (lat_m[0] != nullptr && lon_m[0] != nullptr);
+    std::unique_ptr<LatLonMap> latlon;
+    if (have_latlon && obs_nudging->wants_latlon()) {
+        latlon = std::make_unique<LatLonMap>(*lat_m[0], *lon_m[0], ba2d[0], dmap[0], geom[0]);
+    }
+    obs_nudging->resolve_positions(geom[0], latlon.get());
+    obs_nudging->print_summary();
+
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        obs_nudging->prepare_level(lev, geom[lev], vars_new[lev][Vars::cons],
+                                   z_phys_nd[lev].get(), t_new[lev]);
     }
 }
 

@@ -58,6 +58,30 @@ pack_latlon (MultiFab& latlon, const MultiFab& lat, const MultiFab& lon)
     }
 }
 
+void
+grid_rotation_from_latlon (const Array4<const Real>& ll, const Box& dom, int i, int j,
+                           Real& cos_alpha, Real& sin_alpha)
+{
+    const GradientStencil s = gradient_stencil(dom, i, j);
+
+    // Displacement on the sphere per cell in i: east and north components, in
+    // degrees of latitude (the common factor, the Earth's radius, cancels)
+    const Real lat   = ll(i,j,0,0);
+    const Real north = (ll(s.ip,j,0,0) - ll(s.im,j,0,0)) * s.inv_di;
+    const Real east  = wrap_longitude_difference(ll(s.ip,j,0,1) - ll(s.im,j,0,1)) * s.inv_di
+                     * std::cos(lat * PI / Real(180.0));
+    const Real norm  = std::sqrt(east*east + north*north);
+
+    if (norm > Real(0.0)) {
+        cos_alpha = east  / norm;
+        sin_alpha = north / norm;
+    } else {
+        // A domain one cell wide in x has no i direction to measure
+        cos_alpha = Real(1.0);
+        sin_alpha = Real(0.0);
+    }
+}
+
 LatLonStatus
 locate_latlon_on_grid (const Array4<const Real>& ll, const Box& dom,
                        const GpuArray<Real, AMREX_SPACEDIM>& problo,
@@ -118,6 +142,8 @@ locate_latlon_on_grid (const Array4<const Real>& ll, const Box& dom,
     // that names the place, not the one that runs off the end of the range
     loc.lon = wrap_longitude_difference(ll(bi,bj,0,1) + dlon_di*di + dlon_dj*dj);
 
+    grid_rotation_from_latlon(ll, dom, bi, bj, loc.cos_alpha, loc.sin_alpha);
+
     return LatLonStatus::Ok;
 }
 
@@ -153,8 +179,8 @@ LatLonMap::LatLonMap (const MultiFab& lat, const MultiFab& lon,
 LatLonStatus
 LatLonMap::locate (Real req_lat, Real req_lon, LatLonLocation& loc) const
 {
-    Real out[7] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0), Real(0.0),
-                   Real(0.0), Real(0.0)};
+    Real out[9] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0), Real(0.0),
+                   Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
 
     if (ParallelDescriptor::IOProcessor()) {
         LatLonLocation l;
@@ -163,13 +189,33 @@ LatLonMap::locate (Real req_lat, Real req_lon, LatLonLocation& loc) const
         out[0] = l.x;        out[1] = l.y;
         out[2] = l.lat;      out[3] = l.lon;
         out[4] = l.near_lat; out[5] = l.near_lon;
-        out[6] = static_cast<Real>(static_cast<int>(status));
+        out[6] = l.cos_alpha; out[7] = l.sin_alpha;
+        out[8] = static_cast<Real>(static_cast<int>(status));
     }
 
-    ParallelDescriptor::Bcast(out, 7, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::Bcast(out, 9, ParallelDescriptor::IOProcessorNumber());
 
     loc.x = out[0];        loc.y = out[1];
     loc.lat = out[2];      loc.lon = out[3];
     loc.near_lat = out[4]; loc.near_lon = out[5];
-    return static_cast<LatLonStatus>(static_cast<int>(std::lround(out[6])));
+    loc.cos_alpha = out[6]; loc.sin_alpha = out[7];
+    return static_cast<LatLonStatus>(static_cast<int>(std::lround(out[8])));
+}
+
+void
+LatLonMap::rotation_at (Real x, Real y, Real& cos_alpha, Real& sin_alpha) const
+{
+    Real out[2] = {Real(1.0), Real(0.0)};
+
+    if (ParallelDescriptor::IOProcessor()) {
+        const int i = std::clamp(static_cast<int>(std::floor((x - m_problo[0]) / m_dx[0])),
+                                 m_dom.smallEnd(0), m_dom.bigEnd(0));
+        const int j = std::clamp(static_cast<int>(std::floor((y - m_problo[1]) / m_dx[1])),
+                                 m_dom.smallEnd(1), m_dom.bigEnd(1));
+        grid_rotation_from_latlon(m_ll.const_array(0), m_dom, i, j, out[0], out[1]);
+    }
+
+    ParallelDescriptor::Bcast(out, 2, ParallelDescriptor::IOProcessorNumber());
+    cos_alpha = out[0];
+    sin_alpha = out[1];
 }
