@@ -739,7 +739,7 @@ private:
     // parameters for stomatal resistance
     amrex::Real Rc_max = 5000.0; // maximum stomatal resistance
     amrex::Real T_opt = 298.0; // optimum temperature for transpiration
-    amrex::Real zref = 0.5; // height of reference level (m), used in transer coef
+    amrex::Real zref = 0.5; // height of reference level (m), used in transfer coef
     amrex::MultiFab zrefxy;
 
     static constexpr amrex::Real IR_emis_urban = 0.9;

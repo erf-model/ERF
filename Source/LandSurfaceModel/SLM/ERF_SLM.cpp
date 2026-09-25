@@ -2206,7 +2206,7 @@ void SLM::rebuild_restart_fields()
 /**
  * Loads and parses the given .TBL file (such as NoahMPTable.TBL)
  *
- * Returns an unorderd map containing the name of each parameter block, where
+ * Returns an unordered map containing the name of each parameter block, where
  * each block contains a list of variables, with each variable containing one or more values.
  *
  * Returns the vegetation and soil category names loaded from file as a vector of names.
@@ -3863,7 +3863,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
                 mw_arr(i, j, 0) += mw_evap_inc;
                 wet_canop_arr(i, j, 0) = std::min(1.0, mw_arr(i, j, 0)/mw_mx_arr(i, j, 0));
 
-                // Transpiration - only ocurs when qsat_canop > qsfc
+                // Transpiration - only occurs when qsat_canop > qsfc
                 evapo_dry_arr(i, j, 0) = std::max(0.,(qsat_canop - q_sfc_arr(i, j, 0))*rhow*(1.0 - wet_canop_arr(i, j, 0))*LAI_arr(i, j, 0)/(r_b_arr(i, j, 0) + r_c_arr(i, j, 0))*vege_YES_arr(i, j, 0));
                 if (evapo_dry_arr(i, j, 0) > 0.0) {
                     amrex::Real max_transpiration = 1.0e30;
@@ -3901,7 +3901,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
                     mw_arr(i, j, 0) = mw_mx_arr(i, j, 0);
                 }
 
-                // Update vegetation temeprature
+                // Update vegetation temperature
                 cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
                 t_canop_inc = dt_iter / std::max(1.0e-3, cp_vege_tot)*(net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0)) * vege_YES_arr(i, j, 0);
                 t_canop_arr(i, j, 0) = std::min(t_canop_max, t_canop_arr(i, j, 0) + t_canop_inc);
@@ -5241,7 +5241,7 @@ void SLM::snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amr
 
     // ------------------------ local variables ----------------------------------------------------
     amrex::Real fzen;                 //zenith angle correction
-    amrex::Real cf1;                  //temperary variable
+    amrex::Real cf1;                  //temporary variable
     amrex::Real sl2;                  //2.*SL
     amrex::Real sl1;                  //1/SL
     amrex::Real sl;                   //adjustable parameter
