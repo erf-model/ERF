@@ -33,7 +33,10 @@
 
 // This is the number of components if we assume there is only one passive scalar
 // We can use this when we assume all passive scalars have the same diffusion coefficients
-#define NPRIMVAR_max (NDRY + 1 + NMOIST_max)
+// The trailing 2*5 mirrors NVAR_max: a microphysics model may append up to 5 non-moist
+// species (two components each) after the water species, and the diffusion coefficient
+// tables below are indexed by primitive component over that full range as well
+#define NPRIMVAR_max ((NDRY + 1 + NMOIST_max) + 2*5) // allow up to 5 non-moist species
 
 // Cell-centered state variables
 #define Rho_comp       0

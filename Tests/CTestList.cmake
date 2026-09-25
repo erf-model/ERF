@@ -1663,5 +1663,103 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
 #=============================================================================
+# Terrain: decomposition and station output over a hill
+#=============================================================================
+
+# Run a deck and check its station series (see Tests/RunStationSeries.cmake):
+# MODE single runs it once and hands CHECKS, separated by '|', to the checker.
+function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
+    set(oneValueArgs "RUNTIME_OPTIONS" "CHECKS")
+    cmake_parse_arguments(ADD_TEST_SS "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    # The checker is named by its target file, which is exact under every
+    # generator; the ERF executable is resolved by the runner (it may carry a
+    # wildcard for the config subdirectory on Windows)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLOG=${test_log}"
+        "-DMODE=${MODE}"
+        "-DCHECKER=$<TARGET_FILE:erf_station_series_check>"
+        "-DCHECKS=${ADD_TEST_SS_CHECKS}"
+        "-DRUNTIME_OPTIONS=${ADD_TEST_SS_RUNTIME_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunStationSeries.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;station"
+        ATTACHED_FILES_ON_FAIL "${test_log};${test_log}.checker")
+endfunction(add_test_station_series)
+
+# The parity drivers run each leg in a subdirectory, so the sounding is named by
+# absolute path.
+function(terrain_hill_files TEST_NAME OUT_VAR)
+    set(${OUT_VAR} "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}/input_sounding" PARENT_SCOPE)
+endfunction()
+
+# Two levels over a 100 m hill on a terrain-fitted mesh.  The zero-gradient
+# condition below the mesh is corrected by the terrain slope times a lateral
+# gradient that each box can only take one-sided in its outermost ghost
+# columns, so the copies of a ghost cell below the ground differed between
+# boxes, and the refined level, which interpolates from coarse ghost cells,
+# moved with the decomposition (x-velocity 9.4e-6 apart on level 1 after 20
+# steps).  The copies are now made to agree (BelowGroundGhostSync), and the
+# answer must not depend on the decomposition.
+terrain_hill_files(Terrain2Lev_Hill_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_Hill_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# The same with the refined level starting 100 m up, so that none of its boxes
+# reaches the ground: the synchronisation has no cells below the ground to own
+# on that level and must leave it alone (a first version copied from boxes
+# that do not reach the bottom, and the run aborted in Debug).
+terrain_hill_files(Terrain2Lev_HillAloft_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_HillAloft_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files} erf.box1.in_box_lo=400.0 200.0 100.0"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+
+# Station output over terrain: a height above the local terrain is measured
+# from the ground at the station, so a series asked for 40 m above the terrain
+# on the flank of the hill must be the series asked for at 93.08 m above z = 0
+# (the ground is 53.08 m up there).  They agree to 1.4e-5 m/s on the fitted
+# mesh and 1.2e-4 m/s over the immersed hill, and to 3e-6 K.  The previous
+# code fails both: it interpolated the ground from cell averages between cell
+# centres, 3.4 m too low on the flank (0.047 m/s away on the fitted mesh), and
+# with immersed-forcing terrain it measured the height from the flat bottom of
+# the mesh, so the series was the flow inside the hill (3.8 m/s away).
+add_test_station_series(StationSampling_FittedTerrain TerrainHill single
+    RUNTIME_OPTIONS "amr.max_level=0 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
+add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
+    RUNTIME_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
+# The same for terrain carried by an embedded boundary: the mesh is flat there
+# too, so the ground under the station is the surface the EB was built from and
+# not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above
+# the terrain is 90 m above z = 0.  Measuring from the mesh instead puts the
+# station at 40 m, inside the hill, where the velocity is held at zero and the
+# checker reports a constant series.
+add_test_station_series(StationSampling_EBTerrain HillEB single
+    RUNTIME_OPTIONS "erf.station_names=mast mastabs erf.mastabs.field=x_velocity theta erf.mastabs.x=400.0 erf.mastabs.y=10.0 erf.mastabs.height_abs=90.0"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.001")
+
+#=============================================================================
 # Performance tests
 #=============================================================================

@@ -106,6 +106,14 @@ if(ERF_ENABLE_TESTS)
     ${PROJECT_SOURCE_DIR}/Source)
   target_compile_features(erf_cloud_chamber_wall_dt_guard_check PRIVATE cxx_std_17)
 
+  # Motivation: station output is compared against itself (the same point asked
+  # for two ways) and, for observation nudging, against closed forms; this
+  # checker reads the station time series ERF writes.  Plain C++, no AMReX; the
+  # tests name it by $<TARGET_FILE:erf_station_series_check>.
+  add_executable(erf_station_series_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/StationSeriesCheck.cpp)
+  target_compile_features(erf_station_series_check PRIVATE cxx_std_17)
+
   if(ERF_ENABLE_CUDA)
     foreach(_erf_test_tool IN ITEMS
         erf_shoc_plotfile_check
