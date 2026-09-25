@@ -1673,7 +1673,10 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
 # requires a start-up abort containing EXPECTED_MESSAGE.
 function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
     set(oneValueArgs "RUNTIME_OPTIONS" "CHECKS" "OFF_OPTIONS" "STATION" "EXPECTED_MESSAGE" "LABELS")
-    cmake_parse_arguments(ADD_TEST_SS "" "${oneValueArgs}" "" ${ARGN})
+    # PARSE_ARGV takes the arguments from ARGV verbatim, so a value that itself
+    # holds a ';' (LABELS "regression;obs-nudging") stays one argument.  Passing
+    # an unquoted ${ARGN} instead would split it and drop all but the first word.
+    cmake_parse_arguments(PARSE_ARGV 3 ADD_TEST_SS "" "${oneValueArgs}" "")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")

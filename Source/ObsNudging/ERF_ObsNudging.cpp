@@ -497,14 +497,22 @@ ObsNudging::surface (int lev, const Geometry& geom, const MultiFab& cons,
         m_zsurf.resize(lev+1);
         m_zsurf_ba.resize(lev+1);
         m_zsurf_dm.resize(lev+1);
+        m_zsurf_time.resize(lev+1, 0.0);   // read only when m_zsurf[lev] is set
     }
 
     const bool fitted = (m_terrain_type == TerrainType::StaticFittedMesh ||
                          m_terrain_type == TerrainType::MovingFittedMesh);
     const bool moving = (m_terrain_type == TerrainType::MovingFittedMesh);
 
-    if (m_zsurf[lev] && !moving &&
-        m_zsurf_ba[lev] == cons.boxArray() && m_zsurf_dm[lev] == cons.DistributionMap()) {
+    // On a moving fitted mesh the terrain is rebuilt for each RK stage from the
+    // stage's start time (update_terrain_stage), so it is a function of the
+    // grids and of that time; on every other mesh it depends on the grids
+    // alone.  Both source calls of a stage pass the same time, so the slab is
+    // built once per stage rather than once per call: it costs a MultiFab, a
+    // ParallelCopy and a global reduction that would otherwise be paid twice.
+    if (m_zsurf[lev] &&
+        m_zsurf_ba[lev] == cons.boxArray() && m_zsurf_dm[lev] == cons.DistributionMap() &&
+        (!moving || m_zsurf_time[lev] == time)) {
         return *m_zsurf[lev];
     }
 
@@ -545,6 +553,7 @@ ObsNudging::surface (int lev, const Geometry& geom, const MultiFab& cons,
 
     m_zsurf_ba[lev] = cons.boxArray();
     m_zsurf_dm[lev] = cons.DistributionMap();
+    m_zsurf_time[lev] = time;
     return zs;
 }
 

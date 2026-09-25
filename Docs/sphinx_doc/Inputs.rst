@@ -2635,10 +2635,12 @@ Every input is checked at start-up: a missing ``tau`` or station list, a value o
 range, a malformed file (with the line), a station outside the domain, a ``lat``/``long``
 station in a run without latitude/longitude arrays, ``time_type = epoch`` without a start
 date, EB terrain, and, on a terrain-fitted mesh, a refined level whose grids do not reach
-the ground under them all abort with a message naming the input.  The run prints each
-station with its position, the rotation of its wind, its heights and times and what it
-nudges.  To compare the model with the measurements, write station time series at the
-same positions (``erf.station_names``, :ref:`Station time series <inputs-station-time-series>`).
+the ground under them all abort with a message naming the input.  The terrain under each
+level is found again after every regrid, so a refined level that its tagging later moves
+off the ground aborts at that regrid rather than part-way through the following step.
+The run prints each station with its position, the rotation of its wind, its heights and
+times and what it nudges.  To compare the model with the measurements, write station
+time series at the same positions (``erf.station_names``, :ref:`Station time series <inputs-station-time-series>`).
 
 .. _sec:LateralBoundaryNudgingInputs:
 

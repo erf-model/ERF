@@ -149,10 +149,14 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> m_d_x, m_d_y, m_d_z, m_d_mean, m_d_sigma;
     amrex::Gpu::DeviceVector<int> m_d_agl, m_d_offset, m_d_count;
 
-    // Terrain height per level, with the grids it was built for
+    // Terrain height per level, with the grids it was built for.  On a moving
+    // fitted mesh the terrain is also a function of the stage time, so that is
+    // part of the key too; on every other mesh the terrain does not move and
+    // the time is ignored.
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_zsurf;
     amrex::Vector<amrex::BoxArray> m_zsurf_ba;
     amrex::Vector<amrex::DistributionMapping> m_zsurf_dm;
+    amrex::Vector<double> m_zsurf_time;
 };
 
 #endif
