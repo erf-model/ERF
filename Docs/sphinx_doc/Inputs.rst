@@ -1604,6 +1604,11 @@ which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
 
+The local terrain is the elevation of the ground at the station itself, interpolated
+bilinearly from the terrain at the nodes around it: the bottom of a terrain-fitted
+mesh, or, with ``erf.terrain_type = ImmersedForcing``, the terrain surface the immersed
+boundary is built from (the mesh is then flat, and its bottom is not the ground).
+
 The variable names accepted are the names of the 3D plotfile variables
 (``erf.plot_vars_1``) and of the built-in 2D diagnostics (``erf.plot2d_vars_1``),
 and the values are produced by the same code, so a station column and the
