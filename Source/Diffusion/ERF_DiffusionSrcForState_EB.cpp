@@ -90,10 +90,10 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
         int bc_comp = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ?
                        BCVars::RhoScalar_bc_comp : qty_index;
         if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
-        const Real alpha_mol = d_alpha_eff[eff_index];
-        const int  eddy_x    = d_eddy_diff_idx[eff_index];
-        const int  eddy_y    = d_eddy_diff_idy[eff_index];
-        const int  eddy_z    = d_eddy_diff_idz[eff_index];
+        const Real alpha_mol = alpha_eff[eff_index];
+        const int  eddy_x    = eddy_diff_idx[eff_index];
+        const int  eddy_y    = eddy_diff_idy[eff_index];
+        const int  eddy_z    = eddy_diff_idz[eff_index];
 
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {

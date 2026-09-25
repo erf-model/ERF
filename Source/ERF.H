@@ -172,11 +172,14 @@ public:
     //
     // Staggering contract: both MultiFabs carry CELL index type and hold
     // mass-point values whichever init path filled them -- init_from_wrfinput
-    // reads WRF's XLONG / XLAT and init_from_metgrid reads XLONG_M / XLAT_M --
-    // so a caller building a corner mesh must derive the corners itself rather
-    // than expecting a staggered edge in the ghost cells.
-    void GetOceanToAtmosCornerCoordinates (const amrex::MultiFab*& x_corner,
-                                           const amrex::MultiFab*& y_corner) const;
+    // reads WRF's XLONG / XLAT and init_from_metgrid reads XLONG_M / XLAT_M.
+    // Ghost cells at the domain boundary are clamped copies of the edge cell,
+    // not extrapolations. These are not corners: a caller building a corner
+    // mesh must derive the corners itself. The name says cell centers so that a
+    // caller written against the old edge-staggered contract fails to compile
+    // instead of silently building its mesh half a cell off.
+    void GetOceanToAtmosCellCenterLonLat (const amrex::MultiFab*& lon_cc,
+                                          const amrex::MultiFab*& lat_cc) const;
 
     // Returns the level-0, current-time land mask (1 = land, 0 = water) used
     // by the driver to exclude land cells from atmos->ocean remap stencils.

@@ -4,6 +4,7 @@
 # amr.refine_grid_layout splits even a single box.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 foreach(arg NRANKS TEST_EXE INPUT WORKING_DIRECTORY FCOMPARE PLTFILE RTOL ATOL)
     if("${${arg}}" STREQUAL "")
@@ -13,6 +14,13 @@ endforeach()
 if(NOT "${MPIEXEC}" STREQUAL "" AND "${MPIEXEC_NUMPROC_FLAG}" STREQUAL "")
     message(FATAL_ERROR "RunBoxParity.cmake: MPIEXEC_NUMPROC_FLAG must be given with MPIEXEC")
 endif()
+
+# On Windows the executables are named with a wildcard for the config subdirectory
+# a multi-config generator picks; execute_process does not expand it.
+erf_resolve_executable(TEST_EXE "${TEST_EXE}" CONFIG "${CONFIG}"
+    CONTEXT "RunBoxParity.cmake: ERF executable")
+erf_resolve_executable(FCOMPARE "${FCOMPARE}" CONFIG "${CONFIG}"
+    CONTEXT "RunBoxParity.cmake: fcompare")
 
 separate_arguments(common_options    UNIX_COMMAND "${COMMON_OPTIONS}")
 separate_arguments(reference_options UNIX_COMMAND "${REFERENCE_OPTIONS}")
