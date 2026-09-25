@@ -24,6 +24,8 @@
 #include <ERF_Plotfile2DWaterPath.H>
 #include <ERF_Constants.H>
 #include <ERF_EpochTime.H>
+#include <ERF_LatLonMap.H>
+#include <ERF_TerrainSurfaceSlab.H>
 #include <ERF_Utils.H>
 
 using namespace amrex;
@@ -807,6 +809,33 @@ ERF::init_stations ()
 }
 
 //
+// The terrain elevation at a station: bilinear in the elevations of the nodes
+// of the bottom of the mesh (or of the immersed terrain surface) around it.
+// The nodes gathered for a station are those of its cell-centred stencil,
+// i0..i1+1 by j0..j1+1, which always contain the cell of nodes around (x, y).
+//
+// This is the elevation of the ground at the station itself.  Interpolating
+// the cell averages of the elevation between cell centres instead flattens a
+// curved hill, and put a mast on the flank of a 100 m hill 3.4 m too low at
+// 50 m resolution.
+//
+static Real
+terrain_at_station (const Array4<const Real>& nd, int klo, Real x, Real y,
+                    const GpuArray<Real,AMREX_SPACEDIM>& problo,
+                    const GpuArray<Real,AMREX_SPACEDIM>& dx,
+                    int i0, int i1, int j0, int j1)
+{
+    const Real fx = (x - problo[0]) / dx[0];
+    const Real fy = (y - problo[1]) / dx[1];
+    const int  in = std::clamp(static_cast<int>(std::floor(fx)), i0, i1);
+    const int  jn = std::clamp(static_cast<int>(std::floor(fy)), j0, j1);
+    const Real tx = std::clamp(fx - Real(in), Real(0.0), Real(1.0));
+    const Real ty = std::clamp(fy - Real(jn), Real(0.0), Real(1.0));
+    return (Real(1.0)-ty) * ( (Real(1.0)-tx)*nd(in,jn  ,klo) + tx*nd(in+1,jn  ,klo) )
+         +            ty  * ( (Real(1.0)-tx)*nd(in,jn+1,klo) + tx*nd(in+1,jn+1,klo) );
+}
+
+//
 // Turn every requested lat/lon into a position in domain coordinates, and check
 // that every station lies inside the domain.  Done once: the level-0 geometry
 // and the lat/lon arrays do not change.
@@ -823,8 +852,6 @@ ERF::resolve_station_positions ()
 
     const auto  problo = geom[0].ProbLoArray();
     const auto  probhi = geom[0].ProbHiArray();
-    const auto  dx0    = geom[0].CellSizeArray();
-    const Box&  dom0   = geom[0].Domain();
 
     if (any_latlon)
     {
@@ -834,44 +861,10 @@ ERF::resolve_station_positions ()
                   "stations with .x and .y in domain coordinates instead");
         }
 
-        // Gather the level-0 mass-point latitude and longitude onto the IO rank.
-        // This is a setup-time, level-0, 2D array, so the gather is affordable and
-        // keeps the search and the inverse map as plain host code.
-        //
-        // The ceiling is one rank holding 2 Reals per level-0 cell -- 100 MB or so
-        // for the largest domains ERF is run on, a few hundred million cells -- and
-        // a search of that array per station location, once.  If either ever
-        // matters, the search is what to distribute: the array is gathered once
-        // for all the locations, but each location scans all of it.
-        //
         // NOTE: every init path fills lat_m / lon_m with mass-point values --
         //       init_from_wrfinput reads WRF's XLAT / XLONG and init_from_metgrid
         //       reads XLAT_M / XLONG_M -- so no averaging is needed here.
-        MultiFab latlon(ba2d[0], dmap[0], 2, 0);
-        for (MFIter mfi(latlon, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.tilebox();
-            const Array4<Real>&       ll  = latlon.array(mfi);
-            const Array4<const Real>& lat = lat_m[0]->const_array(mfi);
-            const Array4<const Real>& lon = lon_m[0]->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                ll(i,j,k,0) = lat(i,j,0);
-                ll(i,j,k,1) = lon(i,j,0);
-            });
-        }
-
-        Box dom2d(dom0); dom2d.setRange(2,0);
-        BoxArray ba_one(dom2d);
-        Vector<int> pmap(1, ParallelDescriptor::IOProcessorNumber());
-        DistributionMapping dm_one(pmap);
-        MultiFab latlon_all(ba_one, dm_one, 2, 0, MFInfo().SetArena(The_Pinned_Arena()));
-        latlon_all.ParallelCopy(latlon, 0, 0, 2);
-
-        // The copy is device-side in a GPU build; the search below is host code
-        Gpu::streamSynchronize();
-
-        const int ilo = dom0.smallEnd(0), ihi = dom0.bigEnd(0);
-        const int jlo = dom0.smallEnd(1), jhi = dom0.bigEnd(1);
+        const LatLonMap latlon_map(*lat_m[0], *lon_m[0], ba2d[0], dmap[0], geom[0]);
 
         for (auto& station : stations)
         {
@@ -879,70 +872,24 @@ ERF::resolve_station_positions ()
             {
                 if (!loc.use_latlon) { continue; }
 
-                Real out[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
+                LatLonLocation where;
+                const LatLonStatus status = latlon_map.locate(loc.req_lat, loc.req_lon, where);
 
-                if (ParallelDescriptor::IOProcessor())
-                {
-                    const Array4<const Real>& ll = latlon_all.const_array(0);
-
-                    auto cosfac = std::cos(loc.req_lat * PI / Real(180.0));
-                    auto dist2  = [&](int i, int j) {
-                        const Real dlat = ll(i,j,0,0) - loc.req_lat;
-                        const Real dlon = (ll(i,j,0,1) - loc.req_lon) * cosfac;
-                        return dlat*dlat + dlon*dlon;
-                    };
-
-                    int  bi = ilo, bj = jlo;
-                    Real best = dist2(ilo,jlo);
-                    for (int j = jlo; j <= jhi; ++j) {
-                        for (int i = ilo; i <= ihi; ++i) {
-                            const Real d = dist2(i,j);
-                            if (d < best) { best = d; bi = i; bj = j; }
-                        }
-                    }
-
-                    // One linear solve in index space inverts the map: over a cell
-                    // the projection is linear to well below a cell width.
-                    const int im = std::max(bi-1, ilo), ip = std::min(bi+1, ihi);
-                    const int jm = std::max(bj-1, jlo), jp = std::min(bj+1, jhi);
-                    const Real inv_di = (ip > im) ? Real(1.0)/Real(ip-im) : Real(0.0);
-                    const Real inv_dj = (jp > jm) ? Real(1.0)/Real(jp-jm) : Real(0.0);
-
-                    const Real dlat_di = (ll(ip,bj,0,0) - ll(im,bj,0,0)) * inv_di;
-                    const Real dlon_di = (ll(ip,bj,0,1) - ll(im,bj,0,1)) * inv_di;
-                    const Real dlat_dj = (ll(bi,jp,0,0) - ll(bi,jm,0,0)) * inv_dj;
-                    const Real dlon_dj = (ll(bi,jp,0,1) - ll(bi,jm,0,1)) * inv_dj;
-
-                    const Real rlat = loc.req_lat - ll(bi,bj,0,0);
-                    const Real rlon = loc.req_lon - ll(bi,bj,0,1);
-                    Real di = Real(0.0), dj = Real(0.0);
-                    if (!invert_latlon_offset(rlat, rlon, dlat_di, dlon_di, dlat_dj, dlon_dj, di, dj)) {
-                        Abort("Station '" + station.name + "': the latitude/longitude arrays are "
-                              "degenerate near the requested point, so it cannot be inverted");
-                    }
-
-                    // The solve places the station relative to the nearest grid
-                    // point, so more than a cell away means the request cannot be
-                    // trusted: either it is outside the domain, or the lat/lon map
-                    // is too poorly conditioned near it for one linear solve.
-                    if (std::abs(di) > Real(1.0) || std::abs(dj) > Real(1.0)) {
-                        Abort("Station '" + station.name + "': requested lat=" +
-                              std::to_string(loc.req_lat) + " long=" + std::to_string(loc.req_lon) +
-                              " resolved to a point more than one cell from the nearest grid "
-                              "point (lat=" + std::to_string(ll(bi,bj,0,0)) + " long=" +
-                              std::to_string(ll(bi,bj,0,1)) + "), which means it is outside the "
-                              "domain, or that the latitude/longitude arrays are too distorted "
-                              "near it to invert");
-                    }
-
-                    out[0] = problo[0] + (Real(bi) + Real(0.5) + di) * dx0[0];
-                    out[1] = problo[1] + (Real(bj) + Real(0.5) + dj) * dx0[1];
-                    out[2] = ll(bi,bj,0,0) + dlat_di*di + dlat_dj*dj;
-                    out[3] = ll(bi,bj,0,1) + dlon_di*di + dlon_dj*dj;
+                if (status == LatLonStatus::Degenerate) {
+                    Abort("Station '" + station.name + "': the latitude/longitude arrays are "
+                          "degenerate near the requested point, so it cannot be inverted");
+                }
+                if (status == LatLonStatus::TooFar) {
+                    Abort("Station '" + station.name + "': requested lat=" +
+                          std::to_string(loc.req_lat) + " long=" + std::to_string(loc.req_lon) +
+                          " resolved to a point more than one cell from the nearest grid "
+                          "point (lat=" + std::to_string(where.near_lat) + " long=" +
+                          std::to_string(where.near_lon) + "), which means it is outside the "
+                          "domain, or that the latitude/longitude arrays are too distorted "
+                          "near it to invert");
                 }
 
-                ParallelDescriptor::Bcast(out, 4, ParallelDescriptor::IOProcessorNumber());
-                loc.x = out[0]; loc.y = out[1]; loc.got_lat = out[2]; loc.got_lon = out[3];
+                loc.x = where.x; loc.y = where.y; loc.got_lat = where.lat; loc.got_lon = where.lon;
             }
         }
     }
@@ -1145,7 +1092,7 @@ ERF::resolve_station_stencils ()
         if (z_phys_nd[lev]) {
             znd[lev].define(BoxArray(bl_nd), dm_io, 1, 0, pinned);
             znd[lev].setVal(Real(0.0));
-            znd[lev].ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+            znd[lev].ParallelCopy(station_ground(lev), 0, 0, 1, IntVect(0), IntVect(0), period);
         }
     }
 
@@ -1207,12 +1154,9 @@ ERF::resolve_station_stencils ()
                 // height is measured from
                 Real z_surf = problo[2];
                 if (z_phys_nd[lev]) {
-                    const Array4<const Real>& nd = znd[lev].const_array(ib);
-                    auto corner_avg = [&](int i, int j) {
-                        return Real(0.25) * (nd(i,j,klo) + nd(i+1,j,klo) + nd(i,j+1,klo) + nd(i+1,j+1,klo));
-                    };
-                    z_surf = (Real(1.0)-c.wy) * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j0) + c.wx*corner_avg(c.i1,c.j0) )
-                           +            c.wy  * ( (Real(1.0)-c.wx)*corner_avg(c.i0,c.j1) + c.wx*corner_avg(c.i1,c.j1) );
+                    const StationLoc& sloc = station.locs[all_locs[ip].second];
+                    z_surf = terrain_at_station(znd[lev].const_array(ib), klo, sloc.x, sloc.y,
+                                                problo, dx, c.i0, c.i1, c.j0, c.j1);
                 }
 
                 // Every requested height must be bracketed within the covered
@@ -1449,7 +1393,7 @@ ERF::sample_stations (Real time)
             BoxArray ba(bl_nd);
             stznd[lev].define(ba, dm_io, 1, 0, pinned);
             stznd[lev].setVal(Real(0.0));
-            stznd[lev].ParallelCopy(*z_phys_nd[lev], 0, 0, 1, IntVect(0), IntVect(0), period);
+            stznd[lev].ParallelCopy(station_ground(lev), 0, 0, 1, IntVect(0), IntVect(0), period);
         }
     }
 
@@ -1498,12 +1442,8 @@ ERF::sample_stations (Real time)
                 // Terrain elevation under the station
                 Real z_surf = problo[2];
                 if (z_phys_nd[lev]) {
-                    const Array4<const Real>& nd = stznd[lev].const_array(ib);
-                    auto corner_avg = [&](int i, int j) {
-                        return Real(0.25) * (nd(i,j,klo) + nd(i+1,j,klo) + nd(i,j+1,klo) + nd(i+1,j+1,klo));
-                    };
-                    z_surf = (Real(1.0)-wy) * ( (Real(1.0)-wx)*corner_avg(i0,j0) + wx*corner_avg(i1,j0) )
-                           +            wy  * ( (Real(1.0)-wx)*corner_avg(i0,j1) + wx*corner_avg(i1,j1) );
+                    z_surf = terrain_at_station(stznd[lev].const_array(ib), klo, loc.x, loc.y,
+                                                problo, dx, i0, i1, j0, j1);
                 }
 
                 Array4<const Real> a3, a2;
@@ -1548,6 +1488,49 @@ ERF::sample_stations (Real time)
     }
 
     ss.appendRow(time, static_cast<Real>(start_time) + time, row);
+}
+
+//
+// The nodes a station's terrain elevation is read from.  On a terrain-fitted
+// mesh (and on a flat one) that is the bottom of the mesh, z_phys_nd.  With
+// immersed-forcing or embedded-boundary terrain the mesh is flat and the
+// terrain is immersed in it, so a height above the local terrain has to be
+// measured from the surface the immersed boundary is built from; that is built
+// here once per set of grids.  Both build the surface from init_terrain_surface
+// (see ERF::initializeEB and the immersed-boundary setup), so the same slab serves
+// both.
+//
+// An EB run that specifies no terrain surface has a flat boundary, but its
+// z_phys is shifted so that an eb2.geometry = plane boundary lies at zero (the
+// z_offset of init_default_zphys); the ground is that zero, not z_phys_nd,
+// which holds the shifted bottom of the index space.
+//
+const MultiFab&
+ERF::station_ground (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev] != nullptr);
+    const bool terrain_is_immersed = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+                                      solverChoice.terrain_type == TerrainType::EB);
+    if (!terrain_is_immersed) {
+        return *z_phys_nd[lev];
+    }
+
+    if (static_cast<int>(station_ib_ground.size()) <= lev) {
+        station_ib_ground.resize(lev+1);
+    }
+    const BoxArray slab = bottom_node_slab(grids[lev], geom[lev]);
+    if (!station_ib_ground[lev] ||
+        !(station_ib_ground[lev]->boxArray() == slab) ||
+        !(station_ib_ground[lev]->DistributionMap() == dmap[lev]))
+    {
+        station_ib_ground[lev] = std::make_unique<MultiFab>(slab, dmap[lev], 1, 0);
+        if (solverChoice.terrain_type == TerrainType::EB && !prob->terrain_is_specified()) {
+            station_ib_ground[lev]->setVal(Real(0.0));
+        } else {
+            fill_terrain_surface_slab(*station_ib_ground[lev], geom[lev], *prob, t_new[lev]);
+        }
+    }
+    return *station_ib_ground[lev];
 }
 
 void
