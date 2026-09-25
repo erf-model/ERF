@@ -1663,5 +1663,41 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
 #=============================================================================
+# Terrain: decomposition over a hill
+#=============================================================================
+
+# The parity drivers run each leg in a subdirectory, so the sounding is named by
+# absolute path.
+function(terrain_hill_files TEST_NAME OUT_VAR)
+    set(${OUT_VAR} "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}/input_sounding" PARENT_SCOPE)
+endfunction()
+
+# Two levels over a 100 m hill on a terrain-fitted mesh.  The zero-gradient
+# condition below the mesh is corrected by the terrain slope times a lateral
+# gradient that each box can only take one-sided in its outermost ghost
+# columns, so the copies of a ghost cell below the ground differed between
+# boxes, and the refined level, which interpolates from coarse ghost cells,
+# moved with the decomposition (x-velocity 9.4e-6 apart on level 1 after 20
+# steps).  The copies are now made to agree (BelowGroundGhostSync), and the
+# answer must not depend on the decomposition.
+terrain_hill_files(Terrain2Lev_Hill_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_Hill_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# The same with the refined level starting 100 m up, so that none of its boxes
+# reaches the ground: the synchronisation has no cells below the ground to own
+# on that level and must leave it alone (a first version copied from boxes
+# that do not reach the bottom, and the run aborted in Debug).
+terrain_hill_files(Terrain2Lev_HillAloft_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_HillAloft_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files} erf.box1.in_box_lo=400.0 200.0 100.0"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+
+#=============================================================================
 # Performance tests
 #=============================================================================
