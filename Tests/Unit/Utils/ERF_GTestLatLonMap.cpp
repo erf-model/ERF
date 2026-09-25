@@ -93,6 +93,39 @@ TEST(LatLonMap, PlacesAPointOnAGridAcrossTheAntimeridian)
     EXPECT_NEAR(loc.y, Real(12.6)*Real(500.0), xtol);
 }
 
+TEST(LatLonMap, ReportsALongitudeInRangeAcrossTheAntimeridian)
+{
+    // 40 x 40 cells of 0.005 degrees whose last column sits at 179.9975: a grid
+    // that stops just short of the antimeridian and so needs no wrap of its own
+    const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
+    amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
+    const auto a = fab.array();
+    amrex::LoopOnCpu(dom, [&](int i, int j, int) {
+        a(i,j,0,0) = Real(-17.0) + (Real(j) + Real(0.5))*Real(0.005);
+        a(i,j,0,1) = Real(179.8) + (Real(i) + Real(0.5))*Real(0.005);
+    });
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> problo{Real(0.0), Real(0.0), Real(0.0)};
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> dx{Real(500.0), Real(500.0), Real(100.0)};
+
+    // 0.7 of a cell past the last column: 180.001 degrees east, which is the
+    // same place as -179.999
+    const Real req_lon = Real(179.8) + Real(40.2)*Real(0.005) - Real(360.0);
+    LatLonLocation loc;
+    ASSERT_EQ(locate_latlon_on_grid(fab.const_array(), dom, problo, dx,
+                                    Real(-17.0) + Real(12.5)*Real(0.005), req_lon, loc),
+              LatLonStatus::Ok);
+
+    const Real xtol   = (sizeof(Real) == 8) ? Real(1.0e-3) : Real(5.0);
+    const Real lontol = (sizeof(Real) == 8) ? Real(1.0e-9) : Real(1.0e-4);
+    EXPECT_NEAR(loc.x, Real(40.2)*Real(500.0), xtol);
+    // The nearest grid point is on the near side of 180 and the resolved point
+    // on the far side, so the sum runs past +180; the longitude reported for
+    // the station has to name a real place
+    EXPECT_LE(loc.lon, Real(180.0));
+    EXPECT_GE(loc.lon, Real(-180.0));
+    EXPECT_NEAR(loc.lon, req_lon, lontol);
+}
+
 TEST(LatLonMap, LongitudeDifferencesWrapAtTheAntimeridian)
 {
     const Real tol = (sizeof(Real) == 8) ? Real(1.0e-12) : Real(1.0e-4);

@@ -113,7 +113,10 @@ locate_latlon_on_grid (const Array4<const Real>& ll, const Box& dom,
     loc.x   = problo[0] + (Real(bi) + Real(0.5) + di) * dx[0];
     loc.y   = problo[1] + (Real(bj) + Real(0.5) + dj) * dx[1];
     loc.lat = ll(bi,bj,0,0) + dlat_di*di + dlat_dj*dj;
-    loc.lon = ll(bi,bj,0,1) + dlon_di*di + dlon_dj*dj;
+    // Resolving a point from a nearest grid point on the other side of the
+    // antimeridian steps the longitude just past +-180; report the longitude
+    // that names the place, not the one that runs off the end of the range
+    loc.lon = wrap_longitude_difference(ll(bi,bj,0,1) + dlon_di*di + dlon_dj*dj);
 
     return LatLonStatus::Ok;
 }
