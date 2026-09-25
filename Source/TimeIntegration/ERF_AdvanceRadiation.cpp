@@ -114,7 +114,7 @@ void ERF::advance_radiation (int lev,
                 // top-of-atmosphere interface, physical data rather than a halo (see below);
                 // it lies outside the domain, so no ordinary exchange reaches it, but a
                 // z-periodic one would overwrite it with the bottom of the column.
-                const IntVect& per = geom[lev-1].periodicity().intVect();
+                const IntVect per = geom[lev-1].periodicity().intVect();
                 rad_fluxes[lev-1]->FillBoundary(Periodicity(IntVect(per[0],per[1],0)));
             }
         }
@@ -230,8 +230,12 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        // LSM radiation output fields (surface fluxes needed by NoahMP)
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
+        // LSM radiation output fields (surface fluxes needed by NoahMP).  Gated on
+        // rad_uses_interface() as well: the names come from rad[lev], which is null under
+        // erf.radiation_model = TwoStream (see the Constructors), and that model reaches
+        // this lambda too now that it runs on a hierarchy.  The two-stream model does not
+        // feed the land surface these fields, so there is nothing to interpolate for it.
+        if (solverChoice.rad_uses_interface() && solverChoice.lsm_type != LandSurfaceType::None) {
             Vector<std::string> lsm_output_names = rad[lev]->get_lsm_output_varnames();
 
             for (int i = 0; i < lsm_output_names.size(); ++i) {
@@ -256,28 +260,37 @@ void ERF::advance_radiation (int lev,
         }
     };
 
+    // On the first step of a level that has just been built by interp_atmos_from_coarse,
+    // interpolate the heating rates and radiation fluxes from the parent instead of
+    // computing them.  That level's atmospheric state came from FillCoarsePatch, which
+    // interpolates rho, theta and qv independently and so leaves them thermodynamically
+    // inconsistent; running RRTMGP on it produces NaNs (see MakeNewLevelFromCoarse), and the
+    // two-stream column sweep, which takes its optical properties from the same rho, theta
+    // and qv, has no more claim on that state than RRTMGP does.  Interpolating also gives
+    // the LSM the radiation fields it needs for that step.
+    //
+    // This sits ahead of the model dispatch because the flag is set for whichever model is
+    // running (ERF_MakeNewLevel.cpp) and the reason for honouring it is a property of the
+    // state, not of the model.  Skipping the pre-dycore sweep costs the two-stream model
+    // nothing else: the flag is only ever set for lev > 0, and the surface energy balance
+    // that the post-dycore call advances runs on level 0 alone.
+    //
+    // The flag is set by whichever routine built the level and is cleared here as soon as
+    // it has been acted on, so exactly one step is skipped per level creation.  Levels
+    // that read a full state of their own never have it set.
+    if (lev > 0 &&
+        (solverChoice.rad_uses_interface() || solverChoice.rad_type == RadiationType::TwoStream) &&
+        lev < static_cast<int>(rad_interp_from_coarse_pending.size()) &&
+        rad_interp_from_coarse_pending[lev]) {
+        amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
+                       << " to level " << lev << " on the first step after that level was built\n";
+        interp_rad_from_coarse();
+        rad_interp_from_coarse_pending[lev] = 0;
+        return;
+    }
+
     if (solverChoice.rad_uses_interface()) {
         BL_PROFILE_VAR("ERF::advance_radiation():RRTMGP", rrtmgp_region);
-
-        // On the first step of a level that has just been built by interp_atmos_from_coarse,
-        // interpolate the heating rates and radiation fluxes from the parent instead of
-        // computing them.  That level's atmospheric state came from FillCoarsePatch, which
-        // interpolates rho, theta and qv independently and so leaves them thermodynamically
-        // inconsistent; running RRTMGP on it produces NaNs (see MakeNewLevelFromCoarse).
-        // Interpolating also gives the LSM the radiation fields it needs for that step.
-        //
-        // The flag is set by whichever routine built the level and is cleared here as soon as
-        // it has been acted on, so exactly one step is skipped per level creation.  Levels
-        // that read a full state of their own never have it set.
-        if (lev > 0 &&
-            lev < static_cast<int>(rad_interp_from_coarse_pending.size()) &&
-            rad_interp_from_coarse_pending[lev]) {
-            amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
-                           << " to level " << lev << " on the first step after that level was built\n";
-            interp_rad_from_coarse();
-            rad_interp_from_coarse_pending[lev] = 0;
-            return;
-        }
 
 #ifdef ERF_USE_NETCDF
         MultiFab *lat_ptr = lat_m[lev].get();
@@ -376,7 +389,7 @@ void ERF::advance_radiation (int lev,
         if (rad_fluxes[lev]) {
             // z left non-periodic: the ghost at khi+1 holds the top-of-atmosphere
             // interface, which is physical data rather than a halo.
-            const IntVect& per = geom[lev].periodicity().intVect();
+            const IntVect per = geom[lev].periodicity().intVect();
             rad_fluxes[lev]->FillBoundary(Periodicity(IntVect(per[0],per[1],0)));
         }
     }
