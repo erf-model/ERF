@@ -3910,6 +3910,19 @@ Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-re
 temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
 the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
 
+The model runs on a refined hierarchy. A level that carries complete atmospheric columns sweeps
+them itself; a level whose grids stop short of the domain top or bottom -- a nested patch -- has
+its heating rates and fluxes interpolated from its parent, as they are for RRTMGP. Set
+``amr.refine_whole_domain_dir = 2`` if you would rather every refinement patch span :math:`z` and
+be solved on its own. The requirement is per box -- the sweep needs a whole column inside one box
+-- so a level tagged at different heights in different horizontal regions is interpolated too,
+not just one that stops below the domain top. The only refusal is on level 0, which has no parent
+to interpolate from: a box there that does not span :math:`z` means grids decomposed in the
+vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance remains a level-0 feature, so
+``erf.radiation.seb_prognostic_enable`` -- which evolves the surface temperature that the longwave
+boundary condition reads -- cannot be combined with ``amr.max_level > 0``; that combination is
+refused when the inputs are read, whether or not a fine level is ever built.
+
 
 
 Two-Stream Radiation Model Parameters
@@ -4069,6 +4082,7 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
+|                                                    | single level only; refused with amr.max_level > 0          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

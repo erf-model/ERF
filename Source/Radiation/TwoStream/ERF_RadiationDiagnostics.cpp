@@ -11,6 +11,7 @@
 
 RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            const std::string& diag_file,
+                                           int amr_level,
                                            bool diag_enable,
                                            bool diag_stdout_enable,
                                            bool diag_tagged_enable,
@@ -18,7 +19,7 @@ RadiationDiagnostics::RadiationDiagnostics(int verbosity,
                                            bool diag_csv_enable,
                                            const std::string& diag_callsite_mode,
                                            amrex::Real diag_dedup_tol)
-  : m_verbosity(verbosity), m_diag_file(diag_file),
+  : m_verbosity(verbosity), m_diag_file(diag_file), m_amr_level(amr_level),
     m_diag_enable(diag_enable), m_diag_stdout_enable(diag_stdout_enable),
     m_diag_tagged_enable(diag_tagged_enable),
     m_diag_regtest_line_enable(diag_regtest_line_enable),
@@ -66,6 +67,9 @@ void RadiationDiagnostics::write_header_if_needed()
     outfile << ",SEB_residual_mean,SEB_residual_max";
     // SEB prognostic surface temperature and moisture columns
     outfile << ",T_s_mean,T_s_max,q_s_mean,q_s_max";
+    // AMR level, appended last for the same backward-compatibility reason as
+    // the columns above: consumers index by header name, not position.
+    outfile << ",level";
     outfile << "\n";
   }
   outfile.close();
@@ -102,6 +106,8 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
 
   // Guard against duplicate writes using 3-tuple identity:
   //   (step, call_site, time)
+  // One instance per AMR level, so this state is per level and a fine level
+  // never suppresses a coarse level's row at the same step and time.
   // This ensures:
   // 1. Accidental repeated calls at same (step, call_site, time) are suppressed.
   // 2. Legitimate pre_dycore + post_dycore entries at same step both retained
@@ -127,7 +133,8 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // driving the call.
   if (m_verbosity >= 1 && amrex::ParallelDescriptor::IOProcessor() &&
       m_diag_tagged_enable && m_diag_stdout_enable) {
-    amrex::Print() << "[RAD][RadiationDiagnostics::append] step=" << step
+    amrex::Print() << "[RAD][RadiationDiagnostics::append] level=" << m_amr_level
+                   << " step=" << step
                    << " time=" << time
                    << " call_site=" << call_site
                    << " SW_surface=" << SW_surface
@@ -140,7 +147,8 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
   // Print RADIATION_DIAG line (for RegTest scripts)
   if (amrex::ParallelDescriptor::IOProcessor() && m_diag_regtest_line_enable &&
       m_diag_stdout_enable) {
-    amrex::Print() << "RADIATION_DIAG: step=" << step << " time=" << time
+    amrex::Print() << "RADIATION_DIAG: level=" << m_amr_level
+                   << " step=" << step << " time=" << time
                    << " call_site=" << call_site
                    << " SW_surface=" << std::scientific << std::setprecision(6)
                    << SW_surface << " SW_TOA=" << SW_TOA << " SW_up_TOA=" << SW_up_TOA
@@ -173,6 +181,9 @@ void RadiationDiagnostics::append(int step, amrex::Real time, const std::string&
 
   // Append prognostic T_s and q_s columns (backward compatible: write NaN if not available)
   outfile << "," << t_s_mean << "," << t_s_max << "," << q_s_mean << "," << q_s_max;
+
+  // AMR level (see write_header_if_needed)
+  outfile << "," << m_amr_level;
 
   outfile << "\n";
   outfile.close();
