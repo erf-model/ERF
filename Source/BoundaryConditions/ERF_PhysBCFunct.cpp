@@ -4,6 +4,17 @@
 
 using namespace amrex;
 
+namespace {
+    // Only a terrain-fitted mesh makes the below-ground terrain correction in
+    // impose_vertical_*_bcs depend on the box decomposition; for every other
+    // terrain type z_phys_nd is flat and the correction is identically zero.
+    bool terrain_is_fitted (const TerrainType& terrain_type)
+    {
+        return (terrain_type == TerrainType::StaticFittedMesh ||
+                terrain_type == TerrainType::MovingFittedMesh);
+    }
+}
+
 void
 BelowGroundGhostSync::operator() (MultiFab& mf, int icomp, int ncomp,
                                   const IntVect& nghost, const Geometry& geom)
@@ -144,8 +155,10 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
     } // OpenMP
 
     // The terrain correction below the ground is computed box by box; make the
-    // copies of each ghost cell agree
-    if (do_terrain_adjustment && m_z_phys_nd) {
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (do_terrain_adjustment && m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
         m_below_ground_sync(mf, icomp, ncomp, nghost, m_geom);
     }
 } // operator()
@@ -230,8 +243,10 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 
     // The terrain correction below the ground is computed box by box; make the
-    // copies of each ghost cell agree
-    if (m_z_phys_nd) {
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
         m_below_ground_sync(mf, 0, 1, nghost, m_geom);
     }
 } // operator()
@@ -317,8 +332,10 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     } // OpenMP
 
     // The terrain correction below the ground is computed box by box; make the
-    // copies of each ghost cell agree
-    if (m_z_phys_nd) {
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
         m_below_ground_sync(mf, 0, 1, nghost, m_geom);
     }
 } // operator()
