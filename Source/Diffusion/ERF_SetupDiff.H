@@ -31,20 +31,20 @@
     [[maybe_unused]] const Real inv_theta_ref = one / amrex::max(turbChoice.theta_ref, std::numeric_limits<Real>::min());
     [[maybe_unused]] const Real l_inv_theta0 = (use_ref_theta) ? inv_theta_ref : one;
 
-    // vertical diffusivities are defined in ERF_SetupVertDiff.H
-    // The number of quantities following Scalar_h must be equal to the number
-    //   of quantities in the conserved state following RhoScalar_comp -- this is
-    //   currently all the moist quantities, which tops out at 11 for the Morrison model
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h,  EddyDiff::Q_h,
-                              EddyDiff::Q_h    , EddyDiff::Q_h};
+    // Horizontal companions of eddy_diff_idz, which is built along with
+    //   alpha_eff in ERF_SetupVertDiff.H; see the notes there.  The two
+    //   horizontal directions use the same components.
+    Vector<int> eddy_diff_idx(NPRIMVAR_max, EddyDiff::Q_h);
+    eddy_diff_idx[PrimTheta_comp]  = EddyDiff::Theta_h;
+    eddy_diff_idx[PrimKE_comp]     = EddyDiff::KE_h;
+    eddy_diff_idx[PrimScalar_comp] = EddyDiff::Scalar_h;
+    Vector<int> eddy_diff_idy(eddy_diff_idx);
+
+    // The tables are indexed by primitive component, i.e. by qty_index-1, so the
+    //   highest index this call can reach is end_comp-1.
+    AMREX_ALWAYS_ASSERT(eddy_diff_idx.size() == eddy_diff_idz.size());
+    AMREX_ALWAYS_ASSERT(eddy_diff_idx.size() == alpha_eff.size());
+    AMREX_ALWAYS_ASSERT(end_comp-1 < static_cast<int>(alpha_eff.size()));
 
     // Device vectors
     Gpu::AsyncVector<int>  eddy_diff_idx_d;
