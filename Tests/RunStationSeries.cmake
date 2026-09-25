@@ -5,14 +5,24 @@ include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 # Station time-series regression driver.
 #
-# MODE = single : run the deck once in run/, then run the checker with every
-#                 check in CHECKS as it is, @RUN@ replaced by the run directory.
+# MODE = single   : run the deck once in run/, then run the checker with every
+#                   check in CHECKS as it is, @RUN@ replaced by the run directory.
+# MODE = analytic : run the deck once, then run the checker in analytic mode on
+#                   the series STATION for every check in CHECKS.
+# MODE = approach : run the deck with nudging (in on/) and with OFF_OPTIONS
+#                   (in off/), then run the checker in approach mode for every
+#                   check in CHECKS with on= and off= set to the station series
+#                   of each run that the check names with series=<station>.
+# MODE = abort    : run the deck with RUNTIME_OPTIONS and require that it
+#                   aborts during start-up with EXPECTED_MESSAGE in its output.
 #
-# CHECKS is a list of checker argument strings separated by '|', each one the
-# mode and key=value arguments of one checker call (StationSeriesCheck.cpp).
+# CHECKS is a list of checker argument strings separated by '|'.  In single
+# mode each is the mode and key=value arguments of one checker call
+# (StationSeriesCheck.cpp); in analytic and approach mode, the key=value
+# arguments only.
 
 if(NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR NOT DEFINED WORKING_DIRECTORY OR
-   NOT DEFINED MODE OR NOT DEFINED LOG OR NOT DEFINED CHECKER OR NOT DEFINED CHECKS)
+   NOT DEFINED MODE OR NOT DEFINED LOG)
     message(FATAL_ERROR "RunStationSeries.cmake missing required argument")
 endif()
 if(NOT DEFINED NRANKS OR "${NRANKS}" STREQUAL "")
@@ -79,6 +89,31 @@ function(station_check args)
 endfunction()
 
 file(REMOVE "${LOG}.checker")
+
+if("${MODE}" STREQUAL "abort")
+    station_run("${WORKING_DIRECTORY}/abort" "${RUNTIME_OPTIONS}" "${LOG}" result)
+    file(READ "${LOG}" output)
+    if("${result}" STREQUAL "0")
+        station_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The run was expected to abort but succeeded")
+    endif()
+    string(FIND "${output}" "${EXPECTED_MESSAGE}" found)
+    if(found EQUAL -1)
+        station_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The abort did not contain the expected text '${EXPECTED_MESSAGE}'")
+    endif()
+    string(FIND "${output}" "Coarse STEP" stepped)
+    if(NOT stepped EQUAL -1)
+        station_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The run aborted only after it started time stepping")
+    endif()
+    message(STATUS "Aborted during start-up with: ${EXPECTED_MESSAGE}")
+    return()
+endif()
+
+if(NOT DEFINED CHECKER OR NOT DEFINED CHECKS)
+    message(FATAL_ERROR "RunStationSeries.cmake: MODE ${MODE} needs CHECKER and CHECKS")
+endif()
 string(REPLACE "|" ";" check_list "${CHECKS}")
 
 if("${MODE}" STREQUAL "single")
@@ -90,6 +125,34 @@ if("${MODE}" STREQUAL "single")
     foreach(check IN LISTS check_list)
         string(REPLACE "@RUN@" "${WORKING_DIRECTORY}/run" check "${check}")
         station_check("${check}")
+    endforeach()
+elseif("${MODE}" STREQUAL "analytic")
+    station_run("${WORKING_DIRECTORY}/run" "${RUNTIME_OPTIONS}" "${LOG}" result)
+    if(NOT result EQUAL 0)
+        station_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The simulation failed: ${result}")
+    endif()
+    foreach(check IN LISTS check_list)
+        station_check("analytic file=${WORKING_DIRECTORY}/run/Output_Stations/${STATION}.dat ${check}")
+    endforeach()
+elseif("${MODE}" STREQUAL "approach")
+    station_run("${WORKING_DIRECTORY}/on" "${RUNTIME_OPTIONS}" "${LOG}" result)
+    if(NOT result EQUAL 0)
+        station_report_log("simulation log" "${LOG}")
+        message(FATAL_ERROR "The nudged simulation failed: ${result}")
+    endif()
+    station_run("${WORKING_DIRECTORY}/off" "${RUNTIME_OPTIONS} ${OFF_OPTIONS}" "${LOG}.off" result)
+    if(NOT result EQUAL 0)
+        station_report_log("simulation log" "${LOG}.off")
+        message(FATAL_ERROR "The free simulation failed: ${result}")
+    endif()
+    foreach(check IN LISTS check_list)
+        if(NOT check MATCHES "series=([A-Za-z0-9_]+)")
+            message(FATAL_ERROR "RunStationSeries.cmake: approach check without series=: ${check}")
+        endif()
+        set(series "${CMAKE_MATCH_1}")
+        string(REGEX REPLACE "series=[A-Za-z0-9_]+" "" check "${check}")
+        station_check("approach on=${WORKING_DIRECTORY}/on/Output_Stations/${series}.dat off=${WORKING_DIRECTORY}/off/Output_Stations/${series}.dat ${check}")
     endforeach()
 else()
     message(FATAL_ERROR "RunStationSeries.cmake: unknown MODE ${MODE}")
