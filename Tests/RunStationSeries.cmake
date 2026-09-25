@@ -11,11 +11,14 @@ include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 # CHECKS is a list of checker argument strings separated by '|', each one the
 # mode and key=value arguments of one checker call (StationSeriesCheck.cpp).
 
-if(NOT DEFINED TEST_EXE OR NOT DEFINED INPUT OR NOT DEFINED WORKING_DIRECTORY OR
-   NOT DEFINED MODE OR NOT DEFINED LOG OR NOT DEFINED CHECKER OR NOT DEFINED CHECKS)
-    message(FATAL_ERROR "RunStationSeries.cmake missing required argument")
-endif()
-if(NOT DEFINED NRANKS OR "${NRANKS}" STREQUAL "")
+# -DX= defines X as empty, so test for a value, not for DEFINED: an empty CHECKS
+# would otherwise run the deck and report success without calling the checker once
+foreach(arg TEST_EXE INPUT WORKING_DIRECTORY MODE LOG CHECKER CHECKS)
+    if("${${arg}}" STREQUAL "")
+        message(FATAL_ERROR "RunStationSeries.cmake: ${arg} must be given and non-empty")
+    endif()
+endforeach()
+if("${NRANKS}" STREQUAL "")
     set(NRANKS 1)
 endif()
 
