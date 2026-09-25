@@ -424,7 +424,7 @@ public:
                 varIdx = idx;
             }
         }
-        AMREX_ASSERT(varIdx != -1); // no name found
+        AMREX_ALWAYS_ASSERT(varIdx != -1); // no name found
         return varIdx;
     }
 

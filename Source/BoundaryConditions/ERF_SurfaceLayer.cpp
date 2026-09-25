@@ -57,8 +57,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // Update land surface temp if we have a valid pointer
-    if (zlo && (m_has_lsm_tsurf ||
-                (use_surface_model && elapsed_time_since_start_low > 0.0))) {
+    if (zlo && m_has_lsm_tsurf) {
         get_lsm_tsurf(lev);
     }
 

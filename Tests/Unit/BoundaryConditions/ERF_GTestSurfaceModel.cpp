@@ -242,6 +242,23 @@ TEST(SurfaceModel, UrbanOnlyModelUsesFullSurface)
     EXPECT_NEAR(fixture.model->get_tsurf(0)->max(0), Real(140.0), 1.e-12);
 }
 
+TEST(SurfaceModel, UnconfiguredProviderFieldsAreSkipped)
+{
+    SurfaceModelFixture fixture;
+    auto urban = fixture.make_fields(Real(100.0), Real(10.0), 0);
+    fixture.model->set_model_data(
+        0, fixture.pointers(urban), {"f0", "f1", "f2", "f3", "f4", "f5"},
+        SurfaceModelType::URBAN);
+
+    fixture.model->calculate_weight_average(0, nullptr);
+
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), Real(0.0));
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(1), Real(0.0));
+    EXPECT_EQ(fixture.model->get_tstar(0)->max(0), Real(0.0));
+    EXPECT_EQ(fixture.model->get_qstar(0)->max(0), Real(0.0));
+    EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), Real(0.0));
+}
+
 TEST(SurfaceModel, SingleEnabledModelUsesFullSurfaceWithoutFraction)
 {
     SurfaceModelFixture fixture;
@@ -269,12 +286,39 @@ TEST(SurfaceModel, ApplyWeightAverageScalesBothModels)
 
     amrex::MultiFab land_data(fixture.ba, fixture.dm, 2, amrex::IntVect(0));
     amrex::MultiFab urban_data(fixture.ba, fixture.dm, 2, amrex::IntVect(0));
+    amrex::MultiFab land_weighted(fixture.ba, fixture.dm, 2, amrex::IntVect(0));
+    amrex::MultiFab urban_weighted(fixture.ba, fixture.dm, 2, amrex::IntVect(0));
     land_data.setVal(Real(4.0));
     urban_data.setVal(Real(8.0));
-    fixture.model->apply_weight_average(0, &land_data, &urban_data);
+    fixture.model->apply_weight_average(0, &land_data, &land_weighted,
+                                        &urban_data, &urban_weighted);
 
-    EXPECT_NEAR(land_data.max(0), Real(3.0), 1.e-12);
-    EXPECT_NEAR(urban_data.max(0), Real(2.0), 1.e-12);
+    EXPECT_NEAR(land_data.max(0), Real(4.0), 1.e-12);
+    EXPECT_NEAR(urban_data.max(0), Real(8.0), 1.e-12);
+    EXPECT_NEAR(land_weighted.max(0), Real(3.0), 1.e-12);
+    EXPECT_NEAR(urban_weighted.max(0), Real(2.0), 1.e-12);
+}
+
+TEST(SurfaceModel, ExtraFieldsAreWeightedWithoutModifyingProviders)
+{
+    SurfaceModelFixture fixture;
+    auto land = fixture.make_fields(Real(10.0), Real(10.0), 1);
+    auto urban = fixture.make_fields(Real(100.0), Real(10.0), 0);
+    fixture.configure_models(land, urban);
+
+    amrex::MultiFab urban_fraction(fixture.ba, fixture.dm, 1, amrex::IntVect(0));
+    urban_fraction.setVal(Real(0.25));
+    fixture.model->calculate_weight_average(0, &urban_fraction);
+    fixture.model->calculate_weight_average(0, &urban_fraction);
+
+    EXPECT_NEAR(land[5]->max(0), Real(60.0), 1.e-12);
+    EXPECT_NEAR(urban[5]->max(0), Real(150.0), 1.e-12);
+    ASSERT_NE(fixture.model->get_weighted_model_data(0, SurfaceModelType::LAND, 5), nullptr);
+    ASSERT_NE(fixture.model->get_weighted_model_data(0, SurfaceModelType::URBAN, 5), nullptr);
+    EXPECT_NEAR(fixture.model->get_weighted_model_data(0, SurfaceModelType::LAND, 5)->max(0),
+                Real(45.0), 1.e-12);
+    EXPECT_NEAR(fixture.model->get_weighted_model_data(0, SurfaceModelType::URBAN, 5)->max(0),
+                Real(37.5), 1.e-12);
 }
 
 TEST(SurfaceModel, PointerMappedFieldIsNotScaledTwice)

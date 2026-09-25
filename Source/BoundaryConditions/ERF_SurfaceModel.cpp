@@ -9,54 +9,59 @@
 
 using namespace amrex;
 
-void SurfaceModel::apply_weight_average(int lev, amrex::MultiFab *lsm_data, amrex::MultiFab *urban_data)
+void SurfaceModel::apply_weight_average(int lev, const amrex::MultiFab *lsm_data,
+                                        amrex::MultiFab *lsm_weighted,
+                                        const amrex::MultiFab *urban_data,
+                                        amrex::MultiFab *urban_weighted)
 {
     bool valid_land = (lsm_data != nullptr);
     bool valid_urban = (urban_data != nullptr);
 
     AMREX_ASSERT_WITH_MESSAGE(valid_land || valid_urban, "Need at least one pointer to apply weights");
+    AMREX_ASSERT_WITH_MESSAGE(!valid_land || lsm_weighted != nullptr,
+                              "Need a destination for weighted land data");
+    AMREX_ASSERT_WITH_MESSAGE(!valid_urban || urban_weighted != nullptr,
+                              "Need a destination for weighted urban data");
+    AMREX_ASSERT_WITH_MESSAGE(lsm_data == nullptr || lsm_data != lsm_weighted,
+                              "Weighted land data must use separate storage");
+    AMREX_ASSERT_WITH_MESSAGE(urban_data == nullptr || urban_data != urban_weighted,
+                              "Weighted urban data must use separate storage");
 
     // make sure the weights have been calculated before applying them
     AMREX_ALWAYS_ASSERT(m_weights_updated);
 
     // Apply weights separately to support different underlying grids between lsm_data and urban_data
     if (valid_land) {
-        for (MFIter mfi(*lsm_data, TileNoZ()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-
-            auto lsm_arr = lsm_data->array(mfi);
-            auto weights_arr = wavg[lev]->const_array(mfi);
-
-            // TODO: can amrex::Mult be used here instead?
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                lsm_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::LAND);
-            });
-
-            // TODO: do we always want to update the boundaries?
-            lsm_data->FillBoundary(m_geom[lev].periodicity());
-        }
+        weight_model_field(lev, lsm_data, lsm_weighted, SurfaceModelType::LAND);
     }
 
     if (valid_urban) {
-        for (MFIter mfi(*urban_data, TileNoZ()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-
-            auto urb_arr = urban_data->array(mfi);
-            auto weights_arr = wavg[lev]->const_array(mfi);
-
-            // TODO: can amrex::Mult be used here instead?
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                urb_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::URBAN);
-            });
-
-            // TODO: do we always want to update the boundaries?
-            urban_data->FillBoundary(m_geom[lev].periodicity());
-        }
+        weight_model_field(lev, urban_data, urban_weighted, SurfaceModelType::URBAN);
     }
+}
+
+void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
+                                      amrex::MultiFab* weighted,
+                                      SurfaceModelType type)
+{
+    AMREX_ASSERT(source != nullptr);
+    AMREX_ASSERT(weighted != nullptr);
+
+    for (MFIter mfi(*source, TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        Box tbx = mfi.tilebox();
+        const auto source_arr = source->const_array(mfi);
+        auto weighted_arr = weighted->array(mfi);
+        const auto weights_arr = wavg[lev]->const_array(mfi);
+
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            weighted_arr(i, j, k) = source_arr(i, j, k) *
+                weights_arr(i, j, 0, type);
+        });
+    }
+
+    weighted->FillBoundary(m_geom[lev].periodicity());
 }
 
 
@@ -125,29 +130,25 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
         outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
     }
 
-    // Apply the weight fractions to the rest of the LSM and urban fields (if any)
+    // Write weighted copies of the remaining selected model fields.
     if (use_land) {
         for (int field = nfields; field < lsm_fields.size(); field++) {
             if (lsm_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::LAND, lsm_fields[field],
                                 lsm_data_lev[lev][lsm_fields[field]])) continue;
-            for (MFIter mfi(*lsm_data_lev[lev][lsm_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
-            {
-                Box tbx = mfi.tilebox();
-
-                auto weights_arr = wavg[lev]->const_array(mfi);
-
-                // whether we have a valid LSM multifab
-                bool valid_land = (use_land &&
-                                   lsm_fields[field] != -1 &&
-                                   lsm_data_lev[lev][lsm_fields[field]]);
-                auto lsm_data_arr = (valid_land) ? lsm_data_lev[lev][lsm_fields[field]]->array(mfi) : Array4<Real>{};
-
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    lsm_data_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::LAND);
-                });
+            const int field_idx = lsm_fields[field];
+            if (weighted_lsm_data_lev[lev].size() <= field_idx) {
+                weighted_lsm_data_lev[lev].resize(lsm_data_lev[lev].size());
             }
+            if (weighted_lsm_data_lev[lev][field_idx] == nullptr) {
+                const auto* source = lsm_data_lev[lev][field_idx];
+                weighted_lsm_data_lev[lev][field_idx] = std::make_unique<MultiFab>(
+                    source->boxArray(), source->DistributionMap(), source->nComp(),
+                    source->nGrowVect());
+            }
+            weight_model_field(lev, lsm_data_lev[lev][field_idx],
+                               weighted_lsm_data_lev[lev][field_idx].get(),
+                               SurfaceModelType::LAND);
         }
     }
 
@@ -156,27 +157,19 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
             if (urban_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::URBAN, urban_fields[field],
                                 urban_data_lev[lev][urban_fields[field]])) continue;
-            for (MFIter mfi(*urban_data_lev[lev][urban_fields[field]], TileNoZ()); mfi.isValid(); ++mfi)
-            {
-                Box tbx = mfi.tilebox();
-
-                auto weights_arr = wavg[lev]->const_array(mfi);
-
-                // whether we have a valid urban multifab
-                bool valid_urban = (use_urban &&
-                                    urban_fields[field] != -1 &&
-                                    urban_data_lev[lev][urban_fields[field]]);
-                auto urban_data_arr = (valid_urban) ? urban_data_lev[lev][urban_fields[field]]->array(mfi) : Array4<Real>{};
-
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    urban_data_arr(i, j, k) *= weights_arr(i, j, 0, SurfaceModelType::URBAN);
-                });
+            const int field_idx = urban_fields[field];
+            if (weighted_urban_data_lev[lev].size() <= field_idx) {
+                weighted_urban_data_lev[lev].resize(urban_data_lev[lev].size());
             }
-
-            if (urban_data_lev[lev][urban_fields[field]]) {
-                urban_data_lev[lev][urban_fields[field]]->FillBoundary(m_geom[lev].periodicity());
+            if (weighted_urban_data_lev[lev][field_idx] == nullptr) {
+                const auto* source = urban_data_lev[lev][field_idx];
+                weighted_urban_data_lev[lev][field_idx] = std::make_unique<MultiFab>(
+                    source->boxArray(), source->DistributionMap(), source->nComp(),
+                    source->nGrowVect());
             }
+            weight_model_field(lev, urban_data_lev[lev][field_idx],
+                               weighted_urban_data_lev[lev][field_idx].get(),
+                               SurfaceModelType::URBAN);
         }
     }
 

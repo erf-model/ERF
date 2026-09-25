@@ -67,13 +67,15 @@ public:
         urban_frac_lev.resize(m_nlevs);
         lsm_data_lev.resize(m_nlevs);
         urban_data_lev.resize(m_nlevs);
+        weighted_lsm_data_lev.resize(m_nlevs);
+        weighted_urban_data_lev.resize(m_nlevs);
 
         rad_fields.resize(m_nlevs);
         rad_output_fields.resize(m_nlevs);
 
         // set initial fields for each model to none
-        lsm_fields = amrex::Vector<int>{4, -1};
-        urban_fields = amrex::Vector<int>{4, -1};
+        lsm_fields = amrex::Vector<int>(5, -1);
+        urban_fields = amrex::Vector<int>(5, -1);
     }
 
     /**
@@ -112,6 +114,8 @@ public:
             urban_frac_lev.resize(m_nlevs);
             lsm_data_lev.resize(m_nlevs);
             urban_data_lev.resize(m_nlevs);
+            weighted_lsm_data_lev.resize(m_nlevs);
+            weighted_urban_data_lev.resize(m_nlevs);
 
             rad_fields.resize(m_nlevs);
             rad_output_fields.resize(m_nlevs);
@@ -133,6 +137,9 @@ public:
         m_geom2d[lev].define(makeSlab(m_geom[lev].Domain(), 2, 0), dom2d, geom.Coord(), geom.isPeriodic());
 
         m_lmask[lev] = lmask_lev[0].get();
+
+        weighted_lsm_data_lev[lev].clear();
+        weighted_urban_data_lev[lev].clear();
 
         amrex::IntVect ng(1,1,0);
         // Create output arrays for surface boundary condition
@@ -262,6 +269,8 @@ public:
     {
         if (type == SurfaceModelType::LAND) {
             lsm_data_lev[lev].resize(model_data.size());
+            weighted_lsm_data_lev[lev].clear();
+            weighted_lsm_data_lev[lev].resize(model_data.size());
             if (lev == 0) {
                 // only set names on first level, since they are the same for all levels
                 m_lsm_names.resize(model_data.size());
@@ -285,6 +294,8 @@ public:
             }
         } else if (type == SurfaceModelType::URBAN) {
             urban_data_lev[lev].resize(model_data.size());
+            weighted_urban_data_lev[lev].clear();
+            weighted_urban_data_lev[lev].resize(model_data.size());
             if (lev == 0) {
                 // only set names on first level, since they are the same for all levels
                 m_urban_names.resize(model_data.size());
@@ -373,24 +384,45 @@ public:
         // make sure both models are using fluxes, or u*,t*,q* directly
         AMREX_ALWAYS_ASSERT(use_fluxes == m_export_fluxes);
 
+        const int nregistered = (type == SurfaceModelType::LAND)
+            ? static_cast<int>(m_lsm_names.size())
+            : static_cast<int>(m_urban_names.size());
+        for (const int field : fields) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                field == -1 || (field >= 0 && field < nregistered),
+                "Model field index must be -1 or within the registered provider data range");
+        }
+
         if (type == SurfaceModelType::LAND) {
             lsm_fields = amrex::Vector<int>(fields);
+            for (auto& fields_at_level : weighted_lsm_data_lev) {
+                fields_at_level.clear();
+            }
         } else if (type == SurfaceModelType::URBAN) {
             urban_fields = amrex::Vector<int>(fields);
+            for (auto& fields_at_level : weighted_urban_data_lev) {
+                fields_at_level.clear();
+            }
         }
     }
 
     /**
-     * @brief Applies land and urban weights to a pair of data fields.
+     * @brief Applies land and urban weights into separate output fields.
      *
-     * A null land or urban pointer is skipped, but both pointers cannot be
-     * null. The fields may use different underlying grids.
+     * A null land or urban source is skipped, but both sources cannot be
+     * null. The source fields are not modified and the fields may use
+     * different underlying grids.
      *
      * @param lev AMR level whose weights are used.
-     * @param lsm_data Land-model data to weight.
-     * @param urban_data Urban-model data to weight.
+     * @param lsm_data Land-model source data to weight.
+     * @param lsm_weighted Destination for weighted land data.
+     * @param urban_data Urban-model source data to weight.
+     * @param urban_weighted Destination for weighted urban data.
      */
-    void apply_weight_average(int lev, amrex::MultiFab *lsm_data, amrex::MultiFab *urban_data);
+    void apply_weight_average(int lev, const amrex::MultiFab *lsm_data,
+                              amrex::MultiFab *lsm_weighted,
+                              const amrex::MultiFab *urban_data,
+                              amrex::MultiFab *urban_weighted);
 
     /**
      * @brief Computes land and urban weights and applies them to registered fields.
@@ -440,6 +472,24 @@ public:
      */
     amrex::MultiFab* get_tsurf(const int& lev) {
         return t_surf[lev].get();
+    }
+
+    /**
+     * @brief Returns a weighted copy of a selected model field.
+     * @param lev AMR level to query.
+     * @param type Provider type owning the field.
+     * @param field_idx Provider field index.
+     * @return Weighted field, or nullptr if it has not been selected.
+     */
+    const amrex::MultiFab* get_weighted_model_data(const int lev,
+                                                    SurfaceModelType type,
+                                                    const int field_idx) const {
+        const auto& weighted = (type == SurfaceModelType::LAND)
+            ? weighted_lsm_data_lev[lev] : weighted_urban_data_lev[lev];
+        if (field_idx < 0 || field_idx >= static_cast<int>(weighted.size())) {
+            return nullptr;
+        }
+        return weighted[field_idx].get();
     }
 
     /**
@@ -694,6 +744,16 @@ private:
     bool is_field_mapped(int lev, SurfaceModelType type, int field_idx,
                          const amrex::MultiFab* mf) const;
 
+    /**
+     * @brief Writes a weighted copy of a model field.
+     * @param lev AMR level whose weights are used.
+     * @param source Model-owned source field.
+     * @param weighted SurfaceModel-owned destination field.
+     * @param type Provider type owning the source field.
+     */
+    void weight_model_field(int lev, const amrex::MultiFab* source,
+                            amrex::MultiFab* weighted, SurfaceModelType type);
+
     int m_nlevs;
 
     bool m_use_urban = false; // whether we have an urban model
@@ -716,6 +776,8 @@ private:
     amrex::Vector<amrex::MultiFab*>  urban_frac_lev; // Urban fraction for each level [0-1.0]
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  lsm_data_lev;   // LSM data for each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  urban_data_lev; // Urban data for each level
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> weighted_lsm_data_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> weighted_urban_data_lev;
 
     // Output weighted averages passed to MOST
     //  These can either be the u*, t*, q* for MOST, or fluxes computed directly from the model
