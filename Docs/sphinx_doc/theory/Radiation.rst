@@ -249,12 +249,71 @@ is enough to satisfy this. The model aborts with a message naming this input if 
 vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
 depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
 
+On a refined run a level is free to cover only part of the column, and that is supported: a
+level whose grids do not reach the domain top or bottom is a *nested patch*, and rather than
+sweeping it ERF interpolates its heating rates and fluxes from its parent -- the same route
+RRTMGP takes (``is_nested_patch``). Nothing needs to be set for this.
+
+The requirement is per box, not per level: the sweep needs a whole column inside one box. Several
+layouts fail it -- a level that stops short of the domain top, a level tagged at different heights
+in different horizontal regions (surface convection in one place, cloud tops in another), or grids
+decomposed in the vertical -- and above level 0 they all take the same route, interpolation from
+the parent. None of them is an error.
+
+Level 0 is the exception, because it has no parent. It always covers the domain, so a box there
+that does not span :math:`z` is decomposed in the vertical, and that is refused at start-up.
+ERF's default ``amr.no_box_split_dir = 2`` already forbids that decomposition, so the refusal is
+a backstop rather than something a normal deck meets.
+
+If you would rather a refinement patch be solved on its own than interpolated, setting
+
+.. code-block:: none
+
+   amr.refine_whole_domain_dir = 2
+
+makes AMReX cluster the tagged cells in the horizontal only and emit refinement boxes that span
+the whole domain in :math:`z`, so every level carries complete columns and every level runs its
+own sweep. A refinement box given explicitly through ``erf.boxN.in_box_lo``/``in_box_hi`` spans
+:math:`z` already when the :math:`z` extent is omitted, since the two-value form defaults to the
+full domain.
+
+Multiple Levels
+--------------------------------------
+
+Every level that carries complete columns runs its own column sweep over its own state, terrain
+and surface properties, and writes its own heating rates into ``qheating_rates[lev]``; a nested
+patch is interpolated from its parent instead. The RhoTheta source applies them at every level. There is no coarse-fine treatment of the radiative fluxes and none is needed in the
+usual sense -- radiation is a source term, not a conserved flux that is refluxed -- but two
+consequences follow and are worth stating plainly:
+
+- **A lateral seam.** Across the edge of a patch, the coarse and the fine solution of the same
+  physical column differ slightly, because they are computed on different grids. For a smooth
+  broadband two-stream model the difference is small, but nothing smooths it. Under
+  ``erf.coupling_type = TwoWay`` (the default) coarse cells underneath a patch have their state
+  replaced by the fine solution at the end of each step (``AverageDown``), so the discrepancy
+  does not accumulate there; under ``OneWay`` there is no such replacement and it does.
+- **No feedback upward.** The fine level's own structure does not influence the coarse level's
+  radiation.
+
+A subcycled fine level calls radiation once per level step, so it runs ``nsubsteps[lev]`` times
+as often as its parent -- twice as often for a refinement ratio of two. This matches the RRTMGP
+path and is physically correct, since the heating is recomputed from the current old state each
+time; there is no call-interval input to reduce it.
+
+The surface energy balance runs on level 0 only. The surface is one physical object whose
+force-restore state is prognostic and checkpointed, so it has a single owner, and only level 0
+writes or reads that state in a checkpoint. The diagnostic SEB residual is likewise reported for
+level 0. Because the prognostic surface temperature *is* the longwave boundary condition,
+combining ``erf.radiation.seb_prognostic_enable`` with ``amr.max_level > 0`` would leave level 0
+and its fine levels with two different surface boundary conditions for one surface; that
+combination is refused at start-up rather than allowed to disagree silently.
+
 Limitations
 --------------------------------------
 
-- **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
-  never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
-  ``amr.max_level = 0``. The run stops at start-up with a message saying so.
+- **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
+  requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
+  subcycled call cadence, and the single-level restrictions on the surface energy balance.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
@@ -276,7 +335,11 @@ Limitations
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
-  ``post_dycore`` row per step. The file is appended to rather than truncated, as ERF's other
+  ``post_dycore`` row per step for every level that sweeps. Each of them appends to the one
+  file and the last column, ``level``, tells the rows apart. A level interpolated from its
+  parent contributes no rows at all -- it runs no sweep, so it has no fluxes of its own to
+  report -- so on a refined run the rows present are those of the sweeping levels, not one
+  set per level in the hierarchy. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
 
 Surface Energy Balance

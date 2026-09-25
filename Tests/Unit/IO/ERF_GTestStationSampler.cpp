@@ -11,7 +11,8 @@
 
 namespace {
 
-constexpr amrex::Real tol = amrex::Real(1.0e-12);
+// The solve is exact up to rounding: 1e-12 in double, a few float epsilons in single
+constexpr amrex::Real tol = (sizeof(amrex::Real) == 8) ? amrex::Real(1.0e-12) : amrex::Real(1.0e-6);
 
 // A map whose gradients are (dlat_di, dlon_di) and (dlat_dj, dlon_dj): given an
 // offset in cells, the lat/lon difference it produces.

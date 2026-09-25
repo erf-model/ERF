@@ -4,6 +4,71 @@
 
 using namespace amrex;
 
+namespace {
+    // Only a terrain-fitted mesh makes the below-ground terrain correction in
+    // impose_vertical_*_bcs depend on the box decomposition; for every other
+    // terrain type z_phys_nd is flat and the correction is identically zero.
+    bool terrain_is_fitted (const TerrainType& terrain_type)
+    {
+        return (terrain_type == TerrainType::StaticFittedMesh ||
+                terrain_type == TerrainType::MovingFittedMesh);
+    }
+}
+
+void
+BelowGroundGhostSync::operator() (MultiFab& mf, int icomp, int ncomp,
+                                  const IntVect& nghost, const Geometry& geom)
+{
+    if (nghost[2] <= 0 || geom.isPeriodic(2)) { return; }
+
+    const IndexType typ = mf.ixType();
+    const Box dom = amrex::convert(geom.Domain(), typ);
+    const int klo = dom.smallEnd(2);
+
+    // The owning slab of each box that reaches the bottom of the domain: the
+    // cells below the domain under its valid columns, extended laterally over
+    // the ghost columns outside a non-periodic side of the domain that the box
+    // touches.  The slabs of different boxes meet only where face-centred boxes
+    // share a face, and there both compute the value with a centred stencil.
+    // A box that starts above the bottom (a refined level that does not reach
+    // the ground) owns no cells below it and is left out.
+    if (!(m_src_ba == mf.boxArray()) || !(m_src_dm == mf.DistributionMap()) || m_nghost != nghost)
+    {
+        const BoxArray& ba = mf.boxArray();
+        const DistributionMapping& dm = mf.DistributionMap();
+        BoxList bl(typ);
+        Vector<int> pmap;
+        m_src_index.clear();
+        for (int n = 0; n < static_cast<int>(ba.size()); ++n) {
+            Box b = ba[n];
+            if (b.smallEnd(2) != klo) { continue; }
+            for (int d = 0; d < 2; ++d) {
+                if (geom.isPeriodic(d)) { continue; }
+                if (b.smallEnd(d) == dom.smallEnd(d)) { b.growLo(d, nghost[d]); }
+                if (b.bigEnd(d)   == dom.bigEnd(d))   { b.growHi(d, nghost[d]); }
+            }
+            b.setRange(2, klo - nghost[2], nghost[2]);
+            bl.push_back(b);
+            pmap.push_back(dm[n]);
+            m_src_index.push_back(n);
+        }
+        m_slab_ba = BoxArray(std::move(bl));
+        m_slab_dm = pmap.empty() ? DistributionMapping() : DistributionMapping(std::move(pmap));
+        m_src_ba  = mf.boxArray();
+        m_src_dm  = mf.DistributionMap();
+        m_nghost  = nghost;
+    }
+
+    if (m_src_index.empty()) { return; }
+
+    MultiFab slab(m_slab_ba, m_slab_dm, ncomp, 0);
+    for (MFIter mfi(slab); mfi.isValid(); ++mfi) {
+        const Box& sbx = mfi.validbox();
+        slab[mfi].template copy<RunOn::Device>(mf[m_src_index[mfi.index()]], sbx, icomp, sbx, 0, ncomp);
+    }
+    mf.ParallelCopy(slab, 0, icomp, ncomp, IntVect(0), nghost, geom.periodicity());
+}
+
 /**
  * Impose physical boundary conditions at domain boundaries
  *
@@ -88,6 +153,14 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
 
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (do_terrain_adjustment && m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
+        m_below_ground_sync(mf, icomp, ncomp, nghost, m_geom);
+    }
 } // operator()
 
 /**
@@ -168,6 +241,14 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             }
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
+        m_below_ground_sync(mf, 0, 1, nghost, m_geom);
+    }
 } // operator()
 
 /**
@@ -249,6 +330,14 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
         } // MFIter
     } // OpenMP
+
+    // The terrain correction below the ground is computed box by box; make the
+    // copies of each ghost cell agree.  Only a terrain-fitted mesh has a
+    // non-zero correction -- z_phys_nd is allocated (and zeroed) for every
+    // terrain type, so testing it alone would pay for the sync on flat runs.
+    if (m_z_phys_nd && terrain_is_fitted(m_terrain_type)) {
+        m_below_ground_sync(mf, 0, 1, nghost, m_geom);
+    }
 } // operator()
 
 /**
