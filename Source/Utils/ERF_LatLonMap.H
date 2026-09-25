@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 //
 // Placing a point given by latitude and longitude on the model grid.
@@ -36,7 +37,11 @@
 // that point, return the offset in cells from the grid point to the request.
 //
 // Returns false when the two gradients are parallel and the map is therefore not
-// locally invertible.
+// locally invertible.  "Parallel" is judged relative to the gradients' size and
+// to the precision: in single precision the determinant of an exactly
+// degenerate map comes out of rounding at about 1e-8 of its scale squared, far
+// above a fixed 1e-12, so the threshold is at least 64 machine epsilons (which
+// leaves double precision at 1e-12).
 //
 inline bool
 invert_latlon_offset (amrex::Real dlat, amrex::Real dlon,
@@ -47,7 +52,9 @@ invert_latlon_offset (amrex::Real dlat, amrex::Real dlon,
     const amrex::Real scale = std::max(std::max(std::abs(dlat_di), std::abs(dlon_di)),
                                        std::max(std::abs(dlat_dj), std::abs(dlon_dj)));
     const amrex::Real det = dlat_di*dlon_dj - dlat_dj*dlon_di;
-    if (scale <= amrex::Real(0.0) || std::abs(det) <= amrex::Real(1.0e-12)*scale*scale) {
+    const amrex::Real rel = std::max(amrex::Real(1.0e-12),
+                                     amrex::Real(64) * std::numeric_limits<amrex::Real>::epsilon());
+    if (scale <= amrex::Real(0.0) || std::abs(det) <= rel*scale*scale) {
         return false;
     }
     di = ( dlat*dlon_dj - dlon*dlat_dj) / det;
