@@ -125,6 +125,9 @@ target_sources(${erf_exe_name}
     # Motivation: face-local wall metadata must not inherit a later wall's
     # density representation or treat explicit zero as absent.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWallBCMetadata.cpp
+    # Motivation: surface-model weights, output mapping, and model-field scaling
+    # must remain correct for host and device execution paths.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceModel.cpp
     # Motivation: where two open lateral boundaries meet, each boundary cell must be
     # written by exactly one open-BC kernel, and by the same one however the grid is split.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCCorners.cpp
@@ -151,6 +154,11 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: observation nudging must read a station file exactly, relax
+    # to the closed-form target with the right weight, sigma band and rate cap,
+    # and put its sources on the right faces over flat, fitted and immersed
+    # terrain.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestObsNudging.cpp
     # Motivation: the two-stream radiation sweep must keep k = 0 as the
     # surface, cool to space from the top layer, use Exner temperature,
     # and reflect (1 - eps) of the downwelling LW at a gray surface.
@@ -201,6 +209,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE

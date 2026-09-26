@@ -23,6 +23,13 @@
 #include "ERF_ShocTransportStruct.H"
 
 /**
+ * Enum of possible plotfile types.
+ */
+AMREX_ENUM(PlotFileType,
+    None, Amrex, Netcdf
+);
+
+/**
  * @brief Indices for map scale factors on mass and face grids.
  */
 enum MapFacType {
@@ -156,6 +163,13 @@ AMREX_ENUM(WindFarmLocType,
  */
 AMREX_ENUM(LandSurfaceType,
     SLM, NOAHMP, None
+);
+
+/**
+ * @brief Urban model.
+ */
+AMREX_ENUM(UrbanType,
+    None
 );
 
 /**
@@ -801,6 +815,16 @@ struct SolverChoice {
         lsm_type = LandSurfaceType::None; // Default
         pp.query_enum_case_insensitive("land_surface_model",lsm_type);
 
+        // What type of urban model to use and whether it is active at the given level
+        urban_type = UrbanType::None;
+        pp.query_enum_case_insensitive("urban_model", urban_type);
+        read_int_string(max_level, "urban_lev_active", urban_enabled_lev, 1);
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (urban_enabled_lev[lev] != 0 && urban_enabled_lev[lev] != 1) {
+                amrex::Error("urban_lev_active should be 0 or 1");
+            }
+        }
+
         // Will an external ocean coupler supply SST for part or all of the water
         // cells this run? The surface layer needs to know this it in time to select
         // ThetaCalcType::SURFACE_TEMPERATURE, which is long before the first
@@ -842,6 +866,9 @@ struct SolverChoice {
         } else {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
+
+        // Whether the terrain is flat - this allows planar averages (lsf, nudging) with StaticFittedMesh
+        pp.queryAdd("flat_terrain", flat_terrain);
 
         // Get buildings type
         std::string buildings_type_temp = "";
@@ -910,6 +937,10 @@ struct SolverChoice {
         if (terrain_type == TerrainType::StaticFittedMesh ||
             terrain_type == TerrainType::MovingFittedMesh) {
             mesh_type = MeshType::VariableDz;
+        }
+
+        if (flat_terrain && terrain_type != TerrainType::StaticFittedMesh) {
+            amrex::Error("erf.flat_terrain requires terrain_type = StaticFittedMesh");
         }
 
         if ( (moisture_type == MoistureType::SAM                ||
@@ -1217,6 +1248,14 @@ struct SolverChoice {
         pp.queryAdd("spatial_moisture_forcing", spatial_moisture_forcing);
 
         pp.queryAdd("nudging_from_input_sounding", nudging_from_input_sounding);
+
+        // Nudging towards observations at stations; the stations and the
+        // parameters are read by the ObsNudging class, under erf.obs_nudging
+        pp.queryAdd("nudging_from_observations", nudging_from_observations);
+        if (nudging_from_observations && terrain_type == TerrainType::EB) {
+            amrex::Abort("erf.nudging_from_observations does not support erf.terrain_type = EB; "
+                         "use a terrain-fitted mesh or immersed forcing");
+        }
 
         int nudging_u_z1_set = pp.queryAdd("nudging_u_z1", nudging_u_z1);
         int nudging_u_z2_set = pp.queryAdd("nudging_u_z2", nudging_u_z2);
@@ -1877,6 +1916,9 @@ struct SolverChoice {
             amrex::Print() << "Terrain Type: None" << std::endl;
         }
 
+        amrex::Print() << "Flat fitted terrain: "
+                       << (flat_terrain ? "true" : "false") << std::endl;
+
         if (buildings_type == BuildingsType::ImmersedForcing) {
             amrex::Print() << "Buildings Type: ImmersedForcing" << std::endl;
         } else {
@@ -2027,6 +2069,9 @@ struct SolverChoice {
     TerrainType terrain_type = TerrainType::None;
 
     inline static
+    bool flat_terrain = false;
+
+    inline static
     BuildingsType buildings_type = BuildingsType::None;
 
     inline static
@@ -2163,6 +2208,10 @@ struct SolverChoice {
     // Do we use source terms to nudge the solution towards
     //    the time-varying data provided in input sounding files?
     bool nudging_from_input_sounding = false;
+
+    // Do we nudge the solution towards observations at stations (met masts,
+    //    lidars)?  See ERF_ObsNudging.H.
+    bool nudging_from_observations = false;
 
     amrex::Real nudging_u_z1 = amrex::Real(-1.0e36);
     amrex::Real nudging_u_z2 = amrex::Real(1.0e36);
@@ -2325,6 +2374,8 @@ struct SolverChoice {
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
+    UrbanType urban_type;
+    amrex::Vector<int> urban_enabled_lev;
     RadiationType rad_type;
 
     /** @brief True for the models that run through the IRadiation interface
@@ -2421,6 +2472,8 @@ struct SolverChoice {
  * @brief Interpretation used for input sounding profiles.
  * @var SolverChoice::terrain_type
  * @brief Terrain or immersed-boundary representation.
+ * @var SolverChoice::flat_terrain
+ * @brief Permit fixed-index planar averages after validating a flat fitted mesh.
  * @var SolverChoice::buildings_type
  * @brief Building representation.
  * @var SolverChoice::use_real_bcs
@@ -2583,6 +2636,8 @@ struct SolverChoice {
  * @brief Whether spatially varying moisture forcing is enabled.
  * @var SolverChoice::nudging_from_input_sounding
  * @brief Whether solution fields are nudged toward input sounding data.
+ * @var SolverChoice::nudging_from_observations
+ * @brief Whether solution fields are nudged toward observations at stations.
  * @var SolverChoice::use_rotate_surface_flux
  * @brief Whether MOST surface fluxes are rotated with terrain.
  * @var SolverChoice::use_eamxx_shoc

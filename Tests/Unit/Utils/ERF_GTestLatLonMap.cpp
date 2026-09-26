@@ -11,7 +11,8 @@
 
 // Placing a latitude/longitude on the grid (ERF_LatLonMap), as the station
 // time-series output does: the nearest mass point of the lat/lon arrays and one
-// local linear solve, with longitude differences taken the short way round.
+// local linear solve, with longitude differences taken the short way round; and
+// the orientation of the grid there, which the observation nudging uses.
 
 namespace {
 
@@ -63,6 +64,40 @@ TEST(LatLonMap, PlacesAPointOnARotatedGrid)
     // A point well outside the grid
     EXPECT_EQ(locate_latlon_on_grid(fab.const_array(), dom, problo, dx, lat + Real(1.0), lon, loc),
               LatLonStatus::TooFar);
+}
+
+// The orientation of the grid, which rotates an earth-relative wind into the
+// grid frame for the observation nudging: the i direction of the rotated grid
+// is alpha counterclockwise from east, to within the turn of the local east
+// direction across the grid (the latitude changes by 0.04 degrees, which turns
+// it by a few 1e-4 radians).
+TEST(LatLonMap, MeasuresTheGridRotation)
+{
+    const amrex::Box dom(amrex::IntVect(0,0,0), amrex::IntVect(39,39,0));
+    amrex::FArrayBox fab(dom, 2, amrex::The_Pinned_Arena());
+    const Real alpha = amrex::Math::pi<Real>()/Real(6.0);
+    fill_rotated_latlon(fab, alpha);
+
+    Real c = 0, s = 0;
+    grid_rotation_from_latlon(fab.const_array(), dom, 12, 23, c, s);
+    EXPECT_NEAR(c, std::cos(alpha), Real(1.0e-3));
+    EXPECT_NEAR(s, std::sin(alpha), Real(1.0e-3));
+
+    // The placement reports the rotation at the point it placed
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> problo{Real(0.0), Real(0.0), Real(0.0)};
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> dx{Real(100.0), Real(100.0), Real(100.0)};
+    LatLonLocation loc;
+    ASSERT_EQ(locate_latlon_on_grid(fab.const_array(), dom, problo, dx,
+                                    fab.const_array()(12,23,0,0), fab.const_array()(12,23,0,1), loc),
+              LatLonStatus::Ok);
+    EXPECT_NEAR(loc.cos_alpha, std::cos(alpha), Real(1.0e-3));
+    EXPECT_NEAR(loc.sin_alpha, std::sin(alpha), Real(1.0e-3));
+
+    // A grid aligned with east and north has no rotation
+    fill_rotated_latlon(fab, Real(0.0));
+    grid_rotation_from_latlon(fab.const_array(), dom, 12, 23, c, s);
+    EXPECT_NEAR(c, Real(1.0), Real(1.0e-6));
+    EXPECT_NEAR(s, Real(0.0), Real(1.0e-6));
 }
 
 TEST(LatLonMap, PlacesAPointOnAGridAcrossTheAntimeridian)

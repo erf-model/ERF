@@ -2449,7 +2449,7 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
         refqt = qt[qltop];
         wst_rad = pow(grav * zw[qltop] * f0 / (refthl * rho[qltop] * cp), Real(0.333));
         wst_rad = std::max(wst_rad, 0.1_rt);
-        wstar = std::max(zero, pow(grav / thv[1] * wthv * pblh, onethird));
+        wstar = std::max(amrex::Real(zero), pow(grav / thv[1] * wthv * pblh, onethird));
         went = thv[1] / (grav * jump_thetav * zw[qltop]) * (0.15_rt * (pow(wstar, 3) + 5 * pow(ust, 3)) + 0.35_rt * pow(wst_rad, 3));
         qstar = std::abs(went * jump_qt / wst_rad);
         thstar = f0 / (rho[qltop] * cp * wst_rad) - went * jump_thetav / wst_rad;
@@ -3864,10 +3864,10 @@ void mym_turbulence_cc(
 
             t2sq = vtt * t2sq + vqq * c2sq;
             r2sq = vtt * c2sq + vqq * r2sq;
-            c2sq = std::max(vtt * t2sq + vqq * r2sq, zero);
+            c2sq = std::max(vtt * t2sq + vqq * r2sq, amrex::Real(zero));
             t3sq = vtt * t3sq + vqq * c3sq;
             r3sq = vtt * c3sq + vqq * r3sq;
-            c3sq = std::max(vtt * t3sq + vqq * r3sq, zero);
+            c3sq = std::max(vtt * t3sq + vqq * r3sq, amrex::Real(zero));
 
             cw25 = e1 * (e2 + 3.0_rt * c1 * e5c * gmel * qdiv * qdiv) / (3.0_rt * eden);
 
@@ -3916,22 +3916,22 @@ void mym_turbulence_cc(
 
             // ** for Gamma_theta **
             if (t2sq >= 0.0_rt) {
-                enumc = std::max(qdiv * e6c * (t3sq - t2sq), zero);
+                enumc = std::max(qdiv * e6c * (t3sq - t2sq), amrex::Real(zero));
             } else {
-                enumc = std::min(qdiv * e6c * (t3sq - t2sq), zero);
+                enumc = std::min(qdiv * e6c * (t3sq - t2sq), amrex::Real(zero));
             }
             gamt = -e1 * enumc / eden;
 
             // ** for Gamma_q **
             if (r2sq >= 0.0_rt) {
-                enumc = std::max(qdiv * e6c * (r3sq - r2sq), zero);
+                enumc = std::max(qdiv * e6c * (r3sq - r2sq), amrex::Real(zero));
             } else {
-                enumc = std::min(qdiv * e6c * (r3sq - r2sq), zero);
+                enumc = std::min(qdiv * e6c * (r3sq - r2sq), amrex::Real(zero));
             }
             gamq = -e1 * enumc / eden;
 
             // ** for Sm' and Sh'd(Theta_V)/dz **
-            enumc = std::max(qdiv * e6c * (c3sq - c2sq), zero);
+            enumc = std::max(qdiv * e6c * (c3sq - c2sq), amrex::Real(zero));
 
             // JOE-Canuto/Kitamura mod
             smd = dlsq * enumc * gtr / eden * qdiv * qdiv * (e3c * a2fac * a2fac + e4c * a2fac) * a1 / (a2 * a2fac);

@@ -56,13 +56,15 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_tsurf_with_coupled_sst(lev, cons_in, z_phys_nd);
     }
 
+    // Update land surface temp if we have a valid pointer
+    if (zlo && m_has_lsm_tsurf) {
+        get_lsm_tsurf(lev);
+    }
+
     // Update qsurf with qsat over sea
     if (use_moisture) {
         fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
     }
-
-    // Update land surface temp if we have a valid pointer
-    if (m_has_lsm_tsurf && zlo) get_lsm_tsurf(lev);
 
     // Fill interior ghost cells
     fill_planar_boundary(lev, *t_surf[lev]);
@@ -310,6 +312,56 @@ SurfaceLayer::update_fluxes (const int& lev,
                 }
             });
         }
+    }
+
+    // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
+    //
+    // Gate on whether the surface models have actually advanced, not on the lower-boundary-data
+    // clock: elapsed_time_since_start_low is offset by (start_time - start_low_time), so it is
+    // already positive at step 0 when the wrflowinp series starts before erf.start_time (which
+    // would let the still-uninitialized u*/t*/q* overwrite the MOST values), and it never becomes
+    // positive at all when the series starts after it.
+    if (use_surface_model && !surf_model_fluxes && m_surf_model->fields_are_valid()) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
+
+            auto u_star_arr = u_star[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto q_star_arr = q_star[lev]->array(mfi);
+            auto olen_arr   = olen[lev]->array(mfi);
+
+            // Land mask array if it exists
+            auto lmask_arr = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                     Array4<int> {};
+
+            auto lsm_tstar_arr = Array4<Real> {};
+            auto lsm_qstar_arr = Array4<Real> {};
+            auto lsm_ustar_arr = Array4<Real> {};
+            auto lsm_olen_arr  = Array4<Real> {};
+            if (use_surface_model) {
+                auto mf = m_surf_model->get_field("tstar", lev);
+                lsm_tstar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("qstar", lev);
+                lsm_qstar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("ustar", lev);
+                lsm_ustar_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+                mf = m_surf_model->get_field("olen", lev);
+                lsm_olen_arr = (mf) ? mf->array(mfi) : Array4<Real> {};
+            }
+
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // Overwrite ustar, tstar, qstar, and olen computed above with LSM values
+                if (lmask_arr(i,j,0) == 1) {
+                    if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(i,j,0);
+                    if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(i,j,0);
+                    if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(i,j,0);
+                    if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(i,j,0);
+                }
+            });
+        }
+
     }
 
     if (m_terrain_type == TerrainType::EB || m_face.coordDir() == 2) {
@@ -1010,7 +1062,18 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             if (toLower(m_lsm_flux_name[n]) == "tau23")       { lsm_tau23_arr   = m_lsm_flux_lev[lev][n]->array(mfi); }
         }
 
-        const bool has_lsm_t_flux = static_cast<bool>(lsm_t_flux_arr);
+        // Get weight averaged LSM+Urban fluxes
+        // If the LSM+Urban export u*,t*,q*, then these values are already copied and MOST is used to compute the flux
+        const auto surf_tflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_tstar(lev)->array(mfi) : Array4<Real> {};
+        const auto surf_qflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_qstar(lev)->array(mfi) : Array4<Real> {};
+        const auto surf_uflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_ustar(lev)->array(mfi,0) : Array4<Real> {};
+        const auto surf_vflux_arr = (use_surface_model && surf_model_fluxes) ? m_surf_model->get_ustar(lev)->array(mfi,1) : Array4<Real> {};
+        const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
+        const auto t_flux_arr = use_surface_model_fluxes ? surf_tflux_arr : lsm_t_flux_arr;
+        const auto q_flux_arr = use_surface_model_fluxes ? surf_qflux_arr : lsm_q_flux_arr;
+        const auto surface_tau13_arr = use_surface_model_fluxes ? surf_uflux_arr : lsm_tau13_arr;
+        const auto surface_tau23_arr = use_surface_model_fluxes ? surf_vflux_arr : lsm_tau23_arr;
+        const bool has_lsm_t_flux = static_cast<bool>(t_flux_arr);
         const bool is_custom = (flux_type == FluxCalcType::CUSTOM);
         const bool is_rico   = (flux_type == FluxCalcType::RICO);
 
@@ -1026,13 +1089,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            const bool lsm_flux_is_valid = (lsm_t_flux_arr) ? (lsm_t_flux_arr(i,j,0) < lsm_undefined) :
+            const bool lsm_flux_is_valid = (t_flux_arr) ? (t_flux_arr(i,j,0) < lsm_undefined) :
                                                               false;
             const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
-            if (lsm_t_flux_arr && has_land_and_flux) {
+            if (t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
-                Tflux = cons_arr(i,j,k,Rho_comp) * lsm_t_flux_arr(i,j,0);
+                Tflux = cons_arr(i,j,k,Rho_comp) * t_flux_arr(i,j,0);
             } else if (is_land == 2) { // no temperature flux within buildings
                 Tflux = zero;
             } else {
@@ -1095,13 +1158,13 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                const bool lsm_flux_is_valid = (lsm_q_flux_arr) ? (lsm_q_flux_arr(i,j,0) < lsm_undefined) :
+                const bool lsm_flux_is_valid = (q_flux_arr) ? (q_flux_arr(i,j,0) < lsm_undefined) :
                                                                   false;
                 const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
-                if (lsm_q_flux_arr && has_land_and_flux) {
+                if (q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
-                    Qflux = cons_arr(i,j,k,Rho_comp) * lsm_q_flux_arr(i,j,0);
+                    Qflux = cons_arr(i,j,k,Rho_comp) * q_flux_arr(i,j,0);
                 } else if (is_land == 2) { // no moisture flux within buildings
                     Qflux = zero;
                 } else {
@@ -1165,14 +1228,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau13_arr), is_land_hi == 1,
-                    lsm_tau13_arr ? lsm_tau13_arr(i  ,j,0) : zero, lsm_undefined);
+                    static_cast<bool>(surface_tau13_arr), is_land_hi == 1,
+                    surface_tau13_arr ? surface_tau13_arr(i  ,j,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau13_arr), is_land_lo == 1,
-                    lsm_tau13_arr ? lsm_tau13_arr(i-1,j,0) : zero, lsm_undefined);
+                    static_cast<bool>(surface_tau13_arr), is_land_lo == 1,
+                    surface_tau13_arr ? surface_tau13_arr(i-1,j,0) : zero, lsm_undefined);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
-                if (lsm_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                if (surface_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
                     const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
@@ -1180,7 +1243,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
                                                  dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
-                        rho_lo, rho_hi, lsm_tau13_arr(i-1,j,0), lsm_tau13_arr(i,j,0),
+                        rho_lo, rho_hi, surface_tau13_arr(i-1,j,0), surface_tau13_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressx = result.face_stress;
                     // NOTE: do NOT write the MOST-fallback stress back into the
@@ -1239,14 +1302,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
                 const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau23_arr), is_land_hi == 1,
-                    lsm_tau23_arr ? lsm_tau23_arr(i,j  ,0) : zero, lsm_undefined);
+                    static_cast<bool>(surface_tau23_arr), is_land_hi == 1,
+                    surface_tau23_arr ? surface_tau23_arr(i,j  ,0) : zero, lsm_undefined);
                 const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(lsm_tau23_arr), is_land_lo == 1,
-                    lsm_tau23_arr ? lsm_tau23_arr(i,j-1,0) : zero, lsm_undefined);
+                    static_cast<bool>(surface_tau23_arr), is_land_lo == 1,
+                    surface_tau23_arr ? surface_tau23_arr(i,j-1,0) : zero, lsm_undefined);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
-                if (lsm_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                if (surface_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
                     const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
                     const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
@@ -1254,7 +1317,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
                                                  dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
-                        rho_lo, rho_hi, lsm_tau23_arr(i,j-1,0), lsm_tau23_arr(i,j,0),
+                        rho_lo, rho_hi, surface_tau23_arr(i,j-1,0), surface_tau23_arr(i,j,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressy = result.face_stress;
                     // NOTE: no writeback into cell-centered lsm_tau23_arr -- see the
@@ -1601,6 +1664,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
 
     Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
+    const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto *const umm_ptr  = m_ma.get_average(lev,6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
@@ -1632,11 +1696,18 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         auto lsm_tau23_arr  = Array4<Real> {};
         // compute_sfc_params_from_lsm_fluxes consumes signed kinematic stress
         // components; their vector magnitude determines u_star^2.
-        for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+        if (use_surface_model_fluxes) {
+            lsm_t_flux_arr = m_surf_model->get_tstar(lev)->array(mfi);
+            lsm_q_flux_arr = m_surf_model->get_qstar(lev)->array(mfi);
+            lsm_tau13_arr  = m_surf_model->get_ustar(lev)->array(mfi, 0);
+            lsm_tau23_arr  = m_surf_model->get_ustar(lev)->array(mfi, 1);
+        } else {
+            for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+                if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+                if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->array(mfi); }
+            }
         }
 
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
@@ -2052,7 +2123,12 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                   Array4<int> {};
-        const auto lsm_arr = m_lsm_data_lev[lev][m_lsm_tsurf_indx]->const_array(mfi);
+        const auto& lsm_tsurf = *m_lsm_data_lev[lev][m_lsm_tsurf_indx];
+        // get the top-most index of the LSM to use as the surface temperature
+        // this is -1 for SLM, but could be different for other models?
+        const auto& lsm_box = lsm_tsurf.box(mfi.index());
+        const int lsm_khi = lsm_box.bigEnd(2);
+        const auto lsm_arr = lsm_tsurf.const_array(mfi);
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -2060,7 +2136,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
             if (is_land) {
                 int li = amrex::min(amrex::max(i, i_lo), i_hi);
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                const Real lsm_value = lsm_arr(li,lj,k);
+                const Real lsm_value = lsm_arr(li,lj,lsm_khi);
                 if (amrex::Math::isfinite(lsm_value) && lsm_value > Real(0.0) &&
                     lsm_value < lsm_undefined) {
                     t_surf_arr(i,j,k) = lsm_value;

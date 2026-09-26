@@ -33,7 +33,6 @@ inverse_exner (const amrex::Real pressure, const amrex::Real rdOcp)
  * @param[in]  rdOcp                   configured Rd/cp exponent
  * @param[in]  default_t_sfc           configured absolute-temperature fallback
  * @param[out] t_sfc                   resolved absolute temperature for RRTMGP
- * @param[in,out] lsm_t_sfc_out        optional LSM fallback/writeback field
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void
@@ -46,8 +45,7 @@ resolve_surface_temperature (const bool is_land,
                               const amrex::Real surface_pressure,
                               const amrex::Real rdOcp,
                               const amrex::Real default_t_sfc,
-                              amrex::Real& t_sfc,
-                              amrex::Real* lsm_t_sfc_out)
+                              amrex::Real& t_sfc)
 {
     // A valid land-model value is already absolute temperature.  A valid LSM
     // value over water follows the existing fallback chain instead.
@@ -64,11 +62,6 @@ resolve_surface_temperature (const bool is_land,
         t_sfc = default_t_sfc;
     }
 
-    // Preserve the existing fallback/writeback behavior, but write the value
-    // in the LSM contract: absolute temperature.
-    if (lsm_t_sfc_out != nullptr && !use_lsm_t_sfc) {
-        *lsm_t_sfc_out = t_sfc;
-    }
 }
 
 } // namespace rrtmgp
