@@ -320,8 +320,12 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "SBM zero-transport fixture requires exactly zero carrier momentum"
     "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
   add_sbm_expected_failure_test(SBM_Native_QC_Write_Fault inputs_zero_transport
-    "SBM owns compact qc/qr; native positivity write denied for component range"
+    "SBM owns compact qc/qr; native advection write denied for component range"
     "-DOVERRIDE=erf.sbm_test_native_qc_write_fault=true")
+  add_sbm_expected_failure_test(SBM_Invalid_Nonmonotonic_Edges inputs_invalid_edges_nonmonotonic
+    "Invalid SBM configuration: edges must be strictly increasing")
+  add_sbm_expected_failure_test(SBM_Invalid_Zero_Edge_AutoPivot inputs_invalid_zero_edge_autopivot
+    "Invalid SBM configuration: pivots must be finite and positive")
   add_sbm_expected_failure_test(SBM_Implicit_Substepping inputs_zero_transport
     "SBM zero-transport fixture requires acoustic substepping_type=None"
     "-DOVERRIDE=erf.substepping_type=Implicit")

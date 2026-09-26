@@ -491,10 +491,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                     // rest to be updated with a residual nothing ever wrote.
                     num_comp = n_qstate_total;
                     if (sbm_active) {
-                        // The fixture has no spectral transport. Keep vapor on
-                        // ERF's normal path and leave the projected liquid lanes
-                        // exclusively to the auxiliary spectrum.
-                        num_comp = 1;
+                        // Keep vapor on the normal path. The test fault widens
+                        // the actual range so the ownership guard is exercised
+                        // before native advection can write projected liquid.
+                        num_comp = solverChoice.sbm_test_native_qc_write_fault ? 2 : 1;
                     }
 
                 } else {
@@ -670,7 +670,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         // clipping.  Keep both projected liquid lanes out of
                         // that write path; they are refreshed from the spectrum
                         // after the no-op microphysics handoff.
-                        num_comp = solverChoice.sbm_test_native_qc_write_fault ? 2 : 1;
+                        num_comp = 1;
                     }
                 } else if (ivar == RhoScalar_comp) {
                     num_comp = NSCALARS;

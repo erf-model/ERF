@@ -37,6 +37,10 @@ erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
     erf_sbm::SBMLayoutSpec spec;
     spec.populations.push_back(std::move(population));
     spec.liquid_projection = {0, choice.sbm_cloud_rain_split};
+    const auto validation = erf_sbm::SBMLayout::validate(spec);
+    if (!validation.valid) {
+        amrex::Error("Invalid SBM configuration: " + validation.message);
+    }
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
@@ -59,12 +63,6 @@ void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
                                      choice.substepping_type[0] == SubsteppingType::None,
         "SBM zero-transport fixture requires acoustic substepping_type=None");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.sbm_test_native_qc_write_fault ||
-                                     choice.sbm_zero_transport_fixture,
-        "erf.sbm_test_native_qc_write_fault is valid only for the SBM zero-transport fixture");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.sbm_test_carrier_momentum_fault ||
-                                     choice.sbm_zero_transport_fixture,
-        "erf.sbm_test_carrier_momentum_fault is valid only for the SBM zero-transport fixture");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
         "SBM zero-transport fixture does not support scalar diffusion");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&
