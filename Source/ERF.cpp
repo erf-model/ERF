@@ -1289,28 +1289,6 @@ ERF::InitData_post ()
             }
         }
 
-        /*
-        if (solverChoice.urban_type != UrbanType::None) {
-            m_SurfaceModel->set_model_fields(SurfaceModelType::URBAN, amrex::Vector<int>{UrbanVar_BEP::tau13,
-                                                                                         UrbanVar_BEP::tau23,
-                                                                                         UrbanVar_BEP::hfx,
-                                                                                         UrbanVar_BEP::qfx,
-                                                                                         UrbanVar_BEP::tsk,
-                                                                                         UrbanVar_BEP::a_u,
-                                                                                         UrbanVar_BEP::a_v,
-                                                                                         UrbanVar_BEP::a_t,
-                                                                                         UrbanVar_BEP::a_e,
-                                                                                         UrbanVar_BEP::a_q,
-                                                                                         UrbanVar_BEP::b_u,
-                                                                                         UrbanVar_BEP::b_v,
-                                                                                         UrbanVar_BEP::b_t,
-                                                                                         UrbanVar_BEP::b_e,
-                                                                                         UrbanVar_BEP::b_q,
-                                                                                         UrbanVar_BEP::sf,
-                                                                                         UrbanVar_BEP::vl}, true);
-        }
-        */
-
         if (solverChoice.lsm_type == LandSurfaceType::SLM) {
             m_SurfaceModel->register_radiation_input("tskin", {lsm.Get_DataIdx(0, "tsurf"), -1});
             m_SurfaceModel->register_radiation_input("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), -1});
@@ -1385,24 +1363,17 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
-                m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
-                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
-                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
-                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
+            m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+            m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+            m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             //}
             for (int lev = 0; lev <= finest_level; ++lev) {
                 // Set initial olen to > 0. Note: at initial MOST compute_fluxes call, urban fraction has not been set,
                 // so weight-avg olen would be 0 which causes issues in PBL
                 m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
-                //m_SurfaceModel->get_field("ustar", lev)->setVal(1.0E34);
             }
-        } /*else if (solverChoice.lsm_type == LandSurfaceType::None && solverChoice.urban_type == UrbanType::BEM_BEP) {
-            // No LSM, but Urban model - register tsk, u*, and emissivity for radiation
-            m_SurfaceModel->register_field_map("tskin", {-1, UrbanVar_BEP::tsk});
-            m_SurfaceModel->register_field_map("emiss", {-1, UrbanVar_BEP::emiss});
-            m_SurfaceModel->register_field_map("ustar", {-1, UrbanVar_BEP::ustar}, true);
         }
-        */
 
         if (restart_chkfile != "") {
             // Update surface fields if needed (and available)
