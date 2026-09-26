@@ -296,11 +296,10 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
     // The force-restore state is the only part of this model a restart must
     // carry; without it T_s and q_s restart from the scalar defaults.
     //
-    // Level 0 only, matching the seb_active gate in advance: no fine level ever
-    // evolves this state, so writing a fine level's copy would only persist the
-    // untouched define_level defaults and invite a later read to treat them as
-    // restored state.
-    if (!active() || !m_rad->seb_enable || lev > 0) { return; }
+    // Every level: each one evolves its own force-restore state now, so each has
+    // state worth restoring. A coarse level's values where a finer level covers it
+    // are the average of that finer level's, restored on both sides.
+    if (!active() || !m_rad->seb_enable) { return; }
     if (m_t_sfc[lev]) {
         VisMF::Write(*m_t_sfc[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TSfc"));
@@ -315,9 +314,10 @@ void
 TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile)
 {
     // Older checkpoints do not carry the state; then the defaults set by
-    // define_level stand. Level 0 only, matching write_checkpoint: a fine level
-    // has no file to read and no state that would use it.
-    if (!active() || !m_rad->seb_enable || lev > 0) { return; }
+    // define_level stand. Every level, matching write_checkpoint. A checkpoint
+    // written before the SEB ran on fine levels simply has no file for them, which
+    // the FileExists test below already handles.
+    if (!active() || !m_rad->seb_enable) { return; }
     const std::string tsfc_name =
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_TSfc");
     if (m_t_sfc[lev] && amrex::FileExists(tsfc_name + "_H")) {
@@ -398,21 +398,19 @@ TwoStreamRadiation::advance (int lev,
             "TwoStreamRadiation: the force-restore update needs a positive, finite dt_step");
     }
 
-    // The surface energy balance runs on level 0 only, while the column sweep
-    // runs on every level.
+    // The surface energy balance runs on every level that sweeps, each evolving its
+    // own force-restore state.
     //
-    // The surface is one physical object and its force-restore state is
-    // prognostic and checkpointed, so it needs a single owner. The update is
-    // applied in place (see the untiled loop below, which already relies on
-    // visiting each column exactly once); a column covered by two levels would
-    // otherwise be advanced twice per step, once per level.
+    // These fields are per level (see define_level), so two levels covering the same
+    // column are not advancing one shared state twice -- they are forming two
+    // independent estimates of one surface. Left alone those estimates drift apart,
+    // which would give the longwave boundary condition two different values for the
+    // same ground. ERF averages t_sfc and q_sfc down after the finer levels have
+    // advanced, so a coarse cell carries the mean of its fine children and the two
+    // agree where they overlap.
     //
-    // This changes nothing for any existing deck: before multi-level support
-    // the model aborted above level 0, so the SEB has only ever run on one
-    // level. Giving fine levels their own surface state would mean deciding how
-    // it transfers between levels -- the 2D interpolation Noah-MP does -- which
-    // is deliberately left out of this change.
-    const bool seb_active = rad_choice.seb_enable && (lev == 0);
+    // A level that does not sweep has no fluxes of its own and returns earlier.
+    const bool seb_active = rad_choice.seb_enable;
     // The column kernel would substitute placeholders (rho = 1, rho*theta of
     // 288 K) for a non-finite or non-positive density or rho*theta and carry
     // on, hiding a corrupt state behind plausible heating rates. Refuse such

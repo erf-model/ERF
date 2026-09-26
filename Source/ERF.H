@@ -437,6 +437,9 @@ public:
     bool writeNow (double cur_time, const int nstep, const int plot_int,
                    const double plot_per, const double dt_0, double& last_file_time);
 
+    //! Fill a newly built level's two-stream SEB state from its parent
+    void fill_seb_from_coarse (int lev);
+
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
 

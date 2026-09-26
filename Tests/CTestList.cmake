@@ -201,7 +201,7 @@ endfunction(add_test_cloud_chamber)
 # and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
 # (surface at k = 0, cooling to space from the top layer).
 function(add_test_two_stream_radiation TEST_NAME PLTFILE)
-    set(oneValueArgs "RUNTIME_OPTIONS")
+    set(oneValueArgs "RUNTIME_OPTIONS" "SEB_PARITY_PLOTFILE" "SEB_PARITY_TOL")
     # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
     # split "0;1" into two arguments and only the first was ever seen, so the
     # fine level went unchecked and the test passed vacuously.
@@ -224,6 +224,18 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         string(JOIN "," tsr_diag_levels ${ADD_TEST_TSR_DIAG_LEVELS})
     endif()
     setup_test()
+    # Optional second check: the prognostic surface state a refined run keeps on every
+    # level must satisfy the relation average_down establishes -- each coarse cell holding
+    # the mean of the fine cells above it. Only the decks that switch the prognostic SEB
+    # on ask for this.
+    set(tsr_seb_parity "")
+    if(DEFINED ADD_TEST_TSR_SEB_PARITY_PLOTFILE AND NOT "${ADD_TEST_TSR_SEB_PARITY_PLOTFILE}" STREQUAL "")
+        set(tsr_seb_parity "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_TSR_SEB_PARITY_PLOTFILE}")
+    endif()
+    set(tsr_seb_tol "1.0e-8")
+    if(DEFINED ADD_TEST_TSR_SEB_PARITY_TOL AND NOT "${ADD_TEST_TSR_SEB_PARITY_TOL}" STREQUAL "")
+        set(tsr_seb_tol "${ADD_TEST_TSR_SEB_PARITY_TOL}")
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -243,6 +255,11 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DRUNTIME_OPTIONS=${ADD_TEST_TSR_RUNTIME_OPTIONS}"
         "-DCHECK_LEVELS=${tsr_check_levels}"
         "-DDIAG_LEVELS=${tsr_diag_levels}"
+        "-DSEB_PARITY_PLOTFILE=${tsr_seb_parity}"
+        "-DSEB_PARITY_TOL=${tsr_seb_tol}"
+        "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -400,7 +417,7 @@ set_tests_properties(ResolveExecutable_SelfTest
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
 # unchanged to each leg and used to size the outer CTest watchdog.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS")
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
     cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -438,6 +455,7 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
+        "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1359,16 +1377,30 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                 CHECK_LEVELS 0 1
                                 DIAG_LEVELS 0)
 
-  # The prognostic surface energy balance owns the surface temperature the longwave
-  # boundary condition reads and runs on level 0 only, so a refined run would give level 0
-  # and its fine levels two different surface boundary conditions for one surface. Refused
-  # in RadChoice::init_params, where amr.max_level is known, so the refusal does not depend
-  # on a fine level ever being built: this deck's refinement criterion tags nothing
-  # (value_less is below every theta in the column) and the run must still stop.
-  add_test_abort(TwoStream_PrognosticSEBMultiLevel_abort
-      ${PROJECT_SOURCE_DIR}/Tests/test_files/TwoStream_ColumnHeating_TwoLevel TwoStream_ColumnHeating_TwoLevel.i
-      "is supported on a single level"
-      "erf.radiation.seb_enable=true erf.radiation.seb_prognostic_enable=true erf.lowth.value_less=200.0")
+  # The prognostic surface energy balance now runs on a refined hierarchy: every level
+  # evolves its own force-restore surface temperature, and ERF averages t_sfc and q_sfc
+  # down so the levels agree about the ground they share. (This replaces the abort test for
+  # the old single-level restriction, which this branch lifts.)
+  #
+  # The parity checker asserts the relation average_down establishes exactly -- a coarse
+  # cell holds the mean of the fine cells above it -- so its tolerance is a round-off
+  # bound. Dropping the average-down moves the worst cell to ~3e-5 K, four orders of
+  # magnitude above it, from the first output onward. Domain means would NOT catch this:
+  # average_down is mean-preserving, so the two levels' means agree either way.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBMultiLevel "plt00006"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00006")
+  endif()
+
+  # The force-restore surface state is checkpointed per level. A level whose copy is
+  # never written, or is written and never read back, restarts from the erf.rad_t_sfc
+  # scalar instead of the surface the run had reached -- and nothing in the 3D plotfile
+  # would show it, because the 3D plotfile carries no surface fields. So this case
+  # selects the surface state as 2D output and compares plt2d as well as plt; without
+  # PLT2DFILE the check would pass on a surface temperature that reset to its default.
+  add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
+                          PLT2DFILE "plt2d00006")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

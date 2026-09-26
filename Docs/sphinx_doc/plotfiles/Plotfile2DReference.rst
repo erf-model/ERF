@@ -126,6 +126,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``W/m^2``
      - ``FillMinus999WhenUnavailable``
      - Outgoing longwave radiation at the model top
+   * - ``seb_t_sfc``
+     - ``Radiation``
+     - ``K``
+     - ``FillMinus999WhenUnavailable``
+     - Prognostic surface temperature from the two-stream simplified surface energy balance
+   * - ``seb_q_sfc``
+     - ``Radiation``
+     - ``kg/kg``
+     - ``FillMinus999WhenUnavailable``
+     - Prognostic surface specific humidity from the two-stream simplified surface energy balance
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
@@ -417,6 +427,12 @@ The selection contract and the value written after selection are separate:
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
+   * - ``seb_t_sfc``, ``seb_q_sfc``
+     - Selectable: fixed request names.
+     - Value: the two-stream simplified surface energy balance's own prognostic surface
+       state, which is distinct from Noah-MP's ``t_sfc`` and from the surface layer's
+       ``t_surf``. ``-999`` unless the two-stream solver is running with
+       ``erf.radiation.seb_enable = true``.
    * - ``sens_flux``, ``laten_flux``
      - Selectable: fixed request names.
      - Value: legacy conservative surface flux outputs.
