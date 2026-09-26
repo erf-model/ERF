@@ -3858,7 +3858,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
                 // Update vegetation temperature
                 cp_vege_tot = cp_vege_arr(i, j, 0) + mw_arr(i, j, 0) * 1.e-3 * cp_water;
                 t_canop_inc = dt_iter / std::max(amrex::Real(1.0e-3), cp_vege_tot)*(net_rad_arr(i, j, 0, SLM_NetRad::net_rad1) - shf_canop_arr(i, j, 0) - lhf_canop_arr(i, j, 0)) * vege_YES_arr(i, j, 0);
-                t_canop_arr(i, j, 0) = std::min(t_canop_max, t_canop_arr(i, j, 0) + t_canop_inc);
+                t_canop_arr(i, j, 0) = std::min(amrex::Real(t_canop_max), t_canop_arr(i, j, 0) + t_canop_inc);
             }
             shf_canop_arr(i, j, 0) = shf0 / static_cast<amrex::Real>(niter);
             lhf_canop_arr(i, j, 0) = lhf0 / static_cast<amrex::Real>(niter);
