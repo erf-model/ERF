@@ -315,7 +315,13 @@ SurfaceLayer::update_fluxes (const int& lev,
     }
 
     // If using Land and/or Urban models, then overwrite u_star and t_star with values calculated from the surface models
-    if (use_surface_model && !surf_model_fluxes && elapsed_time_since_start_low > 0.0) {
+    //
+    // Gate on whether the surface models have actually advanced, not on the lower-boundary-data
+    // clock: elapsed_time_since_start_low is offset by (start_time - start_low_time), so it is
+    // already positive at step 0 when the wrflowinp series starts before erf.start_time (which
+    // would let the still-uninitialized u*/t*/q* overwrite the MOST values), and it never becomes
+    // positive at all when the series starts after it.
+    if (use_surface_model && !surf_model_fluxes && m_surf_model->fields_are_valid()) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();

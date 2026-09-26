@@ -357,18 +357,20 @@ public:
                     if (lev==0) varnames[n] = this->Get_DataName(n);
                 }
             }
-            if (plotfile_type == PlotFileType::Amrex) {
+            if (plotfile_type == PlotFileType::Amrex
+#ifdef ERF_USE_NETCDF
+                || plotfile_type == PlotFileType::Netcdf
+#endif
+                ) {
+#ifdef ERF_USE_NETCDF
+                // NetCDF output of the land-surface fields is not implemented yet, so fall back
+                // to the AMReX format -- which is what these plotfiles were before the plotfile
+                // type was consulted here -- rather than silently writing nothing at all.
+                warn_nc_lsm_plot_fallback(plotfile_type);
+#endif
                 WriteMultiLevelPlotfile (plotfilename, nlev_valid, GetVecOfConstPtrs(m_lsm_data_lev),
                                             varnames, m_lsm_geom_lev, static_cast<amrex::Real>(time),
                                             level_steps, ref_ratio);
-#ifdef ERF_USE_NETCDF
-            } else if (plotfile_type == PlotFileType::Netcdf) {
-                int lev   = 0;
-                int l_which = 0;
-                amrex::ignore_unused(lev);
-                amrex::ignore_unused(l_which);
-                //writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(m_lsm_data_lev), varnames, level_steps, time);
-#endif
             } else {
                 amrex::Abort("Dont know this plotfile_type");
             }
@@ -386,6 +388,8 @@ public:
             for (int lev = 0; lev <= finest_level; ++lev) {
                 static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, static_cast<amrex::Real>(time), plot_file_lsm, level_steps[0], lev, finest_level, fab_2d[lev], geom_2d[lev], varnames);
             }
+            // For a NetCDF run writeSLM_Data has already written these fields itself, one file
+            // per level, so only the AMReX format is assembled here.
             if (plotfile_type == PlotFileType::Amrex) {
                 amrex::WriteMultiLevelPlotfile(plotfilename_2d, finest_level+1, GetVecOfConstPtrs(fab_2d), varnames, geom_2d, static_cast<amrex::Real>(time), level_steps, ref_ratio);
             }
@@ -421,6 +425,22 @@ public:
     }
 
 private:
+#ifdef ERF_USE_NETCDF
+    /**
+     * Tell the user once per run that the land-surface plotfile is written in the AMReX
+     * format even though erf.plotfile_type is netcdf, because there is no NetCDF writer
+     * for these fields.
+     */
+    void warn_nc_lsm_plot_fallback (const PlotFileType plotfile_type)
+    {
+        if (plotfile_type != PlotFileType::Netcdf || m_warned_nc_lsm_plot) { return; }
+        m_warned_nc_lsm_plot = true;
+        amrex::Print() << "NOTE: erf.plotfile_type = netcdf, but NetCDF output is not implemented "
+                          "for the land-surface fields; writing " << plot_file_lsm
+                       << "* in the AMReX plotfile format instead." << std::endl;
+    }
+#endif
+
     // lsm model at each level
     amrex::Vector<std::unique_ptr<NullSurf>> m_lsm_model;
 
@@ -432,5 +452,8 @@ private:
 
     // Vector of data pointers
     amrex::Vector<amrex::MultiFab> m_lsm_data_lev;
+
+    // Whether we have already told the user that LSM plotfiles fall back to the AMReX format
+    bool m_warned_nc_lsm_plot = false;
 };
 #endif

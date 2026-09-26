@@ -74,7 +74,7 @@ public:
      */
     void Advance (const int& lev, const amrex::Real& dt_advance,
                   const amrex::Real& time, const amrex::Real& start_time,
-                  const amrex::Geometry& geom, const amrex::MultiFab& z_phys_nd,
+                  const amrex::Geometry& geom, const amrex::MultiFab* z_phys_nd,
                   amrex::MultiFab& eddyDiffs_lev, const amrex::Real& calday)
     {
         if (m_active_levs[lev] == 1) {

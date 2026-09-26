@@ -381,8 +381,16 @@ public:
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfields >= 5, "Must have at least five fields to average (u-stress, v-stress, hfx, qfx, tsurf)");
         }
 
-        // make sure both models are using fluxes, or u*,t*,q* directly
-        AMREX_ALWAYS_ASSERT(use_fluxes == m_export_fluxes);
+        // Latch the export mode off the first model that registers, then make sure every
+        // subsequent model agrees: either all of them supply fluxes, or all of them supply
+        // u*, t*, q* directly.  Taking the mode from the caller rather than assuming the
+        // default is what makes the non-flux path reachable at all.
+        if (!m_export_fluxes_set) {
+            m_export_fluxes = use_fluxes;
+            m_export_fluxes_set = true;
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_fluxes == m_export_fluxes,
+            "All registered surface models must export either fluxes or u*/t*/q*, not a mix");
 
         const int nregistered = (type == SurfaceModelType::LAND)
             ? static_cast<int>(m_lsm_names.size())
@@ -437,6 +445,18 @@ public:
      * @return True when weighted outputs are fluxes.
      */
     bool are_fluxes() { return m_export_fluxes; }
+
+    /**
+     * @brief Marks the registered surface fields as filled by an actual model advance.
+     */
+    void mark_fields_valid() { m_fields_are_valid = true; }
+
+    /**
+     * @brief Returns whether the surface models have advanced at least once.
+     * @return False until the first advance, while the registered fields still hold their
+     *         initial values rather than anything the models computed.
+     */
+    bool fields_are_valid() const { return m_fields_are_valid; }
 
     /**
      * @brief Returns the weighted horizontal momentum output for a level.
@@ -760,6 +780,11 @@ private:
     bool m_use_land = false; // whether we have a LSM
 
     bool m_export_fluxes = true;
+    bool m_export_fluxes_set = false; // whether a model has registered and latched the mode above
+
+    // Set once the surface models have actually integrated at least one step, so consumers can
+    // tell registered-but-unfilled fields from real ones.
+    bool m_fields_are_valid = false;
 
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;

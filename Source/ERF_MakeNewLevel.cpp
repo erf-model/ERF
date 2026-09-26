@@ -1174,8 +1174,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     // Update Surface Model arrays for this new level
-    if (solverChoice.lsm_type != LandSurfaceType::None ||
-        (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1)) {
+    //
+    // m_SurfaceModel is null while we are inside restart(): ReadCheckpointFile runs first, then
+    // restart() regrids level 0 (which lands here) whenever there are more ranks than boxes, and
+    // only after restart() returns does InitData_post construct the surface model.  In that case
+    // InitData_post initializes every level against the post-regrid (ba,dm), so there is nothing
+    // for us to update yet.
+    if (m_SurfaceModel &&
+        (solverChoice.lsm_type != LandSurfaceType::None ||
+         (solverChoice.urban_type != UrbanType::None && solverChoice.urban_enabled_lev[lev] == 1))) {
         m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
     }
 
@@ -1240,7 +1247,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     const bool urban_enabled = solverChoice.urban_type != UrbanType::None &&
                                solverChoice.urban_enabled_lev[lev] == 1;
-    if (solverChoice.lsm_type != LandSurfaceType::None || urban_enabled) {
+    // As above, m_SurfaceModel does not exist yet when restart() regrids level 0.
+    if (m_SurfaceModel && (solverChoice.lsm_type != LandSurfaceType::None || urban_enabled)) {
         const int first_lev = (lev == 0) ? 0 : lev;
         const int last_lev = (lev == 0) ? finest_level : lev;
 
