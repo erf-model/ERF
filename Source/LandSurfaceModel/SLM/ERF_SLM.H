@@ -197,6 +197,17 @@ public:
     void
     Define (SolverChoice& sc) override
     {
+        // SLM exchanges water vapor with the atmosphere unconditionally: Copy_State_to_Lsm
+        // reads RhoQ1_comp out of the state and Copy_Lsm_to_State writes it back.  Without a
+        // moisture model that component is not part of the state, so those accesses run off
+        // the end of the conserved-variable FAB.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            sc.moisture_type != MoistureType::None,
+            "The SLM land surface model requires a moisture model: it exchanges water vapor "
+            "with the atmospheric state, which has no RhoQ1 component when "
+            "erf.moisture_model = None.  Set erf.moisture_model, "
+            "or choose a different erf.land_surface_model.");
+
         use_terrain = sc.terrain_type != TerrainType::None;
 
         // Check if initializing from WRFInput

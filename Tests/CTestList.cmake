@@ -1018,8 +1018,18 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
     set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
 
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+    # These tests are gated on external input data, so their reference plotfiles are not carried
+    # in Tests/ERFGoldFiles either.  Compare against whichever ones the configured gold directory
+    # actually has, and run the rest to completion as smoke tests rather than failing every run on
+    # a reference that is not there -- fcompare is invoked with --abort_if_not_all_found.
     foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
-        set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+        if(EXISTS "${PLOT_GOLD}/${PLTFILE}")
+            set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+        else()
+            message(STATUS
+                " -- LSM test '${TEST_NAME}': no gold file '${PLOT_GOLD}/${PLTFILE}', "
+                "running without a plotfile comparison")
+        endif()
     endforeach()
     message(DEBUG "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
 
@@ -1448,8 +1458,8 @@ add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OP
 # LSM tests are gated because they require large input files (wrfinput, etc)
 # and can take several hours to run.
 if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
-    # test w/out plotfile comparisons
-    # CASS case with external-driven radiation fluxes to SLM (no RRTMGP)
+    # CASS case with external-driven radiation fluxes to SLM (no RRTMGP).
+    # The listed plotfiles are compared only if the configured gold directory has them.
     add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
                                                   LABELS "slm"
                                                   EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"

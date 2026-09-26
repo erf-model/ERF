@@ -12,7 +12,7 @@ ERF::advance_urban (int lev,
                     MultiFab& v_in,
                     const Real& dt_advance,
                     const Geometry& geom_in,
-                    const MultiFab& z_phys_nd_in,
+                    const MultiFab* z_phys_nd_in,
                     MultiFab& eddyDiffs_lev)
 {
     if (solverChoice.urban_type != UrbanType::None &&

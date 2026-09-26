@@ -353,12 +353,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     double time_at_end_of_step = time+dt_lev;
     advance_lsm(lev, S_new, U_new, V_new, time_at_end_of_step, dt_lev);
 
+    // z_phys_nd is null for a ConstantDz mesh, so pass the pointer rather than dereferencing it
+    // here: advance_urban is called unconditionally and only returns early once inside.
     advance_urban(lev, S_new, U_new, V_new, dt_lev, Geom(lev),
-                  *z_phys_nd[lev], *eddyDiffs_lev[lev]);
+                  z_phys_nd[lev].get(), *eddyDiffs_lev[lev]);
 
-    // Update the weighted average of land-surface and urban-model fields.
+    // Update the weighted average of land-surface and urban-model fields.  The models have now
+    // integrated, so whatever they registered holds computed values from here on.
     if (m_SurfaceModel) {
         m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+        m_SurfaceModel->mark_fields_valid();
     }
 
 #ifdef ERF_USE_PARTICLES

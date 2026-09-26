@@ -850,12 +850,23 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
     }
     GotoNextLine(is);
 
+    // The fields below are read straight back into the live MultiFabs, so the decomposition
+    // has to be the one that was checkpointed.  Note that ERF turns regridding of level 0 on
+    // by itself when a restart uses more ranks than level 0 has boxes
+    // (see ERF::restart), so "restart on a different number of ranks" is the usual way to
+    // reach this.
+    const std::string decomposition_hint =
+        "; the SurfaceModel checkpoint can only be read back on the decomposition it was "
+        "written with, so restart with erf.regrid_level_0_on_restart = 0 on the original "
+        "grids, or on a rank count that does not force level 0 to be regridded";
     for (int lev = 0; lev < chk_nlevs; ++lev) {
         if (!(chk_ba[lev] == m_ba[lev])) {
-            checkpoint_error("3D BoxArray mismatch at level " + std::to_string(lev));
+            checkpoint_error("3D BoxArray mismatch at level " + std::to_string(lev) +
+                             decomposition_hint);
         }
         if (!(chk_ba2d[lev] == m_ba2d[lev])) {
-            checkpoint_error("2D BoxArray mismatch at level " + std::to_string(lev));
+            checkpoint_error("2D BoxArray mismatch at level " + std::to_string(lev) +
+                             decomposition_hint);
         }
     }
 

@@ -41,7 +41,7 @@ public:
                           const amrex::Real& /*time*/,
                           const amrex::Real& /*start_time*/,
                           const amrex::Geometry& /*geom*/,
-                          const amrex::MultiFab& /*z_phys_nd*/,
+                          const amrex::MultiFab* /*z_phys_nd*/,
                           amrex::MultiFab& /*eddyDiffs_lev*/,
                           const amrex::Real& /*calday*/) { }
 

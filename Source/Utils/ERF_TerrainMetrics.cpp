@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <utility>
@@ -18,8 +19,13 @@ validate_flat_terrain (int lev,
                        const MultiFab& z_phys_nd,
                        const Vector<Real>& z_levels_h)
 {
+    // The comparison is against heights that have been round-tripped through z_phys_nd, so the
+    // threshold has to track the working precision: a hard-wired 1e-10 is far below single-
+    // precision round-off at domain-top magnitudes and would abort on a genuinely flat mesh.
+    // Keep the original (double-precision) threshold, floored at a few hundred ulps.
     const Real scale = std::max(Real(1.0), std::abs(z_levels_h.back()));
-    const Real tolerance = Real(1.0e-10) * scale;
+    const Real rel_tol = std::max(Real(1.0e-10), Real(100.0) * std::numeric_limits<Real>::epsilon());
+    const Real tolerance = rel_tol * scale;
 
     MultiFab expected(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 0);
     Gpu::DeviceVector<Real> z_levels_d(z_levels_h.size());
