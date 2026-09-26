@@ -52,8 +52,9 @@ void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
         Box tbx = mfi.tilebox();
         const auto source_arr = source->const_array(mfi);
         auto weighted_arr = weighted->array(mfi);
-        const auto weights_arr = wavg[lev]->const_array(mfi);
-        const bool use_weights = m_use_land && m_use_urban;
+        const bool use_weights = m_provider_mode[lev] == SurfaceProviderMode::Both;
+        const auto weights_arr = use_weights
+            ? wavg[lev]->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -69,26 +70,95 @@ void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
 
 void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urban_frac)
 {
-    AMREX_ASSERT_WITH_MESSAGE(m_use_land || m_use_urban, "Must have at least one land or urban model enabled for weighted average");
+    const SurfaceProviderMode mode = m_provider_mode[lev];
+    AMREX_ASSERT_WITH_MESSAGE(mode != SurfaceProviderMode::None,
+                              "Must have at least one land or urban model enabled for weighted average");
 
     // Calculate weighted averages between Land and Urban
     calculate_simple_average(lev, urban_frac);
 
-    const bool use_urban = m_use_urban;
-    const bool use_land = m_use_land;
+    const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                           mode == SurfaceProviderMode::Both;
+    const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                          mode == SurfaceProviderMode::Both;
+    const bool use_weights = mode == SurfaceProviderMode::Both;
     const bool use_fluxes = m_export_fluxes;
-
-    // Reset surface fluxes
-    u_star[lev]->setVal(0.0);
-    t_star[lev]->setVal(0.0);
-    q_star[lev]->setVal(0.0);
 
     amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
 
+    if (!use_weights) {
+        const auto& provider_fields = use_land ? lsm_fields : urban_fields;
+        const auto& provider_data = use_land ? lsm_data_lev[lev] : urban_data_lev[lev];
+        auto source_for = [&] (const int field) -> const amrex::MultiFab* {
+            if (field >= static_cast<int>(provider_fields.size()) ||
+                provider_fields[field] < 0 ||
+                provider_fields[field] >= static_cast<int>(provider_data.size())) {
+                return nullptr;
+            }
+            return provider_data[provider_fields[field]];
+        };
+
+        const amrex::MultiFab* source0 = source_for(0);
+        const amrex::MultiFab* source1 = source_for(1);
+        const amrex::MultiFab* source2 = source_for(2);
+        const amrex::MultiFab* source3 = source_for(3);
+        const amrex::MultiFab* source4 = source_for(4);
+
+        for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
+        {
+            const Box tbx = mfi.tilebox();
+            const auto source0_arr = source0 ? source0->const_array(mfi) : Array4<const Real>{};
+            const auto source1_arr = source1 ? source1->const_array(mfi) : Array4<const Real>{};
+            const auto source2_arr = source2 ? source2->const_array(mfi) : Array4<const Real>{};
+            const auto source3_arr = source3 ? source3->const_array(mfi) : Array4<const Real>{};
+            const auto source4_arr = source4 ? source4->const_array(mfi) : Array4<const Real>{};
+            const int source0_k = source0 ? (use_land ? source0->box(mfi.index()).bigEnd(2)
+                                                      : source0->box(mfi.index()).smallEnd(2)) : 0;
+            const int source1_k = source1 ? (use_land ? source1->box(mfi.index()).bigEnd(2)
+                                                      : source1->box(mfi.index()).smallEnd(2)) : 0;
+            const int source2_k = source2 ? (use_land ? source2->box(mfi.index()).bigEnd(2)
+                                                      : source2->box(mfi.index()).smallEnd(2)) : 0;
+            const int source3_k = source3 ? (use_land ? source3->box(mfi.index()).bigEnd(2)
+                                                      : source3->box(mfi.index()).smallEnd(2)) : 0;
+            const int source4_k = source4 ? (use_land ? source4->box(mfi.index()).bigEnd(2)
+                                                      : source4->box(mfi.index()).smallEnd(2)) : 0;
+
+            auto u_arr = u_star[lev]->array(mfi);
+            auto t_arr = t_star[lev]->array(mfi);
+            auto q_arr = q_star[lev]->array(mfi);
+            auto tsurf_arr = t_surf[lev]->array(mfi);
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (use_fluxes) {
+                    u_arr(i, j, k, 0) = source0_arr ? source0_arr(i, j, source0_k) : 0.0;
+                    u_arr(i, j, k, 1) = source1_arr ? source1_arr(i, j, source1_k) : 0.0;
+                    t_arr(i, j, k) = source2_arr ? source2_arr(i, j, source2_k) : 0.0;
+                    q_arr(i, j, k) = source3_arr ? source3_arr(i, j, source3_k) : 0.0;
+                    tsurf_arr(i, j, k) = source4_arr ? source4_arr(i, j, source4_k) : 0.0;
+                } else {
+                    u_arr(i, j, k, 0) = source0_arr ? source0_arr(i, j, source0_k) : 0.0;
+                    u_arr(i, j, k, 1) = 0.0;
+                    t_arr(i, j, k) = source1_arr ? source1_arr(i, j, source1_k) : 0.0;
+                    q_arr(i, j, k) = source2_arr ? source2_arr(i, j, source2_k) : 0.0;
+                    tsurf_arr(i, j, k) = source3_arr ? source3_arr(i, j, source3_k) : 0.0;
+                }
+            });
+        }
+
+        u_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        t_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        q_star[lev]->FillBoundary(m_geom[lev].periodicity());
+        t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
+    }
+
     // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
     // TODO: make sure grids of urban and LSM inputs match
+    if (use_weights) {
+    if (!use_fluxes) {
+        u_star[lev]->setVal(0.0, 1, 1, 0);
+    }
     for (int field = 0; field < nfields; ++field)
     {
         int output_field = (use_fluxes && field > 0) ? field - 1 : field;
@@ -108,7 +178,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
         {
             Box tbx = mfi.tilebox();
 
-            auto weights_arr = wavg[lev]->const_array(mfi);
+            const auto weights_arr = use_weights
+                ? wavg[lev]->const_array(mfi) : Array4<const Real>{};
 
             // Outputs for surface boundary condition
             auto output_arr = outputs[output_field]->array(mfi);
@@ -136,9 +207,11 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
         outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
     }
+    }
 
-    // Write weighted copies of the remaining selected model fields.
-    if (use_land) {
+    // Write weighted copies only when both providers contribute.  With one
+    // provider, get_weighted_model_data() returns the provider-owned source.
+    if (use_weights && use_land) {
         for (int field = nfields; field < static_cast<int>(lsm_fields.size()); ++field) {
             if (lsm_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::LAND, lsm_fields[field],
@@ -159,7 +232,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
         }
     }
 
-    if (use_urban) {
+    if (use_weights && use_urban) {
         for (int field = nfields; field < static_cast<int>(urban_fields.size()); ++field) {
             if (urban_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::URBAN, urban_fields[field],
@@ -185,10 +258,10 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     for (auto& entry : radiation_input_map) {
         const int land_idx = entry.second.map.first;
         const int urban_idx = entry.second.map.second;
-        const bool valid_land = m_use_land && land_idx >= 0 &&
+        const bool valid_land = use_land && land_idx >= 0 &&
             land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
             lsm_data_lev[lev][land_idx] != nullptr;
-        const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+        const bool valid_urban = use_urban && urban_idx >= 0 &&
             urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
             urban_data_lev[lev][urban_idx] != nullptr;
         if (!(valid_land && valid_urban)) { continue; }
@@ -293,15 +366,20 @@ const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields(int lev)
 {
     if (!rad_output_fields[lev].empty()) { return rad_output_fields[lev]; }
     rad_output_fields[lev].resize(rad_output_names.size(), nullptr);
+    const SurfaceProviderMode mode = m_provider_mode[lev];
+    const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                          mode == SurfaceProviderMode::Both;
+    const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                           mode == SurfaceProviderMode::Both;
     for (int i = 0; i < static_cast<int>(rad_output_names.size()); ++i) {
         auto it = radiation_output_map.find(rad_output_names[i]);
         if (it == radiation_output_map.end()) { continue; }
         const int land_idx = it->second.map.first;
         const int urban_idx = it->second.map.second;
-        const bool valid_land = m_use_land && land_idx >= 0 &&
+        const bool valid_land = use_land && land_idx >= 0 &&
             land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
             lsm_data_lev[lev][land_idx];
-        const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+        const bool valid_urban = use_urban && urban_idx >= 0 &&
             urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
             urban_data_lev[lev][urban_idx];
         if (valid_land) {
@@ -353,9 +431,14 @@ void SurfaceModel::distribute_radiation_output(int lev, int output_index)
 
     const int land_idx = it->second.map.first;
     const int urban_idx = it->second.map.second;
-    MultiFab* lsm = (m_use_land && land_idx >= 0 && land_idx < static_cast<int>(lsm_data_lev[lev].size()))
+    const SurfaceProviderMode mode = m_provider_mode[lev];
+    const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                          mode == SurfaceProviderMode::Both;
+    const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                           mode == SurfaceProviderMode::Both;
+    MultiFab* lsm = (use_land && land_idx >= 0 && land_idx < static_cast<int>(lsm_data_lev[lev].size()))
         ? lsm_data_lev[lev][land_idx] : nullptr;
-    MultiFab* urban = (m_use_urban && urban_idx >= 0 && urban_idx < static_cast<int>(urban_data_lev[lev].size()))
+    MultiFab* urban = (use_urban && urban_idx >= 0 && urban_idx < static_cast<int>(urban_data_lev[lev].size()))
         ? urban_data_lev[lev][urban_idx] : nullptr;
 
     // The LSM destination is always primary when it is available.  Urban
@@ -422,27 +505,18 @@ bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx
 
 void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urban_frac)
 {
+    const SurfaceProviderMode mode = m_provider_mode[lev];
+
     // If no urban fraction is available, use the only enabled model as the
     // complete surface.  A missing fraction is ambiguous when both models
     // are enabled, so fail explicitly rather than silently choosing a model.
     if (urban_frac == nullptr) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            !(m_use_land && m_use_urban),
+            mode != SurfaceProviderMode::Both,
             "Urban fraction is required when both land and urban models are enabled");
     }
 
-    const bool use_land = m_use_land;
-    const bool use_urban = m_use_urban;
-
-    if (!(use_land && use_urban)) {
-        if (m_single_provider_weights_initialized[lev]) {
-            m_weights_updated = true;
-            return;
-        }
-
-        wavg[lev]->setVal(use_land ? 1.0 : 0.0, SurfaceModelType::LAND, 1, 0);
-        wavg[lev]->setVal(use_urban ? 1.0 : 0.0, SurfaceModelType::URBAN, 1, 0);
-        m_single_provider_weights_initialized[lev] = true;
+    if (mode != SurfaceProviderMode::Both) {
         m_weights_updated = true;
         return;
     }
@@ -458,15 +532,9 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
         {
-            if (use_land && use_urban) {
-                // Weights are proportional to urban fraction coverage in the current cell.
-                weights_arr(i, j, 0, SurfaceModelType::URBAN) = urban_frac_arr(i, j, 0);
-                weights_arr(i, j, 0, SurfaceModelType::LAND) = 1.0 - urban_frac_arr(i, j, 0);
-            } else {
-                // With one model disabled, the enabled model covers the whole cell.
-                weights_arr(i, j, 0, SurfaceModelType::URBAN) = use_urban ? 1.0 : 0.0;
-                weights_arr(i, j, 0, SurfaceModelType::LAND) = use_land ? 1.0 : 0.0;
-            }
+            // Weights are proportional to urban fraction coverage in the current cell.
+            weights_arr(i, j, 0, SurfaceModelType::URBAN) = urban_frac_arr(i, j, 0);
+            weights_arr(i, j, 0, SurfaceModelType::LAND) = 1.0 - urban_frac_arr(i, j, 0);
         });
     }
 
@@ -561,6 +629,12 @@ void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
 
 void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/)
 {
+    const SurfaceProviderMode mode = m_provider_mode[lev];
+    const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                          mode == SurfaceProviderMode::Both;
+    const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                           mode == SurfaceProviderMode::Both;
+
     for (auto &field : fieldmap)
     {
         int mf_idx = field.second.mf_ind;
@@ -570,12 +644,12 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
         int urb_idx = field.second.map.second;
 
         // whether we have a valid LSM multifab
-        bool valid_land = (m_use_land &&
+        bool valid_land = (use_land &&
                            lsm_idx != -1 &&
                            lsm_data_lev[lev][lsm_idx]);
 
         // whether we have a valid urban multifab
-        bool valid_urban = (m_use_urban &&
+        bool valid_urban = (use_urban &&
                             urb_idx != -1 &&
                             urban_data_lev[lev][urb_idx]);
 
@@ -583,14 +657,15 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
         if (lsm_idx == -1 && urb_idx == -1) {
             // use explicit MF ptrs rather than indices
             use_mf = true;
-            valid_land = (m_use_land && field.second.lsm_ptr[lev]);
-            valid_urban = (m_use_urban && field.second.urb_ptr[lev]);
+            valid_land = (use_land && field.second.lsm_ptr[lev]);
+            valid_urban = (use_urban && field.second.urb_ptr[lev]);
         }
 
         for (MFIter mfi(*fields[mf_idx][lev], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
-            auto weights_arr = wavg[lev]->const_array(mfi);
+            const auto weights_arr = (mode == SurfaceProviderMode::Both)
+                ? wavg[lev]->const_array(mfi) : Array4<const Real>{};
 
             // Calculate weight average into output
             auto output_arr = fields[mf_idx][lev]->array(mfi);
@@ -665,7 +740,7 @@ void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, 
         MultiFab lmask_tmp = amrex::ToMultiFab(*m_lmask[lev]); // iMultiFab -> MultiFab
         MultiFab::Copy(fab[lev], lmask_tmp, 0, nout, 1, ng);
         nout++;
-        MultiFab::Copy(fab[lev], *(wavg[lev]), SurfaceModelType::URBAN, nout, 1, ng);
+        MultiFab::Copy(fab[lev], *get_wavg_factors(lev), SurfaceModelType::URBAN, nout, 1, ng);
         nout++;
 
         if (lev == 0) {
@@ -783,7 +858,7 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
             MultiFab::Copy(mf,*u_star[lev],0,0,2,ng);
             VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "ustar"));
 
-            MultiFab::Copy(mf,*wavg[lev],0,0,2,ng);
+            MultiFab::Copy(mf,*get_wavg_factors(lev),0,0,2,ng);
             VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wavg"));
         }
 
@@ -1085,6 +1160,7 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
             redistribute(*(u_star[lev]),mf,2,lev);
 
             VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wavg"));
+            ensure_weight_factors(lev);
             redistribute(*wavg[lev],mf,2,lev);
         }
 

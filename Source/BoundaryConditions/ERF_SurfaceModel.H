@@ -13,6 +13,8 @@
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
+enum class SurfaceProviderMode { None, LandOnly, UrbanOnly, Both };
+
 /**
  * @brief Interface between ERF and land-surface and urban models.
  *
@@ -58,7 +60,7 @@ public:
         t_surf.resize(m_nlevs);
 
         wavg.resize(m_nlevs);
-        m_single_provider_weights_initialized.resize(m_nlevs, false);
+        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
 
         m_ba2d.resize(m_nlevs);
         m_geom2d.resize(m_nlevs);
@@ -104,7 +106,7 @@ public:
             t_surf.resize(m_nlevs);
 
             wavg.resize(m_nlevs);
-            m_single_provider_weights_initialized.resize(m_nlevs, false);
+            m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
 
             m_dmap.resize(m_nlevs);
             m_ba.resize(m_nlevs);
@@ -161,7 +163,7 @@ public:
         // the weight average factors for this new level will get calculated on the next call to weight average
         wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
-        m_single_provider_weights_initialized[lev] = false;
+        m_provider_mode[lev] = SurfaceProviderMode::None;
 
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
@@ -288,6 +290,7 @@ public:
                 lsm_data_lev[lev][i] = model_data[i];
             }
             m_use_land = true;
+            update_provider_mode(lev);
             for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
             for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
             for (auto& entry : radiation_input_map) {
@@ -312,6 +315,7 @@ public:
                 urban_data_lev[lev][i] = model_data[i];
             }
             m_use_urban = true;
+            update_provider_mode(lev);
             for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
             for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
             for (auto& entry : radiation_input_map) {
@@ -498,15 +502,43 @@ public:
     }
 
     /**
-     * @brief Returns a weighted copy of a selected model field.
+     * @brief Returns weighted data for a selected model field.
      * @param lev AMR level to query.
      * @param type Provider type owning the field.
      * @param field_idx Provider field index.
-     * @return Weighted field, or nullptr if it has not been selected.
+     * @return Weighted field or the source field for a single provider, or nullptr if it has not been selected.
      */
     const amrex::MultiFab* get_weighted_model_data(const int lev,
                                                     SurfaceModelType type,
                                                     const int field_idx) const {
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        const bool single_provider =
+            (mode == SurfaceProviderMode::LandOnly && type == SurfaceModelType::LAND) ||
+            (mode == SurfaceProviderMode::UrbanOnly && type == SurfaceModelType::URBAN);
+        if (single_provider) {
+            const auto& selected = (type == SurfaceModelType::LAND)
+                ? lsm_fields : urban_fields;
+            const int first_output_field = m_export_fluxes ? 5 : 4;
+            bool is_weighted_field = false;
+            for (int field = first_output_field;
+                 field < static_cast<int>(selected.size()); ++field) {
+                if (selected[field] == field_idx) {
+                    is_weighted_field = true;
+                    break;
+                }
+            }
+            if (!is_weighted_field) {
+                return nullptr;
+            }
+
+            const auto& source = (type == SurfaceModelType::LAND)
+                ? lsm_data_lev[lev] : urban_data_lev[lev];
+            if (field_idx < 0 || field_idx >= static_cast<int>(source.size())) {
+                return nullptr;
+            }
+            return source[field_idx];
+        }
+
         const auto& weighted = (type == SurfaceModelType::LAND)
             ? weighted_lsm_data_lev[lev] : weighted_urban_data_lev[lev];
         if (field_idx < 0 || field_idx >= static_cast<int>(weighted.size())) {
@@ -521,6 +553,7 @@ public:
      * @return Pointer to the weighting-factor field.
      */
     amrex::MultiFab* get_wavg_factors(const int &lev) {
+        ensure_weight_factors(lev);
         return wavg[lev].get();
     }
 
@@ -695,11 +728,16 @@ public:
             if (rad_it != radiation_input_map.end()) {
                 const int land_idx = rad_it->second.map.first;
                 const int urban_idx = rad_it->second.map.second;
-                const bool valid_land = m_use_land && land_idx >= 0 &&
+                const SurfaceProviderMode mode = m_provider_mode[lev];
+                const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                                      mode == SurfaceProviderMode::Both;
+                const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                                       mode == SurfaceProviderMode::Both;
+                const bool valid_land = use_land && land_idx >= 0 &&
                     lev < static_cast<int>(lsm_data_lev.size()) &&
                     land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
                     lsm_data_lev[lev][land_idx] != nullptr;
-                const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+                const bool valid_urban = use_urban && urban_idx >= 0 &&
                     lev < static_cast<int>(urban_data_lev.size()) &&
                     urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
                     urban_data_lev[lev][urban_idx] != nullptr;
@@ -779,6 +817,45 @@ public:
 
 private:
 
+    /**
+     * @brief Updates the provider mode after model data are registered.
+     * @param lev AMR level whose provider mode should be updated.
+     */
+    void update_provider_mode(const int lev)
+    {
+        const bool has_land = !lsm_data_lev[lev].empty();
+        const bool has_urban = !urban_data_lev[lev].empty();
+        if (has_land && has_urban) {
+            m_provider_mode[lev] = SurfaceProviderMode::Both;
+            ensure_weight_factors(lev);
+        } else if (has_land) {
+            m_provider_mode[lev] = SurfaceProviderMode::LandOnly;
+            wavg[lev].reset();
+        } else if (has_urban) {
+            m_provider_mode[lev] = SurfaceProviderMode::UrbanOnly;
+            wavg[lev].reset();
+        } else {
+            m_provider_mode[lev] = SurfaceProviderMode::None;
+        }
+    }
+
+    /**
+     * @brief Creates weighting factors when an external caller requests them.
+     * @param lev AMR level whose weighting factors should be materialized.
+     */
+    void ensure_weight_factors(const int lev)
+    {
+        if (wavg[lev] != nullptr) { return; }
+
+        const amrex::IntVect ng(1,1,0);
+        wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        wavg[lev]->setVal(mode != SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
+                          SurfaceModelType::LAND, 1, 0);
+        wavg[lev]->setVal(mode == SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
+                          SurfaceModelType::URBAN, 1, 0);
+    }
+
     int m_nlevs;
 
     bool m_use_urban = false; // whether we have an urban model
@@ -794,8 +871,7 @@ private:
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;
 
-    // Single-provider weights are invariant after they are initialized for a level.
-    amrex::Vector<int> m_single_provider_weights_initialized;
+    amrex::Vector<SurfaceProviderMode> m_provider_mode;
 
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::BoxArray> m_ba2d;
