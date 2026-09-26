@@ -989,10 +989,12 @@ TEST_F(SLMInterfaceTest, CheckpointWritesAndReadsSyntheticState)
 
     const std::filesystem::path header = checkpoint / "Level_0" / "SLM_Header";
     ASSERT_TRUE(std::filesystem::exists(header));
-    std::ifstream header_stream(header);
-    std::string header_text((std::istreambuf_iterator<char>(header_stream)),
-                            std::istreambuf_iterator<char>());
-    EXPECT_NE(header_text.find("Checkpoint file for SLM"), std::string::npos);
+    {
+        std::ifstream header_stream(header);
+        std::string header_text((std::istreambuf_iterator<char>(header_stream)),
+                                std::istreambuf_iterator<char>());
+        EXPECT_NE(header_text.find("Checkpoint file for SLM"), std::string::npos);
+    }
 
     land_surface.ReadCheckpoint(0, checkpoint.string());
     EXPECT_FALSE(get_slm_data(land_surface, 0, "tsurf")->contains_nan());
