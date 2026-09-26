@@ -879,7 +879,21 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         for (int i = 0; i < 2; i++) {
             if (!new_seb[i] || !old_seb[i]) { continue; }
             IntVect ngv = new_seb[i]->nGrowVect(); ngv[2] = 0;
-            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+            //
+            // Valid cells only as the SOURCE. Nothing refreshes these fields' halos away
+            // from level creation -- the prognostic update writes mfi.validbox() -- so the
+            // retained halo still holds the define_level setVal(erf.rad_t_sfc) while the
+            // valid cells have evolved. Offering those cells as a copy source would let a
+            // one-cell band of the regridded surface revert to the scalar wherever an old
+            // box's halo overlaps a new box's valid region, and ParallelCopy gives no
+            // ordering guarantee between overlapping sources. The destination halo is
+            // filled by fill_seb_from_coarse above and the FillBoundary below.
+            //
+            // (This is where the mapfac/PSFC idiom does not carry over: those halos are
+            // consistent with their valid data, and these are not.)
+            //
+            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, 1, IntVect(0), ngv,
+                                     geom[lev].periodicity());
             new_seb[i]->FillBoundary(geom[lev].periodicity());
         }
     }

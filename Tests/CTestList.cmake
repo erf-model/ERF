@@ -201,7 +201,7 @@ endfunction(add_test_cloud_chamber)
 # and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
 # (surface at k = 0, cooling to space from the top layer).
 function(add_test_two_stream_radiation TEST_NAME PLTFILE)
-    set(oneValueArgs "RUNTIME_OPTIONS" "SEB_PARITY_PLOTFILE" "SEB_PARITY_TOL")
+    set(oneValueArgs "RUNTIME_OPTIONS" "SEB_PARITY_PLOTFILE" "SEB_PARITY_TOL" "SEB_EVOLVED_FROM")
     # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
     # split "0;1" into two arguments and only the first was ever seen, so the
     # fine level went unchecked and the test passed vacuously.
@@ -236,6 +236,12 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     if(DEFINED ADD_TEST_TSR_SEB_PARITY_TOL AND NOT "${ADD_TEST_TSR_SEB_PARITY_TOL}" STREQUAL "")
         set(tsr_seb_tol "${ADD_TEST_TSR_SEB_PARITY_TOL}")
     endif()
+    # A shallow nest never sweeps, so there is no fine solution to compare against; what
+    # must hold is that the coarse level kept evolving underneath it.
+    set(tsr_seb_evolved "")
+    if(DEFINED ADD_TEST_TSR_SEB_EVOLVED_FROM AND NOT "${ADD_TEST_TSR_SEB_EVOLVED_FROM}" STREQUAL "")
+        set(tsr_seb_evolved "${ADD_TEST_TSR_SEB_EVOLVED_FROM}")
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -257,6 +263,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DDIAG_LEVELS=${tsr_diag_levels}"
         "-DSEB_PARITY_PLOTFILE=${tsr_seb_parity}"
         "-DSEB_PARITY_TOL=${tsr_seb_tol}"
+        "-DSEB_EVOLVED_FROM=${tsr_seb_evolved}"
         "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
         "-DFEXTRACT=${FEXTRACT_EXE}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
@@ -1391,6 +1398,21 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_two_stream_radiation(TwoStream_PrognosticSEBMultiLevel "plt00006"
                                   CHECK_LEVELS 0 1
                                   SEB_PARITY_PLOTFILE "plt2d00006")
+  endif()
+
+  # The complement of the case above: a SHALLOW nest, whose boxes do not span the domain
+  # in z. Such a level never sweeps, so its surface state stays frozen at what
+  # fill_seb_from_coarse wrote, and averaging that down would pin level 0's surface under
+  # the patch at its level-creation value -- a regression against the old level-0-only
+  # behaviour. post_timestep skips the transfer for such a level; this asserts every cell
+  # of level 0 moved away from erf.rad_t_sfc. With the guard removed those cells sit at
+  # exactly 300.0 instead of 300.0476.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBShallowNest "plt00006"
+                                  CHECK_LEVELS 0
+                                  DIAG_LEVELS 0
+                                  SEB_PARITY_PLOTFILE "plt2d00006"
+                                  SEB_EVOLVED_FROM "300.0")
   endif()
 
   # The force-restore surface state is checkpointed per level. A level whose copy is

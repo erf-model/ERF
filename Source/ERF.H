@@ -437,6 +437,10 @@ public:
     bool writeNow (double cur_time, const int nstep, const int plot_int,
                    const double plot_per, const double dt_0, double& last_file_time);
 
+    //! True when a level cannot sweep radiation itself -- no box on it holds a whole
+    //! column -- and so takes its radiation fields by interpolation from its parent.
+    [[nodiscard]] bool rad_level_needs_interpolation (int lev) const;
+
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
 

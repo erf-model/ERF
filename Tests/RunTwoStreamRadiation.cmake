@@ -172,11 +172,16 @@ if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
         endif()
     endforeach()
     set(seb_parity_log "${CHECKER_LOG}.seb_parity")
+    set(seb_evolved_arg "")
+    if(NOT "${SEB_EVOLVED_FROM}" STREQUAL "")
+        set(seb_evolved_arg --evolved-from ${SEB_EVOLVED_FROM})
+    endif()
     execute_process(
         COMMAND ${PYTHON_EXE} ${SEB_PARITY_CHECKER}
                 --plotfile ${SEB_PARITY_PLOTFILE}
                 --fextract ${FEXTRACT}
                 --tol ${SEB_PARITY_TOL}
+                ${seb_evolved_arg}
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${seb_parity_log}"
         ERROR_FILE "${seb_parity_log}"

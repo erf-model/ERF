@@ -313,6 +313,10 @@ for one physical surface, so ERF keeps them consistent in three places:
   averaged onto the coarse level, exactly as the atmospheric state is. This runs under
   ``erf.coupling_type = TwoWay``; with ``OneWay`` the levels are left to evolve independently,
   which is what that option asks for everywhere else as well.
+  A level that cannot sweep is skipped: one whose boxes do not span the domain in
+  :math:`z` takes its radiation fields from its parent and never advances a surface state
+  of its own, so averaging its copy down would overwrite the coarse surface underneath the
+  patch with the value it was created with.
 - **A regrid keeps what the surface had reached.** Rebuilding a level reallocates its surface
   fields, so the pre-regrid values are copied back onto the new grids, with cells the new grids
   added filled from the parent.

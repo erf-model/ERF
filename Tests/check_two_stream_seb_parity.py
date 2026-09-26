@@ -76,6 +76,12 @@ def main():
                              'physical one (default: 1e-8)')
     parser.add_argument('--scratch-prefix', default='seb_parity_slice',
                         help='prefix for the slice files this writes')
+    parser.add_argument('--evolved-from', type=float, default=None,
+                        help='instead of comparing levels, assert every cell of the COARSE '
+                             'level has moved away from this value (the initial '
+                             'erf.rad_t_sfc). Catches a coarse surface pinned at its '
+                             'level-creation value by an average-down off a level that '
+                             'never advanced its own copy.')
     args = parser.parse_args()
 
     if args.ref_ratio < 2:
@@ -93,6 +99,24 @@ def main():
     except (OSError, RuntimeError, ValueError) as exc:
         print(f'ERROR: {exc}', file=sys.stderr)
         return 2
+
+    # A shallow nest does not sweep, so its surface state stays frozen at what
+    # fill_seb_from_coarse wrote and there is no fine solution to compare against. What
+    # must hold instead is that the coarse level kept evolving underneath it.
+    if args.evolved_from is not None:
+        worst_cell = min(coarse, key=lambda v: abs(v - args.evolved_from))
+        gap = abs(worst_cell - args.evolved_from)
+        print(f'{args.var}: {len(coarse)} cells on level {args.coarse_level}')
+        print(f'  closest cell to {args.evolved_from}: {worst_cell!r} (gap {gap:.6e})')
+        print(f'  tolerance                         : {args.tol:.6e}')
+        if gap <= args.tol:
+            print(f'FAIL: a cell of level {args.coarse_level} is still at '
+                  f'{args.evolved_from}, its level-creation value. The coarse surface was '
+                  f'overwritten by a level that never advanced its own copy.',
+                  file=sys.stderr)
+            return 1
+        print('PASS: the coarse surface state evolved everywhere.')
+        return 0
 
     ratio = args.ref_ratio ** (args.fine_level - args.coarse_level)
     if len(fine) != ratio * len(coarse):

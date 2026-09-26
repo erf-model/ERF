@@ -4029,7 +4029,9 @@ vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The
 evolves the surface temperature that the longwave boundary condition reads -- may be combined
 with ``amr.max_level > 0``: a new level's surface state is interpolated from its parent, the
 fine levels' state is averaged down after they advance (under ``erf.coupling_type = TwoWay``),
-and a regrid keeps what the surface had reached. A fine level therefore starts from its parent's
+and a regrid keeps what the surface had reached. The average-down is skipped for a level
+whose boxes do not span the domain in :math:`z`, since such a level takes its radiation
+from its parent and never evolves a surface of its own. A fine level therefore starts from its parent's
 surface rather than resolving more surface structure than the coarse grid did. The fields are
 written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
 
