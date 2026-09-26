@@ -19,6 +19,12 @@ tuolumne_hip_6.4.0_build:
 
     ERF_ENABLE_FFT: "ON"
 
+    # HDF5+NetCDF:
+    ERF_ENABLE_NETCDF: "ON"
+    HDF5_ROOT: "/usr/workspace/accatm/software/tuolumne/hdf5-1.14.5"
+    NETCDF_DIR: "/usr/workspace/accatm/software/tuolumne/netcdf-c-4.9.2"
+    EXTRA_CMAKE_ARGS: "-DNETCDF_INCLUDE_DIRS=$NETCDF_DIR/include/"
+
     # RRTMGP/Kokkos options:
     #ERF_ENABLE_EKAT=ON
     #ERF_ENABLE_KOKKOS=ON

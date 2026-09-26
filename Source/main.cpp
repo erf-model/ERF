@@ -12,6 +12,10 @@
 #include <AMReX_MPMD.H>
 #endif
 
+#ifdef ERF_USE_KOKKOS
+#include <Kokkos_Core.hpp>
+#endif
+
 std::string inputs_name;
 
 using namespace amrex;

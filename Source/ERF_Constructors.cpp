@@ -107,6 +107,9 @@ ERF::ERF_shared ()
     lsm_data.resize(nlevs_max);
     lsm_flux.resize(nlevs_max);
 
+    urban_data.resize(nlevs_max);
+    urban_flux.resize(nlevs_max);
+
     nudge_data.resize(nlevs_max);
     lsf_data.resize(nlevs_max);
 

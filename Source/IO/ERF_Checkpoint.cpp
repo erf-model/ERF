@@ -524,18 +524,27 @@ ERF::WriteCheckpointFile () const
                 VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmFlux" + std::to_string(iflux)));
             }
 
-            // Write the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
-            // to chk*/noahmp_restart/Level_<lev>.nc so a restart reproduces a
-            // cold-start trajectory bitwise (issue #3255). The LSM model writes
-            // its blocks collectively; no-op for models without such state.
-            // Create the subdir on rank 0 and barrier before the collective open
-            // so no rank races ahead of the directory existing.
-            std::string LsmRestartDir(checkpointname + "/noahmp_restart");
-            if (ParallelDescriptor::IOProcessor()) {
-                amrex::UtilCreateDirectory(LsmRestartDir, 0755);
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                VisMF::Write(*precip[lev],
+                             MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SlmPrecip"));
             }
-            ParallelDescriptor::Barrier();
-            lsm.Write_Lsm_Restart(lev, LsmRestartDir);
+
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                lsm.WriteCheckpoint(lev, checkpointname);
+            } else if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
+                // Write the full LSM prognostic state (e.g. NoahMP soil/snow/canopy)
+                // to chk*/noahmp_restart/Level_<lev>.nc so a restart reproduces a
+                // cold-start trajectory bitwise (issue #3255). The LSM model writes
+                // its blocks collectively; no-op for models without such state.
+                // Create the subdir on rank 0 and barrier before the collective open
+                // so no rank races ahead of the directory existing.
+                std::string LsmRestartDir(checkpointname + "/noahmp_restart");
+                if (ParallelDescriptor::IOProcessor()) {
+                    amrex::UtilCreateDirectory(LsmRestartDir, 0755);
+                }
+                ParallelDescriptor::Barrier();
+                lsm.Write_Lsm_Restart(lev, LsmRestartDir);
+            }
         }
 
         // Write the radiation heating rates
@@ -674,6 +683,29 @@ ERF::WriteCheckpointFile () const
                 }
                 VisMF::Write(lmask_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
                                                               "LMASK_" + std::to_string(nt)));
+
+                if (land_type_lev[lev][nt]) {
+                    MultiFab ltype_at_t = amrex::ToMultiFab(*land_type_lev[lev][nt]);
+                    VisMF::Write(ltype_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                    "LANDTYPE_" + std::to_string(nt)));
+                }
+
+                if (soil_type_lev[lev][nt]) {
+                    MultiFab stype_at_t = amrex::ToMultiFab(*soil_type_lev[lev][nt].get());
+                    VisMF::Write(stype_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                    "SOILTYPE_" + std::to_string(nt)));
+                }
+            }
+        }
+
+        if (urb_frac_lev[lev][0]) {
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab urbfrac_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                MultiFab::Copy(urbfrac_at_t,*urb_frac_lev[lev][nt],0,0,1,ng);
+                VisMF::Write(urbfrac_at_t, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                                                                  "URBAN_FRAC_" + std::to_string(nt)));
             }
         }
 
@@ -730,6 +762,10 @@ ERF::WriteCheckpointFile () const
         }
 #endif
     } // for lev
+
+    if (m_SurfaceModel) {
+        m_SurfaceModel->WriteCheckpoint(checkpointname);
+    }
 
     // Write zlevels to its own directory and read it as well, similar to bdy data
     if (ParallelDescriptor::IOProcessor()) {
@@ -1320,6 +1356,37 @@ ERF::ReadCheckpointFile ()
                 VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
                 MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
             }
+
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                const std::string precip_file =
+                    MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SlmPrecip");
+                if (amrex::FileExists(precip_file + "_H")) {
+                    VisMF::Read(*precip[lev], precip_file);
+                } else {
+                    amrex::Warning("Checkpoint has no SLM precipitation baseline; "
+                                   "seeding it from the cumulative precipitation field");
+                    precip[lev]->setVal(0.0);
+                    const auto precip_sources = micro
+                        ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                        : SurfacePrecipAccumulationSources{};
+                    const bool use_total = surface_precip_has_total_source(precip_sources);
+                    for (MFIter mfi(*precip[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+                        const Box& box2d = mfi.tilebox();
+                        auto precip_arr = precip[lev]->array(mfi);
+                        const MultiFab* source = use_total ? precip_sources.total.accum
+                                                           : precip_sources.rain.accum;
+                        auto source_arr = source ? source->const_array(mfi) : Array4<const Real>{};
+                        const Real factor = use_total ? precip_sources.total.native_to_kg_m2
+                                                      : precip_sources.rain.native_to_kg_m2;
+                        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            precip_arr(i,j,k) = source_arr ? source_arr(i,j,k) * factor : Real(0.0);
+                        });
+                    }
+                }
+            }
+
+            lsm.ReadCheckpoint(lev, restart_chkfile);
         }
 
         // Two-stream radiation: the force-restore surface state
@@ -1452,6 +1519,65 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
+        std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");
+        if (amrex::FileExists(LTypeFileName))
+        {
+            amrex::Print() << "Reading LANDTYPE data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab ltype_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(ltype_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                               "LANDTYPE_" + std::to_string(nt)));
+                for (MFIter mfi(ltype_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = land_type_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = ltype_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        }
+
+        std::string STypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SOILTYPE_0_H");
+        if (amrex::FileExists(STypeFileName))
+        {
+            amrex::Print() << "Reading SOILTYPE data" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab stype_at_t(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(stype_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                               "SOILTYPE_" + std::to_string(nt)));
+                for (MFIter mfi(stype_at_t); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.growntilebox();
+                    Array4<int>  const& dst_arr = soil_type_lev[lev][nt]->array(mfi);
+                    Array4<Real> const& src_arr = stype_at_t.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dst_arr(i,j,k) = int(src_arr(i,j,k));
+                    });
+                }
+            }
+        }
+
+        std::string FirstUrbanFracFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "URBAN_FRAC_0_H");
+        if (amrex::FileExists(FirstUrbanFracFileName))
+        {
+            amrex::Print() << "Reading Urban fraction" << std::endl;
+            int ntimes = 1;
+            ng = vars_new[lev][Vars::cons].nGrowVect(); ng[2]=0;
+            MultiFab urbfrac_at_t(ba2d[lev],dmap[lev],1,ng);
+            urb_frac_lev[lev][0] = std::make_unique<MultiFab>(ba2d[lev],dmap[lev],1,ng);
+            for (int nt(0); nt<ntimes; ++nt) {
+                VisMF::Read(urbfrac_at_t, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                                                                 "URBAN_FRAC_" + std::to_string(nt)));
+                MultiFab::Copy(*urb_frac_lev[lev][nt],urbfrac_at_t,0,0,1,ng);
+            }
+        }
+
         IntVect ngv = vars_new[lev][Vars::cons].nGrowVect(); ngv[2] = 0;
 
         // Read lat/lon if it exists
@@ -1516,7 +1642,7 @@ ERF::ReadCheckpointFile ()
     // MakeNewLevelFromScratch has already reset itimestep to 0 (NoahmpIOVarInit);
     // override it here from the checkpoint. Older checkpoints without this file
     // restart with the legacy reset-to-zero behavior.
-    if (solverChoice.lsm_type != LandSurfaceType::None) {
+    if (solverChoice.lsm_type == LandSurfaceType::NOAHMP) {
         std::string LsmStepFileName(restart_chkfile + "/lsm_step");
         if (amrex::FileExists(LsmStepFileName)) {
             Vector<char> LsmStepCharPtr;
