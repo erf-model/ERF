@@ -58,6 +58,7 @@ public:
         t_surf.resize(m_nlevs);
 
         wavg.resize(m_nlevs);
+        m_single_provider_weights_initialized.resize(m_nlevs, false);
 
         m_ba2d.resize(m_nlevs);
         m_geom2d.resize(m_nlevs);
@@ -103,6 +104,7 @@ public:
             t_surf.resize(m_nlevs);
 
             wavg.resize(m_nlevs);
+            m_single_provider_weights_initialized.resize(m_nlevs, false);
 
             m_dmap.resize(m_nlevs);
             m_ba.resize(m_nlevs);
@@ -159,6 +161,7 @@ public:
         // the weight average factors for this new level will get calculated on the next call to weight average
         wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
+        m_single_provider_weights_initialized[lev] = false;
 
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
@@ -790,6 +793,9 @@ private:
 
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;
+
+    // Single-provider weights are invariant after they are initialized for a level.
+    amrex::Vector<int> m_single_provider_weights_initialized;
 
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::BoxArray> m_ba2d;

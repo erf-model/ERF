@@ -53,11 +53,13 @@ void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
         const auto source_arr = source->const_array(mfi);
         auto weighted_arr = weighted->array(mfi);
         const auto weights_arr = wavg[lev]->const_array(mfi);
+        const bool use_weights = m_use_land && m_use_urban;
 
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            weighted_arr(i, j, k) = source_arr(i, j, k) *
-                weights_arr(i, j, 0, type);
+            weighted_arr(i, j, k) = use_weights
+                ? source_arr(i, j, k) * weights_arr(i, j, 0, type)
+                : source_arr(i, j, k);
         });
     }
 
@@ -119,10 +121,15 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real land = (lsm_data_arr) ? lsm_data_arr(i, j, lsm_khi) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
-                Real urb  = (urban_data_arr) ? urban_data_arr(i, j, urban_klo) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
-
-                output_arr(i, j, k, comp) = land + urb;
+                if (valid_land && use_land && !use_urban) {
+                    output_arr(i, j, k, comp) = lsm_data_arr(i, j, lsm_khi);
+                } else if (valid_urban && use_urban && !use_land) {
+                    output_arr(i, j, k, comp) = urban_data_arr(i, j, urban_klo);
+                } else {
+                    Real land = (lsm_data_arr) ? lsm_data_arr(i, j, lsm_khi) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
+                    Real urb  = (urban_data_arr) ? urban_data_arr(i, j, urban_klo) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
+                    output_arr(i, j, k, comp) = land + urb;
+                }
 
             });
         }
@@ -426,6 +433,19 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
 
     const bool use_land = m_use_land;
     const bool use_urban = m_use_urban;
+
+    if (!(use_land && use_urban)) {
+        if (m_single_provider_weights_initialized[lev]) {
+            m_weights_updated = true;
+            return;
+        }
+
+        wavg[lev]->setVal(use_land ? 1.0 : 0.0, SurfaceModelType::LAND, 1, 0);
+        wavg[lev]->setVal(use_urban ? 1.0 : 0.0, SurfaceModelType::URBAN, 1, 0);
+        m_single_provider_weights_initialized[lev] = true;
+        m_weights_updated = true;
+        return;
+    }
 
     for (MFIter mfi(*wavg[lev], TileNoZ()); mfi.isValid(); ++mfi)
     {
